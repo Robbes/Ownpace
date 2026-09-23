@@ -50,9 +50,9 @@ import {
   startPlatformPause,
   endPlatformPause,
 } from '../services/platform-service.ts';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
-import { isFailureCategory, isFailureSide } from '@openmig/shared';
+import { FAILURE_CATEGORIES, isFailureCategory, isFailureSide } from '@openmig/shared';
 import {
   listSupportTenants,
   getSupportTenant,
@@ -68,6 +68,9 @@ import {
   type SupportRetainedInvoice,
   getSupportPlatform,
   type PlatformStatus,
+  readSupportLog,
+  type SupportLogEntry,
+  type SupportLogFilters,
 } from '../services/support.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
 import { serverMessage } from '../services/api.ts';
@@ -493,6 +496,14 @@ export const SupportTenants: React.FC = () => {
       <Disclosure />
       <Hint className="mb-4" text={t('support.metadataOnly')} why={t('support.metadataOnly.why')} />
 
+      {/* The log (0129 T2), across every organisation. Each organisation's and
+          each migration's own page opens it filtered to them. */}
+      <p className="mb-2 text-sm">
+        <Link to="/support/log" className="text-blue-700 hover:underline">
+          {t('support.log.link')}
+        </Link>
+      </p>
+
       {/* Reachable from here because it is reachable from nowhere else: the
           organisations it concerns have been erased, so no tenant row leads to
           it. A screen nobody can navigate to is the gap this closed. */}
@@ -814,6 +825,14 @@ export const SupportTenantDetail: React.FC = () => {
       <p className="mb-4 text-sm text-gray-600">
         {t('support.joinedOn')} {dateTime(tenant.joined_at)} · {tenant.tenant_status}
       </p>
+      <p className="mb-4 text-sm">
+        <Link
+          to={`/support/log?tenantId=${tenant.tenant_id}`}
+          className="text-blue-700 hover:underline"
+        >
+          {t('support.log.forOrganisation')}
+        </Link>
+      </p>
       {/* Said as a sentence rather than left as a number in a table: the
           operator's next action differs, and "there are two things waiting for
           you on your decisions screen" is the first sentence of that call. */}
@@ -976,6 +995,14 @@ export const SupportMigrationDetail: React.FC = () => {
     <div>
       <Heading title={migration.name ?? migration.mapping_id} back={backToTenant} />
       <Disclosure />
+      <p className="mb-4 text-sm">
+        <Link
+          to={`/support/log?mappingId=${migration.mapping_id}`}
+          className="text-blue-700 hover:underline"
+        >
+          {t('support.log.forMigration')}
+        </Link>
+      </p>
       <p className="mb-4 text-sm text-gray-600">
         {migration.lifecycle}
         {migration.schedule ? ` · ${migration.schedule}` : ''}
@@ -1103,6 +1130,309 @@ export const SupportRetainedInvoices: React.FC = () => {
             </tbody>
           </table>
         </Section>
+      )}
+    </div>
+  );
+};
+
+/* ----------------------------------------------------------------- the log */
+
+/** The filters the page keeps in its address, so a search is a link. */
+const LOG_FILTER_KEYS = [
+  'level',
+  'tenantId',
+  'mappingId',
+  'event',
+  'category',
+  'reference',
+  'since',
+  'before',
+  'beforeId',
+] as const;
+
+const LOG_LEVEL_KEY: Record<SupportLogEntry['level'], StringKey> = {
+  error: 'support.log.level.error',
+  warn: 'support.log.level.warn',
+  info: 'support.log.level.info',
+};
+
+const DAY_MS = 86_400_000;
+
+/** A date field's day, as the first instant of it in UTC. */
+const startOfDay = (day: string): string => `${day}T00:00:00Z`;
+
+/** A date field's day, as the first instant AFTER it: the log's `before` is exclusive. */
+const endOfDay = (day: string): string =>
+  new Date(Date.parse(startOfDay(day)) + DAY_MS).toISOString();
+
+/** The day a `before` bound closes, for the date field; nothing for an address somebody mangled. */
+const lastDayBefore = (before: string): string => {
+  const at = Date.parse(before);
+  return Number.isNaN(at) ? '' : new Date(at - DAY_MS).toISOString().slice(0, 10);
+};
+
+/**
+ * The log (workplan 0129 T2): the audit log and the application's errors and
+ * warnings, newest first, a hundred rows a page. Metadata only, as the view
+ * serves it; what an audit event changed is not on this screen.
+ *
+ * The filters live in the address, so a search is a link: an organisation's
+ * page and a migration's page open this one filtered to them, and "Older" is
+ * the same page with a cursor. Every fetch is recorded as a search
+ * (managed migration 0025), so a page is fetched once and never again behind
+ * the operator's back (`ONCE`).
+ */
+export const SupportLog: React.FC = () => {
+  const t = useT();
+  const { dateTime } = useFormatters();
+  const [params, setParams] = useSearchParams();
+  // Checked by the API, which answers a malformed one with a sentence naming it.
+  const filters = Object.fromEntries(
+    LOG_FILTER_KEYS.flatMap((key) => {
+      const value = params.get(key);
+      return value ? [[key, value]] : [];
+    }),
+  ) as SupportLogFilters;
+  const query = useQuery({
+    queryKey: ['support', 'log', filters],
+    queryFn: () => readSupportLog(filters),
+    retry: false,
+    ...ONCE,
+  });
+
+  // What the form holds until the operator presses Search. A `before` with no
+  // `beforeId` is a date the operator chose; with one, it is a page's cursor.
+  const chosenBefore = filters.before && !filters.beforeId ? filters.before : undefined;
+  const [level, setLevel] = React.useState<string>(filters.level ?? '');
+  const [event, setEvent] = React.useState(filters.event ?? '');
+  const [category, setCategory] = React.useState(filters.category ?? '');
+  const [reference, setReference] = React.useState(filters.reference ?? '');
+  const [from, setFrom] = React.useState(filters.since?.slice(0, 10) ?? '');
+  const [to, setTo] = React.useState(chosenBefore ? lastDayBefore(chosenBefore) : '');
+
+  const search = (e: React.FormEvent) => {
+    e.preventDefault();
+    const next = new URLSearchParams();
+    if (filters.tenantId) next.set('tenantId', filters.tenantId);
+    if (filters.mappingId) next.set('mappingId', filters.mappingId);
+    if (level) next.set('level', level);
+    if (event.trim()) next.set('event', event.trim());
+    if (category) next.set('category', category);
+    if (reference.trim()) next.set('reference', reference.trim());
+    if (from) next.set('since', startOfDay(from));
+    if (to) next.set('before', endOfDay(to));
+    setParams(next);
+  };
+
+  /** This page's address with some filters changed, and the cursor dropped. */
+  const withFilters = (changes: Record<string, string | null>): string => {
+    const next = new URLSearchParams(params);
+    next.delete('beforeId');
+    if (!chosenBefore) next.delete('before');
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    const q = next.toString();
+    return q ? `/support/log?${q}` : '/support/log';
+  };
+
+  const page = query.data;
+  const entries = page?.entries ?? [];
+  // The name an organisation or a migration filter is shown by: from a row
+  // that carries it, or the id when no row on this page does.
+  const organisation =
+    filters.tenantId &&
+    (entries.find((e) => e.tenant_id === filters.tenantId)?.tenant_name ?? filters.tenantId);
+  const migration =
+    filters.mappingId &&
+    (entries.find((e) => e.mapping_id === filters.mappingId)?.migration_name ?? filters.mappingId);
+
+  const label = 'block text-xs font-medium text-gray-600 mb-1';
+  const field =
+    'block w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 ' +
+    'focus:border-blue-500 focus:outline-none focus:ring-blue-500';
+
+  return (
+    <div>
+      <Heading title={t('support.log.heading')} back={{ to: '/support', label: t('support.back') }} />
+      <Disclosure />
+      <Hint className="mb-4" text={t('support.log.lead')} why={t('support.log.lead.why')} />
+
+      <form className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" onSubmit={search}>
+        <div>
+          <label htmlFor="log-level" className={label}>
+            {t('support.log.level')}
+          </label>
+          <select id="log-level" className={field} value={level} onChange={(e) => setLevel(e.target.value)}>
+            <option value="">{t('support.log.level.any')}</option>
+            {(['error', 'warn', 'info'] as const).map((l) => (
+              <option key={l} value={l}>
+                {t(LOG_LEVEL_KEY[l])}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="log-event" className={label}>
+            {t('support.log.event')}
+          </label>
+          <input id="log-event" className={field} value={event} onChange={(e) => setEvent(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="log-category" className={label}>
+            {t('support.log.category')}
+          </label>
+          <select
+            id="log-category"
+            className={field}
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">{t('support.log.category.any')}</option>
+            {FAILURE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="log-reference" className={label}>
+            {t('support.log.reference')}
+          </label>
+          <input
+            id="log-reference"
+            className={field}
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+          />
+        </div>
+        <div>
+          <label htmlFor="log-from" className={label}>
+            {t('support.log.from')}
+          </label>
+          <input id="log-from" type="date" className={field} value={from} onChange={(e) => setFrom(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="log-to" className={label}>
+            {t('support.log.to')}
+          </label>
+          <input id="log-to" type="date" className={field} value={to} onChange={(e) => setTo(e.target.value)} />
+        </div>
+        <div className="flex items-end">
+          <button
+            type="submit"
+            className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            {t('support.log.search')}
+          </button>
+        </div>
+      </form>
+
+      {(organisation || migration) && (
+        <p className="mb-4 flex flex-wrap gap-2 text-sm">
+          {organisation && (
+            <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5">
+              {t('support.log.organisation', { name: organisation })}
+              <Link to={withFilters({ tenantId: null })} aria-label={t('support.log.remove')}>
+                ×
+              </Link>
+            </span>
+          )}
+          {migration && (
+            <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5">
+              {t('support.log.migration', { name: migration })}
+              <Link to={withFilters({ mappingId: null })} aria-label={t('support.log.remove')}>
+                ×
+              </Link>
+            </span>
+          )}
+        </p>
+      )}
+
+      {query.isLoading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
+      {query.isError && <p className="text-sm text-red-700">{serverMessage(query.error)}</p>}
+
+      {page && (
+        <Section title={t('support.log.heading')} empty={t('support.log.none')} rows={entries.length}>
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2">{t('support.log.col.time')}</th>
+                <th className="px-3 py-2">{t('support.log.col.level')}</th>
+                <th className="px-3 py-2">{t('support.log.col.organisation')}</th>
+                <th className="px-3 py-2">{t('support.log.col.migration')}</th>
+                <th className="px-3 py-2">{t('support.log.col.event')}</th>
+                <th className="px-3 py-2">{t('support.log.col.category')}</th>
+                <th className="px-3 py-2">{t('support.log.col.reference')}</th>
+                <th className="px-3 py-2">{t('support.log.col.actor')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-600">{dateTime(e.at)}</td>
+                  <td
+                    className={`px-3 py-2 ${
+                      e.level === 'error' ? 'text-red-700' : e.level === 'warn' ? 'text-amber-700' : 'text-gray-600'
+                    }`}
+                  >
+                    {t(LOG_LEVEL_KEY[e.level])}
+                  </td>
+                  <td className="px-3 py-2">
+                    {e.tenant_id ? (
+                      <Link to={withFilters({ tenantId: e.tenant_id })} className="text-blue-700 hover:underline">
+                        {e.tenant_name ?? e.tenant_id}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {e.mapping_id ? (
+                      <Link to={withFilters({ mappingId: e.mapping_id })} className="text-blue-700 hover:underline">
+                        {e.migration_name ?? e.mapping_id}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <code className="text-xs text-gray-900">{e.event}</code>
+                  </td>
+                  <td className="px-3 py-2">
+                    {e.category && <code className="text-xs text-gray-600">{e.category}</code>}
+                  </td>
+                  <td className="px-3 py-2">
+                    {e.reference && <code className="text-xs text-gray-600">{e.reference}</code>}
+                  </td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {e.actor ?? (e.source === 'app' ? t('support.log.byTheService') : '—')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
+
+      {page && (page.next || filters.beforeId) && (
+        <p className="flex gap-4 text-sm">
+          {filters.beforeId && (
+            <Link to={withFilters({})} className="text-blue-700 hover:underline">
+              {t('support.log.newest')}
+            </Link>
+          )}
+          {page.next && (
+            <Link
+              to={withFilters({ before: page.next.before, beforeId: page.next.beforeId })}
+              className="text-blue-700 hover:underline"
+            >
+              {t('support.log.older')}
+            </Link>
+          )}
+        </p>
       )}
     </div>
   );

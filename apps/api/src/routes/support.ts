@@ -55,6 +55,7 @@ import { sql } from 'drizzle-orm';
 import { withSubject, holdsASlot, PATH_STATES } from '@openmig/ledger';
 import type { LedgerDriver, PathState } from '@openmig/ledger';
 import { recordSupportRead, observedTier } from '@openmig/managed';
+import { isFailureCategory } from '@openmig/shared';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -551,6 +552,176 @@ router.get(
     }
   },
 );
+
+/**
+ * THE LOG (workplan 0129 T2): the audit log and the application's errors and
+ * warnings, one timeline, newest first, a page at a time.
+ *
+ * ## The view is the boundary
+ *
+ * Read through `support_log` and nothing else. The view is where "metadata
+ * only" is held (managed migration 0025): it has no column for
+ * `audit_log.detail`, it shows a member's address in place of their subject,
+ * and it serves an action or an actor that is not a name from code as nothing
+ * readable. This route adds no column, and could not.
+ *
+ * ## A search, recorded as one
+ *
+ * Like `/people`, every page served is a `support_read` row carrying the
+ * filters asked for and how many rows came back (0019's reason: "an operator
+ * read the log" cannot tell a look at one failure from a survey of every
+ * customer, and the filters can). A page filtered to one customer, or to one
+ * of its migrations, is recorded under that customer, so "who looked at this
+ * customer" finds it too; the customer's id is then in `tenant_id`, and not
+ * repeated in the query.
+ *
+ * ## Every filter has a shape
+ *
+ * Each is checked before it reaches the query, and a value of the wrong shape
+ * is a 400 naming the field, not an empty page: an operator who mistyped a
+ * reference should be told so, rather than shown that nothing matches.
+ *
+ * ## Paging
+ *
+ * Newest first by (at, id), a hundred rows a page. The cursor is the last
+ * row's time to the microsecond, as text, and its id. A JavaScript date keeps
+ * milliseconds, and a cursor cut to those would skip every row written later
+ * in the same millisecond.
+ */
+export const LOG_PAGE = 100;
+const LOG_LEVELS = ['error', 'warn', 'info'] as const;
+const LOG_EVENT = /^[a-z][a-z0-9_.:-]{0,63}$/;
+const LOG_REFERENCE = /^[0-9a-f]{8}$/;
+const LOG_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+
+/** A time in the one form the page sends, and a real one: 2026-02-30 is refused, not rolled over. */
+function isLogTime(value: string): boolean {
+  if (!LOG_TIME.test(value)) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 19) === value.slice(0, 19);
+}
+
+/** The filters, in the order the recorded query names them. */
+const LOG_FILTERS = [
+  ['level', (v: string) => (LOG_LEVELS as readonly string[]).includes(v), 'A level is error, warn or info.'],
+  ['tenantId', (v: string) => oneUuid(v) !== null, 'A customer is named by its id.'],
+  ['mappingId', (v: string) => oneUuid(v) !== null, 'A migration is named by its id.'],
+  ['event', (v: string) => LOG_EVENT.test(v), 'An event is a name such as sync.calendar.failed, or the start of one.'],
+  ['category', (v: string) => isFailureCategory(v), 'That is not one of the error categories.'],
+  ['reference', (v: string) => LOG_REFERENCE.test(v), 'A reference is eight characters, 0-9 and a-f.'],
+  ['since', isLogTime, 'A time is written like 2026-09-23T10:00:00Z.'],
+  ['before', isLogTime, 'A time is written like 2026-09-23T10:00:00Z.'],
+  ['beforeId', (v: string) => oneUuid(v) !== null, 'A page is continued from a row id.'],
+] as const;
+
+type LogFilterName = (typeof LOG_FILTERS)[number][0];
+type LogFilters = Partial<Record<LogFilterName, string>>;
+
+/** The filters as asked, or the first one of the wrong shape. */
+function logFilters(query: Record<string, unknown>): LogFilters | { field: string; message: string } {
+  const filters: LogFilters = {};
+  for (const [field, ok, message] of LOG_FILTERS) {
+    const raw = query[field];
+    if (raw === undefined || raw === '') continue;
+    // A reference is quoted by a person, who may type it in capitals.
+    const value = typeof raw === 'string' ? (field === 'reference' ? raw.trim().toLowerCase() : raw.trim()) : '';
+    if (!ok(value)) return { field, message };
+    filters[field] = value;
+  }
+  if (filters.beforeId && !filters.before) {
+    return { field: 'beforeId', message: 'A page is continued from a row id and its time.' };
+  }
+  return filters;
+}
+
+/** What was searched for, as `support_read.query` records it: every filter but the customer's. */
+function logQuery(filters: LogFilters): string {
+  return LOG_FILTERS.map(([field]) => field)
+    .filter((field) => field !== 'tenantId' && filters[field] !== undefined)
+    .map((field) => `${field}=${filters[field]}`)
+    .join(' ');
+}
+
+router.get('/log', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return void res
+        .status(401)
+        .json({ error: 'Unauthorized', message: 'No subject on this request' });
+    }
+    const filters = logFilters(req.query as Record<string, unknown>);
+    if ('field' in filters) {
+      return void res
+        .status(400)
+        .json({ error: 'Bad request', field: filters.field, message: filters.message });
+    }
+
+    const where = [
+      sql`true`,
+      ...(filters.level ? [sql`level = ${filters.level}`] : []),
+      ...(filters.tenantId ? [sql`tenant_id = ${filters.tenantId}::uuid`] : []),
+      ...(filters.mappingId ? [sql`mapping_id = ${filters.mappingId}::uuid`] : []),
+      // The start of a name. `_` is a wildcard to LIKE and a letter to an event
+      // name, so it is escaped; the shape check admits no `%` or `\`.
+      ...(filters.event
+        ? [sql`event LIKE ${`${filters.event.replace(/_/g, '\\_')}%`} ESCAPE '\\'`]
+        : []),
+      ...(filters.category ? [sql`category = ${filters.category}`] : []),
+      ...(filters.reference ? [sql`reference = ${filters.reference}`] : []),
+      ...(filters.since ? [sql`at >= ${filters.since}::timestamptz`] : []),
+      ...(filters.before
+        ? [
+            filters.beforeId
+              ? sql`(at, id) < (${filters.before}::timestamptz, ${filters.beforeId}::uuid)`
+              : sql`at < ${filters.before}::timestamptz`,
+          ]
+        : []),
+    ];
+
+    const page = await withSubject(pool(), userId, async (db) => {
+      const result = await db.execute(
+        sql`SELECT id,
+                   to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS at,
+                   source, level, tenant_id, tenant_name, mapping_id, migration_name,
+                   event, category, reference, actor
+              FROM public.support_log
+             WHERE ${sql.join(where, sql` AND `)}
+             ORDER BY support_log.at DESC, support_log.id DESC
+             LIMIT ${LOG_PAGE + 1}`,
+      );
+      const rows = result.rows as Row[];
+      // The customer a migration belongs to, when the page was filtered to the
+      // migration alone: read back through the view, as `/migrations/:id` does.
+      let tenantId: string | null = filters.tenantId ?? null;
+      if (!tenantId && filters.mappingId) {
+        const owner = await db.execute(
+          sql`SELECT tenant_id FROM public.support_tenant_migrations
+               WHERE mapping_id = ${filters.mappingId}::uuid`,
+        );
+        tenantId = ((owner.rows[0] as Row | undefined)?.tenant_id as string | undefined) ?? null;
+      }
+      const served = rows.slice(0, LOG_PAGE);
+      await recordSupportRead(db, {
+        operatorUserId: userId,
+        tenantId,
+        view: 'log',
+        query: logQuery(filters),
+        resultCount: served.length,
+      });
+      return { served, more: rows.length > LOG_PAGE };
+    });
+
+    const last = page.served[page.served.length - 1];
+    res.json({
+      entries: page.served,
+      next: page.more && last ? { before: last.at, beforeId: last.id } : null,
+      limit: LOG_PAGE,
+    });
+  } catch (error) {
+    serverFault(res, 'support_log_failed', 'reading the log', error);
+  }
+});
 
 /**
  * THE PLATFORM STATUS THE CUSTOMER SEES (workplan 0110 T5, the last half).

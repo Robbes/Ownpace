@@ -958,6 +958,32 @@ members, so the third row above is one click rather than a hunt. The link is
 `VITE_IDP_CONSOLE_USER_URL`, which `setup-zitadel.sh` writes; leave it empty and
 the addresses render as plain text rather than as links that go nowhere.
 
+**The log.** Support links to **The log** (workplan 0129): the audit log and the
+application's own errors and warnings, one timeline, newest first, a hundred
+rows a page. A row is metadata only: time, level, organisation, migration,
+event, error category, reference number and, on an audit row, who acted (the
+member's address, or the process's own name). Narrow it by level, the start of
+an event name, category, reference or dates; an organisation's page and a
+migration's page open it narrowed to them. When somebody quotes the reference
+an error showed them, type it into **Reference**: the row says when, where and
+what kind of error, and the error's text is in the API's or the worker's
+output, on the line carrying the same `[ref …]`.
+
+What an audit event changed is not on the page. It stays in `audit_log.detail`
+until the organisation is erased, and an investigation reads it as the database
+owner:
+
+```sql
+SELECT at, actor, action, detail
+  FROM audit_log
+ WHERE tenant_id = '<the organisation id>'
+ ORDER BY at DESC
+ LIMIT 50;
+```
+
+Every page of the log you open is recorded in `support_read` with its filters,
+under the organisation it was narrowed to.
+
 **The console needs its own grant, and its own sign-in.** An Ownpace operator is
 not automatically anybody at the identity provider: `setup-zitadel.sh` creates
 the machine user and gives no human a role, deliberately — it cannot know which

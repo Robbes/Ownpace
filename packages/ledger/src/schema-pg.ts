@@ -1189,7 +1189,7 @@ export const auditLog = pgTable(
     detail: jsonb('detail'),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('ix_audit_tenant').on(t.tenantId, t.at)],
+  (t) => [index('ix_audit_tenant').on(t.tenantId, t.at), index('ix_audit_at').on(t.at)],
 );
 
 /**

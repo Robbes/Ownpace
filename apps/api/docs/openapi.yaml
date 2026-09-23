@@ -4447,6 +4447,82 @@ paths:
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/support/log:
+    get:
+      tags: [Support]
+      summary: The log, newest first
+      description: |
+        The operator's log page (workplan 0129 T2): the audit log and the
+        application's errors and warnings, one timeline, newest first, a
+        hundred rows a page. Read through `support_log` (managed migration
+        0025), which holds the page to metadata only: time, level, customer,
+        migration, event, category, reference and, on an audit row, who acted.
+        Never `audit_log.detail`, which an investigation reads with a database
+        query.
+
+        Every page served is recorded in the support read log as a search:
+        its filters and how many rows came back, under the customer it was
+        filtered to (or whose migration it was filtered to). A non-operator
+        gets `200` with nothing, and nothing is recorded.
+      parameters:
+        - name: level
+          in: query
+          schema: { type: string, enum: [error, warn, info] }
+          description: '`info` is an audit row; `error` and `warn` are the application''s.'
+        - name: tenantId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: mappingId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: event
+          in: query
+          schema: { type: string, pattern: '^[a-z][a-z0-9_.:-]{0,63}$' }
+          description: The start of an event name, such as `sync.` or `sync.calendar.failed`.
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [auth_expired, rate_limited, quota_exceeded, policy_refused, source_refused, target_refused, format_refused, network, unknown]
+        - name: reference
+          in: query
+          schema: { type: string, pattern: '^[0-9a-fA-F]{8}$' }
+          description: The reference a person was shown. Case does not matter.
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+          description: Rows at or after this time. Written like `2026-09-23T10:00:00Z`.
+        - name: before
+          in: query
+          schema: { type: string, format: date-time }
+          description: Rows before this time, to the microsecond. With `beforeId`, the cursor of the next page.
+        - name: beforeId
+          in: query
+          schema: { type: string, format: uuid }
+          description: With `before`, continues after this row, so rows written in the same instant are neither skipped nor repeated.
+      responses:
+        '200':
+          description: One page of the log.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/SupportLogEntry' }
+                  next:
+                    type: object
+                    nullable: true
+                    description: The cursor of the next page, or null on the last.
+                    properties:
+                      before: { type: string, format: date-time }
+                      beforeId: { type: string, format: uuid }
+                  limit: { type: integer, description: Rows per page. }
+        '400':
+          description: A filter of the wrong shape, named in `field`.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /api/support/platform:
     get:
       tags: [Support]
@@ -4856,6 +4932,29 @@ components:
         role: { type: string, enum: [owner, admin, member, viewer] }
         status: { type: string, enum: [active, invited, suspended, removed] }
         joined_at: { type: string, format: date-time, nullable: true }
+    SupportLogEntry:
+      type: object
+      description: |
+        One row of the log: an audit event (`source: audit`, level `info`) or
+        one of the application's errors and warnings (`source: app`). Metadata
+        only. `actor` is the member's address when the subject is a member, the
+        process's own name, or null; an application event has none.
+      properties:
+        id: { type: string, format: uuid }
+        at:
+          type: string
+          format: date-time
+          description: To the microsecond, in UTC.
+        source: { type: string, enum: [audit, app] }
+        level: { type: string, enum: [error, warn, info] }
+        tenant_id: { type: string, format: uuid, nullable: true }
+        tenant_name: { type: string, nullable: true }
+        mapping_id: { type: string, format: uuid, nullable: true }
+        migration_name: { type: string, nullable: true }
+        event: { type: string }
+        category: { type: string, nullable: true }
+        reference: { type: string, nullable: true }
+        actor: { type: string, nullable: true }
     SupportTenantMember:
       type: object
       description: |

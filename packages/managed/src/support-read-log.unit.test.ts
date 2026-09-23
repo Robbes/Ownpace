@@ -81,10 +81,10 @@ describe('what the log may record', () => {
     ).toEqual([...fromDb].sort());
   });
 
-  it('still carries the two the search added, and the four that came before', () => {
+  it('still carries the log page, the two the search added, and the four that came before', () => {
     // Named as well as derived: these are the ones whose absence has a
     // consequence somebody would have to debug rather than read.
-    for (const v of ['tenants', 'tenant', 'migration', 'retained_invoices', 'people', 'person']) {
+    for (const v of ['tenants', 'tenant', 'migration', 'retained_invoices', 'people', 'person', 'log']) {
       expect(SUPPORT_VIEWS as readonly string[]).toContain(v);
     }
   });
@@ -148,6 +148,17 @@ describe('what the database refuses to record', () => {
     await expect(write('people', null, null, null)).rejects.toThrow(/check constraint/i);
     await expect(write('people', null, 'jan', null)).rejects.toThrow(/check constraint/i);
     await expect(write('people', null, null, 3)).rejects.toThrow(/check constraint/i);
+  });
+
+  it('records a read of the log page as a search: its filters, and how many rows came back (0025)', async () => {
+    // "An operator read the log" cannot tell a look at one failure from a
+    // survey of every customer; the filters can. No filters at all is still a
+    // query, the empty one, and says exactly that.
+    await expect(write('log', null, 'level=error', 12)).resolves.toBeDefined();
+    await expect(write('log', TENANT, '', 0)).resolves.toBeDefined();
+    await expect(write('log', null, null, null)).rejects.toThrow(/check constraint/i);
+    await expect(write('log', null, 'level=error', null)).rejects.toThrow(/check constraint/i);
+    await expect(write('log', null, null, 3)).rejects.toThrow(/check constraint/i);
   });
 
   it('refuses a person who belongs to no organisation', async () => {
