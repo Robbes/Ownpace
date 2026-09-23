@@ -41,6 +41,7 @@ import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import PausedBecause from './PausedBecause.tsx';
 import { Hint } from './Hint.tsx';
+import { SendItToUs } from './SendItToUs.tsx';
 
 export const DOMAIN_KEY = DOMAIN_STRING_KEY satisfies Record<
   DomainStatusReport['domain'],
@@ -177,6 +178,17 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
                 {/* And the side, when the pass could tell (0094 T5, second
                     slice): "reconnect it" then points at the right account. */}
                 {d.failedSide && <> {t(FAILURE_SIDE_KEY[d.failedSide])}</>}
+                {/* And the way out that `unknown` promises: the report form,
+                    with this failure's reference in it (0130 T3). */}
+                {d.lastErrorCategory === 'unknown' && (
+                  <>
+                    {' '}
+                    <SendItToUs
+                      category={d.lastErrorCategory}
+                      {...(d.lastErrorReference ? { reference: d.lastErrorReference } : {})}
+                    />
+                  </>
+                )}
               </span>
             )}
             {d.lastError && (

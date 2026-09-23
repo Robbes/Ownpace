@@ -49,6 +49,7 @@ import { useT } from '../i18n/index.tsx';
 // sentence. An item's category is the same nine-way vocabulary.
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
 import { Hint } from '../components/Hint.tsx';
+import { SendItToUs } from '../components/SendItToUs.tsx';
 
 const Row: React.FC<{
   f: ItemFailure;
@@ -85,7 +86,9 @@ const Row: React.FC<{
         // English, with no remedy in any language. A domain-level failure has
         // said what to do since August; the ITEM level — the common case, and
         // the whole reason this queue exists — said nothing.
-        <div className="text-xs text-red-900">{t(FAILURE_KEY[f.category])}</div>
+        <div className="text-xs text-red-900">
+          {t(FAILURE_KEY[f.category])} <SendItToUs category={f.category} />
+        </div>
       )}
       {/*
         Verbatim, under the sentence above rather than instead of it: the

@@ -1220,6 +1220,9 @@ const en = {
   // The one whose text must carry the way OUT of self-service.
   'failure.unknown':
     'We could not classify this one. The provider\u2019s own message is below \u2014 if it does not help, send it to us and we will look.',
+  // The link that sentence's last clause promises (0130 T3): the report form,
+  // with the failure's category and reference filled in.
+  'failure.sendItToUs': 'Send it to us',
   // Which SIDE it happened on, when the pass could tell (0094 T5): said after
   // the remedy, so "reconnect it" points at the right account.
   // The reference the failure was recorded under (0129 T1), what a person
@@ -2201,6 +2204,7 @@ const nl: Record<keyof typeof en, string> = {
     'We konden de server niet bereiken. Dit duurt meestal kort en wordt vanzelf opnieuw geprobeerd.',
   'failure.unknown':
     'We konden dit niet classificeren. De melding van de provider zelf staat hieronder \u2014 helpt die niet, stuur hem ons dan en we kijken mee.',
+  'failure.sendItToUs': 'Stuur het ons',
   'failure.reference': 'Referentie: {reference}',
   'failure.side.source': 'Het gebeurde aan de bronkant.',
   'failure.side.target': 'Het gebeurde aan de doelkant.',

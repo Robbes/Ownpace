@@ -25,6 +25,16 @@ Set-up is step 8f of `docs/managed-bring-up.md`. Guards: `a-report-that-reaches-
 API (23) and the web app (7), and `a-report-link-that-can-reach-someone` (3); 23 mutations, all
 killed.
 
+**2026-09-23, T3 built: "send it to us" opens the form.** The `unknown` remedy is followed by
+**Send it to us** (*Stuur het ons*), a link to the report form with the page, the category and,
+on the progress strip, the failure's reference. The form states all three before anything is
+sent, and checks each again. It is on every customer screen that shows the sentence: the
+progress strip, a failed item's line, the failure groups and Connections. It is not on the
+operator's Support screen, since the operator is who receives the report. The link is offered
+only where a report can reach somebody: on managed, when the service takes reports, with the
+same cached answer as the link beside Sign out. The appliance has no form. Guards:
+`a-failure-that-says-send-it-to-us` in the web app (7); 7 mutations, all killed.
+
 **2026-09-23, T3's first half: the failure line has a reference to carry.** A failed data type's
 reference lived only in `app_event`, which the application's role cannot read, so nothing on the
 customer's screen could fill the form's reference in. Now the status row keeps the reference its
@@ -39,7 +49,7 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 |---|---|---|
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
-| T3 The failure line that says "send it to us" opens the form | 🟡 **Half built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in. The reference now reaches the strip; the link is next. |
+| T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
 | T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. |
 
 ## 1. What there is today
