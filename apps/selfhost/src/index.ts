@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, retentionDaysFromEnv, runRetentionDaysFromEnv } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, retentionDaysFromEnv, runRetentionDaysFromEnv } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -103,7 +103,7 @@ import {
   buildGoogleDriveSourceFrom,
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
-import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
+import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink } from '@openmig/shared';
 import {
   assembleShareAnnouncements,
   createFailureStreakGate,
@@ -404,6 +404,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     driver: persistenceBackend.driver,
     migrationsDir: options.migrationsDir ?? process.env.SELFHOST_MIGRATIONS_DIR,
   });
+  // Errors and warnings to the log page (0129 T1), in the appliance's own
+  // database and nowhere else (0129 D5).
+  setAppEventSink(appEventSinkOn(persistenceBackend.driver));
 
   // Helper to run a function with tenant context set for RLS
   const withTenantContext = async <T>(

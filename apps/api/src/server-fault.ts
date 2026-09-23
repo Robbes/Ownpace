@@ -23,9 +23,8 @@
  * everywhere.
  */
 
-import { randomUUID } from 'node:crypto';
 import type { Response } from 'express';
-import { log } from '@openmig/shared';
+import { log, newReference, recordAppEvent } from '@openmig/shared';
 
 /**
  * Log the fault with a reference and answer with a safe sentence carrying it.
@@ -34,8 +33,19 @@ import { log } from '@openmig/shared';
  * the response, so it reads as a gerund: `'listing connections'`.
  */
 export function serverFault(res: Response, code: string, doing: string, error: unknown): void {
-  const ref = randomUUID().slice(0, 8);
+  const ref = newReference();
   log.error(`[api] ${doing} failed [ref ${ref}]:`, error);
+  // And on the operator's log page (0129 T1), searchable by the same
+  // reference: the code as the event, the organisation when the request had
+  // one, and never the error's text. Not awaited: `recordAppEvent` never
+  // throws, and the answer to the person must not wait on the log.
+  const tenantId: unknown = res.locals?.tenantId;
+  void recordAppEvent({
+    level: 'error',
+    event: `api.${code}`,
+    reference: ref,
+    ...(typeof tenantId === 'string' && tenantId ? { tenantId } : {}),
+  });
   res.status(500).json({
     error: code,
     reason:

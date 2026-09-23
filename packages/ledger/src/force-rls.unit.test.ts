@@ -83,10 +83,12 @@ describe('the migration chain with 0002 applied', () => {
     // RLS tables, and invisible in production because every reader was a
     // superuser. So ask the catalogs the other question too.
     //
-    // Two tables answer it on purpose: `rate_budget` (0024) and `byte_budget`
+    // Three tables answer it on purpose: `rate_budget` (0024) and `byte_budget`
     // (0030) are consulted by system-level code with no tenant context, carry
-    // no personal data, and reveal nothing across tenants — and their
-    // migrations say so, in as many words. That sentence is the exemption,
+    // no personal data, and reveal nothing across tenants; `app_event` (0059)
+    // is written by system-level code, often with no tenant at all, holds
+    // metadata only, and no customer may read it. Their migrations say so, in
+    // as many words. That sentence is the exemption,
     // read from the file that created the table: a table that lacks row
     // security without it is a table the policies missed.
     const conn = await driver.acquire();
@@ -108,12 +110,13 @@ describe('the migration chain with 0002 applied', () => {
         'these tables carry a tenant_id but no row security, and no migration says that is deliberate — ' +
           'add ENABLE, FORCE and the four tenant policies in a migration, or record the exemption where the table is created',
       ).toEqual([]);
-      // And the exemption is not vacuous: the two deliberate ones are found,
+      // And the exemption is not vacuous: the three deliberate ones are found,
       // the sentence is read from the file that creates the table, and a
       // table without it is not exempt.
-      expect(rows.map((r) => r.relname)).toEqual(['byte_budget', 'rate_budget']);
+      expect(rows.map((r) => r.relname)).toEqual(['app_event', 'byte_budget', 'rate_budget']);
       expect(exemptedByItsMigration('rate_budget')).toBe(true);
       expect(exemptedByItsMigration('byte_budget')).toBe(true);
+      expect(exemptedByItsMigration('app_event')).toBe(true);
       expect(exemptedByItsMigration('cutover_state')).toBe(false);
       expect(exemptedByItsMigration('cutover_event')).toBe(false);
       expect(exemptedByItsMigration('no_such_table')).toBe(false);

@@ -74,6 +74,7 @@ export * from './erasure-scope.ts';
 export * from './quiesce.ts';
 export * from './token-revocation.ts';
 export * from './logger.ts';
+export * from './app-event.ts';
 export * from './metrics.ts';
 // Pricing moved to @openmig/managed (ADR-0036): an appliance has an owner,
 // not customers, and @openmig/shared is loaded by both editions.
