@@ -79,6 +79,14 @@ import {
   buildGoogleContactsDavSourceFrom,
 } from './google-dav-source-factory.ts';
 import { davEndpointFromCreds } from './dav-endpoint.ts';
+import {
+  GOOGLE_FACE_UNIT,
+  googleFaceListable,
+  googleFacesInProbeOrder,
+  googleGrantCarries,
+  readGoogleGrant,
+  type GoogleGrantDomain,
+} from './account-qualification.ts';
 
 /**
  * One probe's outcome. Never a throw for a provider-side failure: "your
@@ -289,6 +297,29 @@ async function probeMicrosoftAccount(
 }
 
 /**
+ * The Google account's headline: one face, the first the grant carries, in
+ * `googleFacesInProbeOrder` (0126 T3). Microsoft's shape (`probeMicrosoftAccount`)
+ * with one difference, kept on purpose: a grant that cannot be read — a
+ * service-account key, a stored field missing, a refused exchange — falls to
+ * the calendar face, as every Google Test did before. Its builder then refuses
+ * in the stored vocabulary, which is the answer those cases already had.
+ */
+async function probeGoogleAccount(
+  user: string,
+  config: Record<string, unknown>,
+  creds: Record<string, string>,
+  deps: ProbeDeps,
+): Promise<ProbeResult> {
+  const faces = googleFacesInProbeOrder();
+  const grant = await readGoogleGrant(creds, deps.googleTokenEndpoint);
+  const face: GoogleGrantDomain = grant.ok
+    ? (faces.find((f) => googleGrantCarries(f, grant.granted)) ?? 'calendar')
+    : 'calendar';
+  const build = deps.googleFaceSource ?? googleFaceListable;
+  return probeListable(() => build(face, user, creds, config), GOOGLE_FACE_UNIT[face]);
+}
+
+/**
  * Open an export archive far enough to count it, and NEVER answer "empty"
  * for an archive that could not be opened (workplan 0116 T1, §1).
  *
@@ -384,6 +415,15 @@ export interface ProbeDeps {
   readonly microsoftFaceSource?: MicrosoftFaceSourceBuilder;
   /** Where the Microsoft grant is read — a parameter so tests exchange against a stub. */
   readonly microsoftTokenEndpoint?: string;
+  /** Build a Google face's source some other way — a stub, in a test. */
+  readonly googleFaceSource?: (
+    face: GoogleGrantDomain,
+    user: string,
+    creds: Record<string, string>,
+    config: Record<string, unknown>,
+  ) => Listable;
+  /** Where the Google grant is read — a parameter so tests exchange against a stub. */
+  readonly googleTokenEndpoint?: string;
 }
 
 /**
@@ -467,12 +507,15 @@ async function probeSourceNow(
       // Box (workplan 0056): same route again — the builder holds the CCG
       // branching, so test-connection proves exactly what a pass builds.
       return probeListable(() => buildFileSourceFromConnection({ config, creds, kind }, undefined), 'folder', kind);
-    // The ACCOUNT kind answers with its CALENDAR face (workplan 0106 T3b),
-    // the same choice T4a made for `soverin` and for the same reason: it is
-    // the face the scheduling verdict belongs to, and a headline probe has to
-    // pick one. The other faces are not guessed from it — the qualification
-    // measures each separately and the badges report all of them.
+    // The ACCOUNT kind answers with the first face its grant CARRIES, calendar
+    // first (workplan 0126 T3). It used to be the calendar face always — the
+    // same choice T4a made for `soverin`, and the face the scheduling verdict
+    // belongs to — which was harmless while every Google grant carried the
+    // calendar. A grant for Tasks alone does not, and failed its Test for a
+    // face nobody asked for. The other faces are not guessed from the one
+    // listed here: the qualification measures each, and the badges report all.
     case GOOGLE_ACCOUNT_CONNECTION_KIND:
+      return probeGoogleAccount(user, config, creds, deps);
     case GOOGLE_CALENDAR_CONNECTION_KIND:
       return probeListable(
         () => buildGoogleCalendarDavSourceFrom(user, creds, STORED_GOOGLE_DAV_CREDENTIAL_NAMES),
