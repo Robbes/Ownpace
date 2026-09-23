@@ -20,6 +20,7 @@ const {
   tenantGet,
   tenantUpdate,
   tenantSetNotifications,
+  tenantSetContact,
   memberList,
   memberInvite,
   memberUpdateRole,
@@ -30,6 +31,7 @@ const {
     tenantGet: vi.fn(),
     tenantUpdate: vi.fn(),
     tenantSetNotifications: vi.fn(),
+    tenantSetContact: vi.fn(),
     memberList: vi.fn(),
     memberInvite: vi.fn(),
     memberUpdateRole: vi.fn(),
@@ -41,7 +43,12 @@ const {
   }));
 
 vi.mock('../services/mapping-service', () => ({
-  tenantApi: { get: tenantGet, update: tenantUpdate, setNotifications: tenantSetNotifications },
+  tenantApi: {
+    get: tenantGet,
+    update: tenantUpdate,
+    setNotifications: tenantSetNotifications,
+    setContact: tenantSetContact,
+  },
   memberApi: {
     list: memberList,
     invite: memberInvite,
@@ -347,3 +354,78 @@ describe('self-demotion is armed; other rows stay single-click (0039 T5)', () =>
   });
 });
 
+
+/**
+ * The organisation's phone number (workplan 0108 T8a, the owner's decision of
+ * 2026-09-23): optional, set here, shown on the grant page. The value on screen
+ * is read through the grant page's own reader, and a save shows what the
+ * server STORED.
+ */
+describe("the organisation's phone number", () => {
+  const withPhone = (contactPhone: string) =>
+    tenantGet.mockResolvedValue({
+      id: 'acme',
+      name: 'Acme BV',
+      slug: 'acme-bv',
+      settings: { contactPhone },
+      createdAt: '2026-07-01T10:00:00.000Z',
+    });
+
+  it('shows the stored number, saves a new one, and shows what was stored', async () => {
+    withPhone('+31 20 123 4567');
+    tenantSetContact.mockResolvedValue('+31 6 1234 5678');
+    renderScreen();
+    const field = await screen.findByLabelText('Phone number');
+    await waitFor(() => expect(field).toHaveValue('+31 20 123 4567'));
+    expect(screen.getByText('Optional; shown to people you send a grant link to.')).toBeInTheDocument();
+
+    await userEvent.clear(field);
+    await userEvent.type(field, '+31 6  1234 5678');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(tenantSetContact).toHaveBeenCalledWith('acme', '+31 6  1234 5678'));
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    // The server's spacing, not the typed one.
+    expect(field).toHaveValue('+31 6 1234 5678');
+  });
+
+  it('clears it with an empty field, because it is optional', async () => {
+    withPhone('+31 20 123 4567');
+    tenantSetContact.mockResolvedValue(null);
+    renderScreen();
+    const field = await screen.findByLabelText('Phone number');
+    await waitFor(() => expect(field).toHaveValue('+31 20 123 4567'));
+    await userEvent.clear(field);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(tenantSetContact).toHaveBeenCalledWith('acme', null));
+  });
+
+  it("shows the server's sentence when it refuses, verbatim", async () => {
+    tenantSetContact.mockRejectedValue({
+      response: { data: { message: 'That is not a phone number this page can show.' } },
+    });
+    renderScreen();
+    const field = await screen.findByLabelText('Phone number');
+    await userEvent.type(field, 'Call IT');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('That is not a phone number this page can show.')).toBeInTheDocument();
+    expect(screen.queryByText('Saved.')).not.toBeInTheDocument();
+  });
+
+  it('lets a viewer read it and not change it', async () => {
+    auth.user = { id: 'user-v', email: 'kijker@acme.nl', name: 'V', role: 'viewer' };
+    withPhone('+31 20 123 4567');
+    renderScreen();
+    expect(await screen.findByText('+31 20 123 4567')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Phone number')).not.toBeInTheDocument();
+  });
+
+  it('says none is given, rather than a blank, and never shows a stored sentence', async () => {
+    auth.user = { id: 'user-v', email: 'kijker@acme.nl', name: 'V', role: 'viewer' };
+    // What the grant page would refuse to show is shown here as none, too.
+    withPhone('Call IT, they know about this');
+    renderScreen();
+    expect(await screen.findByText('None given.')).toBeInTheDocument();
+    expect(screen.queryByText('Call IT, they know about this')).not.toBeInTheDocument();
+  });
+});

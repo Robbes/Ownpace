@@ -767,6 +767,47 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/tenants/{tenantId}/contact:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      tags: [Tenants]
+      summary: Set or clear the organisation's phone number
+      description: |
+        Optional. Shown on the grant page to the people this organisation asks
+        (workplan 0108 T8a), so they can call to check who is asking. Only a
+        phone number's characters are accepted — digits, spaces and
+        `+ ( ) - . /`, with 6 to 15 digits — because the grant page is the one
+        screen a stranger could dress up. `null` or an empty string clears it.
+        Owner or admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, nullable: true }
+      responses:
+        '200':
+          description: The number as stored, or null when cleared.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contact:
+                    type: object
+                    properties:
+                      phone: { type: string, nullable: true }
+        '400':
+          description: |
+            Not a phone number (`not_a_phone_number`), or not `{ phone }`
+            (`invalid_body`). `message` and `reason` carry the sentence.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /api/tenants/{tenantId}/members:
     parameters:
       - $ref: '#/components/parameters/TenantId'
@@ -2238,6 +2279,10 @@ paths:
                     type: string
                     nullable: true
                     description: The sign-in address of the member who issued the link; null when they are no longer a member.
+                  organisationPhone:
+                    type: string
+                    nullable: true
+                    description: The organisation's phone number, when it gave one; never anything that is not a phone number.
                   reads: { type: string }
                   scope: { type: string }
                   from:

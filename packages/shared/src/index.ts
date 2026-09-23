@@ -32,6 +32,7 @@ export * from './discovery.ts';
 export * from './decisions.ts';
 export * from './permissions.ts';
 export * from './notifications.ts';
+export * from './tenant-contact.ts';
 export * from './share-announcement.ts';
 export * from './share-grouping.ts';
 export * from './scope-manifest.ts';

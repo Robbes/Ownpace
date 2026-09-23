@@ -27,6 +27,11 @@ export const TenantSchema = z.object({
   createdAt: z.string(),
 });
 
+/** What `PUT …/contact` answers: the number as stored, or null (workplan 0108 T8a). */
+const TenantContactSchema = z.object({
+  contact: z.object({ phone: z.string().nullable() }),
+});
+
 /** The tenant's email-summary preference (workplan 0030 T4). */
 export const TenantNotificationPrefsSchema = z.object({
   digest: z.enum(['daily', 'weekly', 'off']),
@@ -428,6 +433,16 @@ export const tenantApi = {
   setNotifications: async (tenantId: string, prefs: TenantNotificationPrefs) => {
     const response = await apiClient.put(`/tenants/${tenantId}/notifications`, prefs);
     return TenantNotificationsSchema.parse(response.data).notifications;
+  },
+
+  /**
+   * The organisation's phone number, shown on the grant page to the people it
+   * asks (workplan 0108 T8a). Optional: null clears it. Answers what the server
+   * STORED, read back through the same reader the grant page uses.
+   */
+  setContact: async (tenantId: string, phone: string | null) => {
+    const response = await apiClient.put(`/tenants/${tenantId}/contact`, { phone });
+    return TenantContactSchema.parse(response.data).contact.phone;
   },
 };
 

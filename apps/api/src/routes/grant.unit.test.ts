@@ -163,7 +163,12 @@ beforeAll(async () => {
   const conn = await driver.acquire();
   try {
     const q = (sql: string, p: unknown[] = []) => conn.query(sql, p);
-    await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'Acme Legal']);
+    // With the organisation's phone number, which the page shows (0108 T8a).
+    await q('INSERT INTO tenant (id, name, settings) VALUES ($1,$2,$3::jsonb)', [
+      TENANT,
+      'Acme Legal',
+      JSON.stringify({ contactPhone: '+31 20 123 4567' }),
+    ]);
     // The member who issues every link below (`mintLink`'s createdBy): the page
     // names them by the address they sign in with (0108 T8a).
     await q(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1,$2,$3)`, [
@@ -296,10 +301,44 @@ describe('what the page may know before the button', () => {
       'expiresAt',
       'from',
       'organisation',
+      'organisationPhone',
       'reads',
       'scope',
       'to',
     ]);
+  });
+
+  it("gives the organisation's phone number, when it gave one", async () => {
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.body.organisationPhone).toBe('+31 20 123 4567');
+  });
+
+  it('gives no number when what is stored is not one, whoever stored it', async () => {
+    // `tenant.settings` has other writers; the consent page must not become a
+    // place any of them can put a sentence. Each write takes the connection
+    // and gives it back before the route runs: PGlite has one, and a test
+    // that held it across a request would wait on itself for ever.
+    const storePhone = async (contactPhone: string) => {
+      const conn = await driver.acquire();
+      try {
+        await conn.query(`UPDATE tenant SET settings = $2::jsonb WHERE id = $1`, [
+          TENANT,
+          JSON.stringify({ contactPhone }),
+        ]);
+      } finally {
+        await conn.release();
+      }
+    };
+    await storePhone('Call IT, they know about this');
+    try {
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).get(`/api/grant/${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.organisationPhone).toBeNull();
+    } finally {
+      await storePhone('+31 20 123 4567');
+    }
   });
 
   it('says who asked: the issuing member, by the address they sign in with', async () => {
