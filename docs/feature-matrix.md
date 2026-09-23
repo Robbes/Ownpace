@@ -98,8 +98,8 @@ Also a source: **Google** (`google`, workplan 0106 T3b) — the same account sha
 grant side. One connection row, one OAuth grant, several faces: **calendars, contacts and
 tasks today** (tasks over Google's Tasks API since workplan 0126). Mail and files are absent
 for a reason that is Google's rather than ours — it prices `calendar` and `carddav` as
-*sensitive* scopes (brand verification, free), believed to include `tasks.readonly` until the
-console confirms it, and Gmail's `https://mail.google.com/` and `drive.readonly` as
+*sensitive* scopes (brand verification, free), and `tasks.readonly` too (the console confirmed it
+on 2026-09-23, `google-oauth-verification.md`), and Gmail's `https://mail.google.com/` and `drive.readonly` as
 *restricted*, needing an annual third-party security assessment. Asking for all five in one
 consent would push the managed client into that tier for every customer, including one who
 only wanted their contacts. So
@@ -107,7 +107,9 @@ only wanted their contacts. So
 person migrating a mailbox uses `gmail` today, and when the assessment is bought those
 faces join `google` rather than the kinds being replaced. The constraint binds the managed
 client alone — an appliance registers its own OAuth client and does its own verification
-(ADR-0041). Which faces any account kind serves lives in one table
+(ADR-0041). A managed deployment whose own Google application carries the restricted scopes may
+declare `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, and the `google` kind then also offers mail and
+files (`GOOGLE_RESTRICTED_ACCOUNT_DOMAINS`; `docs/managed-bring-up.md` §8e). Which faces any account kind serves lives in one table
 (`PROVIDER_ACCOUNT_DOMAINS`), so a provider gaining one is a row edit rather than a branch.
 
 Also a source: **Apple** (`apple`, workplan 0115) — the fourth account kind, and the one
@@ -384,12 +386,12 @@ These hold across all object types, and are features rather than gaps:
 
 | Gap | Status | Where it is tracked |
 |---|---|---|
-| Gmail / Google Calendar / Google Contacts against real Google endpoints | ⏳ built, unproven | Owner runbook Stages 5–6 |
-| Google-native file export (Docs/Sheets/Slides) | ⏳ measurement gates the policy | Stage 1; workplan 0042 T6 |
+| Gmail / Google Calendar / Google Contacts against a SECOND real Google account (another organisation's sharing policy, declined scopes, Workspace admin restrictions) — the owner's own account has run all three routinely, ✅ since 2026-09-22 (see the note at the top) | ⏳ one account proven | Owner runbook Stages 5–6 |
+| Google-native file export (Docs/Sheets/Slides) | ⏳ every format carries every kind since 2026-09-23 (ADR-0046, amended); unproven beyond the measured tenant | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
-| M365 calendar / contacts / OneDrive sources in the managed WIZARD (today: appliance mapping files only) | ⛔ needs wizard types + connection kinds | workplan 0054 |
+| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable in the managed wizard as the Microsoft 365 account's faces since workplan 0114 (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |

@@ -1,6 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * Open Migration API Server
+ * Ownpace API Server
  * 
  * Express-based REST API for the managed edition.
  * Provides tenant management, migration control, and billing endpoints.

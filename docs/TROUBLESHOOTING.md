@@ -127,11 +127,12 @@ ERROR: relation "mappings" already exists
 
 **Solution:**
 ```bash
-# Use idempotent migration
-node packages/ledger/migrate-v2.js
+# The API applies migrations itself at boot (runMigrations, ADR-0045) — restart it;
+# never apply SQL by hand (see "If policies are genuinely missing" above for why).
+docker compose restart api
 
-# Or check current migrations
-psql -U openmigrate -d openmigrate -c "SELECT * FROM _prisma_migrations;"
+# What the database has recorded as applied
+psql -U openmigrate -d openmigrate -c "SELECT * FROM schema_migrations ORDER BY version;"
 ```
 
 ---
@@ -228,7 +229,10 @@ Login button does nothing or shows error
 # Check API logs
 docker compose logs api
 
-# Verify JWT_SECRET matches between API and web
+# Managed (ADR-0042): the web's VITE_OIDC_ISSUER must equal the API's JWT_ISSUER byte for
+# byte, and is baked in at BUILD time (rebuild the web image after changing it). JWT_AUDIENCE
+# is the issuer's project id and VITE_OIDC_CLIENT_ID the web app's client id;
+# deploy/compose/setup-zitadel.sh writes all four. The web holds no JWT_SECRET in any mode.
 # Check network tab in browser for failed requests
 ```
 
@@ -274,10 +278,8 @@ Error: JMAP endpoint not reachable
 
 **Solution:**
 ```bash
-# Test JMAP endpoint manually
-curl -X POST https://jmap.example.com/jmap/ \
-  -H "Content-Type: application/json" \
-  -d '{"methodCalls": [["getAccount", {"accountId": "main"}]]}'
+# Fetch the JMAP session (RFC 8620 §2.2). target.baseUrl is the server ROOT, never .../jmap
+curl -sL -u "$USER:$PASS" https://<host>/.well-known/jmap
 
 # Verify JMAP server is running
 # Check network connectivity
@@ -350,7 +352,8 @@ No invoices appear in billing page
 # Check if usage data exists
 curl http://localhost:3001/api/billing/usage
 
-# Manually trigger invoice generation
+# Invoices are numbered and rendered by Moneybird (ADR-0044); Ownpace only mirrors them —
+# never generate one locally
 # Check billing service logs
 docker compose logs api | grep billing
 ```
@@ -456,8 +459,9 @@ Error: Cannot start service api: driver failed programming external connector
 # Check for port conflicts
 netstat -tulpn | grep LISTEN
 
-# Remove stale containers
-docker compose down -v
+# Remove stale containers. NEVER add -v here: it deletes the database volumes, i.e. every
+# migration's ledger and every stored credential
+docker compose down
 
 # Rebuild images
 docker compose build --no-cache
@@ -520,12 +524,9 @@ If you can't resolve your issue using this guide:
 
 3. **Open a new issue:**
    - Include error messages
-   - Provide your configuration
+   - Provide your configuration with every secret removed — never paste `.env` contents or credentials
    - Describe steps to reproduce
 
-4. **Community support:**
-   - GitHub Discussions
-   - Discord server
 
 ---
 
@@ -547,7 +548,8 @@ docker compose up -d
 ### Reset Everything
 
 ```bash
-# Warning: This deletes all data!
+# DESTROYS every migration record and stored credential. Never run this on a stack
+# holding anyone's data.
 docker compose down -v
 docker system prune -a
 
@@ -556,7 +558,3 @@ git pull
 docker compose build
 docker compose up -d
 ```
-
----
-
-*Last updated: 2024-01-15*

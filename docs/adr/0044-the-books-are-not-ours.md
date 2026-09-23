@@ -11,7 +11,7 @@
   untouched here; this ADR is about the *document*),
   [ADR-0036](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
   (the invoice mirror is managed-chain data; the appliance never bills),
-  [ADR-0024](./0024-non-destructive-by-default.md) (immutability posture),
+  [ADR-0024](./0024-explicit-owner-deletion-apply.md) (immutability posture),
   [ADR-0009](./0009-repo-strategy-public-monorepo.md) (why the comparative
   vendor analysis and commercial rationale are recorded outside this
   repository, as business records — this ADR records only what the *product*

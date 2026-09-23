@@ -2,9 +2,9 @@
 
 ## Getting started
 
-You need **Node 24+** and **pnpm**. Nothing else — the test suite brings up its own
-Postgres, Nextcloud and Stalwart via Testcontainers, so there is no stack to install
-first.
+You need **Node 24+** and **pnpm**. That is all `pnpm test` needs. The integration and
+e2e tiers also need Docker: Testcontainers brings up its own Postgres, Nextcloud and
+Stalwart, so there is no stack to install first.
 
 ```bash
 pnpm install
@@ -17,7 +17,8 @@ That is enough to make and verify most changes. For the rest:
   is listed once in [AGENTS.md's Commands section](./AGENTS.md#commands). It is
   written for coding agents but the commands are the same ones humans run.
 - **Running the product**, either edition, is in the
-  [README's Quickstart](./README.md#quickstart).
+  README's [Get it](./README.md#get-it-released-artifacts) (released builds) and
+  [Quickstart](./README.md#quickstart-from-source) (from source).
 - **What the thing is and why it is shaped this way**:
   [`docs/architecture/solution-architecture.md`](./docs/architecture/solution-architecture.md),
   then [`docs/adr/`](./docs/adr/) for the decisions.
@@ -58,7 +59,11 @@ All documentation goes under `docs/`. The **only** Markdown files allowed in the
 
 `README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`, `TRADEMARK.md`
 
-(`LICENSE` has no extension.) Anything else — design, guides, runbooks, notes — belongs in `docs/`. A CI check may enforce this allowlist.
+(`LICENSE` has no extension.) Anything else — design, guides, runbooks, notes — belongs in `docs/`. The `docs-hygiene` job in `.github/workflows/ci.yml` enforces this allowlist.
+
+Workspace packages use the npm scope `@openmig/*`, the database role is `openmigrate` and metrics
+carry the `openmigrate_*` prefix. This is deliberate: ADR-0040 renames what is named after the
+product and keeps what is named after the scope.
 
 ## Architecture Decision Records (ADRs)
 Significant decisions are captured as ADRs in `docs/adr/`.
@@ -78,8 +83,9 @@ Significant decisions are captured as ADRs in `docs/adr/`.
 
 ## Code
 - TypeScript, pnpm workspaces. Apache-2.0 license header on source files.
-- Keep `packages/` and `apps/selfhost` free of managed-only hard dependencies (self-host must work).
+- Keep `packages/` (except `packages/managed`, the one managed-only package — ADR-0036) and `apps/selfhost` free of managed-only hard dependencies (self-host must work).
 - Add/keep tests; idempotency and non-destructive invariants are mandatory (see AGENTS.md).
 
 ## Secrets
-Never commit secrets. Use `.env` (gitignored, see `.env.example`) and a vault.
+Never commit secrets. Use `.env` (gitignored; templates in `.env.example`, `deploy/compose/managed.env.example`
+and `deploy/selfhost/selfhost.env.example`). There is no vault integration today — see [SECURITY.md](./SECURITY.md).

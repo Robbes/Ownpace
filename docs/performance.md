@@ -53,9 +53,9 @@ default:
    instead of full re-listing.
 3. **Incremental cursors (T4 follow-up)** — persist the per-folder cursor (`encodeImapCursor`) so
    steady-state passes process only changed items, eliminating full re-scans (and the N per-item ledger
-   lookups that go with them). *Loop side applied in core:* `runShadowPass` takes an optional
-   `CursorStore` and persists per-folder cursors after each successful folder. Remaining: connector
-   cursor support (IMAP `UIDVALIDITY:UIDNEXT`, JMAP state strings) + a SQL-backed `CursorStore`.
+   lookups that go with them). *Applied:* `runShadowPass` persists per-folder cursors after each successful
+   folder through the SQL-backed `PgCursorStore` (`packages/ledger/src/cursor-store.ts`, wired in both
+   editions), and the IMAP source resumes from its `UIDVALIDITY:UIDNEXT` cursor (`imapflow-source.ts`).
 4. **Batched ledger lookups (trade-off)** — replace N per-item `ledger.find` calls on a full scan with
    one bulk fetch of known natural-key-hashes into an in-memory `Set`. Large round-trip savings, but the
    Set grows with mailbox size (≈ tens of MB at ~1M messages). Worth it for typical family/SMB mailboxes;

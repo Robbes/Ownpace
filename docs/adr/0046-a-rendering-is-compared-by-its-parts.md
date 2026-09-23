@@ -10,7 +10,7 @@
   "NOT YET BUILT" while the first operative rule said "BUILT, and live". Neither was true.
 - **Date:** 2026-09-16; accepted 2026-09-16
 - **Deciders:** owner
-- **Relates to:** [ADR-0024](./0024-deletion-needs-corroborated-evidence.md) (what counts as
+- **Relates to:** [ADR-0024](./0024-explicit-owner-deletion-apply.md) (what counts as
   evidence before the migration acts), [ADR-0030](./0030-relocation-is-positive-evidence.md)
   (the precedent for correlating by content hash, and therefore for caring what a content hash
   means), [ADR-0037](./0037-keys-credentials-and-transport-floors.md) (the hash is stored

@@ -3,6 +3,8 @@
 All project documentation lives here.
 
 - **`architecture/solution-architecture.md`** — the source of truth. Read this first.
+- **`feature-matrix.md`** — what migrates per object type, per source and target, mirrored from the
+  code; when it and the code disagree, the code is right.
 - **`LESSONS.md`** — GENERATED (`node scripts/lessons.mjs --write`). Every cross-cutting guard in
   `scripts/`, indexed **by the file it constrains**, with the one sentence its header opens with.
   Grep it for a path before editing that path: the guards record defects that actually happened,
@@ -43,7 +45,16 @@ UI may and may not translate, per prose class — read it before adding
 user-facing strings), the cutover comms templates
 (`cutover-communication-templates.md`), and the one-off audit note
 `test-fixture-uuid-collision-audit.md` (its remediation shipped as the
-`fixture-uuid-check` CI job). A dedicated `guides/` / `runbooks/` split can come later if
+`fixture-uuid-check` CI job).
+
+**Connecting each source** — one setup guide per provider: `microsoft-setup.md`,
+`google-workspace-setup.md` (with `google-oauth-verification.md` for the operator's own Google
+client), `apple-setup.md`, `dropbox-setup.md`, `box-setup.md` and `archive-setup.md` (export
+archives such as Google Takeout); `non-eu-platform-gaps.md` lists the large platforms not yet
+covered. **Live runs:** `owner-test-runbook.md`, `first-live-run.md`, `soverin-supervised-run.md`,
+`apple-supervised-run.md`. **Operating:** `status-page.md` and `selfhost-ending-the-service.md`.
+
+A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.
 
 Historical notes are banner-marked in place rather than deleted (workplan/ADR policy): e.g.
@@ -54,5 +65,5 @@ Historical notes are banner-marked in place rather than deleted (workplan/ADR po
 
 ## Root Markdown allowlist
 To keep the repo root clean, only these `.md` files are allowed there:
-`README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`.
+`README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`, `TRADEMARK.md`.
 Everything else is documentation and belongs in `docs/`.

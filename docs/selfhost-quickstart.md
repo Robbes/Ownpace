@@ -67,7 +67,8 @@ Edit `deploy/selfhost/.env`:
   where everyone who can reach the port is allowed to press those buttons,
   behind your own firewall.
   Also optional: `SELFHOST_PORT` (the compose files default to `8081`),
-  `SELFHOST_IMAGE` (pin to a release tag, e.g. `0.1.0-rc.1`, or a verified
+  `SELFHOST_IMAGE` (pin to a release tag — `X.Y.Z` from v0.1.0 on; rc.1 lives only at
+  `ghcr.io/robbes/open-migrate-selfhost` — or a verified
   `sha256` digest for production; the procedure is in
   `deploy/selfhost/README.md`, "Image channels").
   (Running the appliance straight from source with `pnpm` and no `PORT` set
