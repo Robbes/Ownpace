@@ -31,7 +31,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, globSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -131,6 +131,57 @@ describe('pin refuses what it cannot pin', () => {
     const r = run(['pin', 'latest']);
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain('expected a tag like');
+  });
+});
+
+describe('pin moves every place the CI guard compares', () => {
+  /**
+   * `pin` moved apps/worker's SDK and left the root package.json (sdk AND
+   * core) and packages/scheduler behind, so the scripted upgrade turned
+   * bootstrap-managed.unit.test.ts red. The registry check comes first and
+   * needs the network, so this runs the REWRITE — the lines from `bare=` to
+   * the closing note — against copies of the real files.
+   */
+  const pin = /cmd_pin\(\) \{[\s\S]*?\n\}/.exec(script)?.[0] ?? '';
+  const rewrite = pin.slice(pin.indexOf('  bare="${want#v}"'), pin.indexOf('  cat <<EOF'));
+  const manifests = globSync('{,apps/*/,packages/*/}package.json', { cwd: REPO_ROOT });
+  const TRIGGER_DEP = /("@trigger\.dev\/[a-z0-9-]+": ")[0-9]+\.[0-9]+\.[0-9]+(")/g;
+  const declaresTrigger = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8').includes('"@trigger.dev/');
+
+  it('read the real function', () => {
+    expect(rewrite.startsWith('  bare='), 'cmd_pin no longer sets bare= the way this expects').toBe(true);
+    expect(rewrite).toContain('sed -i');
+    // Root, apps/worker and packages/scheduler today; none found means the glob moved.
+    expect(manifests.filter(declaresTrigger).length).toBeGreaterThan(2);
+  });
+
+  it('every @trigger.dev dependency, both compose defaults and the example, and nothing else', () => {
+    const copy = (rel: string) => {
+      mkdirSync(join(dir, dirname(rel)), { recursive: true });
+      writeFileSync(join(dir, rel), readFileSync(join(REPO_ROOT, rel)));
+    };
+    const files = ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example', ...manifests];
+    files.forEach(copy);
+
+    // Inside a function, as in the script: the block may declare `local`s.
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\nsay() { :; }\nrewrite() {\n${rewrite}\n}\nrewrite`], {
+      encoding: 'utf8',
+      env: { ...process.env, want: 'v9.8.7', SCRIPT_DIR: join(dir, 'deploy/compose'), REPO_ROOT: dir },
+    });
+    expect(r.status, r.stderr).toBe(0);
+
+    for (const rel of manifests) {
+      const before = readFileSync(join(REPO_ROOT, rel), 'utf8');
+      expect(readFileSync(join(dir, rel), 'utf8'), `${rel} was not moved to 9.8.7, or more changed`).toBe(
+        before.replace(TRIGGER_DEP, (_all, head: string, tail: string) => `${head}9.8.7${tail}`),
+      );
+    }
+    const compose = readFileSync(join(dir, 'deploy/compose/managed.yml'), 'utf8');
+    const defaults = [...compose.matchAll(/\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}/g)].map((m) => m[1]);
+    expect(defaults).toEqual(['v9.8.7', 'v9.8.7']);
+    expect(readFileSync(join(dir, 'deploy/compose/managed.env.example'), 'utf8')).toMatch(
+      /^TRIGGER_IMAGE_TAG=v9\.8\.7$/m,
+    );
   });
 });
 

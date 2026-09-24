@@ -1972,9 +1972,10 @@ neither. `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in particular belong to
 the *old* instance and are meaningless on the new one; the script will read the
 new instance's own.
 
-**Upgrading Trigger.dev** is one number in FOUR places that must agree: the
-two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`, `TRIGGER_IMAGE_TAG` in
-`managed.env.example`, and `@trigger.dev/sdk` in `apps/worker/package.json`
+**Upgrading Trigger.dev** is one number in every place that names it, and they
+must agree: the two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`,
+`TRIGGER_IMAGE_TAG` in `managed.env.example`, and every `@trigger.dev/*`
+dependency in the root, `apps/worker` and `packages/scheduler` manifests
 (`.env`'s `TRIGGER_IMAGE_TAG`, when set, overrides the compose default on that
 machine). `--from trigger` refuses at bring-up when they disagree, and
 `bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
@@ -1985,7 +1986,7 @@ the SDK alone, passed all seventeen checks and broke the managed gate.
 ```
 ./deploy/compose/trigger-version.sh list              # running / pinned / what you can move to
 ./deploy/compose/trigger-version.sh backup pre-4.5.12 # verified dump of triggerdb
-./deploy/compose/trigger-version.sh pin --latest      # moves all four places
+./deploy/compose/trigger-version.sh pin --latest      # moves every place
 ./deploy/compose/trigger-version.sh backups           # what dumps exist
 ./deploy/compose/trigger-version.sh restore --latest --yes   # DESTRUCTIVE rollback
 ```

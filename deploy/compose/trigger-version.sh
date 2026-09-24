@@ -3,9 +3,10 @@
 # backup that makes changing them reversible.
 #
 # WHY THIS EXISTS. Upgrading Trigger.dev is one number that has to agree in
-# four places, and a database migration that goes one way. The webapp applies
-# its own schema migrations on boot; Prisma has no down-migrations. So the
-# documented rollback — put the old image tag back — restores the IMAGES and
+# every place that names it, and a database migration that goes one way. The
+# webapp applies its own schema migrations on boot; Prisma has no
+# down-migrations. So the documented rollback — put the old image tag back —
+# restores the IMAGES and
 # not the schema they migrated, and `triggerdb` holds the one thing on this
 # machine that cannot be rebuilt unattended: the account, the project, its API
 # keys, the worker group and the deployed-task records. Recreating those needs
@@ -21,7 +22,7 @@
 #   trigger-version.sh backups              what dumps exist, newest first
 #   trigger-version.sh drill                dump, restore into a throwaway, compare
 #   trigger-version.sh restore <file|--latest> --yes    DESTRUCTIVE, see below
-#   trigger-version.sh pin <version|--latest>           move all four places
+#   trigger-version.sh pin <version|--latest>           move every place
 #
 # The order for an actual upgrade is in docs/managed-bring-up.md, and it is not
 # optional: upgrading with runs in flight left the reference deployment looping
@@ -382,7 +383,7 @@ EOF
 
 # ------------------------------------------------------------------- pin --
 
-# All four places at once, because moving one is the drift that broke the gate
+# Every place at once, because moving one is the drift that broke the gate
 # on 2026-08-24: dependabot bumped apps/worker's SDK alone and every managed
 # run died at the bring-up.
 cmd_pin() {
@@ -402,10 +403,19 @@ cmd_pin() {
 webapp and the supervisor run ONE tag, so a half-published version is not usable."
 
   bare="${want#v}"
-  say "moving all four places to ${want}"
+  say "moving every place to ${want}"
   sed -i -E "s|\\\$\\{TRIGGER_IMAGE_TAG:-v[0-9]+\.[0-9]+\.[0-9]+\\}|\${TRIGGER_IMAGE_TAG:-${want}}|g" "${SCRIPT_DIR}/managed.yml"
   sed -i -E "s|^TRIGGER_IMAGE_TAG=v[0-9]+\.[0-9]+\.[0-9]+$|TRIGGER_IMAGE_TAG=${want}|" "${SCRIPT_DIR}/managed.env.example"
-  sed -i -E "s|(\"@trigger\.dev/sdk\": \")[0-9]+\.[0-9]+\.[0-9]+(\")|\1${bare}\2|" "${REPO_ROOT}/apps/worker/package.json"
+  # EVERY MANIFEST THE CI GUARD COMPARES, not a list of them. This moved
+  # apps/worker's SDK alone and left the root package.json (sdk AND core) and
+  # packages/scheduler behind, which bootstrap-managed.unit.test.ts then failed.
+  # Same glob and same names as that test, so a package that takes a
+  # Trigger.dev dependency is moved by existing.
+  local manifest
+  for manifest in "${REPO_ROOT}/package.json" "${REPO_ROOT}"/apps/*/package.json "${REPO_ROOT}"/packages/*/package.json; do
+    [ -f "$manifest" ] && grep -q '"@trigger\.dev/' "$manifest" || continue
+    sed -i -E "s|(\"@trigger\.dev/[a-z0-9-]+\": \")[0-9]+\.[0-9]+\.[0-9]+(\")|\1${bare}\2|g" "$manifest"
+  done
 
   cat <<EOF
 
@@ -413,7 +423,8 @@ webapp and the supervisor run ONE tag, so a half-published version is not usable
 files, nothing running. What remains, in this order:
 
   1. pnpm install                      # the lockfile has to follow the SDK
-  2. git diff                          # four places should have moved, no more
+  2. git diff                          # managed.yml x2, managed.env.example and
+                                       # every @trigger.dev/* manifest line, no more
   3. $0 backup before-${want}          # the schema migration is ONE WAY
   4. read docs/managed-bring-up.md's upgrade order — do NOT upgrade with runs
      in flight; drain EXECUTING first, or every run loops on

@@ -939,9 +939,15 @@ phase_trigger() {
   # the tag pulls images that may not exist yet, pinning the SDK back changes
   # what the tasks are built with. Naming both is the useful thing a script can
   # do here.
-  local sdk_version tag_version
+  local sdk_version tag_version compose_default
   sdk_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
-  tag_version="${TRIGGER_IMAGE_TAG:-v4.5.9}"
+  # The fallback is managed.yml's own default, read the way trigger-version.sh's
+  # repo_tag reads it (here-strings, not pipes: see no-pipeline-its-own-consumer-
+  # can-kill). A copy of the number here said v4.5.9 while the images defaulted
+  # to v4.5.16, so an .env without the key failed on a drift that was not there.
+  compose_default="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml")"
+  compose_default="$(sed 's/.*:-//;s/}//' <<<"$(head -1 <<<"$compose_default")")"
+  tag_version="${TRIGGER_IMAGE_TAG:-$compose_default}"
   if [ "${tag_version#v}" != "$sdk_version" ]; then
     echo "!!! Trigger.dev version drift (0018 T0):" >&2
     echo "!!!   images:  ${tag_version}   (TRIGGER_IMAGE_TAG, or managed.yml's default when unset)" >&2
