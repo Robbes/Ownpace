@@ -30,8 +30,9 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createPgDb, CutoverStore } from '@openmig/ledger';
-import { CutoverRefused, type CutoverState, type VerificationResult } from '@openmig/core';
+import { CutoverRefused, type CutoverState, type PassCounts, type VerificationResult } from '@openmig/core';
 import { CutoverGateFailed, prepareCutover, preparationFailurePolicy } from './run-cutover.ts';
+import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -44,6 +45,11 @@ const CONN = `${P}c1`;
 const BOX_A = `${P}b1`;
 const BOX_B = `${P}b2`;
 const MAPPING = `${P}d1`;
+
+/** A final sync that finished its one data type with these counts, as the pass reports it. */
+function synced(counts: PassCounts): FinalSyncReport {
+  return finalSyncReport({ asked: ['email'], domains: { email: counts } });
+}
 
 /** A verification result shaped like the real one, with the verdict we want. */
 function verdict(overallStatus: 'PASS' | 'WARNING' | 'FAIL'): VerificationResult {
@@ -106,7 +112,7 @@ describe('prepareCutover (integration)', () => {
       // All four counts. The `as` below hides a mock that disagrees with the
       // contract, which is how this one kept returning two after the real
       // pass started returning four.
-      runFinalSync: async () => ({ created: 3, updated: 0, adopted: 0, skipped: 7 }),
+      runFinalSync: async () => synced({ created: 3, updated: 0, adopted: 0, skipped: 7 }),
       runGate: async () => verdict('PASS'),
       ...overrides,
     } as Parameters<typeof prepareCutover>[0];
@@ -138,7 +144,7 @@ describe('prepareCutover (integration)', () => {
       deps({
         runFinalSync: async () => {
           order.push('sync');
-          return { created: 3, updated: 0, adopted: 0, skipped: 7 };
+          return synced({ created: 3, updated: 0, adopted: 0, skipped: 7 });
         },
         runGate: async () => {
           order.push('gate');
@@ -321,7 +327,7 @@ describe('prepareCutover (integration)', () => {
       it(`refuses a cutover under way (${state}) — neither syncs nor verifies, and writes nothing`, async () => {
         await driveTo(state);
         const before = await transitions();
-        const runFinalSync = vi.fn(async () => ({ created: 0, updated: 0, adopted: 0, skipped: 0 }));
+        const runFinalSync = vi.fn(async () => synced({ created: 0, updated: 0, adopted: 0, skipped: 0 }));
         const runGate = vi.fn(async () => verdict('PASS'));
 
         const failure = await prepareCutover(deps({ runFinalSync, runGate })).catch((e: unknown) => e);

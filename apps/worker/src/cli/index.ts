@@ -19,9 +19,9 @@
  *   check-access   Prove the O365 consent runbook actually worked
  */
 
-import { tenantCutoverStore, createLedgerVerificationReader, mappingLifecyclePort } from '@openmig/ledger';
+import { tenantCutoverStore, mappingLifecyclePort } from '@openmig/ledger';
 import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
-import { runVerification, createRealVerificationDeps, reindexFromTarget } from '@openmig/core';
+import { reindexFromTarget } from '@openmig/core';
 import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 import {
@@ -31,6 +31,7 @@ import {
   directoryAvailability,
 } from '@openmig/connectors';
 import * as cutoverCli from './cutover-commands.ts';
+import { runCutoverGate } from '../jobs/cutover-gate.ts';
 import { log } from '@openmig/shared';
 
 /** Parse cutover CLI arguments */
@@ -289,44 +290,10 @@ async function main() {
     // The mapping half of a rollback (ADR-0047): the row and its audit record.
     mappingLifecycle: mappingLifecyclePort(pool, tenantId, mappingId, 'cli'),
     ...(reason ? { rollbackReason: reason } : {}),
-    // The real §20 gate. A closure so nothing connects to the source/target
-    // unless `verify` actually asks for it.
-    runDataVerification: async () => {
-      const runDeps = await buildDepsFromMapping(pool, tenantId, mappingId);
-      const targets = await buildTargetReindexers(pool, tenantId, mappingId);
-      // Owns its own pool; closed in the finally below.
-      const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
-      try {
-        return await runVerification(
-          createRealVerificationDeps({
-            tenantId: asTenantId(tenantId),
-            mappingId: asMappingId(mappingId),
-            config: {
-              checksumSamplePercentage: 5,
-              minSampleSize: 10,
-              maxSampleSize: 1000,
-              requiredMatchPercentage: 0.99,
-              maxDiscrepancyPercentage: 0.01,
-              // Every domain is enabled: one that cannot be read comes back
-              // NOT_VERIFIABLE and blocks, rather than being quietly switched
-              // off here so the gate looks green.
-              verifyMail: true,
-              verifyCalendar: true,
-              verifyContacts: true,
-              verifyFiles: true,
-              verifyTasks: true,
-            },
-            verificationReader,
-            // One reindexer per domain, each reading its own target.
-            targetReindexers: targets.reindexers,
-          }),
-        );
-      } finally {
-        await targets.close();
-        await verificationReader.close();
-        await runDeps.close();
-      }
-    },
+    // The real §20 gate, the one the preparation task runs (cutover-gate.ts):
+    // the data types the migration has, each against its own target. A
+    // closure so nothing connects to a target unless `verify` asks for it.
+    runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId),
   };
 
   switch (command) {
