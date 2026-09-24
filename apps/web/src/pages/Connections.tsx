@@ -45,6 +45,7 @@ import {
 // The remedy sentence per failure category — the one map the migration page
 // and the operator's support screen read too, so all three say the same words.
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
+import { SendItToUs } from '../components/SendItToUs.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import {
   inUseMigrations,
@@ -363,7 +364,7 @@ const Row: React.FC<{
                 when: relativeToNow(f.asOf),
                 domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
               })}{' '}
-              {t(FAILURE_KEY[f.category])}
+              {t(FAILURE_KEY[f.category])} <SendItToUs category={f.category} />
               {ASK_TEST.has(f.category) && (
                 <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
               )}

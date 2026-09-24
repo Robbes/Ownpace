@@ -55,6 +55,7 @@ import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
 // The same nine sentences the row above prints, from the same map: the
 // group and its members have to be called one thing.
 import { FAILURE_KEY } from '../../i18n/failure-key.ts';
+import { SendItToUs } from '../SendItToUs.tsx';
 
 /**
  * The server's match, applied to the rows already on screen.
@@ -269,7 +270,9 @@ export const FailureGroupPanel: React.FC<{
               </span>
               <span className="text-xs text-gray-700 flex-1 min-w-[10rem]">
                 {g.category ? (
-                  t(FAILURE_KEY[g.category])
+                  <>
+                    {t(FAILURE_KEY[g.category])} <SendItToUs category={g.category} />
+                  </>
                 ) : (
                   // NOT PRESSABLE, and it says why rather than sitting there
                   // greyed out. Its only description to the server would be
