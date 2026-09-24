@@ -28,17 +28,30 @@ Names used from here on: **live** is the `ownpace-live` stack; **the OTA stack**
 `ownpace-managed`. "The live `.env`" in the first entry above was written before D7 and means the
 reference machine's one `.env`.
 
+**2026-09-24, later still: two of the owner's three checks on the machine are recorded here (D8,
+D9).** The owner sets live's database passwords in live's `.env` before its first bring-up (D8,
+T1b step 5). The code still does not generate them, and `trigger-db`'s password is still a literal
+that no `.env` reaches (T2's code). Every network live's containers join is live's own and is named
+after `ownpace-live`, including the network its task runs join (D9). Compose already names live's
+two networks after the project, checked by rendering `managed.yml` under `-p ownpace-live`. T1 now
+lists what does not follow: every hard-coded `ownpace-managed_` name, 13 lines in six files. They
+include the supervisor's `DOCKER_RUNNER_NETWORKS` literal and `reset-trigger.sh`'s volume name.
+T1's guard now fails on any `ownpace-managed_` name. The first of the three checks, what the
+Google client's redirect URIs hold and whether to add one for `app.ownpace.eu` or make a new
+client, is 0140's: its T11 answers it with a new client for live, carrying live's two addresses
+(T1e). Nothing is built.
+
 | Task | Status | Notes |
 |---|---|---|
-| T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo, the production names routed, the checks run from off the mesh. The outcome is written in this block. |
-| T1 Container names and scripts take the stack from the project name | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml`, `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9. A guard fails on a fixed stack name. The old options A, B and C are ⛔ superseded and kept in §3. |
-| T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | 📋 **Decided 2026-09-24** (D7) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values, never `--with-demo`. The database passwords are set before the first bring-up. |
+| T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
+| T1 Container names, networks and scripts take the stack from the project name | 📋 **Decided 2026-09-24** (D7, D9); the code 📋 **Proposed** | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS`, the network task runs join), `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9, and `ownpace-managed_` volume or network names on 13 lines in six files (that network literal and `reset-trigger.sh`'s volume among them). Compose's own two networks already follow the project (D9). A guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. The old options A, B and C are ⛔ superseded and kept in §3. |
+| T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | 📋 **Decided 2026-09-24** (D7, D8) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values, never `--with-demo`. The owner sets the four database passwords in live's `.env` before the first bring-up (D8). `ensure-env-secrets.sh` still does not generate them, and `trigger-db`'s still waits for T2's code. |
 | T1c Its own Trigger.dev plane | 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 📋 **Decided 2026-09-24** (D7), carried by T3 | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. |
 | T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. |
-| T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. Live generates its values before its first bring-up (T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
+| T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
@@ -232,8 +245,9 @@ were, or whether any reached a public job log. 0026 row 24 keeps the rotation pa
 stack stops being a demo, and records the procedure as *"re-running `ensure-env-secrets.sh`"*.
 That procedure rotates nothing: the script fills a blank and replaces a shipped placeholder, and
 its own header says *"values already set in .env are never touched, so re-running it never
-rotates anything"*. These are the OTA stack's values. Live's are generated at its first bring-up
-and have been in no log (T5). Two more facts decide when to replace what:
+rotates anything"*. These are the OTA stack's values. Live's are its own: generated at its first
+bring-up or, for the database passwords, set by the owner before it (D8). They have been in no
+log (T5). Two more facts decide when to replace what:
 
 - Stored mailbox credentials are encrypted under `SECRET_ENCRYPTION_KEY`, and
   `packages/core/src/secrets.ts` decrypts only its version 1. So a new key strands every stored
@@ -322,6 +336,38 @@ The eight places in the API that enqueue a task on a person's request, in
     testers' data, because it never rebuilds, reseeds or restores the stack they use.
   - What "keep all separate" takes, in the order it has to happen: T1, then T1b to T1g, and T3
     (§3).
+- **D8, live's database passwords (later on 2026-09-24).** The owner came back with
+  *"Three things i needed to check"* on the machine. This is the second: *"2) database passwords:
+  ill set them in .env for the ownpace-live before bringup."* ("ill" is read as "I'll".) So:
+  - The owner sets `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` and
+    `MINIO_ROOT_PASSWORD` in `~/.persistent/ownpace-live/.env` before live's first bring-up (T1b
+    step 5). The owner's words name the passwords; T1b step 5 sets `POSTGRES_USER` in the same
+    step, as D3 had it for the OTA stack (*"Ill change user and pass"*). T0 step 3 is where it is
+    done, and T1b step 7 checks it.
+  - This is the owner's step on the machine. It does not close the gap in the code, which stays
+    documented: `ensure-env-secrets.sh` does not generate the four (§1), `managed.env.example`
+    ships `change-me-…` values and `APP_DB_PASSWORD=app_password`, and `managed.yml` falls back to
+    compose's defaults when a key is empty. `trigger-db`'s password is a literal in `managed.yml`,
+    `POSTGRES_PASSWORD: trigger_password`, so no `.env` reaches it until T2's code makes it
+    `TRIGGER_DB_PASSWORD`.
+  - The first answer is about the Google client's redirect URIs, and ends *"I'll need to add one
+    for app.ownpace.eu or create a new oauth-client"*. It is 0140's: its T11 answers it with a new
+    client for live, carrying live's two addresses (T1e here). The third answer is D9.
+- **D9, live's networks (later on 2026-09-24).** The third answer: *"3) all need to land in their
+  own seperate docker network, with names corresponding with 'ownpace-live'."* ("seperate" is read
+  as "separate". "all" is read as everything live runs, and "names" as the networks' names. The
+  containers' and volumes' names follow the project too: volumes already do, and containers do
+  once T1 lands.) So:
+  - Every Docker network that live's containers join belongs to live, and its name starts with
+    `ownpace-live`. That includes the network Trigger.dev starts live's task runs on. The
+    supervisor sets that one on its own (`DOCKER_RUNNER_NETWORKS`, §1), not through Compose.
+  - No container of live's joins a network of the OTA stack's. No container of the OTA stack's
+    joins one of live's.
+  - What this takes is in T1. Compose already names live's two networks after the project. The
+    task-run network and the scripts' volume and network names do not follow the project yet.
+  - D9 is still separation by name on one Docker daemon. Each stack's `trigger-docker-proxy` can
+    still attach a container to any network on the machine (§1). D9 does not change what D7 says
+    about that.
 
 ## 3. What each task does
 
@@ -335,10 +381,10 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
    brings the OTA stack up under T1's names. Its volumes keep their names, because they are named
    after the project and the project does not change. Check with `docker ps`.
 2. **Change the OTA stack's passwords (T2)**, with the steps given there.
-3. **Stand live up (T1b to T1d)**: its checkout at a tag, its `.env`, its ports, its passwords
-   before the first bring-up, the bring-up without the demo, the one human step on its own
-   Trigger.dev dashboard, its identity provider at `id.ownpace.eu`, and the owner's own account on
-   it, appointed operator with `operator.sh add`.
+3. **Stand live up (T1b to T1d)**: its checkout at a tag, its `.env`, its ports, its database
+   passwords set by the owner in that `.env` before the first bring-up (D8), the bring-up without
+   the demo, the one human step on its own Trigger.dev dashboard, its identity provider at
+   `id.ownpace.eu`, and the owner's own account on it, appointed operator with `operator.sh add`.
 4. **Route the production names to it (T1e).**
 5. **Run the checks.** From `~/ownpace-live`:
    - `docker compose -f deploy/compose/managed.yml exec -T api printenv NODE_ENV` prints
@@ -348,6 +394,15 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
      `https://id.ownpace.eu` as its `issuer`, and the sign-in button on `app.ownpace.eu` leads
      there, not to `id.ota.ownpace.eu`.
    - `./deploy/compose/operator.sh list` names the owner and nobody else.
+   - Live's networks are its own (D9):
+     - `docker network ls --filter name=ownpace-live` lists `ownpace-live_ownpace-network` and
+       `ownpace-live_status-probe`.
+     - `docker compose -f deploy/compose/managed.yml config | grep DOCKER_RUNNER_NETWORKS` names
+       `ownpace-live_ownpace-network`. It prints that one line and no value from `.env`.
+     - `docker network inspect ownpace-managed_ownpace-network --format '{{range .Containers}}{{.Name}} {{end}}'`
+       names none of live's containers, and the same command on `ownpace-live_ownpace-network`
+       names none of the OTA stack's. A task run's container exists only while it runs, so this
+       sees the services; the rendered `DOCKER_RUNNER_NETWORKS` above covers the task runs.
    - T2's step 2, run against live, refuses the three shipped pairs.
    - The exposure check and the outside probe pass (T3). Until T3 is built, the owner tries every
      port both stacks publish, the site's 3125 and the demo's two, from a machine that is not on
@@ -355,7 +410,7 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
 6. **Write it down in this block:** the date of each step, the tag live runs, and the outcome of
    each check. Never a value.
 
-### T1 — container names and scripts take the stack from the project name (decided, D7)
+### T1 — container names, networks and scripts take the stack from the project name (decided, D7, D9)
 
 **Nothing else in D7 can start before this.** A second project cannot start while the 17 fixed
 container names exist (§1), and the scripts would reach the OTA stack from live's checkout.
@@ -364,32 +419,95 @@ container names exist (§1), and the scripts would reach the OTA stack from live
   either derived from the project name or dropped, so that Compose names the container after the
   project. `name: ownpace-managed` stays as the default, so the OTA stack keeps its project, its
   volumes and its networks. The supervisor's `DOCKER_RUNNER_NETWORKS` is derived from the project
-  name in the same way.
+  name in the same way (below).
+- **The networks (D9).** Every network live's containers join, task runs included, is named
+  after `ownpace-live`. Checked on this branch on 2026-09-24:
+  - **What Compose already does.** `managed.yml` declares two networks, `ownpace-network` and
+    `status-probe`. Neither has a `name:` or `external:`. Every service lists the networks it
+    joins, so Compose creates no default network. Compose names both after the project.
+    `docker compose -p ownpace-live -f deploy/compose/managed.yml config --no-interpolate`
+    renders them as `ownpace-live_ownpace-network` and `ownpace-live_status-probe`, and live's
+    volumes as `ownpace-live_…`. These two networks need no change.
+  - **What does not follow.** The same rendering still gives the supervisor
+    `DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network`, the literal in `managed.yml`'s
+    `trigger-supervisor` block. The comment above it says why it is written out: *"The value is
+    the REAL network name — compose prefixes the pinned project name."* That is the network every
+    task run is started on. So live's task runs would join the OTA stack's network, where
+    `postgres` is the OTA stack's database (§1). The value becomes
+    `${COMPOSE_PROJECT_NAME}_ownpace-network`, which leaves the OTA stack's value as it is.
+  - **Where the value comes from.** Compose makes the project name available for interpolation
+    as `COMPOSE_PROJECT_NAME`. On a small test file on 2026-09-24, with Compose 5.1.1,
+    `docker compose config` rendered `${COMPOSE_PROJECT_NAME}_ownpace-network` as
+    `ownpace-managed_ownpace-network` from the pinned `name:`, and also with an empty
+    `COMPOSE_PROJECT_NAME=` in the `.env`. It rendered it as `ownpace-live_ownpace-network` under
+    `-p ownpace-live`, under the environment variable, and under a
+    `COMPOSE_PROJECT_NAME=ownpace-live` line in the `.env` beside the file, read from another
+    working directory too. The reference machine's Compose version was not checked from here, so
+    T0 step 5 checks the rendered value there.
+  - **The demo's network.** `setup-managed-demo.sh` defaults `MANAGED_NETWORK`, the network the
+    demo Stalwart joins, to `ownpace-managed_ownpace-network`. Live runs no demo, but the default
+    follows the project anyway. T2's step 2 already builds the network name from the project.
+  - **What it does not change.** Each stack's `trigger-docker-proxy` still allows creating
+    networks and attaching containers to any network on the daemon (§1). A network of live's own
+    keeps live's task runs off the OTA stack's network by configuration, not by enforcement (D7).
+- **The volume names.** `reset-trigger.sh` sets `VOLUME="ownpace-managed_trigger_db_data"`. It
+  stops and removes `trigger-supervisor`, `trigger-api` and `trigger-db` through `docker compose`,
+  which is scoped to the project, and then removes that volume by name. Left as it is, and run from
+  live's checkout once live exists, it would stop and remove those three of live's and then try to remove the OTA stack's
+  Trigger.dev database. Docker refuses to remove a volume that any container, running or stopped,
+  still uses, so while the OTA stack's `trigger-db` container exists the removal fails, the script
+  exits, and live's three are left down. If that container has been removed, the OTA stack's
+  Trigger.dev database goes. With T1, the script takes the name from the project its own
+  `docker compose` resolves. One way is `volumes.trigger_db_data.name` in
+  `docker compose … config --format json`, which is `ownpace-live_trigger_db_data` under live's
+  project (checked with `--no-interpolate`). The same applies to three more places:
+  - `smoke-managed.sh`'s `idp_pat` reads the provisioning token off
+    `ownpace-managed_zitadel_machinekey`.
+  - Recipes printed for an operator to paste name `ownpace-managed_` volumes: two in
+    `setup-zitadel.sh`, two in `bootstrap-managed.sh` and one in `smoke-managed.sh`. Printed on
+    live, each would name the OTA stack's volume. With T1, they are printed with the stack's own
+    project name filled in.
+  - Two guards pin those literals. `scripts/idp-wiring.unit.test.ts` expects
+    `docker run --rm -v ownpace-managed_zitadel_machinekey` in `bootstrap-managed.sh`'s refusal.
+    `scripts/pasteable-hints.unit.test.ts` requires at least one literal `docker volume rm` line
+    to check. Both are rewritten with T1 to check the derived name.
 - **The scripts.** A script reaches a service through `docker compose exec <service>`, which
   Compose scopes to the project, or through a name derived from `COMPOSE_PROJECT_NAME`. It never
   uses a fixed name such as `docker exec ownpace-db`. The volume names in `reset-trigger.sh`,
   `setup-zitadel.sh`, `bootstrap-managed.sh` and `smoke-managed.sh`, and the network name in
-  `setup-managed-demo.sh`, are derived from the project name. The persisted `.env` and the dump
-  directory default to `~/.persistent/<project>`.
+  `setup-managed-demo.sh`, are derived from the project name (above). The persisted `.env` and
+  the dump directory default to `~/.persistent/<project>`.
 - **Where the name comes from.** Each stack's `.env` sets `COMPOSE_PROJECT_NAME`. Live's names
   `ownpace-live`; the OTA stack's is left empty or names `ownpace-managed`. The scripts run
   `docker compose -f deploy/compose/managed.yml`, so Compose reads the `.env` beside
   `managed.yml`, and the scripts already load the same file. One key then selects the stack for
   both.
 - **The docs.** The bring-up, the runbook and `docs/dav-sync.md` name containers in `docker exec`,
-  `docker logs` and `docker inspect` commands, and they follow the code. The bring-up's *One box,
-  one stack, one `.env`* becomes *One stack, one `.env`*. The operator's checkout of the OTA stack
-  and the gate's still share one file; live has its own (T1b). The warning against a fresh
-  bring-up in the gate's checkout stays, for the OTA stack.
+  `docker logs` and `docker inspect` commands, and they follow the code. So do the
+  `ownpace-managed_` volume names in the bring-up's `docker volume` and `docker run -v` commands
+  (D9). The bring-up's *One box, one stack, one `.env`* becomes *One stack, one `.env`*. The
+  operator's checkout of the OTA stack and the gate's still share one file; live has its own
+  (T1b). The warning against a fresh bring-up in the gate's checkout stays, for the OTA stack.
 - **The guard.** `scripts/two-stacks-on-one-box.unit.test.ts`, which was T8's guard, moves here.
-  It has two halves. The first half fails on a fixed stack name in `managed.yml`, in the shell
-  scripts under `deploy/compose/`, and in `.github/workflows/`. That covers any of the 17
-  container names used as a container, any `ownpace-managed_…` volume or network, and
-  `ownpace-managed` anywhere except as the one default of the variable that selects the stack. It
-  also fails if any workflow names `ownpace-live` (T1g). The second half sets two project names
-  and two sets of port values, and checks that the two stacks share no container name, volume,
-  network or host port. It fails today on the 17 names, on the network literal, and on every
-  script §1 counts.
+  It has two halves.
+  - **The first half** fails on a fixed stack name in `managed.yml`, in the shell scripts under
+    `deploy/compose/`, and in `.github/workflows/`. That covers any of the 17 container names used
+    as a container, and `ownpace-managed` anywhere except as the one default of the variable that
+    selects the stack. It also fails if any workflow names `ownpace-live` (T1g).
+  - **Hard-coded network and volume names (D9).** The first half fails on the string
+    `ownpace-managed_` anywhere in those files: in code, in a printed recipe, and in a comment,
+    because a comment's command gets pasted too. A network or volume name is always built from
+    the project. On this branch that is 13 lines in six files: `managed.yml` (the
+    `DOCKER_RUNNER_NETWORKS` value, and one commented `docker volume rm`), `reset-trigger.sh` (1),
+    `setup-managed-demo.sh` (the `MANAGED_NETWORK` default and two comments), `setup-zitadel.sh`
+    (two printed recipes and one comment), `bootstrap-managed.sh` (2) and `smoke-managed.sh` (2).
+    No workflow names one today.
+  - **The second half** sets two project names and two sets of port values, and checks that the
+    two stacks share no container name, volume, network or host port. It also checks that every
+    network a stack's services or task runs join, `DOCKER_RUNNER_NETWORKS` included, starts with
+    that stack's project name.
+  - It fails today on the 17 names, on the network literal, on the 13 `ownpace-managed_` lines,
+    and on every script §1 counts.
 
 **What it costs the OTA stack.** If the container names change, the next bring-up recreates the
 OTA containers under the new names. The volumes stay. Any command that says
@@ -486,15 +604,27 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
    with port 443, secure, and TLS terminated in front, in the shape `managed.env.example` shows
    for the OTA names (T1d). The status page's probes default to `WEB_URL` and to the provider's
    own domain, so they follow without a setting of their own. `NODE_ENV=production` (T4).
-5. **Passwords before the first bring-up.** `ensure-env-secrets.sh` is the right tool for a new
-   stack: every secret it knows is blank or a shipped placeholder, and the `env` phase fills each
-   one with a fresh value.
+5. **Passwords before the first bring-up (D8).** `ensure-env-secrets.sh` is the right tool for a
+   new stack: every secret it knows is blank or a shipped placeholder, and the `env` phase fills
+   each one with a fresh value.
    The bring-up's own rule, *"only generate fresh secrets when there is no working stack yet at
-   all"*, is live's case. It does not generate `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`,
-   `CLICKHOUSE_PASSWORD` or `MINIO_ROOT_PASSWORD` (§1). Generate those four on the machine before
-   the `data` phase, in the form T2's step 3 uses, and set `POSTGRES_USER` too. A new volume takes
-   them at first initialisation. `trigger-db`'s password is a literal until T2's code lands. That
-   code should land before live's first bring-up, which is when a new password costs nothing.
+   all"*, is live's case.
+   - **The owner's step.** `ensure-env-secrets.sh` does not generate `POSTGRES_PASSWORD`,
+     `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD` or `MINIO_ROOT_PASSWORD` (§1). The owner sets those
+     four, and `POSTGRES_USER`, in `~/.persistent/ownpace-live/.env` before the `data` phase. The
+     owner's words: *"ill set them in .env for the ownpace-live before bringup"*.
+   - **The step is not optional.** Seeded from the example (step 2), the file holds `change-me-…`
+     values and `APP_DB_PASSWORD=app_password` until the owner replaces them. An empty key falls
+     back to compose's default.
+   - **How to set them.** The form T2's step 3 uses, `openssl rand -hex 24` written with
+     `env-upsert.sh`, generates each value on the machine, so no value is typed, pasted or printed.
+     It takes all four in one call.
+   - **When they take effect.** A new volume takes them at first initialisation, and step 7
+     checks that it did.
+   - **The gap in the code stays.** Until T2's code lands, nothing generates the four and nothing
+     refuses a shipped value on a real address. `trigger-db`'s password is a literal in
+     `managed.yml`, not a key in `.env`, so D8 cannot reach it. That code should land before live's
+     first bring-up, which is when a new password costs nothing.
 6. **The bring-up, without the demo.** `bootstrap-managed.sh --only preflight`, then `--only env`,
    then `--only data`. Then create `app_user` with `APP_DB_PASSWORD` before anything migrates,
    because the baseline creates it with `app_password` only when it does not exist. This is T2's
@@ -512,7 +642,8 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
   MinIO, registry and supervisor, come up in live's project (T1). They get their own account,
   organisation and project through the one human step, on live's dashboard at
   `https://localhost:<TRIGGER_TLS_PORT>`. `trigger-credentials.sh` reads the `proj_` ref and the
-  `tr_prod_` key into live's `.env`.
+  `tr_prod_` key into live's `.env`. Its supervisor starts live's task runs on
+  `ownpace-live_ownpace-network`, once T1 derives `DOCKER_RUNNER_NETWORKS` (D9).
 - **Its own CLI login.** Live's `.env` names a `TRIGGER_CLI_PROFILE` of its own, so a login to
   one plane is never used against the other when both checkouts run as the same user on the
   machine. If a `TRIGGER_ACCESS_TOKEN` is used, it is live's own, never the repository secret CI
@@ -562,11 +693,15 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
 - **Google.** 0091 §1 lists `https://app.ownpace.eu/oauth/google/callback` as the production
   redirect URI. That is the planned path; the shipped route is `/api/migrations/google/callback`
   (`docs/google-oauth-verification.md`), so live needs
-  `https://app.ownpace.eu/api/migrations/google/callback` on the client it uses. Which client that
-  is, and its registration, are 0140's (T11).
-- **The check** is in T0 step 5. `id.ownpace.eu` names itself as the issuer, the sign-in button
-  on `app.ownpace.eu` leads there, and `/api/version` on `app.ownpace.eu` names the commit of
-  live's tag.
+  `https://app.ownpace.eu/api/migrations/google/callback` on the client it uses, and
+  `https://id.ownpace.eu/ui/login/login/externalidp/callback` if live's identity provider offers
+  sign-in with Google (0140 T10). The owner read the client on 2026-09-24: it holds the OTA
+  stack's two addresses, and *"I'll need to add one for app.ownpace.eu or create a new
+  oauth-client"*. Which client, and its registration, are 0140's: its T11 advises a new client
+  for live with live's two addresses.
+- **The check** is in T0 step 5: `id.ownpace.eu` names itself as the issuer, and the sign-in
+  button on `app.ownpace.eu` leads there. T6 step 7 checks that `/api/version` on
+  `app.ownpace.eu` names the commit of live's tag.
 
 ### T1f — every port that need not be reachable bound to 127.0.0.1, in both stacks
 
@@ -600,8 +735,9 @@ the other stack's containers.
 
 D3 decides the change. **Under D7 it is chiefly the OTA stack's.** That stack's roles were created
 with the values this repository contains, and the steps below are T0's second step. On live the
-values are generated before the first bring-up and the role is created with them (T1b), so only
-step 2's check runs there. The code stops the change from being undone later, on both stacks.
+owner sets the values in its `.env` before the first bring-up (D8), and the role is created with
+them (T1b), so only step 2's check runs there. The code stops the change from being undone later,
+on both stacks.
 
 The commands reach Postgres through `docker compose exec`. Compose scopes that to the stack whose
 `.env` sits beside `managed.yml`, so the commands work before and after T1, in either checkout.
@@ -1101,10 +1237,11 @@ known beyond the machine:
    in, could read one. The owner's merge is the gate for that path (0131 §4), and it is the reason
    for open question 1.
 
-Live's generated values are in none of the first two kinds, and they stay out of them as long as
-its `.env` never reaches a runner (T1g), its runner logs are never pasted, and its task
-environment is never printed into a public log. Only `trigger-db`'s literal is in the first kind,
-until T2's code lands. The third kind applies to live as much as to the OTA stack.
+Live's own values, generated or set by the owner (D8), are in none of the first two kinds, and
+they stay out of them as long as its `.env` never reaches a runner (T1g), its runner logs are never
+pasted, and its task environment is never printed into a public log. Only `trigger-db`'s literal
+is in the first kind, until T2's code lands. The third kind applies to live as much as to the OTA
+stack.
 
 **Who could use these values today?** Only something that can reach the service that checks them.
 By D2 the published ports cannot be reached from the internet. So the database password works in
@@ -1117,9 +1254,9 @@ only these places:
 
 The alpha changes the last two. From the first invitation on, strangers type host names into
 live, and live's API and tasks connect to those hosts from inside live's network (0136). A request
-the service can be made to send to `postgres`, `clickhouse` or `minio` meets live's generated
-passwords. One sent to `trigger-db` meets the literal until T2's code lands. One sent to the
-gateway meets whatever the machine publishes on every interface, including the OTA stack's
+the service can be made to send to `postgres`, `clickhouse` or `minio` meets the passwords the
+owner set for live (D8). One sent to `trigger-db` meets the literal until T2's code lands. One sent
+to the gateway meets whatever the machine publishes on every interface, including the OTA stack's
 Postgres with the passwords this repository contains, until T2 and T3 are done there.
 
 Here is one example, reasoned but not demonstrated here. ClickHouse's HTTP interface accepts the
@@ -1131,8 +1268,8 @@ What each replacement buys, and what it costs:
 
 | Value | What it protects | On live | On the OTA stack | Cost |
 |---|---|---|---|---|
-| `APP_DB_PASSWORD`, and the owner role's password | Every tenant's rows. Row security keys on a setting the session sets itself, and the owner role bypasses it. | Generated before the first bring-up; the role is created with it (T1b) | Changed before the first invitation (T2, D3) | On the OTA stack, one redeploy |
-| `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD`, `trigger-db`'s password | Trigger.dev's event store, its large payloads and its database | Generated before the first bring-up; `trigger-db`'s needs T2's code first | ClickHouse and MinIO with T2; `trigger-db`'s with row 24 | Nothing worth naming |
+| `APP_DB_PASSWORD`, and the owner role's password | Every tenant's rows. Row security keys on a setting the session sets itself, and the owner role bypasses it. | Set by the owner in live's `.env` before the first bring-up (D8); the role is created with it (T1b) | Changed before the first invitation (T2, D3) | On the OTA stack, one redeploy |
+| `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD`, `trigger-db`'s password | Trigger.dev's event store, its large payloads and its database | Set by the owner in live's `.env` before the first bring-up (D8); `trigger-db`'s needs T2's code first | ClickHouse and MinIO with T2; `trigger-db`'s with row 24 | Nothing worth naming |
 | `SECRET_ENCRYPTION_KEY` | Every stored mailbox and drive credential a person enters | Generated at the first bring-up. Replaced during the alpha only if it leaks | Parked with row 24; it guards the demo's and the owner's own credentials | On live after testers connect: every tester reconnects every source and target |
 | `TRIGGER_ENCRYPTION_KEY` | The task environment store, which holds both database URLs and `SECRET_ENCRYPTION_KEY` | Generated at the first bring-up | Parked with row 24 (T5's reset) | The one human step on the dashboard |
 | The other four Trigger.dev secrets, and the `tr_prod_` key | The dashboard's sessions and sign-in, the supervisor's link and task deploys | Generated, and minted on live's own plane (T1c) | Parked with row 24 | A new CLI login |
