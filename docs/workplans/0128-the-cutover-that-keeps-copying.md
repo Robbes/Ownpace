@@ -4,6 +4,17 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, evening: the owner answered the five questions for T3 and T4, and split the
+cutover.** *"1a 2a 3a 4a 5a. But for 5a: this is only after cutover and we need to split up
+cutover, since someone might want to keep syncing some kinds, like keeps files running, while
+email cutover/stops."* D3 to D7 record the five answers (§4), each the recommended one. D8 is the
+split: a cutover happens **per data type**, so mail can be cut over and stop after its grace
+period while files keep running as an ordinary sync, and are cut over on their own day. That is
+the grain workplan 0109 T1c extracted and left for the owner; it continues here as T5, and T3's
+ending is decided per data type with it (§3). The design of T5 is the next step, before any
+code, because MX switching, the grace period and rollback are the product's most
+safety-critical machinery.
+
 **2026-09-23: opened from the owner's answers.** Two things came out of one conversation about
 the cutover.
 
@@ -71,8 +82,9 @@ its test.
 |---|---|---|
 | T1 The final sync covers every data type | ✅ **Built 2026-09-24** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
-| T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided** with T4; next | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. |
-| T4 A data type can be stopped and resumed | 📋 **Decided: D2 (c)**; next | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. |
+| T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
+| T4 A data type can be stopped and resumed | 📋 **Decided: D2 (c), D4, D5, D6**; next | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
+| T5 A cutover per data type | 📋 **Decided: D8**; design next | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. |
 
 ## 1. What happens today
 
@@ -212,6 +224,41 @@ as contacts keep flowing would charge for nothing.
   After cutover, a stop is usually for good. The tier reads the month's peak (0109 T2), so
   stopping and resuming within a month cannot lower a bill. It needs one sentence on the pricing
   page, beside D8's.
+
+**D3 — Keep copying at the Finish checklist's last step (T3)?** **Decided 2026-09-24: (a)**,
+*"1a"*. Step 5 usually finds the migration still running. *Keep copying* stands beside *End* and
+enters the continuous lane in one press, on the attestation step 4 already asked for
+(*"Delivery now goes to the new system"*), as *End* does, recorded as a cutover and then the
+lane. Open failures block *End* unless it is forced; they do not block *Keep*, which goes on
+retrying them. (b) was to keep the lane a second press after finishing.
+
+**D4 — the appliance (T3, T4)?** **Decided 2026-09-24: (a)**, *"2a"*. The appliance gets the same
+choice, data types included, with a stopped data type kept in its own database. Its *Keep
+copying* button fails today: it calls a route the appliance does not serve, and is answered 404.
+(b) was managed only, with the appliance's button hidden until then.
+
+**D5 — stopping the last data type still copying (T4)?** **Decided 2026-09-24: (a)**, *"3a"*.
+Refused, with a pointer to *End the migration*. (b) was to allow a migration with everything
+stopped, which under D2 (c) would go on holding its slots while `active`, for nothing.
+
+**D6 — verifying a stopped data type (T4)?** **Decided 2026-09-24: (a)**, *"4a"*. The Finish
+checklist's check that everything arrived skips it and says *stopped by you*. (b) was to go on
+checking it against a source it no longer follows, where it falls behind and shows as missing.
+
+**D7 — the grace period ends and nobody chose (T3)?** **Decided 2026-09-24: (a)**, *"5a"*, with
+the owner's note that it applies after a cutover only. Copying stops then (T2), and the owner is
+told on the Finish page and in the organisation's *what needs attention* digest (0030). (b) was
+the Finish page only.
+
+**D8 — one cutover per migration, or one per data type?** **Decided 2026-09-24: per data type**,
+the owner's own addition: *"we need to split up cutover, since someone might want to keep
+syncing some kinds, like keeps files running, while email cutover/stops."* It answers the
+question 0109 T1c extracted and left for the owner. That question was about workplan 0104's rule
+that a cutover announces **once**: shares held back during the migration are created on the
+target at the cutover, and the platform's own mail goes out in one wave, never per file. Per data
+type, the rule holds for each of them: a data type's shares are announced once, at that data
+type's cutover. Mail carries no shares. So the moment is the one the owner chooses for each data
+type, and never a trickle.
 
 ## Not in this plan
 
