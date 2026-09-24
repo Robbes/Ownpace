@@ -123,6 +123,22 @@ describe('LocaleProvider', () => {
     expect(screen.getByTestId('deletions').textContent).toBe('Verwijderingen');
   });
 
+  it('sets the document language to the UI language, so a screen reader reads Dutch as Dutch', () => {
+    // index.html says `lang="en"`; left alone, every Dutch screen is read
+    // with English pronunciation (WCAG 3.1.1).
+    document.documentElement.lang = 'en';
+    window.localStorage.setItem('ownpace.locale', 'en');
+    render(
+      <LocaleProvider>
+        <Probe />
+      </LocaleProvider>,
+    );
+    expect(document.documentElement.lang).toBe('en');
+
+    fireEvent.click(screen.getByText('to-nl'));
+    expect(document.documentElement.lang).toBe('nl');
+  });
+
   it('degrades to a fixed English handle outside a provider (isolated renders must not crash)', () => {
     render(<Probe />);
     expect(screen.getByTestId('locale').textContent).toBe('en');

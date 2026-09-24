@@ -536,6 +536,9 @@ describe('bilingual rendering', () => {
     const nl = await open('/login', { signedIn: false, locale: 'nl' });
     const nlText = await nl.text();
     expectClean(nl, '/login (nl)');
+    // The document says which language it is in, or a screen reader reads the
+    // Dutch with an English voice (WCAG 3.1.1). Asked before the page closes.
+    expect(await nl.page.getAttribute('html', 'lang')).toBe('nl');
     await nl.page.close();
 
     expect(nlText).toContain('Aanmelden bij Ownpace'); // login.title, nl
