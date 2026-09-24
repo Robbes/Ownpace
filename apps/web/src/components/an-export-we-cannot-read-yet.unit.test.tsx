@@ -18,8 +18,8 @@
  * - at both doors, the wizard and the Connections page, an option whose export
  *   has no reader carries the tag as text in its name. Google Takeout carries
  *   none, for as long as it is the only export with a reader;
- * - choosing that option shows D7's line under the field, and choosing Takeout
- *   shows none;
+ * - choosing that option shows D7's line under the field, as a status the
+ *   select points at, and choosing Takeout shows none;
  * - the card's own hint carries the tag after Apple, in English and in Dutch.
  *
  * Which export is tagged is read from `ARCHIVE_PROVIDERS_WITH_READERS`, so
@@ -209,6 +209,22 @@ describe.each(EDITIONS)('on the $edition build', ({ selfhost }) => {
 
       fireEvent.change(select, { target: { value: 'google-takeout' } });
       expect(screen.queryByText(SAID[locale].line), 'with Takeout chosen').toBeNull();
+    });
+
+    // The line appears on a choice, after the eye has left for the next box:
+    // a screen reader hears it only when it is a status, and meets it again
+    // on the select only when the select points at it (review, 2026-09-24).
+    it.each(LOCALES)('%s: the line is announced, and describes the select while Apple is chosen', async (locale) => {
+      await DOORS[door](locale);
+      const select = whichExport(locale);
+      expect(select).not.toHaveAccessibleDescription(SAID[locale].line);
+
+      fireEvent.change(select, { target: { value: 'apple-privacy' } });
+      expect(screen.getByText(SAID[locale].line).closest('[role="status"]'), 'a status').not.toBeNull();
+      expect(select).toHaveAccessibleDescription(SAID[locale].line);
+
+      fireEvent.change(select, { target: { value: 'google-takeout' } });
+      expect(select).not.toHaveAccessibleDescription(SAID[locale].line);
     });
 
     it.each(LOCALES)('%s: the card hint carries the tag after Apple, while Apple has no reader', async (locale) => {

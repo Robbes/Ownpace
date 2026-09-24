@@ -41,6 +41,13 @@ languages. The orchestration test's 2 cases failed too. Where the build differs 
   Test button by `/Test/i`, which now also matches the archive card's hint. Its nine queries
   are anchored, `/^Test/i`, as its Next button already was.
 
+After review, on the same branch: the rest of `archive-setup.md`'s Apple part no longer says we
+read an Apple export today. Step 3, *Getting it ready for us*, *One thing Apple removes* and the
+*Which export* row now say *will read* or *to be tested*. T1/T4 carry this wording into
+`docs/guides/`. The line under the field is now a status, and the select points at it
+(`aria-describedby`), so a screen reader hears it. The guard gained one case per door, edition
+and language: 34 cases, and the 8 new ones failed on the pages before this fix.
+
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* So the archive form gains a second
