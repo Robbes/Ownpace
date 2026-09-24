@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE, readPathPhases } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -31,6 +31,7 @@ import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import {
   runAllDomains,
   recordSwitchedOff,
+  domainsFromConfig,
   discoverAllDomains,
   verifyMapping,
   applyMappingDeletion,
@@ -987,6 +988,45 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     }
   };
 
+  /**
+   * THIS MIGRATION'S DATA TYPES, AS ROWS (workplan 0128 T5, slice 2a).
+   *
+   * The appliance's data types lived only in its configuration file, so it had
+   * no scope rows, and so no path rows either: nothing for a data type's own
+   * phase to be kept in once a cutover is per data type. At every start-up it
+   * now writes a scope row for every data type the file names, `included` as
+   * the file has it (a switched-off one names itself but is not a path), and
+   * gives every path of a migration that has started its lifecycle row, from
+   * the migration's status, by the rule ledger migration 0065 applied to
+   * managed (`pathsFromTheMapping`). A row that exists is left alone: the doors
+   * move rows.
+   *
+   * Never worth taking the appliance down for, and never swallowed (rule 9):
+   * until something reads these rows for a gate, a data type without one reads
+   * as the migration, which is what every gate asked before.
+   */
+  const recordPathsFor = async (m: LoadedMapping) => {
+    const tenantId = m.config.tenantId as string;
+    try {
+      const scope = domainsFromConfig({ ...m.config, mappingId: m.mailboxMappingId }).map((d) => ({
+        domain: d.name,
+        included: d.enabled,
+      }));
+      const written = await withTenant(persistenceBackend.driver, tenantId, async (tdb) => {
+        await recordScope(tdb, tenantId, m.mailboxMappingId, scope);
+        return pathsFromTheMapping(tdb, tenantId, m.mailboxMappingId);
+      });
+      if (written.length > 0) {
+        log.info(`[selfhost] ${m.config.mappingId}: recorded the phase of ${written.join(', ')}`);
+      }
+    } catch (err) {
+      log.warn(
+        `[selfhost] ${m.config.mappingId}: could not record its data types: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  };
+
   // Schedule a mapping's recurring sync (idempotent — guards the `scheduled` set so an
   // operator confirming twice never double-schedules).
   const scheduleMapping = (m: LoadedMapping) => {
@@ -1007,6 +1047,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     // exist first (this writes to it), and a mapping whose scope or provider
     // changed under a ledger full of items must not reach a pass at all.
     await assertMappingRevision(m);
+    await recordPathsFor(m);
 
     const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
     // Best-effort, non-blocking: discovery counts populate as the source is scanned.
@@ -3228,8 +3269,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 409, { error: transition.conflict });
         }
         if (transition.activate) {
-          await withTenantContext(m.config.tenantId as string, async (client) => {
-            await client.query(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [m.mailboxMappingId]);
+          // Through the ledger's own door (0128 T5, slice 2a): the status, its
+          // paths and the audit record in one transaction, as managed's Start
+          // writes them. A raw UPDATE left the paths behind and no record.
+          // No `onSlotsTaken`: the appliance bills nothing, and its database
+          // keeps no month's peak (only the managed chain makes one).
+          await applyMappingStatusChange(persistenceBackend.driver, m.config.tenantId as string, {
+            mappingId: m.mailboxMappingId,
+            from: status,
+            to: 'active',
+            actor: 'operator',
+            via: 'start',
           });
           log.info(`[selfhost] ${m.config.mappingId}: activated by operator`);
         }
@@ -3317,10 +3367,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 200, already);
         }
 
-        await withTenantContext(m.config.tenantId as string, async (client) => {
-          await client.query(`UPDATE mailbox_mapping SET status = 'done' WHERE id = $1`, [
-            m.mailboxMappingId,
-          ]);
+        // Through the ledger's own door, as Start is: the paths end with the
+        // migration, and the record says whether it was forced.
+        await applyMappingStatusChange(persistenceBackend.driver, m.config.tenantId as string, {
+          mappingId: m.mailboxMappingId,
+          from: status,
+          to: 'done',
+          actor: 'operator',
+          via: 'finish',
+          ...(unresolved > 0 ? { forced: true } : {}),
         });
         unscheduleMapping(m);
         log.warn(
