@@ -57,9 +57,26 @@ import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
 import { grantApi } from '../services/grant-service.ts';
 import { serverMessage } from '../services/api.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
+import type { Locale } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
+
+/**
+ * The published policy pages, in the reader's language, by the file names the
+ * site build writes (`site/copy.mjs`'s `files`). The site's nginx serves files
+ * as they are named, with no `.html` fallback, so `/privacy` is a 404 there.
+ */
+const LEGAL: Readonly<Record<Locale, { readonly privacy: string; readonly terms: string }>> = {
+  en: {
+    privacy: 'https://www.ownpace.eu/privacy.html',
+    terms: 'https://www.ownpace.eu/terms.html',
+  },
+  nl: {
+    privacy: 'https://www.ownpace.eu/nl/privacy.html',
+    terms: 'https://www.ownpace.eu/nl/voorwaarden.html',
+  },
+};
 
 /** A destination's kind, by the name its card carries; the kind itself otherwise. */
 function providerName(kind: string): string {
@@ -69,6 +86,7 @@ function providerName(kind: string): string {
 const Grant: React.FC = () => {
   const { link } = useParams<{ link: string }>();
   const t = useT();
+  const { locale } = useLocale();
   const { dateTime } = useFormatters();
   const [starting, setStarting] = React.useState(false);
   const [failure, setFailure] = React.useState('');
@@ -198,10 +216,10 @@ const Grant: React.FC = () => {
 
           <p className="mt-6 text-sm text-gray-500">
             {t('grant.disclosure')}{' '}
-            <a className="underline" href="https://www.ownpace.eu/privacy">
+            <a className="underline" href={LEGAL[locale].privacy}>
               {t('grant.privacy')}
             </a>{' '}
-            <a className="underline" href="https://www.ownpace.eu/terms">
+            <a className="underline" href={LEGAL[locale].terms}>
               {t('grant.terms')}
             </a>
           </p>
