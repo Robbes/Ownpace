@@ -95,11 +95,13 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
   { prefix: '/api/billing', files: ['src/routes/billing/index.ts'] },
   // The migrator's surface (workplan 0108 T4). Its own prefix because nothing
   // under it authenticates a session — the link in the path is the credential.
-  { prefix: '/api/grant', files: ['src/routes/grant.ts'] },
+  // With "report this link" beside each kind of link (0108 T8 (d)): one
+  // router file, mounted under both prefixes, each authenticating its own.
+  { prefix: '/api/grant', files: ['src/routes/grant.ts', 'src/routes/link-reports.ts'] },
   // The same population's SECOND surface (workplan 0122): the progress page.
   // Its own prefix, not a route under `/api/grant`, because the purposes carry
   // different lifetimes and `verifyMappingLink` refuses a token at the wrong one.
-  { prefix: '/api/view', files: ['src/routes/view.ts'] },
+  { prefix: '/api/view', files: ['src/routes/view.ts', 'src/routes/link-reports.ts'] },
   // The operator's support surface (workplan 0110 T4). Its own prefix because
   // nothing under it resolves a tenant — these read across all of them.
   { prefix: '/api/support', files: ['src/routes/support.ts'] },

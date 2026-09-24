@@ -1452,6 +1452,17 @@ ticket. Restart the API, sign in, and the link appears; send yourself a test
 report. A report that Zammad refuses is answered with a reference, and recorded
 for the log page as `report.not-delivered`.
 
+The same setting switches on **Report this link** on the grant and progress
+pages (workplan 0108 T8 (d)). Somebody who doubts a link they were sent tells
+you, not the organisation that sent it. Such a ticket is titled *Ownpace: a
+grant link was reported* (or *a progress link*), in the same group. Its one
+article is an **internal note**. First the facts, one line each: the link's id
+(never the link), the organisation and migration with their ids, who issued the
+link, from, to, and whether access was given. Then, under *What they wrote*, the
+reporter's own words. The reply address is typed, not verified. It is the
+ticket's customer, so a reply you write reaches it. Three reports a day per
+link, thirty an hour for every link together.
+
 ### 8g. The alpha note *(only on the stack testers use)*
 
 While the service is an alpha (workplan 0131 T1), every tester is told so: a
