@@ -261,8 +261,11 @@ describe('with the alpha setting on', () => {
     // "charged". If the note's word changes, this line changes with it.
     const verb = { en: 'Nothing is charged', nl: 'niets in rekening gebracht' }[locale];
     expect(STRINGS[locale]['alpha.note.terms']).toContain(verb);
-    expect(SAID[locale].charged).toContain(verb);
-    expect(SAID[locale].line).not.toMatch(/invoiced|gefactureerd/i);
+    // Read from the product's dictionary, not from SAID above, so this case
+    // fails when the product's words change, not only when the test's do.
+    const charged = STRINGS[locale]['alpha.nothingCharged'];
+    expect(charged).toContain(verb);
+    expect(`${charged} ${STRINGS[locale]['billing.alpha.measured']}`).not.toMatch(/invoiced|gefactureerd/i);
   });
 });
 

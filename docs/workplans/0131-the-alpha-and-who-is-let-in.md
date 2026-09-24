@@ -23,6 +23,15 @@ guard, `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`, has 21 cases.
 on the unchanged code, and each of 7 mutations made at least 2 fail. With the setting on, it says
 nothing about the four metered cards: hiding them is **Proposed**, and with them hidden the guard
 still passes. Leaving run rows unpruned is **Proposed** too, and nothing here touches retention.
+The build review adds three things. First, on a paid tier the invoice details card still shows the
+amber *"Not provided yet. Invoices cannot be issued until this is filled in."* under the alpha
+line. That asks the tester to fill the form in, which contradicts §3's *"the alpha asks nobody to
+fill it in"*, and most testers will see it: Tiny carries one path, so moving two data types lands
+on a paid tier. The code is left as §3 says, and open question 7 asks the owner. Second, the
+second sentence is in `ALLOWED_OVER` on the authority of §3's Decided text, not of 0118's rule for
+consent, safety and remedy sentences, since its first clause explains; open question 7 asks about
+that too. Third, the request hint on screen is now `access.tierHint` and the new sentence in one
+paragraph: 21 words in three sentences, where each key alone is within budget.
 
 **2026-09-24, build review: T1 (a) fixes on the same branch
 (`claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`), not merged.** Two reviewers
@@ -124,7 +133,7 @@ of the gate answer.
 |---|---|---|
 | T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** (b) 📋 waits on 0139 T2, T10 and 0144 T1 | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
-| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, not merged**: the Billing line and the request hint. The cards and the run rows stay 📋 **Proposed** | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
+| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, not merged**: the Billing line and the request hint. The cards and the run rows stay 📋 **Proposed**; the invoice details card during the alpha is open question 7 | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |
 | T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0149, 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
 
@@ -478,7 +487,8 @@ that, so T2 carries no such tag, and open question 4 is answered.
 - The subtitle is replaced, and the page opens with one line. EN: *"Nothing is charged during the
   alpha. What you see here is measured so you can see how it works; it is not a bill."* NL:
   *"Tijdens de alfa wordt niets in rekening gebracht. Wat u hier ziet, wordt gemeten zodat u kunt
-  zien hoe het werkt; het is geen rekening."*
+  zien hoe het werkt; het is geen rekening."* A viewer or member, who is shown no figures, reads
+  the first sentence alone (the T3 build's reading, 2026-09-24).
 - The tier block stays, prices included, under that line. The measurement is one of the things
   worth trying: 0121 T4 records the owner's decision of 2026-09-09 that the customer gets to see
   it. The prices shown are ADR-0014's (`MANAGED_TIERS` in
@@ -507,7 +517,8 @@ carry on after it)**. The run window is 60 days, so nothing a few weeks of alpha
 old enough to prune even with the rule changed, and 0143 T9 measures what the rows cost meanwhile.
 
 **Guard.** `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`: with the setting on, the
-Billing page shows the line in both languages and none of the four metered labels. Without the
+Billing page shows the line in both languages (and, once the **Proposed** hiding is decided, none
+of the four metered labels). Without the
 setting, the page is as it is today; that half is the control. The first half fails on today's
 code.
 
@@ -838,3 +849,14 @@ works M1 to M7, each group in its numbered order.
    queue. (b) matches *"I am the gate for letting people in the test."* more closely; (a) keeps a
    family or a small office able to try the service together. 0137 open question 1 asks the same
    question from the side of roles, with (b) here as its option (d).
+7. **The invoice details card, and the long sentence, on a paid tier during the alpha (T3).**
+   With the setting on, a tester on a paid tier reads *"Nothing is charged during the alpha"* and,
+   a few cards lower, the amber *"Not provided yet. Invoices cannot be issued until this is filled
+   in."* §3 keeps the form as it is because *"the alpha asks nobody to fill it in"*, and on that
+   page the notice does ask. (a) Leave it, as §3 says today. (b) Treat the alpha as 0109 T8 treats
+   the free tier: when `isAlpha()`, show `billing.party.notNeeded` (*"Not needed while your tier is
+   free: nothing is invoiced."*), or an alpha variant of it, in place of the amber notice; the form stays. The T3 build
+   points to (b). Separately: the Billing line's second sentence is eighteen words, over the copy
+   budget, and is kept verbatim on the authority of §3's Decided text. (a) Keep it verbatim, which
+   is how it is built; or (b) keep *"it is not a bill"* on screen and move the explanation into a
+   fold.
