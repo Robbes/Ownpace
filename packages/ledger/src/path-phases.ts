@@ -21,10 +21,13 @@
  * The cutover's own window (`cutoverStillCopies`) is asked when the migration
  * or one of its paths is in `cutover`: one window per migration, until the
  * cutover ledger is kept per data type (slice 4).
+ *
+ * A data type its owner stopped (0128 T4, `stopped_at`) is stopped whichever
+ * phase is believed: it runs no pass, and its phase says the rest.
  */
 
 import { and, eq } from 'drizzle-orm';
-import { phasesOfThePaths, rollUpPhases, runsPassesNow, type PathPhaseOf } from '@openmig/shared';
+import { pathRunsNow, phasesOfThePaths, rollUpPhases, runsPassesNow, type PathPhaseOf, type PathRow } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
 import { cutoverStillCopies } from './cutover-grace.ts';
@@ -33,9 +36,10 @@ import { cutoverStillCopies } from './cutover-grace.ts';
  * The managed tick's twin of `anyRuns` for the one case the migration's own
  * status cannot see (0128 T5, slice 2b), as a SQL condition on `mailbox_mapping
  * m`: a migration in `cutover` whose rows add up to `cutover` (none before its
- * cutover, one in it) and keep a data type in the lane. Its cutover's window
- * may be closed, and that data type still runs. Every other case is the
- * migration's own status, which the tick already asks.
+ * cutover, one in it) and keep a data type in the lane that its owner has not
+ * stopped (0128 T4). Its cutover's window may be closed, and that data type
+ * still runs. Every other case is the migration's own status, which the tick
+ * already asks.
  *
  * Only included data types are paths, as in `readPathPhases`. A test runs the
  * tick's query and the reader on the same rows and holds them to one answer.
@@ -44,7 +48,7 @@ export const A_PATH_KEPT_AFTER_A_CUTOVER_WHERE = `m.status = 'cutover'
                    AND EXISTS (SELECT 1 FROM path_lifecycle p
                                  JOIN scope_selection s
                                    ON s.mapping_id = p.mapping_id AND s.domain = p.domain AND s.included
-                                WHERE p.mapping_id = m.id AND p.state = 'continuous')
+                                WHERE p.mapping_id = m.id AND p.state = 'continuous' AND p.stopped_at IS NULL)
                    AND EXISTS (SELECT 1 FROM path_lifecycle p
                                  JOIN scope_selection s
                                    ON s.mapping_id = p.mapping_id AND s.domain = p.domain AND s.included
@@ -68,7 +72,11 @@ export interface MigrationPhases {
    * stops by, and the appliance schedules by. Nothing runs while the migration
    * is held (`paused`). Otherwise the migration runs by its own status, or, where
    * its rows add up to that status, because one of its paths does: a data type
-   * kept in the lane while another is past its cutover's grace period.
+   * kept in the lane while another is past its cutover's grace period, and not
+   * stopped by its owner (0128 T4). A running migration whose every data type
+   * is stopped still answers true, and its pass moves past each one: its owner
+   * cannot make one, since the last data type still copying cannot be stopped
+   * (D5).
    */
   readonly anyRuns: boolean;
   /** When the person who granted access took it back (0108 T8 (c)), or null. */
@@ -96,7 +104,11 @@ export async function readPathPhases(
   if (row === undefined) return null;
   // Its paths: the included data types' own rows (a switched-off one is not a path).
   const rows = await db
-    .select({ domain: schemaPg.pathLifecycle.domain, state: schemaPg.pathLifecycle.state })
+    .select({
+      domain: schemaPg.pathLifecycle.domain,
+      state: schemaPg.pathLifecycle.state,
+      stoppedAt: schemaPg.pathLifecycle.stoppedAt,
+    })
     .from(schemaPg.pathLifecycle)
     .innerJoin(
       schemaPg.scopeSelection,
@@ -107,8 +119,10 @@ export async function readPathPhases(
       ),
     )
     .where(eq(schemaPg.pathLifecycle.mappingId, mappingId));
-  const paths: Record<string, string> = Object.fromEntries(rows.map((r) => [r.domain, r.state]));
-  const states = Object.values(paths);
+  const paths: Record<string, PathRow> = Object.fromEntries(
+    rows.map((r) => [r.domain, r.stoppedAt === null ? { state: r.state } : { state: r.state, stopped: true }]),
+  );
+  const states = Object.values(paths).map((p) => p.state);
   // Asked only of a cutover, since no other phase depends on it (0128 T2).
   const inCutover = row.status === 'cutover' || states.includes('cutover');
   const stillCopies = inCutover && (await cutoverStillCopies(db, tenantId, mappingId));
@@ -116,7 +130,10 @@ export async function readPathPhases(
   const anyRuns =
     row.status !== 'paused' &&
     (runsPassesNow(row.status, row.status === 'cutover' && stillCopies) ||
-      (agreed && states.some((state) => runsPassesNow(state, state === 'cutover' && stillCopies))));
+      (agreed &&
+        Object.values(paths).some((p) =>
+          pathRunsNow({ phase: p.state, stillCopies: p.state === 'cutover' && stillCopies, stopped: p.stopped }),
+        )));
   return {
     status: row.status,
     stillCopies,

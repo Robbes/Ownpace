@@ -627,15 +627,23 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
         [TENANT_A],
       );
       await q('INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 100000000000)', [TENANT_A]);
-      for (const [domain, state] of [
-        ['email', 'active'],
-        ['calendar', 'active'],
-        ['contact', 'paused'],
-        ['file', 'cutover'],
-      ]) {
+      // Four data types the migration carries, one of them stopped in the
+      // lane (0128 T4, D2 (c)), and one it no longer carries.
+      for (const [domain, state, included, stopped] of [
+        ['email', 'active', true, false],
+        ['calendar', 'active', true, false],
+        ['contact', 'paused', true, false],
+        ['task', 'continuous', true, true],
+        ['file', 'active', false, false],
+      ] as const) {
         await q(
-          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state)
+          `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
            VALUES ($1, $2, $3, $4)`,
+          [TENANT_A, MAPPING_A, domain, included],
+        );
+        await q(
+          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, stopped_at)
+           VALUES ($1, $2, $3, $4, ${stopped ? 'now()' : 'NULL'})`,
           [TENANT_A, MAPPING_A, domain, state],
         );
       }
@@ -659,15 +667,16 @@ describe('the tier the month has earned so far (0109 T4, surfaced)', () => {
     expect(usage.decided_by).toBe('paths');
     expect(usage.evidence).toEqual({ peak_paths: 3, gb_moved: 100 });
     // The observations behind it, separately: the mark somebody recorded and
-    // when, and what stands right now. The cutover path is counted in its
-    // state and NOT as a slot-holder — a route that counted rows instead of
-    // asking `holdsASlot` would say 4 here.
+    // when, and what stands right now. The path stopped in the lane is
+    // counted under its state and stop and NOT as a slot-holder — a route that
+    // counted rows instead of asking `holdsASlot` would say 4 here. The data
+    // type the migration no longer carries is not a path at all.
     expect(usage.recorded_peak_paths).toBe(1);
     expect(new Date(usage.recorded_peak_at as string).toISOString()).toBe(
       '2026-08-12T10:00:00.000Z',
     );
     expect(usage.paths_now).toBe(3);
-    expect(usage.paths_by_state).toEqual({ active: 2, paused: 1, cutover: 1 });
+    expect(usage.paths_by_state).toEqual({ active: 2, paused: 1, 'continuous (stopped)': 1 });
   });
 
   it('agrees with the calculator the invoice will use — before AND after its true-up', async () => {

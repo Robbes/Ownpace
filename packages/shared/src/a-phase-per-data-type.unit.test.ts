@@ -96,7 +96,7 @@ describe("the migration's status its paths add up to (slice 2b)", () => {
 
 describe('each data type from its own row, where the rows agree with the migration', () => {
   it('reads each row, and the migration for a data type with none', () => {
-    const phaseOf = phasesOfThePaths('active', true, { email: 'cutover', file: 'active' });
+    const phaseOf = phasesOfThePaths('active', true, { email: { state: 'cutover' }, file: { state: 'active' } });
     expect(phaseOf('email')).toEqual({ phase: 'cutover', stillCopies: true });
     expect(phaseOf('file')).toEqual({ phase: 'active', stillCopies: false });
     expect(phaseOf('calendar')).toEqual({ phase: 'active', stillCopies: false });
@@ -104,10 +104,10 @@ describe('each data type from its own row, where the rows agree with the migrati
 
   it('believes the status over rows it does not add up to, as after a status set by hand', () => {
     // Finished, then set back to `active` by hand to resume: the rows still say `done`.
-    const phaseOf = phasesOfThePaths('active', false, { email: 'done', file: 'done' });
+    const phaseOf = phasesOfThePaths('active', false, { email: { state: 'done' }, file: { state: 'done' } });
     for (const domain of DISCOVERY_DOMAINS) expect(phaseOf(domain)).toEqual({ phase: 'active', stillCopies: false });
     // Set to `cutover` by hand over running rows: every data type is past its cutover.
-    const cutOver = phasesOfThePaths('cutover', true, { email: 'active' });
+    const cutOver = phasesOfThePaths('cutover', true, { email: { state: 'active' } });
     expect(pathSourceAuthority(cutOver('email')).sourceIsAuthorityOnExistence).toBe(false);
   });
 
@@ -117,5 +117,44 @@ describe('each data type from its own row, where the rows agree with the migrati
         expect(phasesOfThePaths(status, true, {})(domain)).toEqual(phasesOfTheMigration(status, true)(domain));
       }
     }
+  });
+});
+
+describe('a data type its owner stopped (0128 T4, slice 3a)', () => {
+  it('runs no pass, in any phase, and keeps who decides what exists as its phase says', () => {
+    for (const phase of STATUSES) {
+      for (const stillCopies of [true, false]) {
+        const stopped = { phase, stillCopies, stopped: true };
+        expect(pathRunsNow(stopped), phase).toBe(false);
+        expect(pathSourceAuthority(stopped)).toEqual(pathSourceAuthority({ phase, stillCopies }));
+      }
+    }
+  });
+
+  it('is stopped where the rows agree, and still stopped where the status is believed over them', () => {
+    const agreed = phasesOfThePaths('active', false, {
+      email: { state: 'active', stopped: true },
+      file: { state: 'active' },
+    });
+    expect(agreed('email')).toEqual({ phase: 'active', stillCopies: false, stopped: true });
+    expect(agreed('file')).toEqual({ phase: 'active', stillCopies: false });
+
+    // Rows that do not add up to the status: the status is every data type's
+    // phase, and a status set by hand does not start what its owner stopped.
+    const believed = phasesOfThePaths('continuous', false, {
+      email: { state: 'active', stopped: true },
+      file: { state: 'done' },
+    });
+    expect(believed('email')).toEqual({ phase: 'continuous', stillCopies: false, stopped: true });
+    expect(pathRunsNow(believed('email'))).toBe(false);
+    expect(pathRunsNow(believed('file'))).toBe(true);
+  });
+
+  it('is not a phase: a stopped row adds up as its state', () => {
+    const phaseOf = phasesOfThePaths('continuous', false, {
+      email: { state: 'continuous', stopped: true },
+      file: { state: 'done' },
+    });
+    expect(phaseOf('file')).toEqual({ phase: 'done', stillCopies: false });
   });
 });

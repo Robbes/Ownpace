@@ -405,6 +405,8 @@ export const pathLifecycle = pgTable(
     firstActivatedAt: timestamp('first_activated_at', { withTimezone: true }),
     /** When it released one. NULL while it still holds a slot. */
     endedAt: timestamp('ended_at', { withTimezone: true }),
+    // When its owner stopped it (0128 T4), or null while it runs: migration 0066.
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

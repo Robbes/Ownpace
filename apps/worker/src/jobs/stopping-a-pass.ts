@@ -98,8 +98,8 @@ export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
  * What a pass does before one data type (workplan 0128 T5): stop, when the
  * migration itself no longer runs or its grant was withdrawn; move on past this
  * data type, when the migration still runs and this data type does not (its own
- * cutover past its grace period, or ended), so the next one still gets its turn;
- * and otherwise run it.
+ * cutover past its grace period, ended, or stopped by its owner, 0128 T4), so the
+ * next one still gets its turn; and otherwise run it.
  *
  * Until a data type can have a phase of its own, every data type's phase is the
  * migration's (`readPathPhases`), so a pass never moves on past one: the halt
@@ -108,7 +108,7 @@ export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
  */
 export type PassStep =
   | { readonly run: true }
-  | { readonly skip: 'data_type_no_longer_runs' }
+  | { readonly skip: 'data_type_no_longer_runs' | 'stopped_by_its_owner' }
   | { readonly halt: PassHalt };
 
 export async function passStepBefore(
@@ -124,7 +124,10 @@ export async function passStepBefore(
 export function stepFrom(phases: MigrationPhases | null, domain: string): PassStep {
   const halt = haltFrom(phases);
   if (halt) return { halt };
-  if (!pathRunsNow(phases!.phaseOf(domain))) return { skip: 'data_type_no_longer_runs' };
+  const path = phases!.phaseOf(domain);
+  // Its owner stopped it (0128 T4): said as such, not as an ending.
+  if (path.stopped === true) return { skip: 'stopped_by_its_owner' };
+  if (!pathRunsNow(path)) return { skip: 'data_type_no_longer_runs' };
   return { run: true };
 }
 
