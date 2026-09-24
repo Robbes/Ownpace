@@ -55,3 +55,52 @@ export function phasesOfTheMigration(status: string, stillCopies = false): PathP
   const path: PathPhase = { phase: status, stillCopies: status === 'cutover' && stillCopies };
   return () => path;
 }
+
+/**
+ * The migration's status its paths' phases add up to (0128 T5's roll-up), or
+ * undefined for a migration with no path rows.
+ *
+ * - **Before its cutover** while any path is (`active`, `paused`, or a `ready`
+ *   row): `active` when one of them runs, `paused` when every one is held.
+ * - **`cutover`** once every path is at or past its cutover and one is in it.
+ * - **`continuous`** once every path has ended or is kept, with one kept.
+ * - **`done`** when every path has ended.
+ *
+ * While every path moves with its migration, the roll-up of a migration's rows
+ * is its own status. When it is not, the rows were left behind by something
+ * that wrote the status alone (the appliance's operator, told to set it back
+ * by hand to resume), and the status is believed (`phasesOfThePaths`).
+ * The managed tick asks the one case of it the status cannot see in SQL
+ * (`A_PATH_KEPT_AFTER_A_CUTOVER_WHERE`, ledger); a test holds the two to one
+ * answer.
+ */
+export function rollUpPhases(phases: readonly string[]): string | undefined {
+  if (phases.length === 0) return undefined;
+  const beforeCutover = phases.filter((p) => p === 'active' || p === 'paused' || p === 'ready');
+  if (beforeCutover.length > 0) return beforeCutover.includes('active') ? 'active' : 'paused';
+  if (phases.includes('cutover')) return 'cutover';
+  if (phases.includes('continuous')) return 'continuous';
+  return 'done';
+}
+
+/**
+ * Each data type's phase from its own path row, where the rows agree with the
+ * migration's status (`rollUpPhases`); the migration's phase for a data type
+ * with no row, and for every data type when they do not agree.
+ *
+ * `stillCopies` is the migration's cutover window, asked of a path in
+ * `cutover`: one window per migration until the cutover ledger is kept per
+ * data type (slice 4).
+ */
+export function phasesOfThePaths(
+  status: string,
+  stillCopies: boolean,
+  paths: Readonly<Record<string, string>>,
+): PathPhaseOf {
+  const migration: PathPhase = { phase: status, stillCopies: status === 'cutover' && stillCopies };
+  if (rollUpPhases(Object.values(paths)) !== status) return () => migration;
+  return (domain) => {
+    const own = paths[domain];
+    return own === undefined ? migration : { phase: own, stillCopies: own === 'cutover' && stillCopies };
+  };
+}

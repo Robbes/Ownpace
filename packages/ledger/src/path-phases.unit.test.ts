@@ -4,9 +4,11 @@
  * EACH DATA TYPE'S PHASE, AS EVERY GATE READS IT (workplan 0128 T5, slice 1).
  *
  * On PGlite as `app_user`: the reader the managed pass, its dependency
- * builders and the appliance's pass all ask. Until a data type can have a phase
- * of its own, it must answer exactly what the migration's row and its cutover's
- * window answered before, for every data type alike.
+ * builders and the appliance's pass all ask. With no path rows, it must answer
+ * exactly what the migration's row and its cutover's window answered before,
+ * for every data type alike. With rows (slice 2b), each data type's phase is
+ * its own row's where the rows add up to the migration's status, and the
+ * status where they do not.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -94,7 +96,12 @@ describe("every data type's phase, while none has a phase of its own", () => {
     it(`is the migration's own, for every data type, when it is ${status}`, async () => {
       await place(status);
       const phases = await read(TENANT, MAPPING);
-      expect(phases).toMatchObject({ status, stillCopies: false, grantWithdrawnAt: null });
+      expect(phases).toMatchObject({
+        status,
+        stillCopies: false,
+        grantWithdrawnAt: null,
+        anyRuns: status === 'active' || status === 'continuous',
+      });
       for (const domain of DISCOVERY_DOMAINS) {
         expect(phases!.phaseOf(domain)).toEqual({ phase: status, stillCopies: false });
       }
@@ -105,6 +112,7 @@ describe("every data type's phase, while none has a phase of its own", () => {
     await place('cutover', { copies: true, minutesPastTheEnd: -5 });
     const open = await read(TENANT, MAPPING);
     expect(open!.stillCopies).toBe(true);
+    expect(open!.anyRuns).toBe(true);
     for (const domain of DISCOVERY_DOMAINS) {
       expect(open!.phaseOf(domain)).toEqual({ phase: 'cutover', stillCopies: true });
     }
@@ -112,6 +120,7 @@ describe("every data type's phase, while none has a phase of its own", () => {
     await place('cutover', { copies: true, minutesPastTheEnd: 5 });
     const over = await read(TENANT, MAPPING);
     expect(over!.stillCopies).toBe(false);
+    expect(over!.anyRuns).toBe(false);
     expect(over!.phaseOf('file')).toEqual({ phase: 'cutover', stillCopies: false });
   });
 
@@ -140,5 +149,109 @@ describe("every data type's phase, while none has a phase of its own", () => {
     expect(await read(TENANT, GONE)).toBeNull();
     // Row security, not a filter: the other organisation's transaction sees no row.
     expect(await read(OTHER_TENANT, MAPPING)).toBeNull();
+  });
+});
+
+describe("each data type's phase, once its data types have rows of their own (slice 2b)", () => {
+  /** The paths' rows, as a test places them, after the migration's own. */
+  async function paths(rows: Record<string, string>): Promise<void> {
+    await query(`DELETE FROM path_lifecycle WHERE mapping_id = $1`, [MAPPING]);
+    for (const [domain, state] of Object.entries(rows)) {
+      await query(
+        `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
+         VALUES ($1, $2, $3, $4, now())`,
+        [TENANT, MAPPING, domain, state],
+      );
+    }
+  }
+
+  beforeAll(async () => {
+    // Mail and calendars are paths; contacts are named but switched off.
+    for (const [domain, included] of [
+      ['email', true],
+      ['calendar', true],
+      ['contact', false],
+    ] as const) {
+      await query(`INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1, $2, $3, $4)`, [
+        TENANT,
+        MAPPING,
+        domain,
+        included,
+      ]);
+    }
+  });
+
+  afterAll(async () => {
+    await query(`DELETE FROM path_lifecycle WHERE mapping_id = $1`, [MAPPING]);
+    await query(`DELETE FROM scope_selection WHERE mapping_id = $1`, [MAPPING]);
+  });
+
+  it("is each path's own where they add up to the status, and the migration's for a data type with none", async () => {
+    await place('cutover', { copies: true, minutesPastTheEnd: 5 });
+    await paths({ email: 'cutover', calendar: 'continuous' });
+
+    const phases = await read(TENANT, MAPPING);
+    expect(phases!.phaseOf('email')).toEqual({ phase: 'cutover', stillCopies: false });
+    expect(phases!.phaseOf('calendar')).toEqual({ phase: 'continuous', stillCopies: false });
+    expect(phases!.phaseOf('file')).toEqual({ phase: 'cutover', stillCopies: false });
+    // The migration's grace period is over, and calendars are still kept.
+    expect(phases!.anyRuns).toBe(true);
+  });
+
+  it("carries the migration's grace period to a path in its cutover, whatever the migration's status", async () => {
+    // The shape a cutover per data type leaves (slice 5): mail cut over, still
+    // copying through its grace period; calendars before theirs.
+    await place('active');
+    await query(
+      `INSERT INTO cutover_state (tenant_id, mapping_id, state, grace_period_hours, copies_through_grace,
+                                  grace_period_started_at, updated_at)
+       VALUES ($1, $2, 'GRACE_PERIOD', 72, true, now() - interval '1 hour', now() - interval '1 hour')`,
+      [TENANT, MAPPING],
+    );
+    await paths({ email: 'cutover', calendar: 'active' });
+
+    const phases = await read(TENANT, MAPPING);
+    expect(phases!.stillCopies).toBe(true);
+    expect(phases!.phaseOf('email')).toEqual({ phase: 'cutover', stillCopies: true });
+    expect(phases!.phaseOf('calendar')).toEqual({ phase: 'active', stillCopies: false });
+    expect(phases!.anyRuns).toBe(true);
+  });
+
+  it('believes the status, for every data type, where the rows do not add up to it', async () => {
+    // Finished, with rows something that wrote the status alone left behind:
+    // the appliance's operator, told to set it back by hand to resume.
+    await place('done');
+    await paths({ email: 'active', calendar: 'continuous' });
+
+    const phases = await read(TENANT, MAPPING);
+    for (const domain of ['email', 'calendar', 'file'] as const) {
+      expect(phases!.phaseOf(domain)).toEqual({ phase: 'done', stillCopies: false });
+    }
+    expect(phases!.anyRuns).toBe(false);
+
+    // And the other way: running, with rows that say it ended.
+    await place('active');
+    await paths({ email: 'done', calendar: 'cutover' });
+    const running = await read(TENANT, MAPPING);
+    expect(running!.phaseOf('email')).toEqual({ phase: 'active', stillCopies: false });
+    expect(running!.anyRuns).toBe(true);
+  });
+
+  it('runs nothing while the migration is held, not even a data type kept in the lane', async () => {
+    // The whole-migration Pause holds everything that still runs (§3).
+    await place('paused');
+    await paths({ email: 'paused', calendar: 'continuous' });
+    const phases = await read(TENANT, MAPPING);
+    expect(phases!.phaseOf('calendar')).toEqual({ phase: 'continuous', stillCopies: false });
+    expect(phases!.anyRuns).toBe(false);
+  });
+
+  it('reads only the data types the migration carries: a switched-off one is not a path', async () => {
+    await place('cutover', { copies: true, minutesPastTheEnd: 5 });
+    await paths({ email: 'cutover', calendar: 'cutover', contact: 'continuous' });
+
+    const phases = await read(TENANT, MAPPING);
+    expect(phases!.phaseOf('contact')).toEqual({ phase: 'cutover', stillCopies: false });
+    expect(phases!.anyRuns).toBe(false);
   });
 });

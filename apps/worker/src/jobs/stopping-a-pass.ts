@@ -20,7 +20,7 @@
 import type { Pool } from 'pg';
 import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
-import { pathRunsNow, runsPassesNow } from '@openmig/shared';
+import { pathRunsNow } from '@openmig/shared';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
 
@@ -31,10 +31,12 @@ import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledge
  * moment it enqueued: a run already in the queue — or already copying — knows
  * nothing of the PATCH that paused it.
  *
- * The predicate is `runsPassesNow`, the same function the lifecycle module
- * defines for every other caller, asked with the cutover's own window (0128
- * T2), so the pass stops exactly when the tick would not have started it: a
- * cutover's pass runs until its grace period ends, and not after.
+ * The predicate is the reader's `anyRuns` (0128 T5, slice 2b): `runsPassesNow`,
+ * the same function the lifecycle module defines for every other caller, asked
+ * with the cutover's own window (0128 T2) of the migration, or of a path kept
+ * in the lane when its rows add up to the migration's status. So the pass stops
+ * exactly when the tick would not have started it: a cutover's pass runs until
+ * its grace period ends, and not after, unless a data type of it is kept.
  * `PASS_RUNNING_STATES` is the same two states as
  * a VALUE, and that form exists for `managed-sync-tick`'s SQL, "the query
  * that cannot call a function" — this is TypeScript and can, so it does.
@@ -86,7 +88,9 @@ export async function whyThePassStops(
  */
 export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
   if (phases === null) return 'no_longer_runs';
-  if (!runsPassesNow(phases.status, phases.stillCopies)) return 'no_longer_runs';
+  // No data type of it runs any more (0128 T5, slice 2b): the migration's own
+  // answer, or a path kept in the lane while another is past its cutover.
+  if (!phases.anyRuns) return 'no_longer_runs';
   return phases.grantWithdrawnAt ? 'grant_withdrawn' : null;
 }
 

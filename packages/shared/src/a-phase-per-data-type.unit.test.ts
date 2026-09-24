@@ -12,7 +12,13 @@
 import { describe, it, expect } from 'vitest';
 import { DISCOVERY_DOMAINS } from './discovery.ts';
 import { runsPassesNow, sourceAuthorityFor } from './lifecycle.ts';
-import { pathRunsNow, pathSourceAuthority, phasesOfTheMigration } from './path-phase.ts';
+import {
+  pathRunsNow,
+  pathSourceAuthority,
+  phasesOfTheMigration,
+  phasesOfThePaths,
+  rollUpPhases,
+} from './path-phase.ts';
 
 const STATUSES = ['active', 'paused', 'cutover', 'done', 'continuous'] as const;
 
@@ -59,6 +65,56 @@ describe("while no data type has a phase of its own, it is the migration's", () 
           );
           expect(pathSourceAuthority(phaseOf(domain))).toEqual(sourceAuthorityFor(status));
         }
+      }
+    }
+  });
+});
+
+describe("the migration's status its paths add up to (slice 2b)", () => {
+  it('is each status itself when every path is in it, and nothing for no paths', () => {
+    for (const status of STATUSES) expect(rollUpPhases([status, status])).toBe(status);
+    expect(rollUpPhases([])).toBeUndefined();
+    // A `ready` row is a path that never moved: before its cutover, and held.
+    expect(rollUpPhases(['ready'])).toBe('paused');
+  });
+
+  it('is before the cutover while any path is: active when one runs, paused when all are held', () => {
+    expect(rollUpPhases(['active', 'cutover'])).toBe('active');
+    expect(rollUpPhases(['paused', 'cutover', 'continuous'])).toBe('paused');
+    expect(rollUpPhases(['paused', 'active'])).toBe('active');
+    expect(rollUpPhases(['ready', 'active'])).toBe('active');
+    expect(rollUpPhases(['ready', 'done'])).toBe('paused');
+  });
+
+  it('is cutover while one path is in it and none is before it, then continuous, then done', () => {
+    expect(rollUpPhases(['cutover', 'done'])).toBe('cutover');
+    expect(rollUpPhases(['cutover', 'continuous'])).toBe('cutover');
+    expect(rollUpPhases(['continuous', 'done'])).toBe('continuous');
+    expect(rollUpPhases(['done', 'done'])).toBe('done');
+  });
+});
+
+describe('each data type from its own row, where the rows agree with the migration', () => {
+  it('reads each row, and the migration for a data type with none', () => {
+    const phaseOf = phasesOfThePaths('active', true, { email: 'cutover', file: 'active' });
+    expect(phaseOf('email')).toEqual({ phase: 'cutover', stillCopies: true });
+    expect(phaseOf('file')).toEqual({ phase: 'active', stillCopies: false });
+    expect(phaseOf('calendar')).toEqual({ phase: 'active', stillCopies: false });
+  });
+
+  it('believes the status over rows it does not add up to, as after a status set by hand', () => {
+    // Finished, then set back to `active` by hand to resume: the rows still say `done`.
+    const phaseOf = phasesOfThePaths('active', false, { email: 'done', file: 'done' });
+    for (const domain of DISCOVERY_DOMAINS) expect(phaseOf(domain)).toEqual({ phase: 'active', stillCopies: false });
+    // Set to `cutover` by hand over running rows: every data type is past its cutover.
+    const cutOver = phasesOfThePaths('cutover', true, { email: 'active' });
+    expect(pathSourceAuthority(cutOver('email')).sourceIsAuthorityOnExistence).toBe(false);
+  });
+
+  it("is the migration's own answer with no rows at all", () => {
+    for (const status of STATUSES) {
+      for (const domain of DISCOVERY_DOMAINS) {
+        expect(phasesOfThePaths(status, true, {})(domain)).toEqual(phasesOfTheMigration(status, true)(domain));
       }
     }
   });

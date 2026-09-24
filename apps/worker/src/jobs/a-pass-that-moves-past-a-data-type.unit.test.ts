@@ -18,17 +18,28 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { MigrationPhases } from '@openmig/ledger';
-import type { PathPhase } from '@openmig/shared';
+import { runsPassesNow, type PathPhase } from '@openmig/shared';
 import { haltFrom, stepFrom } from './stopping-a-pass.ts';
 
-/** A migration in `status`, whose data types are in the phases given, and in its own otherwise. */
+/**
+ * A migration in `status`, whose data types are in the phases given, and in its
+ * own otherwise. Whether any of them runs is the migration's own answer, as
+ * the reader gives it for rows that do not say otherwise; `anyRuns` overrides.
+ */
 function migration(
   status: string,
   paths: Partial<Record<string, PathPhase>> = {},
   grantWithdrawnAt: Date | null = null,
+  { stillCopies = false, anyRuns }: { stillCopies?: boolean; anyRuns?: boolean } = {},
 ): MigrationPhases {
-  const own: PathPhase = { phase: status, stillCopies: false };
-  return { status, stillCopies: false, grantWithdrawnAt, phaseOf: (d) => paths[d] ?? own };
+  const own: PathPhase = { phase: status, stillCopies: status === 'cutover' && stillCopies };
+  return {
+    status,
+    stillCopies,
+    grantWithdrawnAt,
+    phaseOf: (d) => paths[d] ?? own,
+    anyRuns: anyRuns ?? runsPassesNow(status, stillCopies),
+  };
 }
 
 describe('what a pass does before a data type', () => {
@@ -57,8 +68,21 @@ describe('what a pass does before a data type', () => {
   it("asks the migration's answer the way the pass always did", () => {
     expect(haltFrom(migration('active'))).toBeNull();
     expect(haltFrom(migration('continuous'))).toBeNull();
-    expect(haltFrom({ ...migration('cutover'), stillCopies: true })).toBeNull();
+    expect(haltFrom(migration('cutover', {}, null, { stillCopies: true }))).toBeNull();
     expect(haltFrom(migration('cutover'))).toBe('no_longer_runs');
+  });
+
+  it('goes on while any data type runs, though the migration past its grace period does not (slice 2b)', () => {
+    // Mail past its cutover's grace period, files kept in the lane: the rows say files run.
+    const filesKept = migration(
+      'cutover',
+      { email: { phase: 'cutover', stillCopies: false }, file: { phase: 'continuous', stillCopies: false } },
+      null,
+      { anyRuns: true },
+    );
+    expect(haltFrom(filesKept)).toBeNull();
+    expect(stepFrom(filesKept, 'email')).toEqual({ skip: 'data_type_no_longer_runs' });
+    expect(stepFrom(filesKept, 'file')).toEqual({ run: true });
   });
 });
 
