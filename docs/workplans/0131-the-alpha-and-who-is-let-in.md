@@ -560,17 +560,16 @@ password before anything migrates (0132 T1b).
 
 **The advice.**
 
-- For `ownpace-live`: copy nothing from the OTA stack's `.env`. Before the first bring-up, set
-  the database owner's password in live's `.env`, and ClickHouse's and MinIO's, which
-  `bootstrap-managed.sh` reports while they are at their shipped defaults. The owner will (0132
-  D8). Changing the database owner's password once the volume exists changes nothing inside it
-  (`bootstrap-managed.sh`).
-  Create the application role with its own password before anything migrates (0132 T1b); if the
-  baseline got there first, change it with `ALTER ROLE` before the first invitation (0132 T2).
-  Keep live's `SECRET_ENCRYPTION_KEY` as its first bring-up made it. Stored credentials are
-  encrypted under that key, and SECURITY.md states there is *"no rotation"*: a new key after
-  testers have connected would make every stored credential unreadable, and every tester would
-  have to reconnect.
+- For `ownpace-live`: copy nothing from the OTA stack's `.env`. Before the first bring-up, set the
+  database owner's password in live's `.env`, and ClickHouse's and MinIO's, which
+  `bootstrap-managed.sh` reports while they are at their shipped defaults. The owner will set them
+  there (0132 D8). Changing the database owner's password once the volume exists changes nothing
+  inside it (`bootstrap-managed.sh`). Create the application role with its own password before
+  anything migrates (0132 T1b); if the baseline got there first, change it with `ALTER ROLE` before
+  the first invitation (0132 T2). Keep live's `SECRET_ENCRYPTION_KEY` as its first bring-up made
+  it. Stored credentials are encrypted under that key, and SECURITY.md states there is *"no
+  rotation"*: a new key after testers have connected would make every stored credential unreadable,
+  and every tester would have to reconnect.
 - For the OTA stack: row 24's rotation waits for its trigger. When it fires, re-running
   `ensure-env-secrets.sh`, which row 24 names as the way to rotate, does not do it: the script
   says *"re-running it never rotates anything"*. 0132 carries the steps.
