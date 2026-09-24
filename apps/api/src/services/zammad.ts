@@ -16,6 +16,8 @@
  * Without the first two, the form is not offered at all.
  */
 
+import { log } from '@openmig/shared';
+
 export interface ZammadConfig {
   readonly url: string;
   readonly token: string;
@@ -55,6 +57,20 @@ export function zammadConfigFrom(env: NodeJS.ProcessEnv = process.env): ZammadCo
     );
   }
   return { url: url.replace(/\/+$/, ''), token, group: env.ZAMMAD_GROUP?.trim() || 'Users' };
+}
+
+/**
+ * The configuration a door may send with, or undefined when reporting is not
+ * set up or is set up wrongly, and then said in the log. Every door asks this
+ * and nothing else: the signed-in form (0130) and a link's report (0108 T8 (d)).
+ */
+export function reportingConfig(env: NodeJS.ProcessEnv | undefined): ZammadConfig | undefined {
+  try {
+    return zammadConfigFrom(env);
+  } catch (err) {
+    log.error(`[api] problem reports are switched off: ${(err as Error).message}`);
+    return undefined;
+  }
 }
 
 /** Create the ticket, and answer its number. */

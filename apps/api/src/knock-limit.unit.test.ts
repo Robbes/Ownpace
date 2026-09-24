@@ -156,10 +156,10 @@ describe('the premise this number is sized against', () => {
   };
 
   it('is still a door only an operator can open', () => {
-    // Four, and each is deliberate:
+    // Five, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
-    //                        the four a stranger is *invited* to use
+    //                        the five a stranger is *invited* to use
     //   the grant link     — 0108: the link itself is the credential, and the
     //                        route grants nothing without it
     //   the progress link  — 0108 T8 (c): the same kind of credential, and the
@@ -167,8 +167,12 @@ describe('the premise this number is sized against', () => {
     //                        holds, calling Google at most once per grant
     //   the Mollie webhook — a payment provider calling us, verified by
     //                        signature rather than by session
+    //   the link report    — 0108 T8 (d): either kind of link, authenticated
+    //                        by that route's own link middleware, and a ticket
+    //                        a person reads, so with limits of its own: three
+    //                        a day per link, thirty an hour for every link
     //
-    // A FIFTH is the question. If it is a self-service signup, this number is
+    // A SIXTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
     // the change: the key is still `req.ip`, which behind an ingress is the
     // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
@@ -179,6 +183,7 @@ describe('the premise this number is sized against', () => {
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
       'routes/grant.ts POST /:link/google/authorize',
+      'routes/link-reports.ts POST /:link/report',
       'routes/view.ts POST /:link/withdraw',
     ]);
   });
