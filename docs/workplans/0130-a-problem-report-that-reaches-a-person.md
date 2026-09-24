@@ -1,8 +1,15 @@
 # Workplan 0130 — A problem report that reaches a person
 
-> **In one line:** Report a problem on managed: a form that files a ticket on the owner's Zammad via `POST /api/problem-reports`, linked from the `unknown` failure remedy with its `last_error_reference`, plus privacy-policy wording.
+> **In one line:** Report a problem on managed: a form that files a ticket on the owner's Zammad via `POST /api/problem-reports`, linked from the `unknown` failure remedy with its `last_error_reference`, the same helpdesk for a grant or progress link's *Report this link*, plus privacy-policy wording.
 
-## Status — 2026-09-23 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: a link holder can report too (workplan 0108 T8 (d)).** The owner decided that
+*"report this link"* goes to this form's helpdesk. The grant and progress pages offer it when
+a Zammad is set up, with no account: what makes the person doubt the link, and an address to
+reply to. It becomes an internal note on a ticket, with the facts from the link's own rows.
+Three a day per link, thirty an hour for every link. The details are in 0108's status entry of
+the day. T4 now covers these reports too: the privacy policy names what they carry.
 
 **2026-09-23: opened from the owner's answers.** The owner asked: *"Is there a way people the use
 Ownpace can report issues/bugs? What EU based product do you suggest we use? Creating form
@@ -52,7 +59,7 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
 | T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
-| T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. |
+| T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): a reply address and what the person wrote, from somebody who has no account. |
 
 ## 1. What there is today
 

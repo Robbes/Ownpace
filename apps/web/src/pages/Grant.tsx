@@ -60,6 +60,7 @@ import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import type { Locale } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
+import ReportThisLink from '../components/ReportThisLink.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
 
 /**
@@ -180,6 +181,17 @@ const Grant: React.FC = () => {
             </dd>
           </dl>
           <p className="mt-2 text-sm font-medium text-gray-900">{t('grant.check')}</p>
+          {/* The answer to that question when it is no (0108 T8 (d)): tell
+              the owner instead of continuing. Offered only where a report
+              can reach somebody. */}
+          {link && (
+            <ReportThisLink
+              kind="grant"
+              link={link}
+              organisation={subject.data.organisation}
+              next="linkReport.next.grant"
+            />
+          )}
           <p className="mt-3 text-gray-900">{t('grant.reads', { reads: subject.data.reads })}</p>
 
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">

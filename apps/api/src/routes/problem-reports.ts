@@ -26,12 +26,7 @@ import {
   parseProblemReport,
   ticketFor,
 } from '../problem-report.ts';
-import {
-  createZammadTicket,
-  zammadConfigFrom,
-  ZammadRefused,
-  type ZammadConfig,
-} from '../services/zammad.ts';
+import { createZammadTicket, reportingConfig, ZammadRefused } from '../services/zammad.ts';
 
 /** Five reports an hour, per person. */
 export const PROBLEM_REPORT_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;
@@ -42,16 +37,6 @@ export interface ProblemReportDeps {
   readonly limiter?: KnockLimiter;
 }
 
-/** The configuration, or undefined when it is absent or unusable (and then said in the log). */
-function configFrom(env: NodeJS.ProcessEnv | undefined): ZammadConfig | undefined {
-  try {
-    return zammadConfigFrom(env);
-  } catch (err) {
-    log.error(`[api] problem reports are switched off: ${(err as Error).message}`);
-    return undefined;
-  }
-}
-
 export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
   const router = Router();
   const limiter = deps.limiter ?? createKnockLimiter(PROBLEM_REPORT_LIMIT);
@@ -59,11 +44,11 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
 
   /** Whether to offer the form at all: a form that can send nowhere is not shown. */
   router.get('/available', authenticate, (_req: AuthenticatedRequest, res: Response) => {
-    res.json({ available: configFrom(deps.env) !== undefined });
+    res.json({ available: reportingConfig(deps.env) !== undefined });
   });
 
   router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
-    const config = configFrom(deps.env);
+    const config = reportingConfig(deps.env);
     if (!config) {
       res.status(503).json({
         error: 'reporting_unavailable',

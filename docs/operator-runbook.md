@@ -438,6 +438,42 @@ docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
 The link id is the part of a grant link's URL before the dot, so a link somebody forwards to you
 can be found in `mapping_link` and in these rows without the rest of it.
 
+### When a link is reported
+
+Since 2026-09-24 the person holding a link can report it from the grant page or the progress
+page (workplan 0108 T8 (d)). A report arrives on the helpdesk of bring-up step 8f as a ticket
+titled *Ownpace: a grant link was reported*, or *a progress link*. Its one article is an
+internal note. First come the facts, from the rows, one line each:
+
+- the link's id, the organisation and the migration with their ids and state;
+- who issued the link, from, to, and whether access was given;
+- the reply address, which they typed and nobody verified.
+
+Then, under *What they wrote*, the reporter's own words. Anything shaped like a fact below that
+label is theirs. The organisation typed its own name, accounts and host, and may be who the
+report is about, so a line break in any of them is written as a space.
+
+What happened with that link is in the rows above:
+
+```bash
+docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+  "SELECT at, action, detail FROM audit_log
+    WHERE detail->>'mappingId' = '<migration id>' ORDER BY at;"
+```
+
+A report changes nothing by itself. The organisation's owner can revoke the link from the
+migration's **Grant links** list, so ask them first. When it looks like abuse and they cannot be
+reached, switch a live link off at the database, which is what **Revoke** does:
+
+```bash
+docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+  "UPDATE mapping_link SET revoked_at = now() WHERE id = '<link id>' AND revoked_at IS NULL;"
+```
+
+It also stops a sign-in already in progress. It records nothing in `audit_log`, so say on the
+ticket that you did it. It does not take back access already given: only the person can, from
+their progress page (**Withdraw access**), or in their Google account.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously
