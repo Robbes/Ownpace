@@ -6,8 +6,8 @@
 > table's T9). The owner: *"… And do hold the cutover-gate when nothing was compared."* For the
 > cases it covers, this replaces the answer of 2026-09-21 that only the code records
 > (`contentEvidence` in `packages/shared/src/verification-report.ts`: a count-only PASS still
-> opens the gate). Workplan 0149 reads it as option 1 (its D2; its open question 1 asks the owner
-> to confirm that reading) and builds it as its T4. Nothing is built yet.
+> opens the gate). Workplan 0149 reads it as option 1 (its D2), a reading the owner confirmed the
+> same day (0149 §2), and builds it as its T4. Nothing is built yet.
 >
 > **Done.** T1/T2/T3/T5/T6 all done and tested. A doc audit on 2026-07-27 found T2's `--yes`
 > approval gate had been marked done while absent; it is now genuinely implemented and unit-tested

@@ -2,6 +2,24 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, later still: the owner answered open questions 1 to 5.** *"3) 0148: dont hide IMAP,
+i tested that once and will do that again. extent the guide renderer. Leave the Apple-export
+option in but be clear about it ('to be tested'-label). Add the five new guides already. Yes,
+one-line pointer towards the appliance-help-page to de appliance operator docs"*. §2 records the
+answer as D5 to D9:
+
+- **D5:** the *Via IMAP* card stays on managed. The owner has run it once and will run it again,
+  and the next run is T8 (b)'s walk. T3 hides only the export archive.
+- **D6:** the renderer in `Docs.tsx` is extended, and no dependency is added (T6).
+- **D7:** the Apple export option stays in the archive card's form on the appliance. It is tagged
+  *to be tested* and says that it cannot be read yet (T3).
+- **D8:** the five new guides are written in English as well as Dutch before the first invitation
+  (T4).
+- **D9:** the appliance's `/docs` carries one line pointing to the operator documents (T1).
+
+Because *Via IMAP* stays, its section of the `microsoft` guide is needed by the first
+invitation, so T8's two recipes are written into that guide with T4. The walks stay the owner's.
+
 **2026-09-24, later: opened from the owner's answers.** The readiness review of 2026-09-23 read
 the in-app guides the way a tester would meet them, from the wizard's cards to `/docs`. They were
 written for whoever builds or runs the product: environment variables, repository commands and
@@ -23,37 +41,36 @@ D3 answers 0131's open question 4 and 0136's open question 3: hide, rather than 
 only" tag. 0131 T5's go/no-go table gains a row for this plan, drafted in §4, as 0142, 0143 and
 0146 drafted theirs.
 
-**Before the first invitation.** This is the minimum. Most of it is writing: a Dutch guide for
-each family of cards live offers, ten at most (T4's table).
+**Before the first invitation.** This is the minimum. Most of it is writing: a Dutch and an
+English guide for each family of cards live offers, ten at most (T4's table).
 
-- T3, the cards that cannot work are hidden on managed: the export archive, and the *Via IMAP*
-  card unless open question 1 decides otherwise;
+- T3, the export archive card is hidden on managed; *Via IMAP* stays (D5);
 - T2 (a), (b) and (d), no about-line, redirect line, checklist or create refusal tells a tester
   to create an app, or register an address on one, where `ownpace-live` carries it;
-- T1 and T4 for every card `ownpace-live` offers: a Dutch customer guide, served in the app, with
-  the operator material left in `docs/`;
-- T6's minimum, the parts of the renderer those guides use, and T2 (c), the guide's own-app
+- T1 and T4 for every card `ownpace-live` offers: a customer guide in Dutch and English, served in
+  the app, with the operator material left in `docs/` (D8), and T1's pointer on the appliance
+  (D9). The `microsoft` guide carries T8's two recipes (D5);
+- T6's minimum, the parts of the renderer those guides use (D6), and T2 (c), the guide's own-app
   section folded where the deployment carries the app;
 - T5's profiles for Apple, Nextcloud and Soverin, where the checklist now says there is nothing
   to set up, and Google's for the Google account card;
 - T0, the owner reads the Dutch guides against live's screens.
 
-**After the first invitation:** the English translation of the five new guides (the fallback
-notice in T4 covers an English reader meanwhile), T6's remainder, T7, T8 (a) before the first
-tester on the *Via the Graph API* card, T8 (b), T5's remaining profiles, and T3's Apple option on
-the appliance.
+**After the first invitation:** T6's remainder, T7, T8's walks, T5's remaining profiles, and T3's
+Apple tag on the appliance (D7). The walks are the owner's: (a) before the first tester on the
+*Via the Graph API* card, and (b) the run the owner announced for *Via IMAP* (D5).
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5. **Before the first invitation.** |
-| T1 A customer guide served, operator material left in `docs/` | 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. **Before**, for the cards live offers. |
+| T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
+| T1 A customer guide served, operator material left in `docs/` | 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
 | T2 No hint to create an app where the deployment carries one | 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
-| T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24** (D3) for the export archive; 📋 **Proposed** for *Via IMAP* (open question 1) and for the Apple export option on the appliance (open question 3) | §3. One flag on the card, read by both doors. The archive card returns when an upload or relay path exists: 🅿️ **Parked (trigger: 0116 T4's relay page, or the create door learning `where: 'target'`)**. **Before.** |
-| T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch, for the cards live offers. |
+| T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: the export archive is hidden on managed (D3); *Via IMAP* stays (D5); the Apple export option stays on the appliance, tagged *to be tested* (D7) | §3. One flag on the card, read by both doors. The archive card returns when an upload or relay path exists: 🅿️ **Parked (trigger: 0116 T4's relay page, or the create door learning `where: 'target'`)**. **Before**; the Apple tag **after**. |
+| T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
-| T6 A renderer that keeps a guide's shape | 📋 **Proposed**; a markdown library instead is open question 2 | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
+| T6 A renderer that keeps a guide's shape | 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
-| T8 The Microsoft app-registration recipe | 📋 **Proposed**; the tenant walks ⏳ **Owner** | §3. (a) the *Graph API* card's permissions corrected, before its first tester. (b) a recipe for *Via IMAP* walked in a real tenant, after which the card returns on managed. |
+| T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 
 ## 1. What there is today
 
@@ -203,7 +220,7 @@ Nothing there depends on the edition. In practice both doors are managed: the wi
 |---|---|---|
 | Export archive (`archive`) | **No** | The wizard asks for a path (`archiveFields()`, `credential-fields.ts`:287-310, placeholder `/srv/exports/takeout-20260904`; `sourceArchivePath`, `CreateMapping.tsx`:619). A path is read on *"the machine running the pass, which is the appliance only — a managed run container is given a network and no shared volume"* (`config.ts`:1219-1223). The other location, `where: 'target'`, has no control in the wizard and no relay page. The connection's Test opens the typed path inside the API process (`account-qualification.ts`:1213), which 0136 T5 takes up. 0131 §1 reached the same conclusion. |
 | Its *Apple Data & Privacy* option | **No, on either edition** | `apple-privacy` is *"deliberately ABSENT"* from the readers (`archive-source-factory.ts`:56, :71-73). `archiveProvidersWithReaders()` (:89) has one caller, a unit test. The form offers both exports, from `ARCHIVE_PROVIDERS` (`archive-providers.ts`:35; `credential-fields.ts`:296-299), and Test answers *"No reader exists for a '…' archive. This is a wiring gap"* (`probe-connection.ts`:377). The card's hint promises it: *"A Google Takeout or Apple export you downloaded"* (`wizard.proto.archive.hint`). `archive-setup.md`:115-156 walks a request Apple says takes *"up to seven days"*. |
-| Microsoft 365 *Via IMAP* (`oauth2`) | **Not as offered** | Its fields are a mailbox, a tenant, a client id and a secret, with no refresh token (`o365Fields()`, `credential-fields.ts`:318-334). So the pass always mints an app-only token for `https://outlook.office365.com/.default` (`buildImapSourceFromCredentials`, `build-deps-from-mapping.ts`:1380-1382). The served recipe adds its permissions under **Microsoft Graph → Application permissions**, including `IMAP.AccessAsUser.All` and `offline_access` (`o365-setup.md`:108-118), and lists `IMAP.AccessAsUser.All` as *"Application/Delegated"* (:554). From Microsoft's documentation, not read for this plan and not verifiable in the repository: a token for Exchange Online carries only permissions configured on that API, those two are delegated only, and app-only IMAP needs `IMAP.AccessAsApp` with the application registered in Exchange Online. Apart from this plan, no file in the repository names `IMAP.AccessAsApp`. The matrix marks the card ✅ (`feature-matrix.md`:29), and 0141 §1 found no run linked to that mark. |
+| Microsoft 365 *Via IMAP* (`oauth2`) | **Not with the recipe served today**, as Microsoft's documentation is understood here. The owner has run the card once (D5). | Its fields are a mailbox, a tenant, a client id and a secret, with no refresh token (`o365Fields()`, `credential-fields.ts`:318-334). So the pass always mints an app-only token for `https://outlook.office365.com/.default` (`buildImapSourceFromCredentials`, `build-deps-from-mapping.ts`:1380-1382). The served recipe adds its permissions under **Microsoft Graph → Application permissions**, including `IMAP.AccessAsUser.All` and `offline_access` (`o365-setup.md`:108-118), and lists `IMAP.AccessAsUser.All` as *"Application/Delegated"* (:554). From Microsoft's documentation, not read for this plan and not verifiable in the repository: a token for Exchange Online carries only permissions configured on that API, those two are delegated only, and app-only IMAP needs `IMAP.AccessAsApp` with the application registered in Exchange Online. Apart from this plan, no file in the repository names `IMAP.AccessAsApp`. The matrix marks the card ✅ (`feature-matrix.md`:29), and 0141 §1 found no run linked to that mark. The owner's run is not recorded in the repository either, and neither is the registration it used (D5). |
 | Microsoft 365 *Via the Graph API* (`graph`) | **Yes in principle; recipe incomplete** | Its token is for Microsoft Graph (`https://graph.microsoft.com/.default`, `mail-source-factory.ts`:138-140), so Graph permissions are the right kind. The recipe's list (`o365-setup.md`:68-73) has no application `Mail.Read`, which `o365-application-access.md` §2 lists (:152-162). That document's §0, the registration from zero, says it is *"written-but-unproven"* until the owner's validation is recorded there (:100-102), and none is. `e2e-o365.yml` has never completed a run (0141 §1). |
 | Every other source and target card | Yes | Each asks for what its provider needs and nothing reads a local path. Which of them have met a real account is 0131 T2's label and 0141's proofs. |
 
@@ -316,15 +333,76 @@ read as "managed").
 So a card that cannot work on the managed edition is not offered there, in the wizard or on the
 Connections page, and the guide index does not list its guide. "Cannot work" is read strictly.
 A card that works but has not yet met a real account keeps 0131 T2's label (0131 D6, *"Label"*).
-§1's table says which cards cannot work. T3 applies D3 to the archive, and proposes it for *Via
-IMAP* (open question 1). This answers 0131's open question 4 and 0136's open question 3: hide,
-not an "Appliance only" tag.
+§1's table says which cards cannot work. T3 applies D3 to the archive. *Via IMAP* is not hidden
+(D5). This answers 0131's open question 4 and 0136's open question 3: hide, not an "Appliance
+only" tag.
 
 **D4 — the gaps.** *No target and not the IMAP source has a guide, and every guide is in English:
 write them, or accept English?* — *"Gaps: write also dutch guides for each source and target."*
 
 So each source and target card gets a guide section in Dutch as well as English. The alpha is
 Dutch (0144 D1), so the Dutch is written first.
+
+**The five open questions, answered the same day.** The owner answered them in one line, quoted
+in full in the Status block. D5 to D9 give each part.
+
+**D5 — the *Via IMAP* card stays on managed.** *As the card is offered, and as Microsoft's
+documentation is understood here, it cannot work: hide it on managed until a recipe has been
+walked in a real tenant, or keep it?* (Open question 1 recommended hiding it.) — *"dont hide IMAP,
+i tested that once and will do that again."*
+
+So the card stays at both doors on managed, and T3 hides only the export archive. The repository
+records neither the owner's run nor the registration it used, so §1's finding is about the recipe
+served today, not about the card. Three things follow:
+
+- the card keeps 0131 T2's *Experimenteel* tag until a run is recorded, since a *proven* verdict
+  has to say where its run is recorded;
+- the run the owner announced is T8 (b)'s walk. It is recorded where 0141 T1 records proofs,
+  together with the registration it used;
+- the card is offered from the first invitation, so its section of the `microsoft` guide is
+  written before then (T4). It carries T8 (b)'s recipe, written from Microsoft's documentation and
+  checked by that walk.
+
+**D6 — the renderer.** *Extend the renderer in `Docs.tsx`, or adopt a markdown library?* (Open
+question 2 recommended extending it.) — *"extent the guide renderer."* ("extent" is read as
+"extend".)
+
+So T6 extends `Docs.tsx`, and no dependency is added.
+
+**D7 — the Apple export option.** *No Apple export can be read, on either edition. Offer only the
+exports a reader exists for, or keep the option with a line that says it cannot be read yet?*
+(Open question 3 recommended the first.) — *"Leave the Apple-export option in but be clear about
+it ('to be tested'-label)."*
+
+So the option stays in the archive card's form on the appliance; on managed it goes with the card
+(D3). "'to be tested'-label" is read as a tag, *Nog te testen* / *To be tested*, and "be clear
+about it" as a line beside it that says what the tag means today:
+
+- NL: *"Een Apple-export kunnen we nog niet lezen. Vraag er alleen een aan voor uw eigen
+  archief."*
+- EN: *"We cannot read an Apple export yet. Request one only for your own records."*
+
+The tag alone would suggest an export that can be read and only needs trying. Today Test refuses
+it (`probe-connection.ts`:377), and so does a pass (`buildArchiveSourceFrom`,
+`archive-source-factory.ts`:121-125). Both call it a wiring gap, not a problem with the export. No
+reader exists yet: it waits on a second real export, as 0116 specifies (the comment above
+`READERS`). When a reader lands, the tag and the line go (T3).
+
+**D8 — English for the five new guides.** *Write the English of the IMAP, JMAP, DAV, Nextcloud and
+Soverin guides after the first invitation, or before?* (Open question 4 recommended after.) —
+*"Add the five new guides already."*
+
+Read as: before the first invitation, in both languages, since that was the question. So every
+guide `ownpace-live` offers exists in Dutch and English at the first invitation, and T4's
+`ENGLISH_PENDING` starts empty. The fallback notice stays, for a guide added later in one
+language first.
+
+**D9 — the appliance's `/docs`.** *Should the appliance's guide index carry one line pointing
+self-hosters to the operator documents in the repository?* (Open question 5 recommended yes.) —
+*"Yes, one-line pointer towards the appliance-help-page to de appliance operator docs"* ("de" is
+read as "the").
+
+So on the appliance, and only there, the `/docs` index ends with that line (T1).
 
 ## 3. What each task does
 
@@ -334,7 +412,7 @@ Dutch (0144 D1), so the Dutch is written first.
    `ownpace-live` offers against live's real screens, in the same sitting as 0144 T0's reading of
    the tester guide. The provider's screens are quoted in the provider's own Dutch words as they
    appear, the rule 0140 T2 set for Google.
-2. **The answers.** Open questions 1 to 5.
+2. **The answers.** Open questions 1 to 5, answered on 2026-09-24 (D5 to D9).
 
 The dates go in the Status block. No code, so no guard.
 
@@ -357,13 +435,25 @@ reads them where they already work.
 | `dropbox-setup.md` | *Verbinden met Dropbox*; the own-app steps (§1), folded; what does not migrate | *Configure it* (:60), the appliance's variables and the deployment's app |
 | `box-setup.md` | All of it except the appliance half of §4. Box has no deployment app (`GRANT_PROVIDERS`), so the tester's own Box app and a Box administrator are customer steps, as 0140 T8 says | §4's appliance variables and mapping file |
 | `microsoft-setup.md` | *Verbinden met Microsoft*, what Test shows, a refused consent (with what 0140 T6 records there), what this kind is, leaving; §1's registration, folded | §3 *Configure it (operators)* |
-| `o365-setup.md` | The own-registration section for the Graph card (and *Via IMAP* when shown), rewritten in T8 | Everything else: the two paths, the `.env.example` blocks, the `curl` checks, token decoding. 0140 T4's opening line lands here. |
-| `apple-setup.md` | Nearly all of it; the `PROVIDER_ENDPOINTS` sentence says the same without the constant. Its part on Apple's export (:97-196), which says reading one *"is being built"*, gains T3's line: an Apple export cannot be read yet | Nothing new |
-| `archive-setup.md` | Requesting a Takeout; the Apple request with T3's line; what lands where. Served on the appliance only while the card is hidden on managed | *Pointing us at it*, which on the appliance is the mapping file's `path` |
+| `o365-setup.md` | The own-registration sections for the Graph and *Via IMAP* cards, rewritten in T8 | Everything else: the two paths, the `.env.example` blocks, the `curl` checks, token decoding. 0140 T4's opening line lands here. |
+| `apple-setup.md` | Nearly all of it; the `PROVIDER_ENDPOINTS` sentence says the same without the constant. Its part on Apple's export (:97-196), which says reading one *"is being built"*, gains D7's tag and line: an Apple export cannot be read yet | Nothing new |
+| `archive-setup.md` | Requesting a Takeout; the Apple request with D7's tag and line; what lands where. Served on the appliance only while the card is hidden on managed | *Pointing us at it*, which on the appliance is the mapping file's `path` |
 
 `wizard.about.googleDrive.more` (EN and NL) stops pointing at the operator command and names
 *Test and save connections* / *Verbindingen testen en bewaren*, which checks the same three
 values against Google.
+
+**The appliance's pointer (D9).** On the appliance, and only there, the `/docs` index ends with
+one line in the reader's language. It links to the operator documents in the repository's
+`docs/`:
+
+- EN: *"Running your own appliance? Its settings and commands are in the operator documents in
+  the repository."*
+- NL: *"Draait u een eigen appliance? De instellingen en commando's staan in de
+  beheerdersdocumenten in de repository."*
+
+It lands in T1's PR. That PR stops serving the operator material the appliance's `/docs` shows
+today, and the line says where it went.
 
 **The lint, widened.** `end-user-docs.unit.test.tsx` reads `docs/guides/*/*.md` and keeps its
 three rules; T4 makes the third read the wizard's own labels. It adds patterns, each with a
@@ -391,7 +481,9 @@ the i18n boundary already calls them findings (:63-67).
 `dropbox-setup.md`:82-86, `google-workspace-setup.md`:79, :208 and :247-252,
 `microsoft-setup.md`:124-126, `o365-setup.md`:15, :40 and :108, `apple-setup.md`:19. After the
 move they run against `docs/guides/`. One case more: no file under `docs/guides/` is named
-`*-setup.md`, so an operator document cannot be served by being moved into the folder.
+`*-setup.md`, so an operator document cannot be served by being moved into the folder. And one
+in `Docs.unit.test.tsx`: under an appliance build the index shows D9's line in both languages,
+and under a managed build it does not.
 
 ### T2 — no hint to create an app where the deployment carries one (decided, D2)
 
@@ -479,7 +571,7 @@ The Box guide has no such fold: Box has no deployment app.
 - `microsoft-consent.unit.test.ts`: with the deployment's registration, `AADSTS700016` does not
   name `MICROSOFT_OAUTH_TENANT`.
 
-### T3 — cards that cannot work on managed are hidden there (decided for the archive, D3)
+### T3 — cards that cannot work on managed are hidden there (decided, D3, D5 and D7)
 
 **The flag.** `FrontDoorCard` gains `notOnManaged?: string`, the reason, written for developers
 and never rendered, beside the existing `connectionOnly`. One function, `offeredCards(role)`,
@@ -494,29 +586,31 @@ flag hides a door, not data. The guide index and the Setup chooser skip what the
 - **The export archive** (decided): §1's table. The server half, refusing a disk path on the
   managed API, is 0136 T5's. The card returns when an upload or relay path exists (the parked
   trigger in the table).
-- **Microsoft 365 *Via IMAP*** (proposed, open question 1): as offered, with the recipe served
-  today, the app-only token its pass asks for would carry no permission Exchange Online accepts
-  for IMAP, as Microsoft's documentation is understood here (§1). It returns on managed with
-  T8 (b). The API is not changed: nothing about this card is unsafe, and a registration an
-  organisation already has keeps working.
+- **Not hidden: Microsoft 365 *Via IMAP*** (D5). The owner has run it and will run it again. As
+  Microsoft's documentation is understood here, the recipe served today cannot give its token
+  a permission Exchange Online accepts for IMAP (§1). So its guide section carries T8 (b)'s
+  recipe instead, and 0131 T2's tag stays on the card until a run is recorded.
 - **Not hidden: *Via the Graph API*.** Its token is of the right kind and its recipe lacks one
   permission; T8 (a) adds it, and 0131 T2 labels the card.
-- **The Apple export option** (proposed, open question 3). On managed it goes with the card. On
-  the appliance it still cannot work, although D3's words are about managed. The proposal is to
-  build the form's options from the exports a reader exists for, the way
-  `archiveProvidersWithReaders()` means (:88-91). Shared cannot import orchestration, so the list
-  of readable exports moves to `archive-providers.ts`, and a test in orchestration holds it equal
-  to `READERS`. `archive-setup.md`'s Apple part gains one line before the request: *"We cannot
-  read an Apple export yet. Request one only for your own records."* / *"Een Apple-export kunnen
-  we nog niet lezen. Vraag er alleen een aan voor uw eigen archief."*
+- **The Apple export option** (D7). On managed it goes with the card. On the appliance it stays,
+  with D7's tag and line. The form reads which exports a reader exists for, the fact
+  `archiveProvidersWithReaders()` states (:88-91). Shared cannot import orchestration, so that
+  list moves to `archive-providers.ts`, and a test in orchestration holds it equal to `READERS`.
+  An option whose export has no reader shows the tag, *Nog te testen* / *To be tested*, as text
+  inside the option's name, and the field's hint shows D7's line while that option is chosen.
+  When a reader lands, both go and nothing else changes. `archive-setup.md`'s Apple part, which
+  becomes the archive guide's under T1, gains the same line before the request. The card's own
+  hint, *"A Google Takeout or Apple export you downloaded"* (`wizard.proto.archive.hint`), gains
+  the tag after *Apple* in both languages.
 
 **Guard.** `apps/web/src/components/a-card-that-cannot-work-is-not-offered.unit.test.tsx` fails
-today. Under a managed build, neither door offers `archive`, nor `oauth2` if open question 1 is
-answered (a). Under an appliance build the lists are unchanged. Every `notOnManaged` card has a
-non-empty reason. `front-door-cards.unit.test.ts`'s case *"the export archive is offered at BOTH
-doors"* changes on purpose, to the table and the appliance.
+today. Under a managed build, neither door offers `archive`, and both offer `oauth2` (D5). Under
+an appliance build the lists are unchanged. The archive form's Apple option carries the tag, and
+`google-takeout` carries none, for as long as only Takeout has a reader. Every `notOnManaged`
+card has a non-empty reason. `front-door-cards.unit.test.ts`'s case *"the export archive is
+offered at BOTH doors"* changes on purpose, to the table and the appliance.
 
-### T4 — a Dutch and an English guide for each source and target (decided, D4)
+### T4 — a Dutch and an English guide for each source and target (decided, D4 and D8)
 
 **The guides.** One guide per family of cards whose steps are the same, with a subsection per
 card where they differ. Slugs are English and stable, so a link reads the same in both languages.
@@ -524,7 +618,7 @@ card where they differ. Slugs are English and stable, so a link reads the same i
 | Guide | Cards (side) | Today |
 |---|---|---|
 | `google` | `google`, `google-drive`, `gmail`, `google-calendar`, `google-contacts` (source) | `google-workspace-setup.md`, English, no section for the account card |
-| `microsoft` | `microsoft`, `graph`, and `oauth2` when shown (source) | `microsoft-setup.md` and `o365-setup.md` |
+| `microsoft` | `microsoft`, `graph` and `oauth2` (source) | `microsoft-setup.md` and `o365-setup.md` |
 | `dropbox` | `dropbox` (source) | `dropbox-setup.md` |
 | `box` | `box` (source) | `box-setup.md` |
 | `apple` | `apple` (source) | `apple-setup.md` |
@@ -591,8 +685,9 @@ the other language under one line in the reader's own language, and sets `lang` 
 - EN: *"This guide is not yet available in English; the Dutch version follows."*
 
 The Dutch is written first (0144 D1). The English of the sources is the English customer half of
-today's files after T1. The English of the five new guides may follow the first invitation
-(open question 4).
+today's files after T1. The English of the five new guides is written before the first invitation
+as well (D8), so `ENGLISH_PENDING` starts empty. The fallback notice stays, for a guide added
+later in one language first.
 
 **One card table.** Each card in `front-door-cards.ts` gains `guide`, such as `'google#gmail'`,
 per side. `Setup.tsx`'s `guideSlug` (:126-130) and the lint's `guideSlugFor` (:106-110) read it,
@@ -642,6 +737,7 @@ mapping:
 **After:** the Microsoft account card's own-app profile (T2 (b)), and the archive's on the
 appliance: request the export, which Google says takes minutes to days and Apple up to seven
 days, and download it before the date the provider shows (`archive-setup.md`:55-62, :127-140).
+The Apple step carries D7's tag and line.
 
 **Guard.** A case in `provider-setup.unit.test.ts` fails today: every card offered on managed has
 a profile, or is on a short list, `NOTHING_IN_ADVANCE`, with the reason written beside it. Until
@@ -649,7 +745,7 @@ its profile lands, `microsoft` is on that list: *nothing in advance where the de
 Microsoft's registration*. Apple, Nextcloud, Soverin and the Google account card fail it today,
 and so does the archive until T3 hides it on managed.
 
-### T6 — a renderer that keeps a guide's shape (proposed)
+### T6 — a renderer that keeps a guide's shape (decided, D6)
 
 **Before the first invitation**, what the new guides use:
 
@@ -666,9 +762,8 @@ and so does the archive until T3 hides it on managed.
 lines of a list item, and a fence indented inside a list. Until then a guide is written without
 them, and the guard below fails when one is used.
 
-The recommendation is to extend the renderer in `Docs.tsx`. The guides are ours and short, and the
-recommendation adds no dependency. A small vetted markdown library is the other route, and a
-dependency is the maintainer's decision (open question 2). Accessibility of the page itself, its
+The renderer in `Docs.tsx` is extended (D6). The guides are ours and short, and no dependency is
+added. Accessibility of the page itself, its
 title and where focus lands, is 0145 T3 (b). Adding `/docs/<slug>` to 0145 T8's automated scan is
 proposed here for 0145 to take up.
 
@@ -718,27 +813,32 @@ on the allow-list with a reason. Every handle names a served guide and section. 
 
 ### T8 — the Microsoft app-registration recipe (proposed; the walks are the owner's)
 
-**(a) The *Graph API* card, before its first tester.** The `microsoft` guide's `own-app`
-section, for this card, lists the application permissions under Microsoft Graph that
-`o365-application-access.md` §2 lists, `Mail.Read` among them, plus the ones the card's other
-data types need. It lists no delegated-only permission as an application permission. The list is
-checked against Microsoft's current pages when written, and walked once in the owner's tenant,
-with the result recorded where 0141 T1 records proofs. Until then, 0131 T2's label says the card
-is unproven.
+Both cards that take a registration of the tester's own are offered from the first invitation
+(D5). So both recipes are written into the `microsoft` guide's `own-app` section with T4, before
+the first invitation. The walks are the owner's.
 
-**(b) *Via IMAP*, after.** A recipe for app-only IMAP, written from Microsoft's documentation and
-walked in the owner's tenant: the Exchange Online permission `IMAP.AccessAsApp`, registering the
-application in Exchange Online, and giving it the mailbox. None of that is in the repository
-today, and it is not asserted here beyond what §1 says. When the walk is recorded, the card
-returns on managed (T3) with the recipe in its guide. 0141 T13's O365 lane is where the proof
-repeats.
+**(a) The *Graph API* card.** The `microsoft` guide's `own-app` section, for this card, lists the
+application permissions under Microsoft Graph that `o365-application-access.md` §2 lists,
+`Mail.Read` among them, plus the ones the card's other data types need. It lists no delegated-only
+permission as an application permission. The list is checked against Microsoft's current pages when
+written, and walked once in the owner's tenant, with the result recorded where 0141 T1 records
+proofs. The walk comes before the card's first tester. Until then, 0131 T2's label says the card is
+unproven.
+
+**(b) *Via IMAP*.** A recipe for app-only IMAP, written from Microsoft's documentation: the
+Exchange Online permission `IMAP.AccessAsApp`, registering the application in Exchange Online,
+and giving it the mailbox. None of that is in the repository today, and it is not asserted here
+beyond what §1 says. The owner has run the card once and will run it again (D5). The next run
+is this recipe's walk. It is recorded where 0141 T1 records proofs, with the registration it used.
+Where the run and the recipe differ, the run corrects the recipe. 0141 T13's O365 lane is where
+the proof repeats.
 
 **(c) `o365-setup.md`** is operator material after T1. 0140 T4's line sending managed readers to
 the Microsoft guide goes at its top.
 
 **Guard.** A case in the lint: the application-permission list of the `microsoft` guide names
 `Mail.Read`, and lists neither `IMAP.AccessAsUser.All` nor `offline_access` as an application
-permission. While `oauth2` is offered on managed, its section names `IMAP.AccessAsApp`. Run
+permission. The `oauth2` section names `IMAP.AccessAsApp`, since the card is offered (D5). Run
 against today's `o365-setup.md`, both fail.
 
 ## 4. Order
@@ -748,13 +848,14 @@ against today's `o365-setup.md`, both fail.
 1. T3, one web PR: the flag, the two doors, the guard.
 2. T2 (a), (b) and (d), one PR across the web app, shared and the API.
 3. T6's first half, then T1 and T4 for the Google, Microsoft, Dropbox, Box and Apple cards, with
-   T2 (c). Then T4's IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch. One PR per guide
-   family, each with the guard cases that family needs.
+   T2 (c), T1's pointer on the appliance (D9), and T8's two recipes in the Microsoft guide (D5).
+   Then T4's IMAP, JMAP, DAV, Nextcloud and Soverin guides, in Dutch and English (D8). One PR per
+   guide family, each with the guard cases that family needs.
 4. T5's three profiles and the Google account card's mapping.
 5. T0, the owner's reading on `ownpace-live`, which may send text back to step 3.
 
-**After:** English for the five new guides, T6's second half, T7, T8 (a) before the first
-*Graph API* tester, T8 (b), T5's remaining profiles, and T3's Apple option on the appliance.
+**After:** T6's second half, T7, T8's walks (the owner's: (a) before the first *Graph API* tester,
+(b) the run D5 announced), T5's remaining profiles, and T3's Apple tag on the appliance (D7).
 
 Each code task is its own PR with its guard.
 
@@ -762,7 +863,7 @@ Each code task is its own PR with its guard.
 
 | Plan | The minimum before the first invitation | Today |
 |---|---|---|
-| 0148 A guide written for the person using it | T3: the export archive is not offered on managed, and neither is *Via IMAP* if open question 1 is answered (a). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a Dutch customer guide, served in the app, with no operator material, read by the owner against live's screens (T0). T6's first half. T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
+| 0148 A guide written for the person using it | T3: the export archive is not offered on managed; *Via IMAP* stays, tagged experimental until the owner's run is recorded (D5). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a customer guide in Dutch and English (D8), served in the app, with no operator material, read by the owner against live's screens (T0). The Microsoft guide carries T8's two recipes (D5). T6's first half. T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
 
 ## Not in this plan
 
@@ -792,14 +893,20 @@ Each code task is its own PR with its guard.
    work as offered (§1); nobody has recorded a working recipe; and the *Microsoft 365 account*
    card covers a person's own mailbox. (b) Kept, with a
    recipe rewritten from Microsoft's documentation but not walked, and 0131 T2's label.
+   *Answered 2026-09-24: kept (D5).* The owner: *"dont hide IMAP, i tested that once and will do
+   that again."* The owner's next run is T8 (b)'s walk.
 2. **The renderer (T6).** (a) Extend `Docs.tsx`. *Recommended*: no new dependency, and the guides
    are ours. (b) Adopt a small vetted markdown library; the maintainer decides dependencies, as
-   0145 open question 4 asks for its own.
+   0145 open question 4 asks for its own. *Answered 2026-09-24: (a) (D6).* The owner: *"extent the
+   guide renderer."*
 3. **The Apple export option on the appliance (T3).** (a) Offer only the exports a reader exists
    for, on both editions. *Recommended*: it cannot work anywhere. (b) Keep it, with the line
    that says it cannot be read yet. D3 speaks for managed only, so this is the owner's call.
+   *Answered 2026-09-24: (b), with a tag (D7).* The owner: *"Leave the Apple-export option in but
+   be clear about it ('to be tested'-label)."*
 4. **English for the five new guides (T4).** (a) After the first invitation, with the fallback
-   notice meanwhile. *Recommended*: the alpha is Dutch. (b) Before.
+   notice meanwhile. *Recommended*: the alpha is Dutch. (b) Before. *Answered 2026-09-24: (b)
+   (D8).* The owner: *"Add the five new guides already."*
 5. **The appliance's `/docs` (T1).** Should its index carry one line pointing self-hosters to the
    operator documents in the repository? That is a link to the public repository, not served
    text. *Recommended: yes.*
@@ -807,3 +914,6 @@ Each code task is its own PR with its guard.
      in the repository."*
    - NL: *"Draait u een eigen appliance? De instellingen en commando's staan in de
      beheerdersdocumenten in de repository."*
+
+   *Answered 2026-09-24: yes (D9).* The owner: *"Yes, one-line pointer towards the
+   appliance-help-page to de appliance operator docs"*.

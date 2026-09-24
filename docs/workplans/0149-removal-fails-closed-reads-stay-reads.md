@@ -2,6 +2,16 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, later: the owner answered open questions 1 and 2.** *"1) 0159, gate answer: a"*
+confirms D2's reading, 0009's option 1. There is no plan 0159, so "0159" is read as 0149.
+*"2) 0149, older wors without a version: rewritten"* ("wors" is read as "rows") is D3: a row
+without a recorded version is rewritten from the source when its source item changes, as today,
+and then carries the version the target returns. Removal still refuses such a row (D1). §2 states
+the reading and what it accepts. T3 is now decided in both halves. For a rewrite, the server
+checks a row that has a version, and a row without one is rewritten as today. T7 follows D3, and
+0009's note records that the reading is confirmed. Open question 3, on weak versions, is still
+open.
+
 **2026-09-24: opened from the owner's answer.** The readiness review of 2026-09-23 found that
 *apply deletions*, the one path in the product that removes anything, relies on two facts it
 cannot always establish: that the copy on the target is one Ownpace wrote, and that nobody has
@@ -36,11 +46,11 @@ OTA stack and the appliances.
 |---|---|---|
 | T1 A 412 on create is an adoption, in all three DAV writers | 📋 **Decided** (D1) | §3. CalDAV, CardDAV, and WebDAV with its streamed twin. The row is `adopted`, and it is never rewritten or removed as Ownpace's. The JMAP mail writer is the model. A guard fails without it. **Alpha minimum.** |
 | T2 A lookup that fails is not an absence | 📋 **Decided** (D1) | §3. The per-item CalDAV REPORT, CardDAV REPORT and WebDAV PROPFIND answer 207 or 404, or they throw (hard rule 9). They go through the retry helper, as the writes do. **Alpha minimum.** |
-| T3 Removal and rewrite carry the version, and refuse without one | 📋 **Decided** (D1) for removal; the rewrite half 📋 **Proposed** | §3. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed or rewritten. Removal answers with a new refusal code. A rewrite is left alone and counted, as a conflict is today. JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
+| T3 Removal and rewrite carry the version, and removal refuses without one | 📋 **Decided** (D1 for removal, D3 for a rewrite) | §3. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
 | T4 The cutover gate holds when nothing was compared | 📋 **Decided** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. **Alpha minimum.** |
 | T5 The IMAP source opens folders read-only, and no source can write | 📋 **Proposed** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
 | T6 The words become true | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` and 0144 T4 and T5 once T1 to T3 have landed. This is coordination with 0144, which owns the wording. **After** T3. |
-| T7 Ledgers written before the fix | 📋 **Proposed** | §3. A row recorded `copied` after a 412 cannot be told apart from other rows without a version. The conservative rule is T3's: no recorded version, no removal and no rewrite. `ownpace-live` has none of these rows if the alpha tag carries T1. **After**, for the OTA stack and the appliances. |
+| T7 Ledgers written before the fix | 📋 **Proposed** | §3. A row recorded `copied` after a 412 cannot be told apart from other rows without a version. The rule is T3's, with D3: no recorded version, no removal, and a source change rewrites the row. `ownpace-live` has none of these rows if the alpha tag carries T1. **After**, for the OTA stack and the appliances. |
 
 ## 1. What there is today
 
@@ -273,7 +283,8 @@ Each decision gives the question in plain words, then the answer as given. Where
 needed a reading, the reading is stated, as 0131 reads its answers.
 
 The answer opened with *"write as a plan."*, and so this plan exists. The rest of the answer made
-two decisions.
+two decisions, D1 and D2. The owner's answers to open questions 1 and 2, later the same day,
+confirmed D2's reading and made D3.
 
 **D1 — *apply deletions* is part of the alpha.** *Until removal fails closed, should testers
 leave* apply deletions *off?* (0144 open question 3 recommended that.) — *"But we do offer 'apply
@@ -307,7 +318,40 @@ the code already makes and changes nothing for JMAP contacts."*
 
 Read word for word, the answer would also hold a domain whose target can never hash. Today that
 is JMAP contacts, which could then never be cut over. 0009 warned against exactly that: *"not
-honesty, a product that cannot cut over"*. Open question 1 asks the owner to confirm the reading.
+honesty, a product that cannot cut over"*. Open question 1 asked the owner to confirm the reading.
+
+**Confirmed the same day:** *"1) 0159, gate answer: a"*. There is no plan 0159, and the same
+message's next answer names 0149, so "0159" is read as 0149 and "a" as open question 1's (a),
+option 1. One neighbouring case still opens the gate under option 1 as written. If every
+sample's recorded hash was made by an older fingerprint version, the target did answer with a
+hash, but nothing was compared (`dav-canonical.ts`: a cross-version comparison counts as
+unavailable). Open question 1 said so, and the answer takes option 1 as written. `ownpace-live`
+has no such rows.
+
+**D3 — a row without a version is rewritten.** *Rows on the OTA stack and the appliances that were
+written without a version: leave them frozen, never removed and never rewritten from the source?*
+(Open question 2 recommended that.) — *"2) 0149, older wors without a version: rewritten"*
+("wors" is read as "rows").
+
+**The reading.** A row without a recorded version is rewritten from the source when its source
+item changes, as today. The rewrite records the version the target returns (`domain-sync.ts`:1687),
+so from then on the row carries one, and T3's check applies to it like any other. Removal stays
+as T3 has it: a row without a version is never removed.
+
+- **Every such row.** No row shows whether it predates the fix (T7), so the answer is read as the
+  rule for every row without a version. That includes a row from a target that returns no ETag
+  on PUT.
+- **Not a one-off rewrite.** The answer is not read as rewriting every such row once to give it
+  a version. That would overwrite each item whether or not its source had changed. If that was
+  meant, it is a task of its own.
+
+**What it accepts.** On a row without a version there is nothing to compare. So when the source
+item changes, a copy somebody has edited on the target is overwritten. That is today's
+trade-off, pinned by `target-edit-protection.unit.test.ts`:152: refusing would stop source
+changes from reaching every such row. It also covers a row recorded `copied` after a 412 before
+T1 (T7). There, the item that was already at that address on the target, the customer's, is
+overwritten when the source item changes. `ownpace-live` has no such rows if the alpha tag
+carries T1 (T7), so on live D3 matters only for a target that returns no ETag on PUT.
 
 ## 3. What each task does
 
@@ -401,7 +445,7 @@ of the three lookups:
 - a 404 gives `undefined`, and so, for CalDAV and CardDAV, does a 207 with no matching UID;
 - for WebDAV, a thrown transport error propagates. Today it is swallowed.
 
-### T3 — removal and rewrite carry the version, and refuse without one (decided, D1, for removal; the rewrite half proposed; alpha minimum)
+### T3 — removal and rewrite carry the version, and removal refuses without one (decided, D1 and D3; alpha minimum)
 
 **On DAV, the server does the check.** The server evaluates the condition in the same request, so
 there is no longer a gap between reading and acting.
@@ -410,7 +454,8 @@ there is no longer a gap between reading and acting.
 - The rewrite PUT in all three writers does the same. Today it sends no precondition (caldav
   :951, carddav :739, webdav :886, :959).
 - The HEAD before either request goes (`dav-remove.ts`:120-129, and the writers' `currentEtag`
-  calls on the rewrite path). The server's answer to the condition replaces it.
+  calls on the rewrite path). The server's answer to the condition replaces it. The one exception
+  is a rewrite of a row whose version is weak (below).
 
 **What a 412 now means.** A 412 on the conditional DELETE or PUT means the object is no longer
 the one Ownpace wrote. RFC 9110 also evaluates `If-Match` as false when there is no current
@@ -421,15 +466,22 @@ representation, so on a DELETE one HEAD follows the 412:
 - a HEAD that fails throws. Nothing was removed.
 
 On the rewrite path a 412 is `conflicted`, where today it throws *"refused with 412 on a
-deliberate rewrite"* (caldav :962-969).
+deliberate rewrite"* (caldav :962-969). The sync loop already handles `conflicted`: not written,
+the row marked `adopted`, and counted (`domain-sync.ts`:1655-1672). The item then shows among
+*"left as they are"*.
 
 **Weak versions.** `readEtag` strips the `W/` prefix before recording
 (`dav-target-version.ts`:38, pinned by `target-edit-protection.unit.test.ts`:49). RFC 9110
 compares `If-Match` with the strong comparison, so a weak validator never matches. The writer
-therefore records whether the ETag was weak. A weak one counts as no version, which falls under
-the next rule.
+therefore records whether the ETag was weak.
 
-**With no recorded version, nothing is removed or rewritten.**
+- **Removal.** A weak version counts as no version, which falls under the next rule.
+- **Rewrite.** A weak version keeps today's check: a HEAD, and a comparison of the two values.
+  `If-Match` cannot carry it, and dropping the check would leave these rows with less protection
+  than they have today. D3 does not ask for that. The gap between the HEAD and the PUT stays open
+  for these rows only.
+
+**With no recorded version, nothing is removed. A rewrite goes ahead (D3).**
 
 - **Removal.** The writer sends no DELETE and answers a new result, working name `unversioned`.
   Core turns that into a new refusal code, working name `version_unknown`, with the reason:
@@ -441,12 +493,9 @@ the next rule.
   - on managed it lands on the receipt as `refused` with its code (`ApplyReceipt`,
     `operating-contract.ts`);
   - `evaluateApplyDeletion` stays a prediction, as it already is for gate 5.
-- **Rewrite.** The writer sends no PUT and answers `conflicted`, which the sync loop already
-  handles: not written, the row marked `adopted`, and counted (`domain-sync.ts`:1655-1672). The
-  log line says why, and it does not say "somebody edited it", which would be a false
-  explanation. The IMAP target's comment makes the same point about a stale handle
-  (`imapflow-dav-target.ts`:599-602). The item then shows among *"left as they are"*, whose
-  explanation already says *"or have been changed there since"*.
+- **Rewrite.** The writer sends the PUT without a condition, as today, and the sync loop records
+  the version the target returns (`domain-sync.ts`:1687). That is D3, and
+  `target-edit-protection.unit.test.ts`:152 already pins it: no HEAD, one PUT.
 
 **The same rule on the other targets that record a version:**
 
@@ -464,23 +513,26 @@ the next rule.
 **Where the rule lives.** In the writers, because only a writer knows what kind of version its
 target has. Core maps the writer's answer to a refusal code, as it does for `conflicted` today.
 
-**The rewrite half is Proposed, not Decided.** D1 is about removal. The rewrite half reverses a
-trade-off the code states on purpose (§1): with no version, a rewrite went ahead, so as not to
-block source changes. It is in the alpha minimum for three reasons:
+**The rewrite half follows D3.** D1 is about removal. This plan first proposed that a row
+without a version is not rewritten either, which would have reversed a trade-off the code states
+on purpose (§1): with no version, a rewrite goes ahead, so as not to block source changes. The
+owner kept that trade-off (D3). So for a rewrite T3 changes how the check is made. Which rows are
+rewritten stays as today, apart from a JMAP fingerprint read that fails, which now refuses. It is
+in the alpha minimum for two reasons:
 
 - it is the same code and the same PR;
-- it closes the gap between the HEAD and the PUT;
-- on `ownpace-live` the rows it affects are few. Live's database is new, so no row predates the
-  version, and T1 stops making rows without one. What remains is a target that returns no ETag on
-  PUT, or only a weak one (open question 3).
+- it closes the gap between the HEAD and the PUT for every row with a strong version.
 
-Open question 2 covers older rows on the OTA stack and the appliances.
+On `ownpace-live` few rows lack a version. Live's database is new, so no row predates the
+version, and T1 stops making rows without one. What remains is a target that returns no ETag on
+PUT, or only a weak one (open question 3).
 
 **What changes with it, in the same PR:**
 
 - **Pinned tests.** Each change is a decided behaviour change, not a skipped test:
   - `dav-remove.unit.test.ts`:112 and :167.
-  - `target-edit-protection.unit.test.ts`:70, :152 and :169.
+  - `target-edit-protection.unit.test.ts`:70 and :169. Its case at :152, a rewrite of a row
+    without a version going ahead, stays as it is: that is D3.
   - `dav-write-round-trips.unit.test.ts`:216-233, where a 412 on a rewrite becomes `conflicted`
     instead of a throw.
   - `apply-deletion.unit.test.ts`:427 does not change. Core still passes a version only when the
@@ -506,7 +558,9 @@ Open question 2 covers older rows on the OTA stack and the appliances.
 
 - `packages/engines/src/a-removal-the-server-checks.unit.test.ts`:
   - the DELETE and the rewrite PUT carry `If-Match` with the recorded version, quoted;
-  - with no version, or a weak one, no DELETE or PUT is sent;
+  - with no version, or a weak one, no DELETE is sent;
+  - with no version, the rewrite PUT is sent without `If-Match`, and with a weak one after a HEAD
+    whose value matches (D3);
   - a 412 followed by a HEAD answering 200 is `conflicted`, and one answering 404 is already
     removed.
 - Cases in the JMAP contacts and files tests: a failed read sends no destroy and no rewrite.
@@ -561,8 +615,8 @@ decided change of behaviour, not a test skipped to get CI green. How it changes:
 - **A new case beside it fails today:** a reindexer whose `contentHashFor` returns `undefined`
   for every sample gives mail `FAIL`, overall `FAIL`, `canProceedToCutover: false`, the ERROR
   issue, and `contentEvidence: 'none'`.
-- If the owner reads D2 word for word instead (open question 1), the existing case's assertions
-  flip to `FAIL` as well.
+- The owner confirmed option 1 (D2), so the existing case's assertions stay. Read word for word,
+  they would have flipped to `FAIL` as well.
 
 The PR also reads the tests that rely on the fallback to isolate some other condition. One is
 `verification-status-thresholds.unit.test.ts`: its `reader` leaves hashes empty so that the
@@ -662,23 +716,26 @@ The target cannot settle it either:
   match.
 - For every domain, a match cannot tell Ownpace's copy from the customer's identical one.
 
-**The conservative rule** is T3's own. A `copied` or `updated` row with no recorded version, on a
-target that records versions, is not provably Ownpace's. It is never removed and never rewritten.
-No migration changes its status.
+**The rule** is T3's, with D3. A `copied` or `updated` row with no recorded version, on a target
+that records versions, is not provably Ownpace's. It is never removed. When its source item
+changes it is rewritten, and from then on it carries the version the target returned (D3). No
+migration changes its status.
 
 **Where it matters:**
 
 - **`ownpace-live`**: nowhere, if the alpha tag carries T1. Live is its own compose project, and
   Compose prefixes its volumes with the project name (0132 §1, T1b). So its database starts
   empty, and no row on it is ever written by the old code.
-- **The OTA stack and the appliances**: T3 already protects these rows. What stays wrong is only
-  how they are reported. The counts call them created, and the confirmed list shows a 412 row as
-  a placed copy rather than `yours` (`confirmed-list.ts`:312-313).
+- **The OTA stack and the appliances**: T3 protects these rows from removal. A source change still
+  rewrites them, which is what D3 accepts (§2). What is also wrong is how they are reported. The
+  counts call them created, and the confirmed list shows a 412 row as a placed copy rather than
+  `yours` (`confirmed-list.ts`:312-313).
 
-**The count.** One query, added to `docs/operator-runbook.md` beside T3, tells an operator how
-many rows T3 froze. It counts `status IN ('copied','updated') AND target_version IS NULL` per
-domain, for mappings whose mail target is not JMAP, since JMAP mail records no version by design.
-Open question 2 is what to do with them.
+**The count.** One query, added to `docs/operator-runbook.md` beside T3, tells an operator how many
+rows *apply deletions* will not remove (T3). It counts `status IN ('copied','updated') AND
+target_version IS NULL` per domain, for mappings whose mail target is not JMAP, since JMAP mail
+records no version by design. D3 says what happens to them: a source change rewrites them, and
+nothing removes them.
 
 ## 4. The alpha: the minimum, and what comes after
 
@@ -717,7 +774,7 @@ target that can hash compared nothing; the IMAP source opens folders with SELECT
 other rows, the owner may instead accept a gap in writing, dated, with the reason.
 
 **After the first invitation:** T6 with 0144 T4, once T3 has landed. Then T7's count on the OTA
-stack and the appliances, and open question 2's answer.
+stack and the appliances.
 
 **Handed to other plans, for the session that syncs them:**
 
@@ -756,13 +813,16 @@ stack and the appliances, and open question 2's answer.
    reading. If every sample's recorded hash was made by an older fingerprint version, the target
    did answer with a hash, but nothing was compared (`dav-canonical.ts`: a cross-version comparison
    counts as unavailable). (a) as written lets that pass. `ownpace-live` has no such rows.
+   *Answered 2026-09-24: (a), option 1 (D2).* The owner: *"1) 0159, gate answer: a"*.
 2. **Rows without a version on the OTA stack and the appliances (T3, T7).** (a) Leave them frozen:
    never removed, and never rewritten from the source. *Recommended for the alpha*, since
    `ownpace-live` has none. (b) For files only, re-establish the version when the target's bytes
    hash to what the ledger recorded, and use the ETag read in the same request. Calendars and
    contacts cannot do this, because their fingerprint does not see an edit outside its fixed set
-   of properties, such as a meeting's new time.
-3. **A target that gives only weak versions (T3).** Under T3 nothing on it is ever removed or
-   rewritten. (a) Accept that, since it fails closed. *Recommended.* (b) Measure first which of
-   the targets testers bring send weak ETags on PUT. The first nightly after T3 shows it for
-   Nextcloud and Stalwart.
+   of properties, such as a meeting's new time. *Answered 2026-09-24: rewritten (D3).* The owner:
+   *"2) 0149, older wors without a version: rewritten"*. That is neither (a) nor (b), so §2
+   states the reading: a source change rewrites such a row, as today, and nothing removes it.
+3. **A target that gives only weak versions (T3).** Under T3 nothing on it is ever removed, and a
+   rewrite keeps today's check, a HEAD and a comparison. (a) Accept that, since removal fails
+   closed. *Recommended.* (b) Measure first which of the targets testers bring send weak ETags on
+   PUT. The first nightly after T3 shows it for Nextcloud and Stalwart.

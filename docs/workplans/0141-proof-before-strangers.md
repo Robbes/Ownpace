@@ -44,6 +44,12 @@ the person using it*, and W18 is 0149, *Removal fails closed, and reads stay rea
 now point there. The export archive card's row in §1 follows 0148 D3: the card is hidden on
 managed, not tagged.
 
+**2026-09-24, cross-plan sync after 0148's answers.** The owner keeps the *Via IMAP* card on
+managed: *"dont hide IMAP, i tested that once and will do that again."* (0148 D5). The run the
+owner made is not recorded, and neither is the registration it used. The next run is recorded
+under T1 as the `oauth2` card's proof, and 0148 T8 (b)'s recipe is checked against it. §1's row
+for the card says so.
+
 **Before the first invitation.** This is the minimum, and it is kept small:
 
 - T1, the record;
@@ -102,7 +108,7 @@ The `microsoft` faces are the `graph-*` connectors (`source-face-builders.ts`:13
 | IMAP (`imap`) | mail | proven on a server we run | Driven every night against Stalwart (`scripts/connector-coverage.unit.test.ts`:71, the `imap-oauth2` type). |
 | Microsoft 365 account (`microsoft`) | mail (`graph-mail`) | ✅ in the matrix for the same reader under the `graph` card; no run through this card is recorded | 0114's connection Test on the owner's account, 2026-09-06: *"Measured: Email 25 messages · Contacts 0 cards · Files 3.8 GB"* (0114:5-8). That is a measurement, not a pass. |
 | ″ | calendar, contacts, files, tasks | experimental | The matrix says *"⏳ wired; a live connection Test, no migration measured"* (`docs/feature-matrix.md`:399). The owner's first Microsoft preflight never finished counting Files. That was fixed on 2026-09-22, *"not yet proven on a live tenant"* (0058:13-14). 0059 T5(a) is open (below). |
-| Microsoft 365 via IMAP (`oauth2`), via Graph (`graph`) | mail | ✅ in the matrix; the run behind it is not linked | 0008 T7 is marked ✅ Done (0008:13), but its acceptance, *"documented green run linked in this Status block"* (:114), has not been met. `e2e-o365.yml` has never completed a run (below). These cards need the tester's own Entra app registration. |
+| Microsoft 365 via IMAP (`oauth2`), via Graph (`graph`) | mail | ✅ in the matrix; the run behind it is not linked | 0008 T7 is marked ✅ Done (0008:13), but its acceptance, *"documented green run linked in this Status block"* (:114), has not been met. `e2e-o365.yml` has never completed a run (below). These cards need the tester's own Entra app registration. The owner has run the *Via IMAP* card once, a run nobody recorded, and will run it again (0148 D5). |
 | Google account (`google`) | calendar, contacts | proven on one account | *"run against the owner's real Google account routinely for weeks"*, and *"NOT … a SECOND account"* (matrix :10-16). The matrix says it of the product cards; the owner's live migration runs on the `google` account kind (`permissions.ts`:280-281). |
 | ″ | tasks | experimental | 0126 T8 is ⏳ (0126:71). The matrix's gap row marks it ✅ and *"unmeasured against a live account"* (:408). |
 | ″ (whole-domain option) | all | experimental | *"Real-endpoint proof — DWD-minted tokens against live Drive/Gmail/Calendar/Contacts"* is ⛔ (0053:10). Matrix :402. |
