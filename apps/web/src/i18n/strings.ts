@@ -1631,7 +1631,7 @@ const en = {
     'Never started, so there is nothing to finish. Remove the migration to retire it.',
   'finish.note.active':
     'Syncing on a schedule. Items still arriving on the old system are being copied across.',
-  'finish.note.cutover': 'In cutover. Still syncing until you finish it.',
+  'finish.note.cutover': 'In cutover. If it was running, it copies until the grace period ends.',
   'finish.note.done':
     'Finished. This mapping no longer syncs and nothing is being reported for it.',
   'finish.note.continuous':
@@ -3482,7 +3482,7 @@ const nl: Record<keyof typeof en, string> = {
     'Nooit gestart, dus niets af te ronden. Verwijder de migratie om op te ruimen.',
   'finish.note.active':
     'Synchroniseert volgens schema. Items die nog op het oude systeem binnenkomen, worden gekopieerd.',
-  'finish.note.cutover': 'In cutover. Synchroniseert nog totdat u afrondt.',
+  'finish.note.cutover': 'In cutover. Liep de migratie, dan kopieert die tot de overgangsperiode afloopt.',
   'finish.note.done':
     'Afgerond. Deze migratie synchroniseert niet meer en er wordt niets meer voor gerapporteerd.',
   'finish.note.continuous':

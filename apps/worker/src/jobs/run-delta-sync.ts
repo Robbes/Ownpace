@@ -378,7 +378,7 @@ export const runDeltaSync = schemaTask({
           const line =
             halt === 'grant_withdrawn'
               ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`
-              : `pass stopped before ${domain}: this migration is no longer active (paused or finished) — nothing failed, the next pass continues from the cursors when it is resumed`;
+              : `pass stopped before ${domain}: this migration no longer runs passes (paused, finished, or past its cutover's grace period) — nothing failed, the next pass continues from the cursors when it runs again`;
           log.info(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });

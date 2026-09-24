@@ -35,12 +35,42 @@ and verified like any other (`a-cutover-without-mail.integration.test.ts`, run a
 16). Guards: `a-final-sync-of-every-data-type` (16) and that integration test (4); the
 preparation's integration tests read the new report; 23 mutations, all killed.
 
+**2026-09-24: the owner decided both.** *"D1 a (recommended), D2 c (recommended)"*. D1 (a): passes
+keep running through the grace period, bounded by it, and slotless. D2 (c): a stopped data type
+keeps its slot while the migration is `active` and releases it in the continuous lane. T3 and T4
+are unblocked.
+
+**2026-09-24, T2 built.** From execute until the grace period ends, a migration that was `active`
+keeps being copied, under the after-cutover rules: new and changed items are copied, no deletion
+is mirrored, and no slot is held (what it copies joins the data meter, as every first copy does).
+Then no pass runs, and the owner's ending stays theirs. The
+window is read from the cutover's ledger row: in `GRACE_PERIOD`, `grace_period_hours` after
+`grace_period_started_at`; while execute waits for the MX record, as long after the row entered
+CUTOVER_IN_PROGRESS, so an execute that never finished cannot copy forever. The rule is said once
+in SQL (`CUTOVER_STILL_COPIES_WHERE`, ledger) and once in TypeScript (`cutoverStillCopiesAt`,
+shared), and `runsPassesNow` joins `runsPasses`. Every gate that read the status alone now asks
+it, on both editions: the managed tick's query, the pass's re-read between data types, and the
+appliance's startup scan, per-pass re-read and Sync now. **One decision taken in the build:** a
+migration the operator had paused stays stopped. ADR-0048 moves a paused migration to `cutover`
+at execute too, and D1 (a) alone would have restarted its copying. So execute records, while it
+can still see the status, whether the migration copies through the grace period
+(`cutover_state.copies_through_grace`, ledger migration 0064): true for `active` only. The
+`--yes` confirmation and `status` say which it is, for this mapping. ADR-0048 is amended. The
+Finish page's note for `cutover` said *"Still syncing until you finish it"*, which had been false
+since ADR-0048; it now says what happens. Guards: `a-grace-period-that-copies` in the worker (46),
+on PGlite: the SQL and the TypeScript hold one answer over every cutover state, both answers of
+execute and both sides of the end; the real execute over the real store; the tick's own query and
+the pass's own re-read. The same name in the appliance (1) boots it on both sides of the end: the
+startup scan, Sync now, and the pass's re-read. The execute step and the CLI's sentences are
+extended. 34 mutations, all killed; the one that first survived, the store's insert branch, now has
+its test.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The final sync covers every data type | ✅ **Built 2026-09-24** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
-| T2 Passes keep running through the grace period | 📋 **Proposed**; waits on D1 | §3. From execute until the grace period ends, the migration keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. |
-| T3 The ending is a choice: end, or keep copying which data types | 📋 **Proposed** with T4 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. |
-| T4 A data type can be stopped and resumed | 📋 **Proposed**; waits on D2 | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. |
+| T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
+| T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided** with T4; next | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. |
+| T4 A data type can be stopped and resumed | 📋 **Decided: D2 (c)**; next | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. |
 
 ## 1. What happens today
 
@@ -69,7 +99,7 @@ Three facts decide the rest.
   (`refuseDomainTheTargetCannotCarry('mail', kind)`), so preparation fails at its first step,
   with a sentence about email nobody selected. The gate builds `buildDepsFromMapping` first as
   well, and fails the same way.
-- **Nothing is copied after execute.** `runsPasses` is `active | continuous`, so a mapping in
+- **Nothing is copied after execute** *(until 2026-09-24, when T2 was built)*. `runsPasses` is `active | continuous`, so a mapping in
   `cutover` is never scheduled, and a manual pass answers 409. Yet `cutover-state.ts` defines the
   grace period as *"Both systems active, monitoring for discrepancies"*. For those 72 hours, mail
   that still reaches the old server while the MX change propagates is copied only if the owner
@@ -104,7 +134,7 @@ the same data types, and builds only what the migration has. A test drives a cut
 of a calendar, contacts and files migration through the real preparation step: before the change
 it fails on email, and after it the final sync reports a count per data type.
 
-### T2 — passes keep running through the grace period (proposed; D1)
+### T2 — passes keep running through the grace period (decided: D1 (a); built 2026-09-24)
 
 From execute until the grace period ends, the migration keeps being scheduled, under the
 after-cutover rules. That is what the grace period's own definition promises, and it is exactly
@@ -114,10 +144,15 @@ stays open.
 
 For the build: the rule depends on the time, which `runsPasses` cannot read from a status word
 alone. The appliance's tick and the managed poller's query (`PASS_RUNNING_STATES`) both need the
-grace period's end (`gracePeriodEndsAt` on the cutover ledger). One function has to say it for
-both, as `runsPasses` does now.
+grace period's end. The ledger row holds it as `grace_period_started_at` plus
+`grace_period_hours`; `gracePeriodEndsAt` on the status was never filled. One rule says it for
+both: `runsPassesNow`, with `CUTOVER_STILL_COPIES_WHERE` as its SQL, held in step by one test.
 
-### T3 — the ending is a choice (proposed with T4)
+Built with one more rule, because ADR-0048 moves a paused migration to `cutover` at execute too:
+only a migration that was `active` at execute copies through the grace period. The operator who
+paused one did not ask for it to start again.
+
+### T3 — the ending is a choice (decided with T4)
 
 Wherever a migration ends, which means the Finish checklist's last step, and the end of the grace
 period, the owner gets two answers side by side:
@@ -129,7 +164,7 @@ period, the owner gets two answers side by side:
 
 Today the lane is a second step after finishing, and it takes every data type at once.
 
-### T4 — stop and resume a data type (proposed; D2)
+### T4 — stop and resume a data type (decided: D2 (c))
 
 On a running migration (`active` or `continuous`), each data type can be **stopped** and
 **resumed** from the migration page, beside the add panel (0125 T6). Stopped means what 0125 T7
@@ -149,7 +184,8 @@ data type the owner stops on purpose is stopped even with nothing copied yet.
 
 ## 4. Decisions for the owner
 
-**D1 — keep copying through the grace period (T2)?**
+**D1 — keep copying through the grace period (T2)?** **Decided 2026-09-24: (a)**, *"D1 a
+(recommended)"*.
 
 - **(a) Yes, bounded by the grace period, and slotless.** *Recommended.* It catches the mail
   that arrives during the MX change, keeps what "both systems active" promises, and changes no
@@ -158,7 +194,8 @@ data type the owner stops on purpose is stopped even with nothing copied yet.
   anyone who never chooses.
 - **(c) No.** Keep today's stop at execute, and rely on T3's choice being made quickly.
 
-**D2 — does a stopped data type keep its slot (T4)?** Pausing keeps its slot on purpose: it is
+**D2 — does a stopped data type keep its slot (T4)?** **Decided 2026-09-24: (c)**, *"D2 c
+(recommended)"*. Pausing keeps its slot on purpose: it is
 reserved capacity, and the pricing page says so. The case that motivates a stop is different.
 The mail of an account that no longer exists will never be resumed, and billing a slot for it for as long
 as contacts keep flowing would charge for nothing.

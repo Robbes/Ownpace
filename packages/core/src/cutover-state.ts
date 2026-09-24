@@ -17,7 +17,7 @@
  * All state transitions are logged and must be explicit.
  */
 
-import type { TenantId, MappingId } from '@openmig/shared';
+import type { TenantId, MappingId, CutoverWindow } from '@openmig/shared';
 
 /** Cutover state values */
 export type CutoverState = 
@@ -59,6 +59,14 @@ export interface CutoverStatus {
   cutoverCompletedAt?: string;
   gracePeriodStartedAt?: string;
   gracePeriodEndsAt?: string;
+  /**
+   * Whether the migration keeps being copied from execute until the grace
+   * period ends (workplan 0128 T2): set by execute, true when the migration
+   * was `active` then. `cutoverStillCopiesAt` in `@openmig/shared` reads it.
+   */
+  copiesThroughGrace?: boolean;
+  /** How long the grace period lasts: the ledger row's `grace_period_hours`. */
+  gracePeriodHours?: number;
   
   // Statistics
   totalItemsMigrated: number;
@@ -368,6 +376,22 @@ export function updateCutoverStatus(
   return {
     ...status,
     ...baseUpdate,
+  };
+}
+
+/**
+ * The cutover's timing, as `cutoverStillCopiesAt` in `@openmig/shared` reads
+ * it (workplan 0128 T2), from a status the store loaded: its `updatedAt` is
+ * when the row last changed state, which in CUTOVER_IN_PROGRESS is execute's
+ * start. A status without `gracePeriodHours` gets the column's default, 72.
+ */
+export function cutoverWindowOf(status: CutoverStatus): CutoverWindow {
+  return {
+    state: status.currentState ?? status.state,
+    copiesThroughGrace: status.copiesThroughGrace === true,
+    enteredAt: new Date(status.updatedAt),
+    graceStartedAt: status.gracePeriodStartedAt ? new Date(status.gracePeriodStartedAt) : null,
+    graceHours: status.gracePeriodHours ?? 72,
   };
 }
 

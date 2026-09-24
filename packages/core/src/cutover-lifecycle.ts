@@ -36,10 +36,21 @@
  *   the shadow sync, decided by `finishTransition` with its own rule about
  *   unresolved failures. A second door to `done` with fewer rules is the
  *   objection ADR-0047 raised against un-finishing on rollback, mirrored.
+ *
+ * ## The grace period copies (workplan 0128 T2)
+ *
+ * The owner, 2026-09-24, D1 (a): from execute until the grace period ends,
+ * the migration keeps being copied, under the after-cutover rules, "bounded
+ * by the grace period, and slotless". The mapping still becomes `cutover` at
+ * execute, so the source stops being the authority at once; what runs its
+ * passes for that while is `runsPassesNow`, which reads the ledger's window.
+ * `execute` records one more thing for it, `copiesThroughGrace`: true when the
+ * migration was `active`. A paused one becomes `cutover` as well, and the
+ * operator who paused it did not ask for it to start copying again.
  */
 
 import type { MappingId, TenantId } from '@openmig/shared';
-import { cutoverTransition } from '@openmig/shared';
+import { cutoverTransition, keepsCopyingThroughGrace } from '@openmig/shared';
 import { isValidTransition, type CutoverState, type CutoverStatus } from './cutover-state.ts';
 
 /** The two calls these need from a cutover store — `CutoverStore` satisfies it. */
@@ -83,6 +94,12 @@ export interface CutoverStepOutcome {
   readonly state: 'CUTOVER_IN_PROGRESS' | 'COMPLETED';
   /** The cutover state this stepped FROM. */
   readonly from: CutoverState;
+  /**
+   * Whether the migration keeps being copied until the grace period ends
+   * (0128 T2). Only `execute` answers true, and only for a migration that was
+   * `active`; `complete` is where the grace period has ended.
+   */
+  readonly copiesThroughGrace: boolean;
   readonly mapping: {
     readonly from: string;
     readonly to: string;
@@ -108,7 +125,10 @@ export class CutoverRefused extends Error {
   }
 }
 
-/** APPROVED → CUTOVER_IN_PROGRESS, and the mapping stops for the cutover. */
+/**
+ * APPROVED → CUTOVER_IN_PROGRESS, and the mapping moves to `cutover`: copied
+ * until the grace period ends if it was running, and no longer if it was not.
+ */
 export function enterCutover(deps: CutoverStepDeps): Promise<CutoverStepOutcome> {
   return step(deps, 'CUTOVER_IN_PROGRESS', {
     startedAt: new Date().toISOString(),
@@ -155,13 +175,14 @@ async function step(
     throw new CutoverRefused(decision.refuse, decision.hint);
   }
 
+  // Decided while the status the migration had is still known: once it is
+  // `cutover`, one that was copying and one that was paused look the same.
+  const copiesThroughGrace = to === 'CUTOVER_IN_PROGRESS' && keepsCopyingThroughGrace(decision);
+
   // Mapping first — see the header for why this order and not the other.
   let mapping: CutoverStepOutcome['mapping'];
   if (decision.stop) {
-    deps.log(
-      `Mapping ${decision.from} -> ${decision.to}: the shadow sync stops; the source is no ` +
-        'longer the authority on what exists.',
-    );
+    deps.log(`Mapping ${decision.from} -> ${decision.to}: ${whatTheStopMeans(to, copiesThroughGrace)}`);
     await deps.mapping.setStatus({ from: decision.from, to: decision.to, via: 'cutover' });
     mapping = { from: decision.from, to: decision.to, changed: true };
   } else {
@@ -182,8 +203,21 @@ async function step(
     // the question this step's event exists to answer.
     stoppedSync: mapping.changed,
     mappingStatus: mapping.to,
+    // And at execute, whether copying goes on until the grace period ends.
+    // The store keeps it on the ledger row (`copies_through_grace`), where
+    // the gates read it; every later save carries it.
+    ...(to === 'CUTOVER_IN_PROGRESS' ? { copiesThroughGrace } : {}),
   });
   deps.log(`Cutover marked ${to}.`);
 
-  return { state: to, from, mapping };
+  return { state: to, from, copiesThroughGrace, mapping };
+}
+
+/** What moving a migration to `cutover` does to its copying, said at the step that does it. */
+function whatTheStopMeans(to: 'CUTOVER_IN_PROGRESS' | 'COMPLETED', copiesThroughGrace: boolean): string {
+  const authority = 'the source is no longer the authority on what exists.';
+  if (to === 'COMPLETED') return `the shadow sync stops; ${authority}`;
+  return copiesThroughGrace
+    ? `copying goes on until the grace period ends, then stops; ${authority}`
+    : `it was not copying, and stays stopped through the grace period; ${authority}`;
 }

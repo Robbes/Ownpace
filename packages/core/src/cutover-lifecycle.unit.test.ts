@@ -65,8 +65,11 @@ describe('enterCutover — the mapping stops BEFORE the ledger says the cutover 
     expect(outcome).toMatchObject({
       state: 'CUTOVER_IN_PROGRESS',
       from: 'APPROVED',
+      copiesThroughGrace: true,
       mapping: { from: 'active', to: 'cutover', changed: true },
     });
+    // 0128 T2: it was copying, and it goes on copying until the grace period ends.
+    expect(h.logs.join('\n')).toContain('copying goes on until the grace period ends');
   });
 
   it("records the mapping half in the cutover event's metadata", async () => {
@@ -78,7 +81,12 @@ describe('enterCutover — the mapping stops BEFORE the ledger says the cutover 
       TENANT,
       MAPPING,
       'CUTOVER_IN_PROGRESS',
-      expect.objectContaining({ stoppedSync: true, mappingStatus: 'cutover', startedBy: 'test' }),
+      expect.objectContaining({
+        stoppedSync: true,
+        mappingStatus: 'cutover',
+        startedBy: 'test',
+        copiesThroughGrace: true,
+      }),
     );
   });
 
@@ -89,6 +97,15 @@ describe('enterCutover — the mapping stops BEFORE the ledger says the cutover 
 
     expect(h.order).toEqual(['mapping:paused->cutover', 'ledger:CUTOVER_IN_PROGRESS']);
     expect(outcome.mapping).toEqual({ from: 'paused', to: 'cutover', changed: true });
+    // 0128 T2: what the operator stopped stays stopped through the grace period.
+    expect(outcome.copiesThroughGrace).toBe(false);
+    expect(h.store.transitionState).toHaveBeenCalledWith(
+      TENANT,
+      MAPPING,
+      'CUTOVER_IN_PROGRESS',
+      expect.objectContaining({ copiesThroughGrace: false }),
+    );
+    expect(h.logs.join('\n')).toContain('stays stopped through the grace period');
   });
 
   it("leaves 'continuous' alone, says why, and still moves the ledger", async () => {
@@ -167,8 +184,12 @@ describe('closeCutover — the grace window closes, and nothing is left running 
     expect(outcome).toMatchObject({
       state: 'COMPLETED',
       from: 'GRACE_PERIOD',
+      copiesThroughGrace: false,
       mapping: { from: 'active', to: 'cutover', changed: true },
     });
+    expect(h.logs.join('\n')).toContain('the shadow sync stops');
+    // Execute's answer is execute's: complete leaves it where the row has it.
+    expect((h.store.transitionState.mock.calls[0] as unknown[])[3]).not.toHaveProperty('copiesThroughGrace');
   });
 
   it("converges on a mapping already 'cutover': no mapping write, the ledger closes", async () => {

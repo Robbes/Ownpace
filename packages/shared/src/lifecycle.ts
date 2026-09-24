@@ -82,9 +82,12 @@ export function isAfterCutover(status: string): boolean {
  *   | runs       | `active`            | **`continuous`**       |
  *   | does not   | `paused`            | `cutover`, `done`      |
  *
- * That cell is the only place in this product where a pass reads a source
- * that is no longer the authority on what exists — which is why D4's rule has
- * somewhere to attach. `sourceIsAuthorityOnExistence` on a pass is precisely
+ * (`cutover` runs for a while: see `runsPassesNow`, which asks the time.)
+ *
+ * That cell, and a cutover's grace period (`runsPassesNow`, 0128 T2), are
+ * the only places in this product where a pass reads a source that is no
+ * longer the authority on what exists — which is why D4's rule has somewhere
+ * to attach. `sourceIsAuthorityOnExistence` on a pass is precisely
  * `!isAfterCutover(status)`, and the deletion detectors are assembled only
  * when it is true.
  *
@@ -94,6 +97,75 @@ export function isAfterCutover(status: string): boolean {
  */
 export function runsPasses(status: string): boolean {
   return status === 'active' || status === 'continuous';
+}
+
+/**
+ * Whether a migration's passes run NOW (workplan 0128 T2; the owner,
+ * 2026-09-24, D1 (a): "bounded by the grace period, and slotless").
+ *
+ * `runsPasses`, plus one state for a while: `cutover`, from execute until the
+ * cutover's grace period ends. The grace period is the cutover's own promise,
+ * "both systems active", and the window in which mail still reaches the old
+ * server while the MX record propagates. A pass then runs under the
+ * after-cutover rules it always had in that state (`sourceAuthorityFor`): it
+ * copies what is new or changed and mirrors no deletion. `cutover` holds no
+ * slot (`holdsASlot`), so the grace period adds no path to anyone's bill;
+ * what it copies joins the data meter, as every first copy does. When the
+ * window closes,
+ * passes stop, and nothing is ended for the owner: finishing, or keeping it
+ * copying in the continuous lane, is still theirs to choose.
+ *
+ * Only a migration that was copying when execute ran: execute moves a paused
+ * one to `cutover` too (ADR-0048), and what the operator stopped stays stopped
+ * (`CutoverWindow.copiesThroughGrace`).
+ *
+ * The status alone cannot say it, because the answer depends on the time. So
+ * every gate asks with the cutover's own window: `cutoverStillCopiesAt` here,
+ * `CUTOVER_STILL_COPIES_WHERE` in SQL (`@openmig/ledger`), which
+ * `a-grace-period-that-copies.unit.test.ts` holds in step.
+ */
+export function runsPassesNow(status: string, cutoverStillCopies: boolean): boolean {
+  return runsPasses(status) || (status === 'cutover' && cutoverStillCopies);
+}
+
+/** A cutover's timing, as its ledger row holds it (`cutover_state`). */
+export interface CutoverWindow {
+  /** The cutover's own state: `CUTOVER_IN_PROGRESS`, `GRACE_PERIOD`, and the rest. */
+  readonly state: string;
+  /**
+   * Whether the migration was copying when execute ran (ledger migration
+   * 0064). Execute moves a paused migration to `cutover` too (ADR-0048), and
+   * one the operator had stopped does not start copying because of a cutover.
+   */
+  readonly copiesThroughGrace: boolean;
+  /** When the row last changed state: execute's start, while it is in progress. */
+  readonly enteredAt: Date;
+  /** When the grace period started; null before it has. */
+  readonly graceStartedAt: Date | null;
+  readonly graceHours: number;
+}
+
+/**
+ * Until when a cutover's migration keeps copying: the grace period's end, and
+ * while execute is still in progress, as long again from its start, so a
+ * cutover whose execute never finished cannot copy for ever. Null in every
+ * other state: completed, rolled back, failed, or not yet executed; and for a
+ * migration that was not copying when execute ran.
+ */
+export function cutoverCopiesUntil(window: CutoverWindow): Date | null {
+  if (!window.copiesThroughGrace) return null;
+  const hours = window.graceHours * 3_600_000;
+  if (window.state === 'GRACE_PERIOD') {
+    return window.graceStartedAt ? new Date(window.graceStartedAt.getTime() + hours) : null;
+  }
+  if (window.state === 'CUTOVER_IN_PROGRESS') return new Date(window.enteredAt.getTime() + hours);
+  return null;
+}
+
+/** Whether a cutover's migration copies now. `CUTOVER_STILL_COPIES_WHERE` says the same in SQL. */
+export function cutoverStillCopiesAt(window: CutoverWindow | undefined, now: Date = new Date()): boolean {
+  const until = window ? cutoverCopiesUntil(window) : null;
+  return until !== null && now.getTime() < until.getTime();
 }
 
 /**
@@ -232,14 +304,16 @@ export function rollbackTransition(status: string): RollbackTransition {
  *
  *   | from         | to        | why                                                  |
  *   |--------------|-----------|------------------------------------------------------|
- *   | `active`     | `cutover` | the shadow sync stops; the source is no longer the   |
- *   |              |           | authority. THE row this function exists for          |
+ *   | `active`     | `cutover` | the source is no longer the authority. THE row this  |
+ *   |              |           | function exists for. At execute the copying goes on  |
+ *   |              |           | until the grace period ends (0128 T2), then stops    |
  *   | `paused`     | `cutover` | somebody stopped it before the cutover; after the    |
  *   |              |           | cutover the phase has moved on, and `paused` would   |
  *   |              |           | let Start put it back to `active` — a pass with the  |
  *   |              |           | detectors present, after cutover. The confirmation   |
- *   |              |           | says the copy is not running, and the operator       |
- *   |              |           | decides (a rollback afterwards resumes it)           |
+ *   |              |           | says the copy is not running, and it stays stopped   |
+ *   |              |           | through the grace period; the operator decides (a    |
+ *   |              |           | rollback afterwards resumes it)                      |
  *   | `cutover`    | —         | already stopped for a cutover (the Finish page's     |
  *   |              |           | declaration, or a re-run of this) — converge         |
  *   | `continuous` | —         | keeps copying after cutover BY DESIGN (0117 T1),     |
@@ -296,6 +370,17 @@ export function cutoverTransition(status: string): CutoverTransition {
         hint: 'Nothing was changed. The database CHECK constraint should make this unreachable.',
       };
   }
+}
+
+/**
+ * Whether the migration a cutover's `execute` moves keeps being copied until
+ * the grace period ends (workplan 0128 T2): when it was `active`. Execute
+ * moves a paused one to `cutover` too, and what the operator stopped stays
+ * stopped. `enterCutover` records the answer on the ledger row
+ * (`copies_through_grace`), and the CLI says it before the operator approves.
+ */
+export function keepsCopyingThroughGrace(decision: CutoverTransition): boolean {
+  return 'stop' in decision && decision.stop && decision.from === 'active';
 }
 
 /**

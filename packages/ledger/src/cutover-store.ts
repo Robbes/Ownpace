@@ -225,6 +225,7 @@ export class CutoverStore implements CutoverStateStore {
       gracePeriodHours: this.extractGracePeriodHours(status),
       gracePeriodStartedAt: status.gracePeriodStartedAt ? new Date(status.gracePeriodStartedAt) : null,
       gracePeriodCompletedAt: status.gracePeriodCompletedAt ? new Date(status.gracePeriodCompletedAt) : null,
+      copiesThroughGrace: status.copiesThroughGrace === true,
       targetMailServer: status.targetMailServer ?? null,
       metadata: this.buildMetadata(status),
       createdAt: new Date(now),
@@ -239,6 +240,9 @@ export class CutoverStore implements CutoverStateStore {
         gracePeriodHours: this.extractGracePeriodHours(status),
         gracePeriodStartedAt: status.gracePeriodStartedAt ? new Date(status.gracePeriodStartedAt) : null,
         gracePeriodCompletedAt: status.gracePeriodCompletedAt ? new Date(status.gracePeriodCompletedAt) : null,
+        // Carried by every save after execute's, because each one starts
+        // from the row as `loadCutoverState` read it (0128 T2).
+        copiesThroughGrace: status.copiesThroughGrace === true,
         targetMailServer: status.targetMailServer ?? null,
         metadata: this.buildMetadata(status),
         updatedAt: new Date(now),
@@ -520,6 +524,8 @@ export class CutoverStore implements CutoverStateStore {
       cutoverCompletedAt: undefined,
       gracePeriodStartedAt: row.gracePeriodStartedAt?.toISOString() as string,
       gracePeriodEndsAt: undefined,
+      copiesThroughGrace: row.copiesThroughGrace,
+      gracePeriodHours: row.gracePeriodHours,
       totalItemsMigrated: 0,
       itemsVerified: 0,
       discrepanciesFound: 0,

@@ -21,9 +21,9 @@ import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
-import { runsPasses } from '@openmig/shared';
+import { runsPassesNow } from '@openmig/shared';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { withTenant } from '@openmig/ledger';
+import { cutoverStillCopies, withTenant } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 
 /**
@@ -33,9 +33,11 @@ import * as schemaPg from '@openmig/ledger/schema-pg';
  * moment it enqueued: a run already in the queue — or already copying — knows
  * nothing of the PATCH that paused it.
  *
- * The predicate is `runsPasses`, the same function the lifecycle module
- * defines for every other caller, so the pass stops exactly when the tick
- * would not have started it. `PASS_RUNNING_STATES` is the same two states as
+ * The predicate is `runsPassesNow`, the same function the lifecycle module
+ * defines for every other caller, asked with the cutover's own window (0128
+ * T2), so the pass stops exactly when the tick would not have started it: a
+ * cutover's pass runs until its grace period ends, and not after.
+ * `PASS_RUNNING_STATES` is the same two states as
  * a VALUE, and that form exists for `managed-sync-tick`'s SQL, "the query
  * that cannot call a function" — this is TypeScript and can, so it does.
  * Reaching for the array here would make a second reading of the lifecycle
@@ -84,7 +86,11 @@ export async function whyThePassStops(
       })
       .from(schemaPg.mailboxMapping)
       .where(eq(schemaPg.mailboxMapping.id, mappingId));
-    if (row === undefined || !runsPasses(row.status)) return 'no_longer_runs';
+    if (row === undefined) return 'no_longer_runs';
+    // A cutover copies from execute until its grace period ends (0128 T2), and
+    // stops then: asked only of a cutover, since no other state depends on it.
+    const copies = row.status === 'cutover' && (await cutoverStillCopies(tx, tenantId, mappingId));
+    if (!runsPassesNow(row.status, copies)) return 'no_longer_runs';
     return row.grantWithdrawnAt ? 'grant_withdrawn' : null;
   });
 }

@@ -475,6 +475,20 @@ describe('executeCutover() follows the state machine', () => {
     expect(order).toEqual(['mapping:active->cutover', 'ledger:CUTOVER_IN_PROGRESS', 'ledger:GRACE_PERIOD']);
   });
 
+  it('says a running migration keeps copying until the grace period ends, and records that it does (0128 T2)', async () => {
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const logged: string[] = [];
+    vi.mocked(console.log).mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    const store = makeStore('APPROVED');
+
+    await executeCutover(makeDeps(store, true, makeMapping('active')));
+
+    expect(logged.join('\n')).toContain('Mapping active -> cutover: it keeps copying until the grace period ends, then stops.');
+    expect(store.transitionState.mock.calls[0]![3]).toMatchObject({ copiesThroughGrace: true });
+  });
+
   it("leaves a 'continuous' mapping alone and says why — the lane copies after cutover by design", async () => {
     vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
     const logged: string[] = [];
@@ -503,6 +517,17 @@ describe('executeCutover() follows the state machine', () => {
     const active = logged.join('\n');
     expect(active).toContain("'active' -> 'cutover'");
     expect(active).toContain('no longer the authority');
+    // 0128 T2: said before the operator approves, for THIS mapping.
+    expect(active).toContain('it keeps copying until the grace period ends, then stops');
+    expect(active).not.toContain('no pass runs after this');
+
+    logged.length = 0;
+    await expect(executeCutover(makeDeps(makeStore('APPROVED'), undefined, makeMapping('paused')))).rejects.toThrow(
+      'process.exit(1)',
+    );
+    const paused = logged.join('\n');
+    expect(paused).toContain("'paused' -> 'cutover'");
+    expect(paused).toContain('it is not copying now, and stays stopped through the grace period');
 
     logged.length = 0;
     await expect(executeCutover(makeDeps(makeStore('APPROVED'), undefined, makeMapping('done')))).rejects.toThrow(
@@ -683,6 +708,33 @@ describe('showStatus()', () => {
     expect(out).toContain('no pass runs');
   });
 
+  it('says a cutover in its grace period still copies, and until when, from the ledger row (0128 T2)', async () => {
+    const startedAt = new Date(Date.now() - 3_600_000).toISOString();
+    const deps = statusDeps(
+      { currentState: 'GRACE_PERIOD', rollbackAvailable: true },
+      trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE),
+      makeMapping('cutover'),
+    );
+    const store = deps.cutoverPersistence as unknown as { loadCutoverState: ReturnType<typeof vi.fn> };
+    store.loadCutoverState.mockResolvedValue({
+      currentState: 'GRACE_PERIOD',
+      state: 'GRACE_PERIOD',
+      rollbackAvailable: true,
+      startedAt: '2026-09-19T10:00:00.000Z',
+      updatedAt: startedAt,
+      gracePeriodStartedAt: startedAt,
+      gracePeriodHours: 72,
+      copiesThroughGrace: true,
+    });
+
+    await showStatus(deps);
+
+    const out = logged.join('\n');
+    const until = new Date(Date.parse(startedAt) + 72 * 3_600_000).toISOString();
+    expect(out).toContain(`cutover — passes run until ${until}, when the grace period ends`);
+    expect(out).not.toContain('no pass runs');
+  });
+
   it('derives who and when from the trail — no N/A for a fact the row never carried', async () => {
     await showStatus(statusDeps({ currentState: 'ROLLED_BACK', rollbackAvailable: false }, trail(INIT, READY, APPROVED, IN_PROGRESS, GRACE, ROLLED_BACK), makeMapping('active')));
 
@@ -760,6 +812,29 @@ describe('lifecycleLine()', () => {
     expect(lifecycleLine('continuous')).toContain('passes run after the cutover');
     expect(lifecycleLine('continuous')).toContain('deletions at the source are not mirrored');
     expect(lifecycleLine('done')).toContain('finished');
+  });
+
+  it("reads a cutover's own window: copying until the grace period ends, and not after (0128 T2)", () => {
+    const now = new Date('2026-09-24T12:00:00.000Z');
+    const grace = {
+      state: 'GRACE_PERIOD',
+      copiesThroughGrace: true,
+      enteredAt: new Date('2026-09-24T10:00:00.000Z'),
+      graceStartedAt: new Date('2026-09-24T10:00:00.000Z'),
+      graceHours: 72,
+    };
+
+    expect(lifecycleLine('cutover', grace, now)).toBe(
+      'cutover — passes run until 2026-09-27T10:00:00.000Z, when the grace period ends; ' +
+        'deletions at the source are not mirrored',
+    );
+    expect(lifecycleLine('cutover', grace, new Date('2026-09-27T10:00:00.000Z'))).toContain('no pass runs');
+    // Paused when execute ran: it stays stopped, in the grace period too.
+    expect(lifecycleLine('cutover', { ...grace, copiesThroughGrace: false }, now)).toContain('no pass runs');
+    // A rollback put the mapping back to active: the status says it, not the window.
+    expect(lifecycleLine('active', { ...grace, state: 'ROLLED_BACK' }, now)).toContain('passes run; the source is');
+    // Only `cutover` copies for a while: a finished migration beside a window is finished.
+    expect(lifecycleLine('done', grace, now)).toContain('finished');
   });
 });
 

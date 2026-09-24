@@ -41,7 +41,7 @@ import {
   setAuditExportSink,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { auditExportOn, pgDriver } from '@openmig/ledger';
+import { CUTOVER_STILL_COPIES_WHERE, auditExportOn, pgDriver } from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { readOpenPause, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
@@ -139,6 +139,12 @@ const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
  * two must not drift: a state missing from one edition's gate is a migration
  * that copies for self-host customers and stands still for managed ones,
  * which is exactly the edition split hard rule 5 forbids.
+ *
+ * Beside it, the one state that runs for a while (0128 T2; the owner,
+ * 2026-09-24, D1 (a)): a mapping in `cutover`, from execute until its
+ * cutover's grace period ends, by `CUTOVER_STILL_COPIES_WHERE`, the SQL twin
+ * of `runsPassesNow`. When the window closes the mapping drops out of this
+ * query by itself, and nothing has to remember to unschedule it.
  */
 export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT max(r.started_at) FROM run r
@@ -192,7 +198,13 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
                 WHERE ms.tenant_id = m.tenant_id AND ms.mapping_id = m.id
                   AND ms.last_error_category = ANY($2::text[])) AS any_self_healing
          FROM mailbox_mapping m
-        WHERE m.status = ANY($5::text[])
+        WHERE (m.status = ANY($5::text[])
+               -- A cutover copies from execute until its grace period ends
+               -- (0128 T2, D1 (a)): runsPassesNow, in SQL.
+               OR (m.status = 'cutover'
+                   AND EXISTS (SELECT 1 FROM cutover_state c
+                                WHERE c.tenant_id = m.tenant_id AND c.mapping_id = m.id
+                                  AND ${CUTOVER_STILL_COPIES_WHERE})))
           -- A grant the person took back (0108 T8 (c), ledger migration 0063):
           -- nothing reads their account until they grant it again, so no pass
           -- is started for it. The pass's own re-read and the source builder
