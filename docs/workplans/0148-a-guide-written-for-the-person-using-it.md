@@ -12,8 +12,9 @@ the first invitation, stacked on 0136 T5 in 0131 §6's R2. It works where the ta
 or a WebDAV server. A JMAP target carries files too, but the reader asks for a file in pieces, by
 byte range, and JMAP does not offer that, so a JMAP target is refused with the sentence the code
 already has. Open question 6 said the create door knew `where: 'target'`. It does not: the door
-drops the field, and T9 closes that (D11). The card keeps its experimental tag until 0141 records
-a run.
+drops the field, and T9 closes that (D11). On managed the disk option stays in the form,
+disabled, with the line *Only on a self-hosted appliance*; the owner confirmed that: *"'Only on a
+self-hosted appliance': ok"*. The card keeps its experimental tag until 0141 records a run.
 
 **2026-09-24, T6 (a) built.** The renderer's first half is built on branch
 `claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, merged in #1159.
@@ -519,9 +520,10 @@ invitation. What that means:
 - **Both editions.** The choice is offered on the appliance too, because `where: 'target'` means
   the same there (hard rule 5, as `ArchiveSource.where` says). On managed, a path on the server
   cannot be read (0136 T5). So there the destination's files are the default, and the disk
-  option is shown, not hidden (D10's rule), with the line that it works only on a self-hosted
-  appliance. This is this plan's reading, for the owner to overrule. On the appliance the disk
-  stays the default, so no existing mapping changes meaning.
+  option is shown, not hidden (D10's rule), disabled, with the line *Only on a self-hosted
+  appliance*. The owner confirmed that reading the same night: *"'Only on a self-hosted
+  appliance': ok"*. On the appliance the disk stays the default, so no existing mapping changes
+  meaning.
 - **The card keeps its tag.** No real export has yet been read from a real Nextcloud through a
   managed stack. 0141 records that run, and 0131 T2's tag stays until it is recorded.
 - **Not the relay.** The relay, which fetches a download for the person and puts it in the
