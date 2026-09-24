@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, AUDIT_EXPORT_PAGE, AUDIT_EXPORT_PAGE_MAX } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -103,7 +103,7 @@ import {
   buildGoogleDriveSourceFrom,
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
-import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink } from '@openmig/shared';
+import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditCursor, pseudonymizer } from '@openmig/shared';
 import {
   assembleShareAnnouncements,
   createFailureStreakGate,
@@ -195,6 +195,8 @@ const DEFAULT_CONFIG_DIR = '/data/config';
  */
 const SERVING_ROLE = 'app_user';
 const DEFAULT_SCHEDULE = '*/15 * * * *'; // every 15 minutes if a mapping omits one
+/** Who wrote an audit line, as the stream and the download both say it (0129 T4). */
+const APPLIANCE_RESOURCE = { 'service.name': 'ownpace-appliance' } as const;
 
 /**
  * Ensure all necessary database records exist for a mapping.
@@ -409,7 +411,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   setAppEventSink(appEventSinkOn(persistenceBackend.driver));
   // Each audit event also as one JSON line on this process's output, for a
   // collector the owner points at it (0129 T4, D5): nothing is sent anywhere.
-  setAuditExportSink(auditExportOn(persistenceBackend.driver, { 'service.name': 'ownpace-appliance' }));
+  setAuditExportSink(auditExportOn(persistenceBackend.driver, APPLIANCE_RESOURCE));
 
   // Helper to run a function with tenant context set for RLS
   const withTenantContext = async <T>(
@@ -2480,6 +2482,51 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           res,
           200,
           await readOperatorLog({ driver: persistenceBackend.driver, tenantIds, migrationNames }, filters),
+        );
+      }
+      // THE AUDIT EXPORT'S DOWNLOAD (workplan 0129 T4; the owner's D4: "a
+      // download endpoint that resumes where the last one stopped, for
+      // backfill"). The same lines the appliance prints as each event commits,
+      // read back from the audit log after a cursor, oldest first, with the
+      // same pseudonyms. `Ownpace-Next-After` is where the next page starts,
+      // and it is the last line's own `Timestamp` and `ownpace.audit.id`, so a
+      // log store can resume from the newest line it holds. Only events that
+      // have settled are served (`AUDIT_EXPORT_SETTLE_SECONDS`): the newest
+      // are the stream's. Nothing leaves unless the owner asks for it (D5).
+      if (req.method === 'GET' && req.url?.split('?')[0] === '/audit-export') {
+        const asked = new URL(req.url, 'http://x').searchParams;
+        const afterText = asked.get('after');
+        const after = afterText ? parseAuditCursor(afterText) : undefined;
+        if (afterText && !after) {
+          return sendJson(res, 400, {
+            error: 'Bad request',
+            field: 'after',
+            message: "A cursor is a line's Timestamp and its ownpace.audit.id, joined by a hyphen, as Ownpace-Next-After gives it.",
+          });
+        }
+        const limitText = asked.get('limit');
+        const limit = limitText === null ? AUDIT_EXPORT_PAGE : Number(limitText);
+        if (!Number.isInteger(limit) || limit < 1 || limit > AUDIT_EXPORT_PAGE_MAX) {
+          return sendJson(res, 400, {
+            error: 'Bad request',
+            field: 'limit',
+            message: `A page is 1 to ${AUDIT_EXPORT_PAGE_MAX} lines.`,
+          });
+        }
+        const tenantIds = [...new Set(mappings.map((m) => m.config.tenantId))];
+        const events = await readAuditExport(
+          { driver: persistenceBackend.driver, tenantIds },
+          { ...(after ? { after } : {}), limit },
+        );
+        const pseudonym = pseudonymizer(await deploymentKeyFor(persistenceBackend.driver, AUDIT_PSEUDONYM_PURPOSE));
+        const last = events.at(-1);
+        res.writeHead(200, {
+          'content-type': 'application/x-ndjson; charset=utf-8',
+          'ownpace-next-after': last ? auditCursorAfter(last) : (afterText ?? ''),
+          'ownpace-caught-up': String(events.length < limit),
+        });
+        return res.end(
+          events.map((e) => `${JSON.stringify(auditExportLine(e, { pseudonym, resource: APPLIANCE_RESOURCE }))}\n`).join(''),
         );
       }
       // EVERYTHING waiting, not just the queue below (owner report,

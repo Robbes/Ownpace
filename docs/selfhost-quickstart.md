@@ -616,9 +616,26 @@ docker compose -f deploy/selfhost/compose.yml logs app --no-log-prefix | grep '"
 ```
 
 A line your collector missed, because it was down or the output was rotated
-away first, is not lost: the event is still in the appliance's audit log. There
-is no way yet to fetch the missed lines again from where your log store
-stopped. That download is the next step.
+away first, is not lost: the event is still in the appliance's audit log, and
+the appliance serves it again. `GET /audit-export` returns the same lines,
+oldest first, a thousand at a time. The `Ownpace-Next-After` header is where
+the next page starts, and `Ownpace-Caught-Up: true` says there is nothing
+more. The cursor is the last line's own `Timestamp` and `ownpace.audit.id`,
+joined by a hyphen, so you can also resume from the newest line your store
+already holds. To fetch everything from the start:
+
+```sh
+after=""
+while :; do
+  curl -sS -D headers.txt "http://127.0.0.1:8081/audit-export?after=$after" >> audit.ndjson
+  after=$(grep -i '^ownpace-next-after:' headers.txt | cut -d' ' -f2 | tr -d '\r')
+  grep -qi '^ownpace-caught-up: true' headers.txt && break
+done
+```
+
+An event is served once it is five minutes old; the newest ones are the
+stream's. A line you already hold comes again only if you ask from before it,
+and it carries the same `ownpace.audit.id`, so your store can drop the copy.
 
 ## Backup (do this before every upgrade)
 
