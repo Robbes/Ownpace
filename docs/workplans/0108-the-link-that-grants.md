@@ -27,10 +27,19 @@ Sync now and the page's field (3); the shared state and refusal (4); the tick's 
 pass's re-read on real Postgres (1); both builders on real Postgres, with the organisation's
 token as the control that shows the fallback (3); the cutover's report (1, and a pin on the
 pass's line); the progress page (7); the owner's notice (2); the two parses (5); the new field classified for the audit export. 38
-mutations, all killed. **Still the owner's:** (d)'s limit and report address; whether a
-withdrawal should also stop the organisation's own credential (built: it does, the conservative
-reading); and whether the grant page's consent sentence, verbatim by decision, should also name
-the progress page.
+mutations, all killed.
+
+**The owner, 2026-09-24, on what the build left open:**
+
+- *A withdrawal also blocks the organisation's own credential:* **"yes, the cautious option."**
+  Kept as built: while a withdrawal stands, nothing reads the account on any credential.
+- *Should the grant page's consent sentence also name the progress page?* **"yes."** It does now,
+  in both languages, and stays verbatim under the copy budget as a consent sentence.
+- *(d)'s per-tier limit:* **"the Recommended."** The tier's own *migrations at the same time*
+  (Tiny 1, Small 4, Medium 20, Large 50, Extra large 200), counting only live links, with an
+  operator override per organisation for a burst. Next, as its own change. The report address
+  had no recommendation to take, so it is put to the owner with one: the problem report form
+  (0130), which already reaches a queue somebody reads.
 
 **2026-09-23, night: the access logs no longer keep the link.** The API logged every request with `morgan('combined')`, which writes the full URL and the Referer, and the web image's nginx wrote its default log the same way. So a grant or view link, which is the credential, went to stdout on every use: in the page's address (`/grant/<link>`), in each API call it proxies (`/api/grant/<link>/...`), and as the Referer of all of them. So did an OAuth callback's `code` and `state`. That broke the privacy policy's promise (§4.5) that credentials do not appear in logs. Both logs now keep the combined format's fields with a link written as `:link` and a query kept only as `?...`: `apps/api/src/access-log.ts` on the API, and four `map`s and a `log_format` in `apps/web/nginx.conf.template`. A guard runs the template's own maps by nginx's rules and requires the API's answer for every input, so the two cannot drift. The template was checked on a real nginx (`nginx -t`, then live requests: no secret in the log).
 

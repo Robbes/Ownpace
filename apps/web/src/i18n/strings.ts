@@ -943,7 +943,7 @@ const en = {
   'grant.privacy': 'Privacy policy',
   'grant.terms': 'Terms',
   'grant.withdraw':
-    'You can withdraw this access at any time from your Google account’s security settings, under the apps that have access.',
+    'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -3071,7 +3071,7 @@ const nl: Record<keyof typeof en, string> = {
   'grant.privacy': 'Privacybeleid',
   'grant.terms': 'Voorwaarden',
   'grant.withdraw':
-    'U kunt deze toegang op elk moment intrekken via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
+    'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} verhuist uw account naar een nieuwe provider.',
