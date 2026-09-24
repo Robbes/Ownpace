@@ -193,8 +193,8 @@ IMAP endpoint, not on the credential — so nothing about throughput changes eit
 **Treat the refresh token as a password.** It grants read access to that Drive until it is
 revoked, and it does not expire on its own. It does die if:
 
-1. **the app is External and still in *Testing*** — Google expires the token after **seven
-   days**, no matter how healthy everything else looks. Check this first: it is the only cause
+1. **the app is External and still in *Testing*** — Google expires the token after **seven days**,
+   no matter how healthy everything else looks. Check this first: it is the only cause
    on this list that recurs, and the fix is one dropdown (publishing status → Production);
 2. the account's password changes;
 3. an admin revokes the app;
