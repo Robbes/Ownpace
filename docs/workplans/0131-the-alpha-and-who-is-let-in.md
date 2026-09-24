@@ -2,6 +2,28 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build: T1 (a) built on branch
+`claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** One setting,
+`OWNPACE_STAGE`, empty by default, so the note is off unless a deployment sets it. `managed.yml`
+passes it to the API, and to the web build as the build argument `VITE_OWNPACE_STAGE`, which
+`apps/web/Dockerfile` declares; Vite exposes only `VITE_` names. `managed.env.example` and step 8g
+of `docs/managed-bring-up.md` say how to switch it on. With `OWNPACE_STAGE=alpha`, the note stands
+at the top of every signed-in page (`Layout.tsx`, above the pause banner) and under the title of
+`/login` and `/request-access` (`AlphaNote.tsx`), in the pause banner's amber `role="note"` shape.
+The access-granted mail ends with the same words as a paragraph of its own (`accessGrantedEvent`
+in `apps/api/src/access-notify.ts`, `grantedAlpha` in `notifications.ts`). Both are in English and
+Dutch. The appliance never shows the note, whatever its bundle was built with
+(`apps/web/src/services/stage.ts`). The three guards §3 names are in place, and each failed on the
+unchanged code: `an-alpha-said-out-loud.unit.test.tsx` 12 of 25, the mail's test beside
+`notifications.ts` (`a-grant-mail-that-says-alpha.unit.test.ts`) 4 of 7, and
+`scripts/an-alpha-both-halves-know-about.unit.test.ts` 8 of 14. Two things differ from §3's draft.
+The Dutch middle sentence reads *"Niets wordt in rekening gebracht, …"*, because the draft's
+sixteen words are one over the copy budget (0118). The mail carries the note's three sentences as
+one paragraph rather than one sentence, so the pages and the mail say the same words, and a test
+holds them together. T1 (b), the links to the alpha conditions and the tester guide, waits on 0139
+T2 and T10 and on 0144 T1; `AlphaNote.tsx` and the mail's paragraph mark where they go. The site
+build's half is 0144 T1's guard.
+
 **2026-09-24: opened from the owner's answers.** A read-only readiness review on 2026-09-23
 listed what stands between the managed edition and a small public test: eleven groups of
 blockers and a set of questions. The owner answered them on 2026-09-24 and asked that the test be
@@ -51,7 +73,7 @@ of the gate answer.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4) | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. |
+| T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** (b) 📋 waits on 0139 T2, T10 and 0144 T1 | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
 | T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1) | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |

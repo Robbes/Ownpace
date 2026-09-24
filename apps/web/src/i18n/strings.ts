@@ -1491,6 +1491,14 @@ const en = {
   'pause.hold.since': 'Paused since',
   'pause.hold.why':
     'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally; new copying starts again by itself once the update is done, and continues from exactly where it stopped.',
+  // The alpha note (workplan 0131 T1): three sentences, one paragraph, the
+  // same words as the access-granted mail (`grantedAlpha` in @openmig/shared's
+  // notifications.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
+  // together). Split only so each fits the copy budget; they render as one
+  // paragraph, and must match 0139's alpha conditions once those exist.
+  'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
+  'alpha.note.terms': 'Nothing is charged, nothing is backed up, and the alpha can end.',
+  'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
     'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
@@ -3348,6 +3356,12 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond; nieuw kopiëren start vanzelf weer zodra de update klaar is, en gaat verder waar het stopte.',
+  // 0131 T1's draft said "Er wordt niets in rekening gebracht, …": sixteen
+  // words, one over the copy budget, so the subject leads instead.
+  'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
+  'alpha.note.terms':
+    'Niets wordt in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
+  'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',

@@ -21,6 +21,7 @@ import { useMutation } from '@tanstack/react-query';
 import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import AlphaNote from '../components/AlphaNote.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -133,6 +134,10 @@ const RequestAccess: React.FC = () => {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">{t('access.intro')}</p>
         </div>
+
+        {/* The alpha note (workplan 0131 T1), under the title: somebody asking
+            to be let in reads what they are asking to join before they ask. */}
+        <AlphaNote />
 
         <form
           className="mt-8 space-y-6"
