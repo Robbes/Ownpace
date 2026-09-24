@@ -35,11 +35,12 @@ import {
   PgMigrationStatusStore,
   RunStore,
   appEventSinkOn,
+  auditExportOn,
   pgDriver,
 } from '@openmig/ledger';
 import { PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { log, passDeadlineFrom, domainFailedEvent, recordAppEvent, setAppEventSink } from '@openmig/shared';
+import { log, passDeadlineFrom, domainFailedEvent, recordAppEvent, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 
 /**
  * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
@@ -174,6 +175,7 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // This process's errors and warnings go to the operator's log page (0129 T1).
 setAppEventSink(appEventSinkOn(pgDriver(pool)));
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 // NOTHING ABOUT BILLING LIVES HERE ANY MORE (workplan 0121 T3).
 //

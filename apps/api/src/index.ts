@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import { accessLog } from './access-log.ts';
 import {
   appEventSinkOn,
+  auditExportOn,
   migrationConnectionString,
   pgDriver,
   poolerInFront,
@@ -56,7 +57,7 @@ import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
-import { log, setAppEventSink } from '@openmig/shared';
+import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 
 // Re-export for backwards compatibility
 export type { AuthenticatedRequest, JwtPayload };
@@ -323,6 +324,8 @@ if (process.env.NODE_ENV !== 'test') {
       // table exists. On the application's own role, which may write an
       // event and may not read one (migration 0059).
       setAppEventSink(appEventSinkOn(pgDriver(getDbPool())));
+      // Each audit event also as one JSON line on this process's output (0129 T4).
+      setAuditExportSink(auditExportOn(pgDriver(getDbPool()), { 'service.name': 'ownpace-api' }));
       app.listen(PORT, () => {
         log.info(`API server running on port ${PORT}`);
         log.info(`Environment: ${process.env.NODE_ENV || 'development'}`);

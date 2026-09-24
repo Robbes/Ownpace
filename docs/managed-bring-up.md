@@ -984,6 +984,30 @@ SELECT at, actor, action, detail
 Every page of the log you open is recorded in `support_read` with its filters,
 under the organisation it was narrowed to.
 
+**The audit log in your own log store** (workplan 0129 T4). Every audit event
+is also one JSON line on the output of the process that recorded it, in
+OpenTelemetry's log format: `Body` is the event, `ownpace.audit.actor` who
+acted, `ownpace.audit.id` its row in `audit_log`, and `Resource` says which
+process (`ownpace-api`, or `ownpace-worker` for the task runs). Addresses and
+file and folder names are pseudonyms (`pseudo:` and sixteen hex characters,
+the same person always the same one), a URL keeps only its scheme and host,
+and a detail field nobody has classified is left out. The journal set up under
+the prerequisites keeps the API's output and every task run's, so a collector
+that reads the journal forwards them; the audit lines are the ones carrying
+`ownpace.audit.id`:
+
+```bash
+journalctl -o cat --since today | grep '"ownpace.audit.id"'
+```
+
+Ownpace sends these lines nowhere itself. The pseudonyms are made with a key in
+`deployment_key`, which only the database owner can read and which every
+backup of the database carries, so keep backups as private as the database.
+Two commands typed at a terminal print no line: the worker's cutover CLI and
+`operator.sh leave`. Their events are in `audit_log` like any other. A
+download that serves the lines again from where a log store stopped is not
+built yet.
+
 **The console needs its own grant, and its own sign-in.** An Ownpace operator is
 not automatically anybody at the identity provider: `setup-zitadel.sh` creates
 the machine user and gives no human a role, deliberately — it cannot know which

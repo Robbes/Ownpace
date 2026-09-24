@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 150 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 151 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -82,6 +82,7 @@ reading a file drops off its entry by itself.
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 
 ### `apps/api/src/middleware/auth-verify.unit.test.ts`
@@ -173,6 +174,7 @@ reading a file drops off its entry by itself.
 
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
 ### `apps/api/src/scripts/seed-managed.ts`
 
@@ -207,6 +209,7 @@ reading a file drops off its entry by itself.
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
 ### `apps/web/src/AppRoutes.tsx`
 
@@ -306,6 +309,14 @@ reading a file drops off its entry by itself.
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 
+### `apps/worker/src/index.ts`
+
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
+### `apps/worker/src/jobs/managed-digest.ts`
+
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
 ### `apps/worker/src/jobs/managed-sync-tick.ts`
 
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
@@ -321,6 +332,10 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/run-discovery.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `apps/worker/src/jobs/run-rollback.ts`
+
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
 ### `apps/worker/src/jobs/run-verification.ts`
 
@@ -2399,6 +2414,19 @@ Reads:
 - `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 - `packages/shared/src/config.ts`
 - `scripts/gate-coverage.unit.test.ts`
+
+### [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts)
+
+EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
+Reads:
+
+- `apps/api/src/index.ts`
+- `apps/api/src/scripts/operator.ts`
+- `apps/selfhost/src/index.ts`
+- `apps/worker/src/index.ts`
+- `apps/worker/src/jobs/managed-digest.ts`
+- `apps/worker/src/jobs/run-rollback.ts`
 
 ### [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts)
 

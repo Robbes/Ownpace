@@ -24,8 +24,8 @@ import { schedules } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgGroupDefStore, PgDecisionStore } from '@openmig/ledger';
-import { log, renderEvent, asTenantId, type GroupListing } from '@openmig/shared';
+import { PgGroupDefStore, PgDecisionStore, auditExportOn, pgDriver } from '@openmig/ledger';
+import { log, renderEvent, asTenantId, setAuditExportSink, type GroupListing } from '@openmig/shared';
 import {
   createTokenProvider,
   listMailEnabledGroups,
@@ -42,6 +42,8 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 const db = drizzle(pool, { schema: schemaPg });
 
 /** The one HTTP client this task needs; Graph speaks plain JSON over fetch. */

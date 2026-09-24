@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -103,7 +103,7 @@ import {
   buildGoogleDriveSourceFrom,
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
-import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters } from '@openmig/shared';
+import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink } from '@openmig/shared';
 import {
   assembleShareAnnouncements,
   createFailureStreakGate,
@@ -407,6 +407,9 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // Errors and warnings to the log page (0129 T1), in the appliance's own
   // database and nowhere else (0129 D5).
   setAppEventSink(appEventSinkOn(persistenceBackend.driver));
+  // Each audit event also as one JSON line on this process's output, for a
+  // collector the owner points at it (0129 T4, D5): nothing is sent anywhere.
+  setAuditExportSink(auditExportOn(persistenceBackend.driver, { 'service.name': 'ownpace-appliance' }));
 
   // Helper to run a function with tenant context set for RLS
   const withTenantContext = async <T>(
