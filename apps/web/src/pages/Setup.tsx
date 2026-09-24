@@ -248,8 +248,8 @@ const Setup: React.FC = () => {
         </Link>
         {/* The long-form guide, in the app rather than as a filename nobody
             in a browser can open (workplan 0063) — and only when this build
-            ships one: IMAP, JMAP, the DAV targets and the rest have none, and
-            the link opened "There is no guide by that name". */}
+            ships one: the IMAP source and every target have none, and the
+            link opened "There is no guide by that name". */}
         {GUIDE_SLUGS.has(guideSlug(data.provider)) && (
           <Link to={`/docs/${guideSlug(data.provider)}`} className="text-sm text-blue-700 hover:underline">
             {t('setup.fullGuide')}
