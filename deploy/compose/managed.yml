@@ -64,9 +64,11 @@ services:
 
   # PgBouncer — transaction-mode pooler in front of the ledger (workplan 0082 T4)
   #
-  # Why: every sync pass opens its own pg.Pool of DEFAULT_CONCURRENCY + 2, so the
-  # server-connection ceiling was concurrent-passes times six, against a managed
-  # Postgres whose connection limit is much lower than its CPU budget suggests.
+  # Why: every managed sync pass opens unbounded pg.Pools (node-postgres default
+  # max 10): the job's own plus one per domain while it runs. So without pooling
+  # the server-connection ceiling is concurrent-passes times up to twenty,
+  # against a managed Postgres whose connection limit is much lower than its CPU
+  # budget suggests.
   # A pooler removes that as a CLASS of problem rather than as an incident.
   #
   # The safety argument is in pgbouncer/pgbouncer.ini: the tenant context is set

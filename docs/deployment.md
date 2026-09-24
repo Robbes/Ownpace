@@ -30,9 +30,10 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 app and the worker connect through it; **migrations always connect direct**, via
 `DIRECT_DATABASE_URL`.
 
-The worker is the reason it exists: every sync pass opens its own `pg.Pool` of
-`DEFAULT_CONCURRENCY + 2`, so the server-connection ceiling was
-concurrent-passes × 6 against a managed Postgres whose connection limit is far
+The worker is the reason it exists: every managed sync pass opens unbounded
+`pg.Pool`s (node-postgres default `max` 10; the job's own plus one per domain
+while it runs), so the server-connection ceiling was concurrent-passes × up to
+20 against a managed Postgres whose connection limit is far
 below what its CPU allowance suggests. Pooling removes that as a *class* of
 problem rather than as an incident.
 
