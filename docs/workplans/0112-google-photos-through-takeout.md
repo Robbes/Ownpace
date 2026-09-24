@@ -1,5 +1,7 @@
 # Workplan 0112 — Google Photos, through Takeout
 
+> **In one line:** Superseded by 0116; planned Google Photos migration through Takeout archives: a reader pairing media with JSON sidecars, a `google-photos-archive` source, albums as folders on Nextcloud, the two-monthly incremental pickup and a Picker API button.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 **2026-09-05: superseded in practice by [0116](./0116-the-data-they-give-the-person-not-us.md),

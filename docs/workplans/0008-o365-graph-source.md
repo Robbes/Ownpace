@@ -1,6 +1,16 @@
 # Workplan 0008 — Production O365 source: OAuth2 lifecycle, Graph calendar/contacts, throttling
 
+> **In one line:** Production O365 source: an MSAL `TokenProvider` refreshing tokens for IMAP XOAUTH2 and Graph, Graph calendar, contacts and OneDrive delta sources, the 429/Retry-After throttle limiter, the Entra app setup guide and a secret-gated e2e harness.
+
 ## Status — 2026-07-09 (update this block at the end of every session)
+
+> **2026-09-24, index pass (0147 T3):** T7 said ✅ Done, but its acceptance was never met. The
+> acceptance is *"documented green run linked in this Status block (timestamps showing >1 token
+> lifetime)"* (:124), and the definition of done asks for *"≥24 h unattended"* (:39). No run is
+> linked. GitHub lists two runs of `e2e-o365.yml`, both dispatched on 2026-09-06 and both
+> cancelled, and without its secrets the suite skips (`e2e-o365.yml`:12). The harness exists; the
+> proof does not. The lane is carried by 0141 T13, and the Microsoft 365 account's live pass by
+> 0141 T2.
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -10,7 +20,7 @@
 | T4 Graph contacts source (delta) | ✅ Done | `GraphContactsSource` in `packages/connectors/src/graph-contacts-source.ts` |
 | T5 throttling & rate budgets (429/Retry-After) | ✅ Done | `ThrottleLimiter` in `packages/shared/src/throttling.ts` |
 | T6 OneDrive files source (Graph delta) | ✅ Done | `GraphDriveSource` in `packages/connectors/src/graph-drive-source.ts` |
-| T7 secret-gated e2e harness against the real tenant | ✅ Done | `test/e2e/o365-scenario.ts` + `.github/workflows/e2e-o365.yml` |
+| T7 secret-gated e2e harness against the real tenant | 🟡 **Corrected 2026-09-24 (0147 T3): harness built, acceptance not met** — *was:* ✅ Done | `test/e2e/o365-scenario.ts` + `.github/workflows/e2e-o365.yml` |
 
 > Read `AGENTS.md` and `docs/architecture/solution-architecture.md` first (§13 connectors,
 > §10 idempotency anchors, §21 throttling; ADR-0006 access model, ADR-0012 Graph-over-EWS).

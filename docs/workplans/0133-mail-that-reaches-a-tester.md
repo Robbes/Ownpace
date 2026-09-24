@@ -1,5 +1,7 @@
 # Workplan 0133 — Mail that reaches a tester
 
+> **In one line:** Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, by-hand forwarding meanwhile, relay as sub-processor.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that no

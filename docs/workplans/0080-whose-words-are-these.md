@@ -1,5 +1,7 @@
 # Workplan 0080 — whose words are these
 
+> **In one line:** `ProbeOutcome` in `@openmig/shared` separates the connection probe's own results (codes rendered via `t()`, which gains interpolation) from a provider's refusal text, which renders untouched in Dutch and English.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0071 — the second hour on a phone
 
+> **In one line:** Second phone test round: Connections page credential rotation, Dutch missing-field and delete-in-use refusals, the mailbox unique-key 500 on reusing a stored connection, and ledger migration `0022` allowing a repeat pair only under another folder prefix.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 | Task | Status | Evidence |

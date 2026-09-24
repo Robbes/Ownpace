@@ -1,5 +1,7 @@
 # Workplan 0093 — a front door somebody can knock on
 
+> **In one line:** Invite-only onboarding: the `access_request` table and public `POST /api/access-requests` with its rate limit, the RequestAccess and AccessRequests screens, Zitadel OIDC sign-in with PKCE, `GET /api/me`, and grant and invitation claim under RLS.
+
 ## Status — 2026-09-01 (update this block at the end of every session)
 
 | Task | Status | Evidence |

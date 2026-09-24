@@ -76,7 +76,15 @@ const labelClass = 'block text-sm text-gray-600 mb-1';
  * No row yet is a real state, said as one: the amber sentence, not an error —
  * and the form below it IS the remedy, so the ask and the answer share a card.
  */
-const InvoiceDetailsCard: React.FC = () => {
+/**
+ * A tier that costs nothing (Tiny, since 2026-09-24): no setup, no monthly,
+ * and no invoice, so the screen says "free" rather than "€0.00", and asks for
+ * no invoice details (ADR-0014).
+ */
+const isFreeTier = (tier: { setup: number; monthly: number }): boolean =>
+  tier.setup === 0 && tier.monthly === 0;
+
+const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
   const t = useT();
   const { locale } = useLocale();
   const { dateTime } = useFormatters();
@@ -220,11 +228,16 @@ const InvoiceDetailsCard: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
-            {party == null && (
-              <p className="text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                {t('billing.party.missing')}
-              </p>
-            )}
+            {party == null &&
+              (free ? (
+                <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  {t('billing.party.notNeeded')}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  {t('billing.party.missing')}
+                </p>
+              ))}
 
             <div className="flex gap-6">
               {(['consumer', 'business'] as const).map((kind) => (
@@ -588,19 +601,24 @@ const Billing: React.FC = () => {
                 and the customer gets to see it).
 
                 MONEY UNIT: `currency` takes CENTS; ADR-0014's table is in
-                whole EUR (`setup: 4` is €4). Hence *100 — passing the raw
-                figure would print €0.04 for a €4 setup fee. */}
+                whole EUR (`setup: 15` is €15). Hence *100 — passing the raw
+                figure would print €0.15 for a €15 setup fee. A free tier
+                prints no money at all. */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-3">{t('billing.yourTier')}</h3>
               {usage.tier ? (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-lg font-semibold text-gray-900">{usage.tier.name}</span>
-                    <span className="font-medium">
-                      {currency(usage.tier.setup * 100, 'EUR')} {t('billing.tierSetup')}
-                      {' · '}
-                      {currency(usage.tier.monthly * 100, 'EUR')} {t('billing.tierPerMonth')}
-                    </span>
+                    {isFreeTier(usage.tier) ? (
+                      <span className="font-medium">{t('billing.tierFree')}</span>
+                    ) : (
+                      <span className="font-medium">
+                        {currency(usage.tier.setup * 100, 'EUR')} {t('billing.tierSetup')}
+                        {' · '}
+                        {currency(usage.tier.monthly * 100, 'EUR')} {t('billing.tierPerMonth')}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600">
                     {usage.decidedBy === 'paths'
@@ -634,7 +652,7 @@ const Billing: React.FC = () => {
       </div>
 
       {/* Who invoices are addressed to — above the invoices it will be on. */}
-      <InvoiceDetailsCard />
+      <InvoiceDetailsCard free={usage?.tier != null && isFreeTier(usage.tier)} />
 
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">

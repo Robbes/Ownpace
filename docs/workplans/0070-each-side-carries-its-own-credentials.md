@@ -1,5 +1,7 @@
 # Workplan 0070 — each side carries its own credentials
 
+> **In one line:** Restructures the CreateMapping wizard into four steps (source, target, migration, review), each side carrying its own credentials, its own `runProbe(side)` test-and-save and one `sideStepMissing` gate list.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

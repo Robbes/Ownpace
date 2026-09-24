@@ -1,5 +1,7 @@
 # Workplan 0088 — a price you can see before you connect
 
+> **In one line:** The public pre-preflight price estimate in `site/` (`calculator.mjs`, `profiles.mjs`), deriving the ADR-0014 tier from paths and data moved, with bands and editable assumptions under a hash-pinned CSP, plus the retention rule for preflight counts.
+
 ## Status — 2026-09-20 (update this block at the end of every session)
 
 > Since 2026-08-19 the site grew a build (`site/build.mjs`, bilingual `site/pages/en+nl`),

@@ -1,5 +1,7 @@
 # Workplan 0078 — what a connection already knows
 
+> **In one line:** Prefilling the Connections page's credential-rotation form via `knownConnectionValues()` from `connection.config` only, never the encrypted record that holds Dropbox App keys and Google OAuth values, with a descriptor filter dropping any `secret` field.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

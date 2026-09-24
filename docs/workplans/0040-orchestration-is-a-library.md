@@ -1,5 +1,7 @@
 # Workplan 0040 — Orchestration is a library, not a corner of the worker
 
+> **In one line:** Moves the twelve library modules behind `runAllDomains` out of `apps/worker/src` into a new `packages/orchestration` package, repointing `apps/selfhost` and `packages/core` so no app or package imports the worker.
+
 ## Status — 2026-08-14 (update this block at the end of every session)
 
 | Task | Status | Evidence |

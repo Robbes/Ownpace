@@ -1,5 +1,7 @@
 # Workplan 0074 — a count you could not click, and a provider nobody could name
 
+> **In one line:** Provider display names from `providerDisplayName()` on the Setup checklist, its back link returning to the screen you came from, and dashboard count tiles that open the Migrations list filtered by `/mappings?status=`.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

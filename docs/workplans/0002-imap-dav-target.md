@@ -1,5 +1,7 @@
 # Workplan 0002 — IMAP/DAV Target Family (O365 → Soverin / openDesk mail)
 
+> **In one line:** Second mail target family: `ImapDavMailTarget`, an IMAP APPEND writer for Soverin and openDesk behind the same engine and ledger, with `jmap` or `imap-dav` chosen in `buildTargetWriter`, `docs/target-providers.md` and the imapsync bulk-path decision.
+
 ---
 
 ## Status

@@ -107,7 +107,9 @@ export function gmailMailDays(mailGb) {
  * @returns {{ topUpOnce: number, stepUpNow: number, stepUpMonthlyMore: number, extraUpFront: number, paybackDays: number | null } | null}
  */
 export function topUpAgainstStepUp(tier, next) {
-  if (!next) return null;
+  // A free tier has no top-up: it would cost its setup fee, nothing, and make
+  // the data axis meaningless. Past its band it is the next tier (ADR-0014).
+  if (!next || freeTier(tier)) return null;
   const stepUpNow = next.setup - tier.setup;
   const stepUpMonthlyMore = next.monthly - tier.monthly;
   const extraUpFront = tier.setup - stepUpNow;
@@ -118,6 +120,17 @@ export function topUpAgainstStepUp(tier, next) {
         ? 0
         : null;
   return { topUpOnce: tier.setup, stepUpNow, stepUpMonthlyMore, extraUpFront, paybackDays };
+}
+
+/**
+ * A tier that costs nothing (Tiny, since 2026-09-24): no setup, no monthly,
+ * and no invoice. Every page says "free" for it and never a zero amount,
+ * which reads as a price that could be billed.
+ *
+ * @param {{setup:number,monthly:number}} tier
+ */
+export function freeTier(tier) {
+  return tier.setup === 0 && tier.monthly === 0;
 }
 
 /**

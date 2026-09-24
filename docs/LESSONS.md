@@ -26,6 +26,7 @@ reading a file drops off its entry by itself.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
+- [workplan-index](../scripts/workplan-index.unit.test.ts) — The workplan index cannot fall behind the plans again (workplan 0147 T1).
 
 ### `.github/workflows/e2e-live-target.yml`
 
@@ -805,6 +806,10 @@ reading a file drops off its entry by itself.
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
+### `docs/workplans/0001-start-prompt.md`
+
+- [workplan-index](../scripts/workplan-index.unit.test.ts) — The workplan index cannot fall behind the plans again (workplan 0147 T1).
+
 ### `docs/workplans/0115-the-account-apple-will-not-hand-over.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1334,6 +1339,10 @@ reading a file drops off its entry by itself.
 ### `scripts/ui-build-output.unit.test.ts`
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
+
+### `scripts/workplan-index.mjs`
+
+- [workplan-index](../scripts/workplan-index.unit.test.ts) — The workplan index cannot fall behind the plans again (workplan 0147 T1).
 
 ### `site/build.mjs`
 
@@ -3060,6 +3069,16 @@ Reads:
 - `deploy/compose/managed.yml`
 - `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 - `site/build.mjs`
+
+### [workplan-index](../scripts/workplan-index.unit.test.ts)
+
+The workplan index cannot fall behind the plans again (workplan 0147 T1).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `docs/workplans/0001-start-prompt.md`
+- `scripts/workplan-index.mjs`
 
 ### [workspace-deps](../scripts/workspace-deps.unit.test.ts)
 

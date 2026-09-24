@@ -67,6 +67,10 @@ export const COPY = {
     ctaHow: 'How a migration works',
     heroFine: (from) =>
       `From ${from} for the first month. Prices published in full — no quote, no sales call.`,
+    // The first tier is free (ADR-0014, 2026-09-24): "From €0" would read as a
+    // price that could be billed, so the line says what free covers instead.
+    heroFree: (name, data) =>
+      `${name} is free: one migration at a time, up to ${data}. Every price is published in full — no quote, no sales call.`,
     diffTitle: 'What makes this different',
     diff: [
       ['It is a move, not a copy',
@@ -106,6 +110,12 @@ export const COPY = {
     tierThree: (m) => `${m} for a three-month migration`,
     tierStart: (name) => `Start with ${name}`,
     tierBadge: 'Most people',
+    tierFree: 'Free',
+    tierFreeFor: 'for as long as it runs',
+    tierNoInvoice: 'No invoice',
+    tierNoInvoiceWhy: 'no card, no billing details',
+    tierFreeEdge: (next) =>
+      `A second migration at the same time, or more data, moves you to ${next} — and we ask you first.`,
     beyond: (paths, data, what) =>
       `Past ${paths} migrations at once or ${data}, <a href="{MAILTO}">${what.toLowerCase()}</a> — that is the one thing not published, because past the end of the scale we have to look at the actual case.`,
     draftBanner:
@@ -151,6 +161,8 @@ export const COPY = {
         'Derived from your answers, never picked — and it keeps deriving: finish migrations and the tier falls by itself.',
       tierSetup: '{0} one-off setup',
       tierMonthly: '{0} a month',
+      tierFree: 'Free: no setup fee, nothing a month, and no invoice.',
+      tierFreeEdge: 'A second migration at the same time, or more than {0}, moves you to {1} — and we ask you first.',
       tierFirstMonth: '{0} for the first month, setup included',
       tierThree: '{0} for a three-month move in total',
       stepUpRule: 'Step up later and you pay only the difference in setup.',
@@ -212,6 +224,8 @@ export const COPY = {
     ctaHow: 'Hoe een verhuizing verloopt',
     heroFine: (from) =>
       `Vanaf ${from} voor de eerste maand. Prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
+    heroFree: (name, data) =>
+      `${name} is gratis: één verhuizing tegelijk, tot ${data}. Alle prijzen staan er volledig op — geen offerte, geen verkoopgesprek.`,
     diffTitle: 'Wat dit anders maakt',
     diff: [
       ['Het is een verhuizing, geen kopie',
@@ -247,6 +261,12 @@ export const COPY = {
     tierThree: (m) => `${m} voor een verhuizing van drie maanden`,
     tierStart: (name) => `Begin met ${name}`,
     tierBadge: 'Meest gekozen',
+    tierFree: 'Gratis',
+    tierFreeFor: 'zolang het loopt',
+    tierNoInvoice: 'Geen factuur',
+    tierNoInvoiceWhy: 'geen kaart, geen factuurgegevens',
+    tierFreeEdge: (next) =>
+      `Een tweede verhuizing tegelijk, of meer gegevens, brengt u naar ${next} — en we vragen het u eerst.`,
     beyond: (paths, data, what) =>
       `Boven ${paths} verhuizingen tegelijk of ${data} geldt: <a href="{MAILTO}">${what.toLowerCase()}</a> — dat is het enige dat niet gepubliceerd staat, omdat we voorbij het einde van de schaal echt naar uw situatie moeten kijken.`,
     draftBanner:
@@ -286,6 +306,8 @@ export const COPY = {
       tierDerived:
         'Afgeleid uit uw antwoorden, nooit gekozen — en het blijft afleiden: rond verhuizingen af en het pakket zakt vanzelf.',
       tierSetup: '{0} eenmalige inrichting',
+      tierFree: 'Gratis: geen inrichtingskosten, niets per maand en geen factuur.',
+      tierFreeEdge: 'Een tweede verhuizing tegelijk, of meer dan {0}, brengt u naar {1} — en we vragen het u eerst.',
       tierMonthly: '{0} per maand',
       tierFirstMonth: '{0} voor de eerste maand, inrichting inbegrepen',
       tierThree: '{0} voor een verhuizing van drie maanden in totaal',

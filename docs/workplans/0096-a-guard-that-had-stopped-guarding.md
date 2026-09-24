@@ -1,5 +1,7 @@
 # 0096 — A guard that had stopped guarding
 
+> **In one line:** Adds the `/api/me`, `/api/access-requests` and readiness routes to `openapi.yaml` and makes `openapi-spec.unit.test.ts` read mounts from the API's `index.ts` so its hand-kept `MOUNTS` table cannot drift.
+
 ## Status — 2026-08-23 (update this block at the end of every session)
 
 | Task | Status | Evidence |

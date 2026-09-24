@@ -1,5 +1,7 @@
 # Workplan 0056 — Box as a file source
 
+> **In one line:** The Box file source: connector modelled on the Drive source, using the Client Credentials Grant since Box rotates refresh tokens, plus appliance config, managed connection kind, wizard card and the trash bin read.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

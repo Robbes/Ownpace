@@ -1,5 +1,7 @@
 # Workplan 0117 — The conveyor belt, not the home
 
+> **In one line:** A `continuous` lane keeping a mapping copying after cutover with deletion detectors off, a confirmed list (`Confirmed.tsx`) checking each target item by hash or fingerprint, and safety rules for draining the source with attributed tombstones.
+
 ## Status — 2026-09-09 (update this block at the end of every session)
 
 **2026-09-10, later still again: THE TWO HALVES DID NOT FIT, and finding that out

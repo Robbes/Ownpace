@@ -1,5 +1,7 @@
 # Workplan 0063 — one description of what a provider needs, and guides in the app
 
+> **In one line:** Shared credential field descriptor `shared/credential-fields.ts` with a coverage lock against `CreateMappingBase`, adding a connection via `POST /api/connections`, and in-app setup guides from `docs/*-setup.md` at `/docs/:slug`.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

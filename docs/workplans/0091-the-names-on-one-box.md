@@ -1,5 +1,7 @@
 # Workplan 0091 — the names on one box
 
+> **In one line:** Managed public hostnames with the environment as a domain level (`app.ota.ownpace.eu`): `WEB_URL`, `CORS_ORIGIN`, `API_URL` and `VITE_API_URL`, the static `site/` build, the Google redirect URI, wildcard DNS keeping `app.` dark, and mesh-only limits.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 **2026-09-05: T5 is stated.** `docs/managed-bring-up.md` gained *What cannot work on a

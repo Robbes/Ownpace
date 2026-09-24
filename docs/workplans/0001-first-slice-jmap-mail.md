@@ -1,5 +1,7 @@
 # Workplan 0001 — First buildable slice: O365 → JMAP mail (one-way shadow)
 
+> **In one line:** First mail slice: a one-way, non-destructive O365-to-JMAP mirror, `ImapSource` over XOAUTH2 into `JmapTargetWriter` on Stalwart, with Sent, a Pattern-S shared mailbox, ledger idempotency, cursors, croner scheduler, worker CLI and lost-ledger reindex.
+
 ## Status — 2026-07-07 (update this block at the end of every session)
 
 | Task | Status | Evidence |

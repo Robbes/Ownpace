@@ -1,5 +1,7 @@
 # Workplan 0051 — shared folders as migration roots
 
+> **In one line:** Drive folders shared with an account as migration roots: `listSharedWithMeFolders` lists them read-only for the wizard's browse and `scripts/list-shared-folders.ts`, so a separate mapping's `rootFolderId` names one; loose shared files stay out.
+
 ## Status — 2026-08-16 (update this block at the end of every session)
 
 | Task | Status | Evidence |

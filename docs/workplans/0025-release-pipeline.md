@@ -1,5 +1,7 @@
 # Workplan 0025 — the release pipeline
 
+> **In one line:** Release pipeline: `images.yml` pushing multi-arch api, web and selfhost images to ghcr.io, cosign signing, a CycloneDX release SBOM, SHA-pinned actions, the first release tag, nightly `e2e.yml`, upgrade and backup/restore drills, Windows code-signing purchase.
+
 ## Status — 2026-08-03 (update this block at the end of every session)
 
 | Task | Status | Evidence |

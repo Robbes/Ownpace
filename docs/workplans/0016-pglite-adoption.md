@@ -1,5 +1,7 @@
 # Workplan 0016 — Adopting PGlite (the whole-workspace driver switch)
 
+> **In one line:** PGlite as an in-process ledger backend for the self-host appliance beside Postgres: `pgliteDriver()` behind `LedgerDriver`, `SELFHOST_PERSISTENCE=pglite`, the ledger handle passed to `buildDeps`, RLS via `LedgerDriver.role`, and e2e on both backends.
+
 ## Status — 2026-07-31 — CLOSED (update this block at the end of every session)
 
 | Task | Status | Evidence |

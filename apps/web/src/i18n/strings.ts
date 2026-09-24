@@ -680,6 +680,7 @@ const en = {
   'billing.yourTier': 'What this puts you on',
   'billing.tierSetup': 'to set up',
   'billing.tierPerMonth': 'per month',
+  'billing.tierFree': 'Free: nothing is invoiced on this tier',
   'billing.tierDecidedByPaths': 'Set by how many migrations ran at the same time.',
   'billing.tierDecidedByData': 'Set by how much data has been moved.',
   'billing.tierDecidedByBoth': 'Set by both what ran at once and how much was moved.',
@@ -1138,6 +1139,7 @@ const en = {
   'billing.party.intro': 'Who invoices are addressed to.',
   'billing.party.missing':
     'Not provided yet. Invoices cannot be issued until this is filled in.',
+  'billing.party.notNeeded': 'Not needed while your tier is free: nothing is invoiced.',
   'billing.party.kindConsumer': 'Private person',
   'billing.party.kindBusiness': 'Business',
   'billing.party.name': 'Name on the invoice',
@@ -1369,6 +1371,7 @@ const en = {
   'support.usage': 'Usage and package this month',
   'support.usage.beyondTable': 'Beyond the published table — a talk-to-us size.',
   'support.usage.perMonth': 'per month',
+  'support.usage.free': 'free',
   'support.usage.decidedBy.paths':
     'Decided by the paths axis — how many run at the same time.',
   'support.usage.decidedBy.data':
@@ -2346,6 +2349,7 @@ const nl: Record<keyof typeof en, string> = {
   'support.usage': 'Gebruik en pakket deze maand',
   'support.usage.beyondTable': 'Voorbij de gepubliceerde tabel — een maat om over te praten.',
   'support.usage.perMonth': 'per maand',
+  'support.usage.free': 'gratis',
   'support.usage.decidedBy.paths':
     'Bepaald door de paden-as — hoeveel er tegelijk lopen.',
   'support.usage.decidedBy.data':
@@ -2874,6 +2878,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.yourTier': 'Waar u hiermee op uitkomt',
   'billing.tierSetup': 'inrichting',
   'billing.tierPerMonth': 'per maand',
+  'billing.tierFree': 'Gratis: op dit pakket wordt niets gefactureerd',
   'billing.tierDecidedByPaths': 'Bepaald door hoeveel verhuizingen tegelijk liepen.',
   'billing.tierDecidedByData': 'Bepaald door hoeveel gegevens er verplaatst zijn.',
   'billing.tierDecidedByBoth':
@@ -3281,6 +3286,7 @@ const nl: Record<keyof typeof en, string> = {
   'billing.party.intro': 'Aan wie facturen worden gericht.',
   'billing.party.missing':
     'Nog niet ingevuld. Er kunnen geen facturen worden uitgereikt totdat dit is ingevuld.',
+  'billing.party.notNeeded': 'Niet nodig zolang uw pakket gratis is: er wordt niets gefactureerd.',
   'billing.party.kindConsumer': 'Particulier',
   'billing.party.kindBusiness': 'Zakelijk',
   'billing.party.name': 'Naam op de factuur',

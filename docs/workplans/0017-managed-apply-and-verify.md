@@ -1,5 +1,7 @@
 # Workplan 0017 — `apply` and `verify` in the managed edition
 
+> **In one line:** Managed verify and apply-deletion as start-and-poll: the verify pair shared with self-host, `run-verification` and `run-apply-deletion` Trigger.dev jobs, the `verification_run` table, `allow_apply_deletions`, apply receipts and a polling Verify screen.
+
 ## Status — 2026-07-31 (update this block at the end of every session)
 
 | Task | Status | Evidence |

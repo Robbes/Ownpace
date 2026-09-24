@@ -1,5 +1,7 @@
 # Workplan 0019 — finishing the managed operating surface
 
+> **In one line:** Managed operating surface for the web UI: apply client's queued-receipt shape, Deletions screen receipt polling, an `allow_apply_deletions` API and switch, `MappingDetail` per-mapping links, a per-mapping Finish screen, and retiring appliance `GET /verify`.
+
 ## Status — 2026-08-01 (update this block at the end of every session) — ALL TASKS CLOSED
 
 | Task | Status | Evidence |

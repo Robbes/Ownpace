@@ -1,5 +1,7 @@
 # Workplan 0030 — email notifications: ad hoc + daily/weekly attention summaries
 
+> **In one line:** Email-only notifications: the `Notifier` port and nodemailer SMTP transport, EN/NL templates, ad hoc events (decision raised, runs failing, verification, finish, rollback), daily/weekly attention digests via `summariseQueues`, cadence on the Tenants screen.
+
 ## Status — 2026-08-03 (update this block at the end of every session)
 
 | Task | Status | Evidence |

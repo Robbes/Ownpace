@@ -1,5 +1,7 @@
 # Workplan 0065 — finishing the connections surface
 
+> **In one line:** Finishing the connections surface: credential rotation via `PUT /api/connections/:id/credentials` that probes before replacing, target connection reuse in the CreateMapping wizard, and setup-checklist links mapped from connection kind to wizard type.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

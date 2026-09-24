@@ -1,5 +1,7 @@
 # Workplan 0140 — Consent screens a tester can pass
 
+> **In one line:** Provider consent for testers on `ownpace-live`: its own Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that

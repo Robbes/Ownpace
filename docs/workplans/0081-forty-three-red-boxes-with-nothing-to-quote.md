@@ -1,5 +1,7 @@
 # Workplan 0081 — forty-three red boxes with nothing to quote
 
+> **In one line:** Extends `serverFault` and its log-matching reference to the remaining API 500s (billing, tenants, decisions, permissions, operating-routes, auth middleware, create route), with per-route codes, a config-error allow-list and a source-walking test.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 | Task | Status | Evidence |

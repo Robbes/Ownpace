@@ -1,5 +1,7 @@
 # Workplan 0113 — A task is not an event
 
+> **In one line:** Tasks (CalDAV `VTODO`) as a fifth domain beside calendar: one `DISCOVERY_DOMAINS` list, widened ledger CHECKs, component-aware `CalDAVSource` and `CalDAVTargetWriter`, the wizard tick, `runTaskSync`, verification and the managed and self-hosted gates.
+
 ## Status — 2026-09-04 (update this block at the end of every session)
 
 **2026-09-04 (latest): the NINTH fan-out — one writer, two domains, one hard-coded

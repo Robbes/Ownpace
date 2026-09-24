@@ -1,5 +1,7 @@
 # Workplan 0022 — syncs move onto Trigger.dev tasks (retiring the poller)
 
+> **In one line:** Managed syncs on a per-minute `managed-sync-tick` Trigger.dev task replacing the `managed-scheduler` poller, with overlap safety, pass soft deadlines, `platform_pause` drains, failing-mapping backoff and what a stopped pass may conclude.
+
 ## Status — 2026-08-01: ✅ ALL TASKS CLOSED (update this block at the end of every session)
 
 | Task | Status | Evidence |

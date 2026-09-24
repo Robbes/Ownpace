@@ -1,5 +1,7 @@
 # Workplan 0089 — a consent you can click
 
+> **In one line:** Google OAuth without the OAuth Playground: the authorization-code callback and Connect with Google button in CreateMapping, the seven-day Testing token hint, raw-IP callbacks, the managed client, Gmail app passwords and `docs/google-workspace-setup.md`.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 **2026-09-05: T5 and T8 caught up with what #703–#712 built.** T5's mechanics landed 2026-09-02:

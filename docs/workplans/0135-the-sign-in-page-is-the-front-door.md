@@ -1,5 +1,7 @@
 # Workplan 0135 — The sign-in page is the front door
 
+> **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 read the

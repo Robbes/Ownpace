@@ -1,5 +1,7 @@
 # 0099 — An invitation you can answer
 
+> **In one line:** Invitations answered Join, Decline or Not now, never silently claimed (managed migration 0008, `Invitations.tsx`), Zitadel sign-in in `smoke-managed.sh`, then a managed-stack fix log: `triggerdb` backup drill, image pins, build version, Mailpit, healthchecks.
+
 ## Status — 2026-08-23 (update this block at the end of every session)
 
 | Task | Status | Evidence |

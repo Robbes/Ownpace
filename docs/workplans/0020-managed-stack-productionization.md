@@ -1,5 +1,7 @@
 # Workplan 0020 — productionizing the managed stack
 
+> **In one line:** Productionizing the managed stack: `tenant_member` role-from-row auth gate, fail-closed `JWT_SECRET` and trigger secrets, `trigger-tls` Caddy front, managed runbook, `smoke-managed.sh`, `set-task-env.sh`, and deciding the `managed-scheduler` poller's future.
+
 ## Status — 2026-08-01 (update this block at the end of every session)
 
 | Task | Status | Evidence |
