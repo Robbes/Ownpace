@@ -25,7 +25,7 @@ import {
   passCounts,
 } from '@openmig/core';
 import { budgetPauseToReason } from '@openmig/shared';
-import { mappingStillRuns, taskErrorFor } from './stopping-a-pass.ts';
+import { whyThePassStops, taskErrorFor, type PassHalt } from './stopping-a-pass.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -295,6 +295,7 @@ export const runDeltaSync = schemaTask({
      */
     const outcomes: Record<string, DomainOutcome> = {};
     let stoppedBefore: string | undefined;
+    let stoppedBecause: PassHalt | undefined;
 
     /**
      * Seconds per domain for THIS run, closed over by the domain loop and
@@ -368,13 +369,22 @@ export const runDeltaSync = schemaTask({
         // later when this run's deadline arrives. Between domains and not
         // per item: each domain pass already stops itself at its own
         // deadline, and the tick will not start another.
-        if (!(await mappingStillRuns(pool, tenantId, mappingId))) {
-          const line = `pass stopped before ${domain}: this migration is no longer active (paused or finished) — nothing failed, the next pass continues from the cursors when it is resumed`;
+        //
+        // AND THE PERSON MAY HAVE TAKEN THEIR GRANT BACK (0108 T8 (c)): the
+        // same re-read, and a line of its own, because what brings the
+        // migration back is a new grant, not the owner's Resume.
+        const halt = await whyThePassStops(pool, tenantId, mappingId);
+        if (halt) {
+          const line =
+            halt === 'grant_withdrawn'
+              ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`
+              : `pass stopped before ${domain}: this migration is no longer active (paused or finished) — nothing failed, the next pass continues from the cursors when it is resumed`;
           log.info(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });
           });
           stoppedBefore = domain;
+          stoppedBecause = halt;
           break;
         }
 
@@ -743,6 +753,7 @@ export const runDeltaSync = schemaTask({
         asked: domains,
         domains: outcomes,
         ...(stoppedBefore !== undefined ? { stoppedBefore } : {}),
+        ...(stoppedBecause !== undefined ? { stoppedBecause } : {}),
       };
       return {
         success: true,

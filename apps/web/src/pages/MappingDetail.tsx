@@ -55,7 +55,7 @@ export function progressRefetchInterval(
 import { mappingApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { fetchStatus } from '../services/operating-service.ts';
-import { useT } from '../i18n/index.tsx';
+import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
@@ -118,6 +118,7 @@ const SCREENS: ReadonlyArray<{
 const MappingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const t = useT();
+  const { dateTime } = useFormatters();
 
   // Best-effort context; managed-only (the appliance has no mapping API and
   // its operators reach the queues from the top-level nav anyway).
@@ -233,6 +234,16 @@ const MappingDetail: React.FC = () => {
             ),
           })}
         </p>
+      )}
+      {/* A GRANT THE PERSON TOOK BACK (workplan 0108 T8 (c)), said before
+          anything that reads as progress: the status can still say Active,
+          and nothing reads their account until they grant it again. The
+          links panel below is where the owner makes the new link. */}
+      {detail.data?.grantWithdrawnAt && (
+        <div className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p>{t('hub.grantWithdrawn', { date: dateTime(detail.data.grantWithdrawnAt) })}</p>
+          <p className="mt-1">{t('hub.grantWithdrawn.next')}</p>
+        </div>
       )}
       {/* The completion report (workplan 0047): every number on it already
           lives on some screen below — this is the ONE document version, for

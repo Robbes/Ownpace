@@ -50,18 +50,22 @@ import type { RequestHandler, Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import { PgLedger, PgMigrationStatusStore } from '@openmig/ledger';
+import { HttpTokenRevoker } from '@openmig/connectors';
 import {
   MAPPING_LIFECYCLES,
   buildDomainStatusReports,
+  viewGrantFor,
   viewRowFor,
   type MappingLifecycle,
   type MappingId,
   type MigrationView,
   type TenantId,
+  type TokenRevoker,
 } from '@openmig/shared';
 import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { MappingLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
+import { withdrawGrant } from './withdraw-grant.ts';
 
 const router = Router();
 
@@ -102,6 +106,10 @@ router.get(
           .select({
             organisation: schema.tenant.name,
             status: schema.mailboxMapping.status,
+            // Whether there is a grant to take back, and whether one was: the
+            // page's `grant`. Read as a presence, never decrypted here.
+            sourceSecretRef: schema.mailboxMapping.sourceSecretRef,
+            grantWithdrawnAt: schema.mailboxMapping.grantWithdrawnAt,
           })
           .from(schema.mailboxMapping)
           .innerJoin(schema.tenant, eq(schema.tenant.id, schema.mailboxMapping.tenantId))
@@ -162,10 +170,45 @@ router.get(
         started: domainStatus.length > 0,
         domains: buildDomainStatusReports(domainStatus, failures, adopted).map(viewRowFor),
         expiresAt: expiresAt.toISOString(),
+        grant: viewGrantFor(mapping),
       };
       res.json(body);
     } catch (error) {
       serverFault(res, 'view_read_failed', 'reading this migration', error);
+    }
+  },
+);
+
+/**
+ * The revocation Google offers, made once and on first use: it reads the
+ * global `fetch` at call time, so a test that stubs Google's endpoint reaches
+ * it (`connections.ts` makes its own the same way).
+ */
+let revoker: TokenRevoker | undefined;
+const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
+
+/**
+ * POST /api/view/:link/withdraw — take back the grant this migration reads the
+ * account on (workplan 0108 T8 (c), `withdraw-grant.ts`).
+ *
+ * A body-less POST, deliberately: it changes something, so it is never a GET a
+ * chat preview could follow. Answered 200 with what happened at Google, or 409
+ * with the reason there was nothing to take back, in a sentence written for the
+ * person holding the link.
+ */
+router.post(
+  '/:link/withdraw',
+  linkAuth,
+  async (req: MappingLinkRequest, res: Response) => {
+    try {
+      const { tenantId, mappingId, linkId } = req.mappingLink!;
+      const result = await withdrawGrant(pool(), { tenantId, mappingId, linkId }, tokenRevoker());
+      if (!result.ok) {
+        return void res.status(409).json({ error: result.code, reason: result.reason });
+      }
+      res.json(result.withdrawal);
+    } catch (error) {
+      serverFault(res, 'grant_withdraw_failed', 'withdrawing your permission', error);
     }
   },
 );

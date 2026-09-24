@@ -156,16 +156,19 @@ describe('the premise this number is sized against', () => {
   };
 
   it('is still a door only an operator can open', () => {
-    // Three, and each is deliberate:
+    // Four, and each is deliberate:
     //
     //   the knock          — this limit's whole subject, and the only one of
-    //                        the three a stranger is *invited* to use
+    //                        the four a stranger is *invited* to use
     //   the grant link     — 0108: the link itself is the credential, and the
     //                        route grants nothing without it
+    //   the progress link  — 0108 T8 (c): the same kind of credential, and the
+    //                        route only takes back the grant its own migration
+    //                        holds, calling Google at most once per grant
     //   the Mollie webhook — a payment provider calling us, verified by
     //                        signature rather than by session
     //
-    // A FOURTH is the question. If it is a self-service signup, this number is
+    // A FIFTH is the question. If it is a self-service signup, this number is
     // no longer sized for the door in front of it, and raising it is only half
     // the change: the key is still `req.ip`, which behind an ingress is the
     // ingress. Set `TRUST_PROXY` so the bucket is per CALLER first, then raise
@@ -176,6 +179,7 @@ describe('the premise this number is sized against', () => {
       'routes/access-requests.ts POST /',
       'routes/billing/webhooks.ts POST /mollie',
       'routes/grant.ts POST /:link/google/authorize',
+      'routes/view.ts POST /:link/withdraw',
     ]);
   });
 

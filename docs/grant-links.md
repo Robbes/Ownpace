@@ -127,8 +127,29 @@ things, held by two different people, and that is the point:
 | To stop | Who does it | Where |
 |---|---|---|
 | a link being used | you | the migration's Grant links list |
-| access already granted | the person who granted it | their Google account's security settings, under the apps that have access |
+| access already granted | the person who granted it | their progress page (**Withdraw access**), or their Google account's security settings, under the apps that have access |
 | everything, permanently | you | delete the migration |
+
+### When the person takes their access back
+
+The progress page the person gets once they have granted offers **Withdraw access**, with one
+question before it acts (workplan 0108 T8 (c)). Pressing it:
+
+1. asks Google to revoke the grant. Google takes back everything that person allowed the
+   application, at once, so any other migration of the same account through the same application
+   stops too; the page says so before the button;
+2. deletes the grant here, **whatever Google answered**, and records it;
+3. tells them which of the two happened. When Google did not confirm, they are sent to remove the
+   app from their Google account themselves.
+
+From then on **nothing reads that account**: no pass starts, a pass already running stops before
+its next data type, and your **Start** and **Sync now** say who stopped it and when. That holds
+even where the source connection has a credential of its own: the person said no to being read,
+and falling back to another way in would read them anyway. Your migration's page says it at the
+top.
+
+To continue, if they agree, create a new grant link and send it to them. Their new grant ends the
+withdrawal. What was already copied stays where it was copied to.
 
 ## When Google's side does not finish
 

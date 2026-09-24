@@ -80,7 +80,12 @@ import {
   type GraphEntraCredsAsFound,
 } from './graph-domain-source-factory.ts';
 import { sourceFaceBuilder, type SourceFaceBuilder } from './source-face-builders.ts';
-import { publishedEndpoint, isProviderAccountKind } from '@openmig/shared';
+import {
+  CredentialRefusalError,
+  grantWithdrawnRefusal,
+  publishedEndpoint,
+  isProviderAccountKind,
+} from '@openmig/shared';
 import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
@@ -122,6 +127,26 @@ function mergeMappingCredentials(
 ): Record<string, string> {
   if (role !== 'source' || !mappingSecretRef) return connectionCreds;
   return { ...connectionCreds, ...SecretStore.decryptCredentials(mappingSecretRef) };
+}
+
+/**
+ * A grant the person took back stops every reader of the source HERE
+ * (workplan 0108 T8 (c), ledger migration 0063).
+ *
+ * Before any credential is merged, and for the reason the merge above makes
+ * dangerous: with the migrator's grant deleted, the connection's own keys stand
+ * alone, and where the connection holds a token of its own the pass would read
+ * the account on it — the one thing the person has just said no to — without a
+ * line anywhere saying so. Every path that opens a source comes through one of
+ * the two builders below (a pass, a preflight count, a deletion, the cutover's
+ * gate), so refusing in both is refusing everywhere.
+ *
+ * By name, in both languages, and written for the owner, who can act on it.
+ */
+export function refuseAWithdrawnGrant(mapping: { readonly grantWithdrawnAt: Date | null }): void {
+  if (mapping.grantWithdrawnAt) {
+    throw new CredentialRefusalError(grantWithdrawnRefusal(mapping.grantWithdrawnAt));
+  }
 }
 
 /**
@@ -220,6 +245,7 @@ export async function buildDepsFromMapping(
   if (mappings.length === 0) {
     throw new Error('Mapping not found or access denied');
   }
+  refuseAWithdrawnGrant(mappings[0]!);
 
   // Load connections and credentials WITHIN tenant context (RLS enforced)
   const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
@@ -471,6 +497,7 @@ async function loadDomainConnections(
         sourceConfigOverride: mailboxMapping.sourceConfigOverride,
         targetConfigOverride: mailboxMapping.targetConfigOverride,
         sourceSecretRef: mailboxMapping.sourceSecretRef,
+        grantWithdrawnAt: mailboxMapping.grantWithdrawnAt,
         // Selected here so the non-mail faces get the SAME budget the mail
         // path has always had (2026-09-07) — the column existed, this query
         // just never asked for it.
@@ -486,6 +513,7 @@ async function loadDomainConnections(
     if (!mapping) {
       throw new Error(`Mapping not found or access denied: ${mappingId}`);
     }
+    refuseAWithdrawnGrant(mapping);
 
     const load = async (role: 'source' | 'target') => {
       const mailboxId = role === 'source' ? mapping.sourceMailboxId : mapping.targetMailboxId;

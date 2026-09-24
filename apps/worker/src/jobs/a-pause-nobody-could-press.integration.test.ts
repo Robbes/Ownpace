@@ -33,7 +33,7 @@ import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { createPgDb } from '@openmig/ledger';
 import { PASS_RUNNING_STATES, runsPasses, asTenantId, asMappingId } from '@openmig/shared';
-import { mappingStillRuns } from './stopping-a-pass.ts';
+import { mappingStillRuns, whyThePassStops } from './stopping-a-pass.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -144,6 +144,27 @@ describe('a pass finds out that it was paused', () => {
     expect(
       await mappingStillRuns(workerPool, asTenantId(TENANT), asMappingId(GONE)),
     ).toBe(false);
+  });
+
+  it('stops once the person has taken their grant back, and says that was why (0108 T8 (c))', async () => {
+    // Still `active`: the withdrawal is not a lifecycle, and the owner did
+    // nothing. The pass must stop all the same, and its line must not say
+    // "paused", because what brings it back is a new grant, not Resume.
+    const why = () => whyThePassStops(workerPool, asTenantId(TENANT), asMappingId(MAPPING));
+    await setStatus('active');
+    await owner.execute(sql`UPDATE mailbox_mapping SET grant_withdrawn_at = now() WHERE id = ${MAPPING}`);
+    try {
+      expect(await why()).toBe('grant_withdrawn');
+      expect(await ask()).toBe(false);
+      // Paused as well, the line names the pause: that is the thing the owner
+      // undoes first, and Start then says the grant.
+      await setStatus('paused');
+      expect(await why()).toBe('no_longer_runs');
+    } finally {
+      await owner.execute(sql`UPDATE mailbox_mapping SET grant_withdrawn_at = NULL WHERE id = ${MAPPING}`);
+      await setStatus('active');
+    }
+    expect(await why()).toBeNull();
   });
 
   it('cannot read another tenant’s mapping, so no pass runs on one', async () => {

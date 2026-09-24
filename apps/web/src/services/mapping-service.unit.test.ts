@@ -172,6 +172,15 @@ describe('MappingSchema vs the detail route', () => {
   });
 });
 
+describe('a grant the person took back survives the parse (0108 T8 (c))', () => {
+  it('keeps the day it was withdrawn, and reads its absence as not withdrawn', () => {
+    const withdrawn = MappingSchema.parse({ ...detailFixture, grantWithdrawnAt: '2026-09-24T06:00:00.000Z' });
+    expect(withdrawn.grantWithdrawnAt).toBe('2026-09-24T06:00:00.000Z');
+    expect(MappingSchema.parse({ ...detailFixture, grantWithdrawnAt: null }).grantWithdrawnAt).toBeNull();
+    expect(MappingSchema.parse(detailFixture).grantWithdrawnAt).toBeUndefined();
+  });
+});
+
 describe('CreateMappingResponseSchema vs the 201 body', () => {
   it('parses the create response, so a SUCCESSFUL create reaches onSuccess', () => {
     const parsed = CreateMappingResponseSchema.parse(createFixture);

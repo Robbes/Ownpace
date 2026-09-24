@@ -103,6 +103,8 @@ export const AUDIT_DETAIL_FIELDS = {
   scheduling: 'keep',
   provider: 'keep',
   host: 'keep',
+  // What Google answered when a grant was taken back (0108 T8 (c)): a state.
+  atGoogle: 'keep',
   // Names and addresses.
   on: 'pseudonym',
   folder: 'pseudonym',

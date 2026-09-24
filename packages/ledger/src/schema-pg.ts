@@ -272,6 +272,12 @@ export const mailboxMapping = pgTable(
      */
     sourceSecretRef: text('source_secret_ref'),
     /**
+     * When the person who granted through a link took the grant back (migration
+     * 0063, workplan 0108 T8 (c)). While set, nothing reads the source account,
+     * whatever other credential it has; the next grant clears it.
+     */
+    grantWithdrawnAt: timestamp('grant_withdrawn_at', { withTimezone: true }),
+    /**
      * The mapping's throttle choice (migration 0017) — same shape and same
      * shared parser as the appliance's `throttleConfig`. NULL = no throttling.
      */

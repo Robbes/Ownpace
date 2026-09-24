@@ -273,6 +273,10 @@ export const MappingSchema = z.object({
   // still parses, and the panel then offers nothing rather than guessing.
   kindChoices: z.array(KindChoiceSchema).optional().catch(undefined),
   lastSyncAt: z.string().optional(),
+  // When the person who granted through a link took it back (0108 T8 (c)).
+  // Optional for a payload from an API that predates it: absent reads as "not
+  // withdrawn", which is what that API meant.
+  grantWithdrawnAt: z.string().nullish(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

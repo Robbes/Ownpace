@@ -412,7 +412,7 @@ where to start when somebody reports a link they did not expect.
 docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
   "SELECT at, tenant_id, action, detail
      FROM audit_log
-    WHERE action IN ('mapping.granted', 'mapping.grant_refused')
+    WHERE action IN ('mapping.granted', 'mapping.grant_refused', 'mapping.grant_withdrawn')
     ORDER BY at DESC LIMIT 50;"
 ```
 
@@ -426,6 +426,14 @@ docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
   in is deliberately not kept**: it belongs to somebody who granted nothing, and `audit_log` is
   never pruned. Several refusals on one `linkId` mean the link is being tried by the wrong
   person or with the wrong account.
+- **`mapping.grant_withdrawn`**: the person took the grant back from their progress page
+  (workplan 0108 T8 (c)), actor `progress-link`. `detail` holds `mappingId`, `linkId` (the
+  progress link it was pressed on) and `atGoogle`: `revoked` when Google confirmed it, including
+  a token Google already considered dead, or `not_confirmed` when Google refused or could not be
+  reached. Either way the token was deleted here in the same transaction, and
+  `mailbox_mapping.grant_withdrawn_at` was set: nothing reads that account, on any credential,
+  until a new grant clears it. The owner's migration page says so; `not_confirmed` means the
+  person was sent to remove the app from their Google account themselves.
 
 The link id is the part of a grant link's URL before the dot, so a link somebody forwards to you
 can be found in `mapping_link` and in these rows without the rest of it.
