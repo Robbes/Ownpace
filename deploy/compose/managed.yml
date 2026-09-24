@@ -859,6 +859,11 @@ services:
       # every deployment that has not answered gets. managed.env.example
       # carries the full note, including what it costs in Testing status.
       GOOGLE_ACCOUNT_SCOPE_CLASS: ${GOOGLE_ACCOUNT_SCOPE_CLASS:-}
+      # Whether this deployment holds `Files.Read.All` (owner decision
+      # 2026-08-04: declined for the reference deployment). The permission
+      # report reads it; empty keeps the drive section a stated blind spot.
+      # managed.env.example carries the full note.
+      GRAPH_FILES_READ_CONSENTED: ${GRAPH_FILES_READ_CONSENTED:-}
       # The deployment's OWN Google OAuth client (ADR-0041, owner decision
       # 2026-09-01 — option B): configured once here, so nobody types a client
       # secret into a wizard and rotating it is one edit rather than one per

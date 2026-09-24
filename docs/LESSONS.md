@@ -153,6 +153,10 @@ reading a file drops off its entry by itself.
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
+### `apps/api/src/routes/permissions.ts`
+
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
+
 ### `apps/api/src/routes/provider-accounts.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -2074,6 +2078,7 @@ A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 Reads:
 
 - `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+- `apps/api/src/routes/permissions.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `packages/connectors/src/google-token-provider.ts`
