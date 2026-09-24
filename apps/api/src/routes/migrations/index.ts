@@ -87,6 +87,7 @@ import {
   dropboxDeploymentClient,
   microsoftDeploymentClient,
   halfMicrosoftClientPairProblem,
+  providerClientFacts,
   resolveGoogleClient,
   resolveDropboxClient,
   parseGoogleDriveSource,
@@ -336,6 +337,39 @@ function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecre
   return googleDeploymentClient() === null
     ? (['clientId', 'clientSecret', 'refreshToken'] as const)
     : (['refreshToken'] as const);
+}
+
+/**
+ * THE REFUSAL WHERE THIS SERVICE CARRIES THE APP (workplan 0148 T2 (d), owner
+ * decision D2: "Stop the false hints on managed").
+ *
+ * With the deployment's Google client or Dropbox app configured, the door asks
+ * only for the refresh token — and the refusal still opened "authenticates with
+ * your own Google Cloud OAuth client", sending a tester to create what the
+ * service already has. So it branches on the one fact the wizard reads,
+ * `providerClientFacts()`: here it names the token and the button that fills
+ * it in. Where each connection brings its own app, each row keeps the sentence
+ * it had. English, as refusals are (`docs/i18n-prose-boundary.md`).
+ *
+ * `consented`, when given, is the scope the token must carry — for somebody
+ * pasting one rather than pressing the button, which asks for it itself.
+ */
+function carriesApp(provider: 'google' | 'dropbox'): boolean {
+  return providerClientFacts()[provider] === 'deployment';
+}
+
+function deploymentAppTokenRefusal(
+  sourceType: string,
+  provider: 'Google' | 'Dropbox',
+  missing: ReadonlyArray<string>,
+  consented?: string,
+): string {
+  return (
+    `A '${sourceType}' source needs a refresh token` +
+    (consented ? ` consented with the ${consented} scope` : '') +
+    `, and this service has its own ${provider} app: press Connect with ${provider}, which ` +
+    `fills it in. sourceConfig is missing ${missing.join(', ')}.`
+  );
 }
 
 /**
@@ -1151,11 +1185,12 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
-          `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
-          'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
-          'read-only command that proves all three before anything migrates.',
+        message: carriesApp('google')
+          ? deploymentAppTokenRefusal('google-drive', 'Google', missing)
+          : "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
+            `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
+            'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
+            'read-only command that proves all three before anything migrates.',
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -1194,10 +1229,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
-          `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+        message: carriesApp('google')
+          ? deploymentAppTokenRefusal(body.sourceType, 'Google', missing, scope)
+          : `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
+            `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
+            `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
       });
     }
     // The ACCOUNT's ceiling is THIS DEPLOYMENT'S, not the product's (ADR-0041,
@@ -1320,10 +1356,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
-          `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
+        message: carriesApp('dropbox')
+          ? deploymentAppTokenRefusal('dropbox', 'Dropbox', missing)
+          : "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
+            `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
+            `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
       });
     }
     refuseHalfDropboxClientPair(ctx, body.sourceConfig);
@@ -1417,12 +1454,17 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
         message:
-          "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
-          `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
-          `missing ${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md. ` +
-          'A PERSONAL Google account may send appPassword instead of all three — Google ' +
-          'recommends against it, it needs 2-step verification on the account, and it does ' +
-          'not exist on a Workspace account.',
+          (carriesApp('google')
+            ? deploymentAppTokenRefusal('gmail', 'Google', missing, 'https://mail.google.com/') +
+              ' '
+            : "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
+              `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
+              `missing ${missing.join(', ')}. Where each comes from is ` +
+              'docs/google-workspace-setup.md. ') +
+          `A PERSONAL Google account may send appPassword instead${
+            carriesApp('google') ? '' : ' of all three'
+          } — Google recommends against it, it needs 2-step verification on the account, and ` +
+          'it does not exist on a Workspace account.',
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);

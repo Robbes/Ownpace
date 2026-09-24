@@ -19,11 +19,23 @@
  * stops showing them — harmless, and better than a migration every time a
  * provider changes a console label.
  *
+ * `ownAppOnly` names the provider whose OWN application a step is about
+ * (workplan 0148 T2 (b), owner decision D2). A deployment that carries that
+ * provider's application has no such step for its customers — the wizard's
+ * button signs in through the service's app — so `setupStepsFor` leaves it out
+ * when the facts it is handed say `deployment`. The managed route hands it
+ * `providerClientFacts()`, the same fact the wizard reads over
+ * `/api/provider-clients`; the appliance's route hands it nothing and keeps
+ * every step, because an appliance carries whatever its operator configured
+ * and its operator reads this list too. Nothing here reads the edition's name.
+ *
  * `needsAnotherPerson` is not decoration. An administrator authorising a Box
  * app or granting Entra admin consent is the single most common reason a
  * setup stops halfway, and saying so UP FRONT — before someone starts pasting
  * values — is most of the guidance this checklist exists to give.
  */
+
+import type { GrantProvider, ProviderClientFacts } from './provider-clients.ts';
 
 export type SetupSide = 'source' | 'target';
 
@@ -41,6 +53,11 @@ export interface SetupStep {
   readonly yieldsKey?: string;
   /** Needs an administrator (or the account owner) who may not be you. */
   readonly needsAnotherPerson?: boolean;
+  /**
+   * Only for somebody using their OWN app with this provider: left out where
+   * the deployment carries the provider's application (see the header).
+   */
+  readonly ownAppOnly?: GrantProvider;
 }
 
 /**
@@ -75,29 +92,32 @@ const BOX: ReadonlyArray<SetupStep> = [
   },
 ];
 
+/**
+ * Dropbox with one's own app. The owner's consent and the code exchange were
+ * two manual steps here until *Connect with Dropbox* (2026-09-02) did both;
+ * what that leaves the person is to register the address the wizard shows
+ * under the button (0148 T2 (b)). `consent` and `exchange_code` left the list
+ * with it, and their rows stay behind harmlessly, as the header says.
+ */
 const DROPBOX: ReadonlyArray<SetupStep> = [
   {
     key: 'create_app',
     titleKey: 'setup.dropbox.create_app.title',
     detailKey: 'setup.dropbox.create_app.detail',
     yieldsKey: 'setup.dropbox.create_app.yields',
+    ownAppOnly: 'dropbox',
   },
   {
     key: 'scopes',
     titleKey: 'setup.dropbox.scopes.title',
     detailKey: 'setup.dropbox.scopes.detail',
+    ownAppOnly: 'dropbox',
   },
   {
-    key: 'consent',
-    titleKey: 'setup.dropbox.consent.title',
-    detailKey: 'setup.dropbox.consent.detail',
-    needsAnotherPerson: true,
-  },
-  {
-    key: 'exchange_code',
-    titleKey: 'setup.dropbox.exchange_code.title',
-    detailKey: 'setup.dropbox.exchange_code.detail',
-    yieldsKey: 'setup.dropbox.exchange_code.yields',
+    key: 'redirect_uri',
+    titleKey: 'setup.dropbox.redirect_uri.title',
+    detailKey: 'setup.dropbox.redirect_uri.detail',
+    ownAppOnly: 'dropbox',
   },
 ];
 
@@ -107,11 +127,13 @@ const GOOGLE: ReadonlyArray<SetupStep> = [
     titleKey: 'setup.google.create_oauth_client.title',
     detailKey: 'setup.google.create_oauth_client.detail',
     yieldsKey: 'setup.google.create_oauth_client.yields',
+    ownAppOnly: 'google',
   },
   {
     key: 'enable_api',
     titleKey: 'setup.google.enable_api.title',
     detailKey: 'setup.google.enable_api.detail',
+    ownAppOnly: 'google',
   },
   {
     key: 'consent_scope',
@@ -119,6 +141,7 @@ const GOOGLE: ReadonlyArray<SetupStep> = [
     detailKey: 'setup.google.consent_scope.detail',
     yieldsKey: 'setup.google.consent_scope.yields',
     needsAnotherPerson: true,
+    ownAppOnly: 'google',
   },
 ];
 
@@ -213,6 +236,10 @@ const DAV_BASIC_TARGET: ReadonlyArray<SetupStep> = [
 const SOURCE_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
   box: BOX,
   dropbox: DROPBOX,
+  // The Google ACCOUNT card signs in with the same client as the four
+  // products (0148 T2 (b)); it had no profile, so its checklist said there
+  // was nothing to prepare on a deployment without Google's app.
+  google: GOOGLE,
   'google-drive': GOOGLE,
   gmail: GOOGLE,
   'google-calendar': GOOGLE,
@@ -236,10 +263,20 @@ const TARGET_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
  *
  * An empty list is a real answer — "nothing to do in the provider" — and the
  * caller shows it as such rather than as a missing checklist.
+ *
+ * `facts`, when given, are `providerClientFacts()`: a step whose provider the
+ * deployment carries is left out (0148 T2 (b)). Without them every step is
+ * returned — the appliance's answer, and the list as it has always been.
  */
-export function setupStepsFor(side: SetupSide, provider: string): ReadonlyArray<SetupStep> {
+export function setupStepsFor(
+  side: SetupSide,
+  provider: string,
+  facts?: ProviderClientFacts,
+): ReadonlyArray<SetupStep> {
   const table = side === 'source' ? SOURCE_PROFILE : TARGET_PROFILE;
-  return table[provider] ?? [];
+  const steps = table[provider] ?? [];
+  if (!facts) return steps;
+  return steps.filter((s) => s.ownAppOnly === undefined || facts[s.ownAppOnly] !== 'deployment');
 }
 
 /** Every provider with a checklist, for the side given — what the UI can offer. */

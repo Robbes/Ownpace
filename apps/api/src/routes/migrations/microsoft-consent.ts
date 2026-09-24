@@ -86,8 +86,19 @@ export type MicrosoftExchangeResult =
  * request, and they are the most likely thing a first customer meets: an
  * organisation that set *Users can consent to apps* to No. A raw
  * `AADSTS65001` in a browser window tells them nothing they can act on.
+ *
+ * `whose` says whose registration the consent used (workplan 0148 T2 (d)):
+ * `deployment` when it was this service's own, `connection` when the person
+ * typed their own in. It matters for one code. AADSTS700016 is fixed in the
+ * registration's settings, and only the person who owns them can change them:
+ * a tester on a managed deployment can neither re-register the service's
+ * application nor set a variable on a server they do not run. Required, not
+ * defaulted, so a new caller has to say which it is.
  */
-export function microsoftConsentRefusal(errorDescription: string): string | null {
+export function microsoftConsentRefusal(
+  errorDescription: string,
+  whose: 'deployment' | 'connection',
+): string | null {
   if (errorDescription.includes('AADSTS65001')) {
     return (
       'Microsoft says this account has not consented to the application. When an organisation ' +
@@ -102,6 +113,13 @@ export function microsoftConsentRefusal(errorDescription: string): string | null
       'before anyone in it can connect. Ask an administrator to grant consent once in Entra ID ' +
       '(Enterprise applications → Permissions); it does not have to be repeated per person. ' +
       'The Entra error is AADSTS90094.'
+    );
+  }
+  if (errorDescription.includes('AADSTS700016') && whose === 'deployment') {
+    return (
+      "Microsoft could not find this service's application in the directory it was asked " +
+      'about. That is a setting of this service, not of your account; tell whoever runs it. ' +
+      'The Entra error is AADSTS700016.'
     );
   }
   if (errorDescription.includes('AADSTS700016') || errorDescription.includes('AADSTS900023')) {
@@ -122,6 +140,8 @@ export async function exchangeMicrosoftCode(
     clientSecret: string;
     tenant: string;
     redirectUri: string;
+    /** Whose registration this is, for the refusal's words (see `microsoftConsentRefusal`). */
+    whose: 'deployment' | 'connection';
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<MicrosoftExchangeResult> {
@@ -139,7 +159,7 @@ export async function exchangeMicrosoftCode(
   });
   const text = await response.text();
   if (!response.ok) {
-    const sentence = microsoftConsentRefusal(text);
+    const sentence = microsoftConsentRefusal(text, p.whose);
     if (sentence) return { ok: false, reason: sentence };
     // Microsoft's words, verbatim and bounded — what somebody pastes into a
     // search. Never the secret: it was in the request, not the answer.

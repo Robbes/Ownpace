@@ -207,8 +207,12 @@ export function useProviderConsent(opts: {
       }
       const { url, redirectUri } = await begin();
       // The address this consent used, shown on every attempt: it has to be
-      // registered with the provider BEFORE the first one can work.
-      setRedirect(redirectUri ?? null);
+      // registered with the provider BEFORE the first one can work — by whoever
+      // owns the application. With a pair the person typed, that is them; with
+      // none, the consent ran on the deployment's own, whose addresses are the
+      // operator's to register, so the line would send them to a console they
+      // have no app in (workplan 0148 T2 (a)).
+      setRedirect('clientId' in ownPair ? (redirectUri ?? null) : null);
       window.open(url, `ownpace-${provider ?? 'google'}-consent`, 'popup,width=520,height=640');
     } catch (err) {
       setNote(refusalText(err));

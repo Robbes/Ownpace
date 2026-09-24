@@ -4,6 +4,48 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T2 (a), (b) and (d) built, not merged.** On branch
+`claude/ownpace-public-readiness-y7orc6-a-hint-that-knows-the-service-has-an-app`. Each part reads
+one fact, `providerClientFacts()` on the server and `/api/provider-clients` in the browser, and
+nothing reads the edition's name. (c), the guide's `own-app` fold, is built on another branch.
+
+- **(a)** Where the deployment carries the app, the Drive, Gmail, Calendar, Contacts and Dropbox
+  cards show `wizard.about.deploymentApp.google` or `.dropbox`. Drive's fold keeps only its Docs
+  sentence (`wizard.about.deploymentApp.googleDrive.more`). The redirect line under the button,
+  in the wizard and in the consent panel, shows only after a consent that used a client the
+  person typed in.
+- **(b)** A step can carry `ownAppOnly`, and `setupStepsFor(side, provider, facts?)` leaves such
+  a step out where the facts say `deployment`. The managed route passes `providerClientFacts()`
+  to GET and to PUT. The appliance's route passes nothing and keeps every step. All three Google
+  steps are own-app steps, and the Google account card (`google`) reads the same profile. Dropbox
+  keeps `create_app` and `scopes`, and `consent` and `exchange_code` are replaced by
+  `redirect_uri`. When the facts leave nothing, the page shows `setup.deploymentApp`.
+- **(d)** The Google and Dropbox create refusals branch on the same fact. With the deployment's
+  app they name the refresh token and the button, and not "your own". `microsoftConsentRefusal`
+  and the code exchange receive `whose`. The callback sets it by comparing the flow's client id
+  with the deployment's. With the deployment's registration, AADSTS700016 names no operator
+  setting.
+
+Guards: `a-hint-that-knows-the-service-has-an-app.unit.test.tsx`, `provider-setup.unit.test.ts`,
+`apps/api/src/routes/setup.unit.test.ts`, `create-coherence.unit.test.ts`,
+`microsoft-consent.unit.test.ts`, and `microsoft-oauth-routes.unit.test.ts` for the callback's
+wiring. 40 cases failed on the unchanged code.
+
+Where the build departs from §3:
+
+- The copy budget (0118, `words-that-fit-on-one-line.unit.test.ts`) allows 15 words, and the
+  plan's lines are 16 to 20. So the lines are shortened. EN: *"Uses this service’s own Google
+  app: press Connect with Google and approve at Google."* NL: *"Gebruikt de eigen Google-app
+  van deze dienst: druk op Verbinden met Google en geef toestemming."* Dropbox's lines follow
+  the same pattern. `setup.deploymentApp` drops *"in the wizard"* / *"in de wizard"*.
+- Dropbox's new step says, in its fold, that without the button the full guide walks the
+  consent and the code exchange by hand. The appliance has no Connect button, and this sentence
+  keeps its checklist true there.
+- The Microsoft account card's own-app profile is not built. T5 puts it after the first
+  invitation.
+- An AADSTS900023 refusal keeps the operator's sentence for both kinds of registration. §3
+  names only AADSTS700016.
+
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* So the archive form gains a second
@@ -134,7 +176,7 @@ the owner announced for *Via IMAP* (D5).
 |---|---|---|
 | T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
 | T1 A customer guide served, operator material left in `docs/` | 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
-| T2 No hint to create an app where the deployment carries one | 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
+| T2 No hint to create an app where the deployment carries one | 🟡 **(a), (b) and (d) built** on `claude/ownpace-public-readiness-y7orc6-a-hint-that-knows-the-service-has-an-app`, not merged (2026-09-24); (c) is built on another branch. 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |

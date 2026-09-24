@@ -18,6 +18,7 @@ import {
   summariseSetup,
   type SetupStepStatus,
 } from './provider-setup.ts';
+import type { ProviderClientFacts } from './provider-clients.ts';
 
 const status = (
   key: string,
@@ -62,6 +63,67 @@ describe('the step definitions', () => {
     expect(providersWithSetup('source')).toContain('box');
     expect(providersWithSetup('target')).toContain('jmap');
     expect(providersWithSetup('target')).not.toContain('box');
+  });
+});
+
+/**
+ * NO STEP THAT CREATES AN APP WHERE THE DEPLOYMENT CARRIES ONE (workplan 0148
+ * T2 (b), owner decision D2: "Stop the false hints on managed").
+ *
+ * The facts are `providerClientFacts()`'s, passed by the managed route; the
+ * appliance's route passes none and keeps every step. What is asserted is the
+ * filter, not the edition: the same call with Google's fact `connection`
+ * keeps Google's steps.
+ */
+describe('the own-app steps, against what the deployment carries (0148 T2 (b))', () => {
+  const facts = (over: Partial<ProviderClientFacts>): ProviderClientFacts => ({
+    google: 'connection',
+    dropbox: 'connection',
+    microsoft: 'connection',
+    ...over,
+  });
+
+  it("leaves out every Google step where the deployment carries Google's app", () => {
+    for (const type of ['google-drive', 'gmail', 'google-calendar', 'google-contacts', 'google']) {
+      expect(setupStepsFor('source', type, facts({ google: 'deployment' })), type).toEqual([]);
+    }
+  });
+
+  it('without facts the list is unchanged — the appliance keeps every step', () => {
+    const drive = setupStepsFor('source', 'google-drive');
+    expect(drive.map((s) => s.key)).toEqual(['create_oauth_client', 'enable_api', 'consent_scope']);
+    expect(setupStepsFor('source', 'google-drive', facts({}))).toEqual(drive);
+    // Another provider's app changes nothing about Google's steps.
+    expect(setupStepsFor('source', 'google-drive', facts({ dropbox: 'deployment' }))).toEqual(drive);
+  });
+
+  it('gives the Google account card the same profile as the four products', () => {
+    expect(setupStepsFor('source', 'google')).toBe(setupStepsFor('source', 'google-drive'));
+  });
+
+  it("pins Dropbox's keys: the consent and exchange are the button's now, the address is the person's", () => {
+    // `consent` and `exchange_code` left the file: Connect with Dropbox does
+    // both. Their ledger rows are left behind harmlessly (see the header).
+    expect(setupStepsFor('source', 'dropbox').map((s) => s.key)).toEqual([
+      'create_app',
+      'scopes',
+      'redirect_uri',
+    ]);
+    expect(setupStepsFor('source', 'dropbox', facts({ dropbox: 'deployment' }))).toEqual([]);
+  });
+
+  it('marks exactly the own-app steps, and no step of a provider without an app', () => {
+    for (const step of setupStepsFor('source', 'google-drive')) {
+      expect(step.ownAppOnly, step.key).toBe('google');
+    }
+    for (const step of setupStepsFor('source', 'dropbox')) {
+      expect(step.ownAppOnly, step.key).toBe('dropbox');
+    }
+    for (const step of setupStepsFor('source', 'box')) {
+      expect(step.ownAppOnly, `box has no deployment app: ${step.key}`).toBeUndefined();
+    }
+    expect(setupStepsFor('source', 'box', facts({ google: 'deployment', dropbox: 'deployment' })))
+      .toHaveLength(4);
   });
 });
 

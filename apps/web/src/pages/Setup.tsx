@@ -27,7 +27,12 @@ import { useParams, useLocation, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleDashed, SkipForward, UserCog } from 'lucide-react';
 import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../services/mapping-service.ts';
-import { providersWithSetup, providerDisplayName } from '@openmig/shared';
+import {
+  providersWithSetup,
+  providerDisplayName,
+  setupStepsFor,
+  type GrantProvider,
+} from '@openmig/shared';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { GUIDE_SLUGS } from './Docs.tsx';
@@ -127,6 +132,37 @@ function guideSlug(provider: string): string {
   if (provider.startsWith('google') || provider === 'gmail') return 'google-workspace-setup';
   if (provider === 'oauth2' || provider === 'graph') return 'o365-setup';
   return `${provider}-setup`;
+}
+
+/** The name on the button a provider's consent draws: *Connect with Google*. */
+const GRANT_PROVIDER_NAMES: Readonly<Record<GrantProvider, string>> = {
+  google: 'Google',
+  dropbox: 'Dropbox',
+  microsoft: 'Microsoft',
+};
+
+/**
+ * Whose app the server left every step out for, or undefined (workplan 0148
+ * T2 (b)).
+ *
+ * The managed route leaves out a step about one's own app where the deployment
+ * carries that provider's (`setupStepsFor(side, provider, facts)`). An empty
+ * answer is then not "nothing to prepare": the tester still presses a button,
+ * and the page says which. The profile compiled into this bundle is the one
+ * the server filtered, so an empty answer for a profile whose every step is an
+ * own-app step can only be that. A profile with nothing in it, or with a step
+ * no deployment app replaces, keeps "Nothing to set up".
+ */
+function emptiedByDeploymentApp(
+  side: 'source' | 'target',
+  provider: string,
+  shown: number,
+): GrantProvider | undefined {
+  if (shown > 0) return undefined;
+  const profile = setupStepsFor(side, provider);
+  const owners = new Set(profile.map((step) => step.ownAppOnly));
+  const [owner] = [...owners];
+  return owners.size === 1 && owner !== undefined ? owner : undefined;
 }
 
 /**
@@ -262,8 +298,18 @@ const Setup: React.FC = () => {
       </h2>
 
       {data.steps.length === 0 ? (
-        // An empty list is a real answer, not a missing page.
-        <p className="mt-4 text-gray-600">{t('setup.nothingToDo')}</p>
+        // An empty list is a real answer, not a missing page — and where the
+        // service's own app emptied it, the answer is the button to press.
+        (() => {
+          const app = emptiedByDeploymentApp(data.side, data.provider, data.steps.length);
+          return (
+            <p className="mt-4 text-gray-600">
+              {app
+                ? t('setup.deploymentApp', { provider: GRANT_PROVIDER_NAMES[app] })
+                : t('setup.nothingToDo')}
+            </p>
+          );
+        })()
       ) : (
         <>
           <p className="mt-1 text-sm text-gray-600">{t('setup.intro')}</p>
