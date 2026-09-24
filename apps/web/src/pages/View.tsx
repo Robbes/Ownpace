@@ -56,6 +56,7 @@ import { formatBytes } from '../i18n/bytes.ts';
 import { Hint } from '../components/Hint.tsx';
 import PausedBecause from '../components/PausedBecause.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import ReportThisLink from '../components/ReportThisLink.tsx';
 
 /**
  * One sentence per lifecycle state, for a reader with no context.
@@ -328,6 +329,17 @@ const View: React.FC = () => {
           )}
 
           {link && <TheAccessTheyGave link={link} view={view.data} />}
+          {/* Report this link (0108 T8 (d)), for somebody who granted and then
+              had doubts. Withdrawing is what stops the copying, so the answer
+              points at it while there is access to withdraw. */}
+          {link && (
+            <ReportThisLink
+              kind="view"
+              link={link}
+              organisation={view.data.organisation}
+              {...(view.data.grant.state === 'granted' ? { next: 'linkReport.next.withdraw' as const } : {})}
+            />
+          )}
 
           <p className="mt-8 text-sm text-gray-500">
             {t('view.until', { date: dateTime(view.data.expiresAt) })}

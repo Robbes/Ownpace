@@ -52,6 +52,7 @@ import readyRoutes from './routes/ready.ts';
 import supportRoutes from './routes/support.ts';
 import platformPauseRoutes from './routes/platform-pause.ts';
 import { problemReportRoutes } from './routes/problem-reports.ts';
+import { linkReportRoutes } from './routes/link-reports.ts';
 import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
@@ -243,6 +244,10 @@ app.use('/api/migrations', mappingRoutes);
  * reach, and that should be a decision rather than an inheritance.
  */
 app.use('/api/grant', grantRoutes);
+// "Report this link" (workplan 0108 T8 (d)): the person holding a link can
+// tell the owner they doubt it, as a ticket on the owner's Zammad (0130).
+// Beside each kind of link's own routes, authenticating that kind only.
+app.use('/api/grant', linkReportRoutes('grant'));
 /**
  * The link's OTHER lifetime (workplan 0122, ADR-0035): the progress page.
  *
@@ -252,6 +257,7 @@ app.use('/api/grant', grantRoutes);
  * long-lived page's address, and the reverse.
  */
 app.use('/api/view', viewRoutes);
+app.use('/api/view', linkReportRoutes('view'));
 // The §11.1 drift decision queue (workplan 0028 T1).
 app.use('/api/decisions', decisionRoutes);
 // Everything waiting on a person, across every queue — the read the
