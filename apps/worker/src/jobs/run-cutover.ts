@@ -348,8 +348,14 @@ export const runCutover = schemaTask({
                 },
               );
               if (!pass.ok) {
+                // A verdict, not a fault: the pass has already been retried by
+                // its own task, and trying this whole preparation again would
+                // run it three times more against the source's daily quota.
                 const why = pass.error instanceof Error ? pass.error.message : JSON.stringify(pass.error);
-                throw new Error(`The final sync failed: ${why}`);
+                throw new FinalSyncNotFinished(
+                  `The final sync failed after its own retries: ${why}. Nothing was marked ready; ` +
+                    'prepare again once the cause is fixed.',
+                );
               }
               return finalSyncReport(pass.output);
             },

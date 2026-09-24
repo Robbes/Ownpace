@@ -252,6 +252,14 @@ describe('the doors, read as text', () => {
     expect(cutover).toContain('return finalSyncReport(pass.output);');
   });
 
+  it('a pass that failed after its own retries is a verdict, not retried three times more', () => {
+    const cutover = code('run-cutover.ts');
+    const failed = cutover.slice(cutover.indexOf('if (!pass.ok) {'), cutover.indexOf('return finalSyncReport(pass.output);'));
+
+    expect(failed).toContain('throw new FinalSyncNotFinished(');
+    expect(failed).not.toContain('throw new Error(');
+  });
+
   it("the operator's verify runs the same gate", () => {
     expect(code('../cli/index.ts')).toContain(
       'runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId)',

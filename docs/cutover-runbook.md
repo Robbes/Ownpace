@@ -312,7 +312,9 @@ If issues are detected during cutover or the grace period:
    the day's download budget, or the migration was paused before it got
    there), the job names that data type and does not mark the cutover ready:
    the target is behind the source. That is recorded once and not retried;
-   prepare again once the passes have caught up. Until 2026-09-24 the final
+   prepare again once the passes have caught up. A final pass that failed
+   outright is recorded the same way: the pass has already been retried by
+   its own task, so the job does not run it again three times over. Until 2026-09-24 the final
    sync copied mail only, and a migration without mail could not be prepared
    at all (workplan 0128 T1).
 
