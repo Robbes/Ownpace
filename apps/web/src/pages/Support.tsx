@@ -78,6 +78,7 @@ import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts'
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
+import { AuditExportDownload } from '../components/AuditExportDownload.tsx';
 import { FAILURE_KEY, FAILURE_SIDE_KEY } from '../i18n/failure-key.ts';
 
 /**
@@ -1461,9 +1462,16 @@ const LogPage: React.FC<LogPageProps> = ({ read, path, operator }) => {
   );
 };
 
-/** The managed operator's log, under Support: every page served is a recorded read. */
+/**
+ * The managed operator's log, under Support: every page served is a recorded
+ * read. Below it, the audit export's download (0129 T4), which the managed API
+ * serves to an operator's own session and to nothing else.
+ */
 export const SupportLog: React.FC = () => (
-  <LogPage read={readSupportLog} path="/support/log" operator />
+  <>
+    <LogPage read={readSupportLog} path="/support/log" operator />
+    <AuditExportDownload />
+  </>
 );
 
 /** The appliance's log, for its own owner (0129 D5: "same page"). */

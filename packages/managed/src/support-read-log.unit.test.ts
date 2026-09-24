@@ -81,10 +81,10 @@ describe('what the log may record', () => {
     ).toEqual([...fromDb].sort());
   });
 
-  it('still carries the log page, the two the search added, and the four that came before', () => {
+  it('still carries the audit download, the log page, the two the search added, and the four before', () => {
     // Named as well as derived: these are the ones whose absence has a
     // consequence somebody would have to debug rather than read.
-    for (const v of ['tenants', 'tenant', 'migration', 'retained_invoices', 'people', 'person', 'log']) {
+    for (const v of ['tenants', 'tenant', 'migration', 'retained_invoices', 'people', 'person', 'log', 'audit_export']) {
       expect(SUPPORT_VIEWS as readonly string[]).toContain(v);
     }
   });
@@ -159,6 +159,16 @@ describe('what the database refuses to record', () => {
     await expect(write('log', null, null, null)).rejects.toThrow(/check constraint/i);
     await expect(write('log', null, 'level=error', null)).rejects.toThrow(/check constraint/i);
     await expect(write('log', null, null, 3)).rejects.toThrow(/check constraint/i);
+  });
+
+  it('records a page of the audit export as a search: where it started, and how many lines (0026)', async () => {
+    // A backfill of one page and a survey of the whole audit log are both
+    // "the operator downloaded the export"; where it started and how much it
+    // served tell them apart. It reads every customer, so it names none.
+    await expect(write('audit_export', null, 'from=start limit=1000', 1000)).resolves.toBeDefined();
+    await expect(write('audit_export', null, null, null)).rejects.toThrow(/check constraint/i);
+    await expect(write('audit_export', null, 'from=start limit=1000', null)).rejects.toThrow(/check constraint/i);
+    await expect(write('audit_export', null, null, 0)).rejects.toThrow(/check constraint/i);
   });
 
   it('refuses a person who belongs to no organisation', async () => {

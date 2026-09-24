@@ -146,5 +146,52 @@ describe('every process that writes audit events points its lines at its output'
     expect(sink).not.toContain('getDbPool()');
     expect(sink).toContain('auditKeyPool');
     expect(api).toMatch(/const auditKeyPool = new Pool\(\{ connectionString: migrationUrl\b/);
+    // The operator's download reads the same key on the same connection, so a
+    // person is the same pseudonym in a downloaded line as in the printed one.
+    expect(api).toContain('setAuditKeyDriver(pgDriver(auditKeyPool))');
+  });
+});
+
+/**
+ * The places the code names a view: a string or a template, which is where SQL
+ * is written. A comment that mentions one is not a reader.
+ */
+function readersOf(view: string): string[] {
+  const found: string[] = [];
+  const name = new RegExp(`\\b${view}\\b`);
+  for (const file of sources) {
+    const text = readFileSync(join(REPO, file), 'utf8');
+    if (!text.includes(view)) continue;
+    const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node): void => {
+      if (
+        (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) &&
+        name.test(node.text)
+      ) {
+        found.push(`${file}:${tree.getLineAndCharacterOfPosition(node.getStart()).line + 1}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(tree);
+  }
+  return found;
+}
+
+describe("the operator's download is the one reader of the rows it reads whole", () => {
+  // `support_audit_export` (managed migration 0026) serves the audit rows with
+  // `detail`, which no other support view selects: the export's line is made
+  // from the whole row and pseudonymises it field by field. A second reader
+  // could serve those rows as they are, so there is one, and it makes lines.
+  it('reads support_audit_export in one place: the download, which makes every row a line', () => {
+    const readers = readersOf('support_audit_export');
+
+    expect(readers).toHaveLength(1);
+    expect(readers[0]).toMatch(/^apps\/api\/src\/routes\/support\.ts:\d+$/);
+    const route = readFileSync(join(REPO, 'apps/api/src/routes/support.ts'), 'utf8');
+    const handler = route.slice(route.indexOf("router.get('/audit-export'"));
+    const body = handler.slice(0, handler.indexOf('\nrouter.'));
+    expect(body).toContain('sql`public.support_audit_export`');
+    expect(body).toContain('auditExportLine(e, { pseudonym,');
+    expect(body).toContain('auditPseudonymKey()');
   });
 });

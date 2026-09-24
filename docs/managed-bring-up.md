@@ -1023,9 +1023,33 @@ Ownpace sends these lines nowhere itself. The pseudonyms are made with a key in
 `deployment_key`, which only the database owner can read and which every
 backup of the database carries, so keep backups as private as the database.
 Two commands typed at a terminal print no line: the worker's cutover CLI and
-`operator.sh leave`. Their events are in `audit_log` like any other. A
-download that serves the lines again from where a log store stopped is not
-built yet.
+`operator.sh leave`. Their events are in `audit_log` like any other, and the
+download below serves them.
+
+**Lines your log store missed** (0129 T4). A collector that was down, or output
+rotated away before it was read, does not lose an event: it is still in
+`audit_log`, and an operator downloads it again. Under Support, **The log**
+ends with **Audit export**. Press **Download** with the field empty to fetch
+every event from the first, or put the cursor of the newest line your log store
+holds in the field to fetch only what came after it. The cursor is that line's
+`Timestamp` and `ownpace.audit.id`, joined by a hyphen. The page fetches page
+after page on your own session and saves one file of lines, oldest first, the
+same lines the API prints: hand it to your log store, which can drop a line it
+already holds by its `ownpace.audit.id`. Afterwards the field holds where the
+next download starts. An event is served once it is five minutes old; the
+newest ones are the stream's.
+
+The page reads `GET /api/support/audit-export`, which answers an operator's
+sign-in and nothing else (the owner, 2026-09-24: "an operator-only route using
+your own session"): a log store cannot fetch it by itself. Its rows come
+through `support_audit_export` (managed migration 0026), behind the same
+`platform_operator` check as every support view, so a signed-in person who is
+not an operator gets an empty page. `after` and `limit` (1 to 10,000 lines, a
+thousand by default) work as on the appliance, and the `Ownpace-Next-After`
+and `Ownpace-Caught-Up` headers say where the next page starts and when there
+is no more. Every page served is recorded in `support_read` as one read of
+every customer (`audit_export`), with where it started and how many lines it
+served.
 
 **The console needs its own grant, and its own sign-in.** An Ownpace operator is
 not automatically anybody at the identity provider: `setup-zitadel.sh` creates

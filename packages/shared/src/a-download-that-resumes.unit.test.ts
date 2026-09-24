@@ -8,11 +8,22 @@
  * that line alone: its `Timestamp` and its `ownpace.audit.id`, joined by a
  * hyphen. What these hold: it names the row it came from, to the microsecond
  * the row keeps; anything else is not a cursor; and a line whose event names no
- * actor says so by leaving the attribute out.
+ * actor says so by leaving the attribute out. And the query a download is asked
+ * with, read by the same rules on the appliance, on managed and on the
+ * operator's page: a cursor that is not one, or a page size out of range, is
+ * refused by name.
  */
 
 import { describe, it, expect } from 'vitest';
-import { auditCursorAfter, auditExportLine, parseAuditCursor, pseudonymizer } from './audit-export.ts';
+import {
+  AUDIT_EXPORT_PAGE,
+  AUDIT_EXPORT_PAGE_MAX,
+  auditCursorAfter,
+  auditExportLine,
+  parseAuditCursor,
+  parseAuditExportQuery,
+  pseudonymizer,
+} from './audit-export.ts';
 
 const ID = '0e129000-e29b-41d4-a716-446655440001';
 const EVENT = {
@@ -67,5 +78,37 @@ describe('an event that names no actor', () => {
     const line = auditExportLine({ ...EVENT, actor: '' }, { pseudonym: pseudonymizer(new Uint8Array(32)), resource: {} });
 
     expect(line.Attributes).not.toHaveProperty('ownpace.audit.actor');
+  });
+});
+
+describe('the query a download is asked with', () => {
+  it('asks from the start, a page of a thousand, when it names nothing', () => {
+    expect(parseAuditExportQuery({})).toEqual({ limit: AUDIT_EXPORT_PAGE });
+    expect(parseAuditExportQuery({ after: null, limit: null })).toEqual({ limit: 1000 });
+  });
+
+  it('resumes after a cursor, and keeps the cursor as it was sent', () => {
+    const sent = auditCursorAfter(EVENT);
+
+    expect(parseAuditExportQuery({ after: sent, limit: '2' })).toEqual({
+      after: { at: EVENT.at, id: ID },
+      afterText: sent,
+      limit: 2,
+    });
+  });
+
+  it('refuses a cursor that is not one, by name', () => {
+    expect(parseAuditExportQuery({ after: 'yesterday' })).toMatchObject({ field: 'after' });
+  });
+
+  it(`serves a page of 1 to ${AUDIT_EXPORT_PAGE_MAX} lines, and refuses any other by name`, () => {
+    expect(parseAuditExportQuery({ limit: '1' })).toEqual({ limit: 1 });
+    expect(parseAuditExportQuery({ limit: '10000' })).toEqual({ limit: 10_000 });
+    for (const limit of ['0', '10001', '2.5', 'many', '']) {
+      expect(parseAuditExportQuery({ limit }), limit).toEqual({
+        field: 'limit',
+        message: 'A page is 1 to 10000 lines.',
+      });
+    }
   });
 });

@@ -25,6 +25,7 @@
  */
 
 import apiClient from './api.ts';
+import { AUDIT_EXPORT_PAGE_MAX } from '@openmig/shared';
 import type { DiscoveryDomain, OperatorLogEntry, OperatorLogPage } from '@openmig/shared';
 
 /** One organisation, as an operator sees it. Metadata only, by construction. */
@@ -236,6 +237,57 @@ export interface SupportLogFilters {
 export async function readSupportLog(filters: SupportLogFilters): Promise<SupportLogPage> {
   const response = await apiClient.get<SupportLogPage>('/support/log', { params: filters });
   return response.data;
+}
+
+/** One page of the audit export: its lines as served, and where the next page starts. */
+export interface AuditExportPage {
+  /** The page's lines, one JSON object each, exactly as the API sent them. */
+  readonly text: string;
+  readonly lines: number;
+  /** `Ownpace-Next-After`: the cursor the next page starts after. */
+  readonly next: string;
+  /** `Ownpace-Caught-Up`: nothing settled follows this page. */
+  readonly caughtUp: boolean;
+}
+
+/**
+ * One page of the audit export (workplan 0129 T4, the managed half; the owner:
+ * "an operator-only route using your own session"). Every page served is
+ * recorded as one read of every customer, so it asks for the largest page
+ * there is, and the fewest reads.
+ */
+export async function readAuditExportPage(after: string): Promise<AuditExportPage> {
+  const response = await apiClient.get<string>('/support/audit-export', {
+    params: { ...(after ? { after } : {}), limit: AUDIT_EXPORT_PAGE_MAX },
+    responseType: 'text',
+    // A page is one JSON object a line, which is not one JSON document: it is
+    // kept as it came. A refusal is one, and is read as one, so the sentence
+    // naming what was wrong reaches the screen (`serverMessage`).
+    transformResponse: (data: unknown, _headers: unknown, status?: number) =>
+      status === 200 || typeof data !== 'string' ? data : parsedOrAsIs(data),
+  });
+  const next = response.headers['ownpace-next-after'];
+  const caughtUp = response.headers['ownpace-caught-up'];
+  if (typeof next !== 'string' || (caughtUp !== 'true' && caughtUp !== 'false')) {
+    // Without them there is no knowing where the next page starts, and asking
+    // again from the same place would fetch the same page for ever.
+    throw new Error('The audit export answered without saying where the next page starts.');
+  }
+  const text = typeof response.data === 'string' ? response.data : '';
+  return {
+    text,
+    lines: text.split('\n').filter((line) => line.trim() !== '').length,
+    next,
+    caughtUp: caughtUp === 'true',
+  };
+}
+
+function parsedOrAsIs(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
 }
 
 /** Level 3. There is deliberately no level 4 — see the route's own comment. */

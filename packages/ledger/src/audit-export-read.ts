@@ -6,8 +6,12 @@
  * for backfill").
  *
  * In the order a log store keeps it, by time and then id, from a cursor, a page
- * at a time. Each organisation is read under its own policy (`withTenant`), as
- * the log page reads it, and the pages are merged.
+ * at a time. On the appliance each organisation is read under its own policy
+ * (`withTenant`), as its log page reads it, and the pages are merged. The
+ * managed operator's download reads every customer through its own view
+ * (`support_audit_export`, managed migration 0026) with the same page query
+ * (`auditExportPageQuery`), so the two editions settle, order and resume
+ * alike (hard rule 5).
  *
  * ## Only what has settled
  *
@@ -21,17 +25,13 @@
  * collector missed.
  */
 
-import { sql } from 'drizzle-orm';
-import type { AuditExportCursor, AuditExportEvent } from '@openmig/shared';
+import { sql, type SQL } from 'drizzle-orm';
+import { AUDIT_EXPORT_PAGE, type AuditExportCursor, type AuditExportEvent } from '@openmig/shared';
 import type { LedgerDriver } from './driver.ts';
 import { withTenant } from './db.ts';
 
 /** How old an event must be before the download serves it. */
 export const AUDIT_EXPORT_SETTLE_SECONDS = 300;
-/** A page, unless the caller asks for another size. */
-export const AUDIT_EXPORT_PAGE = 1000;
-/** The largest page a caller may ask for. */
-export const AUDIT_EXPORT_PAGE_MAX = 10_000;
 
 export interface AuditExportSource {
   /** The serving driver: each organisation is read under its own policy. */
@@ -50,38 +50,66 @@ export interface AuditExportRead {
 
 type Row = Record<string, unknown>;
 
+/**
+ * One page of settled events after the cursor, oldest first, from where an
+ * edition reads them: `audit_log` under one organisation's policy on the
+ * appliance (`tenantId` then names it again, for its index), the operator's
+ * view on managed.
+ */
+export function auditExportPageQuery(
+  from: SQL,
+  page: {
+    readonly tenantId?: string;
+    readonly after?: AuditExportCursor;
+    readonly limit: number;
+    readonly settleSeconds?: number;
+  },
+): SQL {
+  const settle = page.settleSeconds ?? AUDIT_EXPORT_SETTLE_SECONDS;
+  return sql`
+    SELECT id::text AS id,
+           to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS at,
+           tenant_id::text AS tenant_id, actor, action, entity, detail
+      FROM ${from}
+     WHERE at < now() - make_interval(secs => ${settle}::double precision)
+       ${page.tenantId ? sql`AND tenant_id = ${page.tenantId}::uuid` : sql``}
+       ${page.after ? sql`AND (at, id) > (${page.after.at}::timestamptz, ${page.after.id}::uuid)` : sql``}
+     ORDER BY at, id
+     LIMIT ${page.limit}
+  `;
+}
+
+/** An event as `auditExportPageQuery`'s row holds it. */
+export function auditExportEventOf(r: Record<string, unknown>): AuditExportEvent {
+  return {
+    id: String(r.id),
+    at: String(r.at),
+    tenantId: String(r.tenant_id),
+    actor: r.actor === null || r.actor === undefined ? '' : String(r.actor),
+    action: String(r.action),
+    ...(r.entity ? { entity: String(r.entity) } : {}),
+    ...(r.detail && typeof r.detail === 'object' ? { detail: r.detail as Record<string, unknown> } : {}),
+  };
+}
+
 /** The events after the cursor, oldest first, as the rows hold them. */
 export async function readAuditExport(
   source: AuditExportSource,
   read: AuditExportRead = {},
 ): Promise<AuditExportEvent[]> {
   const limit = read.limit ?? AUDIT_EXPORT_PAGE;
-  const settle = read.settleSeconds ?? AUDIT_EXPORT_SETTLE_SECONDS;
   const events: AuditExportEvent[] = [];
   for (const tenantId of new Set(source.tenantIds)) {
     await withTenant(source.driver, tenantId, async (db) => {
-      const found = (await db.execute(sql`
-        SELECT id::text AS id,
-               to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS at,
-               tenant_id::text AS tenant_id, actor, action, entity, detail
-          FROM audit_log
-         WHERE tenant_id = ${tenantId}::uuid
-           AND at < now() - make_interval(secs => ${settle}::double precision)
-           ${read.after ? sql`AND (at, id) > (${read.after.at}::timestamptz, ${read.after.id}::uuid)` : sql``}
-         ORDER BY at, id
-         LIMIT ${limit}
-      `)) as unknown as { rows: Row[] };
-      for (const r of found.rows) {
-        events.push({
-          id: String(r.id),
-          at: String(r.at),
-          tenantId: String(r.tenant_id),
-          actor: r.actor === null || r.actor === undefined ? '' : String(r.actor),
-          action: String(r.action),
-          ...(r.entity ? { entity: String(r.entity) } : {}),
-          ...(r.detail && typeof r.detail === 'object' ? { detail: r.detail as Record<string, unknown> } : {}),
-        });
-      }
+      const found = (await db.execute(
+        auditExportPageQuery(sql`audit_log`, {
+          tenantId,
+          ...(read.after ? { after: read.after } : {}),
+          limit,
+          ...(read.settleSeconds !== undefined ? { settleSeconds: read.settleSeconds } : {}),
+        }),
+      )) as unknown as { rows: Row[] };
+      events.push(...found.rows.map(auditExportEventOf));
     });
   }
   // One order across the organisations: the times are the same fixed-width

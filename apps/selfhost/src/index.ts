@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, AUDIT_EXPORT_PAGE, AUDIT_EXPORT_PAGE_MAX } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -103,7 +103,7 @@ import {
   buildGoogleDriveSourceFrom,
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
-import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditCursor, pseudonymizer } from '@openmig/shared';
+import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditExportQuery, pseudonymizer } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
@@ -2535,25 +2535,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // have settled are served (`AUDIT_EXPORT_SETTLE_SECONDS`): the newest
       // are the stream's. Nothing leaves unless the owner asks for it (D5).
       if (req.method === 'GET' && req.url?.split('?')[0] === '/audit-export') {
-        const asked = new URL(req.url, 'http://x').searchParams;
-        const afterText = asked.get('after');
-        const after = afterText ? parseAuditCursor(afterText) : undefined;
-        if (afterText && !after) {
-          return sendJson(res, 400, {
-            error: 'Bad request',
-            field: 'after',
-            message: "A cursor is a line's Timestamp and its ownpace.audit.id, joined by a hyphen, as Ownpace-Next-After gives it.",
-          });
+        const params = new URL(req.url, 'http://x').searchParams;
+        // The same rules the managed operator's download reads by (hard rule 5).
+        const asked = parseAuditExportQuery({ after: params.get('after'), limit: params.get('limit') });
+        if ('field' in asked) {
+          return sendJson(res, 400, { error: 'Bad request', field: asked.field, message: asked.message });
         }
-        const limitText = asked.get('limit');
-        const limit = limitText === null ? AUDIT_EXPORT_PAGE : Number(limitText);
-        if (!Number.isInteger(limit) || limit < 1 || limit > AUDIT_EXPORT_PAGE_MAX) {
-          return sendJson(res, 400, {
-            error: 'Bad request',
-            field: 'limit',
-            message: `A page is 1 to ${AUDIT_EXPORT_PAGE_MAX} lines.`,
-          });
-        }
+        const { after, afterText, limit } = asked;
         const tenantIds = [...new Set(mappings.map((m) => m.config.tenantId))];
         const events = await readAuditExport(
           { driver: persistenceBackend.driver, tenantIds },

@@ -222,6 +222,46 @@ export function parseAuditCursor(text: string): AuditExportCursor | undefined {
   return { at: `${date.toISOString().slice(0, 19)}.${fraction}Z`, id: match[2]! };
 }
 
+/** A page of the download, unless the caller asks for another size. */
+export const AUDIT_EXPORT_PAGE = 1000;
+/** The largest page a caller may ask for. */
+export const AUDIT_EXPORT_PAGE_MAX = 10_000;
+
+/**
+ * What a download asks for, as both editions read it (hard rule 5): the cursor
+ * to start after, and a page size, each refused by name when it is not one.
+ */
+export type AuditExportQuery =
+  | {
+      readonly after?: AuditExportCursor;
+      /** The cursor as it was sent, handed back as-is when nothing follows it. */
+      readonly afterText?: string;
+      readonly limit: number;
+    }
+  | { readonly field: 'after' | 'limit'; readonly message: string };
+
+/** Read `after` and `limit` from a download's query string. */
+export function parseAuditExportQuery(asked: {
+  readonly after?: string | null;
+  readonly limit?: string | null;
+}): AuditExportQuery {
+  const afterText = asked.after ?? undefined;
+  const after = afterText ? parseAuditCursor(afterText) : undefined;
+  if (afterText && !after) {
+    return {
+      field: 'after',
+      message:
+        "A cursor is a line's Timestamp and its ownpace.audit.id, joined by a hyphen, as Ownpace-Next-After gives it.",
+    };
+  }
+  const limitText = asked.limit ?? null;
+  const limit = limitText === null ? AUDIT_EXPORT_PAGE : Number(limitText);
+  if (!Number.isInteger(limit) || limit < 1 || limit > AUDIT_EXPORT_PAGE_MAX) {
+    return { field: 'limit', message: `A page is 1 to ${AUDIT_EXPORT_PAGE_MAX} lines.` };
+  }
+  return { ...(after ? { after } : {}), ...(afterText ? { afterText } : {}), limit };
+}
+
 /** One audit event as the line a collector reads. */
 export function auditExportLine(
   event: AuditExportEvent,
