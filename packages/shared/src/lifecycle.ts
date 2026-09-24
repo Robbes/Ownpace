@@ -189,10 +189,12 @@ export const PASS_RUNNING_STATES: readonly string[] = ['active', 'continuous'];
  * `false` means the three deletion detectors are not assembled at all
  * (0117 D4 and §4D).
  *
- * The value is always `!isAfterCutover(mailbox_mapping.status)`, read from
- * the mapping's own row by whoever builds the deps. Nothing derives it from
- * a config file or a caller's opinion: the lifecycle is in the database, and
- * that is the only place that knows whether cutover has happened.
+ * The value is always `!isAfterCutover(phase)`, where the phase is the data
+ * type's own (`readPathPhases`, ledger; workplan 0128 T5), read from the
+ * database by whoever builds the deps. Until a data type can have a phase of
+ * its own, it is the migration's `mailbox_mapping.status`. Nothing derives it
+ * from a config file or a caller's opinion: the lifecycle is in the database,
+ * and that is the only place that knows whether cutover has happened.
  */
 export interface SourceAuthority {
   readonly sourceIsAuthorityOnExistence: boolean;
