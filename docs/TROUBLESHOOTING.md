@@ -41,16 +41,26 @@ corepack prepare pnpm@latest --activate
 Error: DATABASE_URL is required
 ```
 
-**Solution:**
+**Cause:** the API, the worker and the scripts under `apps/api/src/scripts`
+read `process.env` only. Nothing loads a dotenv file, so a `.env` in the
+repository root is read by nothing, and copying `.env.example` there does not
+help.
+
+**Solution:** supply the variables the way the edition you are running does.
+
 ```bash
-# Copy example environment file
-cp .env.example .env
+# Managed stack: compose reads deploy/compose/.env and builds DATABASE_URL for
+# the api container itself.
+cp deploy/compose/managed.env.example deploy/compose/.env
+./deploy/compose/ensure-env-secrets.sh
+# Host-run commands: use the wrappers that read that file and compose the URL,
+# e.g. ./deploy/compose/seed-managed.sh and ./deploy/compose/operator.sh.
 
-# Edit .env and fill in required values
-nano .env
+# Self-host: compose loads deploy/selfhost/.env (see deploy/selfhost/README.md).
+cp deploy/selfhost/selfhost.env.example deploy/selfhost/.env
 
-# Verify variables are loaded
-cat .env
+# Running apps/api from source: export it in the shell that starts it.
+export DATABASE_URL=postgresql://…
 ```
 
 ---
