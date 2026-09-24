@@ -812,7 +812,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -hex 32 and set in .env}
       # Required to encrypt/decrypt connection credentials (create-mapping, worker deps).
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a 32-byte key in .env}
-      JWT_EXPIRY: ${JWT_EXPIRY:-24h}
       # The OIDC issuer (ADR-0042). SET IT AND THE SYMMETRIC JWT_SECRET STOPS
       # BEING USED — `selectAuthMode` prefers JWKS precisely so a lingering
       # secret cannot silently downgrade verification. Empty until
@@ -837,7 +836,6 @@ services:
       # lands the run/receipt row `failed`; nothing hangs (0018 T1).
       TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-}
       MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
-      MOLLIE_WEBHOOK_SECRET: ${MOLLIE_WEBHOOK_SECRET:-}
       # The deployment's own identity for QUALIFIED VIES checks (workplan
       # 0111 T2) — the ones that come back with a consultation number, which
       # is the seller's actual defence for reverse charging. Both or neither:
