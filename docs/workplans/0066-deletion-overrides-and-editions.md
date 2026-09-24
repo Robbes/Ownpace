@@ -1,5 +1,7 @@
 # Workplan 0066 — deletion, per-mapping config, and which edition gets what
 
+> **In one line:** Deleting a connection via `DELETE /api/connections/:id`, refused naming migrations in use, `source_config_override`/`target_config_override` on `mailbox_mapping` over a shared connection, the appliance setup checklist, and ADR-0034 on appliance connections.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

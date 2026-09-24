@@ -1,5 +1,7 @@
 # 0097 — A pull request that runs nothing
 
+> **In one line:** Removes the `pull_request` `branches:` filter from `ci.yml`, `no-committed-artifacts.yml` and `security-scan.yml` so a pull request on any base gets required checks, guarded by `every-pr-gets-checked.unit.test.ts`.
+
 ## Status — 2026-08-23 (update this block at the end of every session)
 
 | Task | Status | Evidence |

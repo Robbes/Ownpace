@@ -1,5 +1,7 @@
 # 0100 — A gate that put back what it took
 
+> **In one line:** Makes the nightly `smoke-managed.sh` net zero: `seed-demo-dav-content.sh --remove <tag>` deletes a seeded DAV set, and the run removes target copies, source set and ledger rows together, keeping the tombstone.
+
 ## Status — 2026-08-23 (update this block at the end of every session)
 
 | Task | Status | Evidence |

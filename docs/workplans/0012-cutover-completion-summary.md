@@ -1,5 +1,7 @@
 # Workplan 0012: Cutover System Completion Summary
 
+> **In one line:** History of the 0009 cutover work: records the cutover tables and persistence, verification engine, verify-only DNS, deSEC adapter, worker CLI subcommands, Trigger.dev cutover jobs, integration tests, runbook and comms templates.
+
 ## Objective
 
 Complete the Ownpace cutover system implementation by documenting the 12 completed steps and resolving linting errors.

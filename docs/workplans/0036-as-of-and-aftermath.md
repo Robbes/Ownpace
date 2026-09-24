@@ -1,5 +1,7 @@
 # Workplan 0036 — As-of and aftermath (status honesty polish)
 
+> **In one line:** Status labels in the web UI: an `AsOf` time on the queue screens, Decisions, Verify and `LiveProgress`, effect prose after Decisions actions, RunsPanel truncation reported by `listRunsWithEvents`, and what a Failures retry costs.
+
 ## Status — 2026-08-09 (update this block at the end of every session)
 
 | Task | Status | Evidence |

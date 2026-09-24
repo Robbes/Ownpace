@@ -1,5 +1,7 @@
 # Workplan 0031 — JMAP as a full target (calendars, contacts, files)
 
+> **In one line:** JMAP as an extra Stalwart target for calendars, contacts and files beside the DAV targets: the natural-key spike, `JmapContactTarget` via `ContactCard/parse`, `JmapFileTarget`, the `probeJmapCapabilities` probe and a per-domain CreateMapping picker.
+
 ## Status — 2026-08-06 (update this block at the end of every session)
 
 | Task | Status | Evidence |

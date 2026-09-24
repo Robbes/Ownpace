@@ -1,5 +1,7 @@
 # Workplan 0004: Cutover & DNS Management
 
+> **In one line:** Superseded by 0009; records the first cutover design in `packages/core`: the cutover state machine, verification engine, `dns-manager.ts` for MX, SPF, DKIM, DMARC and Autodiscover records, the 72-hour grace period and the rollback orchestrator.
+
 > ⚠️ **SUPERSEDED by [workplan 0009](./0009-cutover-integration.md)** (2026-07-09) — kept as
 > history, do not execute from this file. Verified state at supersession: state machine,
 > verification scaffolding, DNS types and rollback orchestrator exist **unit-tested against

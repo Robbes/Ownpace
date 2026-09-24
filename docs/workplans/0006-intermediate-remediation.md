@@ -1,5 +1,7 @@
 # Workplan 0006 — Intermediate remediation: repo integrity & findings outside the plan
 
+> **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`.
+
 ## Status — all done (rows corrected 2026-08-01; the work landed long before, this block was never flipped)
 
 | Item | Status | Owner decision |

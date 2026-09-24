@@ -1,5 +1,7 @@
 # Workplan 0064 — reusing a connection, and what the wizard's JSX actually needs
 
+> **In one line:** Reusing a stored connection in a new mapping: optional `sourceConnectionId`/`targetConnectionId` on `CreateMappingSchema` with tenant and role checks, a CreateMapping wizard source picker, and a both-locales descriptor label lock instead of a JSX rewrite.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

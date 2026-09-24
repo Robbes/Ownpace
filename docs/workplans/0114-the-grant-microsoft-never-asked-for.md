@@ -1,5 +1,7 @@
 # Workplan 0114 — The grant Microsoft never asked for
 
+> **In one line:** A deployment-carried Entra client and consent button for Microsoft 365: the `microsoft` provider account kind, read-only delegated Graph scopes for mail, calendar, contacts, OneDrive and To Do, Graph refusals, the Test probe, the managed smoke.
+
 ## Status — 2026-09-06 (update this block at the end of every session)
 
 **The third live Test was GREEN, and read one thing wrong (2026-09-06, 21:00).** After #832 the

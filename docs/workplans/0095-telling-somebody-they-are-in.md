@@ -1,5 +1,7 @@
 # 0095 — Telling somebody they are in
 
+> **In one line:** Emailing granted and declined access requesters through `access_granted` and `access_declined` notifier events carrying no link or token, with Zitadel self-registration turned on by `setup-zitadel.sh`, and SPF/DKIM/DMARC for the sending domain.
+
 ## Status — 2026-08-22 (update this block at the end of every session)
 
 | Task | Status | Evidence |

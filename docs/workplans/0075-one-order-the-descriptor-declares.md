@@ -1,5 +1,7 @@
 # Workplan 0075 — one order, the one the descriptor declares
 
+> **In one line:** CreateMapping wizard source and target steps rendered from the `credentialFieldsFor` descriptor in its declared order, with required markers matching the gate, placeholders and reveal toggles on the descriptor, and screen-reader labels.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

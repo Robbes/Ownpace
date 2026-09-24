@@ -1,5 +1,7 @@
 # 0115 — The account Apple will not hand over
 
+> **In one line:** The `apple` provider account kind for iCloud with an app-specific password: mail over IMAP, calendar and Reminders (`VTODO`) over CalDAV, contacts over CardDAV, the cross-host calendar-home-set fix, iCloud Drive as a measured no.
+
 ## Status — 2026-09-04
 
 ### T5 landed — 2026-09-04

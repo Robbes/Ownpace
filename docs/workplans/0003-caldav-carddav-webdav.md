@@ -1,5 +1,7 @@
 # Workplan 0003: Calendar, Contacts & Files (CalDAV, CardDAV, WebDAV)
 
+> **In one line:** Superseded by 0007; records the first calendar, contacts and files attempt over CalDAV, CardDAV and WebDAV: data models, UID and path hashes, target-writer interfaces, vdirsyncer and rclone wrappers, `runUnifiedSync` and a per-type ledger.
+
 > ⚠️ **SUPERSEDED by [workplan 0007](./0007-multi-domain-sync-completion.md)** (2026-07-09) —
 > kept as history, do not execute from this file. Verified state at supersession: data models,
 > hash functions, target-writer classes and vdirsyncer/rclone wrappers exist, but

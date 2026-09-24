@@ -1,5 +1,7 @@
 # Workplan 0118 — Words that fit on one line
 
+> **In one line:** Shortens the web UI's English and Dutch copy to one-line hints and intros, folding the rest under Why? or More via the `Hint` component, with the `words-that-fit-on-one-line` guard enforcing word budgets over the whole dictionary.
+
 ## Status — 2026-09-14 (update this block at the end of every session)
 
 **2026-09-14: §4 corrected — the board understated itself.** No code changed. "Not done,

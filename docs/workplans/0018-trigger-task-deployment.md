@@ -1,5 +1,7 @@
 # Workplan 0018 — deploying the Trigger.dev tasks (making the managed job loop real)
 
+> **In one line:** Deploying the managed edition's Trigger.dev v4 tasks: `trigger.config.ts`, the `TRIGGER_API_URL` and `TRIGGER_SECRET_KEY` client contract, registry, supervisor and ClickHouse in `managed.yml`, and the `deploy-tasks.sh` script.
+
 ## Status — 2026-08-01: ✅ ALL TASKS CLOSED (update this block at the end of every session)
 
 | Task | Status | Evidence |

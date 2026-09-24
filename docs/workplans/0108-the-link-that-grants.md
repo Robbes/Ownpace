@@ -1,5 +1,7 @@
 # Workplan 0108 — the link that grants
 
+> **In one line:** Grant links: the `mapping_link` bearer table and middleware, the public `/grant/:link` page where a migrated person gives Google consent for their own migration, with account binding, withdrawal, audit rows and a per-tier live-link limit.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: T8 (d)'s limit is built: as many live grant links as the tier runs migrations.**

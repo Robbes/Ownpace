@@ -1,5 +1,7 @@
 # Workplan 0047 — the migration completion report
 
+> **In one line:** The migration completion report: one Markdown document of what moved, what awaits a decision and what was removed, assembled by `buildCompletionReport` with a queue-derived verdict, served by both editions and downloaded from the mapping hub.
+
 ## Status — 2026-08-16 (update this block at the end of every session)
 
 | Task | Status | Evidence |

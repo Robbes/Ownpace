@@ -1,5 +1,7 @@
 # Workplan 0032 — migrate off `imap-simple` to `imapflow`
 
+> **In one line:** Replaces `imap-simple` with `imapflow` in the IMAP source and target writer (`ImapFlowSource`, `ImapFlowDavMailTarget`), with read and write parity harnesses comparing both clients, the cutover in both deps builders and removal of the old dependency.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 **2026-09-05: T2's row told the truth a month late.** It still read 🟡 "ships BESIDE the proven

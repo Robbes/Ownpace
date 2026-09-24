@@ -1,5 +1,7 @@
 # Workplan 0087 — the bring-up that only lived in notes
 
+> **In one line:** `bootstrap-managed.sh`, a phased resumable bring-up of the managed stack with an `.env` writer, Trigger.dev magic-link and credential helpers, the `managed-bring-up.md` runbook, its use in `e2e-managed.yml`, and `setup-auth.sql` and PgBouncer config fixes.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 **Built 2026-08-18, and verified on real hardware the same day.** T8 is closed:

@@ -1,5 +1,7 @@
 # Workplan 0043 — prove the notification channel actually sends
 
+> **In one line:** Proves notification email really leaves: an SMTP send via `smtpTransport` read back from Stalwart, the `managed-digest` cron's test position, channel-off shown in `/status` and the Dashboard, and pending decisions reaching tenants with no live mapping.
+
 ## Status — 2026-08-15 (update this block at the end of every session)
 
 | Task | Status | Evidence |

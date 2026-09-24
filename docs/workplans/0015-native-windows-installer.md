@@ -1,5 +1,7 @@
 # Workplan 0015 — Native Windows installer (no Docker, no terminal)
 
+> **In one line:** Native Windows install of the self-host appliance with no Docker or terminal: the PGlite spike, a relocatable payload with bundled `node.exe`, Task Scheduler install and uninstall scripts, a runbook covering upgrade, MSI and code signing.
+
 ## Status — 2026-07-30 (update this block at the end of every session)
 
 | Task | Status | Evidence |

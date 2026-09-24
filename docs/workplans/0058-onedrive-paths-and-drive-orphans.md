@@ -1,5 +1,7 @@
 # Workplan 0058 — what a walk from the root cannot reach
 
+> **In one line:** OneDrive source paths from Graph `parentReference`, not a nonexistent `path`, the drive read once through the root delta with files placed by parent id, and Google Drive orphan detection in `listOrphanedFiles` and `scripts/list-drive-orphans.ts`.
+
 ## Status — 2026-09-22 (update this block at the end of every session)
 
 | Task | Status | Evidence |

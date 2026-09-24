@@ -1,5 +1,7 @@
 # Workplan 0027 — shared addresses (Pattern S + Pattern D)
 
+> **In one line:** Shared mailboxes (Pattern S) and distribution lists (Pattern D): Graph application access via `/users/{address}` and `check-access`, group discovery into `group_def`, shared stores as ordinary mappings, a group-recreation runbook, the Review & confirm panel.
+
 ## Status — 2026-08-04 (update this block at the end of every session)
 
 | Task | Status | Evidence |

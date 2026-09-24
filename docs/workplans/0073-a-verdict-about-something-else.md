@@ -1,5 +1,7 @@
 # Workplan 0073 — a verdict about something else
 
+> **In one line:** Wizard probe verdicts cleared by `forgetProbe` when provider or chosen connection changes, the Mappings table scrolling sideways so Delete is reachable on a phone, and whether credential rotation may prefill non-secret stored values.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

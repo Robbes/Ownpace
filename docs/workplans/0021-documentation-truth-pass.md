@@ -1,5 +1,7 @@
 # Workplan 0021 — the documentation truth pass
 
+> **In one line:** Aligns docs with the code: `solution-architecture.md` v1.2, the cutover and operator runbooks, `selfhost-quickstart.md`, `rls-guide.md`, `testing.md`, README env and ports, owner keep-or-retract calls on unbacked ADR promises, and `SECURITY.md`.
+
 ## Status — 2026-08-02 — ✅ ALL TASKS CLOSED (update this block at the end of every session)
 
 | Task | Status | Evidence |

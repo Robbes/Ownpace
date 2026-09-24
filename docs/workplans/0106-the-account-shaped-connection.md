@@ -1,5 +1,7 @@
 # Workplan 0106 — the account-shaped connection
 
+> **In one line:** Account-shaped connections: `qualifyAccount` probes DAV, IMAP and JMAP faces and `qualifyGoogleGrant` reads Google scopes into a per-domain `qualification` record, with the `soverin` and `google` kinds, `domainsToScopes` and `PROVIDER_DIRECTORY` prefills.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 **2026-09-05: T2's row caught up with T4.** It still read 🟡 "the one-row-per-account collapse

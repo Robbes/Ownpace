@@ -1,5 +1,7 @@
 # Workplan 0129 — A log the operator can read
 
+> **In one line:** A searchable operator Log page on both editions over `audit_log` and an `app_event` table of errors and warnings, 30-day retention for `app_event` and container output, and pseudonymised OpenTelemetry audit lines with a resumable `audit-export` download.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-23: opened from the owner's answers.** The owner asked for *"an logging page, for the

@@ -1,5 +1,7 @@
 # Workplan 0111 — an invoice that is a document
 
+> **In one line:** The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices.
+
 ## Status — 2026-08-30 (update this block at the end of every session)
 
 **2026-08-30:** two artefacts for the gated tail. T5/T7's immutability mechanism is now

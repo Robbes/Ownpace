@@ -1,5 +1,7 @@
 # Workplan 0029 — the permission inventory & guidance report
 
+> **In one line:** Read-only permission inventory and handover report: calendar and OneDrive sharing over Graph, Google Drive shares, `mapGrant` to a target equivalent or manual, `renderPermissionReport` Markdown on the Finish checklist; mailbox delegation named as unreadable.
+
 ## Status — 2026-09-18 (update this block at the end of every session)
 
 | Task | Status | Evidence |

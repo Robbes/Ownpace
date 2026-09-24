@@ -1,5 +1,7 @@
 # Workplan 0104 — the announcement a cutover owes
 
+> **In one line:** Announcing shares at cutover: `createNextcloudShare` with share-by-mail fallback, one-press `sharing/apply-all` of held share grants so the target platform mails, a Mailpit arrival gate, and a fallback digest via `sharing/announce`.
+
 ## Status — 2026-08-26 (update this block at the end of every session)
 
 | Task | Status | Evidence |

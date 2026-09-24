@@ -1,5 +1,7 @@
 # Workplan 0092 — what one live sync said
 
+> **In one line:** Fixes from a live Soverin to Stalwart sync: `JmapTargetWriter.ensureMailbox` matching by role and returning the server's mailbox id, `targetFolderPrefix` nesting via `parentId` on JMAP, and a first sync pass on activation in both editions.
+
 ## Status — 2026-09-20 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0034 — One journey per edition (navigation & information architecture)
 
+> **In one line:** Navigation in both web UI editions: appliance links to the `/mappings/:id` hub, no fake login block in the selfhost sidebar, a header naming the mapping, numbered cutover steps, and `AppRoutes.tsx` redirecting wrong-edition routes.
+
 ## Status — 2026-08-09 (update this block at the end of every session)
 
 | Task | Status | Evidence |

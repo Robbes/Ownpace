@@ -1,5 +1,7 @@
 # Workplan 0024 — the bilingual UI (ADR-0013, kept and being built)
 
+> **In one line:** Bilingual EN/NL web UI per ADR-0013: the typed `apps/web/src/i18n` dictionary, `LocaleProvider` and switcher, localized operating screens, `Intl` date and number helpers, and `docs/i18n-prose-boundary.md` keeping server refusal prose verbatim.
+
 ## Status — 2026-08-02 (update this block at the end of every session)
 
 | Task | Status | Evidence |

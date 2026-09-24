@@ -1,5 +1,7 @@
 # Workplan 0060 — fakes that answer like servers
 
+> **In one line:** The rule that connector test fakes answer by what the real API is addressed by (marker, cursor, `nextLink`), not by call order, applied to the Box and Dropbox fakes and the Graph delta tests.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

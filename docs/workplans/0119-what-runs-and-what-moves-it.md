@@ -1,5 +1,7 @@
 # Workplan 0119 — What runs, what is current, and what moves it
 
+> **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
+
 ## Status — 2026-09-09 (update this block at the end of every session)
 
 **2026-09-09, evening: Redis decided — stay on 7.4 — and the Trigger.dev pin applied.**

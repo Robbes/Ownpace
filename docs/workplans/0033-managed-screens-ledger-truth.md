@@ -1,5 +1,7 @@
 # Workplan 0033 — The managed screens tell the ledger's story
 
+> **In one line:** Aligns the managed Dashboard, Mappings, Billing and CreateMapping screens with the server: `MappingSchema` matched to `GET /migrations` payloads, failed reads, sync and submit errors shown, real run history, a shared `LiveProgress` strip on MappingDetail.
+
 ## Status — 2026-08-09 (update this block at the end of every session)
 
 | Task | Status | Evidence |
