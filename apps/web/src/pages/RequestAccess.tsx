@@ -44,8 +44,20 @@ interface AccessRequestBody {
 
 const RequestAccess: React.FC = () => {
   const t = useT();
-  const { locale } = useLocale();
+  const { locale, setLocale } = useLocale();
   const [search] = useSearchParams();
+  /**
+   * `?locale=` rides on the site's Request access link (`site/build.mjs`
+   * `orderHref`), so a visitor reading the Dutch site gets the Dutch form, and
+   * the locale this form sends is the one their grant email is written in.
+   * This page sits outside Layout, so it has no language switcher to fix it
+   * afterwards. Matched against the list like `?tier=`: an unknown value is
+   * ignored. Once, on arrival.
+   */
+  React.useEffect(() => {
+    const asked = search.get('locale');
+    if ((asked === 'en' || asked === 'nl') && asked !== locale) setLocale(asked);
+  }, []);
   /**
    * Pre-filled from `?email=` when somebody arrived from the dead end at the
    * end of a good sign-in — see `services/no-organisation.ts`.
