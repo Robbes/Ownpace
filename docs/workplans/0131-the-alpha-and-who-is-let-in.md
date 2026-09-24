@@ -2,6 +2,15 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, evening: the plans are being built, in fourteen groups split between two sessions
+(§6).** The owner answered how: *"One PR per task"*, the order *"3 (tester-facing) then 1
+(safety/foundation) then 2 (live)"*, and *"Yes, but create logical groups you can stack, and
+devide between you and the other session."* §6 lists each group as a stack of pull requests, and
+which session builds it. What a tester meets (R1 to R5) comes first; the engines and the
+operator's side (M1 to M5) are built beside it by the other session; `ownpace-live` itself (R7)
+and the identity provider (M7) come last. T5's list is unchanged: it still says what must be true
+before the first invitation, whoever builds it.
+
 **2026-09-24: opened from the owner's answers.** A read-only readiness review on 2026-09-23
 listed what stands between the managed edition and a small public test: eleven groups of
 blockers and a set of questions. The owner answered them on 2026-09-24 and asked that the test be
@@ -666,6 +675,62 @@ and 0149.
   option 1, and the owner confirmed the reading.
   0149 also proposes that the IMAP source opens folders read-only, with EXAMINE rather than SELECT
   (T5), and puts it in its alpha minimum.
+
+## 6. Who builds what, and in which order (2026-09-24)
+
+On 2026-09-24 the owner asked for the plans to be built. Three answers set how:
+
+- **One pull request per task:** *"One PR per task"*. Each task is built on its own branch, named
+  with the building session's prefix, and has its own guard. A task too small to stand alone
+  rides with the task beside it in its group, and the pull request says so.
+- **The order:** *"3 (tester-facing) then 1 (safety/foundation) then 2 (live)"*. What a tester
+  meets comes first, then what keeps a tester's data safe, then the second stack itself.
+- **Two sessions:** *"Yes, but create logical groups you can stack, and devide between you and the
+  other session."* So the tasks of 0131 to 0149 that an agent can build are put in groups. A group
+  is a **stack**: its pull requests are built in the order listed, and one that needs another
+  group member's unmerged change is branched from that member's branch and says so. Each group
+  belongs to one session, so that two sessions never edit the same files at once.
+
+The two sessions are named here by their branch prefixes:
+
+- **R**, `claude/ownpace-public-readiness-y7orc6-…`, the session that wrote 0131 to 0149;
+- **M**, `claude/mailbox-sync-errors-c2xsw2-…`, the session that built most of the plans before
+  0131, 0128 among them.
+
+R takes what a tester meets, because those groups share the web app's strings, the wizard and
+the cards, and one session can keep them from colliding. M takes the engines, the connectors, the
+worker and the operator's side, which it built most recently. The owner's own steps are not in the
+groups: they are in each plan's task table and in T5's list. R works R1 to R7 in order and M
+works M1 to M7, each group in its numbered order.
+
+| Group | The stack, in order | Mostly touches | Waits on the owner for |
+|---|---|---|---|
+| **R1. The alpha, said out loud** | 1. 0131 T1 (a), the alpha setting and note. 2. 0131 T3 (a), nothing charged. 3. 0144 T7, *Request access* under the sign-in button. 4. 0144 T6 (a) and (c), a person to write to. 5. 0134 T1 (a) and (b), the erasure wording and the start-up check. 6. 0139 T10 (c) and (a), the `--no-drafts` switch and the one link module. 7. 0139 T4 (a), (b) and (d), the notices. 8. 0131 T1 (b), the links. 9. 0139 T3, acceptance recorded at first sign-in. | `Layout.tsx`, `Login.tsx`, `RequestAccess.tsx`, `Billing.tsx`, `strings.ts`, `notifications.ts`, the access-request routes, `site/` | 0144 T0 (the address testers write to); 0139 T2 (the conditions) for steps 7 to 9 |
+| **R2. Cards and hints** | 1. 0148 T3 (a), the archive card hidden on managed. 2. 0141 T1 with 0131 T2 (a), the live-proof record and the *Experimenteel* tag, which 0140 T8 (a) and T9 (a) then carry. 3. 0148 T2 (a), (b) and (d), no hint to create an app the deployment carries. 4. 0144 T3 (a) and (c), the line beside *Connect with Google* and the grant page's "read-only". 5. 0140 T2 (b), T3 (a), T6 (b) and T7 (b), the consent screens' own lines. 6. 0141 T10 (a), shared mailboxes to Partial. | `front-door-cards.ts`, `FrontDoorChooser.tsx`, `CreateMapping.tsx`, `Setup.tsx`, `provider-setup.ts`, the create route, `microsoft-consent.ts`, `feature-matrix.md` | none |
+| **R3. Guides** | 1. 0148 T6 (a), the renderer's first half. 2. 0148 T1 with T2 (c) and T8 (c), customer guides served and operator material left in `docs/`. 3. 0148 T4 (a) with T8 (a) and (b), the Google, Microsoft, Dropbox, Box and Apple guides in Dutch and English. 4. 0148 T4 (b), the IMAP, JMAP, DAV, Nextcloud and Soverin guides. 5. 0148 T5 (a), the checklist profiles. | `Docs.tsx`, `docs/guides/`, the end-user-docs lint, `ci.yml`'s filter | 0148 T0, the reading, after step 4 |
+| **R4. Phones and screen readers** | 1. 0145 T1 (a), the phone menu's focus. 2. 0145 T3 (a), each step starts at the top. 3. 0145 T5 (a) with T7 (a), the consent window on the press. 4. 0145 T6 (a) and (b), one language through the consent and the grant. 5. 0145 T4 (a), errors announced. | `Layout.tsx`, `CreateMapping.tsx`, `ProviderConsent.tsx`, the grant and view pages | 0145 T0 (one press on an iPhone) before step 3 |
+| **R5. What a tester reads outside the app** | 1. 0144 T3 (b), the site stops saying "read-only". 2. 0144 T1 (a) with T5 (a) and 0145 T9 (a), the tester guide's short form. 3. 0141 T12 (a1), 0145 T10 (a) and 0141 T7 (a), the runbook stages and the Soverin corrections. 4. 0133 T1 (a), passing mail on by hand. | `site/`, the owner test runbook, `docs/managed-bring-up.md` | 0144 T0 (the site copy), 0139 T2 |
+| **R6. Roles and row security** | 1. 0137 T7 (a), nobody invited below admin until 0137 T2. 2. 0138 T5 (a) and (b), the documents say where row security holds. 3. 0138 T3 (a) with T4, the tasks lose the owner's connection string, with the guard. | the team and member routes, `apps/worker`, `docs/rls-guide.md`, the architecture document | 0137 T0 |
+| **R7. `ownpace-live` on the reference machine** | 1. 0132 T1, names that follow the project. 2. 0132 T3 (a) with T1f, loopback binds. 3. 0132 T2 (b), roles that follow `.env`. 4. 0132 T6 (b), the hold covers every enqueue. 5. 0146 T6 (a), `node-24` for the tasks. 6. 0146 T2 (a), the version and the build line. 7. 0132 T1g and T6 (a) with 0146 T5 (a), `deploy-live.sh` from a tag. 8. 0132 T3 (b) to (d) and T7, the exposure checks and the gate for live. 9. 0139 T10 (b), the site's second copy. 10. 0143 T9 (a), the rehearsal script. | `deploy/compose/`, `scripts/`, `.github/workflows/`, `trigger.config.ts` | 0146 T0 (the tag); 0132 T1b to T1e are the owner's bring-up |
+| **M1. Removal fails closed** | 1. 0149 T2 with T1, in the engines. 2. 0149 T3. 3. 0149 T4, beside 1 and 2. 4. 0149 T5, beside them. 5. 0141 T8 (c), the nightly's legs on targets we do not run. | the DAV and JMAP writers, `dav-remove.ts`, `domain-sync.ts`, `apply-deletion.ts`, `verification.ts`, `imapflow-source.ts`, ADR-0024 | none |
+| **M2. A host we are asked to reach** | 1. 0136 T1 (a), internal addresses refused after DNS. 2. 0136 T2, the operator's allowlist. 3. 0136 T3 (a), a probe answer that says what happened (after 0129 T1). 4. 0136 T1 (b), the bring-up checks Docker's ranges. 5. 0136 T6 (a), guards and mutation runs. | `packages/connectors`, `probe-connection.ts`, the bring-up scripts | none |
+| **M3. What is kept, and what is removed** | 1. 0139 T6 (b), deleting a migration revokes its credential. 2. 0139 T6 (a), a declined request deleted after 30 days. 3. 0139 T7 (a), `operator.sh close`. 4. 0139 T6 (d) and 0134 T1 (c), the task runner's stores. 5. 0134 T3, what a lost machine costs. 6. 0139 T8 (a) and T9, the breach procedure and `SECURITY.md`. 7. 0139 T7 (b), after 0135 T8. | the access-request and retention jobs, `scripts/operator.sh`, `docs/` | 0139 T0 and T1 for the texts |
+| **M4. A box with a known size, and alerts** | 1. 0143 T3a, the JMAP file refusal. 2. 0143 T4 (a), a file no pass can carry refused up front. 3. 0143 T2a, a cap on migrations. 4. 0143 T5, every data type gets a turn. 5. 0142 T2 (a), a tick that says it ran. 6. 0143 T1, every task names its machine. 7. 0142 T1, the status page tells the owner. 8. 0142 T6 with 0143 T2d (a), the incident runbook. | `apps/worker`, `packages/scheduler`, the JMAP file target, the API's ready routes, the status page's config | 0143 T0 (a) (the machine preset) before step 6; 0142 T0 before step 7 |
+| **M5. Mail that reaches a tester** | 1. 0133 T2 (c), `requireTLS` with a login. 2. 0133 T3 (b) and (c), Mailpit only with the demo, and a note on `.invalid` addresses. 3. 0133 T2 (b), the identity provider's relay. 4. 0133 T5, after 0139 T1. | the API's mail transport, the bring-up scripts, `setup-zitadel.sh` | 0133 T0 (the relay) |
+| **M6. What Microsoft is asked, said truthfully** | 1. 0141 T11 (a), the detectors and the permission report. 2. 0141 T14 (a), the gate's readiness rule. | the permission report, the detectors in orchestration, the gate's docs | 0141 T14's N |
+| **M7. The front door** | 1. 0135 T1 and T2, organisation registration off and the project check. 2. 0135 T3 (a), the organisation count. 3. 0135 T6 (a), the identity provider's languages. 4. 0135 T7 (a) and (c), the release notes and the weekly pin check. 5. 0135 T5, after 0139 T10. | `setup-zitadel.sh`, `managed.yml`, `.github/workflows/` | none |
+
+**Rules for both sessions.**
+
+- **A task's pull request** carries its guard, updates its plan's Status block, and names its
+  group and step in its description. Once 0147 T1 has landed, it also runs
+  `node scripts/workplan-index.mjs --write`.
+- **Out of turn.** A group of the other session is not started without the owner's word. A task
+  that turns out to touch a file the other session is changing waits for that pull request, or is
+  rebased on it, and the description says which.
+- **A group whose owner step is missing** goes on with the steps that do not need it, and the
+  pull request says what waits.
+- **0147 T3 (a)**, the dated notes on 0008 and 0026, is R's and goes with 0147 T1's pull request.
 
 ## Open questions
 
