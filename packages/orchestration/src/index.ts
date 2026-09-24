@@ -24,6 +24,7 @@
 export {
   runAllDomains,
   recordSwitchedOff,
+  domainsFromConfig,
   discoverAllDomains,
   verifyMapping,
   applianceOpener,

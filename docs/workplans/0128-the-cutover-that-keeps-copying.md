@@ -4,6 +4,41 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: T5's second slice, first half (2a): path rows everyone can trust.** Slice 2
+is split in two. 2a writes the rows and changes no gate; 2b, now that slice 1 is in, has the
+reader read them. Nothing reads these rows for a gate yet, so no pass behaves differently.
+- **Ledger migration 0065** gives every migration that has started its path rows, from its own
+  status. `active` and `continuous` always get them. `paused` gets them only once it has run a
+  pass, since one that never ran is a draft, and a draft's paths are `ready`: free, and absent.
+  `cutover` and `done` get them released, `ended_at` at the migration's last change.
+  `first_activated_at` is the first pass, or the creation. A row that exists is left alone.
+  Until now, only migrations started through the managed API's doors since 2026-08-30 had rows.
+- **The appliance** writes its scope rows from its configuration at every start-up, `included`
+  as the file has it: a switched-off data type names itself, but is not a path. Then it gives
+  its paths their rows by the same rule (`pathsFromTheMapping`, one migration at a time). Its
+  Start and Finish go through the ledger's own door (`applyMappingStatusChange`): the status,
+  its paths and an audit record in one transaction. Until now they wrote a raw UPDATE that
+  moved no path and left no record.
+- **Not in 2a, and why:**
+  - *`slotsHeld` limited to selected data types*: nothing deselects a path. A stop is kept beside
+    the phase (D6), and the one writer of `included = false` is the appliance, which has no bill.
+  - *A path audit record*: while every path moves with its migration, the migration's own record
+    says it, and a row per path would repeat it. It comes with slice 3, where a path first moves
+    on its own.
+- **For 2b, decided here so it is not forgotten:** the appliance's Finish tells its operator to
+  set the status back by hand to resume, which leaves the path rows behind. So when the rows'
+  roll-up disagrees with the migration's status, the reader believes the status. That is
+  today's answer, and it never gives back a deletion detector a cutover took away.
+
+Evidence:
+- the migration on a database migrated to 0064 and filled, then taken to the end of the chain;
+  and `pathsFromTheMapping` on the same rows, migration by migration: the same rows, over a draft,
+  a paused migration that ran, one running with no pass yet, a cutover, a finished one, one in the
+  lane, a switched-off data type and a row that already existed (3); `recordScope` (1);
+- the appliance on PGlite (3): the scope rows at start-up and none for a draft; Start and Finish
+  moving the paths with a record of each; an older migration's rows at the next start-up;
+- every appliance, ledger, orchestration and guard test (293 files, 3,707 tests).
+
 **2026-09-24, night: T5's first slice built. A pass asks each data type its own phase.** Nothing
 changes yet: until a data type can have a phase of its own, every one has the migration's. The
 readers go in first, so that no gate can meet a cut-over data type it does not understand.
