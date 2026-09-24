@@ -105,6 +105,7 @@ import {
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditCursor, pseudonymizer } from '@openmig/shared';
 import { isCrossSiteWrite } from './cross-site.ts';
+import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
   assembleShareAnnouncements,
   createFailureStreakGate,
@@ -340,6 +341,11 @@ export interface SelfhostOptions {
    * SQL next to the bundle and passes this explicitly (workplan 0015 T3).
    */
   readonly migrationsDir?: string;
+  /**
+   * The names this appliance answers to beyond its IP addresses and localhost
+   * (`host-allowlist.ts`): `SELFHOST_ALLOWED_HOSTS` unless given here.
+   */
+  readonly allowedHosts?: string;
 }
 
 export interface SelfhostHandle {
@@ -1383,12 +1389,32 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     return reports;
   });
 
+  // The names it answers to (host-allowlist.ts), read once, as the bind is.
+  const allowedHosts = hostAllowlistFrom(options.allowedHosts ?? process.env.SELFHOST_ALLOWED_HOSTS);
   // Node ignores a listener's return value, and this handler wraps its whole
   // body in try/catch and answers on every path — there is no promise left to
   // float. Rewriting it as a sync wrapper would change nothing but the shape.
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   const server = createServer(async (req, res) => {
     try {
+      // A page cannot make itself this appliance's own site (DNS rebinding):
+      // the appliance answers only to its IP addresses, localhost and the names
+      // its owner listed (host-allowlist.ts). First, and for reads as well,
+      // because reading is what such a page is after.
+      if (!answersTo(req.headers.host, allowedHosts)) {
+        const name = namedHost(req.headers.host ?? '');
+        log.warn(
+          `[selfhost] refused a ${req.method} to ${(req.url ?? '').split('?')[0]}: it asked for the name ` +
+            `"${name}", which this appliance does not answer to (SELFHOST_ALLOWED_HOSTS).`,
+        );
+        return sendJson(res, 421, {
+          error: `Refused: this appliance does not answer to the name "${name}".`,
+          hint:
+            'Reach it by its IP address or localhost, or add the name to SELFHOST_ALLOWED_HOSTS ' +
+            '(comma-separated) and restart it.',
+        });
+      }
+
       // A page on another site cannot press this appliance's buttons: a write a
       // browser marks cross-site is refused before any route sees it
       // (cross-site.ts). A script or curl sends no such mark.
@@ -3381,6 +3407,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
   const boundPort = (server.address() as { port: number }).port;
   log.info(`[selfhost] status server on http://${host}:${boundPort}`);
+  log.info(`[selfhost] answers to ${describeAllowlist(allowedHosts)}`);
   // The bind IS the auth boundary (services/edition.ts): off localhost,
   // everything is exposed — the UI and the destructive routes (apply,
   // finish) alike. Deliberate LAN binds are legitimate; silent ones are how

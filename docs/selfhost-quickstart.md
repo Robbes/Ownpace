@@ -70,6 +70,16 @@ Edit `deploy/selfhost/.env`:
   would change something, sent by a page on another site, is refused (browsers
   mark it `Sec-Fetch-Site: cross-site`). The appliance's own screens, and a
   script or `curl`, are not affected.
+  Nor can a website make itself the appliance's own site, by pointing a name it
+  controls at your machine (DNS rebinding): the appliance answers only to its IP
+  addresses and `localhost`, and refuses any other name with `421` before any
+  route runs, reads included.
+- Optional: `SELFHOST_ALLOWED_HOSTS`, the names you reach the appliance by, if
+  not its IP address or `localhost`: a name on your network, or the one your own
+  reverse proxy passes on. Comma-separated, ports ignored, for example
+  `SELFHOST_ALLOWED_HOSTS=ownpace.lan,nas.local`. `*` answers to any name, which
+  gives up the protection above; say so only if a proxy in front of it checks
+  the name instead. The appliance prints what it answers to when it starts.
   Also optional: `SELFHOST_PORT` (the compose files default to `8081`),
   `SELFHOST_IMAGE` (pin to a release tag — `X.Y.Z` from v0.1.0 on; rc.1 lives only at
   `ghcr.io/robbes/open-migrate-selfhost` — or a verified
