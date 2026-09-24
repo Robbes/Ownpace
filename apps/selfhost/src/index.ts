@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE, readPathPhases } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -42,7 +42,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -870,15 +870,27 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         log.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
       }
 
-      // The phase this pass runs in, from the status re-read at the top of
-      // this function rather than the one taken at startup — a mapping can
-      // reach cutover between two firings, and every domain of ONE pass has
-      // to agree about which side of it they are on (0117 D4).
+      // Each data type's phase for this pass, from the one reader every gate
+      // asks (0128 T5), read now rather than at startup — a mapping can reach
+      // cutover between two firings, and each data type of ONE pass has to
+      // know which side of its own cutover it is on (0117 D4). Until a data
+      // type can have a phase of its own, every one has the migration's; a
+      // migration deleted since the gate above keeps the status it read.
+      //
+      // Read ONCE for the pass, and asked twice: whether each data type still
+      // runs, so the pass moves on past one that no longer does while the
+      // others do, as the managed pass does; and whether its source still
+      // decides what exists. One reading, so the two answers cannot disagree.
+      const phases = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+        readPathPhases(tdb, tenantId, mappingId),
+      );
+      const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);
       const results = await runAllDomains(
         configWithCorrectMappingId,
         statusStore,
-        currentStatus,
+        phaseOf,
         ledgerOptions,
+        (domain) => pathRunsNow(phaseOf(domain)),
       );
       const created = results.reduce((n, r) => n + r.created, 0);
       // Disabled domains report placeholder zeros so status pollers see every
