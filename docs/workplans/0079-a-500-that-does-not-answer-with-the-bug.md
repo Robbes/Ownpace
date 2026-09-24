@@ -1,5 +1,7 @@
 # Workplan 0079 — a 500 that does not answer with the bug
 
+> **In one line:** Replaces `String(error)` in 500s from the setup, connections and migrations API routes with a `serverFault()` helper carrying a log-matching reference, and shows in the wizard that a failing credential was still stored.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

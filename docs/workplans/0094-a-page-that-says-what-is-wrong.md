@@ -1,5 +1,7 @@
 # 0094 — A page that says what is wrong
 
+> **In one line:** Gatus status page inside the managed stack, fed by a `/ready` endpoint checking database and sign-in, plus standing sync failures and `migration_status.failed_side` shown per connection on the Connections card.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

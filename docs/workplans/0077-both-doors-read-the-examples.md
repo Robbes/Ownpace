@@ -1,5 +1,7 @@
 # Workplan 0077 — both doors read the examples
 
+> **In one line:** The Connections page's add-connection form reads field placeholders and `autoComplete` from the shared credential descriptor, so it shows the same example values (App key, OAuth client id, refresh token) as the CreateMapping wizard.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

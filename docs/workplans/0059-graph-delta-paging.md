@@ -1,5 +1,7 @@
 # Workplan 0059 — the Graph delta loop that never advanced
 
+> **In one line:** Graph calendar and contacts sources: delta `listSince` paging that must follow `@odata.nextLink` instead of re-requesting page one, a page guard, the `/delta` path segment, and URL-aware test mocks.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

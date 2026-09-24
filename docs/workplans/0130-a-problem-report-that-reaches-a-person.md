@@ -1,5 +1,7 @@
 # Workplan 0130 — A problem report that reaches a person
 
+> **In one line:** Report a problem on managed: a form that files a ticket on the owner's Zammad via `POST /api/problem-reports`, linked from the `unknown` failure remedy with its `last_error_reference`, plus privacy-policy wording.
+
 ## Status — 2026-09-23 (update this block at the end of every session)
 
 **2026-09-23: opened from the owner's answers.** The owner asked: *"Is there a way people the use

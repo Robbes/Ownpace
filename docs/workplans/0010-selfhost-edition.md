@@ -1,5 +1,7 @@
 # Workplan 0010 — Self-host edition: a runnable single-tenant bundle (NAS / mini-PC / Pi)
 
+> **In one line:** The self-host appliance: startup migration runner under an advisory lock, the `apps/selfhost` entrypoint with the in-process scheduler and `/status`, compose with bundled Postgres, env-file secrets, the restart-resume e2e gate and quickstart docs.
+
 ## Status — 2026-07-27 (update this block at the end of every session)
 
 > **T1–T6 all done — 0010 is fully closed.** T5, the acceptance centerpiece, closed 2026-07-27

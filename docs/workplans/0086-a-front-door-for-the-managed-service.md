@@ -1,5 +1,7 @@
 # Workplan 0086 — a front door for the managed service
 
+> **In one line:** Public unauthenticated pages in `apps/web` for the managed service: features and refusals, prices from `@openmig/managed`, a request-access form with no public tenant creation, privacy and terms under `site/legal`, and the Mollie payment journey.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 **Nothing here is built.** This is a plan, written 2026-08-18 at the owner's

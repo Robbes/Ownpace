@@ -1,5 +1,7 @@
 # Workplan 0038 — The endgame earns the finish
 
+> **In one line:** The migration endgame screens Finish, PermissionsHandover, Decisions and Verify: force offered only on the unresolved-failures refusal, the handover kept on done mappings, the verify outcome in the checklist, selfhost preset access and refusal wording.
+
 ## Status — 2026-08-09 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -5,14 +5,14 @@ Agent guidance for this repo (Claude Code via `CLAUDE.md` pointer, OpenHands, ot
 Before any Stalwart or integration-test work: read `docs/stalwart-integration-fix.md` in full and do not deviate (decisions in ADR-0022). Never change the pinned Stalwart version; never put accounts/domains/listeners in config.json; never skip the shadow-pass tests.
 
 ## Session protocol (mandatory)
-1. **Start:** read the arch doc, then the active workplan in `docs/workplans/` — its top **Status block** is ground truth for done/open. Trust it; never redo completed tasks.
+1. **Start:** read the arch doc, then the active workplan in `docs/workplans/` — its top **Status block** is ground truth for done/open. Trust it; never redo completed tasks. To find which plan covers something, scan the generated index in [`docs/workplans/README.md`](docs/workplans/README.md): one row per plan, with its one-line summary and the markers its task table carries.
    **Then grep [`docs/LESSONS.md`](docs/LESSONS.md) for every file you are about to edit.** It is generated from the guards in `scripts/`, indexed BY PATH, and each entry is a defect that actually happened to this repository. The knowledge was always in those headers; what was missing was a route from "I am about to touch this file" to "here is what is already known about it" — on 2026-09-01 an agent reconstructed `docs/rls-guide.md` §1–2 from the migrations without ever finding the guide, and was saved from shipping a vacuous Postgres probe only because `the-check-postgres-never-made` happened to be adjacent to something else it was reading.
 2. **Plan:** create a task-tracker list before coding; keep it updated. Parallel subagents may do read-only audits; conclusions still need quoted evidence.
 3. **Evidence-first:** never claim something works without pasting proof (test run, logs, wire dialogue). Quote errors verbatim before proposing fixes.
 4. **Docker hygiene:** manual debug `docker run` uses `--rm` or is removed before session end.
    One Stalwart container per data volume, ever (RocksDB lock). At end:
    `docker ps -a | grep -i stalwart` + `docker volume ls | grep -i stalwart`, remove your debris.
-5. **End:** update the workplan Status block with what you proved; commit docs with code; all gates green.
+5. **End:** update the workplan Status block with what you proved, then `node scripts/workplan-index.mjs --write`; commit docs with code; all gates green. A new plan takes the next free number and opens with its title and one line under it, `> **In one line:** …`, saying what it is about (never how far it is).
 
 ## Commands
 - Install: `pnpm install` · Lint: `pnpm lint` · Typecheck: `pnpm typecheck`
@@ -59,9 +59,11 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   daemon behind it) and for the ordinary case of wanting to WATCH a query answer rather than
   believe it. Not a replacement for `pnpm test:integration`, which CI still runs and which pins
   the server version.
-- **Regenerating the two indexes:** `node scripts/adr-operative.mjs --write` (ADR rules) and
-  `node scripts/lessons.mjs --write` (the guard index). Both are build output with a drift test;
-  edit the source section or header, never the generated file.
+- **Regenerating the three indexes:** `node scripts/adr-operative.mjs --write` (ADR rules),
+  `node scripts/lessons.mjs --write` (the guard index) and `node scripts/workplan-index.mjs
+  --write` (the workplan index, from each plan's first line, `> **In one line:**` summary and
+  Status block). All three are build output with a drift check; edit the source section, header
+  or plan, never the generated file, and resolve a conflict in one by regenerating.
 - Unit: `pnpm test` · Integration: `pnpm test:integration` (self-manages its stack via Testcontainers) · UI smoke: `pnpm test:ui` (real Chromium over the built bundle; runs on every PR) · E2E: `pnpm test:e2e`
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —

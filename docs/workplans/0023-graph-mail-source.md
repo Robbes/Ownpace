@@ -1,5 +1,7 @@
 # Workplan 0023 — the Graph mail source (ADR-0006's fallback, kept and built)
 
+> **In one line:** The `GraphMailSource` connector for Microsoft Graph mail (delta `listSince`, well-known folders, `internetMessageId` keys), its `MsalTokenProvider` wiring in both editions, and `MailSourceWithGraphFallback` switching over when IMAP auth fails.
+
 ## Status — 2026-08-02 (update this block at the end of every session) — ALL TASKS CLOSED
 
 | Task | Status | Evidence |

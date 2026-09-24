@@ -1,6 +1,29 @@
 # Workplan 0147 — An index that writes itself
 
+> **In one line:** Generating the workplan table in `docs/workplans/README.md` with `scripts/workplan-index.mjs` and a CI drift check, keeping the old hand-written sections as history, correcting stale plan Status blocks, explaining 0048 to 0050, and a numbering rule.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24, evening: T1, T2, T3 (a), T4 and T5 built, with one line per plan added (D5).** The
+owner: *"also, i see that the "Workplans — index & sequencing" is outdated and doenst contain the
+small summaries of recent workplans, while it was supose to speed up the agents."* So T1 was
+built now instead of after the first invitation, and the index gained what the owner asked for:
+every plan opens with `> **In one line:** …`, one sentence on what it is about, and the table
+shows it (D5). On branch `claude/ownpace-public-readiness-y7orc6-an-index-that-writes-itself`:
+
+- `scripts/workplan-index.mjs` (`--write` / `--check`), its guard
+  `scripts/workplan-index.unit.test.ts` (20 fixture cases, 19 of them failing without the
+  script), the check in `docs-hygiene`, `pnpm workplans:index`, and AGENTS.md's session
+  protocol;
+- the README: the generated region under `## Index`, `## Numbering` (T4 and T5), and the old
+  sections kept under `## History` (T2);
+- a one-line summary in each of the 146 plans, written from the plan and checked against it by a
+  second reader;
+- T3 (a): the dated notes on 0008 T7 and 0026 row 14, and 0009's row T13;
+- T4: a search of the full history (3,379 commits) found no commit that ever added a plan file
+  numbered 0048, 0049 or 0050.
+
+T3 (b) is still to do, when the other session is idle.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
 the workplan index, `docs/workplans/README.md`, was last verified on 2026-08-03. On `main` it has
@@ -54,11 +77,11 @@ never reads `docs/workplans/`. 0026 row 24 is in T3 (b), not (a): since 0132 D7 
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The index table is generated from each plan's own first line, Status heading and task table | 📋 **Proposed** | §3. `scripts/workplan-index.mjs --write` / `--check`, a generated region in `docs/workplans/README.md`, and the check in CI's `docs-hygiene` job. A plan the rules cannot read is listed as such, never guessed. **After.** |
-| T2 The hand-written sections stay, under a heading that says they are history | 📋 **Proposed**, with T1 | §3. Text unchanged. One dated note names the rows known to be wrong and says where the current order is kept (0131 T5). **After.** |
-| T3 The stale Status blocks, corrected as dated notes, in one pull request | 📋 **Proposed** | §3. (a) 0009, 0008 T7 and 0026 row 14: **before the first invitation**. (b) 0026 row 24 and 19 more plans: **after**, when the session writing the alpha's plans is idle. |
-| T4 The numbers 0048, 0049 and 0050, explained in the index | 📋 **Proposed** | §3. They were used in PR #416's description and in code comments, and no file was written, as far as GitHub's API shows. A full-history `git log` confirms it first, because both local clones are shallow. **After.** |
-| T5 How a plan gets its number, written down | 📋 **Proposed**; the rule is how 0141 to 0147 were numbered (D3), and the owner confirms it (open question 5) | §3. The next free number when the file is created, in creation order. T1's check refuses a duplicate number. **After.** |
+| T1 The index table is generated from each plan's own first line, Status heading and task table | 🔨 **Built 2026-09-24**, with the one-line summaries (D5); not merged — *was:* 📋 Proposed | §3. `scripts/workplan-index.mjs --write` / `--check`, a generated region in `docs/workplans/README.md`, and the check in CI's `docs-hygiene` job. A plan the rules cannot read is listed as such, never guessed. **After.** |
+| T2 The hand-written sections stay, under a heading that says they are history | 🔨 **Built 2026-09-24**, with T1; not merged — *was:* 📋 Proposed | §3. Text unchanged. One dated note names the rows known to be wrong and says where the current order is kept (0131 T5). **After.** |
+| T3 The stale Status blocks, corrected as dated notes, in one pull request | (a) 🔨 **Built 2026-09-24**, with T1; not merged. (b) 📋 **Proposed** | §3. (a) 0009, 0008 T7 and 0026 row 14: **before the first invitation**. (b) 0026 row 24 and 19 more plans: **after**, when the session writing the alpha's plans is idle. |
+| T4 The numbers 0048, 0049 and 0050, explained in the index | 🔨 **Built 2026-09-24**, with T1: the full history confirms no file was ever added; not merged — *was:* 📋 Proposed | §3. They were used in PR #416's description and in code comments, and no file was written, as far as GitHub's API shows. A full-history `git log` confirms it first, because both local clones are shallow. **After.** |
+| T5 How a plan gets its number, written down | 🔨 **Built 2026-09-24**, with T1 (the README's `## Numbering`); the owner still confirms the rule (open question 5) — *was:* 📋 Proposed | §3. The next free number when the file is created, in creation order. T1's check refuses a duplicate number. **After.** |
 
 ## 1. What there is today
 
@@ -265,6 +288,14 @@ test itself: *"Free and invite only. 10 to 20 people max. Dutch."* So the owner,
 reads these Status blocks when deciding whether the first invitation goes out (0131 T5). That is
 why T3 (a) is the only minimum. It corrects the three blocks that now tell the owner something is
 settled when it is not.
+
+**D5 — the index says what each plan is about, and is built now.** *The index is out of date:
+build it now, and should it say more than the counts?* — *"also, i see that the "Workplans — index
+& sequencing" is outdated and doenst contain the small summaries of recent workplans, while it
+was supose to speed up the agents."* So T1 is built before the first invitation, and each plan
+carries one sentence under its title that the table shows. The sentence says what the plan is
+about, never how far it is, so it does not go stale when the work moves; the markers and the
+date say how far. `--check` fails a plan without one, so a new plan cannot arrive without it.
 
 ## 3. What each task does
 

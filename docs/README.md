@@ -13,7 +13,9 @@ All project documentation lives here.
   numbered and append-only (supersede, don't delete).
 - **`workplans/`** — numbered build slices (one vertical slice per plan). Each workplan carries a
   **Status block** at the top that agents must keep current at session end; it is the single place
-  to see what is done, in flight, or open for that slice.
+  to see what is done, in flight, or open for that slice. The index table in
+  [`workplans/README.md`](./workplans/README.md) is generated from each plan's first line,
+  one-line summary and Status block (`node scripts/workplan-index.mjs --write`).
 - **`design/`** — design proposals and per-task ground-truth reports that back the workplans
   (e.g. `domain-sync.md`, `migration-status.md`, the `0011-t*` analyses). These are working
   documents; once a task lands, its outcome is captured in the workplan Status block and the

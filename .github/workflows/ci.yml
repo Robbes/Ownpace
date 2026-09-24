@@ -373,13 +373,21 @@ jobs:
         # gate for all changes (incl. docs-only)", so it is the right home.
         # Cheap: both generators are plain node, no install, no containers.
         #
-        # Neither is ever hand-merged or hand-edited. Regenerate:
+        # The workplan index (docs/workplans/README.md's generated region) is
+        # the third, generated from each plan's first line, one-line summary
+        # and Status block (workplan 0147 T1). Its unit test reads fixtures
+        # only, so that prose commits to workplans do not run the suite, which
+        # makes this job the only place the real plans are checked.
+        #
+        # None is ever hand-merged or hand-edited. Regenerate:
         #   node scripts/lessons.mjs --write
         #   pnpm adr:operative
+        #   pnpm workplans:index
         run: |
           set -e
           node scripts/lessons.mjs --check
           node scripts/adr-operative.mjs --check
+          node scripts/workplan-index.mjs --check
 
   fixture-uuid-check:
     name: fixture-uuid-check

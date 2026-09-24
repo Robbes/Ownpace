@@ -1,5 +1,7 @@
 # Workplan 0120 — A file bigger than the machine
 
+> **In one line:** Streams large files so runner RAM does not cap them: `FileBody`, a streaming hash, the `MAX_BUFFERED_FILE_BYTES` refusal, WebDAV reads and writes, the OneDrive, Dropbox, Drive, Box and archive sources, and a managed-gate fixture.
+
 ## Status — 2026-09-08 (update this block at the end of every session)
 
 **2026-09-08: the seam, and the DAV path through it.** The owner asked for

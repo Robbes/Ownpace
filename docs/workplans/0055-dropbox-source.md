@@ -1,5 +1,7 @@
 # Workplan 0055 — Dropbox as a file source
 
+> **In one line:** The Dropbox file source: connector and token provider modelled on the Drive source, appliance config, managed connection kind, wizard card, the tombstone bin read and a shared-folder browse for `rootPath`.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

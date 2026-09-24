@@ -1,5 +1,7 @@
 # Workplan 0072 — the reuse path nobody could prove
 
+> **In one line:** Third phone round on the stored-connection reuse path: the wizard probe of a reused connection via `POST /connections/:id/test`, the connection delete refusal query, Dutch text for unnamed migrations, and a numeric port input.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

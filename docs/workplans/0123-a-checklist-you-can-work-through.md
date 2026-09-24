@@ -1,5 +1,7 @@
 # Workplan 0123 — A checklist you can work through
 
+> **In one line:** The Sharing page checklist: `ConfirmButton` for Apply, a mailbox-delegation blind spot in `refreshShareGrants`, what Skip records, `groupShareGrants` folding folders from Drive and Nextcloud with deviations visible, and the `applyShareGrantsInFolder` press.
+
 ## Status — 2026-09-19 (update this block at the end of every session)
 
 **2026-09-19, last: the folder press is pressed on the real stack — and the fold had never

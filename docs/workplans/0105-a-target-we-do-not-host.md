@@ -1,5 +1,7 @@
 # Workplan 0105 — a target we do not host
 
+> **In one line:** Testing against a target we do not host (Soverin): the scheduling probe at connection test and per mapping, an optional DAV base URL, the `live-catchall.ts` IMAP catcher, a supervised-run runbook and the live-target nightly lane.
+
 ## Status — 2026-08-26 (update this block at the end of every session)
 
 | Task | Status | Evidence |

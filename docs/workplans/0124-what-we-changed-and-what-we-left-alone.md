@@ -1,5 +1,7 @@
 # Workplan 0124 — What we changed, and what we left alone
 
+> **In one line:** Malformed vCard parameter separators (`,` for `;`) repaired in transit to CardDAV and recorded on the item, plus an `itemsAdopted` count of left-alone items per data type on `DomainStatusReport`, the migration page and progress link.
+
 ## Status — 2026-09-18 (update this block at the end of every session)
 
 **2026-09-18, last: T2 built — both halves of this plan are done.** The count exists, it reaches

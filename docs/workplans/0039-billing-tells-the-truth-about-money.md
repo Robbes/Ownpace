@@ -1,5 +1,7 @@
 # Workplan 0039 — Billing tells the truth about money
 
+> **In one line:** The managed Billing and Tenants screens: owner/admin guards on billing routes, correct Base Fee and VAT lines, the Mollie invoice contract and pay loop, a currency formatter, duplicate invites, and compute-hour metering with per-tenant pricing.
+
 ## Status — 2026-08-11 (update this block at the end of every session)
 
 | Task | Status | Evidence |

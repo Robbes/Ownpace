@@ -1,5 +1,7 @@
 # Workplan 0138 — Tasks under row security
 
+> **In one line:** Trigger.dev tasks reading tenant data as `app_user` under row security instead of the superuser owner via `DATABASE_URL`, owner reach kept to cross-tenant jobs, `DIRECT_DATABASE_URL` dropped from `set-task-env.sh`, a pool guard, docs corrected.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that the

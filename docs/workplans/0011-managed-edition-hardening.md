@@ -1,5 +1,7 @@
 # Workplan 0011 — Managed edition hardening: RLS for real, API completion, billing e2e
 
+> **In one line:** Managed edition: runtime RLS via `app_user` and `withTenant`, persisted tenant, member and billing API routes, Trigger.dev jobs and `managed-scheduler.ts` on the real core, usage metering, invoices and Mollie test-mode payment, web UI and `managed.yml`.
+
 ## Status — 2026-07-26 (update this block at the end of every session)
 
 > **T1–T7 all done and merged/verified** (PRs #43–#50, #52–#56; T7 on `pr-57-draft`/#118).

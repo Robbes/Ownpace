@@ -19,7 +19,8 @@
     "db:generate": "node scripts/how-migrations-are-authored.mjs db:generate",
     "db:migrate": "node scripts/how-migrations-are-authored.mjs db:migrate",
     "typecheck:legacy": "tsc6 --noEmit",
-    "adr:operative": "node scripts/adr-operative.mjs --write"
+    "adr:operative": "node scripts/adr-operative.mjs --write",
+    "workplans:index": "node scripts/workplan-index.mjs --write"
   },
   "dependencies": {
     "@azure/msal-node": "^6.0.1",

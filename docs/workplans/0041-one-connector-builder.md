@@ -1,5 +1,7 @@
 # Workplan 0041 — One connector builder, two ways in
 
+> **In one line:** Collapses the duplicated Graph mail source, IMAP source and JMAP/imap-dav target construction of `build-deps.ts` (self-host) and `build-deps-from-mapping.ts` (managed) into `mail-source-factory.ts` and `mail-target-factory.ts`, validation kept per edition.
+
 ## Status — 2026-08-14 (update this block at the end of every session)
 
 | Task | Status | Evidence |

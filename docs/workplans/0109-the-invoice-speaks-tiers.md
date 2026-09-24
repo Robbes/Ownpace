@@ -1,5 +1,7 @@
 # Workplan 0109 — the invoice speaks tiers
 
+> **In one line:** Moves managed billing from the retired metered `pricing.ts` to ADR-0014's tiers: a 409 on the invoice route, per-path `path_lifecycle`, `occupancy_peak`, the `bytes_moved` meter, `tier-calculator.ts`, a tier invoice line, top-ups and a possible free band.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: T8 decided — Tiny is free, and free means no billing.** The owner: *"make the

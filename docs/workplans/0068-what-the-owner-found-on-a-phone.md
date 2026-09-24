@@ -1,5 +1,7 @@
 # Workplan 0068 — what an hour of real testing found, on an Android phone
 
+> **In one line:** Fixes from phone testing on Android: refusals shown via `serverMessage`, a `/setup` provider chooser, a non-admin checklist split, fields cleared on provider switch, a kind check on reuse, a `/docs` guide lint and mobile layout.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

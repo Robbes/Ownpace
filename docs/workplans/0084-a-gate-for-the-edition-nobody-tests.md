@@ -1,5 +1,7 @@
 # Workplan 0084 — a gate for the edition nobody tests
 
+> **In one line:** Nightly managed end-to-end gate `e2e-managed.yml` on the Spark's long-lived `managed.yml` stack: managed smoke verify and apply, a PgBouncer check, redacted evidence, seeded demo sources, and fixes for ledger `target_ref` and empty-handle DELETEs.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 **Built 2026-08-18. HONESTLY GREEN on run #13, the same day.** Run #6 was

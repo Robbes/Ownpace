@@ -1,5 +1,7 @@
 # Workplan 0013 — Pre-sync discovery, preview & confirm ("green light")
 
+> **In one line:** Pre-sync discovery and green light: body-free counts via `discoverSource()`, the `migration_discovery` table, `run-discovery` job and scope manifest, and a Review & confirm screen in both editions where Start migration activates a paused mapping.
+
 ## Status — 2026-09-22 (update this block at the end of every session)
 
 | Task | Status | Evidence |

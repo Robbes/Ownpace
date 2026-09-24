@@ -1,5 +1,7 @@
 # Workplan 0028 — the drift decision queue, first slice
 
+> **In one line:** The drift decision queue for two categories, `new_mailbox` (from the Graph `/users` directory) and `shared_address_pattern`: `DecisionStore` and its routes in both editions, the daily detectors, the Decisions screen, and `policy_preset` auto-answers.
+
 ## Status — 2026-08-04 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # 0098 — A gate that could not say what was wrong
 
+> **In one line:** The E2E (managed) workflow derives required variables from `managed.yml` and fills the runner's persisted `.env` from `ensure-env-secrets.sh` and `managed.env.example`, with `managed-env-contract.unit.test.ts` refusing unsuppliable ones.
+
 ## Status — 2026-08-23 (update this block at the end of every session)
 
 | Task | Status | Evidence |

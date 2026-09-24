@@ -1,5 +1,7 @@
 # 0102 — Who your account is, and how you change it
 
+> **In one line:** Account identity keyed on the token `sub`: `GET /api/auth/mode` gates the seed-token box in `Login.tsx`, Google, Microsoft, GitHub and Apple federate through Zitadel with prompted linking, and `/api/me` syncs `tenant_member.email` to the verified claim.
+
 ## Status — 2026-08-25 (update this block at the end of every session)
 
 | Task | Status | Evidence |

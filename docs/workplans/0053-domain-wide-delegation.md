@@ -1,5 +1,7 @@
 # Workplan 0053 — domain-wide delegation (ADR-0033)
 
+> **In one line:** Google domain-wide delegation from ADR-0033: a JWT-bearer token provider impersonating each mapping's one subject, chosen by a service-account key for the Drive, Gmail and Google DAV sources in both editions and the wizard.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

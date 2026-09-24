@@ -1,5 +1,7 @@
 # Workplan 0069 — testing a connection is what saves it
 
+> **In one line:** The CreateMapping wizard's test button saves the tested credential as a stored connection via `connectionsApi.add`, retries rotate that same row, and the non-secret draft persists in `sessionStorage` with a test keeping every secret out.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

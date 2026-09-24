@@ -1,5 +1,7 @@
 # Workplan 0083 — a refusal we wrote is not a provider's error
 
+> **In one line:** Our own credential refusals made bilingual via `CredentialRefusalError` in `@openmig/shared` and probed as `credentialsRefused`, not `providerRefused`; plus sync tick duration logging, a `PgRateBudget` contention test and `rate_budget` in `schema-pg.ts`.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -121,7 +121,7 @@ including the restart-resume idempotency gate across all five domains — and si
 run with **no database server at all** (embedded PGlite, one container; the e2e gate is green on
 both backends). See the [quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
 
-**Known gaps** (tracked in [`docs/workplans/README.md`](./docs/workplans/README.md)): DNS
+**Known gaps** (listed in [the feature matrix's open gaps](./docs/feature-matrix.md#the-open-gaps-in-one-place)): DNS
 **writes** are deliberately out of scope — cutover DNS is verify-only, with a generated manual
 runbook (owner decision, 2026-07-16). Rollback therefore does not restore DNS or notify users; see
 [`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md). See

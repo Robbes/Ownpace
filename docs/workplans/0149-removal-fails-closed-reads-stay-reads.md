@@ -1,5 +1,7 @@
 # Workplan 0149 — Removal fails closed, and reads stay reads
 
+> **In one line:** Apply deletions fails closed: CalDAV, CardDAV or WebDAV 412 on create recorded as adopted, failed lookups throw, removal needs a recorded version and `If-Match`, cutover gate fails with no hash compared, IMAP source uses EXAMINE.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24, later: the owner answered open questions 1 and 2.** *"1) 0159, gate answer: a"*

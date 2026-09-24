@@ -1,5 +1,7 @@
 # Workplan 0131 — The alpha, and who is let in
 
+> **In one line:** Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0149.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24, evening: the plans are being built, in fourteen groups split between two sessions

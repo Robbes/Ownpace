@@ -1,5 +1,7 @@
 # Workplan 0126 — A task list Google kept apart
 
+> **In one line:** Google Tasks as a Google account face: `GoogleTasksSource` to VTODO, the `tasks.readonly` grant, Test and preflight, Nextcloud task lists via `CalDAVTargetWriter`, and reporting what Google Tasks and Microsoft To Do cannot carry.
+
 ## Status — 2026-09-23 (update this block at the end of every session)
 
 **2026-09-23, later: T7's shape is confirmed by the owner** (*"acknowledged what you adviced"*).

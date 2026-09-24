@@ -1,5 +1,7 @@
 # Workplan 0082 — load that grows with time, not just tenants
 
+> **In one line:** Managed load growing with time and tenants: `run` indexes for the sync tick, `run_event` pruning, concurrent tick enqueues with staggered default schedules, PgBouncer in transaction mode and a Postgres `RateBudget` shared across Trigger.dev runs.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0076 — a connection you can name
 
+> **In one line:** Naming a connection in the CreateMapping wizard's probe panel when a credential is tested, falling back to the auto-name, warning rather than refusing on a duplicate `display_name`, and clearing `sessionStorage` in the reachability tests.
+
 ## Status — 2026-08-19 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0103 — the mail a migration must not send
 
+> **In one line:** Stops migrations mailing attendees: `neutraliseScheduling` sets SCHEDULE-AGENT=CLIENT in the CalDAV writer, `Schedule-Reply: F` on deletes, a Mailpit silence gate in the smoke, a per-mapping target scheduling probe, and share silence flags.
+
 ## Status — 2026-09-22 (update this block at the end of every session)
 
 **2026-09-22 — the first live UPDATE, and the catcher heard nothing.** On the owner's live Google →

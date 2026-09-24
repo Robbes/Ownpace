@@ -1,5 +1,7 @@
 # Workplan 0127 — The map Drive would not hand over
 
+> **In one line:** Investigates carrying Google My Maps, which Drive exports in no format, into Nextcloud Maps custom-map folders of favorites GeoJSON and GPX tracks over WebDAV, and how a map can be read at all (KML, Takeout).
+
 ## Status — 2026-09-22 (update this block at the end of every session)
 
 **Parked for investigation, at the owner's request (2026-09-22).** Nothing is built. The owner's

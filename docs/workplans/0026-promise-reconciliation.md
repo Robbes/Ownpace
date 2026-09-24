@@ -1,6 +1,16 @@
 # Workplan 0026 — promise reconciliation, round two
 
+> **In one line:** Second truth pass on unbacked promises: Graph drive delta, Graph mail deletions, rollback `notifyUsers` and `reindex` CLI fixes; OperatorDashboard and Settings deleted, `Tenants.tsx` as the team screen; a keep-or-retract decision per SAD/ADR promise.
+
 ## Status — 2026-08-03 (update this block at the end of every session)
+
+> **2026-09-24, index pass (0147 T3):** row 14 of T3's table (:116) calls Microsoft publisher
+> verification moot because *"per-customer app registration is the model"*. The premise changed
+> with 0114: the managed stack now carries *"The deployment's own MICROSOFT app registration
+> (workplan 0114)"* (`deploy/compose/managed.env.example`:729), and an empty
+> `MICROSOFT_OAUTH_TENANT=` (:751) means `common`, so tenants other than the owner's consent to
+> it. The decision for that registration is 0140 T4 (an ADR), and publisher verification is
+> 0140 T5, the owner's. The row's text is left as written.
 
 | Task | Status | Evidence |
 |---|---|---|
