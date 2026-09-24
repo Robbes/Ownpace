@@ -15,6 +15,7 @@ import {
   type LedgerDriver,
 } from './driver.ts';
 import type { PgDatabase } from './db-types.ts';
+import { holdUntilCommit } from './after-commit.ts';
 
 export type { PgDatabase };
 
@@ -101,6 +102,10 @@ export async function withTenant<T>(
   // (possibly still carrying app.current_tenant), so it must be DESTROYED rather
   // than returned for the next tenant to reuse.
   let releaseError: Error | undefined;
+  // What the caller's work hands `afterCommit` (an audit event's line, 0129 T4)
+  // runs once this transaction has committed, and never if it rolls back.
+  const held = holdUntilCommit();
+  let committed = false;
 
   try {
     // Begin transaction
@@ -126,10 +131,11 @@ export async function withTenant<T>(
     await conn.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
 
     // Run the function with the transaction-scoped db
-    const result = await fn(conn.db);
+    const result = await held.during(() => fn(conn.db));
 
     // Commit transaction
     await conn.query('COMMIT');
+    committed = true;
 
     return result;
   } catch (error) {
@@ -150,6 +156,7 @@ export async function withTenant<T>(
     // connection instead of reusing it (prevents RLS-context or
     // aborted-transaction bleed into the next request).
     conn.release(releaseError);
+    held.end(committed);
   }
 }
 

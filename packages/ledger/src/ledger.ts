@@ -18,12 +18,14 @@ import {
   classifyFailure,
   isFailureCategory,
   boundDisplayName,
+  exportAuditEvent,
   type FailureSide,
   type FormerName,
 } from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
 import { eq, and, ne, gt, gte, inArray, isNull, isNotNull, or, desc, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
+import { afterCommit } from './after-commit.ts';
 
 /**
  * Former names read per query in `supersedeFormerNames`: far inside Postgres's
@@ -955,13 +957,36 @@ export class PgLedger implements Ledger {
       readonly detail?: Record<string, unknown>;
     },
   ): Promise<void> {
-    await this.db.insert(schemaPg.auditLog).values({
-      tenantId,
-      actor: event.actor,
-      action: event.action,
-      ...(event.entity ? { entity: event.entity } : {}),
-      ...(event.detail ? { detail: event.detail } : {}),
-    });
+    const [row] = await this.db
+      .insert(schemaPg.auditLog)
+      .values({
+        tenantId,
+        actor: event.actor,
+        action: event.action,
+        ...(event.entity ? { entity: event.entity } : {}),
+        ...(event.detail ? { detail: event.detail } : {}),
+      })
+      .returning({
+        id: schemaPg.auditLog.id,
+        // To the microsecond, as the log page and the export's download read
+        // it, so a line and the row it came from carry the same time.
+        at: sql<string>`to_char(${schemaPg.auditLog.at} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+      });
+    // The same event as one line for a collector (0129 T4), once the
+    // transaction it was written in has committed (`afterCommit`: a rolled-back
+    // event prints nothing), and never waited for (`exportAuditEvent`).
+    if (row) {
+      const exported = {
+        id: row.id,
+        at: row.at,
+        tenantId,
+        actor: event.actor,
+        action: event.action,
+        ...(event.entity ? { entity: event.entity } : {}),
+        ...(event.detail ? { detail: event.detail } : {}),
+      };
+      afterCommit(() => exportAuditEvent(exported));
+    }
   }
 
   async countAuditEvents(

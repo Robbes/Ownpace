@@ -554,6 +554,72 @@ docker compose -f deploy/selfhost/compose.yml -f deploy/selfhost/compose.journal
 journalctl CONTAINER_NAME=ownpace-selfhost-app --since today
 ```
 
+## The audit log in your own log store
+
+Every audit event, who did what, is also printed by the `app` container as one
+JSON line in OpenTelemetry's log format. A collector that reads container
+output (Vector, Fluent Bit, the OpenTelemetry Collector, Grafana Alloy) can
+forward these lines to your log store as they are, without a parser of its own.
+The appliance sends nothing anywhere itself. You point a collector at it, or
+you don't.
+
+One line, spread out here so it is easier to read:
+
+```json
+{
+  "Timestamp": "1790241302481337000",
+  "SeverityText": "INFO",
+  "SeverityNumber": 9,
+  "Body": "share.apply_folder",
+  "Attributes": {
+    "event.name": "share.apply_folder",
+    "ownpace.audit.id": "5b1e0c2a-7d4f-4e8b-9a61-2f3c4d5e6f70",
+    "ownpace.tenant.id": "00000000-0000-4000-8000-000000000001",
+    "ownpace.audit.actor": "pseudo:1d1779e1f542d5e2",
+    "ownpace.audit.entity": "share_grant",
+    "ownpace.audit.detail": {
+      "mappingId": "8f14e45f-ceea-4e7a-9c2b-0d1e2f3a4b5c",
+      "parentKey": "pseudo:047c8e8f6ee49a3f",
+      "folder": "pseudo:e55756bafdc3e460",
+      "attempted": 3,
+      "applied": 2,
+      "refused": 1,
+      "grantees": 2,
+      "leftForChecklist": { "links": 1, "manual": 0 }
+    }
+  },
+  "Resource": { "service.name": "ownpace-appliance" }
+}
+```
+
+`Body` is what happened, `ownpace.audit.actor` is who did it, and `Timestamp`
+is when, in nanoseconds since 1970. `ownpace.audit.id` is the event's row in the
+appliance's audit log, so your log store can drop a line it already has.
+
+**Nobody is named in it.** Email addresses and file and folder names are
+replaced by pseudonyms: `pseudo:` and sixteen characters. The same address is
+always the same pseudonym on this appliance, so your log store can still tell
+who did what without the lines naming anyone. A web address keeps only its
+scheme and host. A detail the appliance has not been told is safe to send is
+left out of the line.
+
+The pseudonyms are made with a key that is kept in the appliance's database and
+never printed. It survives restarts and upgrades, and your backup carries it. A
+fresh database makes a new key, and from then on the same people get new
+pseudonyms. Anyone holding the key could test whether a given address is behind
+a pseudonym, so keep your backups as private as the database itself.
+
+To see the lines on the host:
+
+```sh
+docker compose -f deploy/selfhost/compose.yml logs app --no-log-prefix | grep '"ownpace.audit.id"'
+```
+
+A line your collector missed, because it was down or the output was rotated
+away first, is not lost: the event is still in the appliance's audit log. There
+is no way yet to fetch the missed lines again from where your log store
+stopped. That download is the next step.
+
 ## Backup (do this before every upgrade)
 
 The Postgres volume is the appliance's state (the ledger + cursors). Back it up

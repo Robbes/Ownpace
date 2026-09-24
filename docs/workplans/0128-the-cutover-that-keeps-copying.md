@@ -23,15 +23,17 @@ finishes first and the two never overlap. The pass now reports what each data ty
 where it stopped early (`final-sync.ts`). The job logs a count per data type. When the pass did
 not finish a data type, because it stopped at its deadline or at the day's download budget, or
 the migration was paused before it, the job names it and stops short of ready
-(`FinalSyncNotFinished`, recorded once like a gate verdict). The target is behind the source
-then, and verifying it would call a stale copy current. Both gates, the job's and the operator's
-`verify`, are now one function (`cutover-gate.ts`). It verifies the data types the migration
-selected and no others, so a data type it does not have reads SKIPPED as not part of it, and it
-no longer builds the mail source and target, which it never used. That build is what refused a
-migration without mail. A Microsoft → Nextcloud migration of calendars, contacts and files is
-now prepared and verified like any other (`a-cutover-without-mail.integration.test.ts`, run
-against Postgres 16). Guards: `a-final-sync-of-every-data-type` (15) and that integration test
-(4); the preparation's integration tests read the new report; 22 mutations, all killed.
+(`FinalSyncNotFinished`, recorded once like a gate verdict). So is a pass that failed outright:
+it has already been retried by its own task, and retrying the whole preparation would run it
+three times more against the source's daily quota. The target is behind the source then, and
+verifying it would call a stale copy current. Both gates, the job's and the operator's `verify`,
+are now one function (`cutover-gate.ts`). It verifies the data types the migration selected and
+no others, so a data type it does not have reads SKIPPED as not part of it, and it no longer
+builds the mail source and target, which it never used. That build is what refused a migration
+without mail. A Microsoft → Nextcloud migration of calendars, contacts and files is now prepared
+and verified like any other (`a-cutover-without-mail.integration.test.ts`, run against Postgres
+16). Guards: `a-final-sync-of-every-data-type` (16) and that integration test (4); the
+preparation's integration tests read the new report; 23 mutations, all killed.
 
 | Task | Status | Notes |
 |---|---|---|

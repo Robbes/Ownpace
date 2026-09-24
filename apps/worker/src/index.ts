@@ -27,11 +27,12 @@ import {
   PgLedger as _PgLedger,
   PgMigrationStatusStore,
   appEventSinkOn,
+  auditExportOn,
   createPgDb,
   mailboxMapping,
   pgDriver,
 } from '@openmig/ledger';
-import { log, setAppEventSink } from '@openmig/shared';
+import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { and, eq } from 'drizzle-orm';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -112,6 +113,7 @@ async function main() {
   const statusStore = new PgMigrationStatusStore(db);
   // A failed domain is also recorded for the operator's log page (0129 T1).
   setAppEventSink(appEventSinkOn(pgDriver(db.$pool)));
+  setAuditExportSink(auditExportOn(pgDriver(db.$pool), { 'service.name': 'ownpace-worker' }));
 
   /**
    * The mapping's phase, for the pass (0117 D4).

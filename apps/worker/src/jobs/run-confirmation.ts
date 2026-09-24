@@ -37,12 +37,13 @@
 import { z } from 'zod';
 import { schemaTask, logger } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
-import { PgRateBudget, createPgDb } from '@openmig/ledger';
+import { PgRateBudget, createPgDb, auditExportOn, pgDriver } from '@openmig/ledger';
 import {
   DEFAULT_THROTTLE_CONFIG,
   DISCOVERY_DOMAINS,
   asMappingId,
   asTenantId,
+  setAuditExportSink,
 } from '@openmig/shared';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
@@ -72,6 +73,8 @@ if (!DATABASE_URL) {
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 export const runConfirmationTask = schemaTask({
   id: 'run-confirmation',

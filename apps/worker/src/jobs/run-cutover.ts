@@ -43,7 +43,7 @@
 import { z } from 'zod';
 import { asTenantId, asMappingId } from '@openmig/shared';
 import { AbortTaskRunError, configure, schemaTask, logger } from '@trigger.dev/sdk';
-import { tenantCutoverStore, type CutoverStateStore } from '@openmig/ledger';
+import { tenantCutoverStore, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
   prepareTransition,
@@ -53,7 +53,7 @@ import {
   type VerificationResult,
 } from '@openmig/core';
 import { Pool } from 'pg';
-import { log as appLog } from '@openmig/shared';
+import { log as appLog, setAuditExportSink } from '@openmig/shared';
 import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
 import { runCutoverGate } from './cutover-gate.ts';
 
@@ -308,6 +308,8 @@ export const runCutover = schemaTask({
       throw new Error('DATABASE_URL environment variable required');
     }
     const pool = new Pool({ connectionString: dbUrl });
+    // Each audit event this run records, also as one JSON line on its output (0129 T4).
+    setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
     // Every ledger call inside `withTenant`: cutover_state and cutover_event
     // are row-secured since migration 0055, and a session that is not a
     // superuser sees them only with the tenant context set. A bare
@@ -346,8 +348,14 @@ export const runCutover = schemaTask({
                 },
               );
               if (!pass.ok) {
+                // A verdict, not a fault: the pass has already been retried by
+                // its own task, and trying this whole preparation again would
+                // run it three times more against the source's daily quota.
                 const why = pass.error instanceof Error ? pass.error.message : JSON.stringify(pass.error);
-                throw new Error(`The final sync failed: ${why}`);
+                throw new FinalSyncNotFinished(
+                  `The final sync failed after its own retries: ${why}. Nothing was marked ready; ` +
+                    'prepare again once the cause is fixed.',
+                );
               }
               return finalSyncReport(pass.output);
             },

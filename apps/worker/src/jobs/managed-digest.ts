@@ -34,8 +34,8 @@ import { schedules } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgLedger, PgDecisionStore } from '@openmig/ledger';
-import { log, createNotifier, asTenantId, asMappingId } from '@openmig/shared';
+import { PgLedger, PgDecisionStore, auditExportOn, pgDriver } from '@openmig/ledger';
+import { log, createNotifier, asTenantId, asMappingId, setAuditExportSink } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
 import { runDigest, type DigestTenant, type DigestMapping } from './managed-digest-run.ts';
 
@@ -44,6 +44,8 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 const db = drizzle(pool, { schema: schemaPg });
 const ledger = new PgLedger(db);
 const decisions = new PgDecisionStore(db);

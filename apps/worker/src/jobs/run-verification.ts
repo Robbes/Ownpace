@@ -24,8 +24,8 @@ import { z } from 'zod';
 import { schemaTask, logger } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
-import { asTenantId, asMappingId } from '@openmig/shared';
-import { createLedgerVerificationReader, withTenant } from '@openmig/ledger';
+import { asTenantId, asMappingId, setAuditExportSink } from '@openmig/shared';
+import { createLedgerVerificationReader, withTenant, auditExportOn, pgDriver } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
@@ -45,6 +45,8 @@ if (!DATABASE_URL) {
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 /** Mark the run terminal. One place, so done and failed cannot diverge on shape. */
 async function landRun(
