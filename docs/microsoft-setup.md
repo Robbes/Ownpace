@@ -92,7 +92,7 @@ somebody already signed in to the wrong Microsoft account grants that one, silen
 migration reads the wrong mailbox — a failure that looks like success until somebody notices
 whose mail arrived.
 
-You can still use your own registration instead: open *Use your own app registration instead*
+You can still use your own registration instead: open *Use your own app registration*
 and enter the Application (client) ID and client secret **as a pair**. Half a pair is refused
 rather than completed with the deployment's other half, because a client id that is not the
 deployment's paired with a secret that is would be refused by Entra at its token endpoint —

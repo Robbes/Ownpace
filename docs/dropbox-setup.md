@@ -29,7 +29,7 @@ Connections page show a **Connect with Dropbox** button beside the token field. 
 Dropbox's consent screen for the account being migrated, and when that account approves, the
 refresh token lands in the field by itself and the connection is saved and tested in one go.
 Nothing is typed, and the App secret never leaves the server. You can still use your own app
-instead: open *Use your own Dropbox app instead* and enter the App key and App secret as a pair.
+instead: open *Use your own Dropbox app* and enter the App key and App secret as a pair.
 
 *Test* asks Dropbox for the top level of the root folder only, so it answers in seconds on a
 Dropbox of any size; the migration itself walks every folder. Beside the folder count, the

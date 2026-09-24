@@ -234,7 +234,7 @@ Then the mapping's file domain:
 named by its own id, and so is a **folder somebody shared with this account**:
 "Shared with me" is a view, not a folder, so its contents never appear under My
 Drive's tree — rooting a separate mapping at the shared folder's id is how such a folder
-migrates. To see the ids this credential can reach, run
+migrates. To see the ids this credential can reach,
 use the wizard's **Browse shared drives & folders** button on the source step — a
 read-only listing through the same connector a migration uses. (Running from configuration
 files instead? `pnpm exec tsx scripts/list-shared-drives.ts` and

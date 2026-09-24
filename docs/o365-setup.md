@@ -309,7 +309,7 @@ OAUTH2_CLIENT_SECRET=your-client-secret-here
 # This is obtained after user consent and initial auth
 OAUTH2_REFRESH_TOKEN=your-refresh-token-here
 
-# Graph API endpoint (usually不需要 change)
+# Graph API endpoint (usually no need to change)
 OAUTH2_GRAPH_URL=https://graph.microsoft.com
 
 # OAuth2 Token Endpoint
@@ -405,7 +405,7 @@ OAUTH2_CLIENT_CERTIFICATE_PATH=
 # Obtained after user consent and OAuth2 authorization
 OAUTH2_REFRESH_TOKEN=
 
-# Graph API Base URL (usually不需要 change)
+# Graph API Base URL (usually no need to change)
 OAUTH2_GRAPH_URL=https://graph.microsoft.com
 ```
 
