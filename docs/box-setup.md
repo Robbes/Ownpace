@@ -54,10 +54,9 @@ Users & Groups → the user → the id in the URL or the user details. Not an em
 unset means `0` — the account root ("All Files"); a folder id scopes the migration to
 that folder (natural keys are relative to it).
 
-**Managed** — pick Box in the wizard: the Client ID and numeric user id go on the source
-step; the Client secret rides the credential field on the credentials step, stored
-encrypted. The **Test connections** button runs one read-only listing through exactly
-what a pass would build.
+**Managed** — pick Box in the wizard: the Client ID, the numeric user id and the Client
+secret all go on the source step, the secret stored encrypted. The **Test and save
+connections** button runs one read-only listing through exactly what a pass would build.
 
 A folder somebody invited the account to (a **collaborated folder**) sits in the
 account's own tree and migrates as ordinary content; root a separate mapping at its

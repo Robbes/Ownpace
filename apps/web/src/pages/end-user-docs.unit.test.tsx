@@ -32,6 +32,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { credentialFieldsFor, connectableTypes } from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
 
 const GUIDES = import.meta.glob('../../../../docs/*-setup.md', {
   query: '?raw',
@@ -156,5 +157,34 @@ describe('the guides mention what the connector actually needs', () => {
         `'${type}' source. Somebody following this guide reaches the form without the ` +
         `value it demands. Either the guide is out of date or the field is.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * The wizard has had four steps since it stopped being six — source, target,
+ * migration, review — and each side's credentials sit on that side's own step.
+ * The Box, Dropbox and Google guides, and three of the wizard's own about-lines
+ * in both languages, went on sending people to "the credentials step", which
+ * the wizard no longer has. A step named to a customer is one the wizard has.
+ */
+describe('the guides and the wizard name only the steps the wizard has', () => {
+  const WIZARD_STEPS = new Set(['source', 'target', 'migration', 'review']);
+  const NAMED_STEP = /\b(?:on|at|to|rides) the ([a-z-]+) step\b/gi;
+  const stepsNamedIn = (text: string) =>
+    [...text.matchAll(NAMED_STEP)].map((m) => m[1]!.toLowerCase()).filter((s) => !WIZARD_STEPS.has(s));
+
+  it('reads a step name where one is written', () => {
+    expect(stepsNamedIn('the secret rides the credentials step; the id goes on the source step')).toEqual([
+      'credentials',
+    ]);
+  });
+
+  it.each(Object.keys(GUIDES))('%s', (path) => {
+    expect(stepsNamedIn(GUIDES[path]!)).toEqual([]);
+  });
+
+  it('the wizard\'s own words, in both languages', () => {
+    expect(Object.values(STRINGS.en).flatMap(stepsNamedIn)).toEqual([]);
+    expect(Object.values(STRINGS.nl).filter((v) => /stap met inloggegevens/i.test(v))).toEqual([]);
   });
 });

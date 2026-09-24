@@ -75,10 +75,9 @@ folder — its path is a valid `rootPath`. `scripts/list-dropbox-shared-folders.
 the wizard's browse) lists what the account can see, paths included; an unmounted share
 has no path until the account adds it to its Dropbox.
 
-**Managed** — pick Dropbox in the wizard: the App key goes in the key field on the source
-step; the App secret and refresh token ride the credential fields on the credentials step,
-stored encrypted. The **Test connections** button runs one read-only listing through
-exactly what a pass would build.
+**Managed** — pick Dropbox in the wizard: the App key, App secret and refresh token all go
+on the source step, stored encrypted. The **Test and save connections** button runs one
+read-only listing through exactly what a pass would build.
 
 **Managed, with the deployment's own app** — the operator sets the App key and App secret
 once, in the deployment's environment:

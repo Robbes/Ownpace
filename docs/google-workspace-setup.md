@@ -214,7 +214,7 @@ GOOGLE_REFRESH_TOKEN=…
 ```
 
 Managed — the same three, entered in the create-mapping wizard (a **Google Drive** source:
-client ID on the source step; client secret and refresh token on the credentials step). They
+client ID, client secret and refresh token on the source step). They
 are stored encrypted on the source connection under exactly these names: `clientId`,
 `clientSecret`, `refreshToken`.
 
@@ -235,7 +235,7 @@ named by its own id, and so is a **folder somebody shared with this account**:
 "Shared with me" is a view, not a folder, so its contents never appear under My
 Drive's tree — rooting a separate mapping at the shared folder's id is how such a folder
 migrates. To see the ids this credential can reach, run
-use the wizard's **Browse shared drives & folders** button on the credentials step — a
+use the wizard's **Browse shared drives & folders** button on the source step — a
 read-only listing through the same connector a migration uses. (Running from configuration
 files instead? `pnpm exec tsx scripts/list-shared-drives.ts` and
 `pnpm exec tsx scripts/list-shared-folders.ts` answer the same question.) Loose shared *files* — shared with you but not inside a folder you
@@ -435,8 +435,8 @@ GOOGLE_CLIENT_SECRET=…                          # the same secret as Drive
 GOOGLE_MAIL_REFRESH_TOKEN=…                     # the MAIL-consented token
 ```
 
-Managed — the same three, entered in the create-mapping wizard (a **Gmail** source: client ID
-on the source step; client secret and refresh token on the credentials step). Stored
+Managed — the same three, entered in the create-mapping wizard (a **Gmail** source: client ID,
+client secret and refresh token on the source step). Stored
 encrypted on the source connection as `clientId`, `clientSecret`, `refreshToken`.
 
 Or, for a **personal** account only, the app password instead of all three —
@@ -505,8 +505,8 @@ The mapping needs only the address, like Gmail:
 ```
 
 (`"type": "google-contacts"` for the contacts domain, with a CardDAV or JMAP target.)
-Managed — the **Google Calendar** / **Google Contacts** wizard cards: client ID on the source
-step, client secret and refresh token on the credentials step, stored encrypted as
+Managed — the **Google Calendar** / **Google Contacts** wizard cards: client ID, client secret
+and refresh token on the source step, stored encrypted as
 `clientId`, `clientSecret`, `refreshToken`.
 
 **What only a real account can prove** (owner runbook, Stage 6): that Google's principal
