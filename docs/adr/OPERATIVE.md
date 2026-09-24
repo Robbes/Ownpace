@@ -848,7 +848,9 @@ Nothing in this amendment is built. It records the decision the three tasks in
   ADR-0047 set, for the same reason: the retryable write goes first, and CUTOVER_IN_PROGRESS beside
   a running mapping is the defect itself.
 - The mapping write is recorded in `audit_log` as `mapping.status` with **`via: 'cutover'`**, in
-  the same transaction as the row, by the same port the rollback writes through.
+  the same transaction as the row, by the same port the rollback writes through. **The mapping's
+  paths move with it in that transaction** (corrected 2026-09-24): `execute` and `complete`
+  release their slots, and a rollback takes them back, as the API's doors do (workplan 0109 T1b).
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
   lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
