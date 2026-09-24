@@ -55,7 +55,13 @@ import { sql } from 'drizzle-orm';
 import { withSubject, holdsASlot, PATH_STATES } from '@openmig/ledger';
 import type { LedgerDriver, PathState } from '@openmig/ledger';
 import { recordSupportRead, observedTier } from '@openmig/managed';
-import { isFailureCategory } from '@openmig/shared';
+import {
+  LOG_FILTERS,
+  LOG_PAGE,
+  logEventPattern,
+  parseLogFilters,
+  type LogFilters,
+} from '@openmig/shared';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -579,7 +585,9 @@ router.get(
  *
  * Each is checked before it reaches the query, and a value of the wrong shape
  * is a 400 naming the field, not an empty page: an operator who mistyped a
- * reference should be told so, rather than shown that nothing matches.
+ * reference should be told so, rather than shown that nothing matches. The
+ * rules are `parseLogFilters` in `@openmig/shared`, which the appliance's own
+ * log page uses too (0129 D5), so a filter means the same on both.
  *
  * ## Paging
  *
@@ -588,51 +596,6 @@ router.get(
  * milliseconds, and a cursor cut to those would skip every row written later
  * in the same millisecond.
  */
-export const LOG_PAGE = 100;
-const LOG_LEVELS = ['error', 'warn', 'info'] as const;
-const LOG_EVENT = /^[a-z][a-z0-9_.:-]{0,63}$/;
-const LOG_REFERENCE = /^[0-9a-f]{8}$/;
-const LOG_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
-
-/** A time in the one form the page sends, and a real one: 2026-02-30 is refused, not rolled over. */
-function isLogTime(value: string): boolean {
-  if (!LOG_TIME.test(value)) return false;
-  const parsed = new Date(value);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 19) === value.slice(0, 19);
-}
-
-/** The filters, in the order the recorded query names them. */
-const LOG_FILTERS = [
-  ['level', (v: string) => (LOG_LEVELS as readonly string[]).includes(v), 'A level is error, warn or info.'],
-  ['tenantId', (v: string) => oneUuid(v) !== null, 'A customer is named by its id.'],
-  ['mappingId', (v: string) => oneUuid(v) !== null, 'A migration is named by its id.'],
-  ['event', (v: string) => LOG_EVENT.test(v), 'An event is a name such as sync.calendar.failed, or the start of one.'],
-  ['category', (v: string) => isFailureCategory(v), 'That is not one of the error categories.'],
-  ['reference', (v: string) => LOG_REFERENCE.test(v), 'A reference is eight characters, 0-9 and a-f.'],
-  ['since', isLogTime, 'A time is written like 2026-09-23T10:00:00Z.'],
-  ['before', isLogTime, 'A time is written like 2026-09-23T10:00:00Z.'],
-  ['beforeId', (v: string) => oneUuid(v) !== null, 'A page is continued from a row id.'],
-] as const;
-
-type LogFilterName = (typeof LOG_FILTERS)[number][0];
-type LogFilters = Partial<Record<LogFilterName, string>>;
-
-/** The filters as asked, or the first one of the wrong shape. */
-function logFilters(query: Record<string, unknown>): LogFilters | { field: string; message: string } {
-  const filters: LogFilters = {};
-  for (const [field, ok, message] of LOG_FILTERS) {
-    const raw = query[field];
-    if (raw === undefined || raw === '') continue;
-    // A reference is quoted by a person, who may type it in capitals.
-    const value = typeof raw === 'string' ? (field === 'reference' ? raw.trim().toLowerCase() : raw.trim()) : '';
-    if (!ok(value)) return { field, message };
-    filters[field] = value;
-  }
-  if (filters.beforeId && !filters.before) {
-    return { field: 'beforeId', message: 'A page is continued from a row id and its time.' };
-  }
-  return filters;
-}
 
 /** What was searched for, as `support_read.query` records it: every filter but the customer's. */
 function logQuery(filters: LogFilters): string {
@@ -650,7 +613,7 @@ router.get('/log', authenticateSubject, async (req: AuthenticatedRequest, res: R
         .status(401)
         .json({ error: 'Unauthorized', message: 'No subject on this request' });
     }
-    const filters = logFilters(req.query as Record<string, unknown>);
+    const filters = parseLogFilters(req.query as Record<string, unknown>);
     if ('field' in filters) {
       return void res
         .status(400)
@@ -662,11 +625,8 @@ router.get('/log', authenticateSubject, async (req: AuthenticatedRequest, res: R
       ...(filters.level ? [sql`level = ${filters.level}`] : []),
       ...(filters.tenantId ? [sql`tenant_id = ${filters.tenantId}::uuid`] : []),
       ...(filters.mappingId ? [sql`mapping_id = ${filters.mappingId}::uuid`] : []),
-      // The start of a name. `_` is a wildcard to LIKE and a letter to an event
-      // name, so it is escaped; the shape check admits no `%` or `\`.
-      ...(filters.event
-        ? [sql`event LIKE ${`${filters.event.replace(/_/g, '\\_')}%`} ESCAPE '\\'`]
-        : []),
+      // The start of a name, `_` escaped (see `logEventPattern`).
+      ...(filters.event ? [sql`event LIKE ${logEventPattern(filters.event)} ESCAPE '\\'`] : []),
       ...(filters.category ? [sql`category = ${filters.category}`] : []),
       ...(filters.reference ? [sql`reference = ${filters.reference}`] : []),
       ...(filters.since ? [sql`at >= ${filters.since}::timestamptz`] : []),
@@ -757,3 +717,5 @@ router.get('/platform', authenticateSubject, async (_req: AuthenticatedRequest, 
 });
 
 export default router;
+
+export { LOG_PAGE };

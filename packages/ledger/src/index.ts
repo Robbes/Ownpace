@@ -31,6 +31,7 @@ export * from './run-store.ts';
 export * from './confirmation-store.ts';
 export * from './migrate.ts';
 export * from './retention.ts';
+export * from './operator-log.ts';
 export * from './direct-url.ts';
 export * from './pg-rate-budget.ts';
 export * from './mapping-link-store.ts';

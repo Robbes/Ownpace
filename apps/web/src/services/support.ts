@@ -25,7 +25,7 @@
  */
 
 import apiClient from './api.ts';
-import type { DiscoveryDomain } from '@openmig/shared';
+import type { DiscoveryDomain, OperatorLogEntry, OperatorLogPage } from '@openmig/shared';
 
 /** One organisation, as an operator sees it. Metadata only, by construction. */
 export interface SupportTenant {
@@ -213,26 +213,11 @@ export async function listRetainedInvoices(): Promise<SupportRetainedInvoice[]> 
 }
 
 /**
- * One row of the log (workplan 0129 T2): an audit event, or one of the
- * application's errors and warnings. Metadata only; the view it is read
- * through has no column for anything else.
+ * One row of the log (workplan 0129 T2), and one page of it: the shared shape
+ * both editions serve, so the page reads either (0129 D5).
  */
-export interface SupportLogEntry {
-  readonly id: string;
-  /** To the microsecond, in UTC: the page's cursor is made of it. */
-  readonly at: string;
-  readonly source: 'audit' | 'app';
-  readonly level: 'error' | 'warn' | 'info';
-  readonly tenant_id: string | null;
-  readonly tenant_name: string | null;
-  readonly mapping_id: string | null;
-  readonly migration_name: string | null;
-  readonly event: string;
-  readonly category: string | null;
-  readonly reference: string | null;
-  /** The member's address, a process's own name, or null. */
-  readonly actor: string | null;
-}
+export type SupportLogEntry = OperatorLogEntry;
+export type SupportLogPage = OperatorLogPage;
 
 /** What the log can be narrowed by. Every one is optional. */
 export interface SupportLogFilters {
@@ -245,12 +230,6 @@ export interface SupportLogFilters {
   readonly since?: string;
   readonly before?: string;
   readonly beforeId?: string;
-}
-
-export interface SupportLogPage {
-  readonly entries: SupportLogEntry[];
-  readonly next: { readonly before: string; readonly beforeId: string } | null;
-  readonly limit: number;
 }
 
 /** One page of the log, newest first. Every call is recorded as a search. */

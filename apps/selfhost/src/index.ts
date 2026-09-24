@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -103,7 +103,7 @@ import {
   buildGoogleDriveSourceFrom,
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
-import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink } from '@openmig/shared';
+import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters } from '@openmig/shared';
 import {
   assembleShareAnnouncements,
   createFailureStreakGate,
@@ -2453,6 +2453,31 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         });
         res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
         return res.end(markdown);
+      }
+      // THE LOG (workplan 0129 T2; the owner's D5: "same page"). The audit log
+      // and the application's errors and warnings, newest first, for the
+      // appliance's own owner: the page the managed operator gets under
+      // Support, read from the tables rather than through a support view
+      // (the appliance has neither `platform_operator` nor the managed chain).
+      // The filters are the managed route's own rules (`parseLogFilters`), so
+      // a wrong one is refused by name here too. Nothing records the read:
+      // the reader is the owner, looking at their own appliance.
+      if (req.method === 'GET' && req.url?.split('?')[0] === '/log') {
+        const asked = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+        const filters = parseLogFilters(asked);
+        if ('field' in filters) {
+          return sendJson(res, 400, { error: 'Bad request', field: filters.field, message: filters.message });
+        }
+        const tenantIds = [...new Set(mappings.map((m) => m.config.tenantId))];
+        // A migration by the name its screens use: the row holds the slug.
+        const migrationNames = new Map(
+          mappings.map((m) => [m.mailboxMappingId, m.config.name ?? m.config.mappingId] as const),
+        );
+        return sendJson(
+          res,
+          200,
+          await readOperatorLog({ driver: persistenceBackend.driver, tenantIds, migrationNames }, filters),
+        );
       }
       // EVERYTHING waiting, not just the queue below (owner report,
       // 2026-09-14). The screen called "Attention" rendered `/decisions`

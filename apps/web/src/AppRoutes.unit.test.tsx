@@ -80,6 +80,15 @@ vi.mock('./pages/Confirmed', () => ({ default: () => <div>screen:confirmed</div>
 vi.mock('./pages/Finish', () => ({ default: () => <div>screen:finish</div> }));
 vi.mock('./pages/Confirm', () => ({ default: () => <div>screen:confirm</div> }));
 vi.mock('./pages/NotFound', () => ({ default: () => <div>screen:not-found</div> }));
+// Every named export, since a mock replaces the whole module.
+vi.mock('./pages/Support', () => ({
+  SupportTenants: () => <div>screen:support-tenants</div>,
+  SupportTenantDetail: () => <div>screen:support-tenant</div>,
+  SupportMigrationDetail: () => <div>screen:support-migration</div>,
+  SupportRetainedInvoices: () => <div>screen:support-invoices</div>,
+  SupportLog: () => <div>screen:support-log</div>,
+  ApplianceLog: () => <div>screen:appliance-log</div>,
+}));
 
 import AppRoutes from './AppRoutes.tsx';
 
@@ -163,6 +172,8 @@ describe('managed builds redirect appliance-only URLs to /dashboard', () => {
     '/verify': 'screen:verify',
     '/confirmed': 'screen:confirmed',
     '/finish': 'screen:finish',
+    // The owner's log (0129 D5): the appliance serves `/log`; managed does not.
+    '/log': 'screen:appliance-log',
   };
 
   for (const [path, marker] of Object.entries(selfhostOnly)) {
@@ -173,6 +184,17 @@ describe('managed builds redirect appliance-only URLs to /dashboard', () => {
       expect(screen.queryByText(marker)).not.toBeInTheDocument();
     });
   }
+});
+
+describe("the owner's log mounts on the appliance", () => {
+  // The redirect above proves managed never mounts it, and would pass just as
+  // well if the route were broken on both editions.
+  it('/log mounts the appliance log', async () => {
+    editionFlag.selfhost = true;
+    renderAt('/log');
+
+    expect(await screen.findByText('screen:appliance-log')).toBeInTheDocument();
+  });
 });
 
 describe('per-mapping routes stay shared — real in both editions', () => {

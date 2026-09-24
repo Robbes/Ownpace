@@ -21,16 +21,6 @@ reference. `recordAppEvent` never throws; each process sets its sink at start-up
 core (3) and the API (3), and the RLS, grants and erasure guards now name the table; 21
 mutations, all killed.
 
-**2026-09-23, T3 built.** The application's errors and warnings are pruned at 30 days, the
-owner's month, in bounded batches by both editions' nightly retention (`pruneAppEvents`); the
-audit log is not touched, and runs and their logs keep their 60 days. Container output: the
-appliance's `compose.yml` caps each container at five files of 20 MB, because Docker keeps
-output by size and never by age, and its guide says how to keep exactly 30 days with the host's
-journal. The managed guide points Docker's daemon default at the journal with
-`MaxRetentionSec=1month`, which also reaches the task runs Trigger.dev starts, since no compose
-file creates those. Guards: `a-month-of-the-applications-errors.unit.test.ts` (6) and
-`a-month-of-container-output.unit.test.ts` (8); 11 mutations, all killed.
-
 **2026-09-23, T2 for the managed edition.** Support links to **The log**: one view,
 `support_log` (managed migration 0025), over `audit_log` and `app_event`, metadata only. A row
 has its time, level (`info` for an audit row), organisation, migration, event, category and
@@ -46,10 +36,37 @@ operator sign-in and no `platform_operator`, so it reads the same timeline throu
 its own. Guards: `a-log-the-operator-can-read` in managed (11), the API (23) and the web app
 (6), and the support-view and vocabulary guards name the new view; 33 mutations, all killed.
 
+**2026-09-23, T2 for the appliance: the same page (D5).** The appliance's menu has **Log**,
+the managed operator's page fed by `GET /log`: the same rows, the same cursor, and the same
+filters, parsed by the same rules (`parseLogFilters` moved to shared, so a wrong filter is
+refused by name on both editions). The appliance has no operator and no managed chain, so
+`readOperatorLog` (ledger) reads the two tables itself. The audit log is read one organisation
+at a time inside `withTenant`, under that organisation's policy, and `app_event` as the owner
+on a connection from the same driver. The metadata-only line is the managed view's own three
+patterns, and a test holds them in step with managed migration 0025. A migration is named as
+the appliance's screens name it, by the mapping's `name`. The page has no disclosure and
+records no read, because its reader is the owner. Found building it: on PGlite, a query on the
+owner's handle runs inside whatever transaction a pass has open, as `app_user`, and `app_event`
+refused it with "permission denied". The reproduction is a test. Guards:
+`a-log-the-appliance-can-read` in ledger (18) and web (4), `a-log-the-appliance-serves` in
+selfhost (3), and the route and nav tests; 19 of 20 mutations killed. The survivor is
+equivalent: `app_event` holds no `info` row (its CHECK), so the skipped query could only have
+come back empty.
+
+**2026-09-23, T3 built.** The application's errors and warnings are pruned at 30 days, the
+owner's month, in bounded batches by both editions' nightly retention (`pruneAppEvents`); the
+audit log is not touched, and runs and their logs keep their 60 days. Container output: the
+appliance's `compose.yml` caps each container at five files of 20 MB, because Docker keeps
+output by size and never by age, and its guide says how to keep exactly 30 days with the host's
+journal. The managed guide points Docker's daemon default at the journal with
+`MaxRetentionSec=1month`, which also reaches the task runs Trigger.dev starts, since no compose
+file creates those. Guards: `a-month-of-the-applications-errors.unit.test.ts` (6) and
+`a-month-of-container-output.unit.test.ts` (8); 11 mutations, all killed.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
-| T2 The operator's log page | 🟡 **Managed built 2026-09-23** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable; both editions. The appliance's page is next. |
+| T2 The operator's log page | ✅ **Built 2026-09-23, both editions** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable: under Support on managed, **Log** on the appliance. |
 | T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
 | T4 The audit export: one JSON line per event, and a download that resumes | 📋 **Decided** (D4, D5) | §3. OpenTelemetry field names, to stdout; a backfill endpoint with a cursor; pseudonyms by default. |
 
