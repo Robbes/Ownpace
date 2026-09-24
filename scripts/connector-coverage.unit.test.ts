@@ -141,8 +141,9 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   archive: {
     driven:
       'e2e.yml — selfhost-archive-import.e2e.test.ts, selfhost-archive-zip-import.e2e.test.ts '
-      + 'and selfhost-archive-in-target-import.e2e.test.ts import fixture Takeout trees end to '
-      + 'end every nightly, both backends',
+      + 'and selfhost-archive-in-target-import.e2e.test.ts import the fixture Takeout end to end '
+      + '(the folder, its two-part .zip, and that .zip read from inside the target) every '
+      + 'nightly, both backends',
   },
 };
 
