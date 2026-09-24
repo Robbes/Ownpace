@@ -6,11 +6,11 @@
 # every place that names it, and a database migration that goes one way. The
 # webapp applies its own schema migrations on boot; Prisma has no
 # down-migrations. So the documented rollback — put the old image tag back —
-# restores the IMAGES and
-# not the schema they migrated, and `triggerdb` holds the one thing on this
-# machine that cannot be rebuilt unattended: the account, the project, its API
-# keys, the worker group and the deployed-task records. Recreating those needs
-# a person and a browser (see deploy-tasks.sh's ONE-TIME prerequisites).
+# restores the IMAGES and not the schema they migrated, and `triggerdb` holds
+# the one thing on this machine that cannot be rebuilt unattended: the account,
+# the project, its API keys, the worker group and the deployed-task records.
+# Recreating those needs a person and a browser (see deploy-tasks.sh's ONE-TIME
+# prerequisites).
 #
 # Nothing backed that database up. This does, and — because a backup nobody
 # has restored is a hope rather than a backup — `drill` proves the round trip

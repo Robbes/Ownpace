@@ -945,7 +945,10 @@ phase_trigger() {
   # repo_tag reads it (here-strings, not pipes: see no-pipeline-its-own-consumer-
   # can-kill). A copy of the number here said v4.5.9 while the images defaulted
   # to v4.5.16, so an .env without the key failed on a drift that was not there.
-  compose_default="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml")"
+  # A miss is NAMED: under `set -e` a bare failing grep ends the bring-up here
+  # with no word about why.
+  compose_default="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml")" \
+    || die "managed.yml carries no \${TRIGGER_IMAGE_TAG:-v…} default, so there is no image version to compare apps/worker's SDK with"
   compose_default="$(sed 's/.*:-//;s/}//' <<<"$(head -1 <<<"$compose_default")")"
   tag_version="${TRIGGER_IMAGE_TAG:-$compose_default}"
   if [ "${tag_version#v}" != "$sdk_version" ]; then
