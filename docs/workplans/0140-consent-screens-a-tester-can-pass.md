@@ -1,0 +1,689 @@
+# Workplan 0140 — Consent screens a tester can pass
+
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
+every provider an alpha tester connects puts a consent screen or a password between the tester
+and the first pass, and that each one has a limit the alpha runs into. Google's client is in
+Testing. The operator guides say to register the deployment's Microsoft app as multi-tenant,
+which contradicts ADR-0006's operative rule, and nothing in the repository records publisher
+verification for it. Nobody has recorded the Dropbox app's status, and its consent asks for
+whatever the app carries. Box needs the tester's own Box app, approved by a Box administrator.
+The Apple source has never been run against a live iCloud account. The owner's
+answers that bear on this are in §2, and the owner asked for Microsoft to be explained (§4).
+Nothing in this plan is built. The grant page already links to the privacy policy and the terms,
+which Google's in-product disclosure needs, but at paths the site does not serve (`/privacy` and
+`/terms`, where the site writes `.html` files). The corrected paths are drafted in the pending
+consistency PR and are not merged.
+
+| Task | Status | Notes |
+|---|---|---|
+| T0 Each Google account a tester connects is a test user first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to. |
+| T1 Testing or Production for the alpha's Google client | ⏳ **Owner** (D1 chose Testing) | §3. Measure first; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. |
+| T2 What a Google tester is told, and a reconnect the page can find | 📋 **Proposed** (D1) | §3. The steps for the tester, and the word on the failure line matching a button that exists. |
+| T3 An "open it in Safari or Chrome" line before Google's screen | 📋 **Proposed** | §3. Google is reported to refuse consent inside an embedded browser (outside knowledge, §1); nothing on the page says what to do. |
+| T4 An ADR for the deployment's Microsoft registration | 📋 **Proposed**, recommended now (D2) | §4. ADR-0006's operative rule says the multi-tenant app is retired; the code carries a deployment registration whose authority defaults to `common`. |
+| T5 Microsoft publisher verification | ⏳ **Owner** (Partner Center), recommended to start now (D2) | §4. It has a lead time, and an organisation's consent policy may depend on it. |
+| T6 One foreign organisation and one personal account, before the first Microsoft tester | 📋 **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. |
+| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 📋 **Proposed** (D3) | §3. The limit must be read in the Dropbox App Console. The code change reverses a pinned test on purpose. |
+| T8 Box: experimental, and for organisations with a Box administrator | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
+| T9 Apple: experimental, with the password's own steps | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
+| T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only, unless the owner's own sign-in needs one. 0133 waits on this. |
+
+## 1. What there is today
+
+Each fact below was checked at the current checkout on 2026-09-24. Where a claim is about Google,
+Microsoft or Dropbox rather than about this repository, it says whether anyone has read it from
+the provider. For this plan, nobody has. The providers' documentation pages could not be reached
+from where it was written, the same limit `docs/google-oauth-verification.md` states for Google.
+
+### Google
+
+**One client for the deployment.** The managed edition can carry one Google OAuth client
+(`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, ADR-0041 option B). A connection on
+that client stores only its refresh token. Grant links use the same client when the connection
+has no pair of its own (`googleDeploymentClient()` in `apps/api/src/routes/grant.ts`). ADR-0041's
+status line records that the client registered on 2026-08-20 is *"the **test (OTA) client**,
+with production getting its own client before real customers exist"*.
+`docs/google-oauth-verification.md` says: *"The client is currently **External + Testing** with
+test users added in advance."* No document records a change since then.
+
+**What Testing costs, in the repository's own words.**
+
+- ADR-0041, operative rule: *"**Never "External + Testing" for a real migration.** Google expires
+  refresh tokens after **seven days** in that publishing status, which reads as a random
+  `invalid_grant` weeks in."*
+- The same ADR carves out one case: *"the reference deployment's own client, in Testing status
+  with listed users, where the population the restricted tier would be imposed on is the owner
+  and people they named"*.
+- `docs/google-oauth-verification.md`, "Testing vs Production": in Testing, refresh tokens last
+  *"~7 days"* and users *"must be added in advance, 100 max"*. In Production, unverified, the
+  lifetime is *"normal — until revoked"*, there is *"no pre-registration; ~100 user cap"*, and
+  both show the warning screen. The same section adds: *"⚠️ **Both the seven-day expiry and the
+  unverified user cap are UNVERIFIED here**"*. Nobody re-read them for this plan either.
+- The review added one claim from outside knowledge, marked as unverified: that Google counts the
+  unverified cap over the project's whole lifetime and does not reset it. It was not verified.
+
+**What day eight looks like, as the code has it.** The token request fails, and
+`google-token-provider.ts` throws *"Google refused the token request (…)"* with Google's body and
+the `hintFor` sentence. That sentence names the Testing cause first and tells the reader to *"set
+the publishing status to Production (one click) and re-consent"* (0089 T2). `failure-category.ts`
+files `invalid_grant` under `auth_expired`. The progress strip shows the category's sentence
+first, and the provider's line verbatim under it (`LiveProgress.tsx`):
+
+- EN `failure.authExpired`: *"The connection to this account has expired. Reconnect it on the
+  Connections page and this will carry on from where it stopped — nothing is lost."*
+- NL: *"De verbinding met dit account is verlopen. Herstel de verbinding op de pagina
+  Verbindingen; daarna gaat dit verder waar het gestopt is — er gaat niets verloren."*
+
+So the product does say "reconnect". Two things do not fit:
+
+1. **No button on the Connections page says reconnect.** A new token for an existing connection is
+   minted under **Replace credentials** (*Inloggegevens vervangen*). Since 2026-09-08 that panel
+   carries the same consent button as the add form (`rotateConsent` in `Connections.tsx`).
+2. **The line under the sentence is written for whoever owns the Google client.** A tester cannot
+   change a publishing status.
+
+A person who reads a progress link sees `view.failure.authExpired`: *"The connection to your
+account needs renewing. Whoever set this up can do it."*
+
+**Test users.** In Testing, only listed Google accounts can consent. That includes every account a
+grant link is sent to, such as a family member's, because the link runs the same consent against
+the same client.
+
+**Scopes.** The owner read the console's Data Access page on 2026-09-20 and again on 2026-09-23.
+Calendar (`calendar.readonly`), contacts (`carddav`) and tasks (`tasks.readonly`) are sensitive.
+Drive and every Gmail scope are restricted (`docs/google-oauth-verification.md` §2). Which class
+the reference deployment declares (`GOOGLE_ACCOUNT_SCOPE_CLASS`) is a value in its `.env`, not in
+the repository. Through the deployment's client, a Google account's mail and files faces, and a
+grant link that asks for them, are refused unless that value is `restricted`
+(`providerAccountDomains`, `grant-link-readiness.ts`). The `gmail` and `google-drive` source
+cards each ask for their own restricted scope, and that route does not read the class. A
+personal Gmail account can also be read with an app password (0089 T7), which needs 2-step
+verification on the account (`docs/google-workspace-setup.md`).
+
+**A stale row.** `docs/google-oauth-verification.md` §1 still lists the application home page as
+*"⬜ Not built"*. The site generator has built it since 0091 T2 (done 2026-08-20). It is not yet
+published on the verified domain: `site/build.mjs` refuses a `--public` build while the legal
+pages carry unfilled placeholders, which is 0139's work. So the row should say "built, not
+published", not "done".
+
+### In-app browsers
+
+The grant page goes to Google by full navigation (`globalThis.location.assign(url)` in
+`Grant.tsx`). The wizard and the Connections page open Google in a popup (`window.open` in
+`ProviderConsent.tsx`). No text anywhere tells a person what to do if the page is open inside
+another app's browser. A search of `apps/`, `packages/`, `docs/` and `site/` for `webview`,
+`disallowed_useragent`, "in-app browser" and "open in browser" finds only the desktop packaging
+notes (WebView2) and the Google Tasks field `webViewLink`. Opening a grant link spends nothing:
+*"Deliberately a GET that changes nothing … Opening is repeatable right up until somebody
+actually grants"* (`grant.ts`). So opening it again in a real browser works, but nobody is told
+to.
+
+The review states, from outside knowledge, that Google refuses consent in an embedded web view
+with *"Error 403: disallowed_useragent"*, while Safari's and Chrome's in-app tabs are allowed.
+Which messaging and mail apps fall on which side has to be tried on real phones. Microsoft's and
+Dropbox's behaviour here is not known.
+
+### Microsoft
+
+The deployment can carry its own Entra registration, and its authority defaults to `common`
+(`MICROSOFT_DEFAULT_TENANT = 'common'` in `packages/shared/src/microsoft-deployment-client.ts`).
+`docs/managed-bring-up.md` tells the operator to register it with *"Supported account types:
+multitenant + personal Microsoft accounts"*, and `docs/microsoft-setup.md` names the same radio
+button in Entra's own words. ADR-0006's operative rule, `docs/adr/OPERATIVE.md` (generated from
+it), the ADR register's row for 0006 and `AGENTS.md` still say the multi-tenant app was retired
+on 2026-08-09. Publisher verification is mentioned nowhere for this registration: not in either
+guide, not in 0114, not in the consent code. §4 explains all of this, because the owner asked for
+it.
+
+### Dropbox
+
+**The deployment's app.** The deployment can carry one Dropbox app (`DROPBOX_OAUTH_CLIENT_ID` and
+`_SECRET`, "The deployment's own Dropbox app (2026-09-02)" in `docs/managed-bring-up.md`), with
+`files.metadata.read` and `files.content.read` enabled and nothing else. No document records the
+app's development or production status, or how many accounts may link to it. The nightly gate
+writes `DROPBOX_OAUTH_CLIENT_ID=gatedropboxappkey` into the stack's `.env` when no value is present
+(`e2e-managed.yml`, `env-upsert.sh --if-absent`). The repository therefore cannot say whether the
+reference machine carries a real Dropbox app. 0132 removes the placeholder.
+
+**The consent asks for whatever the app has.** `dropboxConsentUrl` in
+`apps/api/src/routes/migrations/dropbox-consent.ts` sets `client_id`, `response_type`,
+`token_access_type=offline`, `redirect_uri` and `state`. It sets no `scope`, and the file's header
+explains why: *"Least privilege is set once, at the app"*. A test pins this: *"carries the App
+key, offline access, the redirect and the state — and no secret, no scope"*
+(`dropbox-consent.unit.test.ts`). `exchangeDropboxCode` refuses a grant that lacks a read scope,
+and it accepts one that carries more. The same URL is built for the deployment's app and for a
+tester's own app (`dropbox-oauth-routes.ts` resolves either). Yet `docs/dropbox-setup.md` calls
+read-only *"an enforced guarantee, not a promise in a document"*. That holds only if the app was
+created the way the guide says.
+
+Dropbox is ⏳ in the feature matrix. 0055 records its real-endpoint proof as unproven.
+
+### Box
+
+There is no deployment Box app: `GRANT_PROVIDERS` in `packages/shared/src/provider-clients.ts` is
+`google`, `dropbox` and `microsoft`. A tester creates their own Box Platform app with the Client
+Credentials Grant, App + Enterprise Access and the read scope only. `docs/box-setup.md` §2 adds:
+*"CCG apps must be approved by an enterprise admin before any token is minted"*. The wizard then
+asks for the client id, the numeric user id and the secret. Box is ⏳ in the matrix (0056).
+
+### Apple
+
+One app-specific password, and no consent screen (`docs/apple-setup.md`). The behaviour of a live
+iCloud account is *"not yet measured"* (the same guide, "What is measured, and what is reasoned";
+0115). Part 1 of `docs/apple-supervised-run.md`, the live account, is still open. The product
+cannot revoke the password. The tester does that at `account.apple.com`, and the guide says so.
+
+### Sign-in buttons
+
+These are separate from the consents above. `managed.env.example` has values for Google,
+Microsoft, GitHub and Apple sign-in (`IDP_GOOGLE_*`, `IDP_MICROSOFT_*`, `IDP_GITHUB_*`,
+`IDP_APPLE_*`). Its comments say one Google client or one Entra registration may serve both the
+sign-in and the migration consent. `setup-zitadel.sh` adds a provider only when its values are
+set. It adds Microsoft with `emailVerified: false`, so the identity provider still sends its own
+verification mail. The nightly gate writes a placeholder `IDP_GOOGLE_CLIENT_ID` when none is
+present, which 0132 removes.
+The privacy policy says nothing about signing in with another provider (review; 0139).
+
+## 2. The owner's decisions (2026-09-24)
+
+Each decision gives the question in plain words and then the answer as given, typos included.
+
+**D1 — Google stays in Testing, and the owner adds people by hand.** *For Google: publish the
+consent client to Production, unverified, with the sensitive scopes, or keep it in Testing with
+testers registered in advance?* — *"Ill add people by hand"*. On the blocker, *the Google client is
+in Testing, whose refresh tokens expire after about seven days*: *"I add people, controlled small
+test Group."*
+
+So the client stays External + Testing, and the owner lists each tester's Google account before
+they connect (T0). What this costs is set out in T1, and the owner confirms it there.
+
+**D2 — Microsoft is explained before it is decided.** *Should the deployment's multi-tenant
+Microsoft app get its own ADR, and should publisher verification start now?* — *"Explain"*.
+
+§4 explains, and T4 to T6 follow its advice. None of them is decided.
+
+**D3 — unproven sources are labelled.** *For sources nobody has run against a real account: prove
+them first, hide them, or label them experimental?* — *"Label"*.
+
+The label itself is 0131 T2. T7 to T9 cover what else Dropbox, Box and Apple need before a tester
+meets them.
+
+**D4 — the size, the length, and who is the gate.** *What is the test: free or paid, for how many
+people, how long, in which language?* — *"Free and invite only. 10 to 20 people max. Dutch."* On
+the blocker, *the test's posture is undecided*: *"Free. A few weeks. No obligations both
+sides."* And, asked *what a member and a viewer may do, and whether only an owner or an
+administrator may invite*: *"I am the gate for letting people in the test."*
+
+Those are the numbers every cap below is measured against. The caps count provider accounts, not
+testers: a tester who also connects two family members' Google accounts counts as three.
+
+## 3. What each task does
+
+### T0 — each Google account a tester connects is a test user first (owner, per tester)
+
+Before a tester presses *Verbinden met Google*, the owner adds each Google account they will
+connect as a test user of the client in the Google console. That means the tester's own account,
+and every account a grant link will be sent to. The owner keeps that list outside the repository,
+and at the end of the alpha removes the accounts (0131 T4). The limit is 100, a figure the
+repository marks as unverified. At 20 testers with up to four accounts each, plus the owner's
+own, the list stays under it.
+
+No code, so there is no guard.
+
+### T1 — Testing or Production for the alpha (owner)
+
+**Measure first.** This is cheap, and it can change the answer. Read the owner's own Google
+connections on the OTA stack:
+
+- Were they made through the deployment's client, or with a client pair of their own?
+- When was the current token minted? The repository keeps no mint time as such. The
+  connection's `updated_at` is the nearest record, and the owner may know the date.
+- Has any pass since failed with `auth_expired`? The run history (`run` and `run_event`, kept 60
+  days) keeps each failed pass and its message, where Google's `invalid_grant` would appear.
+  Since 2026-09-23, on a stack running that code, so does the operator's log page filtered to
+  category `auth_expired` (0129 T2).
+
+If a connection on this client has run for more than seven days without a reconnect, the figure
+does not hold for it, and D1 costs nothing. Record the result here, with the dates.
+
+**Then choose.**
+
+- **(a) Keep Testing, as D1 says.** Test users can grant the restricted scopes. This is Google's
+  documented behaviour as the repository understands it, and ADR-0041's carve-out assumes it. So
+  Gmail and Drive through the consent stay available to listed testers: through the `gmail` and
+  `google-drive` cards, and through a Google account or a grant link where the stack declares
+  `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted` (§1). Every Google-sourced migration stops with
+  `invalid_grant` about a week after its consent, until the tester reconnects (T2). Nothing is
+  lost, and the pass resumes where it stopped. For an account connected through a grant link, the
+  person who granted it has to grant again. The warning screen stays.
+- **(b) Publish the client to Production, unverified, with the sensitive scopes only.** There is
+  no seven-day expiry and no test-user list at Google. The warning screen stays the same, and so
+  does the ~100-user cap. Both figures are unverified. The service itself stays invite-only
+  through the access queue, so the owner is still the gate (D4). `GOOGLE_ACCOUNT_SCOPE_CLASS` is
+  left blank, so a Google account offers calendar, contacts and tasks. Gmail comes in by app
+  password (0089 T7). Whether an unverified Production client can grant a restricted scope at all
+  has not been tried. Try it with one account before relying on it; if it cannot, Drive is out of
+  the alpha. As understood, tokens minted in Testing do not change their lifetime when the status
+  changes, so every tester reconnects once after the switch.
+
+**Recommendation: (a) for the alpha, as the owner answered, on three conditions.** It keeps Gmail
+and Drive, the parts most worth testing, open to listed testers. The alpha lasts a few weeks, so
+a tester reconnects each Google account about three or four times.
+
+1. T2 is in place before the first Google tester.
+2. Testers are told that a family member connected by grant link must grant again each week. If
+   that is too much to ask of them, testers migrate only their own Google account in the alpha
+   (open question 2).
+3. **A switch trigger.** If, in the first two weeks, reconnecting is the main thing testers write
+   to the owner about, move to (b).
+
+Either way, the owner records the choice as a dated update to ADR-0041. The operative rule
+*"Never 'External + Testing' for a real migration"* stays, and the update names the alpha as the
+exception and says when it ends. `docs/google-oauth-verification.md`'s "Testing vs Production"
+section says which was chosen, and its home-page row is corrected to "built, not published" in
+the same edit (§1).
+
+No code, so there is no guard. The evidence is the measurement above, and then either the first
+reconnect recorded (a) or the first tester's connection still working on day eight (b).
+
+### T2 — what a Google tester is told, and a reconnect the page can find
+
+**The steps, for the tester.** The owner gives these to each Google tester. They move into a
+tester guide once there is one (W14 in 0131 §5). The Dutch text
+is written with the first tester's real screens, using Google's own Dutch words as they appear on
+them.
+
+1. **Before connecting:** send the owner every Google address you will connect, both your own and
+   any family member's you will send a link to. Wait until the owner says they are added (T0).
+2. **Connecting:** press *Verbinden met Google*. Google shows a page saying it has not verified
+   the app. This is expected during the alpha: open the advanced option and continue to Ownpace.
+   Leave every permission ticked (`docs/grant-links.md` already says this to a grant-link reader).
+3. **About a week later**, the migration stops with *"De verbinding met dit account is verlopen
+   …"*. Under (a) this is expected, and nothing is lost. Open *Verbindingen*, press the reconnect
+   button beside the Google account (below), then *Verbinden met Google*, then *Controleren en
+   vervangen*. The migration carries on where it stopped. The second line under the message, the
+   one about a "publishing status", is for the owner.
+4. **A family member's account:** they grant again with a new link. The issuing decision
+   (`grantLinkAsk` in `grant-link-readiness.ts`) has no refusal for a source that already holds a
+   grant. Whether the rest of issuing and granting accept it was not checked for this plan. T2
+   checks it before the step is written down, and if a link cannot be issued, the step says what
+   to do instead.
+
+**The build: a reconnect the page can find.** On the Connections page, the row of a connection
+whose kind has a consent button (Google, Dropbox and Microsoft, with the deployment's client or
+the connection's own) labels its button **Reconnect** / **Opnieuw verbinden**. It opens the same
+panel as today. Rows for password connections keep *Replace credentials*. `failure.authExpired`
+names that same button in both languages. The category also covers a refused password
+(`AUTHENTICATIONFAILED`, `401`, in `failure-category.ts`), whose row keeps *Replace
+credentials*, so the sentence names both buttons. This is two string pairs and one branch in the
+row. There is no second consent implementation: the panel is `rotateConsent`, unchanged.
+
+**Guard.** `apps/web/src/pages/a-reconnect-the-page-can-find.unit.test.tsx` renders the Connections
+row of a Google account connection and of a password connection in EN and NL. It checks that each
+row's button label appears verbatim inside `failure.authExpired`, and that the password row still
+says *Replace credentials*. It fails today, because the sentence says "Reconnect" and no button
+does, and the NL sentence names no button at all.
+
+### T3 — "open it in Safari or Chrome" before Google's screen
+
+**The sentence.** One plain line, always shown. Sniffing for in-app browsers is not needed for
+this. It sits above *Doorgaan met Google* on the grant page and under the consent button in
+`ProviderConsentPanel`:
+
+- EN: *"If this page opened inside another app, such as a chat or mail app, use that app's
+  'Open in browser' option or copy the link into Safari or Chrome. The link still works."*
+- NL: *"Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar 'Openen in
+  browser' of kopieer de link naar Safari of Chrome. De link blijft werken."*
+
+In the consent panel the last sentence reads *"then sign in to Ownpace there"*, because the
+wizard has no link to copy. `docs/grant-links.md` gets the same paragraph under "Issuing one" and
+under "My link says it does not work".
+
+**Optional, and not needed for the alpha:** detect the common in-app user agents and show the line
+more prominently, with a button that copies the link.
+
+**The check.** Before the first grant link goes out, the owner opens one link from WhatsApp and one
+from the mail app they use, on their own phone, and records here what Google did. A full device
+list is on 0131's list of further work (§5 there).
+
+**Guard.** `apps/web/src/pages/a-grant-page-that-names-a-real-browser.unit.test.tsx` renders
+`Grant` and a Google `ProviderConsentPanel` in EN and NL and finds the sentence in each. It fails
+today, because no string says it.
+
+### T4 — an ADR for the deployment's Microsoft registration
+
+§4.2 says what it decides and why it has to be an ADR. Once written:
+
+- ADR-0006's first operative bullet is amended in place and its narrative gets a dated update
+  pointing to the new ADR;
+- `docs/adr/OPERATIVE.md` is regenerated (`node scripts/adr-operative.mjs --write`);
+- `AGENTS.md`'s O365 line, the ADR register's row for 0006, `solution-architecture.md` §25 item 1
+  and 0026 row 14 say the same thing;
+- `docs/o365-setup.md` opens with one line sending managed users to `docs/microsoft-setup.md`.
+
+The number is the next free one, 0050 at the time of writing.
+
+**Guard.** `scripts/a-registration-the-rules-call-retired.unit.test.ts` reads
+`microsoft-deployment-client.ts`. While it exports a deployment client whose default authority is
+`common`, `docs/adr/OPERATIVE.md` and `AGENTS.md` must not say the multi-tenant app is retired,
+and `docs/adr/OPERATIVE.md` must name `MICROSOFT_OAUTH_CLIENT_ID`. It fails today on both counts:
+both files say "retired", and no ADR names that variable.
+
+### T5 — Microsoft publisher verification (owner)
+
+§4.3 says what it is and §4.4 why to start now. The steps are the owner's, in Partner Center and
+in the registration's *Branding & properties*. The legal entity's facts it needs are the same ones
+the owner supplies to 0139. When it is done, `docs/microsoft-setup.md` and the bring-up section on
+the deployment's Entra registration gain one step each, and T6's sentence is read again against
+the verified consent screen.
+
+No code, so there is no guard. The evidence is the verified badge on the consent screen, recorded
+here with the date.
+
+### T6 — one foreign organisation and one personal account, before the first Microsoft tester
+
+**The test.** Two consents, a Test and one pass, through the deployment's registration:
+
+- a personal Microsoft account (outlook.com, hotmail.com or live.com);
+- a work or school account in a tenant that is not the one the registration lives in, and whose
+  administrator is not the owner. The first alpha tester who has one is a natural choice, with
+  their agreement, and with the owner present.
+
+For each, record the tenant's user-consent setting (read by its administrator), the screens shown,
+whether the app was marked unverified, the error code if refused, and whether an administrator's
+consent then let the person connect. Record it here and in `docs/microsoft-setup.md` under "When
+the consent is refused". That section describes `AADSTS90094` only as a tenant that allows no user
+consent at all. If the test shows the publisher is the reason, it says so too. 0114 T9 and T10
+remain *"Unmeasured against a live tenant"* until this is done. 0114's green Test was on the
+owner's own account.
+
+**The sentence before Connect.** Beside *Connect with Microsoft*, one line in both languages that
+holds whether or not T5 is done:
+
+- EN: *"A work or school account may need its organisation's administrator to approve Ownpace
+  first. A personal Microsoft account does not."*
+- NL: *"Voor een werk- of schoolaccount kan eerst goedkeuring van de beheerder van uw organisatie
+  nodig zijn. Voor een persoonlijk Microsoft-account niet."*
+
+The second sentence is Microsoft's documented default as understood here. T6's personal account
+confirms it or corrects it before a tester reads it. The sentences shown after a refusal
+(`microsoftConsentRefusal` for `AADSTS65001` and `AADSTS90094`) already ask for an administrator.
+This line says the same thing before the button, not after the refusal.
+
+**Guard.** `apps/web/src/components/a-microsoft-consent-that-warns-an-organisation.unit.test.tsx`
+renders the Microsoft consent with the deployment's client in EN and NL and finds the line. It
+fails today.
+
+### T7 — Dropbox: the app's limits, and a consent that asks only to read
+
+**(a) Read the console (owner).** First, is the reference machine's `DROPBOX_OAUTH_CLIENT_ID` a
+real app or the gate's placeholder? If it is the placeholder, 0132 removes it, and the owner
+decides whether to register an app (open question 5). If it is real, read in the Dropbox App
+Console:
+
+- the app's status, development or production;
+- the linked-user limit the console shows for that status;
+- the permissions actually enabled.
+
+Record all three with the date in `docs/dropbox-setup.md` and here. The review gave figures from
+outside knowledge: in development, 500 linked users, and two weeks to apply for production once
+50 have linked. Nobody read them from Dropbox, so they are not used here. The number that counts
+is the one the console shows. Count linked Dropbox accounts, not testers.
+
+**(b) Ask only to read.** `dropboxConsentUrl` adds `scope=files.metadata.read files.content.read`.
+`exchangeDropboxCode` refuses a grant carrying any scope outside `account_info.read`,
+`files.metadata.read`, `files.content.read` and `sharing.read`, and the refusal names the scope and
+says to remove it from the app. This deliberately reverses the file's header (*"No `scope` on the
+URL"*) and the test that pins it. The reason: the app's permissions live in a console the product
+cannot read, and the guides promise an enforced guarantee. As Dropbox documents the parameter
+(not re-read here), it asks for a subset of the app's permissions and cannot widen them. So the
+change can only narrow. The pinned test's own comment says a scope list *"could only widen or
+narrow them"*; if widening were possible, the refusal at the exchange would still hold the line.
+`sharing.read` is not asked for. The bring-up guide tells the operator to enable the two read
+scopes and nothing else, so a deployment's app set up that way loses nothing it has today. A
+tester's own app is different: `docs/dropbox-setup.md` and the wizard's hint offer `sharing.read`
+for the shared-folder browse, and through the button that app would lose it (open question 5).
+The first real consent after the change is recorded here.
+
+**Guard.** Two cases in `dropbox-consent.unit.test.ts`:
+
+- the URL carries exactly the two read scopes, which replaces the "no scope" case;
+- an exchange whose granted scope includes `files.content.write` is refused, naming it.
+
+Both fail today.
+
+### T8 — Box: experimental, and for organisations with a Box administrator
+
+The card carries 0131 T2's label. Its hint and the opening of `docs/box-setup.md` each gain a
+sentence on who the route is for. It needs the tester's own Box Platform app, approved in their
+Box enterprise's Admin Console. It suits an organisation with a Box administrator. A household is
+unlikely to have one, and whether a personal Box account can complete the steps has not been
+tried.
+
+`docs/box-setup.md` §1 says *"Read-only by construction: with only the read scope this product
+could not write to a Box even if it wanted to."* The condition is there, but not the half that
+matters: the product cannot check which scopes the app has, and the Box connector never reads
+them.
+The sentence gains that half. That is the same gap T7 closes for Dropbox, but there is no consent
+URL here to narrow.
+
+In the alpha, Box is for a tester who is a Box administrator in their organisation, and the first
+run is supervised by the owner.
+
+No code, so there is no guard.
+
+### T9 — Apple: experimental, with the password's own steps
+
+The card carries 0131 T2's label. Nothing else is built. The tester's steps are the guide's:
+
+1. Make an app-specific password labelled Ownpace.
+2. Paste it once.
+3. Revoke it at `account.apple.com` when the alpha ends. The product cannot revoke it for them.
+
+The password opens mail, calendars and contacts over IMAP, CalDAV and CardDAV. Read-only is a
+property of the product's connectors, which have no write path (privacy policy §4.1). It is not a
+limit of the password, and the tester is told so in those words.
+
+Walking Part 1 of `docs/apple-supervised-run.md` with the owner's own Apple Account before the
+first Apple tester belongs to the live proofs on 0131's list of further work (§5 there).
+
+No code, so there is no guard.
+
+### T10 — which sign-in buttons the alpha offers
+
+**Proposed: email and password only.**
+
+- Every tester is invited by address and supported by the owner.
+- Each extra button is one more consent screen with its own registration and status. A Google
+  sign-in client in Testing admits only its test users. A Microsoft sign-in registration raises
+  the same publisher question as §4.
+- The privacy policy does not mention signing in with another provider yet (0139).
+
+The exception: if the owner's own sign-in uses one of these providers, it stays, and testers see
+it too. The identity provider shows every provider it has to everyone. That is open question 6.
+
+On the stack, the chosen state is the `IDP_*` pairs in `.env`, and the identity provider's login
+policy read back afterwards. Step 7 of 0133 T4 then knows whether a Microsoft sign-in's
+verification mail is part of its walk.
+
+No code, so there is no guard.
+
+## 4. Explaining the risk: the deployment's Microsoft registration (D2)
+
+The owner asked for an explanation before deciding. Four parts: what exists, what the ADRs say,
+what publisher verification is, and the advice.
+
+### 4.1 What the deployment's Entra app is today
+
+Since 0114 (2026-09-03 to 2026-09-06), the managed edition can carry one Microsoft app
+registration for the whole deployment (`MICROSOFT_OAUTH_CLIENT_ID`, `_SECRET` and an optional
+`_TENANT`), just as it carries Google's and Dropbox's.
+
+- **Delegated scopes only, read-only, one per ticked face.** The faces are `Mail.Read`,
+  `Calendars.Read`, `Contacts.Read`, `Files.Read` and `Tasks.Read`, plus `offline_access`
+  (`MICROSOFT_DOMAIN_SCOPES` in `packages/shared/src/microsoft-scopes.ts`). The person being
+  migrated consents for themselves.
+- **Authority `common`**, unless the operator sets a tenant. The code's comment explains why:
+  *"`common` is that default and it is the one a shared deployment needs"*.
+- **Registered as multi-tenant plus personal accounts.** Both operator guides say so. What the
+  reference deployment's registration is actually set to is a console setting, not recorded in
+  the repository. 0114's status names *"a personal account against an organisational-only
+  registration"* as one of three stops on the way to the Microsoft **sign-in** button working,
+  so at least one registration was organisational-only for a while. Whether that one is also
+  the consent's registration is not recorded (`managed.env.example` allows one to serve both).
+
+The per-customer route stays beside it: the `oauth2` and `graph` cards, where a customer brings
+their own registration. That route is still needed for application permissions (shared mailboxes,
+reading a whole organisation).
+
+### 4.2 What ADR-0006 says, and why the reversal needs its own ADR
+
+ADR-0006's operative rule is the first thing an agent or contributor reads
+(`docs/adr/OPERATIVE.md`, ADR-0038):
+
+> **Each customer registers their own single-tenant Entra app** and consents in their own tenant
+> — the central multi-tenant app is retired (2026-08-09). The credential never leaves customer
+> custody; deleting the registration is their kill switch.
+
+Its 2026-08-09 update gives the reason. Publisher verification *"turned out to be the expensive
+part, an external Partner Center process with lead time that gates every foreign tenant's
+consent"*. Under per-customer registration, *"no tenant ever is"* asked to consent to Ownpace's
+app (0026 row 14), so verification became moot.
+
+0114 brought back exactly what that rule retired: one registration, owned by the deployment, that
+people in other organisations consent to. It did so for good reasons, the same ones ADR-0041 gave
+for Google. But no ADR records it. Grepping `docs/adr` for `MICROSOFT_OAUTH`, the deployment
+client or 0114 finds nothing. Four problems follow:
+
+- **The rules contradict the code.** An agent that follows `OPERATIVE.md` first, as `AGENTS.md`
+  tells it to, is told the registration it is looking at should not exist.
+- **The reasoning that dropped publisher verification no longer holds,** and nothing says so.
+  `solution-architecture.md` §25 still marks it *"resolved … there is no multi-tenant app to
+  verify"*.
+- **"The credential never leaves customer custody"** is no longer true for the default button.
+  The client secret is the deployment's, not the customer's. The refresh token sits in the
+  service's encrypted store, as it does for Google; on the managed edition it did under the
+  per-customer model too (0026 row 14 says the managed edition reads the pair and the token from
+  the per-connection encrypted store). That is a statement the privacy texts in 0139 have to
+  match.
+- **`AGENTS.md` rule 7:** decisions go into ADRs, append-only, and a later decision supersedes an
+  earlier one; only the operative section is amended in place. A reversal with no ADR at all is
+  what the rule exists to prevent.
+
+So T4 is small, and it is only documentation:
+
+- a new ADR that records the deployment-owned registration for the delegated `microsoft` account
+  kind;
+- it keeps the per-customer registration as the route for application permissions;
+- it states the publisher-verification position (§4.4);
+- ADR-0006's operative bullet is amended in place to point at it.
+
+### 4.3 What publisher verification is, and why it matters
+
+What follows is Microsoft's documentation as understood here. It was not re-read for this plan,
+and T6 checks it against real tenants.
+
+**What it is.** A registration is linked to the publisher's Microsoft AI Cloud Partner Program
+account. That account's business verification must be complete, and the registration's publisher
+domain must be verified in the tenant and match the partner account. Consent screens then show
+the publisher's name with a verified badge. Without it, the screen marks the app as unverified.
+
+**Why it matters: an organisation decides who may consent.** Each Entra tenant has a user-consent
+setting. Roughly:
+
+- **No user consent.** Only an administrator can consent, whether the app is verified or not.
+- **User consent for apps from verified publishers, for permissions the administrator marked as
+  low impact.** This is the setting Microsoft recommends. An unverified app needs an
+  administrator. A verified app can still need one for any permission the administrator did not
+  mark as low impact, and a mailbox read (`Mail.Read`) is not usually among those.
+- **User consent for all apps.** Even here, Microsoft has said since November 2020 that users
+  cannot consent to a newly registered multi-tenant app from an unverified publisher where its
+  risk-based checks apply. An administrator is asked instead.
+
+**Personal Microsoft accounts** (outlook.com, hotmail.com, live.com) have no tenant policy. As
+Microsoft documents its default, they see the consent screen with the app marked unverified, and
+they can accept. This is the default and must be checked (T6).
+
+**What it means for the alpha.**
+
+- A tester with a personal account can most likely connect.
+- A tester with a work or school account will most likely be asked for their administrator.
+  Today the product then shows `microsoftConsentRefusal`'s sentence: *"Microsoft requires an
+  administrator to approve this application for the organisation before anyone in it can connect
+  …"*. In a small business the tester may be that administrator, and can approve once for the
+  organisation.
+- Verification makes the wall lower. It does not remove it.
+
+### 4.4 The advice
+
+1. **Write the ADR now (T4).** It is a short document, and every day without it the rules tell
+   contributors the opposite of what runs.
+2. **Start publisher verification now (T5).** It has a lead time, set by the partner account's
+   business verification, and nothing in the repository can shorten it. It is the step that makes
+   the button usable for organisations that follow Microsoft's recommended setting. It needs the
+   same entity facts the owner is already supplying for the legal pass (0139).
+3. **Until it is done:**
+   - a tester from an organisation asks their administrator to approve, or uses a personal
+     Microsoft account;
+   - the tester reads that before pressing Connect (T6's sentence);
+   - the owner asks each Microsoft tester, before inviting them, which kind of account they have
+     and whether they administer it.
+4. **Test before the first Microsoft tester (T6):** one foreign organisation and one personal
+   account. Until then, what §4.3 says about Microsoft's defaults is reasoning, not measurement.
+
+## 5. Order
+
+1. **T1's measurement, and T0 for the first testers.** The measurement is cheap and decides T1.
+2. **T1's choice**, then **T2 and T3**, before the first Google tester.
+3. **T4 now**, as its own documentation PR. **T5 started now** by the owner.
+4. **T6** before the first Microsoft tester.
+5. **T7 (a)** now, because it is a console read. **T7 (b)** as its own PR, before the first
+   Dropbox tester.
+6. **T8 and T9** with 0131 T2's labels.
+7. **T10** decided before the first invitation, together with 0132's removal of the gate's
+   placeholders.
+
+0131 T5 (go/no-go) carries this plan's minimum:
+
+- each tester's Google accounts are listed as test users (under T1 (a));
+- testers know about the reconnect;
+- a Microsoft work or school tester knows before pressing Connect what their organisation may ask;
+- Dropbox, Box and Apple carry the label.
+
+## Not in this plan
+
+- The label itself and the table behind it: 0131 T2.
+- Live runs that would move a source from experimental to proven, including Apple's Part 1:
+  on 0131's list of further work (§5 there).
+- Removing the gate's placeholder client pairs from the stack: 0132.
+- The identity provider's verification mail: 0133.
+- The privacy policy's sentences on sign-in providers and on who holds a Microsoft credential,
+  and the grant page's legal links, whose corrected paths are drafted in the pending consistency
+  PR: 0139.
+- The grant page's "Read-only" box sitting above a scope Google describes more broadly, and the
+  in-app guides that still tell managed testers to create their own Google or Dropbox app: on
+  0131's list of further work (§5 there).
+- A consent popup that Safari may block because `ProviderConsent.tsx` opens it after an awaited
+  call (reported by the review, not verified: nothing runs WebKit), and a full device list: on
+  0131's list of further work (§5 there).
+- Google's verification submission and the restricted-scope assessment: 0089 T5 and ADR-0041,
+  unchanged.
+
+## Open questions
+
+1. **Google (T1): (a) or (b)?** The recommendation is (a), with its three conditions and the
+   switch trigger. Related: are alpha testers the "real customers" before whom ADR-0041 says
+   production gets its own client? This plan reads D1 as "not yet".
+2. **Grant links in the alpha under (a):** may testers send them to family members, who must then
+   grant again each week, or do testers migrate only their own Google account during the alpha?
+3. **Microsoft (T4, T5):** write the ADR and start publisher verification now, as advised?
+4. **Microsoft testers from organisations:** accept the administrator's approval as the route
+   until T5 is done, or take only personal Microsoft accounts until then?
+5. **Dropbox (T7):** if the stack carries the gate's placeholder, register a real app for the
+   alpha or leave the Dropbox card to testers' own apps? And should the consent also ask for
+   `sharing.read`, so the shared-folder browse works? That means enabling it on the deployment's
+   app, and it keeps the browse for a tester's own app that already has it.
+6. **Sign-in buttons (T10):** email and password only? And does the owner's own sign-in use a
+   provider that must therefore stay?
