@@ -14,8 +14,11 @@
  * `isAlpha()`):
  *
  * - the Billing page's subtitle is replaced by one line, in English and Dutch:
- *   nothing is charged during the alpha, and what the page shows is measured
- *   so a tester can see how it works, not a bill;
+ *   nothing is charged during the alpha, and then the free tier's own
+ *   sentence, word for word (owner, 2026-09-24): *"Not needed while your tier
+ *   is free: nothing is invoiced."*;
+ * - the invoice details card says that same sentence on every tier, where a
+ *   paid tier asked for the details in amber;
  * - the tier block stays under that line, prices included. On a free tier it
  *   says *free*, as 0109 T8 made it, and the two agree: the line says nothing
  *   is charged during the alpha, the block says nothing is invoiced on Tiny;
@@ -82,9 +85,9 @@ import { STRINGS } from '../i18n/strings.ts';
 const SAID = {
   en: {
     charged: 'Nothing is charged during the alpha.',
-    line:
-      'Nothing is charged during the alpha. What you see here is measured so you can see how ' +
-      'it works; it is not a bill.',
+    line: 'Nothing is charged during the alpha. Not needed while your tier is free: nothing is invoiced.',
+    notNeeded: 'Not needed while your tier is free: nothing is invoiced.',
+    missing: 'Not provided yet. Invoices cannot be issued until this is filled in.',
     // Today's words, for the control.
     subtitle: 'Manage your subscription, usage, and payments',
     tierHint: 'A guess is fine. The package follows what actually runs, so this is not binding.',
@@ -95,8 +98,10 @@ const SAID = {
   nl: {
     charged: 'Tijdens de alfa wordt niets in rekening gebracht.',
     line:
-      'Tijdens de alfa wordt niets in rekening gebracht. Wat u hier ziet, wordt gemeten zodat u ' +
-      'kunt zien hoe het werkt; het is geen rekening.',
+      'Tijdens de alfa wordt niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: ' +
+      'er wordt niets gefactureerd.',
+    notNeeded: 'Niet nodig zolang uw pakket gratis is: er wordt niets gefactureerd.',
+    missing: 'Nog niet ingevuld. Er kunnen geen facturen worden uitgereikt totdat dit is ingevuld.',
     subtitle: 'Beheer uw abonnement, verbruik en betalingen',
     tierHint:
       'Een inschatting volstaat; het pakket volgt wat werkelijk draait, dus dit is niet bindend.',
@@ -238,7 +243,7 @@ describe('with the alpha setting on', () => {
     'a member who may not see the figures reads that nothing is charged, and no claim about figures, in %s',
     async (locale) => {
       // Billing's reads are owner and admin only (2026-08-10), so a viewer is
-      // shown no measurement: "what you see here is measured" would be false.
+      // shown no invoice details: the free tier's sentence is about that form.
       authState.user = { name: 'Viewer', email: 'viewer@example.test', role: 'viewer' };
       await billingPage(locale);
       expect(underTheTitle()).toBe(SAID[locale].charged);
@@ -254,18 +259,30 @@ describe('with the alpha setting on', () => {
     expect(packageHint(locale)).toBe(`${SAID[locale].tierHint} ${SAID[locale].charged}`);
   });
 
-  it.each(LOCALES)('says "charged", as the alpha note does, and not "invoiced", in %s', (locale) => {
+  it.each(LOCALES)('says "charged", as the alpha note does, then the free tier\'s own sentence, in %s', (locale) => {
     // One promise in three places: the note at the top of every page (T1),
-    // the Billing line and the request hint. A tier says "invoiced" (0109
-    // T8); the alpha covers every tier, the paid ones too, and says
-    // "charged". If the note's word changes, this line changes with it.
+    // the Billing line and the request hint. The alpha covers every tier and
+    // says "charged". If the note's word changes, this line changes with it.
     const verb = { en: 'Nothing is charged', nl: 'niets in rekening gebracht' }[locale];
     expect(STRINGS[locale]['alpha.note.terms']).toContain(verb);
     // Read from the product's dictionary, not from SAID above, so this case
     // fails when the product's words change, not only when the test's do.
     const charged = STRINGS[locale]['alpha.nothingCharged'];
     expect(charged).toContain(verb);
-    expect(`${charged} ${STRINGS[locale]['billing.alpha.measured']}`).not.toMatch(/invoiced|gefactureerd/i);
+    // The second sentence IS the free tier's key (owner, 2026-09-24): one
+    // sentence, so the line and the card cannot drift apart.
+    expect(STRINGS[locale]['billing.party.notNeeded']).toBe(SAID[locale].notNeeded);
+    expect(SAID[locale].line).toBe(`${charged} ${STRINGS[locale]['billing.party.notNeeded']}`);
+  });
+
+  it.each(LOCALES)('on a paid tier, the invoice details card says "not needed", not the amber ask, in %s', async (locale) => {
+    await billingPage(locale);
+    await screen.findByText('Medium');
+    // The card's own paragraph; the line under the title holds it as its
+    // second sentence, which the first case checks.
+    expect(await screen.findByText(SAID[locale].notNeeded)).toBeInTheDocument();
+    expect(underTheTitle()).toBe(SAID[locale].line);
+    expect(document.body.textContent).not.toContain(SAID[locale].missing);
   });
 });
 
@@ -273,6 +290,8 @@ describe('without the setting: the page as it is today (the control)', () => {
   it.each(LOCALES)('Billing keeps its subtitle, its four metered cards and its tier, in %s', async (locale) => {
     await billingPage(locale);
     await screen.findByText('Medium');
+    // A paid tier still asks for the invoice details, in amber.
+    expect(await screen.findByText(SAID[locale].missing)).toBeInTheDocument();
     expect(underTheTitle()).toBe(SAID[locale].subtitle);
     for (const label of SAID[locale].metered) expect(screen.getByText(label)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(SAID[locale].charged);

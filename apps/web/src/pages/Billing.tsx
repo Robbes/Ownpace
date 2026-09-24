@@ -449,9 +449,14 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
  * T8). The two agree: the line says nothing is charged during the alpha, the
  * tier says nothing is invoiced on Tiny.
  *
- * A viewer or member is shown no figures (the reads are owner and admin
- * only), so they read the first sentence alone: "what you see here is
- * measured" would describe a page they are not shown.
+ * The second sentence is the free tier's own, word for word (owner,
+ * 2026-09-24, 0131 open question 7: *"show the free tier's 'not needed' text
+ * instead, also in the second sentence"*), and the invoice details card says
+ * the same during the alpha, on every tier.
+ *
+ * A viewer or member is shown no figures and no invoice details (the reads
+ * are owner and admin only), so they read the first sentence alone: the
+ * second is about a form they are not shown.
  */
 const Subtitle: React.FC<{ figuresShown: boolean }> = ({ figuresShown }) => {
   const t = useT();
@@ -462,7 +467,7 @@ const Subtitle: React.FC<{ figuresShown: boolean }> = ({ figuresShown }) => {
       {figuresShown && (
         <>
           {' '}
-          {t('billing.alpha.measured')}
+          {t('billing.party.notNeeded')}
         </>
       )}
     </p>
@@ -687,7 +692,10 @@ const Billing: React.FC = () => {
       </div>
 
       {/* Who invoices are addressed to — above the invoices it will be on. */}
-      <InvoiceDetailsCard free={usage?.tier != null && isFreeTier(usage.tier)} />
+      {/* During the alpha nothing is invoiced on any tier (0131 T3, owner's
+          answer to open question 7), so the card says so as it does on a
+          free tier, instead of asking for details nobody needs yet. */}
+      <InvoiceDetailsCard free={isAlpha() || (usage?.tier != null && isFreeTier(usage.tier))} />
 
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">

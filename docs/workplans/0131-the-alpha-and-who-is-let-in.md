@@ -4,6 +4,19 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: open question 7 answered; the Billing line and the invoice details card say the
+free tier's sentence.** The owner: *"Billing: show the free tier's 'not needed' text instead, also
+in the seconde sentence"*, and, asked which wording, chose the free tier's text verbatim over an
+alpha variant. So during the alpha the invoice details card shows `billing.party.notNeeded` on every
+tier, *"Not needed while your tier is free: nothing is invoiced."* / *"Niet nodig zolang uw pakket
+gratis is: er wordt niets gefactureerd."*, where a paid tier showed the amber ask; the form stays.
+And the Billing line's second sentence is that same key: *"Nothing is charged during the alpha. Not
+needed while your tier is free: nothing is invoiced."* The eighteen-word sentence,
+`billing.alpha.measured`, and its `ALLOWED_OVER` entry are gone, so the line fits the copy budget. A
+viewer or member, who is shown neither figures nor the form, still reads the first sentence alone.
+On the same branch; the guard gains a case for the card on a paid tier (it fails with the card's old
+condition) and its control half now holds the amber ask without the setting.
+
 **2026-09-24, build: T3 (a) built on branch
 `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, stacked on T1 (a)'s branch, not
 merged.** With `OWNPACE_STAGE=alpha`, the Billing page's subtitle gives way to §3's line, in
@@ -147,7 +160,7 @@ of the gate answer.
 |---|---|---|
 | T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** (b) 📋 waits on 0139 T2, T10 and 0144 T1 | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
-| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, not merged**: the Billing line and the request hint. The cards and the run rows stay 📋 **Proposed**; the invoice details card during the alpha is open question 7 | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
+| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, not merged**: the Billing line and the request hint, and the invoice details card's *not needed* during the alpha (open question 7, answered). The cards and the run rows stay 📋 **Proposed** | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |
 | T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0149, 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
 
@@ -507,10 +520,12 @@ Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
 **The Billing page, when the setting says alpha:**
 
 - The subtitle is replaced, and the page opens with one line. EN: *"Nothing is charged during the
-  alpha. What you see here is measured so you can see how it works; it is not a bill."* NL:
-  *"Tijdens de alfa wordt niets in rekening gebracht. Wat u hier ziet, wordt gemeten zodat u kunt
-  zien hoe het werkt; het is geen rekening."* A viewer or member, who is shown no figures, reads
-  the first sentence alone (the T3 build's reading, 2026-09-24).
+  alpha. Not needed while your tier is free: nothing is invoiced."* NL: *"Tijdens de alfa wordt
+  niets in rekening gebracht. Niet nodig zolang uw pakket gratis is: er wordt niets
+  gefactureerd."* The second sentence is the free tier's own (`billing.party.notNeeded`), by the
+  owner's answer to open question 7 (2026-09-24); it replaced *"What you see here is measured so
+  you can see how it works; it is not a bill."* A viewer or member, who is shown neither figures
+  nor the invoice details form, reads the first sentence alone (the T3 build's reading).
 - The tier block stays, prices included, under that line. The measurement is one of the things
   worth trying: 0121 T4 records the owner's decision of 2026-09-09 that the customer gets to see
   it. The prices shown are ADR-0014's (`MANAGED_TIERS` in
@@ -522,7 +537,9 @@ Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
 - Unchanged: the invoice list, which is empty, and the payment methods, where the page offers
   no way to add one. The *"Invoice details"* form (who invoices are addressed to, with an address
   and a VAT number) also stays as it is; the alpha asks nobody to fill it in, and T1's note says
-  nothing is charged.
+  nothing is charged. So during the alpha the card shows the free tier's *"Not needed while your
+  tier is free: nothing is invoiced."* on every tier, in place of the amber ask (open question 7,
+  answered 2026-09-24).
 
 **The request page.** The package question (*"Which package looks right?"*) stays, because it
 tells the owner roughly how large a request is. Its hint gains the sentence *"Nothing is charged
@@ -883,4 +900,7 @@ works M1 to M7, each group in its numbered order.
    points to (b). Separately: the Billing line's second sentence is eighteen words, over the copy
    budget, and is kept verbatim on the authority of §3's Decided text. (a) Keep it verbatim, which
    is how it is built; or (b) keep *"it is not a bill"* on screen and move the explanation into a
-   fold.
+   fold. *Answered 2026-09-24: (b) for the card, with the free tier's text verbatim, and the same
+   text in place of the second sentence.* The owner: *"Billing: show the free tier's 'not needed'
+   text instead, also in the seconde sentence"*; asked which wording, the owner chose the free
+   tier's text verbatim.

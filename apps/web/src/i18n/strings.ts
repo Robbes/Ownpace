@@ -670,12 +670,6 @@ const en = {
   'wizard.leaveConfirm': 'Leave this wizard? Everything you typed here will be discarded.',
   'billing.title': 'Billing',
   'billing.subtitle': 'Manage your subscription, usage, and payments',
-  // During the alpha the subtitle gives way to `alpha.nothingCharged` and
-  // this (workplan 0131 T3), 0131's words verbatim: eighteen words, named in
-  // the copy budget's ALLOWED_OVER. Only an owner or admin reads it, because
-  // only they are shown what is measured.
-  'billing.alpha.measured':
-    'What you see here is measured so you can see how it works; it is not a bill.',
   'billing.currentUsage': 'Current Usage',
   'billing.storage': 'Storage',
   'billing.dataTransfer': 'Data Transfer',
@@ -2894,8 +2888,6 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.leaveConfirm': 'Deze wizard verlaten? Alles wat u hier hebt ingevuld gaat verloren.',
   'billing.title': 'Facturatie',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
-  'billing.alpha.measured':
-    'Wat u hier ziet, wordt gemeten zodat u kunt zien hoe het werkt; het is geen rekening.',
   'billing.currentUsage': 'Huidig verbruik',
   'billing.storage': 'Opslag',
   'billing.dataTransfer': 'Dataverkeer',

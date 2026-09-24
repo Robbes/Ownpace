@@ -64,13 +64,6 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   // up (0131 D5), the alpha can end. Sixteen words in Dutch. Safety sentences
   // stay verbatim — owner, 2026-09-05 — and the mail says the same words.
   'alpha.note.terms': 'safety sentence, verbatim by owner decision',
-  // The Billing page's alpha line (0131 T3): what the page shows is measured,
-  // and it is not a bill. Eighteen words in English, seventeen in Dutch. The
-  // authority is 0131 §3, whose Decided text (D1, 2026-09-24) gives this
-  // sentence word for word; 0118's rule for consent, safety and remedy
-  // sentences does not cover it, since its first clause explains. Whether it
-  // may be shortened or folded is the owner's call, recorded in 0131.
-  'billing.alpha.measured': 'money promise, verbatim as 0131 §3 decided it',
 };
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };
