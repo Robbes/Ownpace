@@ -1118,16 +1118,18 @@ up, deletions at the source are reported), and then finish.
 ### Which services the managed gate actually speaks for
 
 `smoke-managed.sh` says `unhealthy: none`, and that sentence is narrower than
-it sounds: **seven of the fourteen services define no healthcheck**, so
-`docker compose ps` can only say they are *running*. If a red gate points at a
-service, this is the map of what proved it and how:
+it sounds: **six of the seventeen long-running services define no
+healthcheck**, so `docker compose ps` can only say they are *running*. If a red
+gate points at a service, this is the map of what proved it and how:
 
 | service | how it is proven |
 |---|---|
-| postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web | compose healthcheck — `--wait` blocks on them |
+| postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web, mailpit | healthcheck (compose, or the image's own HEALTHCHECK for api and web) — `--wait` blocks on them |
 | nextcloud, trigger-api, trigger-supervisor | compose healthcheck, added 2026-08-19 |
 | trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy |
 | minio, trigger-tls | **asserted by the smoke**, not probed — see below |
+| zitadel | no healthcheck by design (managed.yml): readiness is asked from the host by `wait_for_idp_ready`, and the smoke checks the issuer |
+| gatus | no healthcheck by design (a `FROM scratch` image): the smoke probes `/health` over the published port |
 
 `minio` and `trigger-tls` have no healthcheck on purpose. A compose probe runs
 INSIDE the image, so under `up -d --wait` one naming a binary that image lacks
