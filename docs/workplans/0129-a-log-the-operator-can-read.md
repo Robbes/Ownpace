@@ -83,10 +83,13 @@ becomes its pseudonym, and an action that is not a name from code leaves as `aud
 the log page shows it. Found building it: Trigger.dev runs each task run as a process of its
 own, so the sink set where the worker starts would have missed the digest's events and a
 rollback's. Every task file that opens the database now sets it, and the guard holds all 14 to
-it, with the API, the appliance and the worker. The two commands an operator types at a terminal
-print no line; the download will serve their rows. Guards: `an-audit-line-a-collector-can-read`
-in shared (15) and ledger (11), and `every-audit-field-is-classified` (20); 36 mutations, all
-killed. The download that resumes, T4's second half, is next.
+it, with the API, the appliance and the worker. Found in review of the first push: on managed,
+the API's request path connects as `app_user`, which may not read the key, so every line the API
+wrote would have failed; the API reads it once on the owner's connection its migrations use, and
+the guard pins that. The two commands an operator types at a terminal print no line; the
+download will serve their rows. Guards: `an-audit-line-a-collector-can-read` in shared (15) and
+ledger (12), and `every-audit-field-is-classified` (21); 38 mutations, all killed. The download
+that resumes, T4's second half, is next.
 
 | Task | Status | Notes |
 |---|---|---|

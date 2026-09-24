@@ -137,4 +137,14 @@ describe('every process that writes audit events points its lines at its output'
       expect(readFileSync(join(REPO, file), 'utf8')).toContain('setAuditExportSink(auditExportOn(');
     },
   );
+
+  it("the API reads the key on the owner's connection: its request path is app_user, which may not", () => {
+    const api = readFileSync(join(REPO, 'apps/api/src/index.ts'), 'utf8');
+    const wiring = api.slice(api.indexOf('setAuditExportSink(auditExportOn('));
+    const sink = wiring.slice(0, wiring.indexOf(';'));
+
+    expect(sink).not.toContain('getDbPool()');
+    expect(sink).toContain('auditKeyPool');
+    expect(api).toMatch(/const auditKeyPool = new Pool\(\{ connectionString: migrationUrl\b/);
+  });
 });

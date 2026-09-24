@@ -12,7 +12,9 @@
  *  - the line waits for the transaction instead: an event that was rolled back
  *    prints nothing, and none prints before its commit;
  *  - the key outlives a restart, so the same person is the same pseudonym;
- *  - the request path cannot read the key;
+ *  - the request path cannot read the key, so a sink built on its role writes
+ *    nothing (the managed API's request path is that role, and reads the key
+ *    as the owner instead);
  *  - a line that cannot be written costs the line, never the event.
  *
  * PGlite as the appliance runs it. The address is invented.
@@ -231,6 +233,35 @@ describe("the deployment's key", () => {
 
     // drizzle wraps the database's refusal; the refusal itself is the cause.
     expect(String(failure?.cause ?? failure)).toMatch(/permission denied/);
+  });
+});
+
+describe("a sink on the request path's own role", () => {
+  it("writes no line, because the key is the owner's alone: the managed API reads it as the owner", async () => {
+    // The managed API's request path connects as `app_user` itself
+    // (`APP_DATABASE_URL`), rather than dropping to it inside a transaction.
+    const asAppUser: LedgerDriver = {
+      role: driver.role,
+      async acquire() {
+        const conn = await driver.acquire();
+        await conn.query('SET ROLE app_user');
+        return {
+          ...conn,
+          release: (err?: Error) => {
+            void conn.query('RESET ROLE').finally(() => conn.release(err));
+          },
+        };
+      },
+      end: () => driver.end(),
+    };
+    const lines: string[] = [];
+    setAuditExportSink(auditExportOn(asAppUser, RESOURCE, (line) => lines.push(line)));
+
+    await record();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(lines).toHaveLength(0);
+    await expect(deploymentKeyFor(asAppUser, 'audit-pseudonym')).rejects.toThrow(/permission denied/);
   });
 });
 

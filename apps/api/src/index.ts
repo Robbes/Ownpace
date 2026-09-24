@@ -10,6 +10,7 @@ import express from 'express';
 import type { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { Pool } from 'pg';
 import { accessLog } from './access-log.ts';
 import {
   appEventSinkOn,
@@ -324,8 +325,16 @@ if (process.env.NODE_ENV !== 'test') {
       // table exists. On the application's own role, which may write an
       // event and may not read one (migration 0059).
       setAppEventSink(appEventSinkOn(pgDriver(getDbPool())));
-      // Each audit event also as one JSON line on this process's output (0129 T4).
-      setAuditExportSink(auditExportOn(pgDriver(getDbPool()), { 'service.name': 'ownpace-api' }));
+      // Each audit event also as one JSON line on this process's output (0129
+      // T4). Not on `getDbPool()`: that is `app_user` on managed, and the
+      // pseudonym key is the owner's alone (ledger migration 0062), so every
+      // line would fail. The key is read once, on the owner's connection the
+      // migrations just used, from a pool of one that closes itself a second
+      // after, and whose error handler keeps a dropped idle connection from
+      // ending the process.
+      const auditKeyPool = new Pool({ connectionString: migrationUrl, max: 1, idleTimeoutMillis: 1_000 });
+      auditKeyPool.on('error', (err) => log.warn(`[audit-export] the key's connection closed: ${err.message}`));
+      setAuditExportSink(auditExportOn(pgDriver(auditKeyPool), { 'service.name': 'ownpace-api' }));
       app.listen(PORT, () => {
         log.info(`API server running on port ${PORT}`);
         log.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
