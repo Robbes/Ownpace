@@ -172,7 +172,7 @@ app.use('/api/ready', readyRoutes);
  * an oversight.** The body carries counts and durations only — no addresses,
  * no folder names, no tenant identifiers (§17). What it does reveal is
  * aggregate volume, so it belongs behind the ingress that already fronts this
- * service rather than on a public route; deployment.md says so.
+ * service rather than on a public route; docs/managed-bring-up.md (Ports) says so.
  *
  * What this does NOT deliver: §19's per-tenant dashboards, alert rules and
  * SLOs. Those were deferred in the same decision — thresholds chosen before

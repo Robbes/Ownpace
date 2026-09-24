@@ -160,11 +160,24 @@ nothing at all.
 | 3090 | Trigger.dev API (http) | `TRIGGER_PORT` — what the **deploy CLI** talks to |
 | 3443 | Trigger.dev dashboard (https) | `TRIGGER_TLS_PORT` — what your **browser** talks to |
 | 5000 | task image registry | `REGISTRY_PORT`, bound to loopback |
-| 8083 | Nextcloud | demo backend only |
+| 3124 | status page (Gatus) | `STATUS_PORT` |
+| 3126 | identity provider (Zitadel) | `ZITADEL_PORT` — the same number inside and out |
+| 3127 | Mailpit (web UI) | `MAILPIT_PORT`, bound to loopback unless `MAILPIT_BIND` says otherwise |
+| 8083 | Nextcloud | `NEXTCLOUD_PORT`, bound to loopback unless `NEXTCLOUD_BIND` says otherwise; demo backend only |
+
+Ports not marked loopback are published on **every interface**: compose's
+default host address is `0.0.0.0`.
 
 PgBouncer is deliberately **not** published: it is reached over the compose
 network by name. That is why anything running on the host (the seed, the
 migrations) connects to `postgres:5432`'s published port directly.
+
+**`GET /metrics` on the API port is unauthenticated**, by decision (0026 T3
+row 19): it carries counts and durations only, but the aggregate volume it
+reveals is not for the public internet. The web image proxies only `/api/*`,
+so `/metrics` is reachable only on port 3001 itself. Keep 3001 off any public
+interface, and if a reverse proxy does front 3001 directly, do not forward
+`/metrics`. Scrape it over the compose network or loopback.
 
 **Addressing the dashboard.** `TRIGGER_TLS_HOST=localhost` (the default) means
 the dashboard is usable **only from the machine itself**. The dashboard's
