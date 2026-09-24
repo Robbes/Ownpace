@@ -14,12 +14,19 @@
  * declares `"engines": { "node": ">=24" }`, and eight `setup-node` steps asked
  * for `'24'`. The managed gate (`e2e-managed.yml`) and the live-target lane
  * (`e2e-live-target.yml`) asked for `22` — found 2026-09-24. The managed gate
- * stayed green, because the api, worker and web run in their own Node 24
- * containers whatever the runner has. What ran on 22 was everything that gate
- * runs on the HOST: the seed, the Trigger.dev deploy CLI and the smoke — the
- * very steps the managed bring-up guide has an operator run by hand, checked
- * on a Node below the repository's own `engines` floor. The vitest alias file
- * already records one resolver behaviour that differs between the two.
+ * stayed green, because the api runs in its own Node 24 image (and the web is
+ * built in one) whatever the runner has. What ran on 22 was everything that
+ * gate runs on the HOST: the seed, the Trigger.dev deploy CLI and the smoke —
+ * the very steps the managed bring-up guide has an operator run by hand,
+ * checked on a Node below the repository's own `engines` floor. The vitest
+ * alias file already records one resolver behaviour that differs between the
+ * two.
+ *
+ * Not read here: the managed worker's task image. The Trigger.dev CLI builds
+ * it, and the worker's deploy config (apps/worker/trigger.config.ts) names no
+ * `runtime`, so it gets the CLI's default `node` base, which in the 4.5.16 CLI
+ * the deploy runs is Node 21. No workflow or Dockerfile in this repository
+ * states that version.
  *
  * A `setup-node` step with no `node-version` at all is refused too: it runs
  * whatever Node the runner image happens to carry, which is a version nobody
@@ -121,13 +128,20 @@ describe('every gate runs the Node major the images ship', () => {
   });
 });
 
-/** The two deployments, and the Postgres server image each one runs. */
+/**
+ * The two deployments. What is compared is each one's `postgres` service, the
+ * server the migrations run on. managed.yml's `trigger-db` is Trigger.dev's own
+ * database, never sees these migrations, and is not held to the same major.
+ */
 const DEPLOYMENTS = ['deploy/compose/managed.yml', 'deploy/selfhost/compose.yml'];
 
 describe('migration-lint replays onto the Postgres major the deployments run', () => {
-  const deployed = DEPLOYMENTS.flatMap((file) =>
-    [...read(file).matchAll(/^\s*image:\s*postgres:(\d+)[.\-@]/gm)].map((m) => ({ file, major: Number(m[1]) })),
-  );
+  const deployed = DEPLOYMENTS.flatMap((file) => {
+    const image = (parseYaml(read(file)) as { services?: { postgres?: { image?: unknown } } }).services?.postgres
+      ?.image;
+    const m = typeof image === 'string' ? /^postgres:(\d+)[.\-@]/.exec(image) : null;
+    return m ? [{ file, major: Number(m[1]) }] : [];
+  });
   const linted = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d+)\//g)].map(
     (m) => Number(m[1]),
   );
