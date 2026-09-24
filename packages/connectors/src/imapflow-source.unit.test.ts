@@ -3,9 +3,10 @@
 /**
  * `ImapFlowSource` against a fake imapflow client (workplan 0032 T1).
  *
- * The real gate for this connector is `imap-parity.integration.test.ts`, which
- * runs it beside `ImapSource` against a live Stalwart and names every field
- * they disagree about. These tests do the thing that harness cannot: pin the
+ * The gate this connector passed before the 2026-08-06 cutover was
+ * `imap-parity.integration.test.ts` (removed with `ImapSource`), which ran it
+ * beside `ImapSource` against a live Stalwart and named every field they
+ * disagreed about. These tests do the thing that harness could not: pin the
  * decisions that are ours rather than the server's, and pin them where a fake
  * can make the wrong answer reachable on demand.
  *

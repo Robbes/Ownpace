@@ -3,14 +3,16 @@
 /**
  * The IMAP source read path on `imapflow` (workplan 0032 T1).
  *
- * **This does not replace `imap-source.ts` yet, and that is the whole method.**
- * 0032 moves 1430 lines off `imap-simple`, and the path being moved is the one
- * thing in this product with nightly end-to-end evidence behind it. A rewrite
- * that lands in one commit trades that evidence for a hope. So this ships
- * BESIDE the proven client, and `imap-parity.integration.test.ts` — which until
- * today compared `ImapSource` with itself — now runs the two against the same
- * seeded Stalwart mailbox and reports every disagreement as a named field on a
- * named message. Cutting over is a separate, evidence-backed step.
+ * **It did not replace `imap-source.ts` in one step, and that was the whole
+ * method.** 0032 moved 1430 lines off `imap-simple`, and the path being moved
+ * was the one thing in this product with nightly end-to-end evidence behind
+ * it. A rewrite that lands in one commit trades that evidence for a hope. So
+ * this shipped BESIDE the proven client first, and
+ * `imap-parity.integration.test.ts` ran the two against the same seeded
+ * Stalwart mailbox and reported every disagreement as a named field on a named
+ * message. The cutover was a separate, evidence-backed step (0032 T3,
+ * 2026-08-06, `mail-source-factory.ts`); `imap-source.ts` and that harness
+ * were removed after it, and this is now the only IMAP read path.
  *
  * ============================================================================
  * THE ONE FIELD THIS IS ALL ABOUT
@@ -23,13 +25,14 @@
  * mailbox is simply twice its size.
  *
  * So this file does not have its own opinion about the field. It calls
- * `messageIdFromEnvelopeValue` from `imap-source.ts` — the same function the
- * proven client calls. That removes the risk of OUR logic drifting between two
- * files, and it deliberately does not hide a difference in what the two
- * CLIENTS hand in: `imapflow` trims the ENVELOPE value and `node-imap` does
- * not, so a server that ever emits a padded msg-id produces a real difference
- * that the harness will name. That is the correct outcome — the harness exists
- * to surface it, not to be spared it.
+ * `messageIdFromEnvelopeValue` from `imap-conventions.ts` — the same function
+ * the old `imap-source.ts` client called before it was removed. That removed
+ * the risk of OUR logic drifting between two files, and it deliberately did
+ * not hide a difference in what the two CLIENTS handed in: `imapflow` trims
+ * the ENVELOPE value and `node-imap` did not, so a server that ever emitted a
+ * padded msg-id produced a real difference for the harness to name. That was
+ * the correct outcome — the harness existed to surface it, not to be spared
+ * it.
  *
  * `mapImapFlagsToKeywords` and `uidFromSourceRef` are shared for the same
  * reason, at lower stakes.
@@ -60,7 +63,6 @@
  * prevent. It is recorded in 0032's status block as its own decision.
  *
  * @see docs/workplans/0032-imapflow-migration.md — T1
- * @see packages/connectors/src/imap-parity.ts — the harness that gates this
  */
 
 import { ImapFlow } from 'imapflow';
