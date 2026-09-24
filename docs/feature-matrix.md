@@ -404,6 +404,64 @@ These hold across all object types, and are features rather than gaps:
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
 | Apple (iCloud) against a real Apple Account — the app-specific password's dashed form, the username's local-part-vs-address question, and the first live face counts | ⏳ built, unproven | `apple-supervised-run.md`; workplan 0115 |
 | iCloud Drive as a live source | 🚫 impossible — Apple publishes no API to anyone | Files section above; the archive route is workplan 0116 |
-| Microsoft To Do as a task source | ✅ `graph-todo-source`: the account kind's fifth face, `Tasks.Read` asked only when ticked; unmeasured against a live tenant (needs a consent nobody in CI can press) | workplan 0114 T9 |
-| Google Tasks as a task source | ✅ `google-tasks-source`: the Google account's third face, `tasks.readonly` asked only when ticked; unmeasured against a live account | workplan 0126 |
+| Microsoft To Do as a task source | ⏳ `graph-todo-source`: the account kind's fifth face, `Tasks.Read` asked only when ticked; unmeasured against a live tenant (needs a consent nobody in CI can press) | workplan 0114 T9 |
+| Google Tasks as a task source | ⏳ `google-tasks-source`: the Google account's third face, `tasks.readonly` asked only when ticked; unmeasured against a live account | workplan 0126 |
 | Sieve rules, signatures, OOF, ACLs, invitation state, version history | 🚫 out of scope, stated per domain above | this document |
+
+## Live proofs
+
+What a source has done against a real account, written down (workplan 0141 T1). Both doors tag a
+source card, a face in the wizard's data-type step and Google's whole-domain option
+*Experimental* from one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts` (workplan
+0131 T2). A verdict there says proven only by naming a row below. A change to one goes into the
+same pull request as the change to the other, and a face whose connector is rebuilt goes back to
+experimental in the pull request that rebuilds it. The Email table's ✅ for `oauth2` and `graph`
+says the reader is built; no run behind it is recorded (0141 §1), so both cards carry the tag
+until one is (0148 D5).
+
+**What counts as a live proof.** All seven:
+
+1. **The product's own path:** the managed wizard on `ownpace-live`, or on the OTA stack where a
+   sitting needs it, or the appliance with a mapping file, through the product's own connector for
+   that kind and face. A harness with a client of its own does not count.
+2. **A real account at the provider,** with data a person made. A fixture does not count. A server
+   we run counts only as *a server we run*, and the row says so.
+3. **A completed pass:** it ended `completed`, not paused, failed or stopped.
+4. **Counts for the face:** what the preflight found, what was copied, and what was skipped or
+   refused, with the reason in the workplan.
+5. **A verification:** Verify says PASS for that face. Where Verify does not cover it, the owner
+   compares the counts with the provider's own screen and writes down both numbers.
+6. **A second pass that creates nothing.**
+7. **Silence:** for calendars and tasks with attendees, the catcher or catch-all stayed silent.
+
+A connection Test, a preflight on its own, a gate that stood down and a harness that imports none
+of the product's connectors do not count. A row holds no address, no name and no tenant id:
+counts and classes only. The source's workplan Status carries a dated paragraph with the same
+numbers, and anything the run found.
+
+### Recorded proofs
+
+| Date | Kind | Face | Edition and stack | Tag or commit | Account | Target | Found | Copied | Skipped | Second pass created | Verification | Detail in |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+None yet. *Account* is one of: *the owner's own*, *a second account*, *a tester's, supervised*
+(with their agreement), or *a server we run*.
+
+### Proven before this record
+
+These ran against a real account, or for `imap` against a server we run, before this record
+existed. The repository says what ran and where, and does not hold the counts 0141 T1 asks for,
+so *Counts* says "not recorded" where they were not. The table only shrinks: a face leaves it
+when a recorded proof replaces its row, and a new proof goes in the table above
+(`scripts/a-proof-that-was-written-down.unit.test.ts`).
+
+| Kind | Face | Account | What ran | Counts | Where it is written |
+|---|---|---|---|---|---|
+| `imap` | email | a server we run | The appliance nightly (`e2e.yml`) seeds the Stalwart it runs and migrates it over IMAPS; a restart and a second pass add nothing | 25 copied; 25 after the restart and the second pass (2026-07-27) | `docs/workplans/0010-selfhost-edition.md` (T5), `scripts/connector-coverage.unit.test.ts` |
+| `gmail` | email | the owner's own | The owner's own Google account, routinely, for weeks before 2026-09-22 | not recorded | `docs/feature-matrix.md` (the note at the top, and the Email table), `docs/workplans/0141-proof-before-strangers.md` (§1) |
+| `google-calendar` | calendar | the owner's own | The same account, the same weeks | not recorded | `docs/feature-matrix.md` (the note at the top, and the Calendars table), `docs/workplans/0141-proof-before-strangers.md` (§1) |
+| `google-contacts` | contact | the owner's own | The same account, the same weeks | not recorded | `docs/feature-matrix.md` (the note at the top, and the Contacts table), `docs/workplans/0141-proof-before-strangers.md` (§1) |
+| `google-drive` | file | the owner's own | The Drive connector on the owner's live migration, which reaches it through the `google` account's file face | not recorded | `docs/workplans/0042-google-drive-source.md` (T8, what the first live run left open), `docs/workplans/0141-proof-before-strangers.md` (§1) |
+| `google` | calendar | the owner's own | The owner's live Google to Nextcloud migration, on the `google` account kind. On 2026-09-22 an update reached the copy and the catcher stayed silent | not recorded | `docs/workplans/0103-the-mail-a-migration-must-not-send.md` (Status, 2026-09-22), `docs/workplans/0141-proof-before-strangers.md` (§1) |
+| `google` | contact | the owner's own | The same migration, as 0141 §1 reads it | not recorded | `docs/workplans/0141-proof-before-strangers.md` (§1) |
+| `google` | file | the owner's own | The same migration's Drive files. The Sharing page's defect of 2026-09-17 was found on it | not recorded | `apps/api/src/routes/permissions.ts`, `docs/workplans/0042-google-drive-source.md` (T8, T10) |

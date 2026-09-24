@@ -4,6 +4,40 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build: T2 (a), the table and the *Experimenteel* tag, built with 0141 T1 on branch
+`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.**
+`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, beside `FRONT_DOOR_FAMILIES`, holds a
+verdict for each source kind and, for the four account kinds, one for each face. A proven verdict
+names its row in the new "Live proofs" section of `docs/feature-matrix.md` (0141 T1). The tag,
+*Experimental* / *Experimenteel*, is text inside the card's `<button>` at both doors
+(`FrontDoorChooser`, which now takes the side it draws, so a target card is never tagged: open
+question 5). Its why folds beside the card, through `Hint`, whose line may now be left out for
+this. The data-type step tags an experimental face the same way, and the service-account key, the
+whole-domain option on the Google cards, carries the word in its label and the why in its fold.
+Both editions, and nothing is hidden on either: the export archive card stays at both doors on
+managed and carries the tag there (0148 D10), and so does *Via IMAP* (0148 D5). The first content
+follows §1's list, read with 0141 §1's table: experimental are every Microsoft 365 face, *Via
+IMAP* and *Via the Graph API* (no run behind the matrix's ✅ is recorded; 0148 D5), Dropbox, Box,
+the Apple account, Google Tasks, whole-domain delegation, the export archive (a fixture Takeout
+only) and Soverin as a source (not offered). Proven are IMAP (a server we run), the four Google
+product cards and the Google account's calendar, contacts and files. The Google account's mail
+face is experimental: no run through the account is recorded. The guards:
+`apps/web/src/components/a-card-that-says-it-is-unproven.unit.test.tsx` failed 28 of its 30 cases
+on `main` and passes 30 of 30. Ten of them look for the export archive and *Via IMAP* by name on
+the screen, at both doors, on a managed build as on the appliance, in English and Dutch, and ask
+that each is offered and tagged. `packages/orchestration/src/a-face-that-arrives-without-a-verdict.unit.test.ts`
+failed 5 of 5 and passes 5 of 5. Each of ten mutations fails one of them: the fold moved inside
+the card's button, the chooser tagging whatever the side, no tag in the data-type step, an account
+card tagged when any one face is experimental, the whole-domain tag dropped on the Connections
+page, the tag an icon with no word, Microsoft To Do without a verdict, the archive card left out
+of both doors' lists on managed (4 of 30 fail, and only the new cases: the walks over the lists
+stay green), the archive's tag dropped on managed only (9 of 30), and the archive's verdict set to
+proven (10 of 30, and 0141 T1's guard). 0141 T1's guard is in 0141's Status. Not built: (b), the
+why's link to 0144 T2's known-limitations page. 0136 T5, the managed API refusing a typed disk
+path, and 0148 T3's *to be tested* tag on the Apple export are separate steps. Found while writing
+the guard, not fixed: the wizard's `sourceKindOf` answers `o365` for `microsoft`, `apple` and
+`archive`, so a stored connection of those kinds is never offered for reuse on the source step.
+
 **2026-09-24, night: the archive card is labelled, not hidden (0148 D10).** The owner: *"Hide the
 archive card on manage: I don't want them hidden. I want labelled as 'expirimental'."* So T2's table
 gives the export archive card the *experimental* verdict, and it keeps its place at both doors on
@@ -70,7 +104,7 @@ of the gate answer.
 | Task | Status | Notes |
 |---|---|---|
 | T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4) | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. |
-| T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
+| T2 An "experimental" label on sources nobody has run against a real account | 🔨 **(a) Built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24): the table, the tag at both doors on both editions (the export archive card included, offered and tagged on managed: 0148 D10), in the data-type step and beside the whole-domain option, with 0141 T1. 📋 **Decided 2026-09-24** (D6); (b), the why's link to 0144 T2's page, not built | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
 | T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1) | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |
 | T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0149, 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |

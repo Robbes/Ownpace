@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 155 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 156 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -716,6 +716,7 @@ reading a file drops off its entry by itself.
 ### `docs/feature-matrix.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [a-proof-that-was-written-down](../scripts/a-proof-that-was-written-down.unit.test.ts) — A PROOF THAT WAS WRITTEN DOWN (workplan 0141 T1, with 0131 T2 (a)).
 
 ### `docs/google-workspace-setup.md`
 
@@ -1064,6 +1065,7 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/front-door.ts`
 
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-proof-that-was-written-down](../scripts/a-proof-that-was-written-down.unit.test.ts) — A PROOF THAT WAS WRITTEN DOWN (workplan 0141 T1, with 0131 T2 (a)).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `packages/shared/src/google-deployment-client.unit.test.ts`
@@ -2049,6 +2051,15 @@ Reads:
 
 - `deploy/compose/managed.yml`
 - `deploy/compose/smoke-managed.sh`
+
+### [a-proof-that-was-written-down](../scripts/a-proof-that-was-written-down.unit.test.ts)
+
+A PROOF THAT WAS WRITTEN DOWN (workplan 0141 T1, with 0131 T2 (a)).
+
+Reads:
+
+- `docs/feature-matrix.md`
+- `packages/shared/src/front-door.ts`
 
 ### [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts)
 

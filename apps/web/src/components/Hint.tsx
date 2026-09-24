@@ -21,8 +21,13 @@ import { STRINGS } from '../i18n/strings.ts';
 export type FoldLabel = 'why' | 'how' | 'more';
 
 export const Hint: React.FC<{
-  /** The one sentence that stays on screen. */
-  text: string;
+  /**
+   * The one sentence that stays on screen. Left out only where that line is
+   * already on screen somewhere a fold cannot go: the *Experimental* tag, whose
+   * word sits inside a card's `<button>` while its why folds beside the card
+   * (0131 T2, 0145 T2). The fold alone renders then.
+   */
+  text?: string;
   /** What folds away — omitted, there is no fold at all. */
   why?: string;
   /** The word on the fold: "Why?" for a hint, "How?" for a step, "More" for a choice. */
@@ -45,9 +50,9 @@ export const Hint: React.FC<{
   const foldClass = tone === 'note' ? 'text-yellow-800' : 'text-gray-500';
   return (
     <div className={className}>
-      <p className={`text-sm ${toneClass}`}>{text}</p>
+      {text && <p className={`text-sm ${toneClass}`}>{text}</p>}
       {why && (
-        <details className="mt-1 text-sm" open={open}>
+        <details className={`${text ? 'mt-1 ' : ''}text-sm`} open={open}>
           <summary className={`cursor-pointer select-none ${foldClass}`}>
             {t(`fold.${label}` as StringKey)}
           </summary>

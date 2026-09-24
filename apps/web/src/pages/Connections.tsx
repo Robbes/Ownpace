@@ -28,6 +28,7 @@ import {
   type FailureCategory,
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { ExperimentalTag, wholeDomainOptionIsExperimental } from '../components/ExperimentalTag.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   type ConnectionDeleted,
@@ -621,6 +622,9 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
+        {/* Google's whole-domain option, not yet run against a real
+            Workspace (0131 T2). */}
+        {role === 'source' && wholeDomainOptionIsExperimental(field.key) && <ExperimentalTag />}
         {requiredHere(field) && <span className="text-red-600"> *</span>}
       </span>
       {field.multiline ? (
@@ -721,6 +725,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         <span className="block text-sm text-gray-700 mb-2">{t('connections.type')}</span>
         <FrontDoorChooser
           cards={frontDoorCards(role)}
+          role={role}
           selectedId={type}
           onPick={(card) => {
             setType(card.id);

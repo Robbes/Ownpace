@@ -23,13 +23,22 @@
  * asked. The component knows nothing about it.
  */
 import React from 'react';
-import { partitionFrontDoor } from '@openmig/shared';
+import { partitionFrontDoor, sourceCardIsExperimental } from '@openmig/shared';
 import { useT } from '../i18n/index.tsx';
+import { ExperimentalTag, ExperimentalWhy } from './ExperimentalTag.tsx';
 import { FamilyIcon, FrontDoorIcon } from './FrontDoorIcon.tsx';
 import type { FrontDoorCard } from './front-door-cards.ts';
 
 export interface FrontDoorChooserProps<C extends FrontDoorCard> {
   readonly cards: ReadonlyArray<C>;
+  /**
+   * Which side these cards are for. Required, so no door can forget it: a
+   * SOURCE card that has not yet met a real account carries the Experimental
+   * tag (workplan 0131 T2), and whether a target should is still open (0131
+   * open question 5), so a target card never does. Ids alone cannot say it:
+   * `imap` is a card on both sides.
+   */
+  readonly role: 'source' | 'target';
   readonly selectedId: string;
   readonly onPick: (card: C) => void;
   /** Tailwind columns for the card grid — the wizard uses 2 for sources, 3 for targets. */
@@ -45,6 +54,7 @@ export interface FrontDoorChooserProps<C extends FrontDoorCard> {
 
 export function FrontDoorChooser<C extends FrontDoorCard>({
   cards,
+  role,
   selectedId,
   onPick,
   gridClass,
@@ -54,27 +64,41 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
   const grouped = partitionFrontDoor(cards, (c) => c.id);
   const grid = `grid grid-cols-1 gap-4 ${gridClass}`;
 
-  /** One chooser card — the body every group renders identically. */
+  /**
+   * One chooser card — the body every group renders identically.
+   *
+   * The card is a `<button>` inside a cell of its own, so that an experimental
+   * card's fold can sit BESIDE it (0131 T2, 0145 T2): the tag's word is inside
+   * the button and part of its name, and the why folds under it, outside, where
+   * it can be opened without picking the card. The button fills its cell, so a
+   * row of cards stays one height whether a fold hangs under one or not.
+   */
   const renderCard = (raw: C): React.ReactElement => {
     const card: FrontDoorCard = cardFor ? cardFor(raw) : raw;
     const selected = selectedId === card.id;
+    const experimental = role === 'source' && sourceCardIsExperimental(raw.id);
     return (
-      <button
-        key={card.id}
-        type="button"
-        onClick={() => onPick(raw)}
-        className={`p-4 border-2 rounded-lg text-left transition-colors ${
-          selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-        }`}
-      >
-        <div className="flex items-start gap-3">
-          <FrontDoorIcon type={card.id} />
-          <div>
-            <p className="font-medium text-gray-900">{card.nameKey ? t(card.nameKey) : card.name}</p>
-            <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
+      <div key={card.id} className="flex flex-col">
+        <button
+          type="button"
+          onClick={() => onPick(raw)}
+          className={`w-full flex-1 p-4 border-2 rounded-lg text-left transition-colors ${
+            selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <FrontDoorIcon type={card.id} />
+            <div>
+              <p className="font-medium text-gray-900">
+                {card.nameKey ? t(card.nameKey) : card.name}
+                {experimental && <ExperimentalTag />}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">{t(card.hintKey)}</p>
+            </div>
           </div>
-        </div>
-      </button>
+        </button>
+        {experimental && <ExperimentalWhy />}
+      </div>
     );
   };
 
