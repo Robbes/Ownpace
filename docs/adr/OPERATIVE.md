@@ -326,6 +326,7 @@ live in [README.md](./README.md), the register.
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
+- The migrated person can **take their grant back** from their progress page: revoked at Google where Google will, deleted here whatever Google answers, and they are told which (0108 T8 (c), 2026-09-24). Until they grant again, nothing reads that account for that migration, on any credential.
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
 

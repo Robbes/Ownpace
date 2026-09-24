@@ -53,6 +53,7 @@ export * from './rate-budget.ts';
 export * from './pause-reason.ts';
 export * from './file-body.ts';
 export * from './credential-refusals.ts';
+export * from './grant-withdrawal.ts';
 export * from './failure-category.ts';
 export * from './needs-decision.ts';
 export * from './stated-failure-category.ts';

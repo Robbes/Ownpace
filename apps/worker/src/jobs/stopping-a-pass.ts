@@ -52,12 +52,40 @@ export async function mappingStillRuns(
   tenantId: TenantId,
   mappingId: MappingId,
 ): Promise<boolean> {
+  return (await whyThePassStops(db, tenantId, mappingId)) === null;
+}
+
+/**
+ * Why a pass stops before its next data type: the migration no longer runs
+ * (paused, finished or gone), or the person who granted it access took the
+ * grant back (workplan 0108 T8 (c), ledger migration 0063).
+ */
+export type PassHalt = 'no_longer_runs' | 'grant_withdrawn';
+
+/**
+ * `mappingStillRuns`, saying which of the two it is, because the run log and
+ * the cutover's refusal owe the owner different sentences: *paused* is
+ * something they did, *withdrawn* is something somebody else did, and it needs
+ * a new grant rather than a press of Resume.
+ *
+ * A withdrawal is checked AFTER the lifecycle: a paused migration whose grant
+ * was also withdrawn is stopped either way, and the pause is the older fact.
+ */
+export async function whyThePassStops(
+  db: Pool,
+  tenantId: TenantId,
+  mappingId: MappingId,
+): Promise<PassHalt | null> {
   return withTenant(db, tenantId, async (tx) => {
     const [row] = await tx
-      .select({ status: schemaPg.mailboxMapping.status })
+      .select({
+        status: schemaPg.mailboxMapping.status,
+        grantWithdrawnAt: schemaPg.mailboxMapping.grantWithdrawnAt,
+      })
       .from(schemaPg.mailboxMapping)
       .where(eq(schemaPg.mailboxMapping.id, mappingId));
-    return row !== undefined && runsPasses(row.status);
+    if (row === undefined || !runsPasses(row.status)) return 'no_longer_runs';
+    return row.grantWithdrawnAt ? 'grant_withdrawn' : null;
   });
 }
 

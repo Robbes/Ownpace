@@ -25,6 +25,7 @@ import {
   buildDomainStatusReports,
   DISCOVERY_DOMAINS,
   discoveryForSelection,
+  grantWithdrawnRefusal,
   isArchiveProvider,
   isProviderAccountKind,
   log,
@@ -2466,6 +2467,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // retrying count on this edition (0033 T5).
       domainStatus: buildDomainStatusReports(domainStatus, failures, adopted),
       lastSyncAt,
+      // When the person who granted through a link took it back (0108 T8 (c)),
+      // or null. The page says so above everything else: nothing reads the
+      // account until they grant it again, whatever the status says.
+      grantWithdrawnAt: mapping.grantWithdrawnAt?.toISOString() ?? null,
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt,
     });
@@ -2843,6 +2848,15 @@ router.post(
           error: 'Conflict',
           message: 'Mapping is paused — review the discovery counts and start it first (POST /start).',
         });
+        return;
+      }
+      // A grant the person took back (0108 T8 (c)): nothing reads their account
+      // until they grant it again, so a pass enqueued now would only be refused
+      // by the builder. Said here, where the owner pressed the button.
+      const withdrawnAt = mappings[0]?.grantWithdrawnAt;
+      if (withdrawnAt) {
+        const withdrawn = grantWithdrawnRefusal(withdrawnAt).en;
+        res.status(409).json({ error: 'grant_withdrawn', message: withdrawn, reason: withdrawn });
         return;
       }
 
@@ -3254,6 +3268,15 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     // as Google's fault, days after the owner forgot they were waiting on a
     // colleague. Derived from the rows rather than stored as a fifth status:
     // see `awaitingGrantRefusal` for why that is the cheaper honest answer.
+    // A grant the person took back (0108 T8 (c)) is its own answer, and comes
+    // first: "nobody has connected its Google account" would be untrue, and
+    // where the connection holds a credential of its own the question below
+    // would say "go ahead" and start reading the account the person has just
+    // said no to. The builder refuses it too; this is where the owner hears it.
+    if (mapping.grantWithdrawnAt) {
+      const withdrawn = grantWithdrawnRefusal(mapping.grantWithdrawnAt).en;
+      return void res.status(409).json({ error: 'grant_withdrawn', message: withdrawn, reason: withdrawn });
+    }
     const waiting = await awaitingGrant(tenantId, mappingId, mapping.sourceSecretRef);
     if (waiting) {
       return void res.status(409).json({ error: 'awaiting_grant', message: waiting, reason: waiting });

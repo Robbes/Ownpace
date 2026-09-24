@@ -192,7 +192,12 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
                 WHERE ms.tenant_id = m.tenant_id AND ms.mapping_id = m.id
                   AND ms.last_error_category = ANY($2::text[])) AS any_self_healing
          FROM mailbox_mapping m
-        WHERE m.status = ANY($5::text[])`;
+        WHERE m.status = ANY($5::text[])
+          -- A grant the person took back (0108 T8 (c), ledger migration 0063):
+          -- nothing reads their account until they grant it again, so no pass
+          -- is started for it. The pass's own re-read and the source builder
+          -- refuse it as well; this is where it costs nothing.
+          AND m.grant_withdrawn_at IS NULL`;
 
 export { STALE_RUN_AFTER_MS };
 

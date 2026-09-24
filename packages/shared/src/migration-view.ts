@@ -117,6 +117,38 @@ export interface MigrationView {
   readonly domains: readonly ViewDomainRow[];
   /** When the link stops working. Somebody who bookmarked it is owed the date. */
   readonly expiresAt: string;
+  /**
+   * The grant this page may take back (workplan 0108 T8 (c)).
+   *
+   * `granted`: the migration reads the account on a grant given through a
+   * link, and the page offers to withdraw it. `withdrawn`: it was withdrawn,
+   * and when, and nothing reads the account until somebody grants again.
+   * `none`: there is no grant here to take back, because nobody has granted
+   * yet or the migration reads the account some other way, so the page offers
+   * nothing.
+   */
+  readonly grant: ViewGrant;
+}
+
+/** See `MigrationView.grant`. */
+export type ViewGrant =
+  | { readonly state: 'granted' }
+  | { readonly state: 'withdrawn'; readonly withdrawnAt: string }
+  | { readonly state: 'none' };
+
+/**
+ * What the page says about the grant, from the two columns that decide it.
+ *
+ * Withdrawn wins over a token that is somehow still there: while a withdrawal
+ * stands, nothing reads the account (`grantWithdrawnRefusal`), so offering to
+ * withdraw it again would offer something that is already true.
+ */
+export function viewGrantFor(row: {
+  readonly sourceSecretRef: string | null;
+  readonly grantWithdrawnAt: Date | null;
+}): ViewGrant {
+  if (row.grantWithdrawnAt) return { state: 'withdrawn', withdrawnAt: row.grantWithdrawnAt.toISOString() };
+  return row.sourceSecretRef ? { state: 'granted' } : { state: 'none' };
 }
 
 /**

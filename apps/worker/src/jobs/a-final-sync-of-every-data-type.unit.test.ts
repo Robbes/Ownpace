@@ -141,6 +141,21 @@ describe("the pass's own report, read for the cutover", () => {
     ]);
   });
 
+  it('says so when the person being migrated took their grant back (0108 T8 (c))', () => {
+    const report = finalSyncReport({
+      asked: ['email', 'calendar'],
+      domains: { email: counts(3, 0, 0) },
+      stoppedBefore: 'calendar',
+      stoppedBecause: 'grant_withdrawn',
+    });
+
+    // Not "paused or finished": nobody here paused anything, and what brings
+    // the migration back is a new grant, not the owner's Resume.
+    expect(report.notFinished).toEqual([
+      'calendar was not reached, because the person being migrated withdrew their permission while the pass ran',
+    ]);
+  });
+
   it('names a data type it was asked for and said nothing about', () => {
     const report = finalSyncReport({ asked: ['task'], domains: {} });
 
@@ -273,7 +288,12 @@ describe('the doors, read as text', () => {
     // Each stop under its own name: the deadline is not the budget.
     expect(pass).toMatch(/result\.deadlinePause \? \{ stopped: 'deadline' as const \}/);
     expect(pass).toMatch(/result\.budgetPause \? \{ stopped: 'budget' as const \}/);
-    expect(pass).toMatch(/stoppedBefore = domain;\s*break;/);
+    expect(pass).toMatch(/stoppedBefore = domain;\s*stoppedBecause = halt;\s*break;/);
+    // Its line says which: a withdrawn grant is not "paused or finished".
+    expect(pass).toMatch(
+      /halt === 'grant_withdrawn'\s*\?\s*`pass stopped before \$\{domain\}: the person being migrated withdrew their permission/,
+    );
+    expect(pass).toMatch(/\.\.\.\(stoppedBecause !== undefined \? \{ stoppedBecause \} : \{\}\)/);
     expect(pass).toMatch(/asked: domains,\s*domains: outcomes,/);
     expect(pass).toMatch(/runId,\s*\.\.\.report,/);
   });

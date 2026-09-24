@@ -36,6 +36,15 @@ const IMAP_BOX = '5f510000-e29b-41d4-a716-446655441822';
 const UNGRANTED = '5f510000-e29b-41d4-a716-446655441831';
 /** An IMAP source, which nobody grants through a link. */
 const IMAP_MAPPING = '5f510000-e29b-41d4-a716-446655441832';
+/**
+ * Granted through a link, then taken back by the person (0108 T8 (c)), on a
+ * connection that holds a refresh token of the organisation's own: the case
+ * where "is a grant awaited?" alone would say go ahead.
+ */
+const OWN_TOKEN_CONN = '5f510000-e29b-41d4-a716-446655441813';
+const OWN_TOKEN_BOX = '5f510000-e29b-41d4-a716-446655441823';
+const WITHDRAWN = '5f510000-e29b-41d4-a716-446655441833';
+const WITHDRAWN_AT = '2026-09-24T06:00:00.000Z';
 
 let driver: LedgerDriver;
 
@@ -137,6 +146,25 @@ beforeAll(async () => {
         [m, TENANT, box],
       );
     }
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','google','own','{}'::jsonb,'connected',$3)`,
+      [
+        OWN_TOKEN_CONN,
+        TENANT,
+        encrypted({ clientId: 'cid', clientSecret: 'csec', refreshToken: '1//the-organisations-own' }),
+      ],
+    );
+    await q(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+       VALUES ($1,$2,$3,'user','pat@example.invalid')`,
+      [OWN_TOKEN_BOX, TENANT, OWN_TOKEN_CONN],
+    );
+    await q(
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, grant_withdrawn_at)
+       VALUES ($1,$2,$3,'paused',$4)`,
+      [WITHDRAWN, TENANT, OWN_TOKEN_BOX, WITHDRAWN_AT],
+    );
   } finally {
     await conn.release();
   }
@@ -193,5 +221,42 @@ describe('POST /:mappingId/start', () => {
     const res = await request(app).post(`/api/migrations/${UNGRANTED}/start`).send({});
     expect(res.status).toBe(409);
     expect(await statusOf(UNGRANTED)).toBe('paused');
+  });
+});
+
+describe('a grant the person took back (0108 T8 (c))', () => {
+  it('is not started, and the owner is told who stopped it and when', async () => {
+    const res = await request(app).post(`/api/migrations/${WITHDRAWN}/start`).send({});
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('grant_withdrawn');
+    expect(res.body.message).toContain('withdrew their permission on 2026-09-24');
+    expect(res.body.message).toMatch(/new grant link/);
+    // Although the connection has a token of its own, and "is a grant still
+    // awaited?" would have said no: the person said no to being read.
+    expect(await statusOf(WITHDRAWN)).toBe('paused');
+  });
+
+  it('is not synced on the owner’s press either', async () => {
+    const conn = await driver.acquire();
+    try {
+      await conn.query("UPDATE mailbox_mapping SET status = 'active' WHERE id = $1", [WITHDRAWN]);
+    } finally {
+      await conn.release();
+    }
+
+    const res = await request(app).post(`/api/migrations/${WITHDRAWN}/sync`).send({});
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('grant_withdrawn');
+    expect(res.body.reason).toContain('withdrew their permission on 2026-09-24');
+  });
+
+  it('is said on the migration’s own page', async () => {
+    const res = await request(app).get(`/api/migrations/${WITHDRAWN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.grantWithdrawnAt).toBe(WITHDRAWN_AT);
+    expect((await request(app).get(`/api/migrations/${UNGRANTED}`)).body.grantWithdrawnAt).toBeNull();
   });
 });

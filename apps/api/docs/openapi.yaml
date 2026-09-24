@@ -2481,6 +2481,27 @@ paths:
                         lastErrorCategory: { type: string }
                         failedSide: { type: string, enum: [source, target] }
                         pausedReason: { type: object }
+                  grant:
+                    description: |
+                      The grant this page may take back (workplan 0108 T8 (c)).
+                      `granted`: the migration reads the account on a grant
+                      given through a link. `withdrawn`: it was taken back, and
+                      when; nothing reads the account until somebody grants
+                      again. `none`: there is nothing here to take back.
+                    oneOf:
+                      - type: object
+                        required: [state]
+                        properties:
+                          state: { type: string, enum: [granted] }
+                      - type: object
+                        required: [state, withdrawnAt]
+                        properties:
+                          state: { type: string, enum: [withdrawn] }
+                          withdrawnAt: { type: string, format: date-time }
+                      - type: object
+                        required: [state]
+                        properties:
+                          state: { type: string, enum: [none] }
         '401':
           description: |
             One sentence for every way a link can fail — unknown, forged,
@@ -2493,6 +2514,66 @@ paths:
             written to be forwarded to whoever sent the link.
         '503':
           description: The link could not be checked just now. Ours, not the caller's.
+
+  /api/view/{link}/withdraw:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: The whole credential — `<id>.<secret>`, one path segment.
+        schema: { type: string }
+    post:
+      tags: [Grant links]
+      summary: Take back the grant, for the person who gave it
+      description: |
+        Workplan 0108 T8 (c), the owner's decision of 2026-09-23: *"if we
+        cannot revoke at the sources, we do revoke/remove in our system and
+        tell the person that revokes."*
+
+        Revokes the token the migration's grant stored at Google, deletes it
+        here **whatever Google answered**, records `mapping.grant_withdrawn`,
+        and answers which of the two happened. Google takes back everything the
+        person allowed the application at once, so another migration of the
+        same account through the same application stops too.
+
+        From then on nothing reads the account, on that token or on any other
+        credential the source connection holds: the tick starts no pass, a
+        running pass stops before its next data type, and Start and Sync now
+        refuse with `grant_withdrawn`. A new grant ends it. Only the grant a
+        link stored is ever deleted; the organisation's own credential, on the
+        connection, is never touched.
+
+        A body-less POST. Link-authenticated like the grant route: the link is
+        the whole credential, and a credential (`grant`) link is refused here.
+      security: []
+      responses:
+        '200':
+          description: Withdrawn here; `atGoogle` says whether Google confirmed it too.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [withdrawnAt, atGoogle]
+                properties:
+                  withdrawnAt: { type: string, format: date-time }
+                  atGoogle:
+                    type: string
+                    enum: [revoked, not_confirmed]
+                    description: |
+                      `revoked` includes a token Google reports was already
+                      invalid. `not_confirmed`: Google refused or could not be
+                      reached; the person is told to remove the app themselves.
+        '401':
+          description: The link is not a live progress link. Nothing was changed.
+        '409':
+          description: |
+            Nothing to take back (`nothing_granted`: never granted through a
+            link, or already withdrawn, with the day), the migration no longer
+            exists (`not_found`), or a new grant landed while this one was being
+            withdrawn (`changed`; nothing was deleted, press again). `reason` is
+            written for the person holding the link.
+        '500':
+          description: Ours; nothing the person did.
 
   /api/migrations/{mappingId}/deletions:
     parameters:

@@ -59,18 +59,21 @@ let conn: LedgerConnection;
 let ACTIVE_MAPPINGS_SQL: string;
 let STALE_RUN_AFTER_MS: number;
 
+/** The tick's own parameters. */
+const tickParameters = () => [
+  STALE_RUN_AFTER_MS,
+  [...SELF_HEALING_CATEGORIES],
+  FAILURE_WINDOW_MINUTES,
+  [...BILLABLE_RUN_KINDS],
+  // The lifecycles whose passes run — `$5` since 0117 T1 gave the product a
+  // second one. Read from the shared list rather than written out here, for
+  // the same reason as the four above it.
+  [...PASS_RUNNING_STATES],
+];
+
 /** The tick's own query, with the tick's own parameters. */
 async function ask(): Promise<Row> {
-  const { rows } = await conn.query<Row>(ACTIVE_MAPPINGS_SQL, [
-    STALE_RUN_AFTER_MS,
-    [...SELF_HEALING_CATEGORIES],
-    FAILURE_WINDOW_MINUTES,
-    [...BILLABLE_RUN_KINDS],
-    // The lifecycles whose passes run — `$5` since 0117 T1 gave the product a
-    // second one. Read from the shared list rather than written out here, for
-    // the same reason as the four above it.
-    [...PASS_RUNNING_STATES],
-  ]);
+  const { rows } = await conn.query<Row>(ACTIVE_MAPPINGS_SQL, tickParameters());
   expect(rows).toHaveLength(1);
   return rows[0]!;
 }
@@ -296,5 +299,21 @@ describe('whether the cause clears by itself', () => {
       expect((await ask()).any_self_healing).toBe(false);
     }
     await lastErrorCategory(null);
+  });
+});
+
+describe('a grant the person took back (0108 T8 (c))', () => {
+  it('is not picked up for a pass, and is again once somebody grants', async () => {
+    const picked = async () =>
+      (await conn.query<{ id: string }>(ACTIVE_MAPPINGS_SQL, tickParameters())).rows.map((r) => r.id);
+    await conn.query(`UPDATE mailbox_mapping SET grant_withdrawn_at = now() WHERE id = $1`, [MAPPING]);
+    try {
+      // Still 'active': the lifecycle is the owner's, and the withdrawal is
+      // not a status. Nothing reads the account all the same.
+      expect(await picked()).toEqual([]);
+    } finally {
+      await conn.query(`UPDATE mailbox_mapping SET grant_withdrawn_at = NULL WHERE id = $1`, [MAPPING]);
+    }
+    expect(await picked()).toEqual([MAPPING]);
   });
 });

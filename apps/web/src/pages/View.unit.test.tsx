@@ -20,18 +20,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
-const { readMock, serverMessageMock } = vi.hoisted(() => ({
+const { readMock, withdrawMock, serverMessageMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
+  withdrawMock: vi.fn(),
   serverMessageMock: vi.fn(() => 'a server sentence'),
 }));
 
 vi.mock('../services/view-service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/view-service.ts')>();
-  return { ...actual, viewApi: { read: readMock } };
+  return { ...actual, viewApi: { read: readMock, withdraw: withdrawMock } };
 });
 vi.mock('../services/api.ts', () => ({ default: {}, serverMessage: serverMessageMock }));
 
@@ -57,6 +58,7 @@ const payload = (over: Record<string, unknown> = {}) => ({
   started: true,
   domains: [row()],
   expiresAt: IN_A_MONTH,
+  grant: { state: 'none' as const },
   ...over,
 });
 
@@ -193,5 +195,95 @@ describe('when something is wrong', () => {
     // And no counts of any kind: a refusal is not a migration with nothing in it.
     expect(screen.queryByText(/copied/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing has been copied yet/)).not.toBeInTheDocument();
+  });
+});
+
+describe('the access they gave, and taking it back (0108 T8 (c))', () => {
+  const WITHDRAWN_AT = '2026-09-24T06:00:00.000Z';
+
+  it('offers to withdraw a grant, and asks once more before it does', async () => {
+    readMock.mockResolvedValue(payload({ organisation: 'Example Care', grant: { state: 'granted' } }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
+
+    // Said before the second press: what stops, what stays, and that Google
+    // takes it back for the whole app.
+    expect(screen.getByText(/Example Care reads your Google account/)).toBeInTheDocument();
+    expect(screen.getByText(/What was already copied stays/)).toBeInTheDocument();
+    expect(screen.getByText(/any other migration you allowed stops too/)).toBeInTheDocument();
+    expect(screen.getByText(/Continuing later needs a new link/)).toBeInTheDocument();
+    expect(withdrawMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps it when the person thinks better of it', async () => {
+    readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+
+    expect(screen.getByRole('button', { name: 'Withdraw access' })).toBeInTheDocument();
+    expect(withdrawMock).not.toHaveBeenCalled();
+  });
+
+  it('says Google confirmed it, when Google did', async () => {
+    readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
+    withdrawMock.mockResolvedValue({ withdrawnAt: WITHDRAWN_AT, atGoogle: 'revoked' });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
+
+    expect(await screen.findByText(/Google confirmed the access is withdrawn/)).toBeInTheDocument();
+    expect(withdrawMock).toHaveBeenCalledWith('abc.def');
+    expect(screen.getByText(/Nothing more is read from your account/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /myaccount\.google\.com/ })).not.toBeInTheDocument();
+  });
+
+  it('says it was deleted here and where to finish it, when Google did not confirm', async () => {
+    readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
+    withdrawMock.mockResolvedValue({ withdrawnAt: WITHDRAWN_AT, atGoogle: 'not_confirmed' });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
+
+    expect(await screen.findByText(/Google did not confirm withdrawing it/)).toBeInTheDocument();
+    expect(screen.getByText(/remove the app yourself/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'myaccount.google.com/connections' })).toHaveAttribute(
+      'href',
+      'https://myaccount.google.com/connections',
+    );
+  });
+
+  it('shows the server’s own sentence when there was nothing to take back', async () => {
+    readMock.mockResolvedValue(payload({ grant: { state: 'granted' } }));
+    withdrawMock.mockRejectedValue(new Error('409'));
+    serverMessageMock.mockReturnValue('You already withdrew your permission, on 2026-09-24.');
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, withdraw it' }));
+
+    expect(await screen.findByText('You already withdrew your permission, on 2026-09-24.')).toBeInTheDocument();
+  });
+
+  it('once withdrawn, says copying stopped and when, instead of that it is copying, and offers nothing more', async () => {
+    readMock.mockResolvedValue(payload({ grant: { state: 'withdrawn', withdrawnAt: WITHDRAWN_AT } }));
+    renderPage();
+
+    expect(await screen.findByText(/Copying has stopped: on .* you withdrew the access you gave\./)).toBeInTheDocument();
+    expect(screen.queryByText('Your things are being copied across now.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'myaccount.google.com/connections' })).toBeInTheDocument();
+  });
+
+  it('offers nothing where there is no grant to take back', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Your things are being copied across now.')).toBeInTheDocument();
+    expect(screen.queryByText('The access you gave')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw access' })).not.toBeInTheDocument();
   });
 });

@@ -45,19 +45,41 @@ const RowSchema = z.object({
 });
 export type ViewRow = z.infer<typeof RowSchema>;
 
+// The grant this page may take back (0108 T8 (c)). A state the page does not
+// know fails the parse rather than rendering a button it cannot explain.
+const GrantSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('granted') }),
+  z.object({ state: z.literal('withdrawn'), withdrawnAt: z.string() }),
+  z.object({ state: z.literal('none') }),
+]);
+
 const ViewSchema = z.object({
   organisation: z.string(),
   state: z.enum(MAPPING_LIFECYCLES as [MappingLifecycle, ...MappingLifecycle[]]),
   started: z.boolean(),
   domains: z.array(RowSchema),
   expiresAt: z.string(),
+  grant: GrantSchema,
 });
 export type MigrationViewPayload = z.infer<typeof ViewSchema>;
+
+// What happened when the grant was taken back: revoked at Google too, or
+// deleted here with Google not confirming, which the person then finishes.
+const WithdrawalSchema = z.object({
+  withdrawnAt: z.string(),
+  atGoogle: z.enum(['revoked', 'not_confirmed']),
+});
+export type WithdrawalPayload = z.infer<typeof WithdrawalSchema>;
 
 export const viewApi = {
   /** Counts and states for one migration. Repeatable — nothing is spent. */
   read: async (link: string): Promise<MigrationViewPayload> => {
     const res = await client.get(`/view/${encodeURIComponent(link)}`);
     return ViewSchema.parse(res.data);
+  },
+  /** Take back the grant this migration reads the account on (0108 T8 (c)). */
+  withdraw: async (link: string): Promise<WithdrawalPayload> => {
+    const res = await client.post(`/view/${encodeURIComponent(link)}/withdraw`);
+    return WithdrawalSchema.parse(res.data);
   },
 };

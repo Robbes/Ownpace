@@ -26,6 +26,7 @@
  */
 
 import type { PassCounts } from '@openmig/core';
+import type { PassHalt } from './stopping-a-pass.ts';
 
 /** Why a data type's pass stopped before it had finished. */
 export type PassStop = 'deadline' | 'budget';
@@ -43,6 +44,8 @@ export interface DeltaSyncOutput {
   readonly domains: Readonly<Record<string, DomainOutcome>>;
   /** The data type the pass stopped before, because the migration stopped running. */
   readonly stoppedBefore?: string;
+  /** Why it stopped there: paused or finished, or the person took their grant back. */
+  readonly stoppedBecause?: PassHalt;
 }
 
 /** The final sync, as the preparation reports it. */
@@ -68,9 +71,11 @@ export function finalSyncReport(output: DeltaSyncOutput): FinalSyncReport {
     const outcome = output.domains[domain];
     if (!outcome) {
       notFinished.push(
-        output.stoppedBefore !== undefined
-          ? `${domain} was not reached, because the migration was paused or finished while the pass ran`
-          : `${domain} reported nothing`,
+        output.stoppedBefore === undefined
+          ? `${domain} reported nothing`
+          : output.stoppedBecause === 'grant_withdrawn'
+            ? `${domain} was not reached, because the person being migrated withdrew their permission while the pass ran`
+            : `${domain} was not reached, because the migration was paused or finished while the pass ran`,
       );
       continue;
     }

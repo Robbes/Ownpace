@@ -191,7 +191,11 @@ export async function storeGrantedToken(
 
       const updated = await db
         .update(schema.mailboxMapping)
-        .set({ sourceSecretRef: encrypted, updatedAt: new Date() })
+        // A new grant ends a withdrawal (0108 T8 (c), ledger migration 0063):
+        // the person has given their permission again, so the account may be
+        // read again. Cleared here, in the write that stores the token, because
+        // this is the one writer of the mapping's credential.
+        .set({ sourceSecretRef: encrypted, grantWithdrawnAt: null, updatedAt: new Date() })
         .where(
           and(
             eq(schema.mailboxMapping.id, target.mappingId),

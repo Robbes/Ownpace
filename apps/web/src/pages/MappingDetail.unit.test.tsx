@@ -136,6 +136,25 @@ describe('the per-mapping navigation', () => {
  * test pins the RETRYING count specifically, because raw MigrationStatus
  * rows lacked it and the strip silently rendered nothing there before.
  */
+describe('a grant the person took back (0108 T8 (c))', () => {
+  it('says so above the progress, with the day, and what brings the migration back', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ grantWithdrawnAt: '2026-09-24T06:00:00.000Z' }));
+    renderHub();
+
+    expect(await screen.findByText(/the person being migrated withdrew their access/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing reads their account now/)).toBeInTheDocument();
+    expect(screen.getByText(/create a grant link below and send it to them/)).toBeInTheDocument();
+  });
+
+  it('says nothing about a migration whose grant stands', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ grantWithdrawnAt: null }));
+    renderHub();
+
+    expect(await screen.findByRole('heading', { name: 'Acme mail' })).toBeInTheDocument();
+    expect(screen.queryByText(/withdrew their access/)).not.toBeInTheDocument();
+  });
+});
+
 describe('whose account, on each side (owner, 2026-09-17)', () => {
   /**
    * *"in the migration overview or 'Migration Details' view ... it doesnt list

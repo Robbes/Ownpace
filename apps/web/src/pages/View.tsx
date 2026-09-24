@@ -44,9 +44,9 @@
 
 import React from 'react';
 import { useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle } from '@openmig/shared';
-import { viewApi, type ViewRow } from '../services/view-service.ts';
+import { viewApi, type MigrationViewPayload, type ViewRow } from '../services/view-service.ts';
 import { serverMessage } from '../services/api.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
@@ -136,6 +136,134 @@ const DomainRow: React.FC<{ row: ViewRow }> = ({ row }) => {
   );
 };
 
+/**
+ * Where the person finishes a withdrawal Google did not confirm, and checks one
+ * it did: the list of apps with access to their Google account. A place, not a
+ * sentence, so it is not translated.
+ */
+const GOOGLE_APPS_WITH_ACCESS = 'https://myaccount.google.com/connections';
+const GOOGLE_APPS_WITH_ACCESS_TEXT = 'myaccount.google.com/connections'; // i18n-exempt: a web address
+
+const AppsWithAccess: React.FC = () => (
+  <a
+    href={GOOGLE_APPS_WITH_ACCESS}
+    target="_blank"
+    rel="noreferrer noopener"
+    className="text-blue-700 underline"
+  >
+    {GOOGLE_APPS_WITH_ACCESS_TEXT}
+  </a>
+);
+
+/**
+ * THE ACCESS THEY GAVE, AND TAKING IT BACK (workplan 0108 T8 (c)).
+ *
+ * Before this, the only way to stop a migration somebody had granted was
+ * Google's own security settings, which most people never find. The owner's
+ * decision: withdraw here, revoke at Google where Google will, delete it on our
+ * side whatever Google answers, and say which of the two happened.
+ *
+ * Two presses, because the second one is what cannot be undone from this page:
+ * continuing afterwards needs a new link from whoever sent this one. And what
+ * Google takes back is everything this person allowed the app, at once, which
+ * is said before the first press rather than discovered after it.
+ */
+const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> = ({ link, view }) => {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = React.useState(false);
+
+  const withdraw = useMutation({
+    mutationFn: () => viewApi.withdraw(link),
+    // Read the page again: its state line and this section now say withdrawn.
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['view', link] }),
+  });
+
+  // What Google answered is only known at the moment it answered, so it is
+  // shown from the press itself; a later visit shows the withdrawal and where
+  // to check.
+  if (withdraw.data) {
+    return (
+      <section className="mt-8 border-t border-gray-200 pt-6">
+        <h2 className="text-base font-semibold text-gray-900">{t('view.grant.title')}</h2>
+        {withdraw.data.atGoogle === 'revoked' ? (
+          <p className="mt-2 text-sm text-gray-900">{t('view.withdrawn.revoked')}</p>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-amber-800">{t('view.withdrawn.notConfirmed')}</p>
+            <p className="mt-1 text-sm text-amber-800">
+              {t('view.withdrawn.removeYourself')} <AppsWithAccess />
+            </p>
+          </>
+        )}
+        <p className="mt-2 text-sm text-gray-600">{t('view.withdrawn.since')}</p>
+      </section>
+    );
+  }
+
+  if (view.grant.state === 'withdrawn') {
+    return (
+      <section className="mt-8 border-t border-gray-200 pt-6">
+        <h2 className="text-base font-semibold text-gray-900">{t('view.grant.title')}</h2>
+        <p className="mt-2 text-sm text-gray-600">{t('view.withdrawn.since')}</p>
+        <p className="mt-2 text-sm text-gray-600">
+          {t('view.withdrawn.check')} <AppsWithAccess />
+        </p>
+      </section>
+    );
+  }
+
+  if (view.grant.state !== 'granted') return null;
+
+  return (
+    <section className="mt-8 border-t border-gray-200 pt-6">
+      <h2 className="text-base font-semibold text-gray-900">{t('view.grant.title')}</h2>
+      <p className="mt-2 text-sm text-gray-900">
+        {t('view.grant.body', { organisation: view.organisation })}
+      </p>
+      <p className="mt-2 text-sm text-gray-600">{t('view.grant.whatHappens')}</p>
+      <p className="mt-2 text-sm text-gray-600">{t('view.grant.wholeApp')}</p>
+
+      {!confirming ? (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="mt-4 px-3 py-1.5 text-sm font-medium rounded border border-red-300 text-red-800 hover:bg-red-50"
+        >
+          {t('view.grant.withdraw')}
+        </button>
+      ) : (
+        <div className="mt-4">
+          <p className="text-sm text-gray-900">{t('view.grant.confirm')}</p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => withdraw.mutate()}
+              disabled={withdraw.isPending}
+              className="px-3 py-1.5 text-sm font-medium rounded bg-red-700 text-white hover:bg-red-800 disabled:opacity-50"
+            >
+              {withdraw.isPending ? t('view.grant.withdrawing') : t('view.grant.confirmYes')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              disabled={withdraw.isPending}
+              className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {t('view.grant.keep')}
+            </button>
+          </div>
+        </div>
+      )}
+      {withdraw.error != null && (
+        // The server's own sentence: nothing to take back, or it changed while
+        // it was being taken back. Both are written for this reader.
+        <p className="mt-2 text-sm text-amber-800">{serverMessage(withdraw.error)}</p>
+      )}
+    </section>
+  );
+};
+
 const View: React.FC = () => {
   const { link } = useParams<{ link: string }>();
   const t = useT();
@@ -168,7 +296,14 @@ const View: React.FC = () => {
           <p className="mt-4 text-gray-900">
             {t('view.who', { organisation: view.data.organisation })}
           </p>
-          <p className="mt-3 text-lg text-gray-900">{t(STATE_SENTENCE[view.data.state])}</p>
+          {/* A withdrawn grant is the whole story until somebody grants again:
+              the lifecycle may still say active, and "your things are being
+              copied across now" would be untrue. */}
+          <p className="mt-3 text-lg text-gray-900">
+            {view.data.grant.state === 'withdrawn'
+              ? t('view.state.withdrawn', { date: dateTime(view.data.grant.withdrawnAt) })
+              : t(STATE_SENTENCE[view.data.state])}
+          </p>
 
           {!view.data.started ? (
             <Hint
@@ -191,6 +326,8 @@ const View: React.FC = () => {
               )}
             </>
           )}
+
+          {link && <TheAccessTheyGave link={link} view={view.data} />}
 
           <p className="mt-8 text-sm text-gray-500">
             {t('view.until', { date: dateTime(view.data.expiresAt) })}

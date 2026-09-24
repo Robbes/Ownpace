@@ -58,6 +58,7 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   // granting. Consent sentences stay verbatim — owner, 2026-09-05.
   'grant.asking': 'consent sentence, verbatim by owner decision',
   'grant.readOnly': 'consent sentence, verbatim by owner decision',
+  // Names the progress page since 0108 T8 (c) (owner, 2026-09-24: "yes").
   'grant.withdraw': 'consent sentence, verbatim by owner decision',
 };
 
