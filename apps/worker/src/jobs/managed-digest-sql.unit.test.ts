@@ -31,13 +31,19 @@ let ACTIVE_TENANTS_SQL: string;
 let DIGEST_RECIPIENTS_SQL: string;
 let DIGEST_MAPPINGS_SQL: string;
 
+// The import is the job's whole module graph, the Trigger.dev SDK and the
+// ledger among it, loaded cold inside this hook. On main's self-hosted runner,
+// with the rest of the unit project running beside it, that took longer than
+// vitest's default 10 s for a hook (2026-09-24, on d323435), and the file failed
+// having asserted nothing. A minute, as the suites that open a database in
+// their hook allow.
 beforeAll(async () => {
   process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
   const mod = await import('./managed-digest.ts');
   ACTIVE_TENANTS_SQL = mod.ACTIVE_TENANTS_SQL;
   DIGEST_RECIPIENTS_SQL = mod.DIGEST_RECIPIENTS_SQL;
   DIGEST_MAPPINGS_SQL = mod.DIGEST_MAPPINGS_SQL;
-});
+}, 60_000);
 
 describe('which tenants the digest considers', () => {
   it('reads only ACTIVE tenants', () => {

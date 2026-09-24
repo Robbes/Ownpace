@@ -45,3 +45,4 @@ export * from './mapping-link-store.ts';
 // customer; `purgeTenant` is executed only by apps/worker. The appliance's
 // own ending is `apps/selfhost/src/forget-me.ts`, which revokes and nothing
 // else, because that is the only part its operator cannot do themselves.
+export * from './a-path-for-every-migration.ts';
