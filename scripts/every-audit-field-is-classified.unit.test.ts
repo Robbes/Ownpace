@@ -16,10 +16,11 @@
  * It also holds every process that records audit events to pointing their
  * lines at its output: the API, the appliance, the worker, and every task file
  * that opens the database, because Trigger.dev runs each task run in a
- * container of its own, so each task is a process nothing else sets up. The two
- * commands an operator types at a terminal (the worker's cutover CLI and
- * `operator.sh leave`) print no line: their output is a terminal, not a stream
- * a collector reads, and T4's download serves their rows.
+ * container of its own, so each task is a process nothing else sets up. The
+ * three commands an operator types at a terminal (the worker's cutover CLI,
+ * `operator.sh leave` and `operator.sh links`) print no line: their output is
+ * a terminal, not a stream a collector reads, and T4's download serves their
+ * rows.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -88,7 +89,9 @@ function writers(): Writer[] {
             if (ts.isCallExpression(n) && n.expression.getText() === 'JSON.stringify') fieldsOf(n.arguments[0], fields);
             ts.forEachChild(n, inner);
           };
-          node.arguments.slice(1).forEach(inner);
+          // Every argument, the first included: a drizzle `sql` template
+          // carries its JSON inside the statement, not after it.
+          node.arguments.forEach(inner);
           found.push({ where, fields });
         }
       }
@@ -106,6 +109,11 @@ describe('every field an audit event carries is classified for the export', () =
     expect(all.length).toBeGreaterThanOrEqual(12);
     expect(all.some((w) => w.where.startsWith('apps/api/src/scripts/operator.ts'))).toBe(true);
     expect(all.some((w) => w.fields.has('grantee'))).toBe(true);
+    // A row written through a drizzle `sql` template, its JSON inside the
+    // statement (0108 T8 (d)): missed until a surviving mutation said so.
+    expect(
+      all.some((w) => w.where.startsWith('apps/api/src/scripts/operator-links.ts') && w.fields.has('until')),
+    ).toBe(true);
   });
 
   it('names no field AUDIT_DETAIL_FIELDS does not know', () => {

@@ -189,6 +189,10 @@ reading a file drops off its entry by itself.
 
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/api/src/scripts/operator-links.ts`
+
+- [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
 ### `apps/api/src/scripts/operator.ts`
 
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
@@ -2472,6 +2476,7 @@ Reads:
 
 - `apps/api/src/index.ts`
 - `apps/api/src/routes/support.ts`
+- `apps/api/src/scripts/operator-links.ts`
 - `apps/api/src/scripts/operator.ts`
 - `apps/selfhost/src/index.ts`
 - `apps/worker/src/index.ts`

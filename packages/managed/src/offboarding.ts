@@ -134,6 +134,10 @@ export const PURGED_TABLES = [
   // above: a count keyed to the tenant, quoted onto retained invoices, with
   // no reason to outlive its subject.
   'bytes_moved',
+  // The operator's number of live grant links for this organisation (0108
+  // T8 (d), managed 0028): a setting about the customer, with nobody left to
+  // apply it to. The key would cascade; named so the receipt counts it.
+  'grant_link_allowance',
   'payment_method',
   'usage_metric',
   'tenant_member',

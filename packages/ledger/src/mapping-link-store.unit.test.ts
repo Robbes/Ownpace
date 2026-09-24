@@ -31,6 +31,7 @@ import { withTenant } from './db.ts';
 import { connection, mappingLink } from './schema-pg.ts';
 import {
   MAPPING_LINK_REFUSAL,
+  countLiveGrantLinks,
   expiryFromDays,
   issueMappingLink,
   linkState,
@@ -346,5 +347,48 @@ describe('the four states, defined once', () => {
     // to answer.
     expect(linkState({ usedAt: null, revokedAt: null, expiresAt: past }, now)).toBe('expired');
     expect(linkState({ usedAt: null, revokedAt: null, expiresAt: future }, now)).toBe('live');
+  });
+});
+
+describe('the live grant links an organisation holds (0108 T8 (d))', () => {
+  const live = (tenantId = TENANT_A) =>
+    withTenant(driver, tenantId, (db) => countLiveGrantLinks(db, tenantId));
+
+  it('counts the grant links that can still be used, and nothing else', async () => {
+    await issueForA();
+    await issueForA();
+    // A progress link grants nothing.
+    await issueForA({ purpose: 'view' });
+    const spent = await issueForA();
+    await withTenant(driver, TENANT_A, (db) => spendMappingLink(db, { tenantId: TENANT_A, linkId: spent.id }));
+    const revoked = await issueForA();
+    await withTenant(driver, TENANT_A, (db) =>
+      revokeMappingLink(db, { tenantId: TENANT_A, linkId: revoked.id }),
+    );
+    // Expired a moment ago, and live for one more second: the edge is the same
+    // one `linkState` draws.
+    await issueForA({ expiresAt: new Date(Date.now() - 1000) });
+    await issueForA({ expiresAt: new Date(Date.now() + 60_000) });
+
+    expect(await live()).toBe(3);
+  });
+
+  it("counts only its own organisation's", async () => {
+    await issueForA();
+
+    expect(await live(TENANT_B)).toBe(0);
+    // And as another organisation, not even when asked for A's by name.
+    expect(await withTenant(driver, TENANT_B, (db) => countLiveGrantLinks(db, TENANT_A))).toBe(0);
+  });
+
+  it('agrees with linkState about when a link stops being live', async () => {
+    const at = new Date('2026-09-24T12:00:00Z');
+    await issueForA({ expiresAt: at });
+
+    const count = (now: Date) => withTenant(driver, TENANT_A, (db) => countLiveGrantLinks(db, TENANT_A, now));
+    expect(await count(new Date(at.getTime() - 1))).toBe(1);
+    expect(linkState({ usedAt: null, revokedAt: null, expiresAt: at }, new Date(at.getTime() - 1))).toBe('live');
+    expect(await count(at)).toBe(0);
+    expect(linkState({ usedAt: null, revokedAt: null, expiresAt: at }, at)).toBe('expired');
   });
 });

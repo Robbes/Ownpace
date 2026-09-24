@@ -43,7 +43,6 @@ import {
   MAPPING_LINK_PURPOSES,
   type MappingLinkPurpose,
   expiryFromDays,
-  issueMappingLink,
   listMappingLinks,
   revokeMappingLink,
 } from '@openmig/ledger';
@@ -56,6 +55,7 @@ import {
   type GrantLinkReadiness,
 } from './grant-link-readiness.ts';
 import { grantReadiness, readGrantRows } from './grant-subject.ts';
+import { atTheLimit, issueWithinTheLimit } from './live-link-limit.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -222,8 +222,8 @@ router.post(
       }
 
       const days = parsed.data.expiryDays ?? MAPPING_LINK_LIFETIMES[purpose].fallback;
-      const issued = await withTenantDb(s.tenantId, pool(), (db) =>
-        issueMappingLink(db, {
+      const outcome = await withTenantDb(s.tenantId, pool(), (db) =>
+        issueWithinTheLimit(db, {
           tenantId: s.tenantId,
           mappingId: s.mappingId,
           purpose,
@@ -231,6 +231,17 @@ router.post(
           expiresAt: expiryFromDays(days),
         }),
       );
+      if (outcome.kind === 'at_the_limit') {
+        // 409 like the refusals above: nothing was written, and what would
+        // make room is the owner's to do.
+        return void res.status(409).json({
+          error: 'grant_links_at_limit',
+          reason: atTheLimit(outcome.live, outcome.allowed),
+          live: outcome.live,
+          limit: outcome.allowed.limit,
+        });
+      }
+      const { issued } = outcome;
 
       res.status(201).json({
         id: issued.id,

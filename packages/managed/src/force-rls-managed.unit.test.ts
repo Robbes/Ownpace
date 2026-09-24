@@ -70,6 +70,7 @@ const MANAGED_RLS_TABLES = [
   'access_request',
   'billing_party',
   'bytes_moved',
+  'grant_link_allowance',
   'invoice',
   'occupancy_peak',
   'payment_method',
