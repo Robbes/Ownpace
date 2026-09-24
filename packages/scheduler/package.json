@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@openmig/shared": "workspace:*",
-    "@trigger.dev/sdk": "4.5.16"
+    "@trigger.dev/sdk": "4.5.16",
+    "croner": "10.0.1"
   }
 }
