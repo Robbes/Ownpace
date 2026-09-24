@@ -52,7 +52,7 @@ function record(over: Partial<LedgerRecord> = {}): LedgerRecord {
 }
 
 const POLICY_REFUSAL =
-  '"Aanbiedingstekst.docx" is a Google document and has no file to copy.';
+  '"Voorbeeldtekst.docx" is a Google document and has no file to copy.';
 
 describe('a parked item was tried once, and says so', () => {
   it('counts ONE attempt, not the ceiling', async () => {

@@ -57,9 +57,9 @@ describe('calendar sharing', () => {
       page([{ role: 'read', emailAddress: { address: 'anna@acme.nl', name: 'Anna' } }]),
     );
     const result = await listCalendarPermissions(
-      'rob@acme.nl',
+      'pat@acme.nl',
       'cal-1',
-      'Rob — Calendar',
+      'Pat — Calendar',
       token,
       http,
       APP,
@@ -69,7 +69,7 @@ describe('calendar sharing', () => {
     if (result.kind !== 'listed') return;
     expect(result.grants[0]).toMatchObject({
       subject: 'calendar',
-      on: 'Rob — Calendar',
+      on: 'Pat — Calendar',
       grantee: 'anna@acme.nl',
       role: 'read',
     });
@@ -81,7 +81,7 @@ describe('calendar sharing', () => {
     // Graph's `none` is an entry with no access; reporting it would send
     // somebody to remove a share that grants nothing.
     const http = client(page([{ role: 'none', emailAddress: { address: 'x@acme.nl' } }]));
-    const result = await listCalendarPermissions('rob@acme.nl', 'c', 'Cal', token, http, APP);
+    const result = await listCalendarPermissions('pat@acme.nl', 'c', 'Cal', token, http, APP);
 
     if (result.kind !== 'listed') throw new Error('expected a listing');
     expect(result.grants).toEqual([]);
@@ -89,7 +89,7 @@ describe('calendar sharing', () => {
 
   it('refuses a delegated connection before making a request', async () => {
     const http = client(page([]));
-    const result = await listCalendarPermissions('rob@acme.nl', 'c', 'Cal', token, http, {
+    const result = await listCalendarPermissions('pat@acme.nl', 'c', 'Cal', token, http, {
       applicationPermissions: false,
     });
 
@@ -182,7 +182,7 @@ describe('when a read fails', () => {
         throw new Error('ECONNRESET');
       }),
     } as unknown as HttpClient;
-    const result = await listCalendarPermissions('rob@acme.nl', 'c', 'Cal', token, http, APP);
+    const result = await listCalendarPermissions('pat@acme.nl', 'c', 'Cal', token, http, APP);
 
     expect(result.kind).toBe('not_discoverable');
     if (result.kind === 'not_discoverable') expect(result.reason).toContain('ECONNRESET');
@@ -190,7 +190,7 @@ describe('when a read fails', () => {
 
   it('does not turn a malformed body into “nothing is shared”', async () => {
     const http = client({ status: 200, body: '<html>sign in</html>' });
-    const result = await listCalendarPermissions('rob@acme.nl', 'c', 'Cal', token, http, APP);
+    const result = await listCalendarPermissions('pat@acme.nl', 'c', 'Cal', token, http, APP);
 
     expect(result.kind).toBe('not_discoverable');
     if (result.kind === 'not_discoverable') expect(result.reason).toContain('not JSON');

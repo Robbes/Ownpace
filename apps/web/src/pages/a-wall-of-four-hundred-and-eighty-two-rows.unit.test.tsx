@@ -220,7 +220,7 @@ describe('one press over a folder', () => {
 
   it('counts only the rows still open', async () => {
     const rows = folderWithChildren(4);
-    rows[1] = { ...rows[1]!, state: 'skipped', decidedBy: 'rob', decidedAt: '2026-09-18T13:00:00Z' };
+    rows[1] = { ...rows[1]!, state: 'skipped', decidedBy: 'pat', decidedAt: '2026-09-18T13:00:00Z' };
     answerWith(rows);
     renderScreen();
 
@@ -263,7 +263,7 @@ describe('words, not the key the fold compares on', () => {
   });
 
   it('keeps the folder name and who it is shared with apart', async () => {
-    // The owner read `2017 Q2  b.berentsen@gmail.com:writer` as one string and
+    // The owner read `2017 Q2  k.devries@example.com:writer` as one string and
     // asked why an email address had grown a month on the end of it. They are
     // two facts and they get two lines, each labelled.
     answerWith(folderWithChildren(3));

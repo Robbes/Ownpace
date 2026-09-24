@@ -27,7 +27,7 @@ beforeEach(() => {
 const row = (overrides: Partial<SharedAddressRow> = {}): SharedAddressRow => ({
   id: 'g1',
   address: 'sales@acme.nl',
-  members: ['rob@acme.nl', 'jan@acme.nl'],
+  members: ['pat@acme.nl', 'jan@acme.nl'],
   membersKnown: true,
   status: 'pending',
   ...overrides,

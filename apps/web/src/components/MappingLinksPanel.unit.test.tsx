@@ -54,7 +54,7 @@ const link = (over: Record<string, unknown> = {}) => ({
   purpose: 'grant' as const,
   state: 'live' as const,
   createdAt: LAST_WEEK,
-  createdBy: 'rob',
+  createdBy: 'pat',
   expiresAt: IN_A_WEEK,
   usedAt: null,
   revokedAt: null,
@@ -214,10 +214,10 @@ describe('the list', () => {
     renderPanel();
     const grant = await section('Grant links');
     const view = await section('Progress links');
-    expect(grant.getByText(/by rob/)).toBeInTheDocument();
+    expect(grant.getByText(/by pat/)).toBeInTheDocument();
     expect(grant.queryByText(/by anna/)).not.toBeInTheDocument();
     expect(view.getByText(/by anna/)).toBeInTheDocument();
-    expect(view.queryByText(/by rob/)).not.toBeInTheDocument();
+    expect(view.queryByText(/by pat/)).not.toBeInTheDocument();
   });
 
   it('does not invent a colleague for a link the grant ending minted', async () => {

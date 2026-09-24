@@ -24,7 +24,7 @@ const group = (overrides: Partial<DiscoveredGroup> = {}): DiscoveredGroup => ({
   id: 'g1',
   address: 'info@acme.nl',
   store: 'no_store',
-  members: { kind: 'listed', addresses: ['rob@acme.nl'] },
+  members: { kind: 'listed', addresses: ['pat@acme.nl'] },
   ...overrides,
 });
 

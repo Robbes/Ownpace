@@ -74,10 +74,10 @@ describe('a VALARM survives the copy', () => {
     // email everyone), and the alarm beside it must be untouched.
     const meeting = EVENT_WITH_ALARM.replace(
       'SUMMARY:Dentist',
-      'SUMMARY:Standup\r\nATTENDEE;CN=Rob:mailto:rob@example.org',
+      'SUMMARY:Standup\r\nATTENDEE;CN=Pat:mailto:pat@example.org',
     );
     const out = neutraliseScheduling(meeting);
-    expect(out).toContain('ATTENDEE;SCHEDULE-AGENT=CLIENT;CN=Rob:mailto:rob@example.org');
+    expect(out).toContain('ATTENDEE;SCHEDULE-AGENT=CLIENT;CN=Pat:mailto:pat@example.org');
     expect(out).toContain('BEGIN:VALARM');
     expect(out).toContain('TRIGGER:-PT15M');
   });
@@ -146,12 +146,12 @@ describe('a VALARM survives the copy', () => {
     // which is the part that matters, is preserved intact.
     const emailAlarm = EVENT_WITH_ALARM.replace(
       'DESCRIPTION:Dentist in 15 minutes',
-      'DESCRIPTION:Dentist in 15 minutes\r\nATTENDEE:mailto:rob@example.org',
+      'DESCRIPTION:Dentist in 15 minutes\r\nATTENDEE:mailto:pat@example.org',
     ).replace('ACTION:DISPLAY', 'ACTION:EMAIL');
 
     const out = neutraliseScheduling(emailAlarm);
     expect(out).toContain('ACTION:EMAIL');
-    expect(out).toContain('mailto:rob@example.org');
-    expect(out).toContain('ATTENDEE;SCHEDULE-AGENT=CLIENT:mailto:rob@example.org');
+    expect(out).toContain('mailto:pat@example.org');
+    expect(out).toContain('ATTENDEE;SCHEDULE-AGENT=CLIENT:mailto:pat@example.org');
   });
 });

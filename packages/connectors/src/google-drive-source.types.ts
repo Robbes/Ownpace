@@ -327,7 +327,7 @@ export function exportStabilityOf(
  *
  * A Google Doc's `name` carries no extension — there is no file, so there is
  * nothing for one to describe. Copy the export out under that bare name and
- * the result is a file called "Aanbiedingstekst" holding DOCX bytes: Nextcloud
+ * the result is a file called "Voorbeeldtekst" holding DOCX bytes: Nextcloud
  * shows it as unknown, the desktop offers no application, and the owner's
  * document has arrived in a form they cannot open. The extension is not
  * decoration here; it is the difference between exported and usable.

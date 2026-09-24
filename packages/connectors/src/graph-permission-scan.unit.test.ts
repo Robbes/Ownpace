@@ -44,12 +44,12 @@ describe('scanning a mailbox’s calendars', () => {
         { value: [{ role: 'write', emailAddress: { address: 'jan@acme.nl' } }] },
       ],
     ]);
-    const result = await scanCalendarPermissions('rob@acme.nl', token, http, APP);
+    const result = await scanCalendarPermissions('pat@acme.nl', token, http, APP);
 
     if (result.kind !== 'listed') throw new Error('expected a listing');
     // One section, not eight of which seven say nothing.
     expect(result.grants).toHaveLength(2);
-    expect(result.grants[0]?.on).toBe('rob@acme.nl — Calendar');
+    expect(result.grants[0]?.on).toBe('pat@acme.nl — Calendar');
     expect(result.grants[1]?.grantee).toBe('jan@acme.nl');
   });
 
@@ -59,7 +59,7 @@ describe('scanning a mailbox’s calendars', () => {
       ['/calendars/c1/calendarPermissions', { value: [] }],
       ['/calendars/c2/calendarPermissions', 'denied', 403],
     ]);
-    const result = await scanCalendarPermissions('rob@acme.nl', token, http, APP);
+    const result = await scanCalendarPermissions('pat@acme.nl', token, http, APP);
 
     // "These are the shares on your calendars, except the ones we could not
     // read" is the half-truth this module exists to avoid.
@@ -68,7 +68,7 @@ describe('scanning a mailbox’s calendars', () => {
 
   it('refuses a delegated connection without asking Graph', async () => {
     const http = routed([['/calendars', { value: [] }]]);
-    const result = await scanCalendarPermissions('rob@acme.nl', token, http, {
+    const result = await scanCalendarPermissions('pat@acme.nl', token, http, {
       applicationPermissions: false,
     });
 

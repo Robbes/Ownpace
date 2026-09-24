@@ -61,7 +61,7 @@ import { Hint } from '../components/Hint.tsx';
  *
  * `grantSet` builds `grantee:role` so two items can be checked for carrying
  * exactly the same rights. That string reached the screen: the owner read
- * `b.berentsen@gmail.com:writer` beside a folder called `2017 Q2` and asked why
+ * `k.devries@example.com:writer` beside a folder called `2017 Q2` and asked why
  * an email address had grown a month on the end of it. A comparison key is
  * machinery; a screen shows words.
  *

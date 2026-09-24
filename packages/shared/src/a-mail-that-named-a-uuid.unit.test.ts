@@ -210,8 +210,8 @@ describe('the appliance can name a migration without re-keying it', () => {
     // The mappingId is hashed into the row id and matched to claim a legacy
     // row, so it cannot be edited to read better. `name` is the way out that
     // costs nobody their history.
-    const config = parseMappingConfig({ ...base, name: 'Rob to Nextcloud' });
-    expect(config.name).toBe('Rob to Nextcloud');
+    const config = parseMappingConfig({ ...base, name: 'Pat to Nextcloud' });
+    expect(config.name).toBe('Pat to Nextcloud');
     expect(config.mappingId).toBe(base.mappingId);
   });
 

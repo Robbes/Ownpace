@@ -35,8 +35,8 @@ const FOLDER = `${FIXTURES}takeout`;
 const PART_ONE = readFileSync(`${FIXTURES}takeout-zip/takeout-20240506T070810Z-001.zip`);
 const PART_TWO = readFileSync(`${FIXTURES}takeout-zip/takeout-20240506T070810Z-002.zip`);
 
-const BASE = 'https://cloud.example.test/remote.php/dav/files/rob/';
-const ENDPOINT = { url: BASE, username: 'rob', password: 'app-password' };
+const BASE = 'https://cloud.example.test/remote.php/dav/files/pat/';
+const ENDPOINT = { url: BASE, username: 'pat', password: 'app-password' };
 
 /** A WebDAV server in memory: files by `/`-path under the account root; folders are implied. */
 class FakeDav implements HttpClient {
@@ -85,7 +85,7 @@ class FakeDav implements HttpClient {
   }
 
   private response(path: string, folder: boolean, size?: number): string {
-    const href = `/remote.php/dav/files/rob/${path.split('/').filter(Boolean).map(encodeURIComponent).join('/')}${folder ? '/' : ''}`;
+    const href = `/remote.php/dav/files/pat/${path.split('/').filter(Boolean).map(encodeURIComponent).join('/')}${folder ? '/' : ''}`;
     return (
       `<d:response><d:href>${href}</d:href><d:propstat><d:prop>` +
       `<d:resourcetype>${folder ? '<d:collection/>' : ''}</d:resourcetype>` +
@@ -161,15 +161,15 @@ async function listing(store: ArchiveStore, path: string) {
 describe('a multistatus, as servers spell it', () => {
   it('reads hrefs, collections and sizes under any prefix', () => {
     const entries = parseMultistatus(
-      '<D:multistatus xmlns:D="DAV:"><D:response><D:href>/dav/files/rob/Photos%20export/</D:href>' +
+      '<D:multistatus xmlns:D="DAV:"><D:response><D:href>/dav/files/pat/Photos%20export/</D:href>' +
         '<D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>' +
-        '<D:response><D:href>https://cloud.example.test/dav/files/rob/Photos%20export/a.zip</D:href>' +
+        '<D:response><D:href>https://cloud.example.test/dav/files/pat/Photos%20export/a.zip</D:href>' +
         '<D:propstat><D:prop><D:resourcetype/><D:getcontentlength>1316</D:getcontentlength></D:prop></D:propstat></D:response>' +
         '</D:multistatus>',
     );
     expect(entries).toEqual([
-      { path: '/dav/files/rob/Photos export', isCollection: true, size: undefined },
-      { path: '/dav/files/rob/Photos export/a.zip', isCollection: false, size: 1316 },
+      { path: '/dav/files/pat/Photos export', isCollection: true, size: undefined },
+      { path: '/dav/files/pat/Photos export/a.zip', isCollection: false, size: 1316 },
     ]);
   });
 });

@@ -16,7 +16,7 @@ const list = (overrides: Partial<RunbookGroup> = {}): RunbookGroup => ({
   address: 'sales@acme.nl',
   displayName: 'Sales',
   pattern: 'distribution_d',
-  members: ['rob@acme.nl', 'jan@acme.nl'],
+  members: ['pat@acme.nl', 'jan@acme.nl'],
   membersKnown: true,
   ...overrides,
 });
@@ -26,7 +26,7 @@ describe('a list that can be recreated', () => {
     const md = renderGroupRunbook({ groups: [list()] });
 
     expect(md).toContain('Sales (sales@acme.nl)');
-    expect(md).toContain('`rob@acme.nl`');
+    expect(md).toContain('`pat@acme.nl`');
     expect(md).toContain('`jan@acme.nl`');
     // The check that tells the reader they succeeded.
     expect(md).toContain('send one message to the address');

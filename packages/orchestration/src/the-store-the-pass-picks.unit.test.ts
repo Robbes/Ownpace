@@ -95,7 +95,7 @@ function shiftedStore(root: string): ArchiveStore & { readonly asked: string[] }
   };
 }
 
-const TARGET = { url: 'https://cloud.example.org/remote.php/dav/files/rob/', username: 'rob', password: 'pw' };
+const TARGET = { url: 'https://cloud.example.org/remote.php/dav/files/pat/', username: 'pat', password: 'pw' };
 
 describe('where an archive is, as data', () => {
   it('defaults to the disk, so no mapping written before the relay changes meaning', () => {
@@ -172,7 +172,7 @@ describe('a file target, whatever is behind it', () => {
     // The endpoint travels: the path is resolved against the target the file
     // domain writes to, not against anything this product holds.
     expect(store.describe('Imports/takeout-001.zip')).toBe(
-      'https://cloud.example.org/remote.php/dav/files/rob/Imports/takeout-001.zip',
+      'https://cloud.example.org/remote.php/dav/files/pat/Imports/takeout-001.zip',
     );
   });
 

@@ -16,7 +16,7 @@
  * | folder                     | own `metadata.json` | bucket |
  * |----------------------------|---------------------|--------|
  * | `Foto_s van 2024/25/26`    | no (all three)      | year   |
- * | `Reis`, `Test Album_1$#_`  | YES (both)          | album  |
+ * | `Wandeling`, `Oud Album_7$#_`  | YES (both)          | album  |
  * | `Prullenbak` (the bin)     | no                  | other  |
  *
  * An album is known POSITIVELY, by its own `metadata.json`, so the year test
@@ -27,7 +27,7 @@
  *
  * - **All four album photos were in a year folder too.** So the double
  *   placement #1047 warned about was real, not theoretical.
- * - **`Test Album'1$#%` reaches disk as `Test Album_1$#_`** — Takeout replaces
+ * - **`Oud Album'7$#%` reaches disk as `Oud Album_7$#_`** — Takeout replaces
  *   `'` and `%` with `_` but leaves `$` and `#`. The folder name has lost
  *   characters the album's own `metadata.json` still has, so the title there
  *   is the only place the person's real name survives.
@@ -69,13 +69,13 @@ async function realShapedExport(): Promise<string> {
 
   // The album: the SAME photo again, plus its own metadata.json — with the
   // real title, which the folder name has already lost.
-  const album = join(photos, 'Test Album_1$#_');
+  const album = join(photos, 'Oud Album_7$#_');
   await mkdir(album, { recursive: true });
   await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
   await writeFile(
     join(album, 'metadata.json'),
     JSON.stringify({
-      title: "Test Album'1$#%",
+      title: "Oud Album'7$#%",
       sharedAlbumComments: [{ text: 'a note to somebody', contentOwnerName: 'The owner' }],
       access: 'protected',
     }),
@@ -106,9 +106,9 @@ describe('the three buckets, on the shape the owner’s export actually has', ()
     const shared = items.find((i) => i.path === 'IMG_0001.jpg');
     expect(shared).toBeDefined();
     // It IS in both folders — that is what Takeout wrote.
-    expect([...shared!.folders].sort()).toEqual(['Foto_s van 2026', 'Test Album_1$#_']);
+    expect([...shared!.folders].sort()).toEqual(['Foto_s van 2026', 'Oud Album_7$#_']);
     // It is PLACED in one. The year folder is not reproduced (0112 §3).
-    expect(shared!.placeIn).toEqual(['Test Album_1$#_']);
+    expect(shared!.placeIn).toEqual(['Oud Album_7$#_']);
   });
 
   it('leaves the bin behind and says how much it left', async () => {
@@ -124,15 +124,15 @@ describe('the three buckets, on the shape the owner’s export actually has', ()
     const { items, summary } = await readAll(await realShapedExport());
     const shared = items.find((i) => i.path === 'IMG_0001.jpg')!;
     // The folder is what Takeout wrote; the title is what the person typed.
-    expect(shared.metadata.albums).toEqual(['Test Album_1$#_']);
-    expect(shared.metadata.albumTitles).toEqual(["Test Album'1$#%"]);
+    expect(shared.metadata.albums).toEqual(['Oud Album_7$#_']);
+    expect(shared.metadata.albumTitles).toEqual(["Oud Album'7$#%"]);
     expect(summary.albums).toEqual([
       {
-        folder: 'Test Album_1$#_',
-        title: "Test Album'1$#%",
+        folder: 'Oud Album_7$#_',
+        title: "Oud Album'7$#%",
         shareActivity: true,
         metadata: {
-          title: "Test Album'1$#%",
+          title: "Oud Album'7$#%",
           sharedAlbumComments: [{ text: 'a note to somebody', contentOwnerName: 'The owner' }],
           access: 'protected',
         },
@@ -188,30 +188,30 @@ describe('the three buckets, on the shape the owner’s export actually has', ()
     // field Google may or may not write.
     const root = await mkdtemp(join(tmpdir(), 'empty-metadata-'));
     made.push(root);
-    const album = join(root, 'Takeout', 'Google Foto_s', 'Reis');
+    const album = join(root, 'Takeout', 'Google Foto_s', 'Wandeling');
     await mkdir(album, { recursive: true });
     await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
     await writeFile(join(album, 'metadata.json'), '{}');
 
     const { items, summary } = await readAll(root);
-    expect(items[0]!.placeIn).toEqual(['Reis']);
+    expect(items[0]!.placeIn).toEqual(['Wandeling']);
     // No title in the metadata, so the folder name is the honest fallback.
-    expect(summary.albums?.[0]?.title).toBe('Reis');
+    expect(summary.albums?.[0]?.title).toBe('Wandeling');
   });
 
   it('does not flag activity on an album that merely has the default access', async () => {
     const root = await mkdtemp(join(tmpdir(), 'unshared-'));
     made.push(root);
-    const album = join(root, 'Takeout', 'Google Foto_s', 'Reis');
+    const album = join(root, 'Takeout', 'Google Foto_s', 'Wandeling');
     await mkdir(album, { recursive: true });
     await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
     // Exactly what the owner's UNSHARED album carries.
     await writeFile(
       join(album, 'metadata.json'),
-      JSON.stringify({ title: 'Reis', description: '', access: 'protected' }),
+      JSON.stringify({ title: 'Wandeling', description: '', access: 'protected' }),
     );
     const { summary } = await readAll(root);
-    expect(summary.albums?.[0]?.title).toBe('Reis');
+    expect(summary.albums?.[0]?.title).toBe('Wandeling');
     expect(summary.albums?.[0]?.shareActivity).toBeUndefined();
   });
 });
@@ -273,7 +273,7 @@ describe('the properties the rule’s ORDER is there for', () => {
 describe('an album whose metadata.json is in a DIFFERENT part of the download', () => {
   it('still reads as an album, because the parts are one tree', async () => {
     // The owner found this in his real 46-part export (2026-09-21): the
-    // `Test Album_1$#_` folder appeared in two `.zip` parts, the photos in one
+    // `Oud Album_7$#_` folder appeared in two `.zip` parts, the photos in one
     // and `metadata.json` in the other. A reader that classified per part
     // would see a folder with no metadata and call it the bin — and skip it.
     //
@@ -293,7 +293,7 @@ describe('an album whose metadata.json is in a DIFFERENT part of the download', 
           'Takeout/Google Foto_s/Foto_s van 2026/IMG_0001.jpg.supplemental-metadata.json',
           Buffer.from(JSON.stringify({ title: 'IMG_0001.jpg' })),
         ),
-        member('Takeout/Google Foto_s/Reis/IMG_0001.jpg', PHOTO),
+        member('Takeout/Google Foto_s/Wandeling/IMG_0001.jpg', PHOTO),
       ]),
     );
     // Part 2: the SAME album folder, carrying only its metadata.json.
@@ -301,8 +301,8 @@ describe('an album whose metadata.json is in a DIFFERENT part of the download', 
       join(work, 'takeout-20260921T085049Z-1-002.zip'),
       buildZip([
         member(
-          'Takeout/Google Foto_s/Reis/metadata.json',
-          Buffer.from(JSON.stringify({ title: 'Reis', access: 'protected' })),
+          'Takeout/Google Foto_s/Wandeling/metadata.json',
+          Buffer.from(JSON.stringify({ title: 'Wandeling', access: 'protected' })),
         ),
       ]),
     );
@@ -313,8 +313,8 @@ describe('an album whose metadata.json is in a DIFFERENT part of the download', 
       expect(items).toHaveLength(1);
       // An album, not the bin: metadata from part 2 classified a folder whose
       // photos are in part 1.
-      expect(items[0]!.placeIn).toEqual(['Reis']);
-      expect(summary.albums?.map((a) => a.title)).toEqual(['Reis']);
+      expect(items[0]!.placeIn).toEqual(['Wandeling']);
+      expect(summary.albums?.map((a) => a.title)).toEqual(['Wandeling']);
       expect(summary.skipped).toBeUndefined();
     }
   });

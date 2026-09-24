@@ -194,7 +194,7 @@ describe('PgLedger carries where a shared thing sits (integration)', () => {
     const [before] = await ledger.listShareGrants(TENANT, MAPPING);
     await ledger.decideShareGrant(TENANT, MAPPING, before!.id, {
       state: 'done_manual',
-      decidedBy: 'rob@example.test',
+      decidedBy: 'pat@example.test',
     });
 
     await ledger.upsertShareGrants(TENANT, MAPPING, [
@@ -204,7 +204,7 @@ describe('PgLedger carries where a shared thing sits (integration)', () => {
     const [after] = await ledger.listShareGrants(TENANT, MAPPING);
     expect(after!.parentKey).toBe('NEW');
     expect(after!.state).toBe('done_manual');
-    expect(after!.decidedBy).toBe('rob@example.test');
+    expect(after!.decidedBy).toBe('pat@example.test');
     expect(after!.id).toBe(before!.id);
   });
 

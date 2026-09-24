@@ -258,7 +258,7 @@ describe('somebody who is in no organisation (the operator)', () => {
       .map((a) => a.textContent?.trim() ?? '');
 
   const asOperatorWithNoOrganisation = () => {
-    authState.user = { name: 'Rob', email: 'rob@example.test', role: 'member' };
+    authState.user = { name: 'Pat', email: 'pat@example.test', role: 'member' };
     authState.operator = true;
     authState.tenantCount = 0;
   };

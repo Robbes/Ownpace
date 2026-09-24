@@ -1075,7 +1075,7 @@ export class GoogleDriveSource implements FileSource {
    * A Google Doc's `name` carries no extension, because there is no file for
    * one to describe. Under an export policy there is: the bytes that arrive
    * are ODT, DOCX, SVG or PDF, and copying them out under the bare name
-   * produces "Aanbiedingstekst" holding a Word document — which Nextcloud
+   * produces "Voorbeeldtekst" holding a Word document — which Nextcloud
    * shows as unknown and the owner's desktop offers no application for. So the
    * export's own suffix is appended.
    *

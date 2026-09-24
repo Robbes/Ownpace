@@ -364,8 +364,8 @@ export interface StoredLabel {
  * without a database in front of it.
  *
  * CASE-INSENSITIVE, because the comparison decides whether to WRITE. A provider
- * that starts asserting `Rob@example.com` where it used to assert
- * `rob@example.com` is asserting the same address, and treating that as a change
+ * that starts asserting `Pat@example.com` where it used to assert
+ * `pat@example.com` is asserting the same address, and treating that as a change
  * would put an UPDATE on every sign-in for the rest of the deployment's life.
  * The claim is written verbatim when it genuinely differs; the old casing is
  * kept when it does not.

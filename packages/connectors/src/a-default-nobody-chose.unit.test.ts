@@ -75,9 +75,9 @@ describe('what the confirm screen is told under the default policy', () => {
     // and the screen said nothing at all.
     const counted = await walk(
       [
-        native('1', 'Aanbiedingstekst', 'document'),
+        native('1', 'Voorbeeldtekst', 'document'),
         native('2', 'Prijsadvies', 'document'),
-        native('3', 'Takenlijst', 'spreadsheet'),
+        native('3', 'Boodschappenlijst', 'spreadsheet'),
         native('4', 'Naamloze presentatie', 'presentation'),
         native('5', 'test tekening', 'drawing'),
       ],
@@ -134,7 +134,7 @@ describe('a policy that does carry them', () => {
     // The screen must stay quiet when there is nothing to say: a tick-box on a
     // migration with no refusals is a click that buys nobody anything.
     const counted = await walk(
-      [native('1', 'Aanbiedingstekst', 'document'), native('2', 'Takenlijst', 'spreadsheet')],
+      [native('1', 'Voorbeeldtekst', 'document'), native('2', 'Boodschappenlijst', 'spreadsheet')],
       'export-office',
     );
 

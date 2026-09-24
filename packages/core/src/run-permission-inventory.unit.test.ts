@@ -29,13 +29,13 @@ describe('the section that is never optional', () => {
       scanCalendars: async () => ({
         kind: 'listed',
         grants: [
-          { subject: 'calendar', on: 'Rob — Calendar', grantee: 'anna@acme.nl', role: 'read', raw: '{}' },
+          { subject: 'calendar', on: 'Pat — Calendar', grantee: 'anna@acme.nl', role: 'read', raw: '{}' },
         ],
       }),
     });
 
     // Buried under the findings it gets skipped, and it is the dangerous half.
-    expect(md.indexOf('Mailbox delegation')).toBeLessThan(md.indexOf('Rob — Calendar'));
+    expect(md.indexOf('Mailbox delegation')).toBeLessThan(md.indexOf('Pat — Calendar'));
   });
 });
 

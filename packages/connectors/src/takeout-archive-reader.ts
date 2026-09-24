@@ -102,7 +102,7 @@ const SIDECAR_JSON = /\.json$/i;
  * | folder                     | own `metadata.json` | bucket |
  * |----------------------------|---------------------|--------|
  * | `Foto_s van 2024/25/26`    | no (all three)      | year   |
- * | `Reis`, `Test Album_1$#_`  | YES (both)          | album  |
+ * | `Wandeling`, `Oud Album_7$#_`  | YES (both)          | album  |
  * | `Prullenbak` (the bin)     | no                  | other  |
  *
  * So an album is known POSITIVELY, by carrying its own `metadata.json`, and
@@ -410,7 +410,7 @@ async function classifyFolders(
     const metadata = await readAlbumMetadata(tree, `${root}/${folder}`);
     if (metadata) {
       // The title is the person's OWN spelling, which the folder name is not:
-      // Takeout writes `Test Album'1$#%` to disk as `Test Album_1$#_`, so the
+      // Takeout writes `Oud Album'7$#%` to disk as `Oud Album_7$#_`, so the
       // folder has already lost characters the metadata still has.
       const title = typeof metadata.title === 'string' && metadata.title !== '' ? metadata.title : folder;
       out.set(folder, { kind: 'album', title, metadata });
@@ -703,7 +703,7 @@ export function createTakeoutArchiveReader(store: ArchiveStore = localStore()): 
           ...(sidecar ? { sidecar } : {}),
           albums: inAlbums,
           // The person's OWN spelling, which the folder names have lost:
-          // `Test Album'1$#%` reaches disk as `Test Album_1$#_`.
+          // `Oud Album'7$#%` reaches disk as `Oud Album_7$#_`.
           albumTitles: inAlbums.map((f) => albums.get(f)?.title ?? f),
           years: folders.filter(isYear),
           sidecarFound: sidecar !== undefined,

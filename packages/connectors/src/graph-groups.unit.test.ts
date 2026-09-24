@@ -73,7 +73,7 @@ describe('the store signal', () => {
   it('reads a distribution list as having NO store', async () => {
     const http = routed([
       ['/groups?', groupPage([DL])],
-      ['/members', memberPage([{ mail: 'rob@acme.nl' }])],
+      ['/members', memberPage([{ mail: 'pat@acme.nl' }])],
     ]);
     const result = await listMailEnabledGroups(token, http, { applicationPermissions: true });
 
@@ -187,7 +187,7 @@ describe('the member list, which fails on its own', () => {
     const http = {
       request: vi.fn(async ({ url }: { url: string }) => {
         if (url.includes('/groups/g1/members')) return { status: 500, body: 'boom', headers: {} };
-        if (url.includes('/members')) return { ...memberPage([{ mail: 'rob@acme.nl' }]), headers: {} };
+        if (url.includes('/members')) return { ...memberPage([{ mail: 'pat@acme.nl' }]), headers: {} };
         return { ...groupPage([DL, M365]), headers: {} };
       }),
     } as unknown as HttpClient;
@@ -195,7 +195,7 @@ describe('the member list, which fails on its own', () => {
 
     if (result.kind !== 'listed') throw new Error('expected a listing');
     expect(result.groups[0]?.members.kind).toBe('not_enumerable');
-    expect(result.groups[1]?.members).toEqual({ kind: 'listed', addresses: ['rob@acme.nl'] });
+    expect(result.groups[1]?.members).toEqual({ kind: 'listed', addresses: ['pat@acme.nl'] });
   });
 
   it('drops members that are not addresses', async () => {
@@ -203,12 +203,12 @@ describe('the member list, which fails on its own', () => {
     // nothing can be delivered to them.
     const http = routed([
       ['/groups?', groupPage([DL])],
-      ['/members', memberPage([{ mail: 'rob@acme.nl' }, { id: 'nested-group' }, {}])],
+      ['/members', memberPage([{ mail: 'pat@acme.nl' }, { id: 'nested-group' }, {}])],
     ]);
     const result = await listMailEnabledGroups(token, http, { applicationPermissions: true });
 
     if (result.kind !== 'listed') throw new Error('expected a listing');
-    expect(result.groups[0]?.members).toEqual({ kind: 'listed', addresses: ['rob@acme.nl'] });
+    expect(result.groups[0]?.members).toEqual({ kind: 'listed', addresses: ['pat@acme.nl'] });
   });
 
   it('falls back to the UPN when a member has no mail attribute', async () => {

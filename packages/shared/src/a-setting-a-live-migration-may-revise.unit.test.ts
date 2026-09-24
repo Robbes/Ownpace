@@ -173,7 +173,7 @@ describe('comparing what a migration says now against what it said', () => {
     'source.type': 'google-drive',
     'target.type': 'webdav',
     'source.rootFolderId': 'FOLDER-A',
-    'target.account': 'rob',
+    'target.account': 'pat',
     'source.nativeFilePolicy': 'refuse',
   };
 
@@ -252,13 +252,13 @@ describe('lifting a mapping file into the snapshot', () => {
     expect(
       revisionSnapshotOf({
         source: { type: 'google-drive', rootFolderId: 'FOLDER-A' },
-        target: { type: 'webdav', user: 'rob' },
+        target: { type: 'webdav', user: 'pat' },
       }),
     ).toEqual({
       'source.type': 'google-drive',
       'target.type': 'webdav',
       'source.rootFolderId': 'FOLDER-A',
-      'target.account': 'rob',
+      'target.account': 'pat',
       'source.nativeFilePolicy': 'refuse',
     });
   });

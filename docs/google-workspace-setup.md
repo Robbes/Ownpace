@@ -373,7 +373,7 @@ changes that; they are reported one by one with a reason that says so, rather th
 a setting that would not help.
 
 The exported file lands under the document's name **plus the extension of whatever was
-rendered** — a Doc called "Aanbiedingstekst" arrives as `Aanbiedingstekst.odt`. Without that
+rendered** — a Doc called "Voorbeeldtekst" arrives as `Voorbeeldtekst.odt`. Without that
 suffix the file holds ODT bytes under a name that claims nothing, and neither Nextcloud nor a
 desktop offers anything to open it with.
 

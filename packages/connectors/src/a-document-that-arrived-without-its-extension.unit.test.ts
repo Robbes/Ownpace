@@ -6,7 +6,7 @@
  * A Google Doc's `name` carries no extension, because there is no file for one
  * to describe. Under an export policy there IS one: the bytes that land are
  * ODT, DOCX, SVG or PDF. Copied out under the bare name, the owner's document
- * arrives on Nextcloud as "Aanbiedingstekst" — no icon, no preview, and no
+ * arrives on Nextcloud as "Voorbeeldtekst" — no icon, no preview, and no
  * application offered when they double-click it. The migration reported a
  * success and delivered something they cannot open.
  *
@@ -80,13 +80,13 @@ describe('export-odf renders the OpenDocument family', () => {
     ['export-pdf', '.pdf', '.pdf', '.pdf'],
   ] as const)('%s names the three documents %s / %s / %s', async (policy, doc, sheet, slide) => {
     const out = await namesUnder(policy, [
-      native('d', 'Aanbiedingstekst', 'document'),
-      native('s', 'Factsheet alumni', 'spreadsheet'),
+      native('d', 'Voorbeeldtekst', 'document'),
+      native('s', 'Factsheet voorbeeld', 'spreadsheet'),
       native('p', 'Thema-avond', 'presentation'),
     ]);
     expect(out.map((o) => o.name)).toEqual([
-      `Aanbiedingstekst${doc}`,
-      `Factsheet alumni${sheet}`,
+      `Voorbeeldtekst${doc}`,
+      `Factsheet voorbeeld${sheet}`,
       `Thema-avond${slide}`,
     ]);
   });
@@ -135,9 +135,9 @@ describe('the suffix and the natural key agree', () => {
     // The path is the natural key. If `toFileItem` suffixed the name and
     // `childPath` did not, every document would be created once under each
     // spelling — a silent double of the owner's whole Drive.
-    const out = await namesUnder('export-odf', [native('d', 'Aanbiedingstekst', 'document')]);
-    expect(out[0]?.path).toBe('Aanbiedingstekst.odt');
-    expect(out[0]?.name).toBe('Aanbiedingstekst.odt');
+    const out = await namesUnder('export-odf', [native('d', 'Voorbeeldtekst', 'document')]);
+    expect(out[0]?.path).toBe('Voorbeeldtekst.odt');
+    expect(out[0]?.name).toBe('Voorbeeldtekst.odt');
   });
 
   it('does not double a suffix the owner already typed', async () => {
@@ -191,8 +191,8 @@ describe('nothing else is renamed', () => {
   it('leaves a native file alone under refuse, which copies nothing anyway', async () => {
     // Under `refuse` the item is parked, not copied. Renaming it would change
     // the key of a row that exists only to be decided on.
-    const out = await namesUnder('refuse', [native('d', 'Aanbiedingstekst', 'document')]);
-    expect(out[0]?.name).toBe('Aanbiedingstekst');
+    const out = await namesUnder('refuse', [native('d', 'Voorbeeldtekst', 'document')]);
+    expect(out[0]?.name).toBe('Voorbeeldtekst');
   });
 
   it('leaves a type no policy renders alone — a Form is not a file', async () => {

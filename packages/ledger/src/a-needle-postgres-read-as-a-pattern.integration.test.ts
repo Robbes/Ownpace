@@ -145,11 +145,11 @@ describe('PgLedger.resolveFailureGroup (integration)', () => {
     // Written with escaped backslashes rather than `String.raw`, because a raw
     // template literal cannot END in a backslash — the closing backtick would
     // be the thing it escaped.
-    await parked('literal', 'refused: C:\\Users\\rob\\notes.txt');
-    await parked('decoy', 'refused: /home/rob/notes.txt');
+    await parked('literal', 'refused: C:\\Users\\pat\\notes.txt');
+    await parked('decoy', 'refused: /home/pat/notes.txt');
 
     const matched = await ledger.resolveFailureGroup(TENANT, MAPPING, 'retry', {
-      errorContains: '\\rob\\',
+      errorContains: '\\pat\\',
     });
 
     expect(matched).toBe(1);

@@ -82,7 +82,7 @@ describe('GET /api/shared-addresses', () => {
           tenant,
           conn.rows[0].id,
           `sales@${tenant}.nl`,
-          JSON.stringify(['rob@acme.nl']),
+          JSON.stringify(['pat@acme.nl']),
           `mystery@${tenant}.nl`,
         ],
       );
@@ -113,7 +113,7 @@ describe('GET /api/shared-addresses', () => {
       membersKnown: true,
       status: 'pending',
     });
-    expect(sales.members).toEqual(['rob@acme.nl']);
+    expect(sales.members).toEqual(['pat@acme.nl']);
   });
 
   it('keeps "not classified" and "members not read" distinguishable', async () => {

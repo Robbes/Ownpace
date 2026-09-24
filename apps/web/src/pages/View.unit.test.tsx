@@ -53,7 +53,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 });
 
 const payload = (over: Record<string, unknown> = {}) => ({
-  organisation: 'Berentsen family',
+  organisation: 'Example family',
   state: 'active' as const,
   started: true,
   domains: [row()],
@@ -84,7 +84,7 @@ beforeEach(() => {
 describe('what the page says', () => {
   it('names who is doing this, in a sentence rather than a chip', async () => {
     renderPage();
-    expect(await screen.findByText(/Berentsen family is moving your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Example family is moving your account/)).toBeInTheDocument();
     // `active` reads as "Active" everywhere else in the product. Here it is a
     // whole sentence, because the reader is not scanning twenty migrations —
     // they are reading about their own.
