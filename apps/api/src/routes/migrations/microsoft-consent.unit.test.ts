@@ -156,6 +156,25 @@ describe("Entra's refusals become sentences with a way forward", () => {
     expect(s).toContain('AADSTS700016');
   });
 
+  it("with this service's own registration, AADSTS900023 names no operator setting either", () => {
+    // The directory asked about is the deployment's (`resolveMicrosoftClient`
+    // takes the tenant from the environment when no pair was typed in), so an
+    // invalid one is the operator's setting, as 700016's registration is.
+    const s = microsoftConsentRefusal(
+      "AADSTS900023: Specified tenant identifier 'x' is neither a valid DirectoryName nor a valid external domain.",
+      'deployment',
+    );
+    expect(s).not.toContain('MICROSOFT_OAUTH_TENANT');
+    expect(s).not.toContain('multi-tenant');
+    expect(s).not.toContain('docs/microsoft-setup.md');
+    expect(s).toContain('tell whoever runs it');
+    expect(s).toContain('AADSTS900023');
+    // A registration the person typed in keeps the operator's sentence.
+    expect(microsoftConsentRefusal('AADSTS900023: Specified tenant identifier', 'connection')).toContain(
+      'MICROSOFT_OAUTH_TENANT',
+    );
+  });
+
   it('says nothing about an error it does not recognise, so the raw words survive', () => {
     expect(microsoftConsentRefusal('AADSTS50000: something else entirely', 'connection')).toBeNull();
     expect(microsoftConsentRefusal('AADSTS50000: something else entirely', 'deployment')).toBeNull();

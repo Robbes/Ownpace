@@ -17,19 +17,22 @@ nothing reads the edition's name. (c), the guide's `own-app` fold, is built on a
 - **(b)** A step can carry `ownAppOnly`, and `setupStepsFor(side, provider, facts?)` leaves such
   a step out where the facts say `deployment`. The managed route passes `providerClientFacts()`
   to GET and to PUT. The appliance's route passes nothing and keeps every step. All three Google
-  steps are own-app steps, and the Google account card (`google`) reads the same profile. Dropbox
-  keeps `create_app` and `scopes`, and `consent` and `exchange_code` are replaced by
-  `redirect_uri`. When the facts leave nothing, the page shows `setup.deploymentApp`.
+  steps are own-app steps, and the Google account card (`google`) reads the same profile; that
+  is also T5's Google-account-card bullet, so T5 has Apple, Nextcloud and Soverin left before
+  the first invitation. Dropbox gains `redirect_uri` and keeps `create_app`, `scopes`, `consent`
+  and `exchange_code`, all five own-app steps. When the facts leave nothing, the page shows
+  `setup.deploymentApp`.
 - **(d)** The Google and Dropbox create refusals branch on the same fact. With the deployment's
   app they name the refresh token and the button, and not "your own". `microsoftConsentRefusal`
   and the code exchange receive `whose`. The callback sets it by comparing the flow's client id
-  with the deployment's. With the deployment's registration, AADSTS700016 names no operator
-  setting.
+  with the deployment's. With the deployment's registration, AADSTS700016 and AADSTS900023 name
+  no operator setting.
 
 Guards: `a-hint-that-knows-the-service-has-an-app.unit.test.tsx`, `provider-setup.unit.test.ts`,
 `apps/api/src/routes/setup.unit.test.ts`, `create-coherence.unit.test.ts`,
 `microsoft-consent.unit.test.ts`, and `microsoft-oauth-routes.unit.test.ts` for the callback's
-wiring. 40 cases failed on the unchanged code.
+wiring. 40 cases failed on the unchanged code, and 3 more after review (Dropbox's list without
+facts, the route's, and AADSTS900023).
 
 Where the build departs from §3:
 
@@ -37,14 +40,22 @@ Where the build departs from §3:
   plan's lines are 16 to 20. So the lines are shortened. EN: *"Uses this service’s own Google
   app: press Connect with Google and approve at Google."* NL: *"Gebruikt de eigen Google-app
   van deze dienst: druk op Verbinden met Google en geef toestemming."* Dropbox's lines follow
-  the same pattern. `setup.deploymentApp` drops *"in the wizard"* / *"in de wizard"*.
-- Dropbox's new step says, in its fold, that without the button the full guide walks the
-  consent and the code exchange by hand. The appliance has no Connect button, and this sentence
-  keeps its checklist true there.
+  the same pattern. `setup.deploymentApp` drops *"in the wizard"* / *"in de wizard"*. The owner
+  has not yet confirmed the shorter lines; the other way is to add the plan's lines to the copy
+  budget's `ALLOWED_OVER`.
+- §3 T2 (b) replaces Dropbox's `consent` and `exchange_code` with `redirect_uri`, and also says
+  the appliance keeps every step. Both cannot hold: the appliance's route passes no facts and
+  gets the same list, it serves no *Connect with Dropbox*, and those two steps are how its
+  operator gets the refresh token (the consent is the one that waits on another person). So both
+  stay, with their keys, as own-app steps, and `redirect_uri` is added before them. Each is
+  worded to be true with or without the button: `redirect_uri` is *"Only for Connect with
+  Dropbox"*, and the consent step opens with the button doing it and the next step. A
+  deployment carrying Dropbox's app still gets an empty list.
 - The Microsoft account card's own-app profile is not built. T5 puts it after the first
   invitation.
-- An AADSTS900023 refusal keeps the operator's sentence for both kinds of registration. §3
-  names only AADSTS700016.
+- §3 names only AADSTS700016. AADSTS900023 (an invalid directory) gets the same treatment: with
+  the deployment's registration the directory is the deployment's own setting, since
+  `resolveMicrosoftClient` takes the tenant from the environment when no pair was typed in.
 
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's

@@ -93,11 +93,14 @@ const BOX: ReadonlyArray<SetupStep> = [
 ];
 
 /**
- * Dropbox with one's own app. The owner's consent and the code exchange were
- * two manual steps here until *Connect with Dropbox* (2026-09-02) did both;
- * what that leaves the person is to register the address the wizard shows
- * under the button (0148 T2 (b)). `consent` and `exchange_code` left the list
- * with it, and their rows stay behind harmlessly, as the header says.
+ * Dropbox with one's own app. *Connect with Dropbox* (2026-09-02) does the
+ * owner's consent and the code exchange where the deployment serves it, and
+ * needs the address shown under the button registered on the app; that is
+ * `redirect_uri` (0148 T2 (b)). The appliance serves no such button and gets
+ * the same list (its route passes no facts), so `consent` and `exchange_code`
+ * stay: they are how its operator gets the refresh token, and the consent is
+ * somebody else's. Each step's words are true with or without the button.
+ * Where the deployment carries Dropbox's app, all five are left out.
  */
 const DROPBOX: ReadonlyArray<SetupStep> = [
   {
@@ -117,6 +120,20 @@ const DROPBOX: ReadonlyArray<SetupStep> = [
     key: 'redirect_uri',
     titleKey: 'setup.dropbox.redirect_uri.title',
     detailKey: 'setup.dropbox.redirect_uri.detail',
+    ownAppOnly: 'dropbox',
+  },
+  {
+    key: 'consent',
+    titleKey: 'setup.dropbox.consent.title',
+    detailKey: 'setup.dropbox.consent.detail',
+    needsAnotherPerson: true,
+    ownAppOnly: 'dropbox',
+  },
+  {
+    key: 'exchange_code',
+    titleKey: 'setup.dropbox.exchange_code.title',
+    detailKey: 'setup.dropbox.exchange_code.detail',
+    yieldsKey: 'setup.dropbox.exchange_code.yields',
     ownAppOnly: 'dropbox',
   },
 ];

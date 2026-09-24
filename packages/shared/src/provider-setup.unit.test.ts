@@ -101,14 +101,25 @@ describe('the own-app steps, against what the deployment carries (0148 T2 (b))',
     expect(setupStepsFor('source', 'google')).toBe(setupStepsFor('source', 'google-drive'));
   });
 
-  it("pins Dropbox's keys: the consent and exchange are the button's now, the address is the person's", () => {
-    // `consent` and `exchange_code` left the file: Connect with Dropbox does
-    // both. Their ledger rows are left behind harmlessly (see the header).
-    expect(setupStepsFor('source', 'dropbox').map((s) => s.key)).toEqual([
+  it("keeps Dropbox's manual consent and exchange without facts — the appliance has no button", () => {
+    // The appliance's route passes no facts, serves no Connect with Dropbox,
+    // and its operator gets the refresh token by hand: the owner consents
+    // (somebody else, so it counts as waiting), then the code is exchanged.
+    // `redirect_uri` is added for the button; no key left the file.
+    const manual = setupStepsFor('source', 'dropbox');
+    expect(manual.map((s) => s.key)).toEqual([
       'create_app',
       'scopes',
       'redirect_uri',
+      'consent',
+      'exchange_code',
     ]);
+    const byKey = new Map(manual.map((s) => [s.key, s]));
+    expect(byKey.get('consent')?.needsAnotherPerson).toBe(true);
+    expect(byKey.get('exchange_code')?.yieldsKey).toBe('setup.dropbox.exchange_code.yields');
+    // A deployment WITH facts but without Dropbox's app keeps them too: the
+    // person brings an app, and the button or the hand does the consent.
+    expect(setupStepsFor('source', 'dropbox', facts({}))).toEqual(manual);
     expect(setupStepsFor('source', 'dropbox', facts({ dropbox: 'deployment' }))).toEqual([]);
   });
 

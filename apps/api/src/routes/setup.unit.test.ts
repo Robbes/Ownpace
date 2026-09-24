@@ -69,7 +69,7 @@ describe('GET /api/setup/source/dropbox', () => {
   it('keeps every step where each connection brings its own app', async () => {
     const res = await request(app).get('/api/setup/source/dropbox');
     expect(res.status).toBe(200);
-    expect(keys(res.body)).toEqual(['create_app', 'scopes', 'redirect_uri']);
+    expect(keys(res.body)).toEqual(['create_app', 'scopes', 'redirect_uri', 'consent', 'exchange_code']);
   });
 
   it('refuses to record a step the deployment has left out, as it refuses any unknown step', async () => {

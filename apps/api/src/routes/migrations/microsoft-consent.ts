@@ -89,11 +89,12 @@ export type MicrosoftExchangeResult =
  *
  * `whose` says whose registration the consent used (workplan 0148 T2 (d)):
  * `deployment` when it was this service's own, `connection` when the person
- * typed their own in. It matters for one code. AADSTS700016 is fixed in the
- * registration's settings, and only the person who owns them can change them:
- * a tester on a managed deployment can neither re-register the service's
- * application nor set a variable on a server they do not run. Required, not
- * defaulted, so a new caller has to say which it is.
+ * typed their own in. It matters for two codes. AADSTS700016 is fixed in the
+ * registration's settings and AADSTS900023 in the directory it is asked
+ * about, and only the person who owns them can change them: a tester on a
+ * managed deployment can neither re-register the service's application nor
+ * set a variable on a server they do not run. Required, not defaulted, so a
+ * new caller has to say which it is.
  */
 export function microsoftConsentRefusal(
   errorDescription: string,
@@ -115,12 +116,25 @@ export function microsoftConsentRefusal(
       'The Entra error is AADSTS90094.'
     );
   }
-  if (errorDescription.includes('AADSTS700016') && whose === 'deployment') {
-    return (
-      "Microsoft could not find this service's application in the directory it was asked " +
-      'about. That is a setting of this service, not of your account; tell whoever runs it. ' +
-      'The Entra error is AADSTS700016.'
-    );
+  if (whose === 'deployment') {
+    // Both codes are about the registration or the directory it was asked
+    // about, and with this service's own registration both are the operator's
+    // settings: `resolveMicrosoftClient` takes the tenant from the environment
+    // when no pair was typed in.
+    if (errorDescription.includes('AADSTS700016')) {
+      return (
+        "Microsoft could not find this service's application in the directory it was asked " +
+        'about. That is a setting of this service, not of your account; tell whoever runs it. ' +
+        'The Entra error is AADSTS700016.'
+      );
+    }
+    if (errorDescription.includes('AADSTS900023')) {
+      return (
+        "Microsoft does not recognise the directory this service's application was asked " +
+        'about. That is a setting of this service, not of your account; tell whoever runs it. ' +
+        'The Entra error is AADSTS900023.'
+      );
+    }
   }
   if (errorDescription.includes('AADSTS700016') || errorDescription.includes('AADSTS900023')) {
     return (

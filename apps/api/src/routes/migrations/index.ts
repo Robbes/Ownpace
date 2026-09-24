@@ -339,6 +339,11 @@ function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecre
     : (['refreshToken'] as const);
 }
 
+/** Whether this deployment carries the provider's app: the fact the wizard reads too. */
+function carriesApp(provider: 'google' | 'dropbox'): boolean {
+  return providerClientFacts()[provider] === 'deployment';
+}
+
 /**
  * THE REFUSAL WHERE THIS SERVICE CARRIES THE APP (workplan 0148 T2 (d), owner
  * decision D2: "Stop the false hints on managed").
@@ -346,18 +351,15 @@ function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecre
  * With the deployment's Google client or Dropbox app configured, the door asks
  * only for the refresh token — and the refusal still opened "authenticates with
  * your own Google Cloud OAuth client", sending a tester to create what the
- * service already has. So it branches on the one fact the wizard reads,
- * `providerClientFacts()`: here it names the token and the button that fills
- * it in. Where each connection brings its own app, each row keeps the sentence
- * it had. English, as refusals are (`docs/i18n-prose-boundary.md`).
+ * service already has. So each caller branches on `carriesApp`, the one fact
+ * the wizard reads (`providerClientFacts()`), and here names the token and the
+ * button that fills it in. Where each connection brings its own app, each row
+ * keeps the sentence it had. English, as refusals are
+ * (`docs/i18n-prose-boundary.md`).
  *
  * `consented`, when given, is the scope the token must carry — for somebody
  * pasting one rather than pressing the button, which asks for it itself.
  */
-function carriesApp(provider: 'google' | 'dropbox'): boolean {
-  return providerClientFacts()[provider] === 'deployment';
-}
-
 function deploymentAppTokenRefusal(
   sourceType: string,
   provider: 'Google' | 'Dropbox',
@@ -1450,11 +1452,12 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         ? []
         : googleCredentialKeysRequired().filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
+      const googleApp = carriesApp('google');
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
         message:
-          (carriesApp('google')
+          (googleApp
             ? deploymentAppTokenRefusal('gmail', 'Google', missing, 'https://mail.google.com/') +
               ' '
             : "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
@@ -1462,7 +1465,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
               `missing ${missing.join(', ')}. Where each comes from is ` +
               'docs/google-workspace-setup.md. ') +
           `A PERSONAL Google account may send appPassword instead${
-            carriesApp('google') ? '' : ' of all three'
+            googleApp ? '' : ' of all three'
           } — Google recommends against it, it needs 2-step verification on the account, and ` +
           'it does not exist on a Workspace account.',
       });

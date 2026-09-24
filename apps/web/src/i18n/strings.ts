@@ -2128,11 +2128,19 @@ const en = {
   'setup.dropbox.scopes.title': 'Give it read-only permissions',
   'setup.dropbox.scopes.detail':
     'On the Permissions tab enable files.metadata.read and files.content.read, and nothing that writes. Add sharing.read as well if you want to browse shared folders here.',
-  // Connect with Dropbox consents and exchanges the code (2026-09-02), so what
-  // is left with one's own app is the address under the button (0148 T2 (b)).
-  'setup.dropbox.redirect_uri.title': 'Register the redirect address',
+  // Connect with Dropbox consents and exchanges the code (2026-09-02) where the
+  // deployment serves it; the appliance does not, so both manual steps stay and
+  // each line is true with or without the button (0148 T2 (b)).
+  'setup.dropbox.redirect_uri.title': 'Using the button? Register its redirect address',
   'setup.dropbox.redirect_uri.detail':
-    'Press Connect with Dropbox in the wizard; under the button it shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, the full setup guide walks the consent and the code exchange by hand.',
+    'Only for Connect with Dropbox in the wizard: under the button it shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
+  'setup.dropbox.consent.title': 'Have the account owner consent once',
+  'setup.dropbox.consent.detail':
+    'Connect with Dropbox does this step and the next when the account owner presses it. Without the button, send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
+  'setup.dropbox.exchange_code.title': 'Exchange the code for a refresh token',
+  'setup.dropbox.exchange_code.detail':
+    'Swap the code from the previous step at Dropbox\u2019s token endpoint, once. Access tokens are minted from the result per run; nothing else long-lived is stored.',
+  'setup.dropbox.exchange_code.yields': 'a refresh token.',
   'setup.google.create_oauth_client.title': 'Create a Google OAuth client',
   'setup.google.create_oauth_client.detail':
     'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Web application.',
@@ -3938,9 +3946,16 @@ const nl: Record<keyof typeof en, string> = {
   'setup.dropbox.scopes.title': 'Geef de app alleen-leesrechten',
   'setup.dropbox.scopes.detail':
     'Zet op het tabblad Permissions files.metadata.read en files.content.read aan, en niets dat schrijft. Voeg sharing.read toe als u hier gedeelde mappen wilt kunnen bekijken.',
-  'setup.dropbox.redirect_uri.title': 'Registreer het redirect-adres',
+  'setup.dropbox.redirect_uri.title': 'Gebruikt u de knop? Registreer dan het redirect-adres',
   'setup.dropbox.redirect_uri.detail':
-    'Druk in de wizard op Verbinden met Dropbox; onder de knop verschijnt een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop beschrijft de volledige handleiding de toestemming en het inwisselen van de code met de hand.',
+    'Alleen voor Verbinden met Dropbox in de wizard: onder de knop verschijnt een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
+  'setup.dropbox.consent.title': 'Laat de accounthouder eenmalig toestemming geven',
+  'setup.dropbox.consent.detail':
+    'Verbinden met Dropbox doet deze stap en de volgende als de accounthouder erop drukt. Zonder de knop stuurt u de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
+  'setup.dropbox.exchange_code.title': 'Wissel de code in voor een refresh-token',
+  'setup.dropbox.exchange_code.detail':
+    'Wissel de code uit de vorige stap eenmalig in bij het token-eindpunt van Dropbox. Toegangstokens worden per run aangemaakt; verder wordt niets langlevends bewaard.',
+  'setup.dropbox.exchange_code.yields': 'een refresh-token.',
   'setup.google.create_oauth_client.title': 'Maak een Google OAuth-client',
   'setup.google.create_oauth_client.detail':
     'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Web-toepassing.',
