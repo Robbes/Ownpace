@@ -158,13 +158,30 @@ describe('every caller of the ledger door hands it the peak', () => {
         text.split('\n').some((line) => DOORS.test(line) && !/^\s*(\*|\/\/|import)/.test(line)),
       );
     expect(callers.map((c) => c.file).sort()).toEqual([
+      'apps/selfhost/src/index.ts',
       'apps/worker/src/cli/index.ts',
       'apps/worker/src/jobs/run-rollback.ts',
     ]);
     for (const { file, text } of callers) {
+      if (file === 'apps/selfhost/src/index.ts') continue; // Below: it has no peak.
       expect(text, `${file} calls the ledger door without the peak`).toMatch(
         /mappingLifecyclePort\(pool, tenantId, mappingId, '[a-z-]+', \{\s*onSlotsTaken: raiseThePeakWhereThereIsOne\(/,
       );
     }
+  });
+
+  it("but the appliance's, whose database keeps no peak and which cannot load the managed package", () => {
+    // Its Start and Finish go through the door since 0128 T5, slice 2a. It runs
+    // only the ledger's chain, and `occupancy_peak` is the managed chain's.
+    const manifest = JSON.parse(readFileSync(join(ROOT, 'apps', 'selfhost', 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+    };
+    expect(Object.keys(manifest.dependencies ?? {})).not.toContain('@openmig/managed');
+    const ledgerChain = readdirSync(join(ROOT, 'packages', 'ledger', 'migrations'))
+      .filter((f) => f.endsWith('.sql'))
+      .map((f) => readFileSync(join(ROOT, 'packages', 'ledger', 'migrations', f), 'utf8'));
+    expect(ledgerChain.some((text) => /CREATE TABLE[^;]*occupancy_peak/i.test(text))).toBe(false);
+    const appliance = readFileSync(join(ROOT, 'apps', 'selfhost', 'src', 'index.ts'), 'utf8');
+    expect(appliance).not.toMatch(/onSlotsTaken:/);
   });
 });
