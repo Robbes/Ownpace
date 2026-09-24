@@ -22,7 +22,7 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 - **Migrations on startup behind a lock** (hand-written SQL applied by `runMigrations`, ADR-0045; Atlas lint in CI); the app refuses to start if the schema is newer than it understands.
 - **Multi-arch images (amd64+arm64), signed (cosign keyless, by digest)**, SBOM in **CycloneDX** (per-commit CI artifact; attached to each release — first: `v0.1.0-rc.1`, 2026-08-04); consumers pin by digest. Verify a pull with `cosign verify --certificate-identity-regexp 'https://github.com/Robbes/(open-migrate|Ownpace)' --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/robbes/ownpace-selfhost:edge`.
 - **Release channels** (the real ones — see deploy/selfhost/README.md): `edge` per merge, `sha-<commit>`, `X.Y.Z` per tag, `latest` only once a non-prerelease exists; self-host updates via image tags; back up the ledger before upgrading; never run two app versions against one database. The release procedure is docs/release.md.
-- Managed: roll-forward preferred over schema rollback (the app refuses a schema newer than it knows). Not built today (see [`managed-bring-up.md`](./managed-bring-up.md), *What this does not cover*): staged/canary rollout, and a DB backup taken before migrate (the [runbook](./operator-runbook.md)'s backup is a manual step).
+- Managed: roll-forward preferred over schema rollback (the app refuses a schema newer than it knows). Not built today: staged/canary rollout (the stack is one compose host), and a DB backup taken before migrate ([`managed-bring-up.md`](./managed-bring-up.md), *What this does not cover*; the [runbook](./operator-runbook.md)'s backup is a manual step).
 
 ## Connection pooling (managed)
 

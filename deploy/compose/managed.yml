@@ -260,7 +260,7 @@ services:
   #
   # v4.5.12 writes a FUNCTION as a skip-index argument; 25.5 only accepts
   # literals. The webapp crash-looped and the plane was down until the tag
-  # went back. `managed.env.example` has carried "4.5.11 has an outage" since
+  # went back. `managed.env.example` carried "4.5.11 has an outage" from
   # August with no cause recorded — very likely this, unrecognised because it
   # presents as a Trigger.dev failure rather than a ClickHouse-version one.
   #
