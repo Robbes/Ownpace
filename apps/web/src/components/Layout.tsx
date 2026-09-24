@@ -44,8 +44,84 @@ const SCREEN_TITLE_KEY: Record<MappingScreen, StringKey> = {
   finish: 'nav.finish',
 };
 
+/**
+ * THE CONDITION TAILWIND PUTS `lg:` BEHIND, word for word, so the script and
+ * the stylesheet agree on which screen has a drawer. Not `(min-width: 1024px)`:
+ * a rem in a media query follows the browser's font size, so for somebody who
+ * set it larger than 16 px the two would disagree on a band of widths, and that
+ * reader is who the drawer's focus handling is for. The guard asks the
+ * installed Tailwind for this text (a-menu-that-gives-focus-back).
+ */
+const WIDE_SCREEN = '(width >= 64rem)';
+
+/**
+ * Whether the navigation is the sidebar (wide) or a drawer (narrow).
+ *
+ * Every browser the app supports has `matchMedia`; jsdom does not. Without it
+ * the answer is "wide", which is how the layout behaved before it asked: the
+ * drawer is never inert. So a test that does not care about the drawer sees
+ * the layout it always saw, and nothing real can land in that branch.
+ */
+function subscribeWideScreen(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {};
+  const query = window.matchMedia(WIDE_SCREEN);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+const wideScreenNow = (): boolean =>
+  typeof window.matchMedia !== 'function' || window.matchMedia(WIDE_SCREEN).matches;
+
 const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  /**
+   * THE PHONE MENU TAKES FOCUS AND GIVES IT BACK (workplan 0145 T1).
+   *
+   * A closed drawer used to be only moved off screen. It comes before the page
+   * in the document, so a keyboard tabbed through every link of a menu nobody
+   * could see, and a screen reader swiped through it. Now, below `lg`:
+   *
+   * - closed, the drawer is `inert`: out of the tab order and the swipe order;
+   * - open, focus moves to its close button and the page behind is `inert`;
+   * - Escape, the close button and the backdrop close it, and focus goes back
+   *   to the menu button. Following a link closes it as before; where focus
+   *   goes on a new page is 0145 T3 (b).
+   *
+   * From `lg` up the drawer is the sidebar and none of this applies, even if
+   * the window was widened with the drawer open.
+   */
+  const wideScreen = React.useSyncExternalStore(subscribeWideScreen, wideScreenNow);
+  // Widened with the drawer open: it is the sidebar now, so it is closed, and
+  // narrowing the window again does not bring it back over the page.
+  if (wideScreen && sidebarOpen) setSidebarOpen(false);
+  const drawerOpen = sidebarOpen && !wideScreen;
+  const drawerId = React.useId();
+  const menuButtonRef = React.useRef<HTMLButtonElement>(null);
+  const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+  const giveFocusBack = React.useRef(false);
+  const closeDrawer = React.useCallback(() => {
+    giveFocusBack.current = true;
+    setSidebarOpen(false);
+  }, []);
+  // After the commit, not in the handler: until React has taken `inert` off
+  // the element that is to receive focus, a browser refuses to focus it.
+  React.useEffect(() => {
+    if (drawerOpen) {
+      closeButtonRef.current?.focus();
+    } else if (giveFocusBack.current) {
+      giveFocusBack.current = false;
+      menuButtonRef.current?.focus();
+    }
+  }, [drawerOpen]);
+  // On the document, not the drawer: a click on the drawer's own text leaves
+  // focus on the body, and Escape has to work from there too.
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDrawer();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [drawerOpen, closeDrawer]);
   const location = useLocation();
   const routeCtx = mappingRouteContext(location.pathname);
   const selfHostEdition = isSelfHost();
@@ -217,14 +293,16 @@ const Layout: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-gray-600/75 z-20 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeDrawer}
         />
       )}
 
       {/* Sidebar */}
       <aside
+        id={drawerId}
+        inert={!wideScreen && !drawerOpen}
         className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
@@ -237,7 +315,8 @@ const Layout: React.FC = () => {
               <span className="text-xl font-bold text-gray-900">Ownpace</span>
             </Link>
             <button
-              onClick={() => setSidebarOpen(false)}
+              ref={closeButtonRef}
+              onClick={closeDrawer}
               aria-label={t('common.close')}
               className="lg:hidden text-gray-500 hover:text-gray-700"
             >
@@ -341,13 +420,15 @@ const Layout: React.FC = () => {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-64" inert={drawerOpen}>
         {/* Top bar */}
         <header className="sticky top-0 z-10 flex items-center h-16 px-4 bg-white border-b border-gray-200 lg:px-8">
           <button
+            ref={menuButtonRef}
             onClick={() => setSidebarOpen(true)}
             aria-label={t('nav.menu')}
-            aria-expanded={sidebarOpen}
+            aria-expanded={drawerOpen}
+            aria-controls={drawerId}
             className="lg:hidden text-gray-500 hover:text-gray-700"
           >
             <Menu className="w-6 h-6" />
