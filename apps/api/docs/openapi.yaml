@@ -6034,4 +6034,14 @@ components:
           type: string
           description: Five-field cron. An unparseable value is refused at create, not silently replaced by a default.
           examples: ['*/15 * * * *']
+        status:
+          type: string
+          enum: [paused, active]
+          default: paused
+          description: |
+            Where the migration begins: a draft (`paused`, the default) that
+            waits for `/start`, or `active`, running from its first minute.
+            `cutover`, `done` and `continuous` are refused here with a 400 that
+            says so. Each is reached once the migration exists, through the
+            cutover, Finish and Keep copying, which check what they need.
       required: [sourceConfig, targetConfig]
