@@ -368,6 +368,13 @@ we prefer roll-forward + backups.
 # Logical backup (portable):
 docker compose -f managed.yml exec -T postgres \
   pg_dump -U openmigrate -d openmigrate --format=custom > backup-$(date +%F).dump
+# The identity provider's accounts are a SECOND database on the same server
+# (managed.yml: ZITADEL_DATABASE_POSTGRES_DATABASE, default `zitadel`):
+docker compose -f managed.yml exec -T postgres \
+  pg_dump -U openmigrate -d zitadel --format=custom > zitadel-$(date +%F).dump
+# Roles are cluster-global and pg_dump omits them (app_user, pgbouncer_auth, zitadel):
+docker compose -f managed.yml exec -T postgres \
+  pg_dumpall -U openmigrate --roles-only > roles-$(date +%F).sql
 
 # Restore into a fresh DB:
 docker compose -f managed.yml exec -T postgres \
@@ -379,6 +386,10 @@ Notes:
   from the target rehydrates idempotency state. Back up the DB anyway — it also holds tenant,
   member, mapping, billing, and audit rows that are not derivable from the target.
 - Never run two app versions against one DB (§22.1). Migrate, verify, then deploy.
+- Neither dump is usable without `deploy/compose/.env`: `SECRET_ENCRYPTION_KEY` decrypts stored
+  credentials and `ZITADEL_MASTERKEY` the provider's data. Keep a copy off the host, apart from the
+  dumps. Restore with the api and zitadel stopped, roles first. This procedure has not been drilled
+  for the managed edition (the appliance's has: `test/e2e/selfhost-backup-restore.e2e.test.ts`).
 
 ## Upgrade
 
