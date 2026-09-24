@@ -21,6 +21,7 @@ import { useMutation } from '@tanstack/react-query';
 import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import AlphaNote from '../components/AlphaNote.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -111,6 +112,9 @@ const RequestAccess: React.FC = () => {
         <div className="max-w-md w-full text-center space-y-4">
           <h2 className="text-2xl font-extrabold text-gray-900">{t('access.sent')}</h2>
           <p className="text-sm text-gray-600">{t('access.sentDetail')}</p>
+          {/* Still here once the request has gone (workplan 0131 T1): the page
+              is the same address, and what was asked to join has not changed. */}
+          <AlphaNote className="text-left" />
           <Link to="/login" className="inline-block text-sm text-blue-600 hover:text-blue-500">
             {t('access.backToSignIn')}
           </Link>
@@ -133,6 +137,10 @@ const RequestAccess: React.FC = () => {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">{t('access.intro')}</p>
         </div>
+
+        {/* The alpha note (workplan 0131 T1), under the title: somebody asking
+            to be let in reads what they are asking to join before they ask. */}
+        <AlphaNote />
 
         <form
           className="mt-8 space-y-6"

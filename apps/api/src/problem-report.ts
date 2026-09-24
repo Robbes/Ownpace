@@ -125,7 +125,8 @@ export function parseProblemReport(body: unknown): ProblemReport | ReportRefusal
   };
 }
 
-export function isRefusal(parsed: ProblemReport | ReportRefusal): parsed is ReportRefusal {
+/** Whether a parse refused, for this form's report or a link's (`link-report.ts`). */
+export function isRefusal<T extends object>(parsed: T | ReportRefusal): parsed is ReportRefusal {
   return 'field' in parsed && 'status' in parsed;
 }
 

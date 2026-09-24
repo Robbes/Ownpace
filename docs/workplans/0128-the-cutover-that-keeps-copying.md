@@ -1,8 +1,58 @@
 # Workplan 0128 — The cutover that keeps copying
 
-> **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, ending or continuing chosen data types in the continuous lane, and per-data-type stop and resume on managed.
+> **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, a cutover per data type (`path_lifecycle`), ending or keeping each data type in the continuous lane, and per-data-type stop and resume on both editions.
 
 ## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24, night: T5's first slice built. A pass asks each data type its own phase.** Nothing
+changes yet: until a data type can have a phase of its own, every one has the migration's. The
+readers go in first, so that no gate can meet a cut-over data type it does not understand.
+- **The rules** are in shared (`path-phase.ts`: `PathPhase`, `pathRunsNow`,
+  `pathSourceAuthority`). `phasesOfTheMigration` is today's answer for every data type.
+- **The one reader** is in the ledger (`readPathPhases`). It reads the migration's row and its
+  cutover's grace window. It is the function that will learn to read path rows in slice 2.
+- **The managed pass** asks before each data type (`passStepBefore`):
+  - stop, when the migration no longer runs or its grant was withdrawn;
+  - move on past a data type that no longer runs while the others do, so files are not
+    stopped with mail;
+  - run it otherwise.
+- **Both managed builders** take the deletion answer from their own data type's phase, through
+  the reader.
+- **The appliance's pass** reads every data type's phase once, and asks that one reading both
+  questions: whether each data type still runs, moving on past one that does not, as the managed
+  pass does; and whether its source still decides what exists.
+- **The standalone worker** keeps running the configuration it is handed, with the migration's
+  phase. It has never refused a pass for the migration's state, and gains no refusal.
+- **Left for slice 2, on purpose:** the managed tick and the appliance's own gates (its pass's
+  first check, its schedule at start-up and its run-now door) still ask whether the migration
+  runs. Until a data type can be cut over on its own, that is the same question as whether any of
+  its data types runs, so they learn the second with the rows. §3's *one snapshot per pass* is
+  refined to *one answer per data type per pass*: the managed pass's stop check reads again
+  before each data type, as it always has, to see a Pause or a withdrawn grant.
+
+Evidence:
+- the rules (5), the reader on PGlite as `app_user` (9), the pass's decision and its loop (6),
+  and the appliance's pass (4): each data type its own answer, moving on past one that no longer
+  runs, and the standalone worker's run unchanged;
+- the guard on the builders now requires each answer to come from a data type's phase, and pins
+  that every builder and the appliance ask the one reader, the appliance both questions of one
+  reading;
+- the unit suites of every package touched, and the integration tests of the stop check, a
+  cutover without mail and a withdrawn grant, on Postgres 16;
+- 22 mutations, all killed.
+
+**2026-09-24, evening: the owner answered the five questions for T3 and T4, and split the
+cutover.** *"1a 2a 3a 4a 5a. But for 5a: this is only after cutover and we need to split up
+cutover, since someone might want to keep syncing some kinds, like keeps files running, while
+email cutover/stops."* D3 to D7 record the five answers (§4), each the recommended one. D8 is the
+split: a cutover happens **per data type**, so mail can be cut over and stop after its grace
+period while files keep running as an ordinary sync, and are cut over on their own day. That is
+the grain workplan 0109 T1c extracted and left for the owner; it continues here as T5, and T3's
+ending is decided per data type with it (§3). T5 is designed before any code (§3), because MX
+switching, the grace period and rollback are the product's most safety-critical machinery: a
+path's phase in `path_lifecycle`, a cutover ledger per data type, the migration's status as a
+roll-up, and seven slices with the readers first, so no gate can meet a data type it does not
+yet understand. T4 is the third slice and T3 the last.
 
 **2026-09-23: opened from the owner's answers.** Two things came out of one conversation about
 the cutover.
@@ -71,8 +121,9 @@ its test.
 |---|---|---|
 | T1 The final sync covers every data type | ✅ **Built 2026-09-24** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
-| T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided** with T4; next | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. |
-| T4 A data type can be stopped and resumed | 📋 **Decided: D2 (c)**; next | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. |
+| T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
+| T4 A data type can be stopped and resumed | 📋 **Decided: D2 (c), D4, D5, D6**; next | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slice 1 (the readers) built the same night | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -166,6 +217,13 @@ period, the owner gets two answers side by side:
 
 Today the lane is a second step after finishing, and it takes every data type at once.
 
+**Decided 2026-09-24 (D3, D7, D8).** *Keep copying* enters the lane in one press, on the
+attestation step 4 already asks for, and open failures do not block it (D3). When a grace period
+ends and nobody chose, copying stops, and the Finish page and the digest say so (D7). And the
+ending is chosen **per data type** (D8): the Finish checklist lists the migration's data types,
+each with its own *End* and *Keep copying*, and asks step 4 (moving delivery) for mail only. A data
+type still running is simply not ended yet. T5 is what makes a data type's ending its own.
+
 ### T4 — stop and resume a data type (decided: D2 (c))
 
 On a running migration (`active` or `continuous`), each data type can be **stopped** and
@@ -183,6 +241,103 @@ The word already exists (0125 T7, built 2026-09-23): `migration_status.state = '
 (migration 0057), which the progress strip, the Finish checklist and the completion report
 render in both editions. T4 is the managed writer, and one difference from the appliance: a
 data type the owner stops on purpose is stopped even with nothing copied yet.
+
+**Decided 2026-09-24 (D4, D5, D6).** The appliance gets the same, with the stop kept in its own
+database rather than in its configuration file (D4). The last data type still copying cannot be
+stopped: the refusal points at *End the migration* (D5). A stopped data type is not verified by
+the Finish checklist, which says *stopped by you* (D6). The stop is kept per path, beside the
+path's phase (T5), and not in `migration_status`, which is pass state that every pass rewrites.
+
+### T5 — a cutover per data type (decided: D8)
+
+**What changes.** Today a migration has one lifecycle (`mailbox_mapping.status`) and one cutover
+ledger (`cutover_state`, one row per migration), and every gate reads them. After T5 each data
+type, a *path* in ADR-0014's word, has its own phase and its own cutover: mail can be cut over,
+copy through its grace period and stop, while files keep running as an ordinary sync until
+their own cutover.
+
+**The model.**
+- **A path's phase lives in `path_lifecycle.state`**, one row per migration and data type. It is
+  already there, in both editions, with ADR-0014's words (active, paused, cutover, done,
+  continuous) and row security, and migration 0035 kept it in the shared chain so that a cutover
+  per data type would never be a paid feature. Today it records billing only. After T5 it is the
+  truth every gate reads: whether that data type's passes run, whether its source still decides
+  what exists (the deletion detectors), whether its shares may be announced, and its slot.
+- **Each data type has its own cutover ledger.** `cutover_state` and `cutover_event` gain a
+  `domain`, and the unique key becomes (tenant, migration, data type). The state machine is
+  unchanged. The grace window and `copies_through_grace` are per row. Mail keeps the DNS check
+  and the wait for the MX record; the other data types have neither.
+- **The migration's status becomes a roll-up**, written with every path change by one shared
+  function, so the lists, the digest and the dashboard keep working: `paused` while the owner
+  holds the whole migration, `active` while any data type is before its cutover, `cutover` once
+  every data type is at or past its cutover and one is in it, `continuous` once every data type
+  has ended or is kept, with one kept, and `done` when every data type has ended.
+- **What stays per migration:** creating and starting it, the whole-migration Pause (a hold on
+  everything that still runs, not a stop), a grant's withdrawal, the schedule, the run and its
+  queue, the connections.
+
+**The safety rules, before any code.**
+- **Readers before writers.** Every gate must read a data type's phase before any data type can
+  have a phase of its own. Otherwise mail that was cut over would meet a gate still reading the
+  migration as `active`, and the deletion detectors would come back for it.
+- **One answer per data type per pass.** A data type's phase is read once for its turn in a pass
+  and holds for the whole of it, so a data type cannot change its answer halfway through its own
+  copy. The appliance reads every data type's phase once, when its pass starts. The managed pass
+  reads each one when its turn comes, because its stop check has always read the migration again
+  before each data type, to see a Pause or a withdrawn grant. The builder's reading is the later
+  one, so the deletion answer follows the phase as it is when the copy starts (slice 1).
+- **No row is not `ready`.** For billing, a missing path row means `ready`, and holds nothing.
+  For a gate that would be wrong: every migration activated before 2026-08-30, and every
+  appliance migration, has no rows. A gate falls back to the migration's own status, and the rows
+  are backfilled from it.
+- **Shares per data type.** `share_grant.subject` already says which data type a share belongs to
+  (`drive_item`, `calendar`, `mailbox`), so each share waits for its own data type's cutover, and
+  each data type's shares are announced once, then (D8).
+
+**Taken from earlier answers, so not asked again.** Every data type gets the grace period, 72
+hours by default: D1 (a) is about what "both systems active" promises, and that holds for files
+as much as for mail. *Complete* closes a data type's ledger and leaves the data type in `cutover`
+until its owner chooses (ADR-0048, D7). The whole-migration Pause stays, and is offered only while
+something still runs before its cutover (it fixes the Pause offered on a `continuous` migration,
+which is always refused). A data type can be added while any data type is still before its
+cutover; once every one is past it, a new data type is a new migration, as today.
+
+**Found while mapping it, to fix on the way.**
+- The unique key's real name is `cutover_state_tenant_id_mapping_id_key`
+  (`0001_baseline.sql`); the Drizzle schema calls it `uk_cutover_state_mapping`, so a migration
+  that dropped it by that name would silently drop nothing.
+- The share gate allows `done` only, where ADR-0032 says *done or cutover*.
+- `slotsHeld` counts path rows without asking whether the data type is still selected. Nothing
+  deselects one today, but a stop must not strand a slot.
+- The appliance writes no path rows and no scope rows, and its Start and Finish write the status
+  with raw SQL, with no audit record.
+- The CLI's `--domain` is the mail domain, so the data type's flag is `--kind`.
+
+**The order, one pull request each.**
+1. **The readers**, with no change in behaviour: every data type's phase, today each equal to the
+   migration's status, read by one reader (`readPathPhases`) and threaded through the managed
+   pass and its stop check (which moves past a data type that no longer runs rather than stopping
+   the whole pass), the dependency builders' source authority, and the appliance's pass, which
+   moves past one the same way. *Built 2026-09-24.*
+2. **Path rows everyone can trust:** a backfill from the migration's status, the appliance writing
+   its scope and path rows and moving its status through the ledger's own door with an audit
+   record, a path audit record, and `slotsHeld` limited to selected data types. Then the reader
+   reads the rows, and the managed tick and the appliance's own gates (its pass's first check,
+   its schedule at start-up, its run-now door) ask whether any data type runs, rather than
+   whether the migration does. Until slice 5 the two are the same answer.
+3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6).
+4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
+   the store and the grace window per data type, old rows read as the whole migration.
+5. **The cutover per data type:** `--kind` on the CLI, the cutover and rollback transitions per
+   path, and `POST /api/migrations/:id/cutover` taking the data type; its final sync and its gate
+   cover that data type only; DNS and MX for mail only.
+6. **Shares per data type**, announced once at each data type's cutover.
+7. **T3 on the Finish page**, per data type: *End* and *Keep copying* each, step 4 for mail only,
+   the lane per data type, the appliance's missing lane route (D4), and the grace period's end in
+   the digest (D7).
+
+ADR-0048, ADR-0047, ADR-0049, ADR-0032, ADR-0014's consequence 4 and 0117 D4 are amended with the
+slice that changes each of their rules.
 
 ## 4. Decisions for the owner
 
@@ -212,6 +367,41 @@ as contacts keep flowing would charge for nothing.
   After cutover, a stop is usually for good. The tier reads the month's peak (0109 T2), so
   stopping and resuming within a month cannot lower a bill. It needs one sentence on the pricing
   page, beside D8's.
+
+**D3 — Keep copying at the Finish checklist's last step (T3)?** **Decided 2026-09-24: (a)**,
+*"1a"*. Step 5 usually finds the migration still running. *Keep copying* stands beside *End* and
+enters the continuous lane in one press, on the attestation step 4 already asked for
+(*"Delivery now goes to the new system"*), as *End* does, recorded as a cutover and then the
+lane. Open failures block *End* unless it is forced; they do not block *Keep*, which goes on
+retrying them. (b) was to keep the lane a second press after finishing.
+
+**D4 — the appliance (T3, T4)?** **Decided 2026-09-24: (a)**, *"2a"*. The appliance gets the same
+choice, data types included, with a stopped data type kept in its own database. Its *Keep
+copying* button fails today: it calls a route the appliance does not serve, and is answered 404.
+(b) was managed only, with the appliance's button hidden until then.
+
+**D5 — stopping the last data type still copying (T4)?** **Decided 2026-09-24: (a)**, *"3a"*.
+Refused, with a pointer to *End the migration*. (b) was to allow a migration with everything
+stopped, which under D2 (c) would go on holding its slots while `active`, for nothing.
+
+**D6 — verifying a stopped data type (T4)?** **Decided 2026-09-24: (a)**, *"4a"*. The Finish
+checklist's check that everything arrived skips it and says *stopped by you*. (b) was to go on
+checking it against a source it no longer follows, where it falls behind and shows as missing.
+
+**D7 — the grace period ends and nobody chose (T3)?** **Decided 2026-09-24: (a)**, *"5a"*, with
+the owner's note that it applies after a cutover only. Copying stops then (T2), and the owner is
+told on the Finish page and in the organisation's *what needs attention* digest (0030). (b) was
+the Finish page only.
+
+**D8 — one cutover per migration, or one per data type?** **Decided 2026-09-24: per data type**,
+the owner's own addition: *"we need to split up cutover, since someone might want to keep
+syncing some kinds, like keeps files running, while email cutover/stops."* It answers the
+question 0109 T1c extracted and left for the owner. That question was about workplan 0104's rule
+that a cutover announces **once**: shares held back during the migration are created on the
+target at the cutover, and the platform's own mail goes out in one wave, never per file. Per data
+type, the rule holds for each of them: a data type's shares are announced once, at that data
+type's cutover. Mail carries no shares. So the moment is the one the owner chooses for each data
+type, and never a trickle.
 
 ## Not in this plan
 

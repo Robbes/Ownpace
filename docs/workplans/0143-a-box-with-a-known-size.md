@@ -605,6 +605,7 @@ person the owner can write to. Where those probes may go is 0136's subject. The 
 no cap on an archive's total bytes or member count (the zip reader caps its central directory
 and each read at 256 MB, `zip-archive.ts`). That is not planned here: as the wizard offers it,
 the archive card cannot work on managed at all (0131 §1 and T2), and 0148 T3 is to hide it there.
+(Later the same day the owner kept it, labelled experimental: 0148 D10.)
 
 ### T3 — a streamed file reaches a JMAP target
 
