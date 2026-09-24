@@ -387,6 +387,23 @@ describe('the price on the screen is the published price (0121 T4)', () => {
     expect(screen.queryByText('Cost Breakdown')).not.toBeInTheDocument();
   });
 
+  it('a free tier says free, never €0.00, and asks for no invoice details (ADR-0014, 2026-09-24)', async () => {
+    usageMock.mockResolvedValue({
+      ...usageFixture,
+      tier: { id: 'tiny' as const, name: 'Tiny', paths: 1, dataGb: 250, setup: 0, monthly: 0 },
+      decidedBy: 'both' as const,
+    });
+    renderBilling();
+
+    expect(await screen.findByText('Free: nothing is invoiced on this tier')).toBeInTheDocument();
+    expect(screen.queryByText(/to set up/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/€0\.00|€ 0,00/)).not.toBeInTheDocument();
+    // "Invoices cannot be issued until this is filled in" is a nag for a
+    // tier that invoices nothing: the card says it is not needed.
+    expect(await screen.findByText('Not needed while your tier is free: nothing is invoiced.')).toBeInTheDocument();
+    expect(screen.queryByText(/Not provided yet/)).not.toBeInTheDocument();
+  });
+
   it('past the end of the table it says talk to us, and does not render an error', async () => {
     usageMock.mockResolvedValue({ ...usageFixture, tier: null, decidedBy: 'both' as const });
     renderBilling();

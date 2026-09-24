@@ -47,13 +47,30 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
 const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
 
+/**
+ * A price cell: `free`, or whole euros. Anything else is a broken table and
+ * fails by name: a lenient parse read "free", "—" and a garbled cell alike as
+ * zero, which is the one price that must never arrive by accident.
+ */
+function euros(cell: string, what: string): number {
+  const value = cell === 'free' ? 0 : /^€\d+$/.test(cell) ? Number(cell.slice(1)) : Number.NaN;
+  expect(Number.isNaN(value), `ADR-0014: ${what} reads "${cell}", which is neither "free" nor whole euros`).toBe(false);
+  return value;
+}
+
 /** Parse ADR-0014's own tier table — the source this file is guarded against. */
 function tiersFromAdr(): Map<string, { paths: number; data: string; setup: number; monthly: number }> {
   const adr = read('docs/adr/0014-cost-recovery-billing.md');
-  const rows = adr
+  // The table that holds NOW lives in the ADR's operative rules, amended in
+  // place (ADR-0038); the narrative keeps the 2026-08-20 table as a record,
+  // and a guard that read both would count ten rows.
+  const start = adr.indexOf('\n## Operative rules');
+  const operative = adr.slice(start, adr.indexOf('\n## ', start + 1));
+  const rows = operative
     .split('\n')
+    .map((l) => l.trim())
     .filter((l) => /^\|\s*\*\*(Tiny|Small|Medium|Large|Extra large)\*\*/.test(l));
-  expect(rows.length, 'ADR-0014 no longer has a five-row tier table').toBe(5);
+  expect(rows.length, "ADR-0014's operative rules no longer have a five-row tier table").toBe(5);
 
   const out = new Map<string, { paths: number; data: string; setup: number; monthly: number }>();
   for (const row of rows) {
@@ -61,13 +78,13 @@ function tiersFromAdr(): Map<string, { paths: number; data: string; setup: numbe
       .split('|')
       .slice(1, -1)
       .map((x) => x.trim());
-    // | tier | who | paths | data | setup | monthly | first month | typical |
+    // | tier | paths at the same time | data moved | setup | monthly |
     const name = c[0]!.replace(/\*\*/g, '');
     out.set(name.toLowerCase(), {
-      paths: Number(c[2]),
-      data: c[3]!,
-      setup: Number(c[4]!.replace(/[^0-9]/g, '')),
-      monthly: Number(c[5]!.replace(/[^0-9]/g, '')),
+      paths: Number(c[1]),
+      data: c[2]!,
+      setup: euros(c[3]!, `${name}'s setup`),
+      monthly: euros(c[4]!, `${name}'s monthly`),
     });
   }
   return out;
@@ -96,6 +113,37 @@ describe('the published prices agree with the decision that set them', () => {
     for (const t of TIERS) {
       expect(firstMonth(t)).toBe(t.setup + t.monthly);
       expect(total(t, 3)).toBe(t.setup + t.monthly * 3);
+    }
+  });
+
+  it('says "free" for the free tier, and never "€0", on every page (ADR-0014, 2026-09-24)', async () => {
+    const { rendered } = (await import('./build.mjs')) as unknown as {
+      rendered: Array<{ file: string; html: string }>;
+    };
+    // "€0" reads as a price that could be billed. A free tier is free.
+    for (const page of rendered) {
+      expect(page.html, `${page.file} shows a price of €0`).not.toMatch(/€0(?![\d.,])/);
+    }
+    const card = (file: string) => {
+      const html = rendered.find((p) => p.file === file)!.html;
+      const at = html.indexOf('<h3>Tiny</h3>');
+      expect(at, `${file} has no Tiny card`).toBeGreaterThan(-1);
+      return html.slice(at, html.indexOf('</div>\n', html.indexOf('<ul>', at)));
+    };
+    expect(card('pricing.html')).toContain('Free <span>');
+    expect(card('pricing.html')).toContain('No invoice <span>');
+    expect(card('pricing.html')).toContain('moves you to Small');
+    expect(card('nl/prijzen.html')).toContain('Gratis <span>');
+    expect(card('nl/prijzen.html')).toContain('Geen factuur <span>');
+    // The landing page's line says what free covers, where it used to say
+    // "From €6 for the first month".
+    expect(rendered.find((p) => p.file === 'index.html')!.html).toContain('Tiny is free: one migration at a time, up to 250 GB.');
+    expect(rendered.find((p) => p.file === 'nl/index.html')!.html).toContain('Tiny is gratis: één verhuizing tegelijk, tot 250 GB.');
+    // And no page still says there is nothing to gain by going one at a time.
+    for (const page of rendered) {
+      expect(page.html, `${page.file} still says rationing gains nothing`).not.toMatch(
+        /nothing to gain by rationing|niets te winnen met zuinig/,
+      );
     }
   });
 

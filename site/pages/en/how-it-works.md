@@ -56,4 +56,5 @@ pace" actually means.
 whole chain works. Then do the rest.
 
 **Start everything at once if you are not.** The bill falls by itself as each thing
-finishes, so there is nothing to gain by rationing.
+finishes. Going one at a time is free instead (Tiny), and slower; which is better is yours
+to say.

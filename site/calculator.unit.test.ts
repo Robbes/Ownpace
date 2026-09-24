@@ -33,6 +33,7 @@ import {
   fill,
   gmailMailDays,
   topUpAgainstStepUp,
+  freeTier,
 } from './calculator.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -101,6 +102,20 @@ describe('the top-up against the step-up — break-even shown, nobody steered', 
 
   it('has no comparison to offer past the last tier', () => {
     expect(topUpAgainstStepUp(TIERS[TIERS.length - 1]!, undefined)).toBeNull();
+  });
+
+  it('offers a free tier no top-up: it would cost nothing and make the data axis mean nothing (ADR-0014, 2026-09-24)', () => {
+    const tiny = TIERS.find((t) => t.id === 'tiny')!;
+    const small = TIERS.find((t) => t.id === 'small')!;
+    expect(freeTier(tiny)).toBe(true);
+    expect(freeTier(small)).toBe(false);
+    // Before this, the page would have said: "On Tiny: €0 once buys another
+    // 250 GB … The top-up is the cheaper choice from the first euro."
+    expect(topUpAgainstStepUp(tiny, small)).toBeNull();
+    // Every paid tier keeps its comparison.
+    for (const [i, t] of TIERS.slice(0, -1).entries()) {
+      if (!freeTier(t)) expect(topUpAgainstStepUp(t, TIERS[i + 1])).not.toBeNull();
+    }
   });
 });
 
