@@ -2,7 +2,7 @@
 
 A Microsoft 365 migration authenticates with an **app registration in Microsoft Entra ID**
 and a refresh token consented by the account being migrated. Read-only by construction: the
-registration is created with only the four `.Read` delegated permissions, so this product
+registration is created with only the `.Read` delegated permissions listed below, so this product
 could not write to the mailbox, calendar, contacts or OneDrive even if it wanted to — an
 enforced guarantee, not a promise in a document.
 
@@ -64,6 +64,7 @@ exactly:
 | `Calendars.Read` | their calendars |
 | `Contacts.Read` | their contacts |
 | `Files.Read` | their own OneDrive |
+| `Tasks.Read` | their Microsoft To Do lists — asked for only when Tasks is ticked |
 | `offline_access` | the refresh token, without which the grant dies in an hour |
 
 **Nothing else, and specifically not the `.All` variants.** `Files.Read.All` would read the
@@ -92,7 +93,7 @@ somebody already signed in to the wrong Microsoft account grants that one, silen
 migration reads the wrong mailbox — a failure that looks like success until somebody notices
 whose mail arrived.
 
-You can still use your own registration instead: open *Use your own app registration instead*
+You can still use your own registration instead: open *Use your own app registration*
 and enter the Application (client) ID and client secret **as a pair**. Half a pair is refused
 rather than completed with the deployment's other half, because a client id that is not the
 deployment's paired with a secret that is would be refused by Entra at its token endpoint —

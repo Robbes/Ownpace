@@ -218,6 +218,25 @@ describe('Members Route Isolation', () => {
       expect(rows.rows[0].n).toBe(1);
     });
 
+    it('refuses an admin inviting an owner (no self-escalation)', async () => {
+      // The PATCH door refused this and the invite door did not: acceptance
+      // keeps the invited role, and a second owner row lets the admin then
+      // demote or remove the real one. No owner-invites-owner case here: an
+      // invited owner row counts as a second owner and would break the
+      // last-owner cases below.
+      const response = await request
+        .post(`/api/tenants/${API_TENANT_A}/members`)
+        .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
+        .send({ email: 'escalate@example.com', role: 'owner' });
+
+      expect(response.status).toBe(403);
+      const rows = await superuserPool.query(
+        `SELECT COUNT(*)::int AS n FROM tenant_member WHERE tenant_id = $1 AND email = 'escalate@example.com'`,
+        [API_TENANT_A],
+      );
+      expect(rows.rows[0].n).toBe(0);
+    });
+
     it('should prevent member role from inviting members', async () => {
       const response = await request
         .post(`/api/tenants/${API_TENANT_A}/members`)

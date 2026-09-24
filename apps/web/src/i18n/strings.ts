@@ -26,6 +26,7 @@ const en = {
   'nav.dashboard': 'Dashboard',
   'nav.mappings': 'Migrations',
   'nav.back': 'Back',
+  'nav.menu': 'Menu',
   'nav.review': 'Review',
   'nav.deletions': 'Deletions',
   'nav.moves': 'Moves',
@@ -733,6 +734,7 @@ const en = {
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
   'mappings.action.reviewAndStart': 'Review and start',
+  'mappings.action.open': 'Open',
   'mappings.action.delete': 'Delete',
   // 0037 T5: mapping deletion destroys config and ledger linkage, so the
   // button arms with the mapping's own name (hard rule 2's posture).
@@ -1841,16 +1843,16 @@ const en = {
   // What a source type IS, one line after the card is picked, and the rest under More (0118 T1).
   'wizard.about.o365': 'Uses an Entra app registration in your own tenant.',
   'wizard.about.o365.more':
-    'Enter its tenant ID and client ID here, and its client secret with the mailbox address on the credentials step. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
+    'Enter its tenant ID, client ID and client secret below, with the mailbox address. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
   'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
   'wizard.about.googleDrive.more':
     'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values and ends with one read-only command that proves them.',
   'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
   'wizard.about.dropbox.more':
-    'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; on the credentials step, the App secret goes in the client-secret field and the refresh token beside it.',
+    'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; below it, the App secret goes in the client-secret field and the refresh token beside it.',
   'wizard.about.box': 'Uses your own Box platform app, authorised once by a Box admin.',
   'wizard.about.box.more':
-    'It authenticates with the Client Credentials Grant, so there is no refresh token: Box rotates refresh tokens on every use. The Client ID goes here with the numeric user id being migrated; the client secret rides the credentials step. A Box admin authorises the app once under Admin Console → Apps → Custom Apps Manager.',
+    'It authenticates with the Client Credentials Grant, so there is no refresh token: Box rotates refresh tokens on every use. The Client ID goes here with the numeric user id being migrated; the client secret goes below them. A Box admin authorises the app once under Admin Console → Apps → Custom Apps Manager.',
   'wizard.about.gmail': 'Uses your own Google OAuth client; the token needs the mail scope.',
   'wizard.about.gmail.more':
     'The same client a Google Drive source uses, but its refresh token must be consented with https://mail.google.com/, the only scope Google accepts for IMAP. A token consented for Drive will not work here.',
@@ -2068,11 +2070,11 @@ const en = {
   'setup.dropbox.exchange_code.yields': 'a refresh token.',
   'setup.google.create_oauth_client.title': 'Create a Google OAuth client',
   'setup.google.create_oauth_client.detail':
-    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Desktop or Web application.',
+    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Web application.',
   'setup.google.create_oauth_client.yields': 'a Client ID and a Client Secret.',
   'setup.google.enable_api.title': 'Enable the product’s API',
   'setup.google.enable_api.detail':
-    'In the same project, enable the API that matches the source you picked — Drive, Gmail, Calendar, People or Tasks. A client without it fails on the first call.',
+    'In the same project, enable the API that matches the source you picked — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API or Google Tasks API. A client without it fails on the first call.',
   'setup.google.consent_scope.title': 'Consent a read-only refresh token',
   'setup.google.consent_scope.detail':
     'Have the account owner consent with the scope for that product; a token consented for one Google product does not work for another. Or use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
@@ -2110,10 +2112,10 @@ const en = {
   'setup.jmap.account_exists.title': 'Make sure the destination account exists',
   'setup.jmap.account_exists.detail':
     'Create the mailbox on the JMAP server first, with enough quota. Nothing here creates accounts.',
-  'setup.jmap.api_token.title': 'Create an API token',
+  'setup.jmap.api_token.title': 'Create an app password for it',
   'setup.jmap.api_token.detail':
-    'Generate a token for that account in the server\u2019s own settings, with permission to write mail and files.',
-  'setup.jmap.api_token.yields': 'a username and an API token.',
+    'Create an app password for that account in the server\u2019s own settings, where it offers one; this product signs in with the username and that password.',
+  'setup.jmap.api_token.yields': 'a username and an app password.',
   'setup.davbasic.account_exists.title': 'Make sure the destination account exists',
   'setup.davbasic.account_exists.detail':
     'Create the account on the target server first, with enough quota for what is coming. Nothing here creates accounts.',
@@ -2160,6 +2162,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.dashboard': 'Overzicht',
   'nav.mappings': 'Migraties',
   'nav.back': 'Terug',
+  'nav.menu': 'Menu',
   'nav.review': 'Controleren en bevestigen',
   'nav.deletions': 'Verwijderingen',
   'nav.moves': 'Verplaatsingen',
@@ -2870,6 +2873,7 @@ const nl: Record<keyof typeof en, string> = {
     'Er worden geen nieuwe rondes gestart. Een ronde die al loopt maakt het huidige gegevenstype af en stopt dan. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
   'mappings.action.reviewAndStart': 'Controleren en starten',
+  'mappings.action.open': 'Openen',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
     'Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.',
@@ -3643,17 +3647,17 @@ const nl: Record<keyof typeof en, string> = {
   // Wat een brontype IS, één regel nadat de kaart is gekozen, en de rest onder Meer (0118 T1).
   'wizard.about.o365': 'Gebruikt een Entra-appregistratie in uw eigen tenant.',
   'wizard.about.o365.more':
-    'Vul hier de tenant-ID en client-ID in, en op de stap met inloggegevens het clientgeheim samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
+    'Vul hieronder de tenant-ID, client-ID en het clientgeheim in, samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
   'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
   'wizard.about.googleDrive.more':
     'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden en eindigt met één alleen-lezen commando dat ze bewijst.',
   'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
   'wizard.about.dropbox.more':
-    'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; op de stap met inloggegevens komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
+    'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; daaronder komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
   'wizard.about.box':
     'Gebruikt uw eigen Box-platform-app, eenmalig geautoriseerd door een Box-beheerder.',
   'wizard.about.box.more':
-    'Hij authenticeert met de Client Credentials Grant, dus er is geen refresh-token: Box vernieuwt refresh-tokens bij elk gebruik. De Client-ID komt hier samen met het numerieke gebruikers-id dat wordt gemigreerd; het clientgeheim komt op de stap met inloggegevens. Een Box-beheerder autoriseert de app eenmalig onder Admin Console → Apps → Custom Apps Manager.',
+    'Hij authenticeert met de Client Credentials Grant, dus er is geen refresh-token: Box vernieuwt refresh-tokens bij elk gebruik. De Client-ID komt hier samen met het numerieke gebruikers-id dat wordt gemigreerd; het clientgeheim komt daaronder. Een Box-beheerder autoriseert de app eenmalig onder Admin Console → Apps → Custom Apps Manager.',
   'wizard.about.gmail':
     'Gebruikt uw eigen Google OAuth-client; het token heeft de mailscope nodig.',
   'wizard.about.gmail.more':
@@ -3821,11 +3825,11 @@ const nl: Record<keyof typeof en, string> = {
   'setup.dropbox.exchange_code.yields': 'een refresh-token.',
   'setup.google.create_oauth_client.title': 'Maak een Google OAuth-client',
   'setup.google.create_oauth_client.detail':
-    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Desktop- of Web-toepassing.',
+    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Web-toepassing.',
   'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-geheim.',
   'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
-    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Drive, Gmail, Calendar, People of Tasks. Zonder dat mislukt de eerste aanroep.',
+    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API of Google Tasks API. Zonder dat mislukt de eerste aanroep.',
   'setup.google.consent_scope.title': 'Laat een alleen-lezen refresh-token toestemmen',
   'setup.google.consent_scope.detail':
     'Laat de accounthouder toestemmen met de scope van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',
@@ -3863,10 +3867,10 @@ const nl: Record<keyof typeof en, string> = {
   'setup.jmap.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.jmap.account_exists.detail':
     'Maak de postbus eerst aan op de JMAP-server, met genoeg quota. Dit product maakt zelf geen accounts aan.',
-  'setup.jmap.api_token.title': 'Maak een API-token',
+  'setup.jmap.api_token.title': 'Maak er een app-wachtwoord voor',
   'setup.jmap.api_token.detail':
-    'Genereer in de instellingen van de server een token voor dat account, met rechten om mail en bestanden te schrijven.',
-  'setup.jmap.api_token.yields': 'een gebruikersnaam en een API-token.',
+    'Maak in de instellingen van de server zelf een app-wachtwoord voor dat account, als die dat aanbiedt; dit product meldt zich aan met de gebruikersnaam en dat wachtwoord.',
+  'setup.jmap.api_token.yields': 'een gebruikersnaam en een app-wachtwoord.',
   'setup.davbasic.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.davbasic.account_exists.detail':
     'Maak het account eerst aan op de doelserver, met genoeg quota voor wat eraan komt. Dit product maakt zelf geen accounts aan.',

@@ -882,7 +882,9 @@ async function verifyToken(token: string): Promise<JwtPayload> {
  */
 const PLACEHOLDER_JWT_SECRETS = new Set([
   'change-this-in-production', // managed.yml's old default (now removed) + managed.env.example
-  'your-super-secret-jwt-key-change-in-production', // root .env.example
+  // What the root .env.example shipped before its JWT_SECRET went blank; a
+  // .env copied from it back then may still carry it.
+  'your-super-secret-jwt-key-change-in-production',
 ]);
 
 export function assertProductionAuthConfig(env: NodeJS.ProcessEnv = process.env): void {

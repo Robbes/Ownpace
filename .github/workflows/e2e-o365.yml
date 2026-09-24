@@ -78,7 +78,7 @@ env:
   O365_CONTACTS_ENABLED: ${{ github.event.inputs.contacts_enabled || 'true' }}
   O365_FILES_ENABLED: ${{ github.event.inputs.files_enabled || 'false' }}
   O365_CONCURRENCY: ${{ github.event.inputs.concurrency || '4' }}
-  SOAKE_TEST_24H: ${{ github.event.inputs.soak_test_24h || 'false' }}
+  SOAK_TEST_24H: ${{ github.event.inputs.soak_test_24h || 'false' }}
 
 jobs:
   e2e-o365:
@@ -102,7 +102,7 @@ jobs:
 
       # The suite is the whole acceptance chain: read-only enforcement, first
       # pass, sleep-past-expiry token refresh, second pass, idempotency, and the
-      # optional soak (gated on SOAKE_TEST_24H). Read-only is enforced inside the
+      # optional soak (gated on SOAK_TEST_24H). Read-only is enforced inside the
       # test — a write scope in the token claims fails the run.
       # File filter, and no `--`. `pnpm <script> -- <args>` forwards a literal
       # `--` that vitest's CLI parser discards along with everything after it,

@@ -30,6 +30,7 @@ import { setupApi, type SetupChecklist, type SetupStepStatusDto } from '../servi
 import { providersWithSetup, providerDisplayName } from '@openmig/shared';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
+import { GUIDE_SLUGS } from './Docs.tsx';
 
 const StepRow: React.FC<{
   status: SetupStepStatusDto;
@@ -246,10 +247,14 @@ const Setup: React.FC = () => {
           {t(backTo.labelKey)}
         </Link>
         {/* The long-form guide, in the app rather than as a filename nobody
-            in a browser can open (workplan 0063). */}
-        <Link to={`/docs/${guideSlug(data.provider)}`} className="text-sm text-blue-700 hover:underline">
-          {t('setup.fullGuide')}
-        </Link>
+            in a browser can open (workplan 0063) — and only when this build
+            ships one: the IMAP source and every target have none, and the
+            link opened "There is no guide by that name". */}
+        {GUIDE_SLUGS.has(guideSlug(data.provider)) && (
+          <Link to={`/docs/${guideSlug(data.provider)}`} className="text-sm text-blue-700 hover:underline">
+            {t('setup.fullGuide')}
+          </Link>
+        )}
       </div>
 
       <h2 className="mt-2 text-xl font-semibold text-gray-900">

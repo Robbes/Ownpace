@@ -131,3 +131,46 @@ describe('workspace dependencies are declared, not merely path-mapped', () => {
     });
   }
 });
+
+/**
+ * The same rule for a third-party package, named one at a time.
+ *
+ * `packages/orchestration` and `packages/scheduler` imported `croner` and
+ * declared nothing: it resolved only because the ROOT manifest lists it, so
+ * trimming the root's list would have broken both, and their version was
+ * the root's `^10.0.1` rather than the `10.0.1` the apps pin. A package in
+ * this list must be declared by every package that imports it, at one
+ * version. Not every third-party import yet: this list grows as each one is
+ * declared where it is used.
+ */
+const DECLARED_WHERE_IMPORTED = ['croner'];
+
+describe('a third-party package is declared where it is imported', () => {
+  const packages = workspacePackages();
+
+  for (const dep of DECLARED_WHERE_IMPORTED) {
+    it(`every package that imports ${dep} declares it, at one version`, () => {
+      const pattern = new RegExp(`(?:from|import|require)\\s*\\(?\\s*['"]${dep}(?:/[^'"]*)?['"]`);
+      const versions = new Map<string, string>();
+      const missing: string[] = [];
+      for (const pkg of packages) {
+        const manifest = JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8')) as {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+        };
+        const declared = manifest.dependencies?.[dep] ?? manifest.devDependencies?.[dep];
+        if (declared) versions.set(pkg.name, declared);
+        const importer = sources(pkg.dir).find((file) =>
+          pattern.test(withoutComments(readFileSync(file, 'utf8'))),
+        );
+        if (importer && !declared) missing.push(`${pkg.name} (imported by ${importer.replace(`${ROOT}/`, '')})`);
+      }
+      expect(versions.size, `no workspace package declares ${dep}; the scan found nothing`).toBeGreaterThan(0);
+      expect(missing, `these import ${dep} without declaring it in their own package.json`).toEqual([]);
+      expect(
+        [...new Set(versions.values())],
+        `${dep} is declared at more than one version: ${JSON.stringify(Object.fromEntries(versions))}`,
+      ).toHaveLength(1);
+    });
+  }
+});

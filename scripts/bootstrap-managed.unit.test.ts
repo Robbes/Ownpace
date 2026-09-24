@@ -898,6 +898,51 @@ describe('the Trigger.dev images and the SDK that builds the tasks agree', () =>
     expect(exampleTag, 'managed.env.example names no TRIGGER_IMAGE_TAG').toBeTruthy();
     expect(exampleTag).toBe(composeDefaults[0] ?? '');
   });
+
+  /** phase_trigger's lines between reading the SDK and comparing, run for real below. */
+  function fallbackBlock(): string {
+    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+    const lines = script.split('\n');
+    const from = lines.findIndex((l) => /^\s*sdk_version="\$\(node /.test(l));
+    const to = lines.findIndex((l, i) => i > from && /^\s*if \[ "\$\{tag_version#v\}"/.test(l));
+    expect(from, 'phase_trigger no longer reads the SDK version this way').toBeGreaterThan(-1);
+    expect(to, 'phase_trigger no longer compares tag_version').toBeGreaterThan(from);
+    return lines.slice(from + 1, to).join('\n');
+  }
+
+  it("the bring-up's check falls back to managed.yml's default, not a copy of the number", () => {
+    // With TRIGGER_IMAGE_TAG absent from .env, compose runs managed.yml's
+    // default, so that is what the check must compare. It said v4.5.9 while the
+    // images defaulted to v4.5.16, and refused a stack that agreed. Run for
+    // real: the lines between reading the SDK and comparing, with the key unset.
+    const block = fallbackBlock();
+    const env: NodeJS.ProcessEnv = { ...process.env, SCRIPT_DIR: join(REPO_ROOT, 'deploy/compose') };
+    delete env.TRIGGER_IMAGE_TAG;
+    const out = execFileSync(
+      'bash',
+      ['-c', `set -euo pipefail\n${block}\nprintf '%s' "$tag_version"`],
+      { encoding: 'utf8', env },
+    );
+    expect(out).toBe(composeDefaults[0]);
+  });
+
+  it('a managed.yml with no default to fall back to is named, not a silent exit', () => {
+    // Reading the default is a grep, and under `set -e` a grep that finds
+    // nothing ends the bring-up with no message at all. The script's own `die`
+    // is used, so what an operator would read is what is asserted.
+    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+    const die = /^die\(\) \{.*\}$/m.exec(script)?.[0];
+    expect(die, 'bootstrap-managed.sh no longer defines die() on one line').toBeTruthy();
+    writeFileSync(join(dir, 'managed.yml'), 'services:\n  trigger-api:\n    image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG}\n');
+    const env: NodeJS.ProcessEnv = { ...process.env, SCRIPT_DIR: dir };
+    delete env.TRIGGER_IMAGE_TAG;
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\n${die}\n${fallbackBlock()}\nprintf '%s' "$tag_version"`], {
+      encoding: 'utf8',
+      env,
+    });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr, 'the bring-up stopped without saying why').toMatch(/TRIGGER_IMAGE_TAG/);
+  });
 });
 
 describe('nothing in the managed stack runs whatever `latest` happens to mean', () => {

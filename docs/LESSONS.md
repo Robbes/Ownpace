@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 151 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 153 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -21,13 +21,19 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/ci.yml`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
+### `.github/workflows/e2e-live-target.yml`
+
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+
 ### `.github/workflows/e2e-managed.yml`
 
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
 - [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts) — A POOL THAT HAD NOT HAPPENED YET.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
@@ -82,8 +88,13 @@ reading a file drops off its entry by itself.
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
+
+### `apps/api/src/knock-limit.ts`
+
+- [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 
 ### `apps/api/src/middleware/auth-verify.unit.test.ts`
 
@@ -153,6 +164,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/migrations/operating-routes.ts`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+### `apps/api/src/routes/permissions.ts`
+
+- [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `apps/api/src/routes/provider-accounts.ts`
 
@@ -430,6 +445,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/managed.env.example`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
@@ -444,14 +460,17 @@ reading a file drops off its entry by itself.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
+- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
 ### `deploy/compose/managed.yml`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
+- [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
@@ -478,6 +497,7 @@ reading a file drops off its entry by itself.
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 - [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts) — STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
+- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [zitadel-image-matches-postgres](../scripts/zitadel-image-matches-postgres.unit.test.ts) — The identity provider and the database it initialises into are pinned in the same file, and they are not independent.
 
@@ -628,6 +648,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.yml`
 
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 
@@ -1681,6 +1702,18 @@ Reads:
 - `apps/web/src/services/mapping-service.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 
+### [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts)
+
+A GATE ON A VERSION NOTHING SHIPS.
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/e2e-live-target.yml`
+- `.github/workflows/e2e-managed.yml`
+- `deploy/compose/managed.yml`
+- `deploy/selfhost/compose.yml`
+
 ### [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts)
 
 A supply-chain gate with an exclude list, an escape hatch, and no gate.
@@ -1776,6 +1809,17 @@ Reads:
 - `packages/core/src/a-lane-that-runs-with-the-detector-present.unit.test.ts`
 - `packages/orchestration/src/build-deps-from-mapping.ts`
 - `packages/orchestration/src/orchestration.ts`
+
+### [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts)
+
+A LIMIT THE API WAS NEVER HANDED.
+
+Reads:
+
+- `apps/api/src/index.ts`
+- `apps/api/src/knock-limit.ts`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
 
 ### [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts)
 
@@ -2089,6 +2133,7 @@ A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 Reads:
 
 - `apps/api/src/routes/migrations/google-account-scope-class.unit.test.ts`
+- `apps/api/src/routes/permissions.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `packages/connectors/src/google-token-provider.ts`
@@ -2879,6 +2924,8 @@ The Trigger.dev control plane's backup, and the version it is a backup FOR.
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
 - `deploy/compose/trigger-version.sh`
 
 ### [two-draws-that-could-agree-by-accident](../scripts/two-draws-that-could-agree-by-accident.unit.test.ts)

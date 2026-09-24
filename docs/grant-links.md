@@ -174,4 +174,7 @@ migrated, not hired.
 
 **It is not a progress page.** A grant link is for one thing — connecting an account — and it is
 spent the moment that happens. Somebody wanting to watch how their migration is going is a
-different question, and the answer to it is not built yet.
+different question, answered by a separate **view link**, issued from the same links panel on the
+migration's page. It lives longer and can be revoked, and it shows counts and states — never
+content, and never the provider's error text. It is how the person being migrated follows their
+own migration without an account or a place in your member list.

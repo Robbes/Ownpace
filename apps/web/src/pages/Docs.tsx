@@ -39,6 +39,9 @@ const BY_SLUG: Record<string, string> = Object.fromEntries(
   Object.entries(GUIDES).map(([path, body]) => [slugOf(path), body]),
 );
 
+/** The guides this build ships, by slug — for links elsewhere that must not 404. */
+export const GUIDE_SLUGS: ReadonlySet<string> = new Set(Object.keys(BY_SLUG));
+
 /** Inline spans: `code`, **bold**, [text](href). Escapes nothing else. */
 const Inline: React.FC<{ text: string }> = ({ text }) => {
   const parts: React.ReactNode[] = [];

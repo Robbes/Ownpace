@@ -946,6 +946,11 @@ SMTP_RELAY="$(read_env SMTP_HOST '')"
 SMTP_RELAY_PORT="$(read_env SMTP_PORT 1025)"
 SMTP_SENDER="$(read_env NOTIFY_FROM '')"
 SMTP_TLS="$(read_env SMTP_SECURE false)"
+# The relay's credentials, the same pair managed.yml hands the API. Empty for
+# an open relay such as the catcher, which is what the provider was given
+# before they were read at all.
+SMTP_AUTH_USER="$(read_env SMTP_USER '')"
+SMTP_AUTH_PASSWORD="$(read_env SMTP_PASSWORD '')"
 
 if [ -z "$SMTP_RELAY" ]; then
   say "no SMTP_HOST in ${ENV_FILE} — this instance is left with no way to send mail"
@@ -992,13 +997,14 @@ else
     # `/email/smtp`, not `/smtp`: the latter is marked deprecated in this
     # version's admin.proto in favour of the email-provider endpoints.
     CREATED="$(api POST /admin/v1/email/smtp "$(jq -nc \
-      --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "${SMTP_TLS:-false}" '{
+      --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "${SMTP_TLS:-false}" \
+      --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" '{
         senderAddress: $from,
         senderName: "Ownpace",
         host: $host,
         tls: $tls,
-        user: "",
-        password: "",
+        user: $user,
+        password: $pw,
         description: "ownpace-managed"
       }')")"
     SMTP_ID="$(jq -r '.id // empty' <<<"$CREATED")"

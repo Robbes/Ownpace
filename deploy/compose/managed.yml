@@ -64,9 +64,11 @@ services:
 
   # PgBouncer — transaction-mode pooler in front of the ledger (workplan 0082 T4)
   #
-  # Why: every sync pass opens its own pg.Pool of DEFAULT_CONCURRENCY + 2, so the
-  # server-connection ceiling was concurrent-passes times six, against a managed
-  # Postgres whose connection limit is much lower than its CPU budget suggests.
+  # Why: every managed sync pass opens unbounded pg.Pools (node-postgres default
+  # max 10): the job's own plus one per domain while it runs. So without pooling
+  # the server-connection ceiling is concurrent-passes times up to twenty,
+  # against a managed Postgres whose connection limit is much lower than its CPU
+  # budget suggests.
   # A pooler removes that as a CLASS of problem rather than as an incident.
   #
   # The safety argument is in pgbouncer/pgbouncer.ini: the tenant context is set
@@ -260,7 +262,7 @@ services:
   #
   # v4.5.12 writes a FUNCTION as a skip-index argument; 25.5 only accepts
   # literals. The webapp crash-looped and the plane was down until the tag
-  # went back. `managed.env.example` has carried "4.5.11 has an outage" since
+  # went back. `managed.env.example` carried "4.5.11 has an outage" from
   # August with no cause recorded — very likely this, unrecognised because it
   # presents as a Trigger.dev failure rather than a ClickHouse-version one.
   #
@@ -812,7 +814,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -hex 32 and set in .env}
       # Required to encrypt/decrypt connection credentials (create-mapping, worker deps).
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set a 32-byte key in .env}
-      JWT_EXPIRY: ${JWT_EXPIRY:-24h}
       # The OIDC issuer (ADR-0042). SET IT AND THE SYMMETRIC JWT_SECRET STOPS
       # BEING USED — `selectAuthMode` prefers JWKS precisely so a lingering
       # secret cannot silently downgrade verification. Empty until
@@ -837,7 +838,6 @@ services:
       # lands the run/receipt row `failed`; nothing hangs (0018 T1).
       TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-}
       MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
-      MOLLIE_WEBHOOK_SECRET: ${MOLLIE_WEBHOOK_SECRET:-}
       # The deployment's own identity for QUALIFIED VIES checks (workplan
       # 0111 T2) — the ones that come back with a consultation number, which
       # is the seller's actual defence for reverse charging. Both or neither:
@@ -861,6 +861,11 @@ services:
       # every deployment that has not answered gets. managed.env.example
       # carries the full note, including what it costs in Testing status.
       GOOGLE_ACCOUNT_SCOPE_CLASS: ${GOOGLE_ACCOUNT_SCOPE_CLASS:-}
+      # Whether this deployment holds `Files.Read.All` (owner decision
+      # 2026-08-04: declined for the reference deployment). The permission
+      # report reads it; empty keeps the drive section a stated blind spot.
+      # managed.env.example carries the full note.
+      GRAPH_FILES_READ_CONSENTED: ${GRAPH_FILES_READ_CONSENTED:-}
       # The deployment's OWN Google OAuth client (ADR-0041, owner decision
       # 2026-09-01 — option B): configured once here, so nobody types a client
       # secret into a wizard and rotating it is one edit rather than one per
@@ -921,6 +926,12 @@ services:
       # Found by the guard below on its first run, not by reading: this one is
       # consulted by the same function and was missed by the same enumeration.
       NOTIFY_DIGEST: ${NOTIFY_DIGEST:-}
+      # THE ACCESS-REQUEST LIMIT'S TWO KNOBS, read by apps/api/src/index.ts
+      # (Express 'trust proxy') and knock-limit.ts. Empty is today's behaviour:
+      # one service-wide bucket of 60 an hour. Workplan 0093 T2c says when to
+      # set them. `scripts/a-limit-the-api-was-never-handed.unit.test.ts`.
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:

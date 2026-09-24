@@ -488,6 +488,9 @@ importers:
       '@openmig/shared':
         specifier: workspace:*
         version: link:../shared
+      croner:
+        specifier: 10.0.1
+        version: 10.0.1
 
   packages/scheduler:
     dependencies:
@@ -497,6 +500,9 @@ importers:
       '@trigger.dev/sdk':
         specifier: 4.5.16
         version: 4.5.16(react@19.3.0)(supports-color@7.2.0)(zod@4.6.5)
+      croner:
+        specifier: 10.0.1
+        version: 10.0.1
 
   packages/shared: {}
 

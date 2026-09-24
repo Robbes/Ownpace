@@ -117,7 +117,7 @@ are **not** product-named and keep their names; nothing above touches them.
 **Host**
 
 - Linux with **Docker** and **Docker Compose v2** (`docker compose version`).
-- **Node 22+** and **pnpm** (the seed, the deploy CLI and the smoke run on the
+- **Node 24+** and **pnpm** (the seed, the deploy CLI and the smoke run on the
   host, not in a container).
 - `openssl`, `curl`, `git`.
 - **~15 GB free disk.** ClickHouse, MinIO, the Trigger.dev images, the task
@@ -160,11 +160,24 @@ nothing at all.
 | 3090 | Trigger.dev API (http) | `TRIGGER_PORT` — what the **deploy CLI** talks to |
 | 3443 | Trigger.dev dashboard (https) | `TRIGGER_TLS_PORT` — what your **browser** talks to |
 | 5000 | task image registry | `REGISTRY_PORT`, bound to loopback |
-| 8083 | Nextcloud | demo backend only |
+| 3124 | status page (Gatus) | `STATUS_PORT` |
+| 3126 | identity provider (Zitadel) | `ZITADEL_PORT` — the same number inside and out |
+| 3127 | Mailpit (web UI) | `MAILPIT_PORT`, bound to loopback unless `MAILPIT_BIND` says otherwise |
+| 8083 | Nextcloud | `NEXTCLOUD_PORT`, bound to loopback unless `NEXTCLOUD_BIND` says otherwise; demo backend only |
+
+Ports not marked loopback are published on **every interface**: compose's
+default host address is `0.0.0.0`.
 
 PgBouncer is deliberately **not** published: it is reached over the compose
 network by name. That is why anything running on the host (the seed, the
 migrations) connects to `postgres:5432`'s published port directly.
+
+**`GET /metrics` on the API port is unauthenticated**, by decision (0026 T3
+row 19): it carries counts and durations only, but the aggregate volume it
+reveals is not for the public internet. The web image proxies only `/api/*`,
+so `/metrics` is reachable only on port 3001 itself. Keep 3001 off any public
+interface, and if a reverse proxy does front 3001 directly, do not forward
+`/metrics`. Scrape it over the compose network or loopback.
 
 **Addressing the dashboard.** `TRIGGER_TLS_HOST=localhost` (the default) means
 the dashboard is usable **only from the machine itself**. The dashboard's
@@ -242,7 +255,12 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   defaults. Fine for a demo box on localhost; not fine for anything a customer
   reaches. **Change them before the `data` phase** — changing
   `POSTGRES_PASSWORD` after the volume exists does not change the password
-  inside it.
+  inside it. `APP_DB_PASSWORD` has the same trap from the other side:
+  migration `0001_baseline.sql` creates `app_user` with the password
+  `app_password` whatever `.env` says, so a new value must also be applied to
+  the role once the migrations have run — `ALTER ROLE app_user PASSWORD '…'`
+  (see [operator-runbook.md, "The two database roles"](./operator-runbook.md#the-two-database-roles-why-there-are-two-db-urls))
+  — or the API cannot connect through `APP_DATABASE_URL`.
 - `CORS_ORIGIN` / `WEB_URL` / `API_URL`. On a real deployment these are the
   public https addresses. `API_URL` is where **Mollie's servers** deliver
   payment webhooks: with `MOLLIE_API_KEY` set, the API refuses to boot in
@@ -827,7 +845,8 @@ typo is fixed by re-running.
 
 **This block used to read the connection out of `.env` with `grep
 '^DATABASE_URL='`, and that could not work on any stack** — `managed.yml`
-COMPOSES `DATABASE_URL` from `POSTGRES_*` and `DB_HOST` (line 742), so the file
+COMPOSES `DATABASE_URL` from `POSTGRES_*` and `DB_HOST` (in the `api` service's
+`environment:`), so the file
 has never carried such a line. The grep returned empty, the assignment
 succeeded, and the script refused for a requirement the reader had just
 apparently met. `operator.sh` is the same answer `seed-managed.sh` already was
@@ -1541,14 +1560,20 @@ digest — and reads `SMTP_HOST` and friends from `.env` via `managed.yml`. The
 **identity provider sends its own**: the verification link on a new account, an
 email-change confirmation, a password reset, the invitation to set a first
 password. None of that goes through the API. `setup-zitadel.sh` configures it
-from the same `SMTP_HOST`/`SMTP_PORT`/`NOTIFY_FROM`, so there is one relay
-setting rather than two that can drift — but it only runs during the `app`
-phase, so a stack brought up before 2026-08-25 has an issuer with **no email
-provider at all**, silently dropping every one of those.
+from the same `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+`SMTP_PASSWORD` and `NOTIFY_FROM`, so there is one relay setting rather than
+two that can drift — but it only runs during the `app` phase, so a stack
+brought up before 2026-08-25 has an issuer with **no email provider at all**,
+silently dropping every one of those.
 
 Until then the failure looks like a broken product rather than an unconfigured
 one: the account is created, the screen says to check your mail, and Mailpit
 stays empty.
+
+`setup-zitadel.sh` only CREATES a provider. One that already exists for the
+same `SMTP_HOST:SMTP_PORT` is reused with the settings it was created with, so
+a login added or changed later for the same relay reaches the API and not the
+issuer.
 
 ### Is it actually pointed at the catcher?
 
@@ -1868,9 +1893,9 @@ let a credential obtained once survive to the next run.
 | Tasks run but cannot reach the database | The task environment was never uploaded, or holds `localhost` | `./deploy/compose/set-task-env.sh`. Values are read at run start; no redeploy needed |
 | `trigger-credentials.sh` says the schema is not the one it knows | **Two causes, and the second one is not about Trigger.dev at all.** Either a version bump renamed a column — or the check was asked through a pipeline its own consumer could kill. `printf … | grep -qxF "$col"` under `set -o pipefail` returns 141 when grep SUCCEEDS: `grep -q` exits at the first match without draining, the producer dies of SIGPIPE, and pipefail hands back the signal. `PIPESTATUS` is `(141 0)` — the answer was yes | If the refusal names a column you can see in the database, it is the second cause and the checkout predates the fix: every such pipeline now reads from a here-string, and `no-pipeline-its-own-consumer-can-kill.unit.test.ts` fails the build if one comes back. If the column really is gone, it is the first: read the two values from the dashboard by hand — the refusal names both pages |
 | Seed fails on `DATABASE_URL … is required` | It is running on the host and inherits nothing | Use the `demo` phase, which exports them from `.env` |
-| `ownpace-idp` is `Up N minutes (unhealthy)` — RUNNING, not restarting — and its log is clean right down to `server is listening`. **A current checkout cannot produce this: the service has no healthcheck any more** (see the row below). If you are seeing it, the checkout predates that change |
+| `ownpace-idp` is `Up N minutes (unhealthy)` — RUNNING, not restarting — and its log is clean right down to `server is listening` | **The container is fine and the probe is not.** The checkout predates the removal of the provider's healthcheck: that probe asked for readiness from inside the container, where nothing listens on the address it built (see the row below). A current checkout cannot produce this, because the service has no healthcheck any more | Pull, then `./deploy/compose/bootstrap-managed.sh --only app`, which recreates the provider without the probe and asks readiness from the host. What the old probe said is in `docker inspect ownpace-idp --format '{{json .State.Health}}' \| jq`; the bring-up prints the same as its `what the HEALTHCHECK said` window for any service that has one |
 | `[setup-zitadel] FATAL: it did not become healthy within five minutes`, on a run where the provider is plainly up and serving | **A second waiter, on a health signal that no longer arrives.** `setup-zitadel.sh` polled `"Health":"healthy"` from `docker compose ps`; the identity provider has no healthcheck (see the rows above), so that field is never set and the wait always runs its full five minutes | Fixed: it now asks `/debug/ready` on the published port, the same address the bring-up uses. `nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts` fails the build if any script waits on the health of a service that declares no healthcheck |
-| The bring-up prints `the identity provider never became ready at http://localhost:3126/debug/ready` | **The readiness check is asked from the host, not from inside the container**, because `zitadel ready` builds its URL from `ExternalPort` — the address the OUTSIDE reaches Zitadel on — and nothing listens there inside. Here that is a published port; behind netbird it is 443, terminated by something that is not Zitadel | Read the code the message names. `000` means nothing answered at all — check the container is up and the port published. Any other code means Zitadel answered and said no, which is a real not-ready and its log is the next place to look. The timeout is `IDP_READY_TIMEOUT` (default 300s); a first init applies every migration from scratch and a slow disk can need longer | **The container is fine and the probe is not.** A healthcheck runs beside the container and its output goes nowhere near `docker compose logs`; Docker keeps the last few attempts in `.State.Health.Log`. This is the one failure shape the log windows cannot describe, because the answer was never in the log | The bring-up now prints a fourth window, `what the HEALTHCHECK said`, read straight from `docker inspect`. By hand: `docker inspect ownpace-idp --format '{{json .State.Health}}' \| jq`. Do NOT delete or weaken the healthcheck to get green — a provider that is unhealthy while serving is the gate working, and an untested probe is how a stack ends up trusting an identity provider that is not there |
+| The bring-up prints `the identity provider never became ready at http://localhost:3126/debug/ready` | **The readiness check is asked from the host, not from inside the container**, because `zitadel ready` builds its URL from `ExternalPort` — the address the OUTSIDE reaches Zitadel on — and nothing listens there inside. Here that is a published port; behind netbird it is 443, terminated by something that is not Zitadel | Read the code the message names. `000` means nothing answered at all — check the container is up and the port published. Any other code means Zitadel answered and said no, which is a real not-ready and its log is the next place to look. The timeout is `IDP_READY_TIMEOUT` (default 300s); a first init applies every migration from scratch and a slow disk can need longer |
 | `[setup-zitadel] FATAL: could not read /machinekey/pat.txt (exit 127)` naming `"cat": executable file not found in $PATH` | **The provider's image has no shell and no coreutils.** `docker compose exec -T zitadel cat …` cannot work, and Docker reports that on STDOUT with exit 127 — so a command substitution captures the error message as if it were the file's contents. Before this refusal existed, that sentence was sent to Zitadel as a Bearer token, which answered `illegal base64 data at input byte 3` (byte 3 is the space after `OCI`) and then `Errors.Token.Invalid` | Nothing to do on a current checkout: the token is read off the VOLUME with busybox, via the `zitadel-machinekey` service that already mounts it. If you are reading the file by hand, do the same — `docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt` — and never `exec` into `ownpace-idp`, which has no binaries to run |
 | `[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401` with `Errors.Token.Invalid (AUTH-7fs1e)` | **The token and the database disagree about which instance this is.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to the instance created then. Clearing the zitadel DATABASE while keeping the machinekey VOLUME leaves a token for an instance that no longer exists; clearing the volume while keeping the database leaves no token at all, since init never runs again to write one. E2E (managed) #50 is the first of these. It can equally mean the token **expired**: each one lives `ZITADEL_PAT_LIFETIME_DAYS` (7) days and `setup-zitadel.sh` rotates it inside the last `ZITADEL_PAT_ROTATE_BELOW_DAYS` (3), so an expired token is what a gate that slept past the gap wakes up to — the refusal itself says which cause is in front of you | **The database and the volume go together.** Either keep the instance — sign in at `http://localhost:3126/ui/console` as the first user, read the client id from the Ownpace project's application, and `env-upsert.sh` `JWT_ISSUER` / `JWT_AUDIENCE` / `VITE_OIDC_CLIENT_ID` by hand — or start over, which destroys every account it holds: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm ownpace-managed_zitadel_machinekey`, then re-run. The `zitadel` ROLE can stay. Both halves, every time |
 | `[setup-zitadel] FATAL:` a call to the identity provider's API refused, naming an HTTP status | **Read the status, they mean different things.** `401` — the provisioning token was not accepted: it **expired** (`setup-zitadel.sh` rotates it before that on every run, so this means the gate slept past the rotation window — mint a new personal access token on the `ownpace-setup` service user in the console and write it over `/machinekey/pat.txt`), or it belongs to an instance that no longer exists, because the zitadel DATABASE was cleared while the machinekey VOLUME was kept (`/machinekey/pat.txt` is written on FIRST INIT). `403` — the token is fine and `ownpace-setup` lacks the grant the call needs, which is a role to add, not a credential to replace. Anything else prints the provider's own words | Follow the remedy the refusal names — 401 sends you to REPROVISIONING at the bottom of `setup-zitadel.sh`, 403 to the console's org roles. Before E2E (managed) #49 all of these printed `could not create the project` and nothing else, because the response body went into `jq -r '.id'` and was discarded; the search above it could not fail at all, since `.result[]?` turns an error into the same empty output a real "no such project" gives |
@@ -1976,9 +2001,10 @@ neither. `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in particular belong to
 the *old* instance and are meaningless on the new one; the script will read the
 new instance's own.
 
-**Upgrading Trigger.dev** is one number in FOUR places that must agree: the
-two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`, `TRIGGER_IMAGE_TAG` in
-`managed.env.example`, and `@trigger.dev/sdk` in `apps/worker/package.json`
+**Upgrading Trigger.dev** is one number in every place that names it, and they
+must agree: the two `${TRIGGER_IMAGE_TAG:-…}` defaults in `managed.yml`,
+`TRIGGER_IMAGE_TAG` in `managed.env.example`, and every `@trigger.dev/*`
+dependency in the root, `apps/worker` and `packages/scheduler` manifests
 (`.env`'s `TRIGGER_IMAGE_TAG`, when set, overrides the compose default on that
 machine). `--from trigger` refuses at bring-up when they disagree, and
 `bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
@@ -1989,7 +2015,7 @@ the SDK alone, passed all seventeen checks and broke the managed gate.
 ```
 ./deploy/compose/trigger-version.sh list              # running / pinned / what you can move to
 ./deploy/compose/trigger-version.sh backup pre-4.5.12 # verified dump of triggerdb
-./deploy/compose/trigger-version.sh pin --latest      # moves all four places
+./deploy/compose/trigger-version.sh pin --latest      # moves every place
 ./deploy/compose/trigger-version.sh backups           # what dumps exist
 ./deploy/compose/trigger-version.sh restore --latest --yes   # DESTRUCTIVE rollback
 ```
@@ -2243,8 +2269,12 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   `trigger-version.sh backup`, and its restore is drilled on every managed gate
   run. The same treatment for `ownpace-db` is not built.)
 - **Anybody's first account.** `setup-zitadel.sh` stands the provider up; it
-  does not create people. Invite-only means the owner does that, and the
-  provisioning path for it is workplan 0093 T6, not yet built.
+  does not create people. People are let in through the access-request queue
+  (§8c; workplan 0093 T6/T7, done): once an operator is appointed as §8c
+  describes, granting a request (`POST /api/access-requests/<id>/grant`)
+  creates the organisation and its owner invitation in one transaction, and
+  the asker becomes a member the first time they sign in with a verified
+  email.
 - **The Trigger.dev instance's own upgrade path** between major versions.
 - **Bring-up from scratch, tested.** The nightly
   [`e2e-managed.yml`](../.github/workflows/e2e-managed.yml) runs this script
@@ -2261,4 +2291,5 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
 - [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) — symptoms across both editions
 - [`rls-guide.md`](./rls-guide.md) — why the app connects as `app_user`
 - [`status-page.md`](./status-page.md) — what the status page can and cannot tell you
-- [`performance.md`](./performance.md) — the pooler, the rate budget, the tick
+- [`performance.md`](./performance.md) — the PGlite ledger benchmark, bounded
+  concurrency and the remaining throughput levers (the pooler is phase 3 above)

@@ -77,6 +77,12 @@ function fill(template: string, vars?: TemplateVars): string {
 export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = React.useState<Locale>(detectLocale);
 
+  // WCAG 3.1.1 (SAD §23): the document's language follows the UI's, or a
+  // screen reader reads Dutch with an English voice. index.html says `en`.
+  React.useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   const setLocale = React.useCallback((next: Locale) => {
     setLocaleState(next);
     try {

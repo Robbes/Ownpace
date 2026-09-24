@@ -13,8 +13,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import RequestAccess from './RequestAccess.tsx';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const postMock = vi.fn();
 vi.mock('../services/api.ts', () => ({
@@ -30,9 +31,27 @@ const renderPage = (path = '/request-access') =>
     </QueryClientProvider>,
   );
 
+/** As the app mounts it: inside the real LocaleProvider, whose setLocale works. */
+const renderInLocale = (path: string) =>
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <RequestAccess />
+        </MemoryRouter>
+      </LocaleProvider>
+    </QueryClientProvider>,
+  );
+
 beforeEach(() => {
   postMock.mockReset();
   postMock.mockResolvedValue({ data: { received: true } });
+  // setLocale persists `ownpace.locale`; one test's choice must not be the next one's default.
+  window.localStorage.clear();
+});
+
+afterEach(() => {
+  window.localStorage.clear();
 });
 
 describe('RequestAccess', () => {
@@ -143,6 +162,33 @@ describe('RequestAccess', () => {
 
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
     expect(postMock.mock.calls[0]![1]).not.toHaveProperty('tier');
+  });
+
+  it('arrives in the language the site linked with, and asks for the grant in it', async () => {
+    // The Dutch site links here with ?locale=nl. This page has no language
+    // switcher, and the locale it sends is the one the grant email is written in.
+    const user = userEvent.setup();
+    renderInLocale('/request-access?locale=nl');
+
+    expect(await screen.findByRole('heading', { name: 'Toegang aanvragen' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/e-mailadres/i), 'someone@example.test');
+    await user.click(screen.getByRole('button', { name: /aanvraag versturen/i }));
+
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0]![1]).toMatchObject({ locale: 'nl' });
+  });
+
+  it('ignores a locale nobody offers', async () => {
+    // Matched against the list like ?tier=: the value comes out of a URL.
+    const user = userEvent.setup();
+    renderInLocale('/request-access?locale=xx');
+
+    expect(screen.getByRole('heading', { name: 'Request access' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/email address/i), 'someone@example.test');
+    await user.click(screen.getByRole('button', { name: /send request/i }));
+
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0]![1]).toMatchObject({ locale: 'en' });
   });
 
   it("shows the server's own sentence when it refuses", async () => {

@@ -181,6 +181,16 @@ describe('Mappings — a paused row leads to the confirm screen, not to a 409 (0
     expect(screen.queryByTitle('Start sync')).not.toBeInTheDocument();
     expect(syncMock).not.toHaveBeenCalled();
   });
+
+  it('names the pencil that opens a migration, which a screen reader otherwise calls "link"', async () => {
+    // lucide marks an icon with no a11y prop aria-hidden, so a link holding
+    // only the icon had an empty accessible name (WCAG 4.1.2).
+    listMock.mockResolvedValue([sampleMapping({ id: 'm1', name: 'Inbox' })]);
+    renderMappings();
+
+    const open = await screen.findByRole('link', { name: 'Open' });
+    expect(open).toHaveAttribute('href', '/mappings/m1');
+  });
 });
 
 describe('Mappings — Delete arms with the mapping name and works (0037 T5)', () => {

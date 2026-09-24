@@ -2850,6 +2850,11 @@ router.post(
       // (the mapping was just verified to belong to this tenant above).
       const { taskId, payload } = resolveSyncJob(tenantId, mappingId, body);
       const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+        // One running pass per mapping: the partition run-delta-sync's queue
+        // relies on, and the one the sync tick and /start set. Without it this
+        // run lands on the base `delta-sync` queue (limit 1, shared by every
+        // tenant) and does not wait for the mapping's scheduled pass.
+        concurrencyKey: mappingId,
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
       });
 

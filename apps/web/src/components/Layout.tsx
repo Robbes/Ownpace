@@ -218,7 +218,7 @@ const Layout: React.FC = () => {
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-gray-600 bg-opacity-75 z-20 lg:hidden"
+          className="fixed inset-0 bg-gray-600/75 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -238,6 +238,7 @@ const Layout: React.FC = () => {
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
+              aria-label={t('common.close')}
               className="lg:hidden text-gray-500 hover:text-gray-700"
             >
               <X className="w-6 h-6" />
@@ -345,6 +346,8 @@ const Layout: React.FC = () => {
         <header className="sticky top-0 z-10 flex items-center h-16 px-4 bg-white border-b border-gray-200 lg:px-8">
           <button
             onClick={() => setSidebarOpen(true)}
+            aria-label={t('nav.menu')}
+            aria-expanded={sidebarOpen}
             className="lg:hidden text-gray-500 hover:text-gray-700"
           >
             <Menu className="w-6 h-6" />

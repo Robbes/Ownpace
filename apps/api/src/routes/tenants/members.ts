@@ -112,6 +112,15 @@ router.post(
         });
       }
 
+      // Granting owner is owner-only on EVERY door (member-guards.ts): an
+      // invitation as owner is a grant that lands on acceptance.
+      if (grantsOwnerWithoutPermission(body.role, req.userRole)) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Only an owner can grant the owner role',
+        });
+      }
+
       const result = await withTenantDb(tenantId, getSharedPool(), async (db) => {
         // Refuse a duplicate BEFORE inserting (0039 T5): the pending:UUID
         // placeholder below defeats the UNIQUE(tenant_id, user_id) constraint

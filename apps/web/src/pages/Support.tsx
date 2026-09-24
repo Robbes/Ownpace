@@ -1267,7 +1267,7 @@ const LogPage: React.FC<LogPageProps> = ({ read, path, operator }) => {
   const label = 'block text-xs font-medium text-gray-600 mb-1';
   const field =
     'block w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 ' +
-    'focus:border-blue-500 focus:outline-none focus:ring-blue-500';
+    'focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
   return (
     <div>

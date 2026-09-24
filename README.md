@@ -110,9 +110,11 @@ cutover machine.
 The **managed edition** runs on one execution plane (workplan 0022): every job — sync, verify,
 apply, discovery — executes as a deployed Trigger.dev task, started by a scheduled tick; there is
 no worker container. Tenant isolation is enforced at runtime (FORCE RLS through a non-owner role
-+ a tenant-membership auth gate), `apply`/`verify` run asynchronously with receipts, billing has
-a Mollie webhook end-to-end, and the compose operator stack is live-verified
-(`docs/operator-runbook.md`, `smoke-managed.sh`).
++ a tenant-membership auth gate), `apply`/`verify` run asynchronously with receipts, and the
+compose operator stack is live-verified (`docs/operator-runbook.md`, `smoke-managed.sh`).
+Billing is not live yet: the Mollie webhook marks an invoice paid (tested with Mollie mocked),
+but minting an invoice is refused until invoices are raised by tier (workplan 0109 T5), and the
+payment journey has not been walked end to end (workplan 0086 T6).
 
 The **self-host edition** (a single-tenant NAS/Pi appliance) is complete through workplan 0010,
 including the restart-resume idempotency gate across all five domains — and since ADR-0028 it can

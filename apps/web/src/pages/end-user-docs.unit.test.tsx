@@ -31,7 +31,13 @@
  * renamed or unpublished document fails here rather than 404ing for a customer.
  */
 import { describe, it, expect } from 'vitest';
-import { credentialFieldsFor, connectableTypes } from '@openmig/shared';
+import {
+  credentialFieldsFor,
+  connectableTypes,
+  MICROSOFT_DOMAIN_SCOPES,
+  MICROSOFT_OFFLINE_SCOPE,
+} from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
 
 const GUIDES = import.meta.glob('../../../../docs/*-setup.md', {
   query: '?raw',
@@ -156,5 +162,51 @@ describe('the guides mention what the connector actually needs', () => {
         `'${type}' source. Somebody following this guide reaches the form without the ` +
         `value it demands. Either the guide is out of date or the field is.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * The wizard has had four steps since it stopped being six — source, target,
+ * migration, review — and each side's credentials sit on that side's own step.
+ * The Box, Dropbox and Google guides, and three of the wizard's own about-lines
+ * in both languages, went on sending people to "the credentials step", which
+ * the wizard no longer has. A step named to a customer is one the wizard has.
+ */
+describe('the guides and the wizard name only the steps the wizard has', () => {
+  const WIZARD_STEPS = new Set(['source', 'target', 'migration', 'review']);
+  const NAMED_STEP = /\b(?:on|at|to|rides) the ([a-z-]+) step\b/gi;
+  const stepsNamedIn = (text: string) =>
+    [...text.matchAll(NAMED_STEP)].map((m) => m[1]!.toLowerCase()).filter((s) => !WIZARD_STEPS.has(s));
+
+  it('reads a step name where one is written', () => {
+    expect(stepsNamedIn('the secret rides the credentials step; the id goes on the source step')).toEqual([
+      'credentials',
+    ]);
+  });
+
+  it.each(Object.keys(GUIDES))('%s', (path) => {
+    expect(stepsNamedIn(GUIDES[path]!)).toEqual([]);
+  });
+
+  it('the wizard\'s own words, in both languages', () => {
+    expect(Object.values(STRINGS.en).flatMap(stepsNamedIn)).toEqual([]);
+    expect(Object.values(STRINGS.nl).filter((v) => /stap met inloggegevens/i.test(v))).toEqual([]);
+  });
+});
+
+/**
+ * microsoft-setup.md told the administrator to add "exactly" four `.Read`
+ * permissions and offline_access, and "nothing else" — while the consent asks
+ * for `Tasks.Read` whenever Tasks is ticked, and the same guide said so further
+ * down. An administrator who followed the table to the letter would leave it
+ * out. The table is the list somebody copies, so it names every delegated
+ * permission the consent can ask for.
+ */
+describe('microsoft-setup lists every permission the consent asks for', () => {
+  const guide = Object.entries(GUIDES).find(([p]) => slugOf(p) === 'microsoft-setup')?.[1];
+
+  it.each([...Object.values(MICROSOFT_DOMAIN_SCOPES), MICROSOFT_OFFLINE_SCOPE])('%s', (scope) => {
+    expect(guide, 'microsoft-setup.md is not served').toBeDefined();
+    expect(guide).toContain(`| \`${scope}\` |`);
   });
 });

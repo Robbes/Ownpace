@@ -41,8 +41,12 @@ convention that is already half-abandoned.
   **every pull request**, not nightly, because it is cheap and those defects are expensive.
   Kept out of `pnpm test` because it needs two things the unit gate must not require: a Chromium
   binary and a production `pnpm build` of the web app.
-- **E2E** (docker compose, manual): the real SMB O365 source (read-only, least-privilege) into a
-  disposable target; full slice.
+- **E2E** (on the self-hosted arm64 Spark): nightly black-box gates against a
+  running self-host appliance (`e2e.yml`, both persistence backends) and the managed stack
+  (`e2e-managed.yml`), a nightly soft lane against a target we do not host
+  (`e2e-live-target.yml`), and a dispatch-only shadow read of the real SMB O365 source
+  (`e2e-o365.yml`): read-only, least-privilege, a dry run that lists what Graph returns and
+  writes to no target. See "CI mapping" below.
 
 ## Running tests locally
 
@@ -78,10 +82,10 @@ than the whole unit suite — but it is the only tier that sees what a user sees
 
 ### E2E tests (manual, requires Docker and real O365 credentials)
 ```bash
-# See docs/deployment.md for full setup
+# See docs/test-tenant.md for the tenant and the secrets e2e-o365.yml needs
 ```
 
-### Self-host restart-resume e2e (`.github/workflows/e2e.yml`, manual dispatch, self-hosted runner only)
+### Self-host restart-resume e2e (`.github/workflows/e2e.yml`, nightly and on dispatch, self-hosted runner only)
 
 Black-box gate against a real running appliance (`deploy/selfhost/compose.yml`): seed real
 sources, start the appliance, run a pass, `docker compose restart app`, run again, assert the
@@ -144,13 +148,15 @@ in-memory source** (isolating the leg under test) feeds seeded items through
 to Nextcloud, with no manual `connect()` — the lazy-connect path is part of
 what is under test (it masked bugs #112/#113; see below).
 
-**The IMAP/DAV mail family has no integration-tier equivalent, and that is a
-real asymmetry rather than an oversight in this list.** Its idempotency property
-is asserted one tier down, in
-`packages/connectors/src/imapflow-dav-target.unit.test.ts` ("adopts on a second
-pass instead of appending a duplicate"), against a **fake imapflow client** —
-where the DAV domains assert the same property against a real Nextcloud. Real-
-server evidence for this family comes from the e2e gate instead
+**The IMAP/DAV mail family has an integration-tier test again since
+2026-09-22**, in a different shape from the DAV domains':
+`packages/orchestration/src/imap-dav-target.integration.test.ts` drives
+`buildDeps` to an `imap-dav` target, writes a message to a real Stalwart, and
+checks BY COUNT on the server, with an independent IMAP client, that a second
+`upsertEmail` adopts rather than appends. The same property is asserted one tier
+down in `packages/connectors/src/imapflow-dav-target.unit.test.ts` ("adopts on a
+second pass instead of appending a duplicate"), against a **fake imapflow
+client**, and the e2e gate adds real-server evidence
 (`test/e2e/selfhost-restart-resume.e2e.test.ts`,
 `test/e2e/selfhost-apply-deletion-mail.e2e.test.ts`, both against a real
 Stalwart). This list cited `apps/worker/src/imap-dav-target.integration.test.ts`
@@ -189,20 +195,20 @@ into a **real** `CalDAVTargetWriter` / `CardDAVTargetWriter` / `WebDAVTargetWrit
 Nextcloud, with **no manual `connect()`** (there's no `connect()` on the `*TargetWriter`
 interfaces — this is what masked #112/#113). Each domain asserts: first pass creates N (N>0),
 second pass creates 0, and the items are read back from Nextcloud via the real source connector.
-The IMAP/DAV mail equivalent (the second mail family, alongside JMAP) is **not at this tier**, and
-the difference is worth stating rather than glossing. `packages/connectors/src/imapflow-dav-target.unit.test.ts`
-carries the same N / 0-on-rerun property — "adopts on a second pass instead of appending a
-duplicate", asserting `created: false`, `adopted: true`, and a mailbox still holding one message —
-but it runs against a **fake imapflow client**, not a real IMAP server. So for this one family the
-property is proven at the unit tier and against real infrastructure only by the e2e gate, whereas
-calendar, contacts and files prove it at the integration tier against a real Nextcloud.
+The IMAP/DAV mail equivalent (the second mail family, alongside JMAP) is at this tier too, since
+2026-09-22: `packages/orchestration/src/imap-dav-target.integration.test.ts` parses a mapping
+with an `imap-dav` mail target, lets `buildDeps` dispatch it, and writes through `ensureMailbox` +
+`upsertEmail` to a real Stalwart. It checks with an INDEPENDENT IMAP client that the message
+landed, and BY COUNT on the server that a second `upsertEmail` adopts rather than appends — one
+message, not the N-item pass shape above. `packages/connectors/src/imapflow-dav-target.unit.test.ts`
+still carries the same N / 0-on-rerun property one tier down — "adopts on a second pass instead of
+appending a duplicate", asserting `created: false`, `adopted: true`, and a mailbox still holding one
+message — against a **fake imapflow client**.
 
-That is a consequence of workplan 0032. `apps/worker/src/imap-dav-target.integration.test.ts` was
-deleted by commit `4cac2bd` when imap-simple was dropped; its commit message records that the
-writer's cases were carried over "plus two more", which is true of the CASES and not of the TIER.
-Closing this means an `imapflow-dav-target.integration.test.ts` against the dev Stalwart, in the
-shape of `dav-sync.integration.test.ts`. Until that exists, this asymmetry is the honest
-description of the coverage.
+The gap had a history. `apps/worker/src/imap-dav-target.integration.test.ts` was deleted by commit
+`4cac2bd` when imap-simple was dropped (workplan 0032); its commit message records that the
+writer's cases were carried over "plus two more", which was true of the CASES and not of the TIER,
+until the orchestration test above put a real server back under this target.
 
 ### Native Connector Property Tests
 
@@ -307,21 +313,18 @@ When multiple tests share the same Stalwart accounts, clean ALL target mailboxes
 state before each test:
 
 ```typescript
+// packages/testing/src/imap-test-client.ts (the package's `./imap-test-client` export);
+// today's callers import it by relative path.
+import { withImapTestClient, purgeAllMailboxes } from '../../../packages/testing/src/imap-test-client.ts';
+
 async function cleanTargetMailboxes(): Promise<void> {
-  const config: ImapSimpleOptions = { /* ... */ };
-  const conn = await imap.connect(config);
-  
-  const mailboxes = await conn.getMailboxes();
-  for (const mailbox of Object.values(mailboxes)) {
-    await conn.openBox(mailbox.name);
-    const all = await conn.search(['ALL'], { fields: ['UID'] });
-    if (all.length > 0) {
-      const uids = all.map(r => r.attributes.uid);
-      await conn.addFlags(uids, '\\Deleted');
-      await conn.expunge();
-    }
+  const { failed } = await withImapTestClient(
+    { host: STALWART_IMAP_HOST, port: STALWART_IMAP_PORT, user: TARGET_ACCOUNT, password: TARGET_PASSWORD },
+    (client) => purgeAllMailboxes(client),
+  );
+  for (const [mailbox, reason] of Object.entries(failed)) {
+    console.warn(`Could not clean mailbox ${mailbox}: ${reason}`);
   }
-  conn.end();
 }
 
 async function cleanDatabaseState(tenantId: string, mappingId: string): Promise<void> {
@@ -351,21 +354,12 @@ beforeEach(async () => {
 
 ### Unique accounts per test (advanced)
 
-For true isolation, each test file can start its own Stalwart container with unique accounts:
-
-```typescript
-import { generateTestAccounts, startStalwartIsolated } from '@openmig/testing';
-
-const TEST_ACCOUNTS = generateTestAccounts('mytest');
-
-beforeAll(async () => {
-  const stalwart = await startStalwartIsolated([
-    { name: TEST_ACCOUNTS.source.name, password: TEST_ACCOUNTS.source.password },
-    { name: TEST_ACCOUNTS.target.name, password: TEST_ACCOUNTS.target.password },
-  ]);
-  // Use stalwart.imapHost, stalwart.imapPort, etc.
-});
-```
+For true isolation, a test file would start its own Stalwart container with unique accounts.
+**No helper for that exists today.** The sample that stood here imported `generateTestAccounts`
+and `startStalwartIsolated` from `@openmig/testing`, and neither has ever been in the repository.
+What `@openmig/testing` does export is `startTestEnvironment` / `stopTestEnvironment`
+(`packages/testing/src/testcontainers-setup.ts`), which start the whole shared stack, not one
+Stalwart per file.
 
 **Trade-offs:**
 - ✅ Complete isolation: No shared state at all
@@ -381,9 +375,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   that the canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs
   across the tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding
   tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
-  bleed); **`migration-lint`** (ADR-0017, built 2026-08-02) replays `packages/ledger/migrations`
-  with Atlas against a disposable dockerized Postgres and fails on destructive schema changes —
-  runs only when the migration directory (or the workflow) changes;
+  bleed); **`migration-lint`** (ADR-0017, built 2026-08-02) replays BOTH migration chains —
+  `packages/ledger/migrations`, then `packages/managed/migrations` renumbered above it, staged as
+  one directory in the order a managed deployment applies them — with Atlas against a disposable
+  dockerized Postgres and fails on destructive schema changes — runs only when either migration
+  directory (or the workflow) changes;
   **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
   the Conventional Commits prefix CONTRIBUTING.md and the pull-request template both already
   mandated. Measured the day it was built: two of the last two hundred subjects on `main`
@@ -391,14 +387,29 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   nothing. It runs on `pull_request` only and never re-judges history, so those hundred-odd prose
   subjects stay as they are and no branch is rewritten to go green; merge commits are exempt by
   parent count, because merging the base branch in is how a conflict is resolved here.
+- `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
+  and on main) — `pnpm test:ui`, after `lint` and alongside `unit-tests`.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags.
-- `e2e.yml` — manual only, on `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
+- `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
+  `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
   `docker compose` service, since compose can't express that transition for one service), seeds
   the source over IMAPS, builds + starts the self-host appliance, and runs the workplan 0010 T5
   restart-resume idempotency gate, then tears down. Installs `stalwart-cli` itself (same install
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
+- `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the Spark: the managed-edition gate
+  (workplan 0084), run against a long-lived configured stack, so it does not prove bring-up from
+  scratch.
+- `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the Spark: the soft lane against
+  a target we do not host (workplan 0105 T4). Red means investigate; it never runs on a pull
+  request, so it blocks nothing.
+- `e2e-o365.yml` — dispatch only, on the Spark: the secret-gated real-tenant O365 e2e (workplan
+  0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
+- `images.yml` — the three application images: an amd64 build-only check on a pull request that
+  touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
+  on `v*` tags.
+- `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `no-committed-artifacts.yml` — PR guard against committed `node_modules/`, build outputs, local
   DBs, and `.env`.
 
@@ -431,44 +442,49 @@ Removing it does not widen what runs on the Spark. Every `runs-on` in `ci.yml` k
 GitHub-hosted runners — and `push` keeps its `branches: [main]` filter, which is what makes that
 true.
 
-Runners: GitHub-hosted for lint/unit/build and multi-arch image builds; the self-hosted arm64
-Spark runner for integration/e2e. The Spark runner executes trusted workflows only. Both the
-`integration-tests` job and `e2e.yml` install `stalwart-cli` as a host binary for their respective
-provisioning phases.
+Runners: on a pull request every `ci.yml` job is GitHub-hosted, with integration on both
+`ubuntu-24.04` and `ubuntu-24.04-arm` for every code-changing pull request; after merge to `main`
+the same jobs run on the self-hosted arm64 Spark. Image builds are GitHub-hosted, and e2e runs only
+on the Spark. The Spark runner executes trusted workflows only. Both the `integration-tests` job
+and `e2e.yml` install `stalwart-cli` as a host binary for their respective provisioning phases.
 
-## Appendix — untested seams (verified against the tree, 2026-08-02)
+## Appendix — untested seams (verified against the tree, 2026-08-02; re-verified 2026-09-24)
 
 What has **no** dedicated test, stated here so it is a fact in the repo rather
 than a rediscovery. This list is the honest complement to the coverage above;
 each entry is a candidate for a workplan, not a promise.
 
-- **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, all eight).
+- **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, fourteen
+  task files at the 2026-09-24 re-check).
   The logic inside them is tested through extracted seams —
-  `sync-due.unit.test.ts` proves the tick's due-evaluation,
-  `cutover-preparation.integration.test.ts` drives `prepareCutover`'s body
-  against a real ledger, apply/verify logic lives in `@openmig/core` with its
-  own suites — but the `schemaTask` wrappers themselves (payload schemas,
-  `configure()` wiring, error paths) execute only in live smokes
-  (`deploy/compose/smoke-managed.sh`). The 0022 cutover's in-runner API-URL
+  `packages/orchestration/src/sync-due.unit.test.ts` proves the tick's
+  due-evaluation, `cutover-preparation.integration.test.ts` drives
+  `prepareCutover`'s body against a real ledger, the colocated suites in
+  `jobs/` drive exported pieces such as `buildTask` and `runDigest`, and
+  apply/verify logic lives in `@openmig/core` with its own suites — but the
+  `schemaTask` wrappers themselves (payload schemas, `configure()` wiring,
+  error paths) execute only in live smokes (`deploy/compose/smoke-managed.sh`,
+  which `e2e-managed.yml` runs nightly). The 0022 cutover's in-runner API-URL
   bug lived exactly in that untested layer.
-- **`apps/worker/src/build-deps-from-mapping.ts`** — the managed, DB-driven
-  deps builder (its appliance-side sibling `build-deps.ts` has
-  `build-deps.unit.test.ts`). Exercised only inside live task runs; the #207
-  all-domain-deps bug lived here.
-- **`apps/worker/src/enabled-domains.ts`** — the explicit enabled-domains
-  rule (the #207 fix itself). No direct test; covered indirectly wherever
-  callers are tested, and by the live smoke.
-- **Web pages with no jsdom suite**: `Billing`, `CreateMapping`, `Dashboard`,
-  `Failures`, `Login`, `Mappings`, `Moves`, `OperatorDashboard`, `Settings`,
-  `Tenants`. (Covered: Confirm, Deletions, Finish, MappingDetail, Verify —
-  plus the queue primitives/panel component suites.)
-- **Web services/stores with no direct suite**: `billing-service`,
-  `mapping-service`, `operating-service` (exercised heavily *through* the
-  page suites, but has no test of its own), `auth-store`, `mapping-store`.
+- **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
+  `RedirectUris`. (`ReportProblem` is covered by
+  `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a
+  colocated `*.unit.test.tsx`.)
+- **Web services/stores with no suite of their own**: `grant-link-service`,
+  `platform-service`, `view-service`, `mapping-cache`, and `auth-store` (the
+  last exercised through the page and component suites, but with no test of
+  its own).
 - **Mollie billing**: the webhook handler IS covered
   (`invoice-billing.integration.test.ts`, incl. double-delivery no-op) — but
   against a **mocked Mollie client**; no test speaks the real Mollie API.
 
 Removed from this list since the 2026-08-01 review: `managed-scheduler.ts`
 (deleted outright, 0022 T4) and the Mollie webhook handler (its coverage was
-found, not added — the review overcounted).
+found, not added — the review overcounted). Removed at the 2026-09-24
+re-check: `build-deps-from-mapping.ts` and `enabled-domains.ts`, both now in
+`packages/orchestration/src` with `build-deps-from-mapping.unit.test.ts` and
+`enabled-domains.unit.test.ts`; the pages and services that gained suites
+(`Billing`, `CreateMapping`, `Dashboard`, `Failures`, `Login`, `Mappings`,
+`Moves`, `Tenants`; `billing-service`, `mapping-service`,
+`operating-service`); and `OperatorDashboard`, `Settings` and
+`mapping-store`, which no longer exist.

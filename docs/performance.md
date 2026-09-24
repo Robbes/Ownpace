@@ -62,9 +62,15 @@ default:
    scope/page it for very large accounts. Largely moot once incremental cursors (#3) land. Decide with data.
 5. **SQL ledger efficiency (T0)** — `INSERT … ON CONFLICT DO NOTHING`, prepared statements, a covering
    index on `(tenant_id, mapping_id, natural_key_hash)`, and batched multi-row inserts during reindex.
+   Applied in part: `recordIfAbsent` inserts with `ON CONFLICT DO NOTHING` (`packages/ledger/src/ledger.ts`),
+   and the natural key is `UNIQUE (tenant_id, mapping_id, item_type, natural_key_hash)`
+   (`packages/ledger/migrations/0001_baseline.sql`).
 6. **Streaming large bodies (contract change)** — `RawMessage.rfc822` currently buffers the whole
    message; for large attachments, stream source→target to cut peak memory. Needs a streaming variant of
-   `SourceConnector.fetch` / `TargetWriter.upsertEmail`.
+   `SourceConnector.fetch` / `TargetWriter.upsertEmail`. Files: done for the file sources and the
+   WebDAV target in workplan 0120: a body above `STREAM_FILES_LARGER_THAN_BYTES` (8 MB,
+   `packages/shared/src/file-body.ts`) streams. The JMAP file target does not yet read a streamed
+   body. Mail (`RawMessage.rfc822`) still buffers the whole message.
 7. **Streaming `listSince` (contract change)** — return items as an async iterable instead of a
    materialized array, so very large folders do not hold all item metadata at once.
 8. **Parallel reindex** — consume `TargetReindexer.listEntries` with bounded concurrency (serial iterator

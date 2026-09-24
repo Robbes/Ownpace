@@ -939,9 +939,18 @@ phase_trigger() {
   # the tag pulls images that may not exist yet, pinning the SDK back changes
   # what the tasks are built with. Naming both is the useful thing a script can
   # do here.
-  local sdk_version tag_version
+  local sdk_version tag_version compose_default
   sdk_version="$(node -p "require('${REPO_ROOT}/apps/worker/package.json').dependencies['@trigger.dev/sdk']")"
-  tag_version="${TRIGGER_IMAGE_TAG:-v4.5.9}"
+  # The fallback is managed.yml's own default, read the way trigger-version.sh's
+  # repo_tag reads it (here-strings, not pipes: see no-pipeline-its-own-consumer-
+  # can-kill). A copy of the number here said v4.5.9 while the images defaulted
+  # to v4.5.16, so an .env without the key failed on a drift that was not there.
+  # A miss is NAMED: under `set -e` a bare failing grep ends the bring-up here
+  # with no word about why.
+  compose_default="$(grep -oE '\$\{TRIGGER_IMAGE_TAG:-v[^}]+\}' "${SCRIPT_DIR}/managed.yml")" \
+    || die "managed.yml carries no \${TRIGGER_IMAGE_TAG:-v…} default, so there is no image version to compare apps/worker's SDK with"
+  compose_default="$(sed 's/.*:-//;s/}//' <<<"$(head -1 <<<"$compose_default")")"
+  tag_version="${TRIGGER_IMAGE_TAG:-$compose_default}"
   if [ "${tag_version#v}" != "$sdk_version" ]; then
     echo "!!! Trigger.dev version drift (0018 T0):" >&2
     echo "!!!   images:  ${tag_version}   (TRIGGER_IMAGE_TAG, or managed.yml's default when unset)" >&2
@@ -1415,10 +1424,10 @@ phase_app() {
   # kind of instruction nobody should have to be given.
   #
   # So zitadel comes up on its own first (it already declares
-  # `depends_on: postgres: service_healthy`, and its healthcheck is the
-  # provider's own `ready`, not a port probe — it listens well before its
-  # migrations are done). The second `up` below is idempotent for anything
-  # already running.
+  # `depends_on: postgres: service_healthy`, and its readiness is asked from
+  # the host by `wait_for_idp_ready`, not by a port probe — it listens well
+  # before its migrations are done). The second `up` below is idempotent for
+  # anything already running.
   #
   # Until workplan 0099 NOTHING invoked this script at all: it was documented as
   # a step somebody runs by hand, so a bring-up produced a stack whose sign-in

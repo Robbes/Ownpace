@@ -77,8 +77,13 @@ dashboard genuinely queries ClickHouse (its absence killed the webapp process, n
 ```bash
 cd deploy/compose
 
-# Everything, in dependency order (healthchecks gate the app tier):
-docker compose -f managed.yml up -d --build
+# First bring-up on a new machine: ./bootstrap-managed.sh (docs/managed-bring-up.md).
+# A bare `up` cannot stand in for it: pgbouncer stays unhealthy until setup-auth.sql
+# has created its lookup role, the identity provider is never provisioned, and
+# the demo Nextcloud starts too.
+# Bring an existing stack up again — this rebuilds api/web and re-runs
+# setup-zitadel.sh (idempotent):
+./bootstrap-managed.sh --only app
 
 # Migrations: the API runs them itself at boot (packages/ledger migration runner,
 # under an advisory lock, idempotent). There is deliberately NO initdb mount of the
@@ -192,20 +197,15 @@ workplan 0018.
 1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
    There is no SMTP: fetch the magic link from the logs and open it in the same browser:
    ```bash
-   docker logs trigger-api 2>&1 | grep -o 'https://[^ ]*magic[^ ]*' | tail -1
+   ./deploy/compose/trigger-magic-link.sh
    ```
-2. Create an org + project in the dashboard. Copy the project ref (`proj_…`) into `.env` as
-   `TRIGGER_PROJECT_REF`.
-3. Read the prod API key from the trigger DB and set it in `.env` as `TRIGGER_SECRET_KEY`
-   (the dashboard shows it too, under API keys):
-   ```bash
-   docker exec trigger-db psql -U trigger -d triggerdb -Atc \
-     "SELECT e.\"apiKey\" FROM \"RuntimeEnvironment\" e JOIN \"Project\" p ON p.id = e.\"projectId\" WHERE e.slug = 'prod' ORDER BY e.\"createdAt\" DESC LIMIT 1"
-   ```
-4. Recreate the API so it picks up the new values:
-   `docker compose -f managed.yml up -d --force-recreate api`
-   (and re-run `set-task-env.sh` if a value the tasks read changed)
-5. Upload the task-runtime env vars (task containers inherit NOTHING from compose — including
+2. Create an org + project in the dashboard.
+3. Resume with `./deploy/compose/bootstrap-managed.sh --from account`: `trigger-credentials.sh`
+   reads the `proj_…` ref and the prod `tr_prod_…` key out of the instance, writes them to `.env`
+   and restarts the API (see [managed-bring-up.md](./managed-bring-up.md), phase 6). If `.env`
+   still holds the previous instance's pair, that phase reports nothing to do;
+   `./deploy/compose/trigger-credentials.sh --write` overwrites both.
+4. Upload the task-runtime env vars (task containers inherit NOTHING from compose — including
    the `SMTP_*`/`NOTIFY_*` values the digest and the rollback notice read, so a value that lives
    only in `.env` and is never uploaded is a value those tasks will never see):
    ```bash
@@ -368,6 +368,13 @@ we prefer roll-forward + backups.
 # Logical backup (portable):
 docker compose -f managed.yml exec -T postgres \
   pg_dump -U openmigrate -d openmigrate --format=custom > backup-$(date +%F).dump
+# The identity provider's accounts are a SECOND database on the same server
+# (managed.yml: ZITADEL_DATABASE_POSTGRES_DATABASE, default `zitadel`):
+docker compose -f managed.yml exec -T postgres \
+  pg_dump -U openmigrate -d zitadel --format=custom > zitadel-$(date +%F).dump
+# Roles are cluster-global and pg_dump omits them (app_user, pgbouncer_auth, zitadel):
+docker compose -f managed.yml exec -T postgres \
+  pg_dumpall -U openmigrate --roles-only > roles-$(date +%F).sql
 
 # Restore into a fresh DB:
 docker compose -f managed.yml exec -T postgres \
@@ -379,6 +386,10 @@ Notes:
   from the target rehydrates idempotency state. Back up the DB anyway — it also holds tenant,
   member, mapping, billing, and audit rows that are not derivable from the target.
 - Never run two app versions against one DB (§22.1). Migrate, verify, then deploy.
+- Neither dump is usable without `deploy/compose/.env`: `SECRET_ENCRYPTION_KEY` decrypts stored
+  credentials and `ZITADEL_MASTERKEY` the provider's data. Keep a copy off the host, apart from the
+  dumps. Restore with the api and zitadel stopped, roles first. This procedure has not been drilled
+  for the managed edition (the appliance's has: `test/e2e/selfhost-backup-restore.e2e.test.ts`).
 
 ## Upgrade
 
@@ -1107,16 +1118,18 @@ up, deletions at the source are reported), and then finish.
 ### Which services the managed gate actually speaks for
 
 `smoke-managed.sh` says `unhealthy: none`, and that sentence is narrower than
-it sounds: **seven of the fourteen services define no healthcheck**, so
-`docker compose ps` can only say they are *running*. If a red gate points at a
-service, this is the map of what proved it and how:
+it sounds: **six of the seventeen long-running services define no
+healthcheck**, so `docker compose ps` can only say they are *running*. If a red
+gate points at a service, this is the map of what proved it and how:
 
 | service | how it is proven |
 |---|---|
-| postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web | compose healthcheck — `--wait` blocks on them |
+| postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web, mailpit | healthcheck (compose, or the image's own HEALTHCHECK for api and web) — `--wait` blocks on them |
 | nextcloud, trigger-api, trigger-supervisor | compose healthcheck, added 2026-08-19 |
 | trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy |
 | minio, trigger-tls | **asserted by the smoke**, not probed — see below |
+| zitadel | no healthcheck by design (managed.yml): readiness is asked from the host by `wait_for_idp_ready`, and the smoke checks the issuer |
+| gatus | no healthcheck by design (a `FROM scratch` image): the smoke probes `/health` over the published port |
 
 `minio` and `trigger-tls` have no healthcheck on purpose. A compose probe runs
 INSIDE the image, so under `up -d --wait` one naming a binary that image lacks
@@ -1149,6 +1162,7 @@ trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
 - RLS details: [`rls-guide.md`](./rls-guide.md).
 - Workplans: [`0018`](./workplans/0018-trigger-task-deployment.md) (task deployment, closed with
   live evidence), [`0020`](./workplans/0020-managed-stack-productionization.md) (this stack's
-  productionization — T8 will decide the polling scheduler's future),
+  productionization — T8 retired the polling scheduler in favour of the `managed-sync-tick`
+  task, workplan 0022),
   [`0011`](./workplans/0011-managed-edition-hardening.md) (history).
 - Deployment overview: [`deployment.md`](./deployment.md).

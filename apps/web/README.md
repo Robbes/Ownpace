@@ -245,7 +245,7 @@ the appliance image runs `build:selfhost` and serves the bundle at `/ui`.
 - Chrome/Edge (latest 2 versions)
 - Firefox (latest 2 versions)
 - Safari (latest 2 versions)
-- Mobile Safari (iOS 14+)
+- Mobile Safari (iOS 16.4+ — the floor of both Vite 8's default `build.target` (`baseline-widely-available`; `vite.config.ts` sets none) and Tailwind CSS v4's output, which relies on `@property`)
 - Chrome Mobile (latest 2 versions)
 
 ## Contributing

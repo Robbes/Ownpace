@@ -23,11 +23,12 @@ updates:
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
       # The Trigger.dev SDK moves with the Trigger.dev image or not at all: the two
-      # compose defaults, managed.env.example and apps/worker's SDK must agree, the
-      # bring-up and bootstrap-managed.unit.test.ts refuse when they do not, and an
-      # upgrade is a one-way schema migration on the persistent stack. Dependabot
-      # moved the SDK alone on 2026-08-24 and every managed run died at the bring-up.
-      # deploy/compose/trigger-version.sh moves all four places. Workplan 0119 T1.
+      # compose defaults, managed.env.example and every @trigger.dev/* manifest
+      # must agree, the bring-up and bootstrap-managed.unit.test.ts refuse when they
+      # do not, and an upgrade is a one-way schema migration on the persistent
+      # stack. Dependabot moved the SDK alone on 2026-08-24 and every managed run
+      # died at the bring-up.
+      # deploy/compose/trigger-version.sh moves every one of them. Workplan 0119 T1.
       - dependency-name: "@trigger.dev/*"
     groups:
       # One PR/week for routine minor+patch bumps across dev + prod deps.

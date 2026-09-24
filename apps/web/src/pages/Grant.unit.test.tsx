@@ -15,6 +15,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const { readMock, authorizeMock, serverMessageMock, assignMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
@@ -47,17 +48,20 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/grant/abc.def']}>
-        <Routes>
-          <Route path="/grant/:link" element={<Grant />} />
-        </Routes>
-      </MemoryRouter>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={['/grant/abc.def']}>
+          <Routes>
+            <Route path="/grant/:link" element={<Grant />} />
+          </Routes>
+        </MemoryRouter>
+      </LocaleProvider>
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.setItem('ownpace.locale', 'en');
   serverMessageMock.mockReturnValue('a server sentence');
   readMock.mockResolvedValue(SUBJECT);
   vi.stubGlobal('location', { assign: assignMock });
@@ -92,8 +96,24 @@ describe('what a person sees before consenting', () => {
   it('puts the privacy policy and terms beside the button, before any redirect', async () => {
     renderPage();
     const privacy = await screen.findByRole('link', { name: 'Privacy policy' });
-    expect(privacy).toHaveAttribute('href', expect.stringContaining('privacy'));
-    expect(screen.getByRole('link', { name: 'Terms' })).toBeInTheDocument();
+    // The files the site build writes (site/copy.mjs `files`). Its nginx has no
+    // `.html` fallback, so the extension-less `/privacy` these said was a 404.
+    expect(privacy).toHaveAttribute('href', 'https://www.ownpace.eu/privacy.html');
+    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute(
+      'href',
+      'https://www.ownpace.eu/terms.html',
+    );
+  });
+
+  it('links a Dutch reader to the Dutch policy and terms, not the English ones', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    renderPage();
+    const privacy = await screen.findByRole('link', { name: 'Privacybeleid' });
+    expect(privacy).toHaveAttribute('href', 'https://www.ownpace.eu/nl/privacy.html');
+    expect(screen.getByRole('link', { name: 'Voorwaarden' })).toHaveAttribute(
+      'href',
+      'https://www.ownpace.eu/nl/voorwaarden.html',
+    );
   });
 
   it('says from which account and to which destination, before the button (0108 T8a)', async () => {

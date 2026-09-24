@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { setupStepsFor, summariseSetup, type SetupSide } from '@openmig/shared';
 import type { SetupChecklist } from '../services/mapping-service.ts';
 
 const { get, setStep } = vi.hoisted(() => ({ get: vi.fn(), setStep: vi.fn() }));
@@ -203,5 +204,67 @@ describe('Setup — names the provider, and goes back where you came from (0074)
 
     const back = await screen.findByText(/Back to the wizard/);
     expect(back.getAttribute('href')).toBe('/mappings/new');
+  });
+});
+
+
+/**
+ * A checklist that asks for what the product actually uses.
+ *
+ * The Google checklist said to enable "Drive, Gmail, Calendar, People or
+ * Tasks", while the calendar and contacts faces read Google's CalDAV and
+ * CardDAV endpoints — which are separate APIs, and the owner was refused at
+ * Test for want of the CalDAV one. It offered a Desktop client, which has no
+ * redirect for Connect. And the JMAP checklist asked for an "API token" the
+ * connector cannot send: it signs in with HTTP Basic username:password, in a
+ * field labelled Password. These render the real steps, not a fixture.
+ */
+describe('Setup — asks for what the product uses', () => {
+  const real = (side: SetupSide, provider: string): SetupChecklist => {
+    const steps = setupStepsFor(side, provider).map((step) => ({ step, state: 'open' as const }));
+    return { side, provider, steps, progress: summariseSetup(steps) };
+  };
+
+  it('names the Google APIs the source calls, and a Web client', async () => {
+    get.mockResolvedValue(real('source', 'google-calendar'));
+    renderPage('/setup/source/google-calendar');
+
+    expect(await screen.findByText(/CalDAV API, Google Contacts CardDAV API/)).toBeTruthy();
+    expect(screen.getByText(/OAuth client ID, as a Web application\./)).toBeTruthy();
+    expect(screen.queryByText(/Desktop/)).toBeNull();
+  });
+
+  it('asks a JMAP target for the password it signs in with, not a token', async () => {
+    get.mockResolvedValue(real('target', 'jmap'));
+    renderPage('/setup/target/jmap');
+
+    expect(await screen.findByText('Create an app password for it')).toBeTruthy();
+    expect(screen.getByText(/a username and an app password/)).toBeTruthy();
+    expect(screen.queryByText(/API token/)).toBeNull();
+  });
+});
+
+
+/**
+ * "Read the full setup guide" opened the not-found page for every target and
+ * for the IMAP source: the link was `/docs/${provider}-setup` whether or not
+ * that guide exists, and no target has one. It shows now only when it goes
+ * somewhere.
+ */
+describe('Setup — links the full guide only when there is one', () => {
+  it('links the guide a provider has', async () => {
+    get.mockResolvedValue(checklist());
+    renderPage();
+
+    const guide = await screen.findByText('Read the full setup guide');
+    expect(guide.getAttribute('href')).toBe('/docs/box-setup');
+  });
+
+  it('offers no link to a guide that does not exist', async () => {
+    get.mockResolvedValue(checklist({ side: 'target', provider: 'jmap' }));
+    renderPage('/setup/target/jmap');
+
+    await screen.findAllByText(/Client ID and a Client Secret/);
+    expect(screen.queryByText('Read the full setup guide')).toBeNull();
   });
 });

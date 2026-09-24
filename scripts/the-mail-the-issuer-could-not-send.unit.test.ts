@@ -94,6 +94,20 @@ describe('the identity provider is given a way to send mail', () => {
     ).not.toMatch(/ZITADEL_SMTP/);
   });
 
+  it('hands the provider the relay credentials the API is handed', () => {
+    // The API authenticates with SMTP_USER/SMTP_PASSWORD (managed.yml,
+    // notifications.ts). The provider was created with `user: ""` and
+    // `password: ""` whatever .env said, so against any relay that wants a
+    // login the API's mail went out and every verification link did not.
+    expect(setup).toMatch(/read_env SMTP_USER\b/);
+    expect(setup).toMatch(/read_env SMTP_PASSWORD\b/);
+    expect(
+      setup,
+      'the email provider is created with an empty user or password, so a relay\n' +
+        'that needs a login refuses every mail the identity provider sends.',
+    ).not.toMatch(/\b(user|password):\s*""/);
+  });
+
   it('treats an empty SMTP_HOST as off rather than as an error', () => {
     // A deployment that has not chosen a relay is not misconfigured, and a
     // bring-up that refused over it would be inventing a requirement.

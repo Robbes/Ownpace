@@ -73,7 +73,8 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   carddav: { driven: 'e2e.yml — Nextcloud contacts, same pass' },
   webdav: { driven: 'e2e.yml — Nextcloud files, same pass' },
   // THE O365 HARNESS HAS NEVER RUN. e2e-o365.yml is workflow_dispatch-only and
-  // has ZERO runs in its lifetime; the suite it invokes skips silently unless
+  // has never executed: its only two dispatches (2026-09-06) were cancelled
+  // before any runner took them; the suite it invokes skips silently unless
   // O365_CLIENT_ID and O365_TENANT_ID are set, so even a run without them
   // would report pass having executed nothing. It was recorded here as
   // `driven` on first writing — the exact laundering of an appearance into an
@@ -120,27 +121,29 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   },
   dropbox: { uncoverable: 'needs a Dropbox app and a real account. Same class as gmail.' },
   box: { uncoverable: 'needs a Box app and a real account. Same class as gmail.' },
-  // THE ONE SOURCE CI COULD FULLY DRIVE, and the only `owed` that is not
-  // waiting on somebody else's tenant (workplan 0116 T1).
+  // THE ONE SOURCE CI COULD FULLY DRIVE (workplan 0116 T1), and now does.
   //
   // Every `uncoverable` above says the same thing: it needs a real account at
   // a real provider and a consent nothing in CI can press. An archive needs
   // NEITHER. It is a folder of files, so a fixture tree checked into this
   // repository is a complete and honest stand-in — the same bytes a person's
-  // export contains, minus the person. That makes this `owed` rather than
-  // `uncoverable`, and it is 0116 T10: a tiny fixture archive of each shape,
-  // imported end to end, asserting item count, hashes and a second import
-  // writing nothing.
+  // export contains, minus the person. That made this `owed` rather than
+  // `uncoverable` from 2026-09-04 until 0116 T10 landed: a fixture Takeout,
+  // imported end to end, asserting placement, the manifest and a second
+  // import writing nothing.
   //
-  // `takeout-archive-reader.unit.test.ts` already drives the READER against
-  // such a tree. It is not written here as `driven` because this table asks
-  // what a GATE stands up, and a unit test is not a gate — recording it as
-  // driven would be the laundering of an appearance into an assurance that
-  // `graph-calendar` above exists to warn about.
+  // `takeout-archive-reader.unit.test.ts` drives the READER against such a
+  // tree, and was never the reason for `driven`: this table asks what a GATE
+  // stands up, and a unit test is not a gate. The reason is the three gates
+  // e2e.yml runs unconditionally in both nightlies (Postgres and PGlite),
+  // each named below so the check at the bottom of this file holds them to
+  // existing and being run.
   archive: {
-    owed:
-      'the only source type CI could drive completely — a fixture export tree needs no '
-      + 'account, no consent and no network. Workplan 0116 T10.',
+    driven:
+      'e2e.yml — selfhost-archive-import.e2e.test.ts, selfhost-archive-zip-import.e2e.test.ts '
+      + 'and selfhost-archive-in-target-import.e2e.test.ts import the fixture Takeout end to end '
+      + '(the folder, its two-part .zip, and that .zip read from inside the target) every '
+      + 'nightly, both backends',
   },
 };
 
@@ -210,28 +213,26 @@ describe('what is owed stays visible, and stays exact', () => {
     // fails here until somebody writes that decision down on purpose — which
     // is the moment to ask whether it should just be driven instead.
     //
-    // Four of these five are the O365 family, and they are one decision, not
-    // four: whether a real-tenant path is exercised by a harness nobody runs,
+    // All five are the O365 family, and they are one decision, not five:
+    // whether a real-tenant path is exercised by a harness nobody runs,
     // by a documented manual migration somebody actually performs, or not at
     // all. Until that is decided, saying so here is more honest than a
     // workflow file that has never executed.
     // imap-dav left this list on 2026-08-24 — the only entry that was ever
     // coverable with what the gates already stand up, and now driven.
     //
-    // `source:archive` joined on 2026-09-04 (0116 T1) and is a DIFFERENT
-    // admission from the four above it. Theirs is "we have a tenant and no
-    // harness"; this one is "we need neither, and have not built the gate
-    // yet" — a fixture export tree checked into this repository is a complete
-    // stand-in, because an archive is a folder of files rather than an
-    // account. It is therefore the entry most likely to be wrong to leave
-    // here, which is exactly what a hard list is for.
+    // `source:archive` joined on 2026-09-04 (0116 T1) as a DIFFERENT
+    // admission from the O365 five: theirs is "we have a tenant and no
+    // harness", its was "we need neither, and have not built the gate yet".
+    // It was the entry most likely to be wrong to leave here, which is
+    // exactly what a hard list is for, and it left when 0116 T10 landed: the
+    // three archive gates in e2e.yml drive it every nightly.
     expect(owed).toEqual([
       'source:graph-mail',
       'source:graph-calendar',
       'source:graph-contacts',
       'source:graph-drive',
       'source:graph-todo',
-      'source:archive',
     ]);
   });
 

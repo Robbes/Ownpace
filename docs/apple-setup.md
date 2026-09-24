@@ -42,12 +42,12 @@ true and useless.
 
 ## 2. Add the connection
 
-Connections → **Add** → **Apple**. Two boxes:
+Connections → **Add a connection** → **Apple account (iCloud)**. Two boxes:
 
 - **Address** — your iCloud address, `you@icloud.com`.
 - **App-specific password** — paste what Apple showed you.
 
-**Save & test.** The test asks each face at its own host — calendars at
+**Add and test.** The test asks each face at its own host — calendars at
 `caldav.icloud.com`, contacts at `contacts.icloud.com`, mail at
 `imap.mail.me.com` — and reports what it found, per face, with counts. A face
 it could not measure says **why**, on the card, rather than showing a bare `?`.
@@ -226,7 +226,7 @@ sentences above are which.
 - The **behaviour of a live iCloud account** — whether the app-specific
   password is accepted with the dashes Apple displays, whether Apple wants the
   local part or the whole address as the username, and what the face counts
-  come back as — is **not yet measured**. See
-  [`apple-supervised-run.md`](apple-supervised-run.md), which is the sitting
-  that turns those from reasoned into measured. Until it is walked, treat this
-  page as accurate about Apple's design and unproven about Apple's servers.
+  come back as — is **not yet measured**. A supervised run against a real
+  account is what turns those from reasoned into measured. Until it has been
+  done, treat this page as accurate about Apple's design and unproven about
+  Apple's servers.

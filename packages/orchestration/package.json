@@ -13,6 +13,7 @@
     "@openmig/core": "workspace:*",
     "@openmig/engines": "workspace:*",
     "@openmig/ledger": "workspace:*",
-    "@openmig/shared": "workspace:*"
+    "@openmig/shared": "workspace:*",
+    "croner": "10.0.1"
   }
 }

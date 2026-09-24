@@ -67,4 +67,4 @@ time the `latest` channel exists — check it appeared.
 
 - Code signing for the Windows payload — 0025 T6 / 0015 T4.
 - MSI packaging — 0015 T3.
-- SLSA build provenance — named gap, SAD §21.
+- SLSA build provenance — named gap, SAD §22.1.

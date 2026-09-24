@@ -3,7 +3,7 @@
 Canonical doc. Summarises how the stack is deployed; full rationale in `architecture/solution-architecture.md` §7, §18, §22.1.
 
 ## Editions (one core)
-- **Managed:** one Docker Compose stack on one host, [`deploy/compose/managed.yml`](../deploy/compose/managed.yml): Postgres 18 with RLS behind PgBouncer, a self-hosted Trigger.dev execution plane (its own Postgres, Redis, ClickHouse, MinIO, registry and TLS front), Zitadel as the OIDC issuer (ADR-0042), the API and web app, and Gatus as the status page. Secrets are AES-256-GCM under `SECRET_ENCRYPTION_KEY`, held in the host's `deploy/compose/.env` (a vault — OpenBao/Infisical — is the intended step, NOT built; 0026 T3 row 10, 2026-08-05; ADR-0037 names the plaintext key an open gap). SAD §18's managed Postgres, S3-compatible object storage and IaC/GitOps (OpenTofu + Helm + Argo CD/Flux) are the intended platform and are **not built**. Dependabot keeps dependencies current.
+- **Managed:** one Docker Compose stack on one host, [`deploy/compose/managed.yml`](../deploy/compose/managed.yml): Postgres 18 with RLS behind PgBouncer, a self-hosted Trigger.dev execution plane (its own Postgres, Redis, ClickHouse, MinIO, registry and TLS front), Zitadel as the OIDC issuer (ADR-0042), the API and web app, Gatus as the status page, and Mailpit catching outbound mail. Secrets are AES-256-GCM under `SECRET_ENCRYPTION_KEY`, held in the host's `deploy/compose/.env` (a vault — OpenBao/Infisical — is the intended step, NOT built; 0026 T3 row 10, 2026-08-05; ADR-0037 names the plaintext key an open gap). SAD §18's managed Postgres, S3-compatible object storage and IaC/GitOps (OpenTofu + Helm + Argo CD/Flux) are the intended platform and are **not built**. Dependabot keeps dependencies current.
 - **Self-host:** Docker Compose (the Home Assistant add-on was retracted 2026-08-05, 0026 T3 row 17 — SAD §7.1); **in-process scheduler** (no Trigger.dev); Postgres-only (ADR-0023): a small bundled Postgres by default, or embedded **PGlite** with no database server at all (`SELFHOST_PERSISTENCE=pglite`, `deploy/selfhost/compose.pglite.yml`, ADR-0028); secrets AES-256-GCM under `SECRET_ENCRYPTION_KEY` (OS keystores deferred, ADR-0037). Targets remain managed EU/CH platforms (self-hosted email is permitted but user-operated, ADR-0011).
 
 For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what the operator can and cannot see) see the **[Operator Runbook](./operator-runbook.md)**; the stack is [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
@@ -22,7 +22,7 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 - **Migrations on startup behind a lock** (hand-written SQL applied by `runMigrations`, ADR-0045; Atlas lint in CI); the app refuses to start if the schema is newer than it understands.
 - **Multi-arch images (amd64+arm64), signed (cosign keyless, by digest)**, SBOM in **CycloneDX** (per-commit CI artifact; attached to each release — first: `v0.1.0-rc.1`, 2026-08-04); consumers pin by digest. Verify a pull with `cosign verify --certificate-identity-regexp 'https://github.com/Robbes/(open-migrate|Ownpace)' --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/robbes/ownpace-selfhost:edge`.
 - **Release channels** (the real ones — see deploy/selfhost/README.md): `edge` per merge, `sha-<commit>`, `X.Y.Z` per tag, `latest` only once a non-prerelease exists; self-host updates via image tags; back up the ledger before upgrading; never run two app versions against one database. The release procedure is docs/release.md.
-- Managed: staged/canary rollout, DB backup before migrate, roll-forward preferred over schema rollback.
+- Managed: roll-forward preferred over schema rollback (the app refuses a schema newer than it knows). Not built today: staged/canary rollout (the stack is one compose host), and a DB backup taken before migrate ([`managed-bring-up.md`](./managed-bring-up.md), *What this does not cover*; the [runbook](./operator-runbook.md)'s backup is a manual step).
 
 ## Connection pooling (managed)
 
@@ -30,9 +30,10 @@ For managed day-2 operations (start/stop, seed, backup, tenant offboarding, what
 app and the worker connect through it; **migrations always connect direct**, via
 `DIRECT_DATABASE_URL`.
 
-The worker is the reason it exists: every sync pass opens its own `pg.Pool` of
-`DEFAULT_CONCURRENCY + 2`, so the server-connection ceiling was
-concurrent-passes × 6 against a managed Postgres whose connection limit is far
+The worker is the reason it exists: every managed sync pass opens unbounded
+`pg.Pool`s (node-postgres default `max` 10; the job's own plus one per domain
+while it runs), so the server-connection ceiling was concurrent-passes × up to
+20 against a managed Postgres whose connection limit is far
 below what its CPU allowance suggests. Pooling removes that as a *class* of
 problem rather than as an incident.
 

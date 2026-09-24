@@ -527,6 +527,27 @@ describe("the link holder's ending, when nothing was stored", () => {
   });
 });
 
+describe('every ending is a whole document a phone lays out at its own width', () => {
+  // These were bare `<main>` fragments: no viewport, so a phone rendered them
+  // ~980px wide and shrank them to fit, the progress link the person is told
+  // to keep included. No doctype, no lang, no title either.
+  const OK = { ok: true as const, refreshToken: 'rt-123', grantedScopes: [PENDING.scope] };
+  const pages: ReadonlyArray<readonly [string, string]> = [
+    ['the owner, handed back', consentResultPage({ webOrigin: 'https://app.example.nl', outcome: OK })],
+    ['the owner, copy-paste', consentResultPage({ outcome: OK })],
+    ['the owner, refused', consentResultPage({ outcome: { ok: false, reason: 'access_denied' } })],
+    ['the link holder, done', grantResultPage({ ok: true })],
+    ['the link holder, refused', grantResultPage({ ok: false, reason: 'No.', link: 'unused' })],
+  ];
+
+  it.each(pages)('%s', (_name, page) => {
+    expect(page.startsWith('<!doctype html><html lang="en">')).toBe(true);
+    expect(page).toContain('<meta name="viewport" content="width=device-width, initial-scale=1" />');
+    expect(page).toContain('<title>Ownpace</title>');
+    expect(page.endsWith('</body></html>')).toBe(true);
+  });
+});
+
 describe("the headers the page is served under: the API's defaults deny it its own script (2026-09-02)", () => {
   // The owner's walk: Google came back to a page saying "handing the result
   // back… you can close this window", and nothing arrived. helmet's default

@@ -9,10 +9,12 @@
  * truncated, a removal that took the wrong message. T1 went first so the parity
  * apparatus would be trusted before it guarded this.
  *
- * Like `ImapFlowSource`, this ships BESIDE `ImapDavMailTarget` rather than
- * instead of it. Nothing is cut over. `imap-target-parity.ts` runs the two
- * writers through the same script against the same server and reports every
- * disagreement as a named field.
+ * Like `ImapFlowSource`, this shipped BESIDE `ImapDavMailTarget` first rather
+ * than instead of it, and `imap-target-parity.integration.test.ts` ran the two
+ * writers through the same script against the same server and reported every
+ * disagreement as a named field. The cutover followed on that evidence (0032
+ * T3, 2026-08-06, `mail-target-factory.ts`); `ImapDavMailTarget` and that
+ * harness were removed after it, and this is now the only IMAP write path.
  *
  * ============================================================================
  * TWO THINGS IMAPFLOW MAKES EASIER THAT MUST NOT BE TAKEN AT FACE VALUE
@@ -24,7 +26,7 @@
  * issues a **bare EXPUNGE**, which removes every message in the mailbox that
  * anyone has flagged `\Deleted`, including ones another client flagged and has
  * not committed. That destroys data nobody in this product ever looked at,
- * which hard rule 2 forbids outright. `ImapDavMailTarget` refuses in that case
+ * which hard rule 2 forbids outright. `ImapDavMailTarget` refused in that case
  * and so does this: the capability is checked HERE, before the call, and a
  * server without UIDPLUS gets a refusal rather than a broader deletion than was
  * asked for.
@@ -40,9 +42,9 @@
  * WHAT IMAPFLOW GENUINELY IMPROVES, AND WHERE THAT IS A BEHAVIOUR CHANGE
  * ============================================================================
  *
- * `ImapDavMailTarget.findByNaturalKey` searches ALL, then issues **one HEADER
- * FETCH PER MESSAGE**, string-scans each for a line starting `message-id:`, and
- * compares. This does one `FETCH … ENVELOPE` for the whole mailbox instead.
+ * `ImapDavMailTarget.findByNaturalKey` searched ALL, then issued **one HEADER
+ * FETCH PER MESSAGE**, string-scanned each for a line starting `message-id:`,
+ * and compared. This does one `FETCH … ENVELOPE` for the whole mailbox instead.
  * Faster by the size of the mailbox, and **more correct in one case that is
  * worth stating rather than smuggling**: a Message-ID folded across two lines
  * is missed by a line-prefix scan and parsed correctly by ENVELOPE. The old
@@ -55,7 +57,6 @@
  * something untrue about the migration.
  *
  * @see docs/workplans/0032-imapflow-migration.md — T2
- * @see packages/connectors/src/imap-target-parity.ts — the harness that gates this
  */
 
 import { ImapFlow } from 'imapflow';

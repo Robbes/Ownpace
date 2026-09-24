@@ -29,7 +29,7 @@ Connections page show a **Connect with Dropbox** button beside the token field. 
 Dropbox's consent screen for the account being migrated, and when that account approves, the
 refresh token lands in the field by itself and the connection is saved and tested in one go.
 Nothing is typed, and the App secret never leaves the server. You can still use your own app
-instead: open *Use your own Dropbox app instead* and enter the App key and App secret as a pair.
+instead: open *Use your own Dropbox app* and enter the App key and App secret as a pair.
 
 *Test* asks Dropbox for the top level of the root folder only, so it answers in seconds on a
 Dropbox of any size; the migration itself walks every folder. Beside the folder count, the
@@ -75,10 +75,9 @@ folder — its path is a valid `rootPath`. `scripts/list-dropbox-shared-folders.
 the wizard's browse) lists what the account can see, paths included; an unmounted share
 has no path until the account adds it to its Dropbox.
 
-**Managed** — pick Dropbox in the wizard: the App key goes in the key field on the source
-step; the App secret and refresh token ride the credential fields on the credentials step,
-stored encrypted. The **Test connections** button runs one read-only listing through
-exactly what a pass would build.
+**Managed** — pick Dropbox in the wizard: the App key, App secret and refresh token all go
+on the source step, stored encrypted. The **Test and save connections** button runs one
+read-only listing through exactly what a pass would build.
 
 **Managed, with the deployment's own app** — the operator sets the App key and App secret
 once, in the deployment's environment:

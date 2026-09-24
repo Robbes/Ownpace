@@ -22,6 +22,14 @@
  * `google-token-provider.ts` names that cause first when it fails — this makes
  * sure it is also named before somebody chooses it.
  *
+ * THE SAME SHAPE, FOUND AGAIN (2026-09-24). `GRAPH_FILES_READ_CONSENTED` is
+ * the other scope a deployment decides for itself: whether it holds
+ * `Files.Read.All`, which turns on the drive section of the permission report
+ * (`apps/api/src/routes/permissions.ts`). `managed.env.example` carried it
+ * with a whole paragraph of explanation, and `managed.yml` never passed it to
+ * the api service. A deployment that had granted the scope and set the flag
+ * got the "not inventoried" blind spot anyway, with nothing saying why.
+ *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY. A test in `scripts/` cannot
  * import `@openmig/shared`: the workspace aliases are not a substitute for a
  * declared dependency, and this file resolves none (AGENTS.md, and the reason
@@ -58,5 +66,40 @@ describe('an operator can find the setting', () => {
     expect(managed, 'the API service does not receive it').toContain(
       SETTING,
     );
+  });
+});
+
+describe('the drive-sharing scope reaches the API too', () => {
+  const DRIVE = 'GRAPH_FILES_READ_CONSENTED';
+
+  it('the API reads it, so forwarding it is not decoration', () => {
+    // If the permission report stops asking, this rule has lost its subject
+    // and should be rewritten or removed, not left passing on a string.
+    const route = readFileSync(join(REPO_ROOT, 'apps/api/src/routes/permissions.ts'), 'utf8');
+    expect(route).toContain('driveSharingAvailability(process.env)');
+  });
+
+  it('managed.env.example carries it', () => {
+    const example = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.env.example'), 'utf8');
+    expect(example).toMatch(new RegExp(`^${DRIVE}=`, 'm'));
+  });
+
+  it('managed.yml passes it to the API, or setting it does nothing', () => {
+    // The api service's own block, and a mapping entry in it: a comment
+    // naming the variable, or another service receiving it, forwards nothing
+    // to the process that reads it. Sliced by indentation rather than parsed,
+    // to stay on node builtins (above).
+    const managed = readFileSync(join(REPO_ROOT, 'deploy/compose/managed.yml'), 'utf8');
+    const start = managed.indexOf('\n  api:\n');
+    expect(start, 'managed.yml has no top-level api service').toBeGreaterThan(-1);
+    const rest = managed.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+    const api = next === -1 ? rest : rest.slice(0, next + 1);
+    expect(
+      api,
+      `the api service is not handed ${DRIVE}: a deployment that set it in .env still ` +
+        'gets the drive section reported as not inventoried. Add ' +
+        `"${DRIVE}: \${${DRIVE}:-}" to the api environment block.`,
+    ).toMatch(new RegExp(`^ {6}${DRIVE}: \\$\\{${DRIVE}:-\\}$`, 'm'));
   });
 });
