@@ -12,30 +12,40 @@ whatever the app carries. Box needs the tester's own Box app, approved by a Box 
 The Apple source has never been run against a live iCloud account. The owner's
 answers that bear on this are in §2, and the owner asked for Microsoft to be explained (§4).
 Nothing in this plan is built. The grant page already links to the privacy policy and the terms,
-which Google's in-product disclosure needs, but at paths the site does not serve (`/privacy` and
-`/terms`, where the site writes `.html` files). The corrected paths are drafted in the pending
-consistency PR and are not merged.
+which Google's in-product disclosure needs. It linked them at paths the site does not serve
+(`/privacy` and `/terms`, where the site writes `.html` files). That is fixed in #1137, merged
+2026-09-24: the grant page now links the `.html` pages on `www.ownpace.eu`, in the reader's
+language (`LEGAL` in `Grant.tsx`).
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137 merged.**
+Testers connect on `ownpace-live`, which uses the production Google client, not the OTA stack's
+test client, and Microsoft and Dropbox need live's redirect addresses: that is the new T11, done
+before any tester connects (§5). T0's test users and T1's Testing-or-Production choice now apply
+to the production client. #1137 also corrected the verification checklist's home-page row, so §1
+and T1 no longer ask for it.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 Each Google account a tester connects is a test user first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to. |
-| T1 Testing or Production for the alpha's Google client | ⏳ **Owner** (D1 chose Testing) | §3. Measure first; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. |
+| T0 Each Google account a tester connects is a test user of the production client first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to, listed on the client `ownpace-live` uses (T11), not the OTA stack's test client. |
+| T1 Testing or Production for the production Google client | ⏳ **Owner** (D1 chose Testing) | §3. Measure first, on the OTA stack's history; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. |
 | T2 What a Google tester is told, and a reconnect the page can find | 📋 **Proposed** (D1) | §3. The steps for the tester, and the word on the failure line matching a button that exists. |
 | T3 An "open it in Safari or Chrome" line before Google's screen | 📋 **Proposed** | §3. Google is reported to refuse consent inside an embedded browser (outside knowledge, §1); nothing on the page says what to do. |
 | T4 An ADR for the deployment's Microsoft registration | 📋 **Proposed**, recommended now (D2) | §4. ADR-0006's operative rule says the multi-tenant app is retired; the code carries a deployment registration whose authority defaults to `common`. |
 | T5 Microsoft publisher verification | ⏳ **Owner** (Partner Center), recommended to start now (D2) | §4. It has a lead time, and an organisation's consent policy may depend on it. |
 | T6 One foreign organisation and one personal account, before the first Microsoft tester | 📋 **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. |
-| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 📋 **Proposed** (D3) | §3. The limit must be read in the Dropbox App Console. The code change reverses a pinned test on purpose. |
+| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 📋 **Proposed** (D3) | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
 | T8 Box: experimental, and for organisations with a Box administrator | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
-| T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only, unless the owner's own sign-in needs one. 0133 waits on this. |
+| T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. |
+| T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7), before T0 | §3. A production Google client with its own secret and one redirect URI, `https://app.ownpace.eu/api/migrations/google/callback`. The production entry registered on 2026-08-20 sits on the test client, at a path the shipped route never matches. Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
 
 ## 1. What there is today
 
-Each fact below was checked at the current checkout on 2026-09-24. Where a claim is about Google,
-Microsoft or Dropbox rather than about this repository, it says whether anyone has read it from
-the provider. For this plan, nobody has. The providers' documentation pages could not be reached
-from where it was written, the same limit `docs/google-oauth-verification.md` states for Google.
+Each fact below was checked at the current checkout on 2026-09-24, and again on `main` after #1137
+merged the same day. Where a claim is about Google, Microsoft or Dropbox rather than about this
+repository, it says whether anyone has read it from the provider. For this plan, nobody has. The
+providers' documentation pages could not be reached from where it was written, the same limit
+`docs/google-oauth-verification.md` states for Google.
 
 ### Google
 
@@ -47,6 +57,25 @@ status line records that the client registered on 2026-08-20 is *"the **test (OT
 with production getting its own client before real customers exist"*.
 `docs/google-oauth-verification.md` says: *"The client is currently **External + Testing** with
 test users added in advance."* No document records a change since then.
+
+**Two stacks, two clients (0132 D7).** Each stack reads the pair from its own `.env`, so
+`ownpace-live` and the OTA stack each carry their own. The same file, §4b: *"**Test and production
+get separate clients**, not two paths on one origin."* The client that exists is the test client.
+No document records a production client yet (T11).
+
+**What is registered, and where.** Workplan 0091 §1 lists
+`https://app.ownpace.eu/oauth/google/callback` as the production redirect URI, and
+`docs/google-oauth-verification.md` §4b records it as registered on 2026-08-20. Two things limit
+what that entry is worth to live:
+
+- It was registered on the one client there was, the one ADR-0041 then named the test client.
+- It is the planned path. The shipped route is `/api/migrations/google/callback` (`callbackUri`
+  in `apps/api/src/routes/migrations/google-oauth-routes.ts`, built from `API_URL`), and §4b
+  warns that the registered `/oauth/…` entries *"never match the shipped route"*.
+
+The owner registered `https://app.ota.ownpace.eu/api/migrations/google/callback` on 2026-09-01
+(the header of `packages/shared/src/redirect-uris.ts`). No record says the production address at
+the shipped path is registered on any client.
 
 **What Testing costs, in the repository's own words.**
 
@@ -93,20 +122,21 @@ the same client.
 
 **Scopes.** The owner read the console's Data Access page on 2026-09-20 and again on 2026-09-23.
 Calendar (`calendar.readonly`), contacts (`carddav`) and tasks (`tasks.readonly`) are sensitive.
-Drive and every Gmail scope are restricted (`docs/google-oauth-verification.md` §2). Which class
-the reference deployment declares (`GOOGLE_ACCOUNT_SCOPE_CLASS`) is a value in its `.env`, not in
-the repository. Through the deployment's client, a Google account's mail and files faces, and a
-grant link that asks for them, are refused unless that value is `restricted`
-(`providerAccountDomains`, `grant-link-readiness.ts`). The `gmail` and `google-drive` source
-cards each ask for their own restricted scope, and that route does not read the class. A
-personal Gmail account can also be read with an app password (0089 T7), which needs 2-step
-verification on the account (`docs/google-workspace-setup.md`).
+Drive and every Gmail scope are restricted (`docs/google-oauth-verification.md` §2). That read was
+of the test client's console; a production client in a project of its own has a Data Access page of
+its own (T11). Which class a stack declares (`GOOGLE_ACCOUNT_SCOPE_CLASS`) is a value in that
+stack's `.env`, not in the repository, and live's is set with T1's choice. Through the stack's own
+client, a Google account's mail and files faces, and a grant link that asks for them, are refused
+unless that value is `restricted` (`providerAccountDomains`, `grant-link-readiness.ts`). The `gmail`
+and `google-drive` source cards each ask for their own restricted scope, and that route does not
+read the class. A personal Gmail account can also be read with an app password (0089 T7), which
+needs 2-step verification on the account (`docs/google-workspace-setup.md`).
 
-**A stale row.** `docs/google-oauth-verification.md` §1 still lists the application home page as
-*"⬜ Not built"*. The site generator has built it since 0091 T2 (done 2026-08-20). It is not yet
-published on the verified domain: `site/build.mjs` refuses a `--public` build while the legal
-pages carry unfilled placeholders, which is 0139's work. So the row should say "built, not
-published", not "done".
+**A row #1137 corrected.** `docs/google-oauth-verification.md` §1 listed the application home
+page as *"⬜ Not built"*, though the site generator has built it since 0091 T2 (done 2026-08-20).
+Since #1137 (merged 2026-09-24) the row reads *"🟡 Built, not yet published on `ownpace.eu`"*. It
+is not published on the verified domain because `site/build.mjs` refuses a `--public` build while
+the legal pages carry unfilled placeholders, which is 0139's work.
 
 ### In-app browsers
 
@@ -137,15 +167,23 @@ on 2026-08-09. Publisher verification is mentioned nowhere for this registration
 guide, not in 0114, not in the consent code. §4 explains all of this, because the owner asked for
 it.
 
+The consent's redirect address is `API_URL` plus `/api/migrations/microsoft/callback`
+(`callbackUri` in `microsoft-oauth-routes.ts`). Live has its own `API_URL`, so whichever
+registration live names must carry live's address as well (T11).
+
 ### Dropbox
 
 **The deployment's app.** The deployment can carry one Dropbox app (`DROPBOX_OAUTH_CLIENT_ID` and
 `_SECRET`, "The deployment's own Dropbox app (2026-09-02)" in `docs/managed-bring-up.md`), with
 `files.metadata.read` and `files.content.read` enabled and nothing else. No document records the
 app's development or production status, or how many accounts may link to it. The nightly gate
-writes `DROPBOX_OAUTH_CLIENT_ID=gatedropboxappkey` into the stack's `.env` when no value is present
-(`e2e-managed.yml`, `env-upsert.sh --if-absent`). The repository therefore cannot say whether the
-reference machine carries a real Dropbox app. 0132 removes the placeholder.
+writes `DROPBOX_OAUTH_CLIENT_ID=gatedropboxappkey` into the OTA stack's `.env` when no value is
+present (`e2e-managed.yml`, `env-upsert.sh --if-absent`). The repository therefore cannot say
+whether the reference machine carries a real Dropbox app. The placeholder stays on the OTA stack
+while the gate writes it; 0132 T5 takes it out only if that stack stops being a demo. Live's `.env` is its own and CI never writes to it (0132 D7, T1b), so live carries a
+Dropbox app only if the owner enters one. Its redirect address is `API_URL` plus
+`/api/migrations/dropbox/callback` (`dropbox-oauth-routes.ts`), so that app must carry live's
+address (T11).
 
 **The consent asks for whatever the app has.** `dropboxConsentUrl` in
 `apps/api/src/routes/migrations/dropbox-consent.ts` sets `client_id`, `response_type`,
@@ -182,8 +220,12 @@ Microsoft, GitHub and Apple sign-in (`IDP_GOOGLE_*`, `IDP_MICROSOFT_*`, `IDP_GIT
 `IDP_APPLE_*`). Its comments say one Google client or one Entra registration may serve both the
 sign-in and the migration consent. `setup-zitadel.sh` adds a provider only when its values are
 set. It adds Microsoft with `emailVerified: false`, so the identity provider still sends its own
-verification mail. The nightly gate writes a placeholder `IDP_GOOGLE_CLIENT_ID` when none is
-present, which 0132 removes.
+verification mail. The nightly gate writes a placeholder `IDP_GOOGLE_CLIENT_ID` into the OTA
+stack's `.env` when none is present, and keeps it there (0132 T5 parks its removal). Live's
+`.env` starts from the example, where every `IDP_*` value is empty, so live's identity provider
+offers no other provider until the owner sets one. A sign-in provider's redirect address is at the identity provider
+(`$JWT_ISSUER/ui/login/login/externalidp/callback`, the table in `docs/managed-bring-up.md` §8b),
+which for live is `id.ownpace.eu` (0132 T1d).
 The privacy policy says nothing about signing in with another provider (review; 0139).
 
 ## 2. The owner's decisions (2026-09-24)
@@ -196,8 +238,11 @@ testers registered in advance?* — *"Ill add people by hand"*. On the blocker, 
 in Testing, whose refresh tokens expire after about seven days*: *"I add people, controlled small
 test Group."*
 
-So the client stays External + Testing, and the owner lists each tester's Google account before
-they connect (T0). What this costs is set out in T1, and the owner confirms it there.
+D1 was answered about the one client there was. Since 0132 D7, testers connect on `ownpace-live`,
+which gets the production client (T11). So D1 is read as: the production client is External +
+Testing, and the owner lists each tester's Google account on it before they connect (T0). The test
+client stays with the OTA stack, for the owner's own testing there. What Testing costs is set out
+in T1, and the owner confirms it there.
 
 **D2 — Microsoft is explained before it is decided.** *Should the deployment's multi-tenant
 Microsoft app get its own ADR, and should publisher verification start now?* — *"Explain"*.
@@ -219,23 +264,37 @@ administrator may invite*: *"I am the gate for letting people in the test."*
 Those are the numbers every cap below is measured against. The caps count provider accounts, not
 testers: a tester who also connects two family members' Google accounts counts as three.
 
+**From 0132 D7 — testers on `ownpace-live`.** The owner asked: *"check, can't i just (as a start)
+host a 'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain? What
+would i need to do to keep alle seperate from each other?"* Asked whether that should be the
+decision, with testers on `ownpace-live`: *"Yes! The spark has a lot free memory and disk, it will
+fit."* 0132 records the whole decision. For this plan it means that every consent a tester meets
+runs against the registrations live names, at live's addresses: `app.ownpace.eu` for the consents
+(T11), and `id.ownpace.eu` for any sign-in provider (T10).
+
 ## 3. What each task does
 
-### T0 — each Google account a tester connects is a test user first (owner, per tester)
+### T0 — each Google account a tester connects is a test user of the production client first (owner, per tester)
 
-Before a tester presses *Verbinden met Google*, the owner adds each Google account they will
-connect as a test user of the client in the Google console. That means the tester's own account,
-and every account a grant link will be sent to. The owner keeps that list outside the repository,
-and at the end of the alpha removes the accounts (0131 T4). The limit is 100, a figure the
-repository marks as unverified. At 20 testers with up to four accounts each, plus the owner's
-own, the list stays under it.
+Before a tester presses *Verbinden met Google*, the owner adds each Google account they will connect
+as a test user of the production client in the Google console: the client `ownpace-live` uses (T11),
+not the OTA stack's test client. That means the tester's own account, and every account a grant link
+will be sent to. If T11 puts the production client in the test client's Google Cloud project, the
+two may share one list (T11). The owner keeps that list outside the repository, and at the end of
+the alpha removes the accounts (0131 T4). The limit is 100, a figure the repository marks as
+unverified. At 20 testers with up to four accounts each, plus the owner's own, the list stays under
+it.
 
 No code, so there is no guard.
 
-### T1 — Testing or Production for the alpha (owner)
+### T1 — Testing or Production for the production client (owner)
 
-**Measure first.** This is cheap, and it can change the answer. Read the owner's own Google
-connections on the OTA stack:
+The choice is made for the client live uses (T11). The test client stays as it is, with the OTA
+stack.
+
+**Measure first.** This is cheap, and it can change the answer. The only history is on the OTA
+stack, through the test client; live has none until its first connection. Read the owner's own
+Google connections there:
 
 - Were they made through the deployment's client, or with a client pair of their own?
 - When was the current token minted? The repository keeps no mint time as such. The
@@ -245,27 +304,28 @@ connections on the OTA stack:
   Since 2026-09-23, on a stack running that code, so does the operator's log page filtered to
   category `auth_expired` (0129 T2).
 
-If a connection on this client has run for more than seven days without a reconnect, the figure
-does not hold for it, and D1 costs nothing. Record the result here, with the dates.
+If a connection on the test client has run for more than seven days without a reconnect while
+that client was in Testing, the figure does not hold for it, and D1 costs nothing. Record the
+result here, with the dates.
 
-**Then choose.**
+**Then choose, for the production client.**
 
 - **(a) Keep Testing, as D1 says.** Test users can grant the restricted scopes. This is Google's
   documented behaviour as the repository understands it, and ADR-0041's carve-out assumes it. So
   Gmail and Drive through the consent stay available to listed testers: through the `gmail` and
-  `google-drive` cards, and through a Google account or a grant link where the stack declares
+  `google-drive` cards, and through a Google account or a grant link where live declares
   `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted` (§1). Every Google-sourced migration stops with
   `invalid_grant` about a week after its consent, until the tester reconnects (T2). Nothing is
   lost, and the pass resumes where it stopped. For an account connected through a grant link, the
   person who granted it has to grant again. The warning screen stays.
-- **(b) Publish the client to Production, unverified, with the sensitive scopes only.** There is
-  no seven-day expiry and no test-user list at Google. The warning screen stays the same, and so
-  does the ~100-user cap. Both figures are unverified. The service itself stays invite-only
-  through the access queue, so the owner is still the gate (D4). `GOOGLE_ACCOUNT_SCOPE_CLASS` is
-  left blank, so a Google account offers calendar, contacts and tasks. Gmail comes in by app
-  password (0089 T7). Whether an unverified Production client can grant a restricted scope at all
-  has not been tried. Try it with one account before relying on it; if it cannot, Drive is out of
-  the alpha. As understood, tokens minted in Testing do not change their lifetime when the status
+- **(b) Publish the client to Production, unverified, with the sensitive scopes only.** There is no
+  seven-day expiry and no test-user list at Google. The warning screen stays the same, and so does
+  the ~100-user cap. Both figures are unverified. The service itself stays invite-only through
+  live's access queue, so the owner is still the gate (D4). `GOOGLE_ACCOUNT_SCOPE_CLASS` is left
+  blank in live's `.env`, so a Google account offers calendar, contacts and tasks. Gmail comes in by
+  app password (0089 T7). Whether an unverified Production client can grant a restricted scope at
+  all has not been tried. Try it with one account before relying on it; if it cannot, Drive is out
+  of the alpha. As understood, tokens minted in Testing do not change their lifetime when the status
   changes, so every tester reconnects once after the switch.
 
 **Recommendation: (a) for the alpha, as the owner answered, on three conditions.** It keeps Gmail
@@ -281,9 +341,10 @@ a tester reconnects each Google account about three or four times.
 
 Either way, the owner records the choice as a dated update to ADR-0041. The operative rule
 *"Never 'External + Testing' for a real migration"* stays, and the update names the alpha as the
-exception and says when it ends. `docs/google-oauth-verification.md`'s "Testing vs Production"
-section says which was chosen, and its home-page row is corrected to "built, not published" in
-the same edit (§1).
+exception and says when it ends. The same update records that the production client ADR-0041
+asked for now exists, and that live uses it (T11). `docs/google-oauth-verification.md`'s "Testing
+vs Production" section says which status the production client has; its home-page row needs no
+edit, because #1137 corrected it (§1).
 
 No code, so there is no guard. The evidence is the measurement above, and then either the first
 reconnect recorded (a) or the first tester's connection still working on day eight (b).
@@ -291,7 +352,7 @@ reconnect recorded (a) or the first tester's connection still working on day eig
 ### T2 — what a Google tester is told, and a reconnect the page can find
 
 **The steps, for the tester.** The owner gives these to each Google tester. They move into a
-tester guide once there is one (W14 in 0131 §5). The Dutch text
+tester guide once there is one (0144, W14 in 0131 §5). The Dutch text
 is written with the first tester's real screens, using Google's own Dutch words as they appear on
 them.
 
@@ -373,18 +434,19 @@ both files say "retired", and no ADR names that variable.
 
 ### T5 — Microsoft publisher verification (owner)
 
-§4.3 says what it is and §4.4 why to start now. The steps are the owner's, in Partner Center and
-in the registration's *Branding & properties*. The legal entity's facts it needs are the same ones
-the owner supplies to 0139. When it is done, `docs/microsoft-setup.md` and the bring-up section on
-the deployment's Entra registration gain one step each, and T6's sentence is read again against
-the verified consent screen.
+§4.3 says what it is and §4.4 why to start now. The steps are the owner's, in Partner Center and in
+the *Branding & properties* of the registration live uses (T11), since that is the one testers
+consent to. The legal entity's facts it needs are the same ones the owner supplies to 0139. When it
+is done, `docs/microsoft-setup.md` and the bring-up section on the deployment's Entra registration
+gain one step each, and T6's sentence is read again against the verified consent screen.
 
 No code, so there is no guard. The evidence is the verified badge on the consent screen, recorded
 here with the date.
 
 ### T6 — one foreign organisation and one personal account, before the first Microsoft tester
 
-**The test.** Two consents, a Test and one pass, through the deployment's registration:
+**The test.** Two consents, a Test and one pass, on `ownpace-live`, through the registration live
+uses (T11):
 
 - a personal Microsoft account (outlook.com, hotmail.com or live.com);
 - a work or school account in a tenant that is not the one the registration lives in, and whose
@@ -418,16 +480,17 @@ fails today.
 
 ### T7 — Dropbox: the app's limits, and a consent that asks only to read
 
-**(a) Read the console (owner).** First, is the reference machine's `DROPBOX_OAUTH_CLIENT_ID` a
-real app or the gate's placeholder? If it is the placeholder, 0132 removes it, and the owner
-decides whether to register an app (open question 5). If it is real, read in the Dropbox App
-Console:
+**(a) Read the console (owner).** First, does a real Dropbox app exist? The OTA stack's
+`DROPBOX_OAUTH_CLIENT_ID` may be the gate's placeholder, which the gate keeps writing (§1), and
+live's starts empty. If there is no real app, the owner decides whether to register one for live (open
+questions 5 and 8). If there is, and live will use it, read in the Dropbox App Console:
 
 - the app's status, development or production;
 - the linked-user limit the console shows for that status;
-- the permissions actually enabled.
+- the permissions actually enabled;
+- the redirect URIs, which must include live's (T11).
 
-Record all three with the date in `docs/dropbox-setup.md` and here. The review gave figures from
+Record all four with the date in `docs/dropbox-setup.md` and here. The review gave figures from
 outside knowledge: in development, 500 linked users, and two weeks to apply for production once
 50 have linked. Nobody read them from Dropbox, so they are not used here. The number that counts
 is the one the console shows. Count linked Dropbox accounts, not testers.
@@ -504,11 +567,80 @@ No code, so there is no guard.
 The exception: if the owner's own sign-in uses one of these providers, it stays, and testers see
 it too. The identity provider shows every provider it has to everyone. That is open question 6.
 
-On the stack, the chosen state is the `IDP_*` pairs in `.env`, and the identity provider's login
-policy read back afterwards. Step 7 of 0133 T4 then knows whether a Microsoft sign-in's
-verification mail is part of its walk.
+The chosen state is the `IDP_*` pairs in live's `.env`, and live's identity provider's login
+policy read back afterwards. Live starts with none (§1), so email and password only means leaving
+them empty. Step 7 of 0133 T4 then knows whether a Microsoft sign-in's verification mail is part
+of its walk.
+
+If a Google sign-in does stay, it needs a client that carries live's sign-in address at
+`id.ownpace.eu` (§1). `managed.env.example` allows the consent's client to serve both, but
+`docs/google-oauth-verification.md` §4b gives the production consent client exactly one redirect
+URI. So a Google sign-in on live means a second production client, or a second URI on this one
+and a dated note in §4b saying why.
 
 No code, so there is no guard.
+
+### T11 — live's own Google client, and live's addresses at Microsoft and Dropbox (owner)
+
+0132 D7 makes `ownpace-live` production, so it is the stack ADR-0041 meant when it said production
+gets its own client *"before real customers exist"*. Every console below is the owner's; the exact
+strings come from live itself, not from this plan.
+
+**The addresses.** Once live runs with its own `API_URL` (0132 T1b), `GET /api/redirect-uris` on
+`app.ownpace.eu` lists every address it needs registered, built from the same variables the code
+uses (`packages/shared/src/redirect-uris.ts`). With live's `API_URL` set to
+`https://app.ownpace.eu`, the three consent addresses are:
+
+```
+https://app.ownpace.eu/api/migrations/google/callback
+https://app.ownpace.eu/api/migrations/microsoft/callback
+https://app.ownpace.eu/api/migrations/dropbox/callback
+```
+
+**Google: a production client.**
+
+1. Create the production OAuth client: a web client with its own secret and exactly one
+   authorised redirect URI, live's Google address above, and no JavaScript origins
+   (`docs/google-oauth-verification.md` §4b).
+2. Enter its pair in live's `.env` only (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`).
+   The OTA stack keeps the test client.
+3. Remove `https://app.ownpace.eu/oauth/google/callback` from the test client. It never matched
+   the shipped route (§1), and a production name on the test client is the hazard that file's §4b
+   describes: the test client could mint a token against the production host, which the split
+   exists to prevent.
+4. Give the production client the publishing status T1 chooses, and list T0's test users on it.
+5. Record in `docs/google-oauth-verification.md` §4b, with the date: that the production client
+   exists, which redirect URI it carries, and its publishing status. Values never go there.
+
+**Which Google Cloud project.** From outside knowledge, not re-read here: the consent screen,
+with its publishing status, its test-user list, its scopes and its verification, belongs to a
+Google Cloud project and not to one client, and the unverified user cap is counted per project.
+If so, a production client in the test client's project shares all of that with it: T1's choice
+would apply to both, and testers would be test users on the OTA stack too. A project of its own
+keeps them apart, at the cost of setting the consent screen up once more: branding, the scopes on
+its Data Access page, read and recorded as on 2026-09-20, and, later, verification (0089 T5). The
+recommendation is a project of its own. This is open question 7, and the first thing the owner
+checks in the console is whether the belief above holds.
+
+**Microsoft and Dropbox: live's addresses.** Whichever registration live's `.env` names
+(`MICROSOFT_OAUTH_*`, `DROPBOX_OAUTH_*`) must carry live's callback, or the consent fails at the
+provider with a redirect mismatch. There are two ways to do it:
+
+- **(a) Registrations of live's own**, as for Google. A leaked OTA secret is then not a production
+  incident (the reason `docs/google-oauth-verification.md` §4b gives), publisher verification (T5)
+  is done on the registration testers meet, and the Dropbox app's linked-user count (T7) holds only
+  live's accounts.
+- **(b) Live's address added** to the registrations the OTA stack already names, if they are
+  real. It is quicker, and it is the same secret on both stacks.
+
+Recommended: (a), for the same reason Google's client is split. Open question 8.
+
+**The check.** On live, *Connect with Google*, *Connect with Microsoft* and *Connect with Dropbox*
+each reach the provider's consent screen without a redirect mismatch, with the owner's own
+account, before the first tester. Recorded here with the date.
+
+No code, so there is no guard. `GET /api/redirect-uris` already derives the addresses from live's
+own values.
 
 ## 4. Explaining the risk: the deployment's Microsoft registration (D2)
 
@@ -533,6 +665,9 @@ registration for the whole deployment (`MICROSOFT_OAUTH_CLIENT_ID`, `_SECRET` an
   registration"* as one of three stops on the way to the Microsoft **sign-in** button working,
   so at least one registration was organisational-only for a while. Whether that one is also
   the consent's registration is not recorded (`managed.env.example` allows one to serve both).
+- **One per stack, or one for both.** Since 0132 D7 there are two stacks, each reading its own
+  `.env`. Whether live names a registration of its own or the OTA stack's with a second redirect
+  address is T11's, and open question 8.
 
 The per-customer route stays beside it: the `oauth2` and `graph` cards, where a customer brings
 their own registration. That route is still needed for application permissions (shared mailboxes,
@@ -578,6 +713,7 @@ So T4 is small, and it is only documentation:
   kind;
 - it keeps the per-customer registration as the route for application permissions;
 - it states the publisher-verification position (§4.4);
+- it says which registration production uses, once T11 has settled it;
 - ADR-0006's operative bullet is amended in place to point at it.
 
 ### 4.3 What publisher verification is, and why it matters
@@ -635,19 +771,25 @@ they can accept. This is the default and must be checked (T6).
 
 ## 5. Order
 
-1. **T1's measurement, and T0 for the first testers.** The measurement is cheap and decides T1.
-2. **T1's choice**, then **T2 and T3**, before the first Google tester.
-3. **T4 now**, as its own documentation PR. **T5 started now** by the owner.
-4. **T6** before the first Microsoft tester.
-5. **T7 (a)** now, because it is a console read. **T7 (b)** as its own PR, before the first
+1. **T1's measurement**, on the OTA stack's history, **then T1's choice**. The measurement is
+   cheap and decides T1.
+2. **T11**, once live runs with its own `API_URL` (0132 T1b): the production client created with
+   T1's publishing status, and live's addresses at Microsoft and Dropbox. Before any tester
+   connects, and before T0, because the test users are listed on that client.
+3. **T0 for the first testers**, and **T2 and T3**, before the first Google tester.
+4. **T4 now**, as its own documentation PR. **T5 started now** by the owner, on the registration
+   T11 settles.
+5. **T6** before the first Microsoft tester.
+6. **T7 (a)** now, because it is a console read. **T7 (b)** as its own PR, before the first
    Dropbox tester.
-6. **T8 and T9** with 0131 T2's labels.
-7. **T10** decided before the first invitation, together with 0132's removal of the gate's
-   placeholders.
+7. **T8 and T9** with 0131 T2's labels.
+8. **T10** decided before the first invitation. The gate's placeholders are the OTA stack's, and
+   stay there while it is the demo (0132 T5); live never has them.
 
 0131 T5 (go/no-go) carries this plan's minimum:
 
-- each tester's Google accounts are listed as test users (under T1 (a));
+- live uses the production Google client, and Microsoft and Dropbox carry live's addresses (T11);
+- each tester's Google accounts are listed as test users of the production client (under T1 (a));
 - testers know about the reconnect;
 - a Microsoft work or school tester knows before pressing Connect what their organisation may ask;
 - Dropbox, Box and Apple carry the label.
@@ -657,11 +799,13 @@ they can accept. This is the default and must be checked (T6).
 - The label itself and the table behind it: 0131 T2.
 - Live runs that would move a source from experimental to proven, including Apple's Part 1:
   on 0131's list of further work (§5 there).
-- Removing the gate's placeholder client pairs from the stack: 0132.
+- Standing up `ownpace-live` with its own `.env`, identity provider and production names: 0132
+  T1b to T1e.
+- Removing the gate's placeholder client pairs from the OTA stack: 0132 T5, parked with 0026 row
+  24 while that stack is the demo.
 - The identity provider's verification mail: 0133.
-- The privacy policy's sentences on sign-in providers and on who holds a Microsoft credential,
-  and the grant page's legal links, whose corrected paths are drafted in the pending consistency
-  PR: 0139.
+- The privacy policy's sentences on sign-in providers and on who holds a Microsoft credential:
+  0139. The grant page's legal links are fixed in #1137, merged 2026-09-24.
 - The grant page's "Read-only" box sitting above a scope Google describes more broadly, and the
   in-app guides that still tell managed testers to create their own Google or Dropbox app: on
   0131's list of further work (§5 there).
@@ -673,17 +817,24 @@ they can accept. This is the default and must be checked (T6).
 
 ## Open questions
 
-1. **Google (T1): (a) or (b)?** The recommendation is (a), with its three conditions and the
-   switch trigger. Related: are alpha testers the "real customers" before whom ADR-0041 says
-   production gets its own client? This plan reads D1 as "not yet".
+1. **Google (T1): (a) or (b), for the production client?** The recommendation is (a), with its
+   three conditions and the switch trigger. Whether alpha testers are the "real customers" before
+   whom ADR-0041 says production gets its own client no longer needs an answer: 0132 D7 makes
+   `ownpace-live` production, and it gets its own client (T11).
 2. **Grant links in the alpha under (a):** may testers send them to family members, who must then
    grant again each week, or do testers migrate only their own Google account during the alpha?
 3. **Microsoft (T4, T5):** write the ADR and start publisher verification now, as advised?
 4. **Microsoft testers from organisations:** accept the administrator's approval as the route
    until T5 is done, or take only personal Microsoft accounts until then?
-5. **Dropbox (T7):** if the stack carries the gate's placeholder, register a real app for the
-   alpha or leave the Dropbox card to testers' own apps? And should the consent also ask for
+5. **Dropbox (T7):** if there is no real Dropbox app, register one for live, or leave the Dropbox
+   card to testers' own apps? And should the consent also ask for
    `sharing.read`, so the shared-folder browse works? That means enabling it on the deployment's
    app, and it keeps the browse for a tester's own app that already has it.
 6. **Sign-in buttons (T10):** email and password only? And does the owner's own sign-in use a
-   provider that must therefore stay?
+   provider that must therefore stay? If it is Google, a second production client or a second
+   redirect URI on the consent client (T10)?
+7. **The production client's Google Cloud project (T11):** a project of its own, as recommended,
+   or the test client's project, sharing its publishing status and test-user list if the belief
+   in T11 holds?
+8. **Microsoft and Dropbox for live (T11):** registrations of live's own, as recommended, or live's
+   address added to the registrations the OTA stack names?

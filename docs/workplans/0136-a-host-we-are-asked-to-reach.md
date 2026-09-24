@@ -8,7 +8,22 @@ the rest of the stack, and shows the person what the remote answered. The owner'
 blocker was *"Explain risk and Advice"* (§2). §4 is the explanation. The advice is short: T1 and
 T3 before the first invitation, because they close most of the risk and neither changes the
 stack's networks or the host's firewall. The rest can follow after the alpha opens. Nothing is
-built, and nothing here is drafted in the pending consistency PR.
+built. #1137, merged 2026-09-24, fixed nothing this plan carries: `SECURITY.md`'s stale sentence
+about an *"open owner decision"* and the architecture doc's "egress controls" in §16 and §17.1 are
+still on `main` (T7), and none of the code §1 cites changed in a way that alters what §1 says.
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137 merged.**
+Testers use a second stack, `ownpace-live`, on the same machine and the same Docker daemon as the
+OTA stack (D6). A container in one stack can usually reach the other stack's host-published ports
+through the host, so T1's deny-list now takes in the Docker networks and their gateways, checked
+at bring-up against what the daemon hands out, and leans on 0132 T3's 127.0.0.1 binds (T1f) in
+both stacks for whatever it misses. §1 gains *Two stacks on one machine*, §2 gains D6, and T2,
+T4, T7 and §4 are re-worded for two stacks.
+
+Names used from here on: **live** is the `ownpace-live` stack; **the OTA stack** is
+`ownpace-managed`, the nightly gate's target and the demo. D2 and D3 below were asked before D6:
+"the tester stack" is live, and D3's answers describe the one stack the machine had then, now the
+OTA stack.
 
 The review's findings this plan carries are `sec-ssrf-no-egress-control` (blocker, confirmed),
 `sec-archive-disk-path-on-managed` (medium, confirmed) and `sec-threat-model-missing` (medium,
@@ -16,18 +31,19 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 📋 **Proposed**, advised before the first invitation (D1) | §3. Managed only. Loopback, private, link-local, CGNAT, unique-local and compose names. One new dependency (`undici`) for the `fetch` half. |
-| T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on the alpha stack. The gate's stack names its demo hosts. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 📋 **Proposed**, advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
-| T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach. |
+| T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | 📋 **Proposed** | §3. Both doors and the probe refuse it. The gate's archive fixture step breaks with it. Needs the owner's answer on how the managed archive card is shown (open question 3). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
-| T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure and the worker plane. "Egress controls" goes until it exists. |
+| T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today
 
-Each fact below was checked at the current checkout on 2026-09-24. Nothing was exercised against
-the live stack.
+Each fact below was checked at the current checkout on 2026-09-24, and the files #1137 changed
+that this section cites were read again on `main` after it merged. Nothing was exercised against
+either stack on the reference machine.
 
 ### Where a tenant types a host
 
@@ -127,8 +143,9 @@ whether the connection was refused or timed out. The probe is not blind.
 ### What shares the network
 
 `deploy/compose/managed.yml` has one application network, `ownpace-network`. Every service
-below is on it. The only other network is `status-probe`, `internal: true`, which carries the
-identity provider's name for the status page.
+below is on it. Each stack started from the file gets its own copy (next part). The only other
+network is `status-probe`, `internal: true`, which carries the identity provider's name for the
+status page.
 
 | On `ownpace-network` | What it is |
 |---|---|
@@ -147,10 +164,12 @@ identity provider's name for the status page.
   host.
 - **Run containers join the same network.** `trigger-supervisor` sets
   `DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network`. Its comment says why: *"so tasks
-  reach postgres, stalwart and nextcloud by the same names the worker container uses"*.
+  reach postgres, stalwart and nextcloud by the same names the worker container uses"*. The
+  network is written out with the project name in it (next part).
 - **The demo targets live there too.** `setup-managed-demo.sh` joins a Stalwart to the network,
   and `apps/api/src/scripts/seed-managed.ts` points the demo tenants at `stalwart` and
-  `http://nextcloud/remote.php/dav/` by compose name. 0132 T5 takes the demo out of the alpha.
+  `http://nextcloud/remote.php/dav/` by compose name. That is the OTA stack. Live is brought up
+  without the demo (0132 T1b).
 - **The gate asks the probe for an address off the network.** `smoke-managed.sh`'s Nextcloud
   step builds `http://${nc_host:-localhost}:${nc_port:-8083}/remote.php/dav`, with `nc_host`
   read from `NEXTCLOUD_BIND` in `.env`, posts it to `test-connection` and expects `ok: true`.
@@ -159,7 +178,37 @@ identity provider's name for the status page.
   container itself, where no Nextcloud listens. So when the step passes, the API container
   has reached whatever address `NEXTCLOUD_BIND` names, and with a mesh address that is through
   the host. This plan did not read the reference machine's `.env` or a run log, so it states
-  the path, not the result.
+  the path, not the result. The gate runs on the OTA stack only.
+
+### Two stacks on one machine
+
+D6 puts live beside the OTA stack, on one Docker daemon. What that means for a host a tester
+types:
+
+- **Compose names do not cross.** No network or volume in `managed.yml` carries a `name:` of its
+  own, so Compose prefixes each with the project. `postgres` asked for from live's API is live's
+  database.
+- **One literal does.** `DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network` names the OTA
+  stack's network in full. A second stack started from this file would put its task runs on the
+  OTA stack's network, where `postgres` is the OTA stack's database. 0132 T1 derives it from the
+  project name, and nothing of live starts before that.
+- **The gateway does.** A container reaches the ports its host publishes through its network's
+  gateway address (0132 §1), which is the host. `managed.yml` publishes seven ports on all
+  interfaces (the database, the API, the web app, the status page, the identity provider, and
+  two for Trigger.dev); the registry, Mailpit and Nextcloud default to 127.0.0.1. So a request
+  from live's API or task runs to a gateway address meets the OTA stack's published ports, its
+  Postgres included, and live's own, and the OTA stack's containers reach live's the same way.
+  A port published on all interfaces also answers on every other address the host holds. A port
+  bound to 127.0.0.1 is reached from neither stack, because inside a container that address is
+  the container itself. 0132 T3 binds every port that need not be reachable that way, in both
+  stacks (0132 T1f).
+- **Where the networks' addresses come from.** `managed.yml` sets no subnet, so the daemon hands
+  each network one from its address pools. Docker's built-in pools lie inside `172.16.0.0/12` and
+  `192.168.0.0/16`. A daemon's pools can be configured to lie elsewhere, and this plan could not
+  see the reference machine's daemon configuration.
+- **The socket proxy is not limited to its project.** Each stack's supervisor can start a
+  container on any network on the machine, the other stack's included (0132 §1). The separation
+  is by names, not a boundary, which D6 accepts for the alpha.
 
 ### The archive path on managed
 
@@ -200,13 +249,13 @@ B7, SSRF). What should happen?* — *"Explain risk and Advice"*
 §4 explains the risk, and its last part is the advice. The advice becomes a decision when the
 owner accepts it, or writes a different one beside it, in this block (open question 1).
 
-Three other answers from the same day bear on this plan:
+Four other answers from the same day bear on this plan:
 
 **D2 — the tester stack.** *A stack for testers, separate from CI and the nightly gate, would be
 reachable by people from outside (B1). Is that the plan?* — *"Yes, but its a controlled rest. I
 Let people in and support them. Max 10/20 people"* ("rest" is read as "test"). 0131 carries it.
 Here it sets who can reach the doors of §1: people the owner let in, and whoever gets into one of
-their accounts (§4).
+their accounts (§4). D6 makes that stack live.
 
 **D3 — the ports and the passwords.** *Are ports 5432, 3001, 3090, 3443 and 3126 reachable from
 outside, were the database passwords changed, and does the live identity provider hold other
@@ -215,7 +264,9 @@ Usernamea changed. No other organisations are hosted."* And on the blocker that 
 published with the `app_user` password this repository contains (B6): *"Ill change user and
 pass. But not reached from internet."* Both concern reaching the machine from outside. This plan
 is about the machine reaching inward on a tester's behalf, which a closed port does not prevent.
-0132 carries the ports and the passwords.
+Those answers describe the OTA stack, the one the machine had then (D6). 0132 carries the ports,
+in both stacks (T3), and the passwords (T2 on the OTA stack; live's are set before its first
+bring-up, T1b).
 
 **D4 — nobody joins the mesh.** *If the current stack is reused, should the demo secrets that
 left the machine be rotated (B11)?* — *"Who would need/het credentials? I aupporrthe test. No
@@ -228,6 +279,19 @@ prove them, hide them, or label them experimental (Q9)?* — *"Label"*. That ans
 sources nobody has proven, and 0131 T2 carries it. T5 asks the same question of a card that
 cannot work on managed at all (open question 3).
 
+**D6 — a second stack for testers, beside the OTA stack (0132 D-new).** Later the same day the
+owner asked: *"check, can't i just (as a start) host a 'ownpace-live' as production, next to the
+current 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each
+other?"* The proposal back was to make that 0132's decision, with testers on `ownpace-live`. The
+owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* So testers use
+live, on the production names, and the OTA stack stays the nightly gate's target and the demo.
+0132 records that the separation is by names on one Docker daemon, not a boundary, and accepts
+it for a hand-picked alpha. For this plan, "keep all separate" has one gap a typed host can use:
+a container in one stack can usually reach the other stack's host-published ports through the
+host (§1, *Two stacks on one machine*). T1's deny-list takes in the Docker networks and their
+gateways for that reason, and 0132 T3 binds what need not be reachable to 127.0.0.1 in both
+stacks.
+
 ## 3. What each task does
 
 ### T1 — refuse internal addresses after DNS, on every connection and every redirect
@@ -239,6 +303,17 @@ refuses:
 - loopback: `127.0.0.0/8`, `::1/128`;
 - "this network": `0.0.0.0/8`, which on Linux reaches the local host;
 - private: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`;
+- the Docker bridge networks and their gateways (D6): the subnet of every network the machine's
+  daemon has made, both stacks' and the default bridge's. A network's gateway is the host, and a
+  container in one stack can usually reach the other stack's host-published ports through it
+  (§1). The module holds no range of its own for them. On a daemon with Docker's built-in pools
+  these subnets lie inside the private ranges above, which is one more reason those ranges may
+  never be narrowed. A daemon's pools can be set elsewhere, and the API cannot see the daemon, so
+  the bring-up, which runs on the host, reads the subnet of every network on the machine
+  (`docker network inspect`), not only its own project's, and refuses to go on, naming the
+  network, when one lies outside T1's ranges. Which case the reference machine is in is what that
+  check's first run says. Neither covers an address the host holds outside these ranges;
+  0132 T3's 127.0.0.1 binds (T1f), in both stacks, close that path whatever this list misses;
 - link-local: `169.254.0.0/16`, `fe80::/10`. On a cloud virtual machine this range holds the
   metadata service. The rule does not depend on where a deployment runs;
 - shared address space (CGNAT): `100.64.0.0/10`, the range mesh VPNs such as NetBird use;
@@ -249,7 +324,8 @@ refuses:
   host field): refused at the door, before any lookup;
 - a single-label name (`postgres`, `trigger-docker-proxy`): refused by name, because compose
   names resolve through Docker's own DNS to private addresses anyway, and the refusal is clearer
-  that way.
+  that way. A compose name reaches only its own stack's services (§1); the way between the
+  stacks is the gateway, which the Docker entry above covers.
 
 Node's `net.BlockList` holds the ranges, so the rule itself needs no dependency. The fetch half
 of the next paragraph does: Node's `fetch` accepts a `dispatcher`, but the `Agent` that builds
@@ -277,7 +353,10 @@ certificate against the typed name.
 **Managed only.** The appliance is untouched. A Nextcloud on the owner's own LAN is the
 appliance's ordinary case, and its only user is its owner. The rule is switched on by the managed
 API and by the managed task environment, and it is off unless they switch it on. The two
-together cover the probe doors and the passes.
+together cover the probe doors and the passes. Both stacks run the managed edition from the same
+`managed.yml`, so both switch it on: live because testers type hosts there, and the OTA stack
+because its containers can reach live's published ports through the gateway in the same way,
+whoever types a host there. The OTA stack admits its demo names through T2.
 
 **The refusal** is a sentence of ours, in both languages: *this address is inside the service's
 own network, so we do not connect to it*. It names the host as typed and never the address it
@@ -290,7 +369,10 @@ fails if any range is removed. In orchestration, the same test drives `probeTarg
 against a stub server that answers a redirect to a loopback address. It fails if the redirect is
 followed. In the API, with the rule on, it drives each of the five routes of §1 with a
 private-address host, typed or stored on the row the route reads. It fails if any route
-connects.
+connects. The bring-up's network check gets a case in `scripts/bootstrap-managed.unit.test.ts`,
+fed recorded `docker network inspect` output for two projects: subnets inside T1's ranges pass,
+and a subnet outside them fails and names its network, also when that network is the other
+project's. It fails if the check reads only its own project's networks.
 
 ### T2 — an operator allowlist for the demo targets
 
@@ -298,13 +380,14 @@ connects.
 ranges, that T1 admits although they resolve inward. It is empty by default, and the bring-up's
 summary prints what it holds.
 
-- **On the alpha stack it stays empty.** An entry admits that name for every tenant on the
-  deployment. It is not a per-tenant exception. 0132 T5 takes the demo out of the alpha, so there
-  is nothing to name.
-- **On the gate's own stack** it names `nextcloud` and `stalwart`. The smoke's `test-connection`
-  step changes to ask for `http://nextcloud/remote.php/dav` by its compose name, which the
-  default `NEXTCLOUD_TRUSTED_DOMAINS` (`localhost nextcloud`) already lists, rather than for the
-  address in `NEXTCLOUD_BIND`. The smoke's host-side `curl` calls keep `NEXTCLOUD_BIND`.
+- **On live it stays empty.** An entry admits that name for every tenant on the deployment. It
+  is not a per-tenant exception. Live never has the demo (0132 T1b), so there is nothing to name.
+  Each stack reads its own `.env`, so the OTA stack's entries never reach live.
+- **On the OTA stack, the gate's,** it names `nextcloud` and `stalwart`. The smoke's
+  `test-connection` step changes to ask for `http://nextcloud/remote.php/dav` by its compose
+  name, which the default `NEXTCLOUD_TRUSTED_DOMAINS` (`localhost nextcloud`) already lists,
+  rather than for the address in `NEXTCLOUD_BIND`. The smoke's host-side `curl` calls keep
+  `NEXTCLOUD_BIND`.
 - `seed-managed.ts` and `setup-managed-demo.sh` say, where they write a compose name, that the
   name needs the allowlist.
 
@@ -368,7 +451,8 @@ refusal. It fails without the limiter.
 
 ### T4 — the API and the task runners off the control plane's network
 
-After the first invitation. `managed.yml` gets three networks in place of one:
+After the first invitation. `managed.yml` gets three networks in place of one. Both stacks read
+the file, so both get them, each under its own project's names (0132 T1):
 
 | Network | Members | Why |
 |---|---|---|
@@ -381,7 +465,8 @@ After the first invitation. `managed.yml` gets three networks in place of one:
   runners use today. Those two are the ports the product needs from the control plane (to
   trigger tasks and to run them). Whether the runners also need `minio` for large payloads is the
   build's first check: the object store's URL is whatever `trigger-api` hands out.
-- **`DOCKER_RUNNER_NETWORKS`** names `app` and `egress`, not `control`.
+- **`DOCKER_RUNNER_NETWORKS`** names this stack's `app` and `egress`, derived from the project
+  name as 0132 T1 derives today's one network, and never `control`.
 - **Published ports.** `trigger-api` (3090), `trigger-tls` (3443) and `trigger-registry` publish
   ports on the host. The registry's matters most: the host's Docker daemon pulls run images from
   it (`DOCKER_REGISTRY_URL: localhost:${REGISTRY_PORT:-5000}`). As far as this plan knows,
@@ -391,12 +476,20 @@ After the first invitation. `managed.yml` gets three networks in place of one:
   the Docker release in use before it picks.
 - **Host routing.** A container on a Docker bridge can reach the host's other interfaces, the
   mesh among them, unless the host refuses it. The runbook gets a `DOCKER-USER` rule that drops
-  traffic from the `egress` bridge to `100.64.0.0/10` and the private ranges. That is the
-  network-layer twin of T1, so a client T1 missed still cannot reach the mesh.
+  traffic from each stack's `egress` bridge to `100.64.0.0/10`, the private ranges and the Docker
+  networks of T1. That is the network-layer twin of T1, so a client T1 missed still cannot reach
+  the mesh or the other stack's containers. `DOCKER-USER` sees forwarded traffic only. A
+  connection to an address the host holds, the gateway among them, that Docker does not rewrite
+  to a container is delivered to the host and not forwarded, so the rule needs a counterpart on
+  the host's input path for the same bridges. The build confirms on the machine which path each
+  case takes, and that nothing on `egress` needs the host itself. 0132 T3's 127.0.0.1 binds stay
+  the first answer for published ports.
 
 This does not make T1 unnecessary. The API still shares `app` with `postgres` and `pgbouncer`,
 and only T1 stops a request to those by name. T4 takes the worst targets out of reach: the socket
-proxy and the unauthenticated or shipped-password services of the control plane.
+proxy and the unauthenticated or shipped-password services of the control plane. Nor does it
+make the two stacks a boundary: each stack's socket proxy can still start a container on the
+other's networks (§1), which is the limit D6 accepts.
 
 **Guard:** `a-network-the-tenant-cannot-see.unit.test.ts` in `scripts/` reads `managed.yml`. It
 asserts that `trigger-docker-proxy` is on no network that `api` or the runners
@@ -446,7 +539,9 @@ In `docs/architecture/solution-architecture.md`:
 - §17.1 gets three rows, each with its real mitigation status:
   - **A host a tenant types (SSRF).** Mitigation: T1 and T3 once built. Until then: none; the
     alpha's members are people the owner let in (0131).
-  - **Published ports and the ingress.** Mitigation: 0132 T3.
+  - **Published ports, the ingress, and two stacks on one daemon.** Mitigation: 0132 T3, with
+    127.0.0.1 binds in both stacks, and T1's Docker ranges. The row says that the separation
+    between the stacks is by names, not a boundary (D6).
   - **The worker plane.** The runners share the application network, and tasks run as the
     database owner. Mitigation: T4 here and 0138.
 - `SECURITY.md`'s sentence about an *"open owner decision"* becomes what row 11 decided: deferred,
@@ -470,21 +565,31 @@ tester's account has the same doors the tester has.
 
 **What they could reach.**
 
-- **Every service on `ownpace-network`, by its compose name.** That includes the application
-  database and its pooler, Trigger.dev's database, queue, event store and object store, the
-  identity provider, the mail catcher and the docker-socket proxy (§1). Several of these
-  authenticate with values this repository publishes, or not at all. 0132 replaces those values,
-  and T4 takes the worst of them out of reach. The docker-socket proxy stands out. It accepts
-  requests that change state, and control of the Docker API is control of the host. Whether a
-  working path to it exists through Ownpace's own requests was not tested, and this plan does not
-  claim one. The point is that nothing but the supervisor should be able to try.
+- **Every service on the stack's own network, by its compose name.** For a tester that is
+  live's `ownpace-network`; compose names do not cross to the OTA stack (§1). That includes the
+  application database and its pooler, Trigger.dev's database, queue, event store and object
+  store, the identity provider, the mail catcher where it runs, and the docker-socket proxy (§1).
+  Several of these authenticate with values this repository publishes, or not at all. 0132
+  replaces those values, and T4 takes the worst of them out of reach. The docker-socket proxy
+  stands out. It accepts requests that change state, and control of the Docker API is control of
+  the host. Whether a working path to it exists through Ownpace's own requests was not tested,
+  and this plan does not claim one. The point is that nothing but the supervisor should be able
+  to try.
+- **The other stack, through the gateway.** A request to the gateway address of live's network,
+  or to any other address the host holds, meets every port the machine publishes on all
+  interfaces (§1): the OTA stack's database, API, identity provider and Trigger.dev API among
+  them, and live's own. The OTA stack's database keeps the passwords this repository contains
+  until 0132 T2 is done there. The same path runs the other way, from the OTA stack's containers
+  to live's ports. T1's Docker ranges refuse the gateway by address, and 0132 T3's 127.0.0.1
+  binds close the path whatever T1 misses. Whether a given request from live reaches the OTA
+  stack's ports today was not tested; the path is stated, not the result.
 - **The machine's mesh, likely.** Containers on a Docker bridge reach the host's other
   interfaces unless the host refuses it. NetBird uses the shared address space `100.64.0.0/10`.
   So a request from the API or a runner to a mesh address likely leaves through the host's mesh
-  interface. The gate's own smoke suggests this path is used (§1). Whether it reaches a given peer
-  depends on the host's routing and the mesh's access rules, which this plan could not see. No
-  tester is added to the mesh (D4), so this path is the one way a tester's request could get
-  there.
+  interface. The gate's own smoke, on the OTA stack, suggests this path is used (§1). Whether it
+  reaches a given peer depends on the host's routing and the mesh's access rules, which this plan
+  could not see. No tester is added to the mesh (D4), so this path is the one way a tester's
+  request could get there.
 - **The API container's own disk**, through the archive path (T5). Names and kinds of files, and
   a walk of any folder.
 
@@ -502,29 +607,37 @@ edge does not see that traffic.
 
 **The advice.**
 
-1. **Before the first invitation: T1 and T3.** Neither changes the stack's networks or the host's
-   firewall. T1 is one module with a list of ranges, applied where connections are made, and one
-   new dependency for the `fetch` half. T3 changes what the managed API answers, adds one log line
-   and adds one limit. Together they close most of the risk: the internal names and ranges are
-   refused, redirects included, and what comes back no longer reads aloud. 0131 T5's go/no-go row
-   for this plan names T1's part (internal hosts refused, redirects checked) and not T3. This plan
-   advises T3 as part of the same minimum, and 0131's row should say so if the owner accepts.
+1. **Before the first invitation: T1 and T3.** Neither changes a stack's networks or the host's
+   firewall. T1 is one module with a list of ranges, applied where connections are made, one
+   check in the bring-up, and one new dependency for the `fetch` half. T3 changes what the
+   managed API answers, adds one log line and adds one limit. Together they close most of the
+   risk: the internal names and ranges, the Docker networks' included, are refused, redirects
+   included, and what comes back no longer reads aloud. 0132 T3's 127.0.0.1 binds in both stacks
+   belong beside them; they are already in 0131 T5's minimum for 0132, and they close the path
+   between the stacks whatever T1 misses. 0131 T5's go/no-go row for this plan names T1's part
+   (internal hosts refused, the Docker networks among them, redirects checked) and not T3. This
+   plan advises T3 as part of the same minimum, and 0131's row should say so if the owner
+   accepts.
 2. **After the alpha opens: T4, T5 and T7.** T4 is the second lock, for whatever T1 misses. It
-   touches the compose file and the host's firewall, and it deserves its own bring-up on the
-   gate's stack, not a change under testers. T5 waits on how the managed archive card is shown.
-   T7 follows the code.
+   touches the compose file and the host's firewall, and it deserves its own bring-up on the OTA
+   stack first, where the gate runs every night. It reaches live by a tag (0132 T1g), not as a
+   change under testers. T5 waits on how the managed archive card is shown. T7 follows the
+   code.
 3. **If T1 and T3 cannot be ready in time,** the alternative that 0131 T5 records is the owner's
    written acceptance of this section, and this plan advises that it be dated. It is given knowing
    that every tester is someone the owner let in, and that the alpha's conditions (0139) say a
-   tester must not share their account. Until then, 0132 T2 and T5 matter more: the values a
-   forged request would meet are the ones this repository publishes.
+   tester must not share their account. Until then, 0132 T1b, T2 and T3 matter more: they
+   replace the values this repository publishes, which a forged request would otherwise meet, and
+   the 127.0.0.1 binds keep it from the other stack's ports.
 
 ## Cross-references
 
 - 0129 T1: the recorded event and reference that T3's log line uses.
 - 0131 T5: the go/no-go row for this plan. It names T1's part today (§4, advice 1).
-- 0132: the ports, the passwords and the demo out of the alpha (T2, T3, T5), which decide what a
-  forged request would meet.
+- 0132: D-new (D6 here), live beside the OTA stack. T1, which derives the container names and the
+  runners' network from the project name. T1b, live's own `.env`, values and ports, without the
+  demo. T3 with T1f, 127.0.0.1 binds in both stacks, the other half of T1's Docker ranges. T2 and
+  T5, the OTA stack's passwords and demo. Together they decide what a forged request would meet.
 - 0137: roles. The probe routes are open to every role today, and 0137 T1 narrows who can
   trigger them.
 - 0138: tasks under row security, the other half of the worker plane's row in T7.
@@ -543,5 +656,6 @@ edge does not see that traffic.
    question, with an "Appliance only" tag on a disabled card as its proposal; one answer serves
    both plans.
 4. **The host firewall rule in T4.** Does the owner want the `DOCKER-USER` rule on the reference
-   machine itself, given that CI runs there too (0132)? It changes what containers on that bridge
-   can reach, and CI's containers are not on it. The build confirms that before it lands.
+   machine itself, given that CI and both stacks run there (0132)? It changes what containers on
+   the two `egress` bridges can reach, and CI's own job containers are on neither. The build
+   confirms that before it lands.

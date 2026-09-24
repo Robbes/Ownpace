@@ -16,7 +16,15 @@ Nothing is built. Each fact in §1 was checked on 2026-09-24 at the current chec
 `origin/main`, which is ahead of it. On `main` every task file also builds an audit sink on its
 pool (0129 T4), and the cutover gate has moved to `cutover-gate.ts`. The connection each task
 uses is the same in both. Where the two differ, §1 says which it cites. Nothing was exercised
-against the live stack.
+against a running stack.
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137 merged.**
+The testers' organisations now go into `ownpace-live`'s database, and its tasks run on live's own
+Trigger.dev plane (0132 T1c) with URLs built from live's own `.env` (0132 T1b), so D2, D3, T3 and
+§4 now say which stack and which plane they mean, and T1 is proven on the OTA stack before live
+takes it from a tag (0132 T8, which §4 cited, is superseded). #1137 corrected
+`managed.env.example`'s migration number, but every sentence §1 quotes is still on `main`
+(checked at the merge), so T5's list stands.
 
 | Task | Status | Notes |
 |---|---|---|
@@ -103,9 +111,9 @@ against the live stack.
   calls the upload *"the tasks' own migration connection"*, and it says *"Migration `0009`
   creates"* `app_user`. In fact `0001_baseline.sql` creates it.
 - `deploy/compose/managed.env.example`: *"The API and worker connect through this role via
-  APP_DATABASE_URL so row-level security is always enforced."* The correction of the same
-  comment's "migration 0009" to the baseline is drafted in the pending consistency PR. The
-  sentence about the worker is left as it is there.
+  APP_DATABASE_URL so row-level security is always enforced."* The same comment's
+  "migration 0009" is corrected to `0001_baseline` in #1137, merged 2026-09-24. That PR left
+  the sentence about the worker as it was, and it is still there on `main`.
 - `README.md`, on the managed edition's one execution plane: *"Tenant isolation is enforced at
   runtime (FORCE RLS through a non-owner role + a tenant-membership auth gate)"*. `SECURITY.md`
   lists Postgres RLS under tenant isolation. Neither mentions an exception.
@@ -178,25 +186,30 @@ and its timing.
   from the internet: *"Yes, but its a controlled rest. I Let people in and support them. Max
   10/20 people"*. Asked what the test's terms are: *"Free. A few weeks. No obligations both
   sides."* The owner asked that the test be called an alpha. Each granted request creates an
-  organisation (`withSubjectAndTenant`, 0093 T6). So from the first invitation, one database
-  holds the organisations of up to 20 people other than the owner. That is the point at which the
-  boundary between organisations starts to carry weight.
+  organisation (`withSubjectAndTenant`, 0093 T6). So from the first invitation, one database,
+  `ownpace-live`'s (0132 D-new), holds the organisations of up to 20 people other than the
+  owner. That is the point at which the boundary between organisations starts to carry weight.
 - **D2, what the database holds today.** Asked whether ports 5432, 3001, 3090, 3443 and 3126 are
-  reachable from outside, whether the database passwords were changed, and whether the live
+  reachable from outside, whether the database passwords were changed, and whether the running
   identity provider holds other organisations: *"No, these ports are not reachable outside of
-  private network/NetBird. Usernamea changed. No other organisations are hosted."* So today the
-  boundary separates only the owner's own organisations and the demo tenants, which 0132 T5 takes
-  out of the alpha.
+  private network/NetBird. Usernamea changed. No other organisations are hosted."* So today, on
+  the OTA stack, the boundary separates only the owner's own organisations and the demo tenants.
+  The testers' organisations go into `ownpace-live`'s database instead, which is brought up
+  without the demo tenants (0132 T1b).
 - **D3, the database credentials.** Asked about the blocker that Postgres is published with a
   password this repository contains: *"Ill change user and pass. But not reached from
-  internet."* Every run receives the URLs built from those values, the owner's among them until
-  T3 step 2, so the change has to be re-uploaded to the task environment. 0132 T2 step 6 does
-  that.
+  internet."* Under 0132 D-new the change is chiefly the OTA stack's. Every run on that stack's
+  Trigger.dev plane receives the URLs built from those values, the owner's among them until T3
+  step 2, so the change has to be re-uploaded to that task environment. 0132 T2 step 6 does
+  that. Live's values are generated before its first bring-up (0132 T1b), and
+  `set-task-env.sh`, which reads the `.env` beside it and uploads to the `TRIGGER_PROJECT_REF`
+  that file names, puts the URLs built from them on live's own plane (0132 T1c). There too the
+  owner's is among them until T3 step 2.
 - **D4, who holds credentials.** Asked about rotating the demo secrets: *"Who would need/het
   credentials? I aupporrthe test. No one will be added to NetBird network. Devs need to setup own
   private test/dev environments. GitHub PRs and git is the bridge."* 0132 §4 answers the question
-  about people. This plan adds a holder that is not a person: every task run holds the owner URL
-  in its environment.
+  about people. This plan adds a holder that is not a person: every task run, on either stack's
+  plane, holds that stack's owner URL in its environment.
 - **D5, whether permissions exist.** Asked about the blocker that roles do not restrict writes:
   *"Explain risk and advice. Are permissions not implemented?"* 0137 answers it for roles. §1,
   "What this means", answers it for organisations.
@@ -303,7 +316,9 @@ credential, straight to Postgres, past the pooler, in every run. Removing it fro
 `set-task-env.sh`'s `variables` changes nothing any task does. Removing it from the list may not
 remove it from the store: the script deletes a variable only on its `FORCE_REWRITE` path
 (`envvars.del`), and this plan did not verify whether `upload` drops a variable it is not given.
-So step 1 also deletes the stored value once, and checks the list the script prints afterwards.
+So step 1 also deletes the stored value once on each plane that holds it, the OTA stack's and,
+if it was filled before step 1 landed, live's own (0132 T1c), and checks the list the script
+prints afterwards.
 The header of `deploy-tasks.sh` and `docs/managed-bring-up.md`, which name it among the uploaded
 variables, change with it. This step is small enough to land before the first invitation.
 
@@ -329,8 +344,11 @@ become functions owned by the owner (`SECURITY DEFINER`), with `EXECUTE` granted
 and the system role goes. The trigger is the service admitting people the owner has not let in
 personally, which means after the alpha (open question 2).
 
-This interacts with D3. After the owner changes the owner role's user and password (0132 T2),
-the new owner URL is what every run receives until step 2 lands. 0132 T2 step 6 re-uploads it.
+This interacts with D3. On the OTA stack, after the owner changes the owner role's user and
+password (0132 T2), the new owner URL is what every run on that stack's plane receives until
+step 2 lands. 0132 T2 step 6 re-uploads it. On live, the owner URL built from the values
+generated before its first bring-up (0132 T1b) is what every run on live's own plane receives
+until then, and a live deploy (0132 T6) re-uploads it.
 
 **Guard.** `scripts/a-run-that-carries-no-superuser.unit.test.ts` reads `set-task-env.sh` and
 fails when the uploaded `variables` contain a value composed from `${POSTGRES_USER`, or contain
@@ -422,7 +440,8 @@ Then there are two ways to reach the first invitation:
   touches the pass path of every data type, and a scope missed there reads nothing rather than
   the wrong thing, which a pass can report as a quiet success. T1's test stands against that, and
   the change should be proven on a managed stack that is not the alpha's before testers depend on
-  it, which is 0132 T8's trigger. The alpha waits for it.
+  it. Under 0132 D-new that is the OTA stack, which follows `main` nightly and holds no testers;
+  live takes the change only from a tag (0132 T1g). The alpha waits for it.
 - **(b) Accept the gap in writing for the alpha, and build T1 to T3 before it ends.**
   *Recommended.* Before the first invitation: T5 step 1, T3 step 1, and T4 as a ratchet. T1, T2
   and T3 step 2 follow, and must land before the alpha ends or admits anyone the owner has not
@@ -440,8 +459,11 @@ acceptance in their own words, with the date it ends.
 ## Cross-references
 
 - 0131 T5: the go/no-go row for this plan.
-- 0132 T2: the password change (D3); its step 6 re-uploads the task URLs. 0132 T8: a managed
-  stack apart from the alpha's, whose trigger T1 meets (§4).
+- 0132 D-new: testers on `ownpace-live`, whose tasks run on its own Trigger.dev plane (T1c)
+  with URLs built from its own `.env` (T1b). The OTA stack is where T1 is proven (§4); live takes
+  it from a tag (T1g). 0132 T8, which §4 cited before, is superseded by D-new.
+- 0132 T2: the password change (D3), now chiefly the OTA stack's; its step 6 re-uploads the task
+  URLs there. 0132 T6 does the same for live.
 - 0129 T4: the audit sink every task file sets on `main`, whose key T1 part 5 keeps readable.
 - 0136 T4: the runners off the control plane's network, the other half of the worker plane. 0136
   T7: the worker plane's row in SAD §17.1, which T5 edits together with it.

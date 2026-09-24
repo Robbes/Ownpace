@@ -18,24 +18,33 @@ the data-processing agreement for business customers and the paid journey (0086 
 owns what must be true before the first tester is let in. Every legal sentence is the owner's to
 write and the lawyer's to check. This plan names sections and never rewrites them.
 
-Nothing is built. Four drafts elsewhere feed this plan. The grant page's links to the addresses
-the site build writes, in the reader's language, and the legal README's list of those addresses
-are drafted in the pending consistency PR, which is not merged. 0134 T2 drafts the paragraph on
-backups, 0131 T1 drafts the alpha note, and 0137 T0 drafts the sentence on inviting others.
+Nothing in this plan is built. The grant page's links to the addresses the site build writes, in
+the reader's language, and the legal README's list of those addresses are fixed in #1137, merged
+2026-09-24 (`LEGAL` in `Grant.tsx`, and the README's table). Three drafts elsewhere feed this
+plan: 0134 T2 drafts the paragraph on backups, 0131 T1 drafts the alpha note, and 0137 T0 drafts
+the sentence on inviting others.
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137
+merged.** Testers now use a second stack, `ownpace-live` (live), at the production names
+(`app.ownpace.eu`, `id.ownpace.eu`, `status.ownpace.eu`), and the OTA stack stays CI's and the
+demo's (D5). So the ingress T5 asks about is the one in front of the production names, the texts
+are published on the production site at `www.ownpace.eu`, where the grant page already links
+(T10, open question 1, now recommending the existing `--public` build), and T8's procedure no
+longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1) | §3. Nine placeholder names are still open, and five facts have no placeholder yet. Values never go in this plan, only dates. |
+| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1) | §3. Nine placeholder names are still open, and six facts have no placeholder yet. Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
 | T2 The alpha conditions, in Dutch and English | 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner writes them. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
-| T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses are drafted in the pending consistency PR. |
-| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the OTA names, the mail relay (0133 T5), the support channel (0130). |
+| T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
+| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. A build that refuses placeholders without becoming indexable, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
@@ -68,13 +77,17 @@ of them. Where its verifier added a limit, the limit is stated below.
 - **The public build refuses.** `--public` throws while any placeholder is rendered
   (`if (PUBLIC && drafts > 0)`). It also throws unless `OWNPACE_APP_URL` is
   `https://app.ownpace.eu` (`PUBLIC_APP_URL` in `site/prices.mjs`). A build without `--public` is
-  noindex, and shows each placeholder visibly without stopping. The alpha runs at
-  `app.ota.ownpace.eu` (D5). So today the only build that refuses placeholders is one whose
-  buttons lead somewhere other than the alpha.
+  noindex, and shows each placeholder visibly without stopping. It also throws when
+  `OWNPACE_APP_URL` is the production address (`!PUBLIC && APP_URL === PUBLIC_APP_URL`), so a
+  noindex build cannot point at `app.ownpace.eu`. The alpha now runs at `app.ownpace.eu` (D5). So
+  the build that refuses placeholders is the one whose buttons lead to the alpha. It is also the
+  indexable one: no `noindex` tag, and a `robots.txt` that allows everything.
 - **Where the site is served.** `deploy/compose/www.yml` serves `site/dist`. Its header builds it
   with `OWNPACE_APP_URL=https://app.ota.ownpace.eu`, which is a noindex test build, and names
-  `www.ota.ownpace.eu` as the test site. The review found that `www.ownpace.eu` does not serve
-  this repository's site. That was not re-checked here.
+  `www.ota.ownpace.eu` as the test site. It declares a fixed project name (`name: ownpace-www`)
+  and a fixed `container_name: ownpace-www`. The review found that `www.ownpace.eu` does not serve
+  this repository's site. That was not re-checked here. The production names 0132 T1e routes to
+  live are `app.`, `id.` and `status.ownpace.eu`; `www.ownpace.eu` is not among them.
 - **The placeholders still open** in the documents (the README's table has twelve rows, of which
   three are filled and two are retired): `«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`,
   `«HOSTING_PROVIDER»`, `«HOSTING_REGION»`, `«EMAIL_PROVIDER»`, `«EMAIL_REGION»`,
@@ -94,11 +107,14 @@ edit 0086. Correcting its Status block belongs to whoever next works on 0086.
   type only to answer you; asking creates no account."* It has no link. The form stores an
   address, a name, an organisation and a note in the person's own words (managed migration 0002).
 - **The grant page** (`Grant.tsx`) is the only screen that links the privacy policy and the
-  terms. It links `https://www.ownpace.eu/privacy` and `/terms`, which are not files the build
-  writes, and the site's nginx (`www-nginx.conf`, `try_files $uri $uri/ =404`) adds no `.html`.
-  The pending consistency PR drafts links to the files the build writes, in the reader's
-  language. The drafted links are still on `www.ownpace.eu`, which the review found does not
-  serve this site (not re-checked here). T10 makes the host a setting.
+  terms. It used to link `https://www.ownpace.eu/privacy` and `/terms`, which are not files the
+  build writes, and the site's nginx (`www-nginx.conf`, `try_files $uri $uri/ =404`) adds no
+  `.html`. Fixed in #1137, merged 2026-09-24: it now links the files the build writes, in the
+  reader's language (`/privacy.html` and `/terms.html`, `/nl/privacy.html` and
+  `/nl/voorwaarden.html`, in `LEGAL`), and the legal README's table names the same addresses. They
+  are on `www.ownpace.eu`, the production site, which is where the texts belong now that testers
+  use the production names (D5). The review found that name does not serve this site (not
+  re-checked here). T10 makes the host a setting.
 - **The Connect buttons** (`ProviderConsentPanel` in `ProviderConsent.tsx`, the one path for
   Google, Microsoft and Dropbox) link neither text.
   `docs/google-oauth-verification.md` §5 requires *"Links to the privacy policy and terms sit
@@ -163,8 +179,9 @@ credentials at its end.
 - **Social sign-in.** `managed.env.example` has `IDP_GOOGLE_CLIENT_ID`,
   `IDP_MICROSOFT_CLIENT_ID`, `IDP_GITHUB_CLIENT_ID` and `IDP_APPLE_CLIENT_ID` for sign-in
   buttons at the identity provider. The privacy policy mentions none of them, and §8 says there is
-  no transfer to a third country *"by us"*. The keys are blank by default. Whether the OTA stack
-  sets any of them is not visible from the repository. 0135 open question 10 asks this for GitHub.
+  no transfer to a third country *"by us"*. The keys are blank by default. Whether live's `.env`
+  will set any of them is not visible from the repository (T0). 0140 T10 proposes email and
+  password only, and 0135 open question 10 asks this for GitHub.
 - **Isolation in the database.** Privacy §11, its Dutch mirror and the data-processing
   agreement's Annex B say tenant isolation is enforced *"in the database itself through
   row-level security"*, and Annex B adds that database roles hold least privilege. 0138 found
@@ -194,8 +211,14 @@ and TLS are netbird's, not this repository's."*, and the troubleshooting table i
 terminator runs on the reference machine or is a service the mesh provider operates. The review's
 DNS lookup found the OTA names resolving to the mesh provider's hosted ingress. That was not
 re-checked here, and the region and legal entity were not confirmed.
-`docs/google-oauth-verification.md` still says that anyone off the mesh gets a timeout. 0132 T3
-records the path a tester's request takes. No file in `site/legal/` mentions NetBird.
+`docs/google-oauth-verification.md` still says that anyone off the mesh gets a timeout.
+
+Testers now reach live at the production names (D5): `app.ownpace.eu`, `id.ownpace.eu` and
+`status.ownpace.eu`. 0132 T1e routes them in NetBird to live's ports, and has not been done. If
+they are routed the way the OTA names were found to be, the mesh provider's hosted ingress sits in
+front of every tester's request. Whether they are is T0's fact 1. 0132 T3 records the path a
+tester's request takes, for the production names and the OTA names. No file in `site/legal/`
+mentions NetBird.
 
 ### Procedures
 
@@ -248,7 +271,8 @@ hand"*. On its tokens, which expire after about seven days in Testing: *"I add p
 controlled small test Group."*
 
 So every tester is someone the owner granted, and the owner is their contact. The conditions (T2)
-say how to reach the owner.
+say how to reach the owner. The tester stack apart from CI and the nightly gate is `ownpace-live`
+(D5).
 
 **D5 — where it runs, and who can reach the machine.** *Where do testers run, and under which host
 names?* — *"This machine, ci states. The OTA address. It's all controlled by me and invite only."*
@@ -261,9 +285,19 @@ aupporrthe test. No one will be added to NetBird network. Devs need to setup own
 environments. GitHub PRs and git is the bridge."* ("het" is read as "get", and "aupporrthe" as
 "support the".)
 
-So the alpha runs on the reference machine at `app.ota.ownpace.eu` and `id.ota.ownpace.eu`, and
-only the owner administers it. The hosting placeholders (T0) and the record of processing (T8)
-must describe that truthfully.
+The first answer placed the alpha at the OTA address. Later the same day the owner asked:
+*"check, can't i just (as a start) host a 'ownpace-live' as production, next to the current
+'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each other?"*
+The proposal back was to make that the decision in 0132, with testers on `ownpace-live`. The
+owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* (0132 D-new.)
+
+So the alpha runs on the reference machine, in a second compose project, `ownpace-live` (live),
+at the production names of 0091: `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu`. The
+OTA stack, `ownpace-managed` at `app.ota.ownpace.eu` and `id.ota.ownpace.eu`, stays the nightly
+gate's target and the demo, and no tester is let in there. CI never touches live. The two stacks
+share one Docker daemon, so their separation is logical, not a security boundary (0132 D-new).
+Only the owner administers either. The hosting placeholders (T0), the record of processing and
+the assessment (T8) must describe that truthfully.
 
 **D6 — mail.** *Which EU mail relay and sending domain, and does a person read support@?* —
 *"I'll register a ownpace ampt, a todo"*. This is read as: the owner will register a
@@ -286,7 +320,7 @@ Values go into the legal files, never into this plan.
 |---|---|
 | `«REGISTERED_ADDRESS»` | The owner, in the printed form the owner chooses (the README leaves the form open). |
 | `«VAT_NUMBER»` | The owner (D1). |
-| `«HOSTING_PROVIDER»`, `«HOSTING_REGION»` | The owner. The README warns against naming a host the service is not on. During the alpha the service runs on the reference machine (D5), and the value must describe that. The lawyer checks the wording. |
+| `«HOSTING_PROVIDER»`, `«HOSTING_REGION»` | The owner. The README warns against naming a host the service is not on. During the alpha the service runs on the reference machine, in `ownpace-live` (D5), and the value must describe that. The lawyer checks the wording. |
 | `«EMAIL_PROVIDER»`, `«EMAIL_REGION»` | The relay from 0133 T0, with its data-processing agreement. Until it exists, see T5. |
 | `«LOG_RETENTION»` | 0129 D2 already gives the numbers: one month for the application's errors and warnings and for container output, two months for a pass's lines, and the audit log until the customer is erased. The owner confirms which of these the row states. T6 says where the alpha differs. |
 | `«SUBPROCESSORS_URL»` | Follows from T10: the address where the sub-processor list is published. |
@@ -297,16 +331,20 @@ is not rendered by the build, and 0086 T5 owns it.
 
 **The facts that have no placeholder yet.**
 
-1. **Where TLS ends for the OTA names** (T5). Is it on the reference machine, or at a service
-   the mesh provider operates? If the latter, which legal entity, and in which region? 0132 T3
-   records the path, and this answer decides whether the ingress is a sub-processor.
+1. **Where TLS ends for the production names** (T5): `app.ownpace.eu`, `id.ownpace.eu` and
+   `status.ownpace.eu`, once 0132 T1e routes them, and `www.ownpace.eu` if fact 6 puts it behind
+   the same ingress. Is it on the reference machine, or at a service the mesh provider operates?
+   If the latter, which legal entity, and in which region? 0132 T3 records the path, and this
+   answer decides whether the ingress is a sub-processor.
 2. **The support mailbox.** Which provider hosts `support@ownpace.eu`, and does a person read it
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
-3. **Zammad.** Is the report form (0130) configured on the OTA stack, and where does that Zammad
-   run?
-4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys are set on the OTA stack?
+3. **Zammad.** Is the report form (0130) configured on live, and where does that Zammad run?
+4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys will live's `.env` set?
 5. **Organisations in the alpha.** Is any tester a business rather than a household (open
    question 6)?
+6. **The production site.** Where `www.ownpace.eu` is served from during the alpha (T10). The
+   grant page and the legal README point there, 0132 T1e does not route it, and the review found
+   it does not serve this repository's site.
 
 The dates on which each fact was supplied go in the Status block.
 
@@ -375,8 +413,8 @@ read Dutch (D2). Which language governs is T1's question 2.
   requests, as 0131 T4 decides. What was copied to the target stays.
 - **The account is the tester's own.** It is not to be shared (0136). Inviting others follows
   0137 T0's sentence.
-- **Google asks again.** While the Google client is in Testing, a tester must reconnect after
-  about seven days (0140).
+- **Google asks again.** While the Google client live uses is in Testing, a tester must reconnect
+  after about seven days (0140).
 - **How to reach a person.** The report form (0130) or the support address (0133 open question 3).
 
 0131 T1's short note and the grant mail's sentence must match these conditions, and they link to
@@ -412,7 +450,7 @@ The refusal makes sure no credential is stored before it.
 import `site/legal/` (the README forbids it). A guard compares them with the texts.
 
 **When it is on.** Off unless the deployment sets it, like 0131 T1's alpha setting, which can be
-the same switch. The alpha stack sets it. The appliance never has it: the table, the constants and
+the same switch. Live sets it. The appliance never has it: the table, the constants and
 the check live in `packages/managed` and the managed API, and the web app shows the screen only
 when `GET /api/me` says acceptance is due. `no-managed-leakage.unit.test.ts` already refuses
 `@openmig/managed` anywhere in the appliance's import graph, so a module there is kept out
@@ -446,7 +484,7 @@ to purge it with the organisation (open question 4).
 | The identity provider's registration and sign-in pages | 0135 T5: the instance privacy policy's links, set from `.env` and read back. They point at T10's addresses. |
 | The Connect buttons (`ProviderConsentPanel`) | The privacy policy and the terms beside the button, as `docs/google-oauth-verification.md` §5 requires. |
 | The report form (`ReportProblem.tsx`) | The privacy policy linked beside what the form says it will send. 0130 T4's paragraph is the policy's half. |
-| The grant page (`Grant.tsx`) | Already links both texts. The addresses of the files the build writes, per language, are drafted in the pending consistency PR. T10 moves them into one module. |
+| The grant page (`Grant.tsx`) | Already links both texts, at the files the build writes on the production site, per language: fixed in #1137, merged 2026-09-24. T10 moves them into one module. |
 | The access-granted mail | The link to the alpha conditions, with 0131 T1's sentence. |
 
 **Guard.** `apps/web/src/components/a-notice-where-data-is-collected.unit.test.tsx` fails today.
@@ -458,14 +496,18 @@ the privacy link in the reader's language, taken from T10's module.
 The owner supplies each name (T0), and the lawyer checks the rows (T1). Privacy §7, its Dutch
 mirror and `subprocessors.md` carry the same rows.
 
-- **The ingress in front of the OTA names**: the application, the identity provider, the status
-  page and the test site. The owner confirms it this way. If TLS ends at a service the mesh
+- **The ingress in front of the production names**: the application (`app.ownpace.eu`), the
+  identity provider (`id.ownpace.eu`) and the status page (`status.ownpace.eu`), which 0132 T1e
+  routes to live, and the production site (`www.ownpace.eu`) if T0's fact 6 puts it behind the
+  same ingress. The owner confirms it this way (T0 fact 1). If TLS ends at a service the mesh
   provider operates, that service sees every request in plain text: sign-ins, OAuth codes, app
   passwords typed into the wizard, and every page of metadata. It is then a sub-processor, named
   with its region under a data-processing agreement. If TLS ends on the reference machine and
   the provider carries only encrypted traffic, the texts need no row for it. The alternative to
   a new row is to move TLS termination onto the machine. No plan carries that yet; 0132 T3's
-  record of the path is where it would start.
+  record of the path is where it would start. The OTA names are not where testers are let in
+  (D5), so the texts for the production site need no row for them. Whether they still answer
+  from the internet is 0132's open question 7.
 - **The mail relay**: 0133 T5 fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»`. Until the relay
   exists, the owner forwards mail by hand (D6). That mail then leaves through the account the owner
   forwards from, and its provider is the one the texts name for that period.
@@ -519,12 +561,12 @@ questions 2 and 3), and the lawyer checks the words.
 - **Run history.** The texts do not name it. 0129 D2 keeps a pass's lines and runs for two
   months. But managed retention prunes a tenant's runs only as far back as its newest invoice,
   and a free tenant has none (0131 §1). So in the alpha, run rows stay until the alpha ends or the
-  organisation is erased. The text says so, or W13 (0131 §5) changes the rule.
+  organisation is erased. The text says so, or 0143 (W13 in 0131 §5) changes the rule.
 
 ### T7 — a tester can end their account (proposed)
 
-The self-serve close screen belongs to W14 (0131 §5). The smaller build that makes terms §11
-true in the alpha is an operator command.
+The self-serve close screen belongs to 0144 (W14 in 0131 §5). The smaller build that makes
+terms §11 true in the alpha is an operator command.
 
 - **`operator.sh close <tenant-id> <window>`**, through a new `close` sub-command of
   `apps/api/src/scripts/operator.ts`. The route does four things: it reads the grants only the
@@ -552,13 +594,17 @@ procedure holds no secrets, so it belongs in the public repository. It covers:
 
 1. **Contain.** The operator hold (managed migration 0023) stops the sync tick from starting new
    passes (`readOpenPause` in `managed-sync-tick.ts`). A pass a tester starts by hand is not
-   checked against it (0131 §1), so the page also says how to stop those. If the nightly gate
-   still runs on the machine, pause it first, because a rebuild destroys evidence (0132 T1).
+   checked against it (0131 §1), so the page also says how to stop those. The nightly gate
+   rebuilds only the OTA stack and never touches live (0132 D-new, T1g), so it destroys no
+   evidence on live. If a breach reaches the OTA stack too, pause the gate first, because a
+   rebuild there destroys evidence.
 2. **Keep the evidence.** Copy the application's events (`app_event`, pruned at 30 days) and the
    container output (kept a month where 0129 T3's guide is followed) off the machine before they
    age out, with the audit log beside them. 0129 T4's export covers the audit log once it is
    built. Until then, and for the rest, it is a query and a copy of the journal.
-3. **Assess.** What data, which testers, and how likely a risk to them is.
+3. **Assess.** What data, which testers, and how likely a risk to them is. The two stacks share
+   one Docker daemon, and their separation is not a security boundary (0132 D-new), so the
+   assessment starts from both.
 4. **Notify the Autoriteit Persoonsgegevens** without undue delay, and where feasible within 72
    hours of becoming aware (Art. 33), unless the breach is unlikely to result in a risk.
 5. **Tell the testers**, in Dutch, when the risk to them is high (Art. 34). For a business tester
@@ -580,18 +626,19 @@ processing is not occasional. The lawyer confirms it.
 
 The assessment covers the household role (privacy §3), the correspondents in a mailbox who never
 contracted with anyone, children's mail (privacy §12), where the service runs and who can reach it
-(D5, 0132), and the ingress (T5). Whether a full assessment is required is T1's question. The
-light one is done either way.
+(D5, 0132), the two stacks on one Docker daemon (0132 D-new), and the ingress (T5). Whether a
+full assessment is required is T1's question. The light one is done either way.
 
 No code, so there is no guard. The Status block records the dates.
 
 ### T9 — SECURITY.md covers the hosted service, with one channel (proposed; owner's channel)
 
-- **Scope.** The code in this repository, both editions, and the hosted service at the OTA
-  addresses during the alpha. Also a sentence that testing against the hosted service needs the
-  owner's permission first, because it holds testers' credentials. Anyone can bring up their own
-  stack instead (`docs/selfhost-quickstart.md`, `docs/managed-bring-up.md`), and D5 says the same
-  for developers.
+- **Scope.** The code in this repository, both editions, and the hosted service: live at the
+  production names during the alpha, and the OTA stack at the OTA names. Also a sentence that
+  testing against the hosted service needs the owner's permission first, because it holds
+  testers' credentials. Anyone can bring up their own stack instead
+  (`docs/selfhost-quickstart.md`, `docs/managed-bring-up.md`), and D5 says the same for
+  developers.
 - **Supported versions.** Stated by the owner. Before there is a release line, that is `main`.
 - **A response target.** A number of working days to acknowledge a report, named by the owner.
 - **One channel, stated the same way everywhere.** Recommended: the GitHub advisory form, which
@@ -607,27 +654,46 @@ It also checks that `security.txt`'s `Expires` is in the future and less than a 
 
 ### T10 — the texts published where a tester can read them, with no placeholder left (proposed)
 
-- **A build that refuses a draft without becoming indexable.** A new switch, working name
-  `--no-drafts`: the build throws while any placeholder is rendered, as `--public` does, but stays
-  noindex and accepts the test app's address. The alpha's pages are built with it (open question
-  1). `--public` is unchanged.
+- **The production site, built with `--public`.** Testers use the production names (D5), so the
+  texts they read are the production site's, at `www.ownpace.eu`, where the grant page and the
+  legal README already point (#1137). The `--public` build already does what the alpha needs: it
+  throws while any placeholder is rendered, and it requires
+  `OWNPACE_APP_URL=https://app.ownpace.eu`, which is now the alpha's address. So publishing needs
+  no new switch (open question 1 (a)). The site it writes is indexable.
+- **If the owner wants it unindexed during the alpha** (open question 1 (b)): a new switch, working
+  name `--no-drafts`, that throws on a placeholder as `--public` does, stays noindex, and accepts
+  the production app address. Today a build without `--public` refuses that address on purpose,
+  because a noindex test site once sent its visitors to the real app (the comment above that check
+  in `site/build.mjs`). The switch would be the one exception, named on the command line.
+- **Where it is served** is T0's fact 6. 0132 T1e routes `app.`, `id.` and `status.ownpace.eu`,
+  not `www.ownpace.eu`. If it is served from the reference machine beside the OTA test site,
+  `www.yml` has the shape `managed.yml` has before 0132 T1: a fixed project name and a fixed
+  `container_name`, both `ownpace-www`. Each checkout has its own `site/dist`, and `WWW_PORT` is a
+  variable, so the fixed names are what stop a second copy from live's checkout starting. The fix
+  is 0132 T1's pattern: `ownpace-www` stays the default, and a second project sets its own name.
+  The route from `www.ownpace.eu` to that copy's port is then the owner's, as in 0132 T1e.
 - **What it renders.** The privacy policy and the terms, as today, plus T2's conditions and
   `subprocessors.md`, so `«SUBPROCESSORS_URL»` has an address. The data-processing agreement stays
   0086 T5's.
 - **One setting for every link the app makes.** Where the legal pages live is a build argument for
-  the web app, which `managed.yml` passes as it passes `VITE_OIDC_ISSUER`. One module in the web
-  app turns it into an address per page and per language. The grant page, the request form, the
-  Connect panel, the report form and T3's screen all read that module. 0135 T5's
-  `IDP_PRIVACY_URL` and `IDP_TOS_URL` are set to the same addresses.
+  the web app, which `managed.yml` passes as it passes `VITE_OIDC_ISSUER`. Live's value is the
+  production site, and the OTA stack's is its test site. One module in the web app turns it into
+  an address per page and per language. The grant page, the request form, the Connect panel, the
+  report form and T3's screen all read that module. 0135 T5's `IDP_PRIVACY_URL` and `IDP_TOS_URL`
+  are set to the same addresses.
 
-**Guards.** Each fails today:
+**Guards.** Each fails today, where it applies:
 
-- In `site/site.unit.test.ts`: a `--no-drafts` build with a placeholder left throws, and without
-  one it writes noindex pages.
+- If open question 1 chooses (b), in `site/site.unit.test.ts`: a `--no-drafts` build with a
+  placeholder left throws, and without one it writes noindex pages. Under (a) nothing is added
+  here: the `--public` refusal already exists.
+- If the site is served from the reference machine, `scripts/two-stacks-on-one-box.unit.test.ts`
+  (0132 T1) also reads `www.yml`, and fails today on its fixed `container_name`.
 - `scripts/a-policy-link-that-answers.unit.test.ts`: every address the module produces is a file
   the site build writes for that language, including the conditions and the sub-processor list.
   `managed.yml` passes the setting to the web build. This is the check that would have caught the
-  grant page's addresses.
+  grant page's old addresses. `Grant.unit.test.tsx` has pinned the corrected ones since #1137, as
+  literals; it does not read what the site build writes.
 
 Beside them, `scripts/legal-docs.unit.test.ts`'s `DOCS` list gains every file the build renders,
 including `subprocessors.md`. That passes today, and keeps a new placeholder in any of them from
@@ -654,10 +720,13 @@ conditions linked from the request page and the grant page, and each acceptance 
 is T0 to T3, T10, and T4's request and grant rows. This plan recommends the rest of T4, and T5 to
 T9, before the first invitation as well, for the reasons given with each (open question 8):
 
-1. T0, then T1. The owner's facts go to the lawyer with the drafts.
+1. T0, then T1. The owner's facts go to the lawyer with the drafts. Fact 6, where
+   `www.ownpace.eu` is served, is needed before T10 can publish.
 2. T2 and T5, written by the owner, in the same pass.
-3. T10's build switch and link module, T4 and T3. These are code, and can be built while the
-   lawyer reads. T3 goes on with the versions the lawyer approves.
+3. T10's link module (and its switch, if open question 1 chooses (b)), T4 and T3. These are
+   code, and can be built while the lawyer reads. T3 goes on with the versions the lawyer
+   approves. The production site is published with the approved texts once `www.ownpace.eu` is
+   served (T10).
 4. T6: the migration-delete revocation (code), and the wording or the purge for everything else.
 5. T7's operator command. Terms §11 promises a close *"at any time"*, and today nobody can carry
    one out.
@@ -676,8 +745,10 @@ the lawyer's pass.
   journey. This plan extends it and does not replace it.
 - **0131**: T1's note and T3's Billing sentence must match T2, T4 decides the end that T2
   describes, and T5 holds this plan's go/no-go row.
-- **0132**: T3 records the path a tester's request takes, which decides T5's ingress row. T1's gate
-  pause is the first step of T8's procedure.
+- **0132**: D-new puts testers on live at the production names (D5), which T1e routes; T3 records
+  the path a tester's request takes, which decides T5's ingress row. T1g keeps CI off live, so
+  T8's procedure no longer starts by pausing the gate. T1's pattern is what a second copy of
+  `www.yml` would need (T10).
 - **0133**: T0's relay and T5's rows. Open question 3 (support@) feeds T0.
 - **0134**: T1's erasure sentence and T2's paragraph feed T2 and T6, and T1's finding on the task
   runner's stores feeds T6. T4's list of testers is in T8's record. The wording on the key held
@@ -696,16 +767,19 @@ the lawyer's pass.
 - **0140**: the Google test-user list (T8), the reconnect every seven days or so (T2), the sentence
   on who holds a Microsoft credential (T1), and the entity facts publisher verification needs
   (T0).
-- **W14** (0131 §5): the close-account screen that T7's command stands in for.
+- **0144** (W14 in 0131 §5): the close-account screen that T7's command stands in for.
 
 ## Open questions
 
-1. **Where the texts are published during the alpha (T10).**
-   - **(a)** On the test site, noindex, built with `--no-drafts`, and linked from the alpha stack.
-     *Recommended.* The alpha is by invitation, it lives at the OTA addresses (D5), and the
-     public build's buttons lead to `app.ownpace.eu`.
-   - **(b)** On `www.ownpace.eu`, built with `--public`. Its buttons then lead to
-     `app.ownpace.eu`, which the alpha does not use.
+1. **Where the texts are published during the alpha (T10).** On the production site,
+   `www.ownpace.eu`, since testers use the production names (D5). The OTA test site is no longer
+   an option: its buttons lead to the OTA stack, where no tester is let in. The question left is
+   whether the production site is indexable during the alpha.
+   - **(a)** Built with `--public`, so indexable. *Recommended.* It needs no new code: the build
+     already refuses a placeholder and requires `app.ownpace.eu`, which is now the alpha's
+     address. The grant page's links and the legal README already name it (#1137).
+   - **(b)** Kept noindex for the alpha, with a new `--no-drafts` switch. It costs a switch and an
+     exception to the refusal that stops a noindex build pointing at production (T10).
 2. **Access requests (T6).**
    - **(a)** A declined request is deleted 30 days after the decision. *Recommended.*
    - **(b)** The texts say requests are kept until the alpha ends, and the owner deletes them by

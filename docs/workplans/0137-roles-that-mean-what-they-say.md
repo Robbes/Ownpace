@@ -15,17 +15,23 @@ can reach carry it. The other 36, which include creating, changing and deleting 
 connection, check only that the caller belongs to the organisation (§1). §4 explains when that
 matters and gives the advice for the alpha.
 
-Nothing is built. Two pieces are drafted in the pending consistency PR: the invite route refuses
-an admin who invites somebody as owner (T3), and `docs/grant-links.md` points a person who wants
-to watch progress to the progress link. 0131 T5 carries this plan's minimum for the first
-invitation.
+Two pieces are built, both in the consistency PR, #1137, which merged on 2026-09-24: the invite
+route refuses an admin who invites somebody as owner (T3 (a)), and `docs/grant-links.md` points a
+person who wants to watch progress to the view link, the product's progress link. Nothing else is
+built. 0131 T5 carries this plan's minimum for the first invitation.
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137
+merged.** T3 (a) is done: on `main` an admin's owner invitation answers 403 and writes no row.
+Testers use `ownpace-live`, a fresh stack without the demo (0132 T1b), so T7's check for existing
+`member` and `viewer` rows is made there, and an invitee's verification code comes from live's own
+catcher until 0133's relay exists.
 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha rule for a second person in a tester's organisation | ⏳ **Owner** | §4 and open question 1. Recommended: testers add nobody and share progress links, and T7 keeps the product from offering a role that promises less than it allows. |
 | T1 The role matrix, written down | 📋 **Proposed** (D1, D2) | §3. An amendment to ADR-0035: which acts are owner only, owner and admin, or open to every role, and what a member may do that a viewer may not. |
 | T2 Every write route names its roles, and a guard fails when one does not | 📋 **Proposed** (D2) | §3. Named role constants on 34 of the 36 ungated writes, and an allowlist with reasons for the other two; a route-table guard in `scripts/` that fails today. |
-| T3 The owner role is guarded on every door | 📋 **Proposed**; the invite half drafted in the pending consistency PR | §3. An admin cannot invite as owner (drafted). The last-owner guard counts active owners only, in one transaction. An admin cannot demote or remove an owner (with T1). |
+| T3 The owner role is guarded on every door | 📋 **Proposed**; (a) the invite half ✅ **done** in #1137, merged 2026-09-24 | §3. An admin cannot invite as owner (done). The last-owner guard counts active owners only, in one transaction. An admin cannot demote or remove an owner (with T1). |
 | T4 Who deleted it, who replaced the password, who prepared the cutover | 📋 **Proposed** | §3. An `audit_log` row with the actor for deleting a migration or a connection, replacing credentials, and preparing a cutover. |
 | T5 The web app shows a viewer no button it cannot press | 📋 **Proposed**, after T2 | §3. One table in the web app that mirrors T1, checked against the API's. |
 | T6 A viewer and a member are refused, and a test says so | 📋 **Proposed**, with T2 | §3. 403 cases for every gated write, driven by T2's table; the migrations suite stops asserting that a member may delete. |
@@ -33,10 +39,10 @@ invitation.
 
 ## 1. What there is today
 
-Each fact below was checked on 2026-09-24 at the current checkout. The route table was also
-compared with `origin/main`, which differs in other files but not in any route or its
-middleware. This plan concerns the managed edition only: the appliance has one operator, and
-`apps/selfhost` reads no role.
+Each fact below was checked on 2026-09-24 at the current checkout. The route table was checked
+again at `main` after #1137 merged: #1137 changed the invite handler (*The owner role*, below)
+and no route or its middleware. This plan concerns the managed edition only: the appliance has
+one operator, and `apps/selfhost` reads no role.
 
 **The roles exist.** `tenant_member.role` is constrained to `owner`, `admin`, `member` and
 `viewer` by `tenant_member_role_check` in
@@ -137,16 +143,18 @@ routes, and no guard checks the route table.
 identity provider, which accepts self-registration (`allowRegister: true`, 0135 §1), and accepts
 the invitation for their verified address (`acceptInvitation`). None of this passes through the
 access queue. Until mail leaves the machine (0133), an invitee who registers with an email address
-needs the identity provider's verification code, which lands in the catcher the owner reads. So
-for now the owner would pass that code on. That is relaying mail, not deciding a role, and it
+needs the identity provider's verification code, which lands in a catcher the owner reads: for
+testers, `ownpace-live`'s own, never the OTA stack's (0133 T1). So for now the owner would pass
+that code on. That is relaying mail, not deciding a role, and it
 ends with 0133. What a sign-in through Google does here is not established (0133 §1).
 
 **The owner role.**
 
-- `POST …/members` accepts `role: 'owner'` from an admin, and acceptance keeps the invited role.
-  The PATCH route refuses the same grant (`grantsOwnerWithoutPermission`). The Team page disables
-  the owner option for an admin, so today it takes a direct API call. The fix is drafted in the
-  pending consistency PR.
+- Until #1137, `POST …/members` accepted `role: 'owner'` from an admin, and acceptance keeps the
+  invited role, while the PATCH route refused the same grant (`grantsOwnerWithoutPermission`).
+  The Team page disables the owner option for an admin, so it took a direct API call. Fixed
+  in #1137, merged 2026-09-24: the invite route applies the same check before it touches the
+  database and answers 403.
 - The last-owner guards (`demotesLastOwner`, `removesLastOwner`) count every owner row. The count
   in `members.ts` filters on the organisation and the role, not on the status, so an invited or a
   declined owner row counts. The operator's script already counts only active owners
@@ -185,6 +193,7 @@ in and support them. Max 10/20 people"* ("rest" is read as "test"). *The Google 
 Testing, so tokens expire after about seven days* — *"I add people, controlled small test
 Group."*
 
+The tester stack is `ownpace-live`, beside the OTA stack, on the production names (0132 D-new).
 So the owner decides which organisations exist in the alpha, one access request at a time (0131
 D2). The answer does not say what a second person inside a tester's organisation may do, and the
 product does not route that person through the owner (§1). §4 explains the gap, and T0 asks the
@@ -293,10 +302,10 @@ T2 and T6 are one PR: the gate without the tests is unproven, and the tests with
 
 ### T3 — the owner role is guarded on every door
 
-- **(a) An admin cannot invite as owner.** Drafted in the pending consistency PR: the invite
+- **(a) An admin cannot invite as owner.** ✅ Done in #1137, merged 2026-09-24: the invite
   route applies `grantsOwnerWithoutPermission` before it touches the database, and
   `members.integration.test.ts` has *"refuses an admin inviting an owner (no self-escalation)"*,
-  which expects 403 and no row. The draft records that the old route answered 201.
+  which expects 403 and no row. The commit records that the old route answered 201.
 - **(b) The last-owner guard counts active owners only.** The count adds
   `status = 'active'`, as `operator.ts` already does. The guard applies only when the target is
   itself an active owner, so an owner can still withdraw a pending owner invitation. The count
@@ -313,7 +322,7 @@ two). One more case passes today and must keep passing: withdrawing a pending ow
 with one active owner answers 204. It is what stops (b) from counting too little.
 
 The file warns today that seeding a second owner row *"would break the last-owner guard tests"*,
-and the drafted case in the consistency PR avoids an owner-invites-owner case for the same reason.
+and the case #1137 added avoids an owner-invites-owner case for the same reason.
 After (b) an invited or declined owner row no longer counts, so it no longer breaks them, and the
 suite should prove that with an owner-invites-owner case beside the last-owner cases.
 
@@ -380,8 +389,9 @@ The stopgap, if the first invitation goes out before T2 and T6 are merged.
   beheerder zijn."* / *"During the alpha, a person can only be an owner or an admin."*
 - The Team page offers owner and admin, defaults to admin, and says in one line what an admin can
   do.
-- Rows that already hold `member` or `viewer` are listed before the first invitation. On a fresh
-  alpha stack (0132 T5, no demo) there should be none.
+- Rows that already hold `member` or `viewer` are listed before the first invitation, on
+  `ownpace-live`. It is a fresh stack brought up without the demo (0132 T1b, T5), so there should
+  be none.
 
 Guard: an owner inviting a `viewer` gets 400 and no row (today 201), and a web test finds no
 `viewer` or `member` option in the role select. T2's PR widens the schemas again and replaces
@@ -431,8 +441,8 @@ do to a migration or a connection.
    migration gets its progress link (T0). This is what ADR-0035 already says the product is: *"A
    family is one account and three mappings."* The progress link was built for it (0122).
 2. **In the product, at the same time:** T7, so that a tester who invites somebody anyway can
-   only choose a role whose name tells the truth. With T3 (a) from the consistency PR, an admin
-   cannot make somebody owner.
+   only choose a role whose name tells the truth. With T3 (a), merged in #1137, an admin cannot
+   make somebody owner.
 3. **During the alpha:** T1 (the owner confirms the matrix), then T2 with T6 in one PR, then T3
    (b) and (c), T4 and T5. T2's PR undoes T7.
 
@@ -445,7 +455,7 @@ enough for the alpha, at a fraction of T2's work.
 
 ## 5. Order
 
-T0 and T7 before the first invitation, with T3 (a) merged from the consistency PR. Then T1,
+T0 and T7 before the first invitation; T3 (a) is already on `main` (#1137). Then T1,
 because T2's constants are its rows. Then T2 and T6 together, which undo T7. T3 (b) and (c) can go
 with them or right after, since they touch the same suite. T4 is independent and small. T5 goes
 last, because it mirrors T2's table.

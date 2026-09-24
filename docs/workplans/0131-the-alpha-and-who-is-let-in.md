@@ -9,8 +9,15 @@ called an **alpha**. This plan is the umbrella for it. It records the decisions 
 alpha as a whole (§2, D1–D7), holds the three small builds that follow from them (T1–T3), asks
 what happens when the alpha ends (T4), and keeps the list of what must be true before the first
 invitation goes out (T5). The work itself is split over nine plans opened the same day, 0132 to
-0140. Nothing in this plan is built. A few fixes it depends on are drafted in the pending
-consistency PR and are named where they occur. None of them is merged.
+0140. Nothing in this plan is built. A few fixes it depended on were drafted in the consistency
+PR, #1137. It merged on 2026-09-24, and each fix is named where it occurs.
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137
+merged.** Testers now use a second stack, `ownpace-live`, on the production names, while the OTA
+stack stays CI's and the demo's (D3), so the nightly gate no longer reaches testers' data and open
+question 2 is answered. T5's 0132 row is now 0132's new minimum, the fixes #1137 carried are
+marked done where they occur, and §5 says which further work the owner had written up as 0141 to
+0147.
 
 | Task | Status | Notes |
 |---|---|---|
@@ -93,7 +100,9 @@ machine, which is also this repository's self-hosted runner:
 --no-smoke`, and its header says *"the run recreates the halves it owns: the API, the web app,
 the worker image and the seed."* `managed.yml` fixes the names of the compose project
 (`ownpace-managed`) and the database container (`ownpace-db`). The review found that the gate
-therefore rebuilds the same stack the OTA addresses serve. The runbook's own rule is that this
+therefore rebuilds the same stack the OTA addresses serve. The same file gives 17 services a fixed
+`container_name`, so a second compose project cannot start on the machine while this one's
+containers exist (0132 T1). The runbook's own rule is that this
 must end first: *"before the first non-demo tenant is onboarded, CI and production must not
 share this machine"* (`docs/operator-runbook.md`, "This box also runs CI"). The same item is in
 `docs/release.md`'s checklist.
@@ -105,7 +114,8 @@ passed on 2026-09-23. That was not re-checked here.
 The repository does not settle whether a person off the mesh can reach the OTA addresses.
 `docs/google-oauth-verification.md` says *"Anyone not on the mesh gets a timeout"*, and 0091
 says *"Routing and TLS are netbird's, not this repository's."* The review's DNS lookup found the
-OTA names resolving to the mesh provider's hosted ingress. 0132 establishes which is true.
+OTA names resolving to the mesh provider's hosted ingress. 0132 T3 establishes which is true, for
+these names and for the production names testers will use (D3).
 
 **Letting someone in is already one person's act.** `/request-access` is public and managed-only
 (`AppRoutes.tsx`). It stores a request and creates nothing. The operator's access queue
@@ -124,12 +134,13 @@ A request that was granted is purged with its organisation at erasure (`access_r
 `PURGED_TABLES` in `offboarding.ts`). An open or declined request names no organisation and is
 kept: the application role has no DELETE on `access_request`, and no job removes one.
 
-The form accepts 60 requests an hour, counted per `req.ip`. `managed.yml` passes neither
-`TRUST_PROXY` nor `ACCESS_REQUEST_MAX_PER_HOUR` to the API, so behind an ingress every caller
-shares one count (`apps/api/src/knock-limit.ts`). This is 0093 T2c, which the owner deferred on
-2026-09-01 until self-service arrives: while granting is the operator's act, sixty an hour for
-the whole service is enough. The alpha keeps granting as the operator's act. The pass-through is
-drafted in the pending consistency PR. The form has no spam protection.
+The form accepts 60 requests an hour, counted per `req.ip`. Since #1137 (merged 2026-09-24),
+`managed.yml` passes `TRUST_PROXY` and `ACCESS_REQUEST_MAX_PER_HOUR` to the API. Both are empty
+in `managed.env.example`, and with `TRUST_PROXY` empty the API trusts no proxy, so behind an
+ingress every caller shares one count until a deployment sets it (`apps/api/src/knock-limit.ts`).
+This is 0093 T2c, which the owner deferred on 2026-09-01 until self-service arrives: while
+granting is the operator's act, sixty an hour for the whole service is enough. The alpha keeps
+granting as the operator's act. The form has no spam protection.
 
 **Ending an organisation has no button.** `POST /api/tenants/:tenantId/close` exists: owner only,
 with a window of 0, 7, 30 or 90 days (`CLOSE_WINDOWS_DAYS` in
@@ -194,10 +205,28 @@ the database passwords changed, and does the live identity provider hold other o
 *"No, these ports are not reachable outside of private network/NetBird. Usernamea changed. No
 other organisations are hosted."*
 
-So the alpha runs on the reference machine at `app.ota.ownpace.eu` and `id.ota.ownpace.eu`, and
-CI stays on it. That departs from the runbook's rule (§1). 0132 records the departure and what
-makes it tolerable for a known group of at most 20. It also covers what changes in the runbook and
-the release checklist so that neither contradicts this decision.
+So the alpha runs on the reference machine, and CI stays on it. The first answer placed it at the
+OTA address. Later the same day the owner asked: *"check, can't i just (as a start) host a
+'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain? What would i
+need to do to keep alle seperate from each other?"* The proposal back was to make that the
+decision in 0132, with testers on `ownpace-live`. The owner's answer: *"Yes! The spark has a lot
+free memory and disk, it will fit."*
+
+Testers therefore use a second compose project, `ownpace-live`, beside the OTA stack
+`ownpace-managed` on the same machine, at the production names of 0091: `app.ownpace.eu`,
+`id.ownpace.eu` and, for the status page, `status.ownpace.eu` (`docs/status-page.md`). 0091 T4,
+*"`app` stays dark until it means production"*, is thereby answered: it now means production.
+`ownpace-managed` stays at `app.ota.ownpace.eu` and `id.ota.ownpace.eu`, as the nightly gate's
+target and the demo, and CI never touches `ownpace-live`.
+
+The separation is by name on one Docker daemon, not a security boundary: both stacks' Trigger.dev
+planes can use the Docker socket, and so can the self-hosted runner (§4). That is accepted for a
+hand-picked alpha. A separate virtual machine, or a rootless daemon for each stack, is the step if
+the separation must become a boundary. So this still departs from the runbook's rule (§1), which
+names a shared Docker daemon as the class of problem. 0132 records the decision and the work that
+makes a second stack possible, starting with its T1, since today's fixed container names stop a
+second project from starting (§1). It also covers what changes in the runbook and the release
+checklist so that neither contradicts this decision.
 
 **D4 — the legal surface comes first.** *A lawyer's pass before the first invitation, or a
 labelled beta notice? And can you supply the address, the btw-id and the hosting details?* —
@@ -223,7 +252,9 @@ bridge."* ("het" is read as "get", and "aupporrthe" as "support the".)
 
 So no tester, contributor or developer gets a login on the machine, a place on the mesh or a
 copy of its secrets. Developers run their own environments, and code reaches the machine only
-through a merged pull request. §4 answers the question inside this answer.
+through a merged pull request. §4 answers the question inside this answer. With `ownpace-live`
+(D3), testers are not on the current stack at all: live starts from its own `.env`, and the OTA
+stack keeps its secrets as a demo (§4).
 
 **The other answers, and the plans that carry them.**
 
@@ -241,10 +272,11 @@ through a merged pull request. §4 answers the question inside this answer.
 
 ### T1 — the word "alpha" wherever a tester meets the service
 
-**One setting, read in two places.** A deployment setting in `deploy/compose/.env`, unset by
-default. Its name is for the build to settle; `OWNPACE_STAGE=alpha` is the working name.
-`managed.yml` passes it to the web build as a build argument, as it already does for
-`VITE_OIDC_ISSUER`. It also passes it to the API service, whose environment is an explicit list.
+**One setting, read in two places.** A deployment setting in `deploy/compose/.env` (for the
+alpha, `ownpace-live`'s own), unset by default. Its name is for the build to settle;
+`OWNPACE_STAGE=alpha` is the working name. `managed.yml` passes it to the web build as a build
+argument, as it already does for `VITE_OIDC_ISSUER`. It also passes it to the API service, whose
+environment is an explicit list.
 
 It is a build argument, not a value the web app reads from the API, because the request page and
 the sign-in page have no session. A note that disappears when a read fails would go silent exactly
@@ -269,7 +301,7 @@ when something is wrong. The appliance never sets the setting.
 
 Once 0139 publishes the alpha conditions, the note links to them in the reader's language. A
 tester guide, a known-limitations page and a close-account screen are not part of T1. They belong
-to W14 (§5).
+to 0144 (W14, §5).
 
 **Guards.** Each of these fails on today's code:
 
@@ -294,7 +326,7 @@ orchestration). There are two verdicts:
 - **experimental**: built, but not yet run against a real account.
 
 Its first content is §1's list. A face moves to proven when its live run is recorded. The live
-runs themselves belong to W11 (§5). The matrix stays the long-form record and
+runs themselves belong to 0141 (W11, §5). The matrix stays the long-form record and
 the table is what the screen reads. A change to one goes into the same PR as the matching change
 to the other.
 
@@ -349,13 +381,13 @@ card disabled. Open question 4 asks whether to hide it instead.
 tells the owner roughly how large a request is. Its hint gains the sentence *"Nothing is charged
 during the alpha."*
 
-**Nothing to build on the server.** The invoice route already refuses every call. The alpha
-stack keeps `MOLLIE_API_KEY` empty, which is a T5 check.
+**Nothing to build on the server.** The invoice route already refuses every call.
+`ownpace-live` keeps `MOLLIE_API_KEY` empty, which is a T5 check.
 
 **Run rows (Proposed).** Accept that run rows are not pruned during the alpha while nothing is
 invoiced. The rows grow with every pass, but the growth stops when the alpha ends, and it covers
 at most 20 organisations over a few weeks. A retention rule for tenants that are never billed
-belongs with capacity (W13, §5). This is revisited if the alpha is extended.
+belongs with capacity (0143, W13 in §5). This is revisited if the alpha is extended.
 
 **Guard.** `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`: with the setting on, the
 Billing page shows the line in both languages and none of the four metered labels. Without the
@@ -383,10 +415,10 @@ tester, and the source account, which no connector writes to.
   its sentence says the alpha has ended. A pass a tester starts by hand is not held (§1). Each
   organisation is then closed with a 0-day or short window. The close route stops that
   organisation's passes in flight (`stopPassesInFlight`), and erasure revokes its stored
-  credentials when the window ends. The owner deletes each tester's identity
-  at the identity provider and removes their Google test-user entry. Testers keep what arrived at
-  their targets. *Recommended as the default.* D1's *"No obligations both sides"* is only true
-  at the end if none of a tester's credentials is still stored.
+  credentials when the window ends. The owner deletes each tester's identity at
+  `ownpace-live`'s identity provider and removes their Google test-user entry. Testers keep what
+  arrived at their targets. *Recommended as the default.* D1's *"No obligations both sides"* is
+  only true at the end if none of a tester's credentials is still stored.
 - **(b) Everything carries on** into whatever follows, a longer test or the paid service, and new
   conditions are accepted first.
 - **(c) Each tester chooses** between (a) and (b), and anyone who does not answer gets (a).
@@ -394,8 +426,8 @@ tester, and the source account, which no connector writes to.
 **What (a) needs that does not exist yet.**
 
 - A way for the owner to close an organisation. The close API is for an organisation's own owner,
-  and neither the web app nor `operator.sh` offers a path. A close screen is W14; an audited
-  operator command is the smaller build.
+  and neither the web app nor `operator.sh` offers a path. A close screen is 0144's (W14); an
+  audited operator command is the smaller build.
 - A runbook step for the identity provider, because erasure does not reach it.
 - An answer for credentials whose migration a tester deleted before the end. That row is gone, so
   erasure can no longer revoke its credential, and the delete did not revoke it either (§1). 0139
@@ -414,31 +446,36 @@ contains more than its row.
 
 | Plan | The minimum before the first invitation | Today |
 |---|---|---|
-| 0131 The alpha (this plan) | T1 and T3 on the alpha stack with the setting on. T2 built. T4 decided, and 0139's conditions say what the end does. Open question 6 answered, and the answer in place. | Nothing built. Any owner or admin can invite by email address (§1). |
-| 0132 The alpha and the nightly gate on one box | Checked from a machine off the mesh: `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and the site's `www.ota.ownpace.eu` answer over TLS, and no other port on the machine answers. The result is written in 0132. The database owner's password and the application role's password are not ones the repository contains. The nightly gate cannot rebuild, reseed or wipe the stack while testers use it, or it is paused (open question 2). Every secret 0026 row 24 names has a value that has never appeared in a log (§4). The runbook and the release checklist say what D3 decided. Both nightly gates are green on their last N scheduled runs of the deployed commit. The review suggested five, and the owner names N. | The owner reports the ports unreachable off the mesh (D3). `managed.yml` publishes seven ports (the database, the API, the web app, the status page, the identity provider and two for Trigger.dev) on all interfaces, and `www.yml` the site's, unless the host restricts them (0132 §1). The application role's password is a literal in the shared baseline migration (`packages/ledger/migrations/0001_baseline.sql`). |
-| 0133 Mail that reaches a tester | One address outside the owner's own domains walks through the request, the grant mail, the identity provider's verification mail and the first sign-in, and every mail arrives in that inbox. SPF, DKIM and DMARC pass for the sending domain. The identity provider sends through the relay with a login (drafted in the pending consistency PR). The notice that a request has arrived reaches the owner. | `managed.env.example` defaults `SMTP_HOST` to `mailpit`, so mail stays on the box. |
-| 0134 No backups during the alpha, said truthfully | The alpha conditions, T1's note and the grant mail say that nothing is backed up. Nothing the product shows promises a backup that does not exist. The owner has written down what a lost database costs a tester. | The application database has no backup (review). Coverage of the zitadel database in the manual recipe is drafted in the pending consistency PR. |
-| 0135 The sign-in page is the front door | Public organisation registration is off at the live identity provider, and the setting has been read back. A user of another organisation cannot sign in to the project. | Open, which is the upstream default (review). The owner reports that no other organisations are hosted (D3). |
-| 0136 A host we are asked to reach | 0136's minimum, after its explanation. A host a tester types is refused before any connection when it resolves to loopback, a private or link-local range, or a compose service name, and redirects are checked too. The alternative is the owner's written acceptance, given in the knowledge that every tester is someone the owner let in. | No check (review). |
-| 0137 Roles that mean what they say | A viewer or member cannot delete, cut over, repoint credentials or apply deletions. Until that is built, testers invite nobody below admin, and the conditions say so. An admin cannot invite an owner (drafted in the pending consistency PR). | Most writes are open to every role (review, including an integration test that asserts it). |
+| 0131 The alpha (this plan) | T1 and T3 on `ownpace-live` with the setting on. T2 built. T4 decided, and 0139's conditions say what the end does. Open question 6 answered, and the answer in place. | Nothing built. Any owner or admin can invite by email address (§1). |
+| 0132 ownpace-live beside the nightly gate, on one box | 0132's T1, T1b to T1e, and T3 (D3). **T1:** container names and scripts take the stack from `COMPOSE_PROJECT_NAME`, and a guard fails on a fixed stack name. **T1b:** `ownpace-live` has its own checkout and `.env`, fresh secrets from its first bring-up, its own ports and no demo. Its database passwords are generated before that bring-up, and its application role is created with its own password before anything migrates, because otherwise the baseline creates it with the repository's literal. **T1c:** its own Trigger.dev plane, never the OTA one. **T1d:** its own identity provider at `id.ownpace.eu`, and a web build that names it as the issuer. **T1e:** the production names routed to live's ports. **T3:** checked from a machine off the mesh, port 443 on the production names answers over TLS, the OTA names answer as 0132's open question 7 decides, and nothing else answers; every port that need not be reachable is bound to loopback in both stacks (T1f). The result is written in 0132. Deploying live by hand from a tag (T1g) goes with 0146. The tag live first runs names a commit on which both nightly gates are green on their last N scheduled runs (0132 T6, step 1). The review suggested five, and the owner names N. The runbook and the release checklist say what D3 decided (0132 T1g). | `managed.yml` pins `name: ownpace-managed` and gives 17 services a fixed `container_name`, and scripts address containers by those names, so a second stack cannot start beside the OTA one (0132 §1). The owner reports the ports unreachable off the mesh (D3). `managed.yml` publishes seven ports (the database, the API, the web app, the status page, the identity provider and two for Trigger.dev) on all interfaces, and `www.yml` the site's, unless the host restricts them. The application role's password is a literal in the shared baseline migration (`packages/ledger/migrations/0001_baseline.sql`), and `ensure-env-secrets.sh` generates neither that password nor the database owner's. |
+| 0133 Mail that reaches a tester | On `ownpace-live`, one address outside the owner's own domains walks through the request, the grant mail, the identity provider's verification mail and the first sign-in, and every mail arrives in that inbox. SPF, DKIM and DMARC pass for the sending domain. Live's API and its identity provider both send through the relay, the provider with a login: `setup-zitadel.sh` hands it `SMTP_USER` and `SMTP_PASSWORD` since #1137 (merged 2026-09-24). The notice that a request has arrived reaches the owner. | `managed.env.example` defaults `SMTP_HOST` to `mailpit`, and every bring-up starts Mailpit, with or without the demo (`bootstrap-managed.sh`), so mail stays on the box until live's `.env` names the relay. |
+| 0134 No backups during the alpha, said truthfully | The alpha conditions, T1's note and the grant mail say that nothing is backed up. Nothing the product shows promises a backup that does not exist. The owner has written down what a lost database costs a tester. | The application database has no backup (review); on `ownpace-live` it will hold the testers' data. The runbook's manual recipe dumps the zitadel database and the roles as well since #1137 (merged 2026-09-24), and says neither dump is usable without the stack's `.env`. |
+| 0135 The sign-in page is the front door | Public organisation registration is off at `ownpace-live`'s identity provider (`id.ownpace.eu`), and the setting has been read back; 0135 applies the same to the OTA instance. A user of another organisation cannot sign in to the project. | Open, which is the upstream default (review), so a new instance starts open. The owner reports that no other organisations are hosted on the OTA instance (D3). |
+| 0136 A host we are asked to reach | 0136's minimum, after its explanation. A host a tester types is refused before any connection when it resolves to loopback, a private or link-local range, or a compose service name, and redirects are checked too. The Docker networks and their gateway are among the refused ranges, because through them a container can reach the other stack's host-published ports (D3). The alternative is the owner's written acceptance, given in the knowledge that every tester is someone the owner let in. | No check (review). |
+| 0137 Roles that mean what they say | A viewer or member cannot delete, cut over, repoint credentials or apply deletions. Until that is built, testers invite nobody below admin, and the conditions say so. An admin cannot invite an owner: done in #1137 (merged 2026-09-24), where the invite route answers 403. | Most writes are open to every role (review, including an integration test that asserts it). |
 | 0138 Tasks under row security | Built, or accepted in writing with the reason stated. | Tasks read and write tenant data as the database owner, so row security does not apply in the worker plane (review). |
-| 0139 The legal gate for the alpha | The lawyer's pass is done (D4) and the placeholders hold the owner's facts. The alpha conditions are published in Dutch and English: free, no obligations, a few weeks, no backups, and how it ends. The privacy policy and the conditions are linked from the request page and the grant page; the grant page's links are drafted in the pending consistency PR. Each tester's acceptance is recorded with the version and the time. | Drafts with placeholders. `site/build.mjs` refuses `--public` while any placeholder is unfilled. |
-| 0140 Consent screens a tester can pass | Each tester's Google address is a test user before they connect. Testers know Google will ask them to reconnect: after about seven days while the client is in Testing, a figure to confirm on Google's pages. A tester with a Microsoft work or school account knows, before pressing Connect, what their organisation's consent policy may do (0140 explains). Dropbox, Box and Apple carry T2's label. | The Google client is in Testing (0089 T2 names the seven-day expiry). |
-| 0093 T2c The request door | `TRUST_PROXY` and `ACCESS_REQUEST_MAX_PER_HOUR` reach the API (drafted in the pending consistency PR), and `TRUST_PROXY` is set for the ingress that 0132 settles. Spam protection is 🅿️ **Parked (trigger: junk in the queue, or the request address published)**: the owner reads every request, and a decline can be quiet. | §1. |
-| 0130 A problem report that reaches a person | A tester can reach a person. Either the report form works on the alpha stack, with a Zammad configured, or the conditions name an address the owner reads. | Built. This plan does not record whether the OTA stack has a Zammad set. |
+| 0139 The legal gate for the alpha | The lawyer's pass is done (D4) and the placeholders hold the owner's facts. The alpha conditions are published in Dutch and English: free, no obligations, a few weeks, no backups, and how it ends. The pages describe the service at the production names (D3). The privacy policy and the conditions are linked from the request page and the grant page; since #1137 (merged 2026-09-24) the grant page links to the privacy policy and the terms on `www.ownpace.eu`, in the reader's language. Each tester's acceptance is recorded with the version and the time. | Drafts with placeholders. `site/build.mjs` refuses `--public` while any placeholder is unfilled. |
+| 0140 Consent screens a tester can pass | `ownpace-live` uses the production Google client, separate from the OTA stack's test client, and Microsoft and Dropbox know live's redirect addresses (D3). Each tester's Google address is a test user before they connect. Testers know Google will ask them to reconnect: after about seven days while the client is in Testing, a figure to confirm on Google's pages. A tester with a Microsoft work or school account knows, before pressing Connect, what their organisation's consent policy may do (0140 explains). Dropbox, Box and Apple carry T2's label. | The client registered on 2026-08-20 is the test (OTA) client, and production gets its own (`docs/google-oauth-verification.md` §4b). The client is in Testing (0089 T2 names the seven-day expiry). |
+| 0093 T2c The request door | `TRUST_PROXY` and `ACCESS_REQUEST_MAX_PER_HOUR` reach the API (done in #1137, merged 2026-09-24), and `TRUST_PROXY` is set in `ownpace-live`'s `.env` for the ingress that 0132 settles. Spam protection is 🅿️ **Parked (trigger: junk in the queue, or the request address published)**: the owner reads every request, and a decline can be quiet. | Both are empty by default, so every caller shares one count (§1). |
+| 0130 A problem report that reaches a person | A tester can reach a person. Either the report form works on `ownpace-live`, with a Zammad configured, or the conditions name an address the owner reads. | Built. On 2026-09-24 `managed.yml` does not pass `ZAMMAD_URL`, `ZAMMAD_TOKEN` or `ZAMMAD_GROUP` to the API, whose environment is an explicit list, so on a managed stack the form stays off whatever `.env` says, although step 8f of `docs/managed-bring-up.md` says to set them there. |
 
 **The owner's own steps.**
 
 1. The lawyer's pass, with the registered address, the btw-id and the hosting details supplied to
    0139 (D4).
 2. The mail-sending account, and the DNS records for the sending domain (0133).
-3. The database user and password changed. D3's answer says the user names are changed, and the
-   answer on the database says the user and password will be. 0132 records which of these is
-   done.
-4. For each tester, before they connect: grant their request in the access queue, and add their
-   Google address as a test user (D2, 0140).
-5. On the stack: the alpha setting from T1 switched on, and `MOLLIE_API_KEY` left empty.
-6. Name N for the nightly gates (0132), and answer the open questions below.
+3. `ownpace-live` brought up from its own checkout and `.env`, never a copy of the OTA stack's,
+   with its database passwords generated before the first bring-up and the application role
+   created with its own password before anything migrates (0132 T1b). D3's answer says the user
+   names are changed, and the answer on the database says the user and password will be; that was
+   about the OTA stack, where 0132 T2 changes them with `ALTER ROLE`, and 0132 records which of
+   these is done there.
+4. Live's own Trigger.dev account, project and access token, and the production names routed to
+   `ownpace-live` in NetBird (0132 T1c, T1e).
+5. For each tester, before they connect: grant their request in `ownpace-live`'s access queue,
+   and add their Google address as a test user of the production client (D2, 0140).
+6. On `ownpace-live`: the alpha setting from T1 switched on, and `MOLLIE_API_KEY` left empty.
+7. Name N for the nightly gates (0132 T6), and answer the open questions below.
 
 ## 4. Explaining the risk: who would need the credentials (D7)
 
@@ -452,20 +489,38 @@ given the secrets. It is about copies that already exist outside the owner's con
   public repository's CI (D3), and a public repository's workflow logs are not private.
 - The application role's password is a literal in the shared baseline migration
   (`packages/ledger/migrations/0001_baseline.sql`), which this public repository contains.
-  Nothing in the repository changes it (0132).
+  Nothing in the repository changes it (0132 T2), and the baseline creates the role with it on
+  every new stack.
 - The demo seed (`--with-demo`) creates demo organisations whose credentials are in the
   repository's scripts.
 
 D7 stops new copies from being made. It does nothing about the copies that already exist.
 
-**The advice.** Before the first invitation, give every secret named in 0026 row 24 a fresh value,
-and change the database passwords, while the only stored credentials are the owner's own. Stored
-credentials are encrypted under `SECRET_ENCRYPTION_KEY`, and SECURITY.md states there is *"no
-rotation"*. A new key after testers have connected would therefore make every stored credential
-unreadable, and every tester would have to reconnect. The same step costs the owner one reconnect
-before the alpha, and costs every tester one reconnect after it starts. Re-running
-`ensure-env-secrets.sh`, which row 24 names as the way to rotate, does not do it: the script says
-*"re-running it never rotates anything"*. 0132 carries the steps.
+**What D3 changes.** The logged values are the OTA stack's. `ownpace-live` does not inherit them:
+it has its own `.env`, and at its first bring-up `ensure-env-secrets.sh` generates fresh values
+for the secrets it knows (the signing and encryption keys, Trigger.dev's secrets, the identity
+provider's master key and passwords, and the pooler's password). Live is never brought up with
+`--with-demo`. So 0026 row 24 closes for `ownpace-live`, which never had demo secrets, and stays
+parked with its trigger for the OTA stack, which remains a demo (0132 T5). The script does not
+generate the database passwords: the database owner's is whatever live's `.env` says at the first
+bring-up, and the application role gets the baseline's literal unless it is created with its own
+password before anything migrates (0132 T1b).
+
+**The advice.**
+
+- For `ownpace-live`: copy nothing from the OTA stack's `.env`. Before the first bring-up, set
+  the database owner's password in live's `.env`, and ClickHouse's and MinIO's, which
+  `bootstrap-managed.sh` reports while they are at their shipped defaults. Changing the database
+  owner's password once the volume exists changes nothing inside it (`bootstrap-managed.sh`).
+  Create the application role with its own password before anything migrates (0132 T1b); if the
+  baseline got there first, change it with `ALTER ROLE` before the first invitation (0132 T2).
+  Keep live's `SECRET_ENCRYPTION_KEY` as its first bring-up made it. Stored credentials are
+  encrypted under that key, and SECURITY.md states there is *"no rotation"*: a new key after
+  testers have connected would make every stored credential unreadable, and every tester would
+  have to reconnect.
+- For the OTA stack: row 24's rotation waits for its trigger. When it fires, re-running
+  `ensure-env-secrets.sh`, which row 24 names as the way to rotate, does not do it: the script
+  says *"re-running it never rotates anything"*. 0132 carries the steps.
 
 **The bridge D7 names is also a gate.** A pull request runs on GitHub-hosted runners (`ci.yml`),
 so a contributor's code does not run on the machine before the owner merges it. After the merge
@@ -474,40 +529,55 @@ there. SECURITY.md says of that runner: *"trusted workflows only (docker socket 
 risk)"*. So the owner's merge is the gate for code, just as the access queue is the gate for
 people. The advice is to keep the self-hosted runner off `pull_request` events, as it is today,
 and to read any change to `.github/workflows/` before merging it with the same care as a change to
-the stack itself.
+the stack itself. D3's separation is by name on one Docker daemon, so a workflow that runs on that
+runner can reach `ownpace-live` as well as the OTA stack.
 
-## 5. Not planned yet: the owner chooses
+## 5. Further work, and where it is planned
 
-The review found more than the ten plans above cover. These are named here so that they are not
-lost. Each one gets the next free number when the owner chooses it.
+The review found more than the ten plans above cover, and this section first named the rest W11
+to W19 so that they were not lost. On 2026-09-24 the owner chose, item by item: *"W11 write, W12
+write, W13 write, W14 write, W15 explaoin, W16 write, W17 write, W18 explain, W19 write"*
+("explaoin" is read as "explain"). The seven the owner said "write" to were opened the same day,
+each under the next free number. The two the owner asked to have explained were explained and are
+not planned yet; each gets the next free number when the owner chooses it.
 
-- **W11 Proof before strangers:** live runs of the sources T2 labels, the 0103 organiser canary,
-  the 0105 Soverin supervised run, and a browser smoke test on managed.
-- **W12 Alerts someone reads:** somebody is told when the stack, the tick, the disk or a pass
-  fails.
-- **W13 A box with a known size:** capacity, per-tenant caps, a manual sync's `concurrencyKey`
-  (drafted in the pending consistency PR), run retention for tenants that are never billed, and
-  JMAP files over 8 MB.
-- **W14 Saying what is true to a tester:** the full notice, a tester guide, known limitations,
-  the "read-only" wording, and a close-account screen.
+**Opened 2026-09-24, at the owner's word "write":**
+
+- **W11 → 0141 Proof before strangers:** live runs of the sources T2 labels, the 0103 organiser
+  canary, the 0105 Soverin supervised run, and a browser smoke test on managed. Live proofs run on
+  `ownpace-live`; the OTA stack's nightly gate stays the CI signal (D3).
+- **W12 → 0142 Alerts someone reads:** somebody is told when the stack, the tick, the disk or a
+  pass fails, on `ownpace-live` first.
+- **W13 → 0143 A box with a known size:** capacity for both stacks on the one machine, each with
+  its own Trigger.dev plane (D3), per-tenant caps, run retention for tenants that are never
+  billed, and JMAP files over 8 MB. A manual sync's `concurrencyKey` is done: since #1137
+  (merged 2026-09-24) the manual sync route sets it to the mapping's id.
+- **W14 → 0144 Saying what is true to a tester:** the full notice, a tester guide, known
+  limitations, the "read-only" wording, and a close-account screen.
+- **W16 → 0145 Phones, screen readers and in-app browsers.**
+- **W17 → 0146 A release testers can name:** a beta tag, the Node runtime of the tasks, and a
+  watch on identity provider releases. `ownpace-live` is deployed by hand from a tag, while the
+  OTA stack keeps following `main` nightly (0132 T1g).
+- **W19 → 0147 An index that writes itself:** the workplan index regenerated, for the workplan
+  session.
+
+**Explained to the owner, not planned yet:**
+
 - **W15 Help a tester can use:** in-app guides written for customers rather than operators, in
   Dutch.
-- **W16 Phones, screen readers and in-app browsers.**
-- **W17 A release testers can name:** a beta tag, the Node runtime of the tasks, and a watch on
-  identity provider releases.
 - **W18 Removal fails closed:** DAV 412 on create, `If-Match` on delete, and 0009 T9.
-- **W19 The workplan index regenerated**, for the workplan session.
 
 ## Open questions
 
 1. **The end of the alpha (T4).** (a) everything ends, which is recommended; (b) everything
    carries on under new conditions; or (c) each tester chooses, with (a) for anyone who does not
    answer.
-2. **Is the nightly managed gate paused during the alpha?** It is scheduled for 03:30 UTC
-   (`cron: '30 3 * * *'`) and brings the stack up `--with-demo`. 0132 T1 proposes switching it
-   off for the alpha's weeks, while CI on a push to `main` stays, and deploying the alpha by hand
-   from a named commit. The owner answers there, in 0132's open question 2.
-3. **Does the first invitation wait for W11's live proofs of the sources a tester will use?**
+2. **Is the nightly managed gate paused during the alpha?** *Answered 2026-09-24, by D3: no.* The
+   gate, scheduled for 03:30 UTC (`cron: '30 3 * * *'`), keeps rebuilding and seeding the OTA
+   stack `--with-demo`, and testers are on `ownpace-live`, which CI never touches. 0132's earlier
+   options for its T1, pausing the gate for the alpha's weeks among them, are superseded.
+   `ownpace-live` is deployed by hand from a tag (0132 T1g, 0146).
+3. **Does the first invitation wait for 0141's live proofs (W11) of the sources a tester will use?**
    (a) No: the label is the answer (D6), and the request's *"What are you moving?"* tells the owner
    which sources a person needs before the owner grants. (b) Yes, for the sources the first
    testers name. (a) is recommended, with one exception worth weighing. The Microsoft 365
@@ -526,7 +596,7 @@ lost. Each one gets the next free number when the owner chooses it.
    but an owner or admin of one can invite anyone by email address, and that person gets in
    without the queue (§1). (a) Keep invitations during the alpha, limited to owner and admin as
    0137 T7 proposes, and let the conditions say that whoever a tester invites is the tester's
-   responsibility. (b) Turn invitations off on the alpha stack, so that every person passes the
+   responsibility. (b) Turn invitations off on `ownpace-live`, so that every person passes the
    queue. (b) matches *"I am the gate for letting people in the test."* more closely; (a) keeps a
    family or a small office able to try the service together. 0137 open question 1 asks the same
    question from the side of roles, with (b) here as its option (d).
