@@ -21,7 +21,8 @@
  * the tab and scrolls to its heading), code and bold spans with links inside
  * them, and paragraphs. Tables, blockquotes, a list item's continuation lines
  * and a fence indented inside a list are 0148 T6 (b), after the first
- * invitation; until then a guide is written without them. Anything the
+ * invitation. Today's guides still contain all four, and they render as plain
+ * paragraphs; a new guide is written without them until then. Anything the
  * renderer does not understand renders as its own text rather than
  * disappearing, which is the right failure for a document.
  */

@@ -16,11 +16,24 @@
 - the index lists each guide by its first heading, not its slug.
 
 `Docs.unit.test.tsx` tests each feature on fixtures. It also checks every served guide: headings
-with ids, `#` links with no `target` that name an id on the page, no numbered step left inside a
-paragraph, and links inside bold. The plan's `|` and `>` assertions are an `it.todo` until T6 (b),
-because today's guides still use tables and blockquotes. The plan left two choices open. The
-not-found page lists titles too, from the same list as the index. Code inside a link's text
-renders as code. T2 (c)'s `own-app` fold and T6 (b) are not built. `Docs.tsx`:5-8 is left for T7.
+with ids, `#` links with no `target` that name an id on the page, no paragraph that begins with a
+numbered step, and links inside bold. The plan's `|` and `>` assertions are an `it.todo` until
+T6 (b), because today's guides still use tables and blockquotes. The build goes beyond the plan on
+two points: the not-found page lists titles too, from the same list as the index, and code inside
+a link's text renders as code. T2 (c)'s `own-app` fold and T6 (b) are not built. `Docs.tsx`:5-8
+is left for T7.
+
+After review, one effect of the first half is fixed and the others are recorded. A numbered step
+is now a list item of its own, and its continuation lines render as a paragraph after it until
+T6 (b). So a bold span that opened on a step's line and closed on the next showed both `**` as
+text. `archive-setup.md`'s step 5 did, and it had rendered as bold while the steps were one
+paragraph. That step and `google-workspace-setup.md`'s step 1 are rewrapped with no word changed,
+and the served-guides case now checks that a bold span opened on a numbered step's line closes on
+it. Two effects were there before this build and stay. Bold across a bullet's continuation line
+(`apple-setup.md`:125 and :222, `google-workspace-setup.md`:91) shows its `**` until T6 (b). The
+renderer has no italics, so `*x*` shows its asterisks, and bold that holds italics is not bold
+(`dropbox-setup.md`:26, `microsoft-setup.md`:86, `google-workspace-setup.md`'s step 1). Neither
+half of T6 names italics.
 
 **2026-09-24, later still: the owner answered open questions 1 to 5.** *"3) 0148: dont hide IMAP,
 i tested that once and will do that again. extent the guide renderer. Leave the Apple-export
@@ -50,7 +63,8 @@ work. No target and not the IMAP source has a guide, and every guide is in Engli
 first chose to have this explained (*"W15 explaoin"*, 0131 §5), and then answered it on four
 points (§2). This plan records those answers as D1 to D4, and 0131 §5 calls this work W15.
 
-Nothing in this plan is built. Five of the review's guide findings were fixed in #1137, merged on
+When this plan was opened, nothing in it was built. T6 (a) has been built since (see the first note).
+Five of the review's guide findings were fixed in #1137, merged on
 2026-09-24, and are checked again in §1: the checklist strings, the dead *Read the full setup
 guide* link, the stale "credentials step", the mechanical text defects and the missing
 `Tasks.Read` row. One sentence was left out of that fix on purpose, for the archive decision that

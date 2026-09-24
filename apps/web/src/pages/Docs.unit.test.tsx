@@ -29,6 +29,14 @@
  * claim to render, so they are an `it.todo` below rather than a weakened
  * assertion.
  *
+ * ONE THING THE FIRST HALF BROKE, AND WHAT KEEPS IT FIXED. A numbered step is
+ * now a list item of its own, and its continuation lines are not joined to it
+ * until T6 (b); they render as a paragraph after it. While the steps were one
+ * run-on paragraph, a bold span could open on a step's line and close on the
+ * next. Split, it shows both `**` as text: `archive-setup.md`'s step 5 did.
+ * So the served-guides case checks that a bold span opened on a numbered
+ * step's line closes on it, and the guides are wrapped to match.
+ *
  * "In both languages" is T4's: today every served guide is English, so the
  * served-guides case runs over the one language there is.
  */
@@ -318,12 +326,19 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
         expect(article.querySelector(`[id="${id}"]`), `#${id} is on the page`).not.toBeNull();
       }
 
-      // No numbered step is left inside a paragraph.
+      // No paragraph begins with a numbered step, and numbered lines make a list.
       for (const p of article.querySelectorAll('p')) {
         expect(p.textContent ?? '').not.toMatch(/^\s*\d+\.\s/);
       }
       const numbered = lines.filter((line) => /^\s*\d+\.\s/.test(line) && !/^ {4}/.test(line));
       if (numbered.length > 0) expect(article.querySelectorAll('ol').length).toBeGreaterThan(0);
+
+      // A bold span that opens on a numbered step's line closes on it (see the
+      // header: continuation lines wait for T6 (b)).
+      for (const line of numbered) {
+        const markers = line.replace(/`[^`]*`/g, '').match(/\*\*/g) ?? [];
+        expect(markers.length % 2, `bold closes on its step's line: ${line.trim()}`).toBe(0);
+      }
 
       // A link written inside bold is a link, not its markdown.
       expect(article.querySelectorAll('strong a').length).toBeGreaterThanOrEqual(boldLinksIn(lines));
@@ -343,6 +358,7 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
     expect(count(/\]\(#[^)]+\)/g)).toBeGreaterThan(0);
     expect(all.reduce((n, lines) => n + boldLinksIn(lines), 0)).toBeGreaterThan(0);
     expect(count(/^\d+\.\s/gm)).toBeGreaterThan(0);
+    expect(count(/^ *\d+\. .*\*\*/gm), 'numbered steps that hold bold').toBeGreaterThan(0);
   });
 
   it('the index shows each guide\'s title, its first heading, not its slug', () => {
