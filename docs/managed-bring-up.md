@@ -1536,10 +1536,11 @@ digest — and reads `SMTP_HOST` and friends from `.env` via `managed.yml`. The
 **identity provider sends its own**: the verification link on a new account, an
 email-change confirmation, a password reset, the invitation to set a first
 password. None of that goes through the API. `setup-zitadel.sh` configures it
-from the same `SMTP_HOST`/`SMTP_PORT`/`NOTIFY_FROM`, so there is one relay
-setting rather than two that can drift — but it only runs during the `app`
-phase, so a stack brought up before 2026-08-25 has an issuer with **no email
-provider at all**, silently dropping every one of those.
+from the same `SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/`SMTP_PASSWORD`/
+`NOTIFY_FROM`, so there is one relay setting rather than two that can drift —
+but it only runs during the `app` phase, so a stack brought up before
+2026-08-25 has an issuer with **no email provider at all**, silently dropping
+every one of those.
 
 Until then the failure looks like a broken product rather than an unconfigured
 one: the account is created, the screen says to check your mail, and Mailpit
