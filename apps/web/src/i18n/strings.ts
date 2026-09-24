@@ -670,6 +670,12 @@ const en = {
   'wizard.leaveConfirm': 'Leave this wizard? Everything you typed here will be discarded.',
   'billing.title': 'Billing',
   'billing.subtitle': 'Manage your subscription, usage, and payments',
+  // During the alpha the subtitle gives way to `alpha.nothingCharged` and
+  // this (workplan 0131 T3), 0131's words verbatim: eighteen words, named in
+  // the copy budget's ALLOWED_OVER. Only an owner or admin reads it, because
+  // only they are shown what is measured.
+  'billing.alpha.measured':
+    'What you see here is measured so you can see how it works; it is not a bill.',
   'billing.currentUsage': 'Current Usage',
   'billing.storage': 'Storage',
   'billing.dataTransfer': 'Data Transfer',
@@ -1502,6 +1508,12 @@ const en = {
   'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
   'alpha.note.terms': 'Nothing is charged, nothing is backed up, and the alpha can end.',
   'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
+  // Nothing charged (workplan 0131 T3): the first sentence of the Billing
+  // line that takes the subtitle's place, and the last sentence of the
+  // request form's package hint. One key, so the two cannot drift apart.
+  // "Charged", as the note says it, and not "invoiced", which is what a tier
+  // says (0109 T8).
+  'alpha.nothingCharged': 'Nothing is charged during the alpha.',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
     'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
@@ -2868,6 +2880,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.leaveConfirm': 'Deze wizard verlaten? Alles wat u hier hebt ingevuld gaat verloren.',
   'billing.title': 'Facturatie',
   'billing.subtitle': 'Beheer uw abonnement, verbruik en betalingen',
+  'billing.alpha.measured':
+    'Wat u hier ziet, wordt gemeten zodat u kunt zien hoe het werkt; het is geen rekening.',
   'billing.currentUsage': 'Huidig verbruik',
   'billing.storage': 'Opslag',
   'billing.dataTransfer': 'Dataverkeer',
@@ -3369,6 +3383,7 @@ const nl: Record<keyof typeof en, string> = {
   'alpha.note.terms':
     'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
   'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
+  'alpha.nothingCharged': 'Tijdens de alfa wordt niets in rekening gebracht.',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',

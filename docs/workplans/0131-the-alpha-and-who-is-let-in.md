@@ -4,6 +4,26 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build: T3 (a) built on branch
+`claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, stacked on T1 (a)'s branch, not
+merged.** With `OWNPACE_STAGE=alpha`, the Billing page's subtitle gives way to §3's line, in
+English and Dutch, word for word: *"Nothing is charged during the alpha. What you see here is
+measured so you can see how it works; it is not a bill."* The request form keeps its package
+question, and the question's hint ends with the line's first sentence. Both read T1's `isAlpha()`,
+so there is no second setting, and neither shows on the appliance. `main` now carries 0109 T8,
+*Tiny is free*: on Tiny the tier block says *"Free: nothing is invoiced on this tier"* and the
+invoice details card asks for nothing. The line stands above that unchanged, and the two agree.
+The alpha's word is *charged*, as T1's note says it, and a tier's is *invoiced*; the glossary
+gains a row for the difference. On a paid tier the block keeps its prices, as §3 says. A viewer or
+member is shown no figures, so their Billing page carries the first sentence alone. The second
+sentence is eighteen words in English and seventeen in Dutch, over the copy budget (0118). It
+stays verbatim and is named in `ALLOWED_OVER`, as `alpha.note.terms` is. §3 gives the hint's
+sentence in English only; its Dutch is the Billing line's first sentence, from the same key. The
+guard, `apps/web/src/pages/a-bill-nobody-will-send.unit.test.tsx`, has 21 cases. 8 of them failed
+on the unchanged code, and each of 7 mutations made at least 2 fail. With the setting on, it says
+nothing about the four metered cards: hiding them is **Proposed**, and with them hidden the guard
+still passes. Leaving run rows unpruned is **Proposed** too, and nothing here touches retention.
+
 **2026-09-24, build review: T1 (a) fixes on the same branch
 (`claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`), not merged.** Two reviewers
 read the build, and this note replaces two statements in the build note below. First, the Dutch
@@ -104,7 +124,7 @@ of the gate answer.
 |---|---|---|
 | T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** (b) 📋 waits on 0139 T2, T10 and 0144 T1 | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
-| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1) | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
+| T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-bill-nobody-will-send`, not merged**: the Billing line and the request hint. The cards and the run rows stay 📋 **Proposed** | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |
 | T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0149, 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
 

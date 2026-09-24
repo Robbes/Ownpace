@@ -21,7 +21,7 @@ import { useMutation } from '@tanstack/react-query';
 import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
-import AlphaNote from '../components/AlphaNote.tsx';
+import AlphaNote, { isAlpha } from '../components/AlphaNote.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -234,7 +234,19 @@ const RequestAccess: React.FC = () => {
                 </option>
               ))}
             </select>
-            <p className={hint}>{t('access.tierHint')}</p>
+            {/* The question stays during the alpha, because it tells the owner
+                roughly how large a request is. Its hint adds that nothing is
+                charged meanwhile (workplan 0131 T3): the Billing line's first
+                sentence, from the same key. */}
+            <p className={hint}>
+              {t('access.tierHint')}
+              {isAlpha() && (
+                <>
+                  {' '}
+                  {t('alpha.nothingCharged')}
+                </>
+              )}
+            </p>
           </div>
 
           {send.isError && (
