@@ -450,7 +450,7 @@ jobs:
           # instead of depending on git-base resolution.
           atlas migrate lint \
             --dir "file://$staged" \
-            --dev-url "docker://postgres/16/dev?search_path=public" \
+            --dev-url "docker://postgres/18/dev?search_path=public" \
             --latest 999
 
   lint:

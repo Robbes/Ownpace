@@ -4,8 +4,9 @@
  * A GATE ON A VERSION NOTHING SHIPS.
  *
  * A gate answers "does what we ship work", and it can only answer for the
- * versions it actually ran. Two of this repository's gates were running a Node
- * the product does not run on, with nothing beside either saying why.
+ * versions it actually ran. Three of this repository's gates were running a
+ * version the product does not run on — two on Node, one on Postgres — with
+ * nothing beside any of them saying why.
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
@@ -23,6 +24,18 @@
  * A `setup-node` step with no `node-version` at all is refused too: it runs
  * whatever Node the runner image happens to carry, which is a version nobody
  * chose.
+ *
+ * ## Postgres: migration-lint replays onto the major the deployments run
+ *
+ * Found the same day. The `migration-lint` job in `.github/workflows/ci.yml`
+ * has Atlas replay every migration into a disposable dev database named by
+ * `--dev-url "docker://postgres/<major>/dev"`, and it said `16` while
+ * `deploy/compose/managed.yml` and `deploy/selfhost/compose.yml` both run
+ * `postgres:18` — as do the dev stack and the Testcontainers setup the
+ * integration tests use. A lint that replays the chain on a server nothing
+ * deploys can pass a migration the real one refuses, and refuse one it
+ * accepts. (PGlite, the appliance's embedded alternative, carries its own
+ * engine version inside an npm package; it is not what this compares.)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -104,6 +117,40 @@ describe('every gate runs the Node major the images ship', () => {
     expect(
       wrong,
       `the images run Node ${shipped}; a gate on another major checks something nothing ships`,
+    ).toEqual([]);
+  });
+});
+
+/** The two deployments, and the Postgres server image each one runs. */
+const DEPLOYMENTS = ['deploy/compose/managed.yml', 'deploy/selfhost/compose.yml'];
+
+describe('migration-lint replays onto the Postgres major the deployments run', () => {
+  const deployed = DEPLOYMENTS.flatMap((file) =>
+    [...read(file).matchAll(/^\s*image:\s*postgres:(\d+)[.\-@]/gm)].map((m) => ({ file, major: Number(m[1]) })),
+  );
+  const linted = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d+)\//g)].map(
+    (m) => Number(m[1]),
+  );
+
+  it('found the deployments and the lint', () => {
+    // Vacuity guard: an image line or a dev-url rewritten past these regexes
+    // would pass everything below on nothing.
+    for (const file of DEPLOYMENTS) {
+      expect(deployed.some((d) => d.file === file), `no postgres image found in ${file}`).toBe(true);
+    }
+    expect(linted.length, 'no --dev-url "docker://postgres/<major>/…" found in ci.yml').toBeGreaterThan(0);
+  });
+
+  it('the deployments agree on one major', () => {
+    const majors = new Set(deployed.map((d) => d.major));
+    expect([...majors], deployed.map((d) => `${d.file}: postgres ${d.major}`).join('; ')).toHaveLength(1);
+  });
+
+  it('every dev database Atlas lints against is that major', () => {
+    const shipped = deployed[0]!.major;
+    expect(
+      linted.filter((major) => major !== shipped),
+      `the deployments run postgres ${shipped}; migration-lint replays the chain on another major`,
     ).toEqual([]);
   });
 });
