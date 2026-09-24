@@ -932,6 +932,13 @@ services:
       # set them. `scripts/a-limit-the-api-was-never-handed.unit.test.ts`.
       TRUST_PROXY: ${TRUST_PROXY:-}
       ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
+      # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts.
+      # Empty is no form at all; setting URL and TOKEN offers "Report a problem".
+      # managed.env.example and managed-bring-up.md step 8f carry the note.
+      # `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`.
+      ZAMMAD_URL: ${ZAMMAD_URL:-}
+      ZAMMAD_TOKEN: ${ZAMMAD_TOKEN:-}
+      ZAMMAD_GROUP: ${ZAMMAD_GROUP:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:
