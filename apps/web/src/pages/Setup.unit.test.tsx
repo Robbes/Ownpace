@@ -243,3 +243,28 @@ describe('Setup — asks for what the product uses', () => {
     expect(screen.queryByText(/API token/)).toBeNull();
   });
 });
+
+
+/**
+ * "Read the full setup guide" opened the not-found page for every target and
+ * for the IMAP source: the link was `/docs/${provider}-setup` whether or not
+ * that guide exists, and no target has one. It shows now only when it goes
+ * somewhere.
+ */
+describe('Setup — links the full guide only when there is one', () => {
+  it('links the guide a provider has', async () => {
+    get.mockResolvedValue(checklist());
+    renderPage();
+
+    const guide = await screen.findByText('Read the full setup guide');
+    expect(guide.getAttribute('href')).toBe('/docs/box-setup');
+  });
+
+  it('offers no link to a guide that does not exist', async () => {
+    get.mockResolvedValue(checklist({ side: 'target', provider: 'jmap' }));
+    renderPage('/setup/target/jmap');
+
+    await screen.findAllByText(/Client ID and a Client Secret/);
+    expect(screen.queryByText('Read the full setup guide')).toBeNull();
+  });
+});
