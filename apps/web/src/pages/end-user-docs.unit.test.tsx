@@ -31,7 +31,12 @@
  * renamed or unpublished document fails here rather than 404ing for a customer.
  */
 import { describe, it, expect } from 'vitest';
-import { credentialFieldsFor, connectableTypes } from '@openmig/shared';
+import {
+  credentialFieldsFor,
+  connectableTypes,
+  MICROSOFT_DOMAIN_SCOPES,
+  MICROSOFT_OFFLINE_SCOPE,
+} from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 
 const GUIDES = import.meta.glob('../../../../docs/*-setup.md', {
@@ -186,5 +191,22 @@ describe('the guides and the wizard name only the steps the wizard has', () => {
   it('the wizard\'s own words, in both languages', () => {
     expect(Object.values(STRINGS.en).flatMap(stepsNamedIn)).toEqual([]);
     expect(Object.values(STRINGS.nl).filter((v) => /stap met inloggegevens/i.test(v))).toEqual([]);
+  });
+});
+
+/**
+ * microsoft-setup.md told the administrator to add "exactly" four `.Read`
+ * permissions and offline_access, and "nothing else" — while the consent asks
+ * for `Tasks.Read` whenever Tasks is ticked, and the same guide said so further
+ * down. An administrator who followed the table to the letter would leave it
+ * out. The table is the list somebody copies, so it names every delegated
+ * permission the consent can ask for.
+ */
+describe('microsoft-setup lists every permission the consent asks for', () => {
+  const guide = Object.entries(GUIDES).find(([p]) => slugOf(p) === 'microsoft-setup')?.[1];
+
+  it.each([...Object.values(MICROSOFT_DOMAIN_SCOPES), MICROSOFT_OFFLINE_SCOPE])('%s', (scope) => {
+    expect(guide, 'microsoft-setup.md is not served').toBeDefined();
+    expect(guide).toContain(`| \`${scope}\` |`);
   });
 });
