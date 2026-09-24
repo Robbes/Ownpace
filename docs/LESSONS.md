@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 156 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 157 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -85,6 +85,10 @@ reading a file drops off its entry by itself.
 
 - [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
 
+### `apps/api/src/access-notify.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
 ### `apps/api/src/index.ts`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
@@ -111,6 +115,14 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+
+### `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
+### `apps/api/src/routes/access-requests.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `apps/api/src/routes/billing/index.ts`
 
@@ -244,6 +256,10 @@ reading a file drops off its entry by itself.
 - [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts) — THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
+### `apps/web/src/components/AlphaNote.tsx`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
 ### `apps/web/src/components/ProviderConsent.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -255,6 +271,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/StatusLink.tsx`
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `apps/web/src/i18n/probe-text.unit.test.tsx`
 
@@ -325,6 +345,10 @@ reading a file drops off its entry by itself.
 
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+
+### `apps/web/src/services/stage.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `apps/web/vite.config.ts`
 
@@ -466,6 +490,7 @@ reading a file drops off its entry by itself.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -492,6 +517,7 @@ reading a file drops off its entry by itself.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -652,20 +678,28 @@ reading a file drops off its entry by itself.
 
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `deploy/selfhost/compose.drill.yml`
 
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `deploy/selfhost/compose.pglite.yml`
 
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `deploy/selfhost/compose.yml`
 
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `deploy/selfhost/selfhost.env.example`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `deploy/selfhost/setup-nextcloud-users.sh`
 
@@ -1002,6 +1036,10 @@ reading a file drops off its entry by itself.
 ### `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+
+### `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `packages/shared/src/carddav-query.ts`
 
@@ -2421,6 +2459,27 @@ Reads:
 
 - `.github/workflows/security-scan.yml`
 - `pnpm-workspace.yaml`
+
+### [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts)
+
+AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
+Reads:
+
+- `apps/api/src/access-notify.ts`
+- `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
+- `apps/api/src/routes/access-requests.ts`
+- `apps/web/src/components/AlphaNote.tsx`
+- `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
+- `apps/web/src/services/stage.ts`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/selfhost/compose.dev.yml`
+- `deploy/selfhost/compose.drill.yml`
+- `deploy/selfhost/compose.pglite.yml`
+- `deploy/selfhost/compose.yml`
+- `deploy/selfhost/selfhost.env.example`
+- `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`
 
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 

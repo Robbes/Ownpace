@@ -771,6 +771,17 @@ export type NotificationEvent =
        * signs in successfully and belongs to nothing.
        */
       readonly email: string;
+      /**
+       * The deployment runs the alpha (workplan 0131 T1), so the mail says so,
+       * in the same words as the note on the app's pages.
+       *
+       * Set by the API from `OWNPACE_STAGE` (`accessGrantedEvent` in
+       * `apps/api/src/access-notify.ts`); absent or false everywhere else, and
+       * the mail then says nothing about an alpha. 0131 T1 (b) adds the links
+       * to the alpha conditions and the tester guide to the same paragraph, once
+       * 0139 T10's module can build their addresses.
+       */
+      readonly alpha?: boolean;
     }
   | {
       /**
@@ -918,6 +929,7 @@ interface EventLines {
   readonly grantedUseThisAddress: string;
   readonly grantedVerify: string;
   readonly grantedNoLink: string;
+  readonly grantedAlpha: string;
   readonly declinedIntro: string;
   readonly declinedReply: string;
 }
@@ -958,6 +970,12 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedNoLink:
       'There is no link or code in this email to keep: it is safe to forward and it grants ' +
       'nobody anything. Your password lives with the sign-in service, never with us.',
+    // The alpha note (workplan 0131 T1), word for word what the app's pages say
+    // (`alpha.note.*` in apps/web's strings.ts; a web test holds the two
+    // together). It must match 0139's alpha conditions once those exist.
+    grantedAlpha:
+      'Alpha: a small invited group is trying this service out. Nothing is charged, nothing is ' +
+      'backed up, and the alpha can end. Keep your old account until you have checked what arrived.',
     // No reason, and no false hope. "We are not able to offer you a place right
     // now" is what is true; dressing it as "not yet" would be a promise nobody
     // made, and listing criteria would invite an argument about them.
@@ -997,6 +1015,10 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
     grantedNoLink:
       'Deze e-mail bevat geen link of code om te bewaren: u kunt hem gerust doorsturen en hij ' +
       'geeft niemand toegang. Uw wachtwoord staat bij de aanmeldservice, nooit bij ons.',
+    grantedAlpha:
+      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
+      'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
+      'u hebt gecontroleerd wat er is aangekomen.',
     declinedIntro:
       'Bedankt voor uw interesse in Ownpace. Een mens heeft uw aanvraag gelezen en wij kunnen u ' +
       'op dit moment geen plek aanbieden.',
@@ -1051,6 +1073,10 @@ export function renderEvent(
       lines.push(`${b.grantedUseThisAddress} ${event.email}`, '');
       lines.push(b.grantedVerify, '');
       lines.push(b.grantedNoLink);
+      // Last, as a paragraph of its own: the steps above stay together, and
+      // this is about the service rather than about signing in. 0131 T1 (b)'s
+      // links to the conditions and the tester guide belong in this paragraph.
+      if (event.alpha) lines.push('', b.grantedAlpha);
       break;
     case 'access_declined':
       lines.push(b.declinedIntro, '', b.declinedReply);

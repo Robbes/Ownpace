@@ -939,6 +939,12 @@ services:
       ZAMMAD_URL: ${ZAMMAD_URL:-}
       ZAMMAD_TOKEN: ${ZAMMAD_TOKEN:-}
       ZAMMAD_GROUP: ${ZAMMAD_GROUP:-}
+      # THE ALPHA (workplan 0131 T1): `alpha` makes the access-granted mail say
+      # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts. The
+      # web build below takes the same setting as VITE_OWNPACE_STAGE. Empty is
+      # off, which is every deployment but the one testers use.
+      # `scripts/an-alpha-both-halves-know-about.unit.test.ts`.
+      OWNPACE_STAGE: ${OWNPACE_STAGE:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:
@@ -981,6 +987,11 @@ services:
         # without a link, which is right for a stack that has no console to
         # point at.
         VITE_IDP_CONSOLE_USER_URL: ${VITE_IDP_CONSOLE_USER_URL:-}
+        # THE ALPHA NOTE (workplan 0131 T1), from the same OWNPACE_STAGE the api
+        # service reads above: a build arg because /login and /request-access
+        # have no session to ask with. Vite exposes only VITE_ names, hence the
+        # prefix. Empty is off; changing it means rebuilding this image.
+        VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
     container_name: ownpace-web
     restart: unless-stopped
     ports:

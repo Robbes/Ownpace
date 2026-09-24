@@ -40,9 +40,9 @@ no account to link and nothing to revoke afterwards.
    leave it ticked and they come across to your new home along with everything else. (This
    list is shown in English even when the rest of Takeout is in your language.)
 4. Press **Next step**.
-5. Choose how it reaches you. **Send it straight to Google Drive, Dropbox, OneDrive or Box if
-   you use one** — the file is large, and a cloud delivery avoids downloading and re-uploading
-   tens of gigabytes. Otherwise Google emails you a link.
+5. Choose how it reaches you. **Send it straight to Google Drive, Dropbox, OneDrive or Box if you use one**
+   — the file is large, and a cloud delivery avoids downloading and re-uploading tens of
+   gigabytes. Otherwise Google emails you a link.
 6. Choose **Export once**, unless you are still adding photos and want a series — Google can
    repeat the export **every two months for a year**, which suits somebody moving gradually.
 7. Choose a file size. **Pick the largest your connection will manage.** Google makes you
