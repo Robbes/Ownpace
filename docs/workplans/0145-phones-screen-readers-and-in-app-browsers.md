@@ -5,7 +5,7 @@
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 went through
 the managed edition the way a tester would meet it on a phone: with and without a screen reader,
 and inside the browser another app opens. Six of its findings were mechanical, and #1137, merged
-on 2026-09-24, fixes them:
+on 2026-09-24, fixed them:
 
 - the page's language follows the EN/NL switch;
 - the consent and grant endings are whole documents that a phone lays out at its own width;
@@ -19,6 +19,12 @@ This plan is the rest. The alpha is Dutch and small, and the owner supports each
 leaves the full audit for after. The owner chose to write it: *"W11 write, W12 write, W13 write,
 W14 write, W15 explaoin, W16 write, W17 write, W18 explain, W19 write"*. 0131 §5 calls this work
 W16.
+
+Later the same day the owner put testers on a stack of their own, `ownpace-live`, at the
+production names, beside the OTA stack on the same machine (0131 D3; 0132 D7 carries it). For
+this plan that moves one thing: T10, the walk that checks what testers will meet, is walked on
+live. T0 asks only how today's code behaves, so it stays on the OTA stack, which the nightly gate
+rebuilds from `main` (D3).
 
 Nothing in this plan is built. One thing it relies on was reported by the review and has not been
 verified: that Safari blocks the consent window the wizard opens after it has waited for the API.
@@ -58,13 +64,13 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
-| T10 The walk on two phones | ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, after the minimum has landed. |
+| T10 The walk on two phones | ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
 ## 1. What there is today
 
-Every fact below was checked at the current checkout on 2026-09-24. That is `987cb06`, which is
-`origin/main` after #1137 was merged, and the line numbers are that commit's. Where a fact comes
-from the review and was not checked again here, the text says so.
+Every fact below was checked on 2026-09-24 at `987cb06`, which is `origin/main` after #1137 was
+merged, and the line numbers are that commit's. Where a fact comes from the review and was not
+checked again here, the text says so.
 
 The review's findings this plan carries:
 
@@ -147,8 +153,9 @@ are stated where they come up below.
   same-tab trip would lose the form's credentials and would bring back a token with nowhere to go.
   The grant page can navigate in the same tab (`Grant.tsx`:110) only because the server stores a
   grant link's result itself.
-- **A greyed-out Connect.** When the account address is empty, no data type is ticked or half a
-  client pair is typed, the Connect button is disabled, and it gives its reason only in `title`:
+- **A greyed-out Connect.** When the account address is empty, no data type is ticked, or a client
+  ID and secret the button needs are missing or half typed, the Connect button is disabled, and it
+  gives its reason only in `title`:
   `ProviderConsent.tsx`:285-296 and `CreateMapping.tsx`:2223-2233. A title never shows on touch.
   The wizard's Next already says its reason in text beside it (`role="status"`, :2625), so the
   pattern exists.
@@ -159,17 +166,20 @@ are stated where they come up below.
   0118) is the pattern that replaced it. On the Mappings list, *sync now*, *start* and *delete* are
   named only by `title` (`Mappings.tsx`:287, :318, :338). A screen reader can use that name; a
   finger cannot see it. Their icons are 20 px with no padding (:283-290). Across `apps/web/src`,
-  58 non-test `title={t(…)}` remain. Most of them label something that is also visible.
+  58 non-test `title={t(…)}` remain. Many of them are a component's `title` prop that is rendered
+  as a visible heading, such as Support's sections and Finish's steps; the others have not been
+  sorted one by one here.
 
 ### A tester with a screen reader
 
 - **Selection shown by colour alone.** A chooser card's selected state only changes its class
   (`apps/web/src/components/FrontDoorChooser.tsx`:60-68). It has no `aria-pressed` or
   `aria-checked`, and both wizard steps that choose a source or a target use it
-  (`CreateMapping.tsx`:2123, :2269).
+  (`CreateMapping.tsx`:2115, :2265).
 - **The step you are on.** The progress list is `<nav aria-label="Progress">` (:2543). The label is
-  an English literal, and the list has no `aria-current`. The current step differs from the
-  following ones only by its border colour (:2553-2558). Steps still to come are `text-gray-400`
+  an English literal, and the list has no `aria-current`. Nothing but colour marks the current
+  step: its circle's border and its label turn blue (:2549, :2553-2558). Steps still to come are
+  `text-gray-400`
   (:2549). By the review's compile of Tailwind 4.3.3 that is about `#99a1af`, roughly 2.6:1 on
   white, where normal text needs 4.5:1 (WCAG 1.4.3). The arithmetic from that colour agrees; the
   compile was not repeated here.
@@ -266,7 +276,7 @@ touch this plan:
   audit since.
 - **No statement.** `site/legal/` holds `README.md`, `dpa.md`, `privacy.md`, `privacy.nl.md`,
   `subprocessors.md`, `terms.md` and `terms.nl.md`. None of them is an accessibility statement, and
-  neither `site/` nor `docs/` mentions the European Accessibility Act.
+  neither `site/` nor `docs/` mentions the European Accessibility Act, this plan apart.
 
 ### What already holds
 
@@ -316,9 +326,17 @@ credentials? I aupporrthe test. No one will be added to NetBird network. Devs ne
 private test/dev environments. GitHub PRs and git is the bridge."* ("het" is read as "get", and
 "aupporrthe" as "support the".)
 
-So T0 and T10 are walked on `app.ota.ownpace.eu`. The automated checks (T8) run on pull requests,
-on GitHub's hosted runners. The WebKit run in particular runs there, so nothing new is installed
-on the reference machine that carries the alpha (0132).
+So the alpha runs on the reference machine, and CI stays on it. The first answer placed testers at
+the OTA address. Later the same day the owner chose a second stack for testers, `ownpace-live`,
+beside the OTA stack on the same machine, at the production names `app.ownpace.eu` and
+`id.ownpace.eu`. The OTA stack stays the nightly gate's target and the demo. 0131 D3 and 0132 D7
+quote the owner's words.
+
+For this plan, T0, which asks only how today's code behaves, is pressed on the OTA stack at
+`app.ota.ownpace.eu`: the nightly gate rebuilds it from `main`, and it exists now. T10, which
+checks what testers will meet, is walked on `ownpace-live`, like 0141 T12's walk. The automated
+checks (T8) run on pull requests, on GitHub's hosted runners. The WebKit run in particular runs
+there, so nothing new is installed on the reference machine that carries both stacks (0132).
 
 **D4 — the legal texts first, and the word "alpha".** *A lawyer's pass before the first
 invitation, or a labelled test notice? And can you supply the facts the drafts leave open?* —
@@ -338,9 +356,9 @@ T2's guard makes sure it stays that way.
 
 ### T0 — one press on an iPhone, today (owner; before the first invitation)
 
-This check runs on the OTA stack as it is, before T5 is built. On the owner's iPhone in Safari,
-the owner opens the wizard or the Connections page, chooses a Google account and presses *Connect
-with Google*. The owner records:
+This check runs on the OTA stack, which the nightly gate rebuilds from `main` (D3), before T5 is
+built. On the owner's iPhone in Safari, the owner opens the wizard or the Connections page,
+chooses a Google account and presses *Connect with Google*. The owner records:
 
 - whether a tab with Google's page opened;
 - whether the result came back and the tab closed;
@@ -393,10 +411,13 @@ browser.
   - a visually hidden *"(done)"* / *"(klaar)"* after each completed step.
 - **Finish** (`Finish.tsx`:81-103): the step's state as visually hidden text beside its icon.
   EN: *"done"*, *"needs attention"*, *"not yet"*. NL: *"klaar"*, *"vraagt aandacht"*, *"nog niet"*.
-- **The scope manifest** (`ScopeManifestPanel.tsx`:70): `aria-labelledby` its visible heading in
-  place of `"scope-manifest"`.
+- **The scope manifest** (`ScopeManifestPanel.tsx`:70): a translated name in place of
+  `"scope-manifest"`. The panel has no heading of its own: `Confirm.tsx` puts one above it (:326),
+  and `ConfirmMigration.tsx` renders it with none (:170). So it takes `aria-labelledby` where a
+  heading exists, and a label from the dictionary where none does.
 - **The experimental tag** (0131 T2, D5): it stays text inside the card's button, never an icon
-  alone.
+  alone. 0131 T2 also gives the tag a Hint *why*. A fold inside the card's `<button>` could not
+  be opened on its own, so the fold sits beside the card, not inside it.
 
 **Guard:** `apps/web/src/components/a-state-said-in-words.unit.test.tsx`, in both languages. It
 checks that:
@@ -404,7 +425,7 @@ checks that:
 - the selected card is `aria-pressed="true"` and the others `"false"`;
 - the current step has `aria-current="step"`;
 - each Finish step's state is in its accessible text;
-- a card with 0131 T2's tag has that word in its accessible name, once T2 exists;
+- a card with 0131 T2's tag has that word in its accessible name, once 0131 T2 exists;
 - no `aria-label` in `apps/web/src` is a lowercase hyphenated identifier (a scan).
 
 It fails today on every one of these.
@@ -423,8 +444,9 @@ It fails today on every one of these.
   when the navigation is Back or Forward (`useNavigationType() === 'POP'`), where the browser's own
   restoration is what a person expects.
 
-**Guard:** `apps/web/src/pages/a-step-that-starts-at-the-top.unit.test.tsx`. It uses the step-through
-helper in `CreateMapping.unit.test.tsx`:116. Pressing Next calls `window.scrollTo` with the top
+**Guard:** `apps/web/src/pages/a-step-that-starts-at-the-top.unit.test.tsx`. It reuses
+`walkToReview`, the step-through helper in `CreateMapping.unit.test.tsx`:118, which moves to a
+shared test file because it is not exported. Pressing Next calls `window.scrollTo` with the top
 and leaves focus on a heading that names step 2 of 4, in EN and NL. A route change calls
 `scrollTo`, and Back does not. It fails today.
 
@@ -465,7 +487,7 @@ or `null` if one was not opened. After `await begin()`:
   not `_blank`, and keeps its opener, so the ending can still hand the result back. That
   `rel="opener"` behaves like this in Safari has to be confirmed in T8 (c) and T10.
 
-`ProviderConsent.tsx`'s `start` (:172-216) and `CreateMapping.tsx`'s `startConsent` (:1078-1139)
+`ProviderConsent.tsx`'s `start` (:172-216) and `CreateMapping.tsx`'s `startConsent` (:1078-1140)
 both use the helper. The wizard's copy keeps its own state, which is its business; only the
 opening is shared. 0140 T3's line (*"open it in Safari or Chrome"*) sits under the same button, and
 the two sentences are written so that together they read as one instruction.
@@ -491,7 +513,8 @@ window nor the link comes back. 🅿️ **Parked (trigger: that browser, recorde
 
 ### T6 — the grant flow and the consent endings in one language
 
-**Before the first invitation.** The consent endings always, because every tester sees one. The
+**Before the first invitation.** The consent endings always, because every tester who connects a
+Google, Microsoft or Dropbox account sees one. The
 grant half only if testers send grant links during the alpha, which is 0140's open question 2.
 If they migrate only their own accounts, the grant half moves to after. The owner reads all of the
 Dutch before it ships (0144 D1: Dutch first). The wording below is a proposal.
@@ -580,7 +603,7 @@ lands first adds them.
   - a view link.
 
   Each asserts that the page does not scroll sideways, with the expression from
-  `site.ui.test.ts`:136-138. On `/mappings`, the menu opens, focus lands on its close button, and
+  `site.ui.test.ts`:137-139. On `/mappings`, the menu opens, focus lands on its close button, and
   Escape brings focus back to the menu button (T1). In the wizard, Next leaves the page at the top
   (T3). Whether the progress row fits at 390 px is not known today. This case finds out.
 - **(b) axe.** `axe-core` becomes a root dev dependency. It is injected with `page.addScriptTag`
@@ -594,9 +617,9 @@ lands first adds them.
   pull-request leg only. That is GitHub's hosted runner, which installs WebKit with its system
   dependencies there. On a push to `main` the job runs on the self-hosted runner (`ci.yml`:552),
   and the case says it was skipped and why (D3). The browser cache key gains the browser's name.
-  Linux WebKit is not iPhone Safari. It catches a bundle JavaScriptCore will not parse and
-  WebKit's own layout, not iOS's popup rules or an app's embedded browser, which is why T0 and
-  T10 stay.
+  Linux WebKit is not iPhone Safari. It catches a bundle that current WebKit will not parse, and
+  WebKit's own layout. It does not catch what an older iPhone will not parse, iOS's popup rules or
+  an app's embedded browser, which is why T0 and T10 stay.
 - **Considered, not proposed:** `eslint-plugin-jsx-a11y`. It reads source, not the rendered page,
   and many of its rules would have to be switched off. axe in a browser sees the names and the
   contrast that are actually there.
@@ -651,7 +674,7 @@ other, it names WCAG 2.2 and carries a date, and the footer links it. `test/ui/s
 
 This is 0141 T12's walk, on phones. It becomes `docs/owner-test-runbook.md` *"Stage 9 — the same
 walk on two phones"*, after 0141 T12's Stage 8, with an expected outcome for each step. It is
-walked on the OTA stack once the minimum has landed:
+walked on `ownpace-live` (D3), once a release that carries the minimum runs there (0146 T5):
 
 - **The phones.** An iPhone on iOS 16.4 or later, with Safari, and an Android phone with Chrome.
   Both are set to Dutch.
@@ -683,9 +706,9 @@ the owner records, for each app:
 - whether Google's page and our ending worked.
 
 The list starts with the apps the first testers say they use. The owner asks them when granting
-their request (D2). Each row records pass or fail, the date, the deployed commit (the build stamp
-at the foot of the page; 0146 gives it a name), the kind of phone, the OS version, the browser and
-the language. It never records an address.
+their request (D2). Each row records pass or fail, the date, the release live runs (the build
+stamp at the foot of the menu, or of a page outside it, shows it; 0146 names it), the kind of
+phone, the OS version, the browser and the language. It never records an address.
 
 ## 4. Order
 
@@ -708,7 +731,7 @@ the language. It never records an address.
 - The alpha note and the experimental tag: 0131 T1 and T2.
 - The desktop walk and the fixture-backed grant, view and wizard cases: 0141 T12.
 - A build name a tester can quote: 0146.
-- The in-app guides, which are English setup guides (`Docs.tsx` serves `docs/*-setup.md`), in
+- The in-app guides (`Docs.tsx` serves the English `docs/*-setup.md`), and whether they become
   Dutch and written for customers: W15, not planned yet.
 
 ## Open questions
@@ -716,7 +739,10 @@ the language. It never records an address.
 1. **The minimum.** Is it T0, T1, T3 (a), T5 with T7 (a), T6 (the grant half only if grant links
    are used), T9 (a) and T10, with everything else after? The recommendation is yes. T2 and T4
    matter to a tester who uses a screen reader. If the owner learns that one of the first testers
-   does (D2), T2 and T4 move before that tester's invitation.
+   does (D2), T2 and T4 move before that tester's invitation. T1 matters to the same testers, and
+   to somebody on a keyboard alone; a sighted tester who taps does not meet it. If none of the
+   first testers uses a screen reader or a keyboard alone, T1 could move after too, and T10's
+   screen-reader passes would then skip step 3.
 2. **The grant reader's language (T6).** Adding a language switch to the grant and view pages is
    recommended over carrying the issuer's language in the link. The reader of a grant link is not
    the person who made it, and that person's language says nothing about the reader's. The Dutch

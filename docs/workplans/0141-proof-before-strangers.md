@@ -437,8 +437,8 @@ T7(a) and its open questions 5 and 8). The sitting, on live:
   queue as `trashed`-class evidence (matrix, Files).
 
 Once 0140 T7(b) narrows the consent to read scopes, the first consent is also recorded there. This
-proof does not cover Dropbox Business team folders, which 0055 T3(c) left untouched. The card's
-hint and 0144's known limitations say so.
+proof does not cover Dropbox Business team folders, which 0055 T3(c) left untouched. 0144 T2's
+known-limitations page says so, in its alpha part.
 
 **Box, after.** Box needs a Box Platform app approved in a Box enterprise (0140 T8).
 
@@ -714,7 +714,8 @@ repository settings that the `O365_*` secrets exist for the flow the owner wants
   the application scope.
 - The `microsoft` card stays `uncoverable`, because its delegated consent is a person's press, so T2
   remains its proof.
-- In the workplan session, 0008 T7 becomes 🟡 until a run is linked (0008:114).
+- 0008 T7 is marked ✅ Done with no run linked (0008:13, :114). Correcting it to 🟡 is 0147 T3
+  (a)'s note, not this plan's. A green run of this lane is what then gets linked there.
 - **Guard:** `scripts/an-o365-harness-that-runs-the-product.unit.test.ts`. The scenario imports the
   product's Graph source builders and defines no Graph client of its own, and `connector-coverage`
   refuses a `driven` verdict whose harness imports none of that connector. It fails today

@@ -6,7 +6,8 @@
 nobody is told when the stack, the scheduled tick, the disk, a pass or a nightly gate fails.
 The status page runs on the machine it watches and has no alerting. The architecture document
 promises dashboards, alerts and SLOs that were never built. The review listed this group as W12,
-and the owner chose to have it written: *"W12 write"*. For the alpha, the owner is the one
+and the owner chose to have it written: *"W11 write, W12 write, W13 write, W14 write, W15
+explaoin, W16 write, W17 write, W18 explain, W19 write"*. For the alpha, the owner is the one
 person who lets testers in and supports them, with no obligations on either side (§2). So this
 plan is about one person being told, soon enough to act, by something that does not share the
 failure it reports.
@@ -595,8 +596,10 @@ do. For example:
    migrations list or the migration's page) and not to press *Synchroniseer nu* (*Trigger sync*)
    until told. If one organisation's migrations have to stop at once, use 0143 T2d's step, which
    this runbook carries: as the database owner, write down the id and state of each of its
-   migrations in a state that runs passes, set those to `paused`, and note the date and the
-   organisation here.
+   migrations in a state that runs passes (`active` or `continuous`), then move each by the
+   lifecycle's own table, an `active` one to `paused` and a `continuous` one to `cutover`. Never a
+   `continuous` one to `paused`: the lifecycle refuses it, for the reason 0143 T2d gives. Note the
+   date and the organisation here.
 4. **Keep the evidence.** Do not redeploy, restart, prune or reset live before the relevant rows
    and container output are copied off the machine (0139 T8 step 2). The nightly gate rebuilds
    only the OTA stack and never touches live (0132 D7, T1g), so it does not have to be switched

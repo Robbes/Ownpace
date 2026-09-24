@@ -13,21 +13,33 @@ organisation from any screen. The owner chose to write this plan: *"W11 write, W
 write, W14 write, W15 explaoin, W16 write, W17 write, W18 explain, W19 write"*. 0131 §5 calls
 this work W14.
 
-Nothing is built. Neighbouring plans carry parts of what a tester is told, and this plan does
-not repeat them: the alpha note (0131 T1), the "experimental" label (0131 T2), "nothing is
-charged" (0131 T3), the alpha conditions and the legal texts (0139 T2 and T10), acceptance
-(0139 T3), and closing an organisation during the alpha by an operator command (0139 T7). Two
-fixes on the pages this plan changes are in #1137 (pending merge): the request page opens in the
-language the site linked it with, and the grant page links the privacy policy and terms the site
-publishes. One defect was found while writing this plan and is not in the review: the managed
-compose file does not hand the API the three settings that switch the problem report form on
-(T6).
+Nothing is built, apart from the compose fix named at the end of this paragraph. Neighbouring
+plans carry parts of what a tester is told, and this plan does not repeat them: the alpha note
+(0131 T1), the "experimental" label (0131 T2), "nothing is charged" (0131 T3), the alpha
+conditions and the legal texts (0139 T2 and T10), acceptance (0139 T3), and closing an
+organisation during the alpha by an operator command (0139 T7). Two fixes on the pages this plan
+changes were drafted in #1137, which merged on 2026-09-24: the request page opens in the language
+the site linked it with, and the grant page links the privacy policy and terms the site publishes.
+One defect was found while writing this plan and is not in the review: the managed compose file
+did not hand the API the three settings that switch the problem report form on. It is fixed on the
+branch that carries this plan, and not yet on `main` (§1, T6).
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137
+merged.** Testers use a second compose project, `ownpace-live`, at the production names
+`app.ownpace.eu` and `id.ownpace.eu`. The OTA stack stays the nightly gate's target and the demo
+(0131 D3, 0132 D7). The alpha's texts are published on the production site, `www.ownpace.eu`
+(0139 T10 and its open question 1). So the guide (T1) names the production addresses and is
+published beside those texts, and T6's GitHub route points there. Every fact in §1 was checked
+again at `main` after the merge (`987cb06`), and the line numbers are today's. The grant page's
+part of T3 is now tied to 0140's open question 2, as 0145 T6's grant half is: it is needed before
+the first invitation only if testers send grant links during the alpha.
 
 **Before the first invitation.** This is the minimum, and it is kept small:
 
 - T0, the owner's words: the address testers write to, and the site copy;
 - T1, the tester guide, in Dutch, in its short form;
-- T3's grant page, Connect line and site copy;
+- T3's Connect line and site copy, and its grant page if testers send grant links (0140 open
+  question 2);
 - T6, a person to write to, before and after sign-in;
 - T7, *Request access* on the sign-in page.
 
@@ -40,21 +52,21 @@ Everything a tester reads is written in Dutch first and translated into English 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner** | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
-| T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the test site: what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
+| T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
-| T3 "Read-only" replaced by what is true | 📋 **Proposed**; the site copy ⏳ **Owner** (T0) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the grant page, the Connect line and the site copy. |
+| T3 "Read-only" replaced by what is true | 📋 **Proposed**; the site copy ⏳ **Owner** (T0) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, not planned yet. **After**; until then the guide says to leave *apply deletions* off. |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
-| T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app. The report form's settings reach the API. The GitHub chooser gets a route for the hosted service. **Before the first invitation.** |
+| T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings now reach the API on this plan's branch, not yet on `main` (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
-| T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. What closing erases, and the operator's path during the alpha, are 0139 T7's. **After.** |
+| T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |
 
 ## 1. What there is today
 
-Each fact below was checked at the current checkout (`e2a25b8`) on 2026-09-24. Where
-`origin/main` has moved past it on a point that matters, the text says so. Where a fact comes
-from the review and was not re-checked here, it says that too. The review's findings this plan
-carries are `journey-no-beta-framing`, `nondestr-site-claim-overstates`,
+Each fact below was checked on 2026-09-24 at `main` after the merge of #1137 (`987cb06`). The one
+change on this plan's branch that bears on it, the compose fix for the report form, is named where
+it occurs. Where a fact comes from the review and was not re-checked here, the text says so. The
+review's findings this plan carries are `journey-no-beta-framing`, `nondestr-site-claim-overstates`,
 `nondestr-grant-page-readonly-vs-scope`, `nondestr-apply-warning-edit-guard-conditional`,
 `nondestr-terms-item-by-item`, `nondestr-populated-target-undisclosed`,
 `journey-feedback-and-help-channel`, `rootdocs-issue-route-for-managed-testers`,
@@ -77,11 +89,12 @@ and the guides), and the limits are stated where they occur.
   `journey-billing-undefined-for-testers` is carried by 0131 T3 and not repeated here.
 - **The in-app guides say nothing about proof.** The review's verifier confirmed that the
   Microsoft guide and the whole-domain Google section carry no caveat, and corrected two details:
-  the Apple row is at the matrix's :396, and `google-workspace-setup.md`'s *"What only a real
-  account can prove"* is a second place that states it. Gmail, Google Calendar and Google
-  Contacts moved to ✅ on 2026-09-22, for the owner's own account only (matrix :10-17). Rewriting
-  the guides for customers is W15, not planned yet. The Dropbox and Box rows join the open-gaps
-  table in #1137 (pending merge).
+  the Apple row is its own row of the open-gaps table (now :405), and
+  `google-workspace-setup.md`'s *"What only a real account can prove"* (:512) is a second place
+  that states it. Gmail, Google Calendar and Google Contacts moved to ✅ on 2026-09-22, for the
+  owner's own account only (matrix :10-17). Rewriting the guides for customers is W15, not
+  planned yet. Since #1137 (merged 2026-09-24) the open-gaps table also lists Dropbox and Box
+  (:400-401).
 
 ### What "read-only" means today
 
@@ -124,20 +137,20 @@ Two things are true at once:
   tester cannot inspect the code that is deployed.
 
 `docs/google-oauth-verification.md`:86-93 records that `calendar.readonly` may work on Google's
-CalDAV endpoint, and `docs/owner-test-runbook.md`:302-309 makes that *"question zero"*. It has not
-been run. If it works, the calendar moves to the "no" column above.
+CalDAV endpoint, and `docs/owner-test-runbook.md`:302-309 makes that *"question zero"*. The
+repository records no answer to it. If it works, the calendar moves to the "no" column above.
 
 **The grant page.** A grant link is Google only (`isGrantableSourceKind`,
 `grant-link-readiness.ts`:61-84): the four single-purpose kinds and the Google account.
-`Grant.tsx`:167-175 renders a green box, `grant.readOnly`, which says *"Read-only. Nothing is ever
-deleted or changed in your account…"* (`strings.ts`:928-929; in Dutch at :3026-3027, *"Alleen
-lezen."*). Directly under it comes `grant.scopeIntro` and the scope Google will record. For a
-`gmail` link that scope is `https://mail.google.com/` (`GOOGLE_SOURCE_SCOPES`,
+`Grant.tsx`:185-190 renders a green box, `grant.readOnly`, which says *"Read-only. Nothing is ever
+deleted or changed in your account…"* (`strings.ts`:931-932; in Dutch at :3042-3043, *"Alleen
+lezen."*). Directly under it (:192-193) comes `grant.scopeIntro` and the scope Google will
+record. For a `gmail` link that scope is `https://mail.google.com/` (`GOOGLE_SOURCE_SCOPES`,
 `google-consent.ts`:78-83). For a Google account link it is whatever the migration's ticked types
 need (`grant-link-readiness.ts`:251-271). The review's verifier corrected one detail: there is no
 default ask, and the tick decides it. `docs/grant-links.md`:72 specifies the same promise, *"**that
 it is read-only**"*. The setup checklist's step is titled *"Consent a read-only refresh token"*
-(`strings.ts`:2068; Dutch at :3817) for every Google product.
+(`strings.ts`:2078; Dutch at :3833) for every Google product.
 
 **The Connect button.** `ProviderConsentPanel` (`ProviderConsent.tsx`:250-310) shows the types to
 tick, the button and a hint. It says nothing about the permission Google will describe.
@@ -160,20 +173,21 @@ tick, the button and a hint. It says nothing about the permission Google will de
   milliseconds; the fail-open is what matters.
 - **Mail has no edit check.** JMAP mail accepts the version and ignores it
   (`jmap-target.ts`:1155-1159). The IMAP target compares UIDVALIDITY, which catches a recreated
-  mailbox and not an edit (`imapflow-dav-target.ts`:596-608). Both comments explain why: a message
-  cannot be edited apart from its flags.
+  mailbox and not an edit (`imapflow-dav-target.ts`:596-608). The JMAP comment says why: a message
+  is immutable apart from its flags and mailbox membership.
 - **The switch is off by default** (`allow_apply_deletions … DEFAULT false`, ledger
   `0004_managed_apply.sql`:21), and so is auto-apply for relocations (`0014`:12). The auto-apply
   switch has its own warning, which says it removes old copies of moved files unattended and
-  never applies a deletion (`strings.ts`:130-136).
+  never applies a deletion (`strings.ts`:132-138). It is shown only once *apply deletions* is on
+  (`ApplyDeletionsPanel.tsx`:133).
 - **A row recorded as copied when the target refused it** (the review's DAV 412 finding) is a
   provenance defect. It is W18, not planned yet.
 
 The terms say *"Deletion at the target only ever happens through a path you switch on and
 approve item by item"* (`site/legal/terms.md`:91-92; Dutch `terms.nl.md`:38-39). Auto-apply
 removes the old copies of moved files without an item-by-item approval, once a person has
-switched it on (`apply-deletion.ts`:1090-1106, per the review). That sentence is legal text and
-belongs to 0139.
+switched it on (`autoApplyRelocations`, `apply-deletion.ts`:1090-1106). That sentence is legal
+text and belongs to 0139.
 
 ### A destination that is not empty
 
@@ -181,8 +195,8 @@ The review's headline, that testers learn about existing items only afterwards, 
 Before they press start, the confirm screen (`DiscoveryCounts.tsx`:231-237, shared by both
 confirm pages) says: *"N items already on your destination match something in your source. We
 will **keep the destination's copy** and not overwrite it. Anything else already there is left
-untouched."* (`strings.ts`:95-98). It also shows a column, *"Already on the destination"*
-(:86). What remains:
+untouched."* (`strings.ts`:97-100). It also shows a column, *"Already on the destination"*
+(:88). What remains:
 
 - **An adopted item stays the destination's copy, also later.** `domain-sync.ts`:243-246: when
   the versions differ and the item was adopted, *"leave it"*. So a later change to that item at
@@ -196,27 +210,30 @@ untouched."* (`strings.ts`:95-98). It also shows a column, *"Already on the dest
   Soverin account's mail face uses the IMAP writer (`target-domains.ts`:52-60).
 - **Nobody advises starting empty.** The only related control is the target folder, and its
   hint is written for another purpose: *"Useful when several sources share one target"*
-  (`strings.ts`:448-452).
+  (`strings.ts`:450-454).
 
 ### Reaching a person
 
 - **Inside the app, only through the report form.** No support address is in `apps/web/src`
   (a search for `support@`, `SUPPORT_EMAIL` and `mailto:` finds none). *Report a problem* sits in
-  `Layout.tsx`:315-325 and is shown only when `!selfHost && reportingAvailable`. Its route is
-  inside the signed-in layout (`AppRoutes.tsx`:333-339), and the API requires sign-in
-  (`problem-reports.ts`:61, :65). The failure line's *Send it to us* link to the form (0130 T3)
-  reached `origin/main` after this checkout (#1132), and it too is for signed-in customers.
-- **The form cannot be switched on from `.env`.** Found while writing this plan; it is not in
-  the review. The report route reads `ZAMMAD_URL`, `ZAMMAD_TOKEN` and `ZAMMAD_GROUP` from
-  `process.env` (`problem-reports.ts`:44-52, `services/zammad.ts`:45). `managed.yml` lists the
-  API's environment key by key (:792 onward), and none of the three is on the list. The same is
-  true on `origin/main` and on #1137's branch. Step 8f of `docs/managed-bring-up.md`
-  (:1338-1366) says to set them in `.env`, restart the API, *"and the link appears"*. On a stack
-  started from `managed.yml` as written, it cannot. This is the same kind of fault
-  `scripts/the-mail-the-api-could-not-send.unit.test.ts` was written for. Whether the OTA stack
-  runs a changed compose file cannot be seen from here. 0131 T5's row for 0130 depends on it.
-- **Outside the app, nothing.** `/login` (:136-143), `/auth/callback` (:147-155),
-  `/request-access` (:158-165) and `/invitations` (:198-206) sit outside the layout, so they have
+  `Layout.tsx`:318-327 and is shown only when `!selfHost && reportingAvailable`. Its route is
+  inside the signed-in layout (`AppRoutes.tsx`:343-350), and the API requires sign-in
+  (`problem-reports.ts`:61, :65). The failure line's *Send it to us* link to the form (0130 T3,
+  #1132) is on `main` too, and it is also for signed-in customers.
+- **The form could not be switched on from `.env`; fixed on this plan's branch.** Found while
+  writing this plan; it is not in the review. The report route reads `ZAMMAD_URL`, `ZAMMAD_TOKEN`
+  and `ZAMMAD_GROUP` from `process.env` (`problem-reports.ts`:44-52, `services/zammad.ts`:45).
+  `managed.yml` lists the API's environment key by key (:794 onward), and on `main` none of the
+  three is on the list. Step 8f of `docs/managed-bring-up.md` (:1381-1409) says to set them in
+  `.env`, restart the API, *"and the link appears"*. On a stack started from `main`'s
+  `managed.yml`, it cannot. The branch that carries this plan passes all three to the API, empty
+  by default (`managed.yml`:939-941), and
+  `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts` holds it, on the pattern of
+  `the-mail-the-api-could-not-send`. It reaches `main` when that branch merges. Whether a Zammad
+  is configured for `ownpace-live` is 0139 T0's fact 3, and 0131 T5's row for 0130 depends on
+  both.
+- **Outside the app, nothing.** `/login` (:137-144), `/auth/callback` (:148-155),
+  `/request-access` (:159-166) and `/invitations` (:199-208) sit outside the layout, so they have
   no report link and no address. The site's footer does show one (`site/build.mjs`:517,
   `SUPPORT_EMAIL` in `site/prices.mjs`:89). Whether a person reads that address during the alpha
   is 0133's open question 3.
@@ -230,14 +247,14 @@ untouched."* (`strings.ts`:95-98). It also shows a column, *"Already on the dest
 
 ### The sign-in page
 
-`Login.tsx` (361 lines, managed only, `AppRoutes.tsx`:136-143) contains no `Link` and no `href`.
+`Login.tsx` (361 lines, managed only, `AppRoutes.tsx`:137-144) contains no `Link` and no `href`.
 It renders the sign-in button, a fallback for pasting a token, the status link and the build
 stamp (:272-358). The only way from the app to `/request-access` is on the callback page, after a
 completed sign-in that found no organisation (`AuthCallback.tsx`:116-134). The request page links
-back to sign-in (`RequestAccess.tsx`:102, :239). Self-registration at the identity provider is on
-(`setup-zitadel.sh`:1489, the owner's decision of 2026-08-22, 0095 T0). So somebody given the
-app's address registers there first and only then learns they need to ask. Reading `?locale=` on
-the request page is fixed in #1137 (pending merge).
+back to sign-in (`RequestAccess.tsx`:114, :251). Self-registration at the identity provider is on
+(`setup-zitadel.sh`:1495, the owner's decision of 2026-08-22, 0095 T0). So somebody given the
+app's address registers there first and only then learns they need to ask. Since #1137 (merged
+2026-09-24) the request page reads `?locale=` (`RequestAccess.tsx`:50-59).
 
 ### Ending an organisation
 
@@ -250,8 +267,8 @@ the request page is fixed in #1137 (pending merge).
 - **Nothing reads the state back.** `GET /api/tenants/:tenantId` answers id, name, slug,
   settings and creation time (:181-187), and not the status. The dates live in
   `tenant_closure` (managed migration 0001:773-782: `closed_at`, `purge_after`, `closed_by`).
-- **The organisation page exists.** `Tenants.tsx` is *Team & organisation*, where members are
-  managed.
+- **The organisation page exists.** `Tenants.tsx` is *Team & organization* (*Team & organisatie*
+  in Dutch), where members are managed.
 - 0139 §1 records that `operator.sh` has no close command, and 0139 T7 proposes one. 0134 T1 makes
   the erasure sentence say that there are no backups.
 
@@ -281,8 +298,13 @@ its a controlled rest. I Let people in and support them. Max 10/20 people"* ("re
 "test"). *Where do testers run, and under which host names?* — *"This machine, ci states. The OTA
 address. It's all controlled by me and invite only."* ("ci states" is read as "CI stays".)
 
+Later the same day the owner chose a second stack for testers, `ownpace-live`, at the production
+names, beside the OTA stack, which stays the nightly gate's target and the demo. 0131 D3 and 0132
+D7 quote the owner's words and carry that decision.
+
 So the person a tester writes to is the owner (T6). *Request access* leads to the owner's queue
-(T7). The guide names `app.ota.ownpace.eu` and `id.ota.ownpace.eu`.
+on `ownpace-live` (T7). The guide names `app.ownpace.eu` and `id.ownpace.eu`, not the OTA
+addresses.
 
 **D4 — unproven sources are labelled.** *For sources nobody has run against a real account:
 prove them first, hide them, or label them experimental?* — *"Label"*.
@@ -310,12 +332,13 @@ tracker, and T6's route in the issue chooser sends them there.
 1. **The address testers write to.** It could be `support@ownpace.eu`, which the site's footer
    already shows, or another address a person reads during the alpha (0133 open question 3, 0139
    T0 fact 2). T6 shows it on four pages outside the app, in the sidebar and in the issue
-   chooser. The address goes in `.env` and in the chooser, and never in this plan.
+   chooser. The address goes in `ownpace-live`'s `.env` and in the chooser, and never in this
+   plan.
 2. **The site copy (T3).** The drafts below are proposals. The owner approves them, rewrites them,
    or keeps today's text and says why. Copy on a site the owner publishes is the owner's to
    write.
 3. **The guide (T1).** Before it is published, the owner reads the Dutch text against the real
-   screens of the alpha stack. Google's own Dutch words are used as they appear, as 0140 T2 asks.
+   screens of `ownpace-live`. Google's own Dutch words are used as they appear, as 0140 T2 asks.
 
 The dates go in the Status block.
 
@@ -323,11 +346,13 @@ The dates go in the Status block.
 
 **Where.** `site/pages/nl/alfa-handleiding.md`, written first, and its translation
 `site/pages/en/alpha-guide.md`. They are served as `/nl/alfa-handleiding.html` and
-`/alpha-guide.html` on the test site, which 0139 open question 1 recommends for the alpha's
-texts. They are rendered only when the site is built with 0131 T1's alpha setting (working name
-`OWNPACE_STAGE=alpha`, passed to `node site/build.mjs` as `OWNPACE_APP_URL` already is). They are
-not added to the nav (`PAGE_KEYS`), and the 404 page shows how a page can be left out of it. A
-public build never renders them.
+`/alpha-guide.html` on the site that publishes the alpha's texts. Since the owner's ownpace-live
+decision that is the production site, `www.ownpace.eu` (0139 T10 and its open question 1). They
+are rendered only when the site is built with 0131 T1's alpha setting (working name
+`OWNPACE_STAGE=alpha`, handed to `node site/build.mjs` as `OWNPACE_APP_URL` already is; 0131 T1
+itself hands it only to the web build and the API). They are not added to the nav (`PAGE_KEYS`),
+and the 404 page shows how a page can be left out of it. A build without the setting never
+renders them, so they leave the site when the alpha ends.
 
 **Who links to it.**
 
@@ -354,30 +379,32 @@ comes from:
    - Send the owner every Google address you will connect, and wait until it is added (0140 T0 and
      T2).
    - Open links in Safari or Chrome, not inside a mail or chat app (0140 T3).
-   - Leave *Verwijderingen toepassen* off during the alpha, until T4 lands.
-3. **Zo begint u.** The request, the owner's grant, the mail, signing in at
-   `app.ota.ownpace.eu` with an account at `id.ota.ownpace.eu`, the conditions (0139 T3), then
-   *Verbindingen* and a new migration. Read the confirm screen before you press start, and run
-   *Controleren* after the first pass. Google asks again about a week later while the client is
-   in Testing. What to do is 0140 T2's steps, which move here.
+   - Leave the switch *Toepassen van verwijderingen inschakelen* alone during the alpha, until T4
+     lands.
+3. **Zo begint u.** The request, the owner's grant, the mail, signing in at `app.ownpace.eu`
+   with an account at `id.ownpace.eu`, the conditions (0139 T3), then *Verbindingen* and a new
+   migration. Read the confirm screen before you press start, and run *Verifieer de migratie*
+   after the first pass. Google asks again about a week later while the client is in Testing.
+   What to do is 0140 T2's steps, which move here.
 4. **Wat experimenteel is.** A card or data type marked *Experimenteel* (0131 T2) has not yet
    been run against a real account of that kind. The full list is T2's page. Until T2 exists, this
    section says: if you are unsure, ask the owner before connecting.
 5. **Hulp.**
-   - Use *Probleem melden* in the app when it is there (0130). Otherwise, and before you are
+   - Use *Een probleem melden* in the app when it is there (0130). Otherwise, and before you are
      signed in, mail T0's address.
    - Say which page you were on and what you did. Give the build shown at the bottom of the page
      (0146 names it).
    - Never send a password, a token or the contents of a mailbox.
    - The owner answers you personally.
    - Do not open a GitHub issue: GitHub is for developers (D6).
+   - 0145 T9 (a)'s paragraph, for people who use a screen reader or magnification, goes here.
 6. **Stoppen.** You may stop at any time.
    - Ask the owner to close your organisation, and choose when your data is erased (0139 T7; T8
      once built).
    - What stays: the copies at your new provider, and your old account, which Ownpace never
      changed.
    - What you remove yourself: app passwords, and the Microsoft or Dropbox permission. The close
-     answer names each one (`accessThatOutlivesErasure`).
+     answer names each one (`outlivingAccess`, built by `accessThatOutlivesErasure`).
    - What happens at the end of the alpha is 0131 T4's decision, and the guide says it once it is
      decided.
 
@@ -420,11 +447,28 @@ build, in three parts:
   about a week (0140), no backups (0134), in-app browsers (0140 T3), the permission a provider's
   screen describes (T3), a destination that was not empty (T5), and the export archive on managed
   (0131 T2, open question 4). It also says that a cutover cannot be undone from the screen: the
-  only way back is a command the owner runs (`rollback`, `apps/worker/src/cli/index.ts`:96).
+  only way back is a command the owner runs (`rollback`, `apps/worker/src/cli/index.ts`:97).
   Whether that command reaches a managed tenant was not checked here, and it is checked before
   the sentence is written.
 
-The guide (T1) and 0131 T2's hint link to it.
+  The same part carries the lines 0141 and 0143 hand to this page, each in the owner's number or
+  words once they are set:
+  - the largest file a pass copies, and that a larger one is refused with a sentence and left to
+    copy by hand (0143 T4, with 0143 T0's number);
+  - how many days the first copy of a Gmail mailbox takes at Google's daily download limit
+    (0143 §1's table);
+  - that a file over 8 MB does not yet reach a JMAP target, and a WebDAV target takes it
+    (0143 T3, until T3b lands);
+  - with a large Microsoft 365 mailbox, that calendars, contacts and files may wait for the
+    mail's first copy (0143 T5, until it lands);
+  - that Dropbox Business team folders were left out of the build and have not been tried
+    (0141 T3; 0055 T3(c) calls them *"untouched"*).
+
+  Each of these is an `alpha` entry, and it leaves the page in the pull request that removes the
+  limit.
+
+The guide (T1) links to it. So can the *why* of 0131 T2's hint, which today names no page; that
+is proposed here for 0131 to take up once the page exists.
 
 **Guard.** `scripts/a-limitation-the-tester-can-read.unit.test.ts` fails today, because neither
 the data nor the page exists:
@@ -436,7 +480,8 @@ the data nor the page exists:
 - every entry has non-empty Dutch and English;
 - the site build writes both pages.
 
-When 0141 T1 moves a face to proven, this guard makes the same pull request remove the entry.
+When a live proof recorded under 0141 T1 moves a face to proven, this guard makes the same pull
+request remove the entry.
 
 ### T3 — "read-only" replaced by what is true (proposed; the site copy is the owner's)
 
@@ -446,7 +491,8 @@ asks for. Where it does not, the permission the provider's screen describes is b
 the software does, and the page says so before the person continues. The privacy draft already
 says this (§1).
 
-**The grant page (before the first invitation).**
+**The grant page (before the first invitation if testers send grant links, 0140 open question 2;
+otherwise after).** 0145 T6 draws the same line for its grant half.
 
 - The grant subject gains `readOnlyAtProvider`, computed in `grant-link-readiness.ts` from the
   scopes asked. It is true only when every data scope is one Google enforces as read-only. Today
@@ -466,7 +512,10 @@ says this (§1).
     calendars and contacts, the permission Ownpace asks for also allows changes. Ownpace makes
     none."*
 - `docs/grant-links.md`:72 says the same in the same PR. The privacy and terms links on this page
-  are fixed in #1137 (pending merge); this task changes a different line of the same page.
+  have pointed at the addresses the site publishes since #1137 (merged 2026-09-24; `LEGAL` in
+  `Grant.tsx`:70-79). This task changes a different part of the same page. 0145 T6 changes the
+  "what will be read" sentence just above the box (:183), so the two changes are laid out
+  together.
 
 **One line beside *Connect with Google* (before the first invitation).** In
 `ProviderConsentPanel`, for a Google kind whose ticked types include mail, calendar or contacts,
@@ -509,7 +558,7 @@ no line. Dropbox asks for whatever its app carries, and 0140 T7 narrows that.
 
 **After.**
 
-- The setup step's title (`strings.ts`:2068, :3817) loses "read-only": *"Consent a refresh token
+- The setup step's title (`strings.ts`:2078, :3833) loses "read-only": *"Consent a refresh token
   for that product"* / *"Laat een refresh-token voor dat product toestemmen"*.
 - The source password field gets a hint, `wizard.sourcePassword.hint`, in 0140 T9's words for
   Apple: a password opens the whole account, and read-only is a property of the software, not of
@@ -534,7 +583,7 @@ automatically if you choose that separately."* This plan does not edit legal tex
 - `scripts/a-read-only-claim-with-its-scope.unit.test.ts`: in how-it-works (both languages),
   `docs/grant-links.md` and the named setup strings, "read-only", "alleen-lezen" and "alleen
   lezen" occur only in a sentence that also names Drive, Tasks or Microsoft. Today it fails on
-  how-it-works, `grant-links.md`:72 and `strings.ts`:2068 and :3817.
+  how-it-works, `grant-links.md`:72 and `strings.ts`:2078 and :3833.
 
 ### T4 — the warning says what the check does (proposed; after)
 
@@ -588,9 +637,10 @@ hand, or set a target folder for mail and files.
   - NL: *"… en overschrijven die niet, nu niet en later niet: een wijziging van dat item in uw
     oude account wordt er niet overheen gekopieerd."*
 - **An IMAP target.** `DiscoveryCounts` learns the target's kind; today it is not passed
-  (`DiscoveryCounts.tsx`:72-86). The two places that render it (`ConfirmMigration.tsx` and
-  `pages/Confirm.tsx`) know the kind. For an IMAP target, or a Soverin account's mail, the
-  sentence adds:
+  (`DiscoveryCounts.tsx`:72-86). `ConfirmMigration.tsx` already loads the mapping, whose record
+  carries `targetType` (`MappingSchema`, `mapping-service.ts`:257). Whether the appliance's
+  `pages/Confirm.tsx`, which reads the status list, has it too is checked when the task starts.
+  For an IMAP target, or a Soverin account's mail, the sentence adds:
   - EN: *"On this destination a message is recognised only in the folder it is copied to: one you
     keep in another folder arrives a second time."*
   - NL: *"Op deze bestemming wordt een bericht alleen herkend in de map waarheen het wordt
@@ -608,8 +658,8 @@ adds the folder sentence, and with a JMAP target it does not.
 **The address, as a build setting.** The pages outside the app have no session, so the address
 cannot come from the API. It is a web build argument, working name `VITE_SUPPORT_EMAIL`, which
 `managed.yml` passes to the web build as it passes `VITE_OIDC_ISSUER`. Its value comes from
-`.env`, and T0 chooses it. When it is unset, nothing below is shown, just as the report link is
-hidden when it could reach nobody.
+`ownpace-live`'s `.env`, and T0 chooses it. When it is unset, nothing below is shown, just as the
+report link is hidden when it could reach nobody.
 
 **Before sign-in.** One line on `/login`, `/request-access`, `/auth/callback` (both the
 no-organisation state and the failed state) and `/invitations`:
@@ -622,16 +672,21 @@ no-organisation state and the failed state) and `/invitations`:
 shows *"Hulp: {address}"* where *Report a problem* would be. A signed-in tester then always has
 one of the two.
 
-**The report form's settings reach the API.** `managed.yml` passes `ZAMMAD_URL`, `ZAMMAD_TOKEN`
-and `ZAMMAD_GROUP` to the `api` service, empty by default, so that step 8f of the bring-up does
-what it says (§1). 0131 T5's row for 0130 then has a way to become true.
+**The report form's settings reach the API: done on this plan's branch.** `managed.yml` passes
+`ZAMMAD_URL`, `ZAMMAD_TOKEN` and `ZAMMAD_GROUP` to the `api` service, empty by default, so that
+step 8f of the bring-up does what it says, and
+`scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts` fails without it (§1). It is not on
+`main` until the branch merges. 0131 T5's row for 0130 then has a way to become true, once a
+Zammad is configured for `ownpace-live` (0139 T0 fact 3); until then the address above is the
+tester's way to a person.
 
 **The GitHub chooser.**
 
 - A first contact link in `config.yml`, in English and Dutch: *"Using the hosted Ownpace alpha? /
   Gebruikt u de Ownpace-alfa?"*. Its `about` says: do not open an issue here; use *Report a
   problem* in the app or the address in the tester guide; never post mailbox contents, addresses
-  or screenshots of your data. Its URL is T1's *Hulp* section on the test site.
+  or screenshots of your data. Its URL is T1's *Hulp* section, on the site that publishes the
+  alpha's texts (0139 T10).
 - `bug_report.yml`'s opening block gains one sentence to the same effect.
 - The security and self-host links stay as they are.
 - `blank_issues_enabled` is left alone, because developers use it (D6).
@@ -641,10 +696,9 @@ what it says (§1). 0131 T5's row for 0130 then has a way to become true.
 - `apps/web/src/pages/a-person-before-sign-in.unit.test.tsx`: with the setting stubbed, the four
   pages render a `mailto:` link in both languages, and so does the layout when reporting is
   unavailable. Without the setting, none of them does.
-- `scripts/the-report-the-api-could-not-file.unit.test.ts`, on the pattern of
-  `the-mail-the-api-could-not-send`. It takes the environment names from `zammadConfigFrom`'s own
-  body and requires each one in `managed.yml`'s `api` environment. It also requires
-  `VITE_SUPPORT_EMAIL` among the web build's arguments.
+- A case in `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`, which already holds the
+  report form's three settings: `managed.yml` passes `VITE_SUPPORT_EMAIL` among the web build's
+  arguments.
 - `scripts/an-issue-route-for-the-hosted-service.unit.test.ts`: the first contact link's URL is
   not on github.com, and its `about` carries the warning in both languages. `bug_report.yml`'s
   opening names the hosted service.
@@ -656,10 +710,10 @@ Under the sign-in button in `Login.tsx`, one link:
 - NL: *"Nog geen account? Vraag toegang aan."*
 - EN: *"No account yet? Request access."*
 
-It goes to `/request-access?locale=<the reader's language>`. The request page reads `?locale=`
-once #1137 merges; until then the link still works and the page follows the browser's language.
-Both routes are managed only (`AppRoutes.tsx`:136-165), so the appliance never sees the link. The
-identity provider's own registration page, and accounts that nobody let in, are 0135's (T5, T8).
+It goes to `/request-access?locale=<the reader's language>`. The request page has read `?locale=`
+since #1137 (merged 2026-09-24). Both routes are managed only (`AppRoutes.tsx`:137-166), so the
+appliance never sees the link. The identity provider's own registration page, and accounts that
+nobody let in, are 0135's (T5, T8).
 
 **Guard.** `apps/web/src/pages/a-door-from-the-sign-in-page.unit.test.tsx` fails today. With an
 issuer, `Login` renders a link to `/request-access?locale=nl` in Dutch and
@@ -690,9 +744,9 @@ It is shown to the owner only, on the managed edition only. The route is owner-o
 window and the erasure sentence rebuilt from the row. Every member of a closed organisation then
 sees one line at the top: the date of erasure, and that the owner can reopen until then.
 
-**What it must not say.** The screen says what 0139 T7 decides erasure covers. It says nothing
-yet about the sign-in account at the identity provider, which erasure does not reach today
-(0139 §1). That line waits for 0135 T8's step and 0139 T7's wording.
+**What it must not say.** The screen shows the route's own sentences, with 0134 T1's change. It
+says nothing yet about the sign-in account at the identity provider, which erasure does not reach
+today (0139 §1). That line waits for 0135 T8's step and 0139 T7's wording.
 
 **During the alpha** the path is 0139 T7's operator command, and the guide (T1) says so. Whether
 the screen should come before the first invitation instead is open question 5.
@@ -712,8 +766,10 @@ the screen should come before the first invitation instead is open question 5.
 **Before the first invitation**, in this order:
 
 1. T0's address.
-2. T6 and T7 in one web PR, with the compose change and the chooser.
-3. T3's grant page, Connect line and site copy, once T0 approves the copy.
+2. T6 and T7 in one web PR, with the chooser. The compose change for the report form is already
+   on this plan's branch.
+3. T3's Connect line and site copy, once T0 approves the copy, and its grant page if testers send
+   grant links (0140 open question 2).
 4. T1's short form, last, because it points at all of the above and at 0131 T1, 0139 T2 and
    0140 T2 and T3.
 
@@ -728,12 +784,17 @@ approves.
 
 - The alpha note, the "experimental" label and the Billing sentence: 0131 T1 to T3.
 - The conditions, acceptance, notices where data is collected, the operator's close command and
-  what erasure covers: 0139 (T2, T3, T4, T7). Terms §2's *"item by item"* goes to 0139 T1's list.
+  the identity provider's account after a close: 0139 (T2, T3, T4, T7). Terms §2's *"item by
+  item"* goes to 0139 T1's list. The erasure sentence's word on backups: 0134 T1.
 - Google's steps for a tester, and the in-app browser line: 0140 T2 and T3. The guide carries
   them.
-- The live runs that take a label off, and `calendar.readonly` on CalDAV (question zero): 0141.
+- The live runs that take a label off, and `calendar.readonly` on CalDAV (question zero): 0141
+  (T6 for question zero).
+- The limits behind the capacity lines T2 carries (the largest file, Gmail's daily limit, JMAP
+  files, the order of data types), and the owner asking about sizes when granting: 0143.
 - Who reads the support address, and the mail relay: 0133.
-- Phones and screen readers: 0145. A build name a tester can quote: 0146.
+- Phones and screen readers, the grant page's "what will be read" sentence, and the guide's
+  accessibility paragraph: 0145 (T6, T9). A build name a tester can quote: 0146.
 - The report form itself: 0130, built.
 - In-app guides written for customers, in Dutch: W15, not planned yet.
 - Removal that fails closed: `If-Match` on a DAV DELETE, a row recorded as copied after a 412, and

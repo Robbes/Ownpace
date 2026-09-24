@@ -48,7 +48,7 @@ copy or list. And the multi-connection `PgRateBudget` test that §1 called missi
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
@@ -196,10 +196,10 @@ else:
 - on update, the same, *"refusing to blank the node on the target"*;
 - `uploadContent(content: Uint8Array, …)` posts one `Blob`.
 
-Every file source hands a file above 8 MB over as a `body` and no `content`
-(`packages/core/src/dav-sync.ts`, `fetchRaw`). The contract in `packages/shared/src/file.ts` says
-a consumer that must handle both *"reads `content ?? body`, and a target that cannot stream
-refuses above `MAX_BUFFERED_FILE_BYTES` rather than trying"*. So every file above 8 MB written to
+Every file source hands a file above 8 MB over as a `body` and no `content`, a Google export
+excepted (`packages/core/src/dav-sync.ts`, `fetchRaw`). The contract in
+`packages/shared/src/file.ts` says a consumer that must handle both *"reads `content ?? body`, and
+a target that cannot stream refuses above `MAX_BUFFERED_FILE_BYTES` rather than trying"*. So every file above 8 MB written to
 a JMAP target fails, and the tester is told *"No content for …"*, which is not the reason. The
 JMAP target carries files (`jmap: ['email', 'contact', 'file']` in
 `packages/shared/src/target-domains.ts`), and AGENTS.md calls JMAP *"the primary target
@@ -286,7 +286,7 @@ machine.
   task events, MinIO's payloads or the task registry. The only retention setting it names is
   `BACKUP_RETENTION_DAYS`. Nothing in `deploy/` or `scripts/` garbage-collects the registry or
   prunes images. The tick alone is a Trigger.dev run every minute, so 1 440 run records a day on
-  each plane before a single pass; with live beside the OTA stack there are two planes.
+  each plane before a single pass. Once live stands beside the OTA stack there are two planes.
   `clickhouse-disable-system-logs.xml` switches off ClickHouse's own log tables. `managed.yml`
   says the old `clickhouse_data` volume *"remains on disk until somebody deliberately removes
   it"*. That leftover is the OTA stack's; live starts on the current volume.
@@ -478,20 +478,27 @@ the tick queues its migration again every minute (§1). If step 1 finds the plan
 limit can be set, it is set a little above `MAX_PASSES_IN_FLIGHT` as a backstop, to leave room for
 the passes the tick does not start.
 
-**Passes the tick does not start.** *Sync now* (fixed in #1137 (pending merge) to carry the
-migration's key), `/start`, discovery, verification and cutover start from the API. They are
-counted once they run, because they open run rows, but the tick does not stop them from starting.
-T2a bounds them, since each is one per migration. 0132 T6 proposes one function for all eight API
-enqueue sites so that the operator hold covers them. After the alpha, the same function can
-refuse *Sync now* for an organisation at its cap, with a sentence.
+**What the tick does not start.** Eight enqueue sites in the API start tasks the tick does not
+start: *Sync now*, `/start`, discovery, verification, cutover, confirmation, and the two apply
+tasks. *Sync now* (with its key since #1137, merged 2026-09-24), `/start` and a cutover's final
+sync are `run-delta-sync` passes. They open an `incremental` run row, so the count sees them
+once they run, but the tick does not stop them from starting. They share the migration's
+one-pass queue, so T2a's cap on migrations bounds them. Discovery has a one-per-migration queue
+too. Verification, cutover, confirmation and the two apply tasks open no copying run row, so the
+count does not see them. None has a queue of its own. Verification and confirmation join a run
+already in progress instead of starting a second (*"Joined, not stacked"*, `operating-routes.ts`).
+Each of the five starts from a request somebody makes. T9 records whether they matter. 0132 T6
+proposes one function for all eight API enqueue sites so that the operator hold covers them. After
+the alpha, the same function can refuse *Sync now* for an organisation at its cap, with a
+sentence.
 
 **The host, in the bring-up.** *Before you start* gains a memory and CPU line beside the disk
-line. It gives the formula above, and T9's measured figure for the stack's resident services.
+line. It gives the formula above, and T9's measured figure for both stacks' resident services.
 
 **Guards.** Each of these fails on today's code:
 
 - `scripts/a-machine-every-task-names.unit.test.ts`: `trigger.config.ts` sets `machine`, and
-  `run-delta-sync.ts` and `run-cutover.ts` set their own. Each value is one of the SDK's
+  `run-delta-sync.ts` and `run-discovery.ts` set their own. Each value is one of the SDK's
   `MachinePresetName` values. It fails today, because there is no `machine` anywhere.
 - `apps/worker/src/jobs/a-tick-that-knows-the-box-size.unit.test.ts`. The choice is a pure
   function exported from the tick, `withinCapacity(due, running, caps)`, because the tick itself
@@ -519,8 +526,9 @@ line. It gives the formula above, and T9's measured figure for the stack's resid
 - The number is one deployment setting passed to the API. A per-organisation override that only an
   operator can write comes later, if the alpha shows it is needed.
 - `maxMappings` and `maxUsers` leave `UpdateTenantSchema`, so an owner can no longer store a limit
-  that limits nothing. Values already stored stay inert, because nothing reads them. A cap on
-  members belongs with 0131's open question 6 and 0137.
+  that limits nothing. Values already stored stay inert, because nothing reads them. The case in
+  `a-number-to-call.unit.test.ts` whose title says the generic update *"keeps its two keys"*
+  changes with it. A cap on members belongs with 0131's open question 6 and 0137.
 - **Guard:** `apps/api/src/routes/migrations/a-migration-past-the-cap.integration.test.ts`. The
   migration one past the cap is refused with the sentence, and a finished one does not count. An
   owner's `PUT /api/tenants/:id` with `settings.maxMappings` leaves `settings` without it. It fails
@@ -556,15 +564,23 @@ line. It gives the formula above, and T9's measured figure for the stack's resid
 **T2d, stopping one organisation.**
 
 - **For the first invitation, a runbook step (alpha minimum).** An entry in 0142 T6's incident
-  runbook. As the database owner, write down the id and status of each of one organisation's
-  migrations in a state that runs passes (`PASS_RUNNING_STATES`), then set those to `paused`. The
-  list is what puts each one back as it was. A pass in flight stops
-  before its next data type, because `run-delta-sync` re-reads the migration between data types
-  (`mappingStillRuns`). The owner then writes to the tester, whom the owner supports anyway (D2).
-  Two limits are stated with the step:
-  - `paused` is the state a draft waits in, so the tester can press start and undo it;
-  - the step bypasses row security and writes no audit row, so the entry says to note the date
-    and the organisation in the same runbook.
+  runbook, on live's database. As the database owner, write down the id and status of each of one
+  organisation's migrations in a state that runs passes (`PASS_RUNNING_STATES`: `active` and
+  `continuous`). Then move each by the lifecycle's own table (`updateTransition` in
+  `packages/shared/src/lifecycle.ts`):
+  - an `active` migration to `paused`, the table's *"pause"*;
+  - a `continuous` migration to `cutover`, the table's *"stop"*. Never to `paused`: the table
+    refuses `continuous` → `paused`, because after a cutover *"the source is no longer the
+    authority on what exists"* (0117 D4). From `paused`, a press of *Start* would make it
+    `active` again and bring the deletion detector back.
+
+  The list is what puts each one back as it was. A pass in flight stops before its next data
+  type, because `run-delta-sync` re-reads the migration between data types (`mappingStillRuns`).
+  The owner then writes to the tester, whom the owner supports anyway (D2). Two limits are stated
+  with the step:
+  - the tester can undo it: *Start* from `paused`, or entering the lane again from `cutover`;
+  - the step bypasses the route, row security and the status-change record the route writes
+    (0109 T1), so the entry says to note the date and the organisation in the same runbook.
 - **The built hold, after.**
   - A managed migration adds an organisation hold with the same shape as `platform_pause`. An
     operator writes it (`WHERE EXISTS (platform_operator …)`), and a non-operator's write changes
@@ -594,8 +610,9 @@ the archive card cannot work on managed at all (0131 §1 and T2).
 is present, `JmapFileTarget` throws a sentence, not *"No content for …"*. The sentence names the
 file, its size, and that a JMAP target cannot take files over 8 MB yet, and it says a WebDAV target
 can. It is a few lines, and it makes the failure line tell the tester what to do. Until T3b lands,
-the owner points a tester who wants files on JMAP at WebDAV when granting, as 0141 T8 already says,
-and 0144's known limitations say it.
+the owner points a tester who wants files on JMAP at WebDAV when granting, as 0141 T8 already says.
+0144 T2's known-limitations page says it once that page exists, which 0144 plans for after the
+first invitation.
 
 **T3b, the streamed upload.**
 
@@ -627,17 +644,20 @@ and 0144's known limitations say it.
   listed file whose `size` is above the limit is refused. It is refused before a byte is read, so
   no download starts and no daily byte meter is spent on it.
 - The error carries `markNeedsDecision` and the category `policy_refused`. That category is
-  *"stated by the code that refused"*, and its comment widens from the migration's own settings
-  to *the migration's or this service's stated limits*. So the file is parked on first sight and
-  not retried.
+  *"STATED by the code that refused"* (`packages/shared/src/failure-category.ts`), and its comment
+  widens from the migration's own settings to *the migration's or this service's stated limits*.
+  So the file is parked on first sight and not retried.
 - The sentence, a draft for 0144 to match: *"<path> is 12.4 GB. During the alpha this service
   copies files up to 2 GB, because a larger file can take longer than one pass may run. Nothing
   was copied and nothing was changed; every other file continues. Copy this one by hand."*
 
 **Where the limit is said.** Before anything happens, not only after:
 
-- 0144's known limitations, in Dutch first;
 - the owner's grant step (§4): the owner asks a tester moving files what their largest file is.
+  Before the first invitation this is the only place, because 0144 plans its known-limitations
+  page (T2) for after it;
+- 0144 T2's known-limitations page, in Dutch first, once it exists. 0144 T1's short guide, section
+  2 (*Voordat u begint*), is where the line fits sooner if the owner wants it written down.
 
 **Guard:** `packages/core/src/a-file-no-pass-can-carry.unit.test.ts`.
 
@@ -652,7 +672,8 @@ It fails today, because the loop fetches every file.
 day than T9 measured. The loop counts an attempt when a transfer above the streaming threshold
 starts, not only when it fails. A transfer the runner kills then still counts, and after
 `MAX_ITEM_ATTEMPTS` the item is parked with the same sentence. Resumable transfer is the real
-fix, and 0120 leaves it to *"the resumable-upload work"*.
+fix. 0120 says of a body that *"there is no resume-from-offset"*, and `webdav-target-writer.ts`
+calls what is missing *"the resumable-upload work"*.
 
 ### T5 — every data type of a migration gets a turn in a pass
 
@@ -683,9 +704,11 @@ the pass's own. A text check in `apps/worker/src/jobs/`, as `a-drain-that-only-s
 task body, confirms the loop uses them. It fails today, because every data type is handed the same
 `deadline`.
 
-**Until it is built,** 0144 says: *"With a large Microsoft 365 mailbox, your calendars, contacts
-and files may not start until the mail's first copy is done."* The owner can also suggest that such
-a tester ticks mail alone first.
+**Until it is built,** the line for 0144 to publish is: *"With a large Microsoft 365 mailbox, your
+calendars, contacts and files may not start until the mail's first copy is done."* 0144 T2 lists
+it in its known-limitations page, which 0144 plans for after the first invitation. Before then,
+the owner says it when granting (§4), and can also suggest that such a tester ticks mail alone
+first.
 
 ### T6 — runs of organisations that are never invoiced (parked)
 
@@ -694,6 +717,9 @@ The run rule keeps every run of an organisation with no issued invoice, and none
 (`DEFAULT_RUN_RETENTION_DAYS`), so nothing an alpha of a few weeks writes would be old enough to
 prune even if the rule changed. T9 measures what the rows cost in the meantime. 0139 T6's
 statement that *"run rows stay until the alpha ends or the organisation is erased"* stays true.
+The OTA stack's demo tenants fall under the same rule, so their run rows are kept too, unless one
+of them holds an invoice issued before the route was retired. That cannot be seen from here. T9's
+row counts show what their runs cost the machine.
 
 **When the trigger fires:** with the alpha setting on (0131 T1), managed retention prunes an
 organisation with no issued invoice by the window alone. That is `safeUpTo: 'nothing-is-billed'`,
@@ -706,15 +732,17 @@ control.
 
 ### T7 — what the task plane keeps, and for how long
 
-These are four stores and one leftover, each read at v4.5.16 before anything is set.
+These are four stores and one leftover, each read at v4.5.16 before anything is set. Every store
+exists once per plane, so on each stack.
 
 - **The registry.**
   - `trigger-registry` gets `REGISTRY_STORAGE_DELETE_ENABLED=true`.
   - A script, `deploy/compose/registry-forget.sh`, deletes the manifests of task deployments
-    older than the newest K, with K at least 2. A queued run takes the version that is current
-    when it executes, but a run already started finishes on its own image.
-  - It then runs `registry garbage-collect` with the registry stopped, inside 0132 T6's deploy
-    window.
+    older than the newest K, with K at least 2, so a run still on the previous version keeps its
+    image. Which version a queued run takes when a new one is deployed is read at v4.5.16 with the
+    rest.
+  - It then runs `registry garbage-collect` with the registry stopped: on live inside 0132 T6's
+    deploy window, and on the OTA stack outside the managed gate's hours.
   - **Guard:** `scripts/a-registry-that-forgets-old-tasks.unit.test.ts` drives it with a stubbed
     `docker` and `curl`. It keeps the newest K, deletes the rest, and refuses K below 2. It fails
     today, because there is no script.
@@ -724,10 +752,10 @@ These are four stores and one leftover, each read at v4.5.16 before anything is 
 - **ClickHouse task events and MinIO payloads.** Read whether upstream's schema at v4.5.16 sets a
   TTL. If it does not, set one that matches 0139 T6's answer for how long task events may hold a
   tester's data. The same setting serves both plans.
-- **Trigger.dev's own run records.** The tick adds 1 440 a day. Read whether the v4.5.16 web app
-  prunes old runs, and set it if it can.
-- **The leftover.** Once `docker volume inspect` shows no container uses the old `clickhouse_data`
-  volume, the owner removes it, as `managed.yml` describes (*"`docker volume rm
+- **Trigger.dev's own run records.** Each stack's tick adds 1 440 a day to its own plane. Read
+  whether the v4.5.16 web app prunes old runs, and set it if it can.
+- **The leftover, on the OTA stack.** Once `docker volume inspect` shows no container uses the old
+  `clickhouse_data` volume, the owner removes it, as `managed.yml` describes (*"`docker volume rm
   ownpace-managed_clickhouse_data`"*).
 
 0142 T3's daily summary is what shows whether any of this is needed sooner. Until it exists, T9
@@ -743,8 +771,8 @@ gives the growth per day and the runway (§4).
   pg_stat_statements` as the database owner. It is idempotent.
 - The operator runbook gains the one query for the ten statements with the most total time.
 - The appliance and PGlite are untouched.
-- Changing the command recreates the database container, so it goes in with a hold and a drain
-  (0132 T6).
+- Changing the command recreates the database container. On live it goes in with a hold and a
+  drain (0132 T6). The OTA stack takes it with the gate's next redeploy from `main`.
 - Before relying on it, `SELECT name FROM pg_available_extensions WHERE name =
   'pg_stat_statements'` on the machine confirms the image ships it.
 - **Guard:** `scripts/a-database-that-counts-its-queries.unit.test.ts`. The `postgres` command
@@ -753,7 +781,8 @@ gives the growth per day and the runway (§4).
 
 ### T9 — one measured rehearsal of the alpha's shape (owner's sitting)
 
-**The script.** `deploy/compose/rehearse-capacity.sh`, which runs on any managed stack (D5).
+**The script.** `deploy/compose/rehearse-capacity.sh`, which runs on any managed stack except live
+(D5).
 
 - `--seed N M` creates N rehearsal organisations with fixed-prefix ids, as the demo seed does, each
   with M migrations on `*/15`. The sources are the demo IMAP mailbox and the demo Nextcloud's
@@ -766,34 +795,43 @@ gives the growth per day and the runway (§4).
   - the host's available memory, swap and load;
   - PgBouncer's `SHOW POOLS` (`cl_waiting`, `maxwait`);
   - Postgres' `numbackends`.
-- `--remove` takes back everything `--seed` made and counts what it removed, as the 0120 fixture's
-  `--remove` does.
+- `--remove` takes back everything `--seed` made and counts what it removed, the way
+  `seed-demo-dav-content.sh --remove <tag>` takes back one `--fresh <tag>` set.
+- It refuses a `.env` that carries live's marker (0132 T1g, working name `STACK_KIND=production`),
+  as 0132 T5's refusal of `--with-demo` does. Rehearsal organisations never reach the stack testers
+  use.
 - **Guard:** `scripts/a-rehearsal-that-cleans-up.unit.test.ts` drives it with a stubbed `docker`
-  and `psql`. Every id `--seed` creates is one `--remove` deletes, and the sample line has the
-  fields above. It fails today, because there is no script.
+  and `psql`. Every id `--seed` creates is one `--remove` deletes, the sample line has the fields
+  above, and a `.env` with live's marker is refused before anything is written. It fails today,
+  because there is no script.
 
-**The sitting.** It happens on the reference machine, after 0132 T0's first step (the nightly gate
-off) and before its second (the demo era out). The rehearsal needs the demo servers, and 0132's
-route (a) starts from a fresh database anyway.
+**The sitting.** It happens on the reference machine, on the OTA stack, after 0132 T0's step 3
+(live stood up), so that the machine carries both stacks while it is measured. The rehearsal needs
+the demo servers, and only the OTA stack has them: live is brought up without `--with-demo` (0132
+T1b).
 
-1. Deploy the commit that carries T1, T2a, T3a and T4, the way the gate deploys today, with the
-   demo. With T8, if it is ready.
+1. The OTA stack runs a `main` that carries T1, T2a, T3a and T4, as the nightly gate deploys it,
+   with T8 if it is ready. Live stands idle beside it, with its own caps uploaded.
 2. Seed N = 20 organisations × M = T0's migration cap.
-3. Add the two real loads, from the owner's own accounts:
+3. Add the two real loads, from the owner's own accounts (where they run is open question 4):
    - **one large drive** with a file just under T0's largest-file number and one just over it,
      to the demo Nextcloud;
    - **one large mailbox** that is not Gmail. A Gmail mailbox would measure the 2.5 GB meter, not
      the machine. It has calendars and contacts ticked as well, so T5's effect is visible.
-4. Run for at least six hours, including one of the appliance nightly's runs (0132 T1), because
-   that is the machine the alpha shares (D2).
+4. Run for at least six hours, including one of the appliance nightly's runs (`e2e.yml`, 23:30
+   or 01:30 UTC), because that is the machine live shares (D2). The sitting ends before the
+   managed gate's 03:30 UTC run, which rebuilds the OTA stack, or that workflow is disabled for
+   the night (open question 5).
 5. Take back the seed. Afterwards, revoke the owner's own grants at Google and Microsoft. They were
-   stored on a stack whose keys 0132 T5 has not yet replaced.
+   stored on the OTA stack, whose demo-era values 0132 T5 leaves in place (parked for that stack).
 
 **What is recorded,** in this block, and as a *Measured: the managed stack* section in
 `docs/performance.md`. It gives the machine's memory and core count and nothing that says where
 the machine is.
 
 - The machine each pass was given, and whether its container had a memory limit (T1 step 1).
+- Each stack's resident services' memory, idle and under the load. Live's idle figure is the one
+  T1's formula subtracts.
 - Peak memory per pass container: mail and files, first copy and delta.
 - The most task containers at once, and the lowest available host memory. Any OOM kill:
   `State.OOMKilled` on a container, or the kernel log.
@@ -803,9 +841,10 @@ the machine is.
 - The large file's rate. Whether the file under the limit finished inside one pass with a matching
   hash, and whether the file over it was refused with the sentence.
 - The mailbox's items and bytes per pass, and when its calendars and contacts first started.
-- Disk before and after: `docker system df -v`, `pg_database_size` for the three databases, and
-  row counts of `run`, `run_event` and `item`. From these, the growth per migration per day and the
-  **runway** (free space ÷ growth per day).
+- Disk before and after: `docker system df -v`, `pg_database_size` for each stack's three
+  databases (the application's, the identity provider's and Trigger.dev's), and row counts of
+  `run`, `run_event` and `item`. From these, the growth per migration per day and the **runway**
+  (free space ÷ growth per day).
 - The ten statements with the most total time, with T8.
 - Counts of `rate_limited` and `quota_exceeded` failures, for T10.
 
@@ -856,15 +895,17 @@ move this number to fit"*.
   they can have running at once. **T2d's runbook step** is there because the only stop today
   stops everyone.
 - **T3a**, because JMAP is the primary target, and today its failure line names the wrong reason.
-- **T4**, because a file too large for one pass loops from byte 0 for ever, and the rest of its
-  folder waits behind it.
+- **T4**, because a file too large for one pass loops from byte 0 for ever, and every pass of its
+  migration that reaches it ends in the runner's kill.
 - **T9**, because every number above is a guess until it has run once on the machine that will
-  carry it.
+  carry it, with both stacks on it.
 
-For 0131 T5's go/no-go table, this plan's row is:
+0131 T5's go/no-go table lists 0131 to 0140, 0093 T2c and 0130, and has no row for this plan yet.
+The row proposed for it:
 
-- T1, T2a, T3a and T4 are on the alpha stack;
-- T9 passed, and its numbers and the runway are written in this block;
+- T1, T2a, T3a and T4 are on `ownpace-live`, and live's caps are uploaded;
+- T9 passed with live standing beside the OTA stack, and its numbers and the runway are written
+  in this block;
 - T0's final numbers are set;
 - T2d's step is in 0142 T6's runbook.
 
@@ -908,7 +949,8 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
 - **Where a tester's connection probes may go:** 0136.
 - **Live proof of the sources and targets,** including JMAP files beyond our own Stalwart: 0141.
 - **What testers are told:** the known-limitations lines above (the largest file, the Gmail days,
-  JMAP files, the order of data types) are 0144's to publish. The alpha conditions are 0139's.
+  JMAP files, the order of data types) are handed to 0144 to publish, and 0144 T2 lists them in
+  the alpha part of its known-limitations page. The alpha conditions are 0139's.
 - **A release name for the commit T9 measured:** 0146.
 - **In-app guides that state these limits:** W15, not planned yet.
 
@@ -923,11 +965,15 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
 3. **T5's rule.** (c), small first and then a fair share, is recommended. Or (a) rotation, or (b)
    least progressed first.
 4. **T9's large mailbox and drive.** Does the owner have a large mailbox that is not Gmail, for
-   example a Microsoft 365 one, to put through the rehearsal? And is it acceptable to store those
-   grants for a day on a stack whose keys 0132 T5 has not yet replaced, and to revoke them after?
-5. **T9's place in 0132 T0.** It is proposed between the first step (the gate off) and the second
-   (the demo era out). If the owner prefers to take the demo era out first, the script brings the
-   demo servers up alone for the sitting (`setup-managed-demo.sh`) and takes them down after.
+   example a Microsoft 365 one, to put through the rehearsal? And where do those two loads run?
+   (a) On the OTA stack with the rest of the sitting, storing the grants for a day under the
+   demo-era values 0132 T5 leaves in place there, and revoking them after. (b) On live, from the
+   owner's own organisation to the owner's own targets, where the grants are held under live's
+   own keys. (b) keeps real grants off the demo stack, but it is a real migration of the owner's
+   data rather than a rehearsal.
+5. **T9's night.** The sitting runs on the OTA stack, which the managed gate rebuilds at 03:30 UTC.
+   (a) End it before the gate's run. (b) Disable `e2e-managed.yml` for that night and enable it
+   again after. (a) is recommended, because it leaves the gate alone.
 6. **If T9 shows the machine carries fewer than 20.** Invite fewer, or keep 20 and make the waves
    smaller? Waves are recommended, because the load that matters is first copies at once, not
    organisations.
