@@ -23,7 +23,7 @@ const DL: DiscoveredGroup = {
   address: 'sales@acme.nl',
   displayName: 'Sales',
   store: 'no_store',
-  members: { kind: 'listed', addresses: ['rob@acme.nl', 'jan@acme.nl'] },
+  members: { kind: 'listed', addresses: ['pat@acme.nl', 'jan@acme.nl'] },
 };
 
 const M365: DiscoveredGroup = {
@@ -72,7 +72,7 @@ describe('the happy path', () => {
       pattern: 'distribution_d',
       membersKnown: true,
     });
-    expect(d.recorded[0]?.members).toEqual(['rob@acme.nl', 'jan@acme.nl']);
+    expect(d.recorded[0]?.members).toEqual(['pat@acme.nl', 'jan@acme.nl']);
   });
 
   it('classifies an M365 group with a store as Pattern S', async () => {

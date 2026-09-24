@@ -67,7 +67,7 @@ describe('recording a discovered group', () => {
       sourceGroupId: 'graph-1',
       displayName: 'Sales',
       pattern: 'distribution_d',
-      members: ['rob@acme.nl', 'jan@acme.nl'],
+      members: ['pat@acme.nl', 'jan@acme.nl'],
     });
 
     expect(created).toBe(true);
@@ -77,7 +77,7 @@ describe('recording a discovered group', () => {
       pattern: 'distribution_d',
       status: 'pending',
     });
-    expect(row.members).toEqual(['rob@acme.nl', 'jan@acme.nl']);
+    expect(row.members).toEqual(['pat@acme.nl', 'jan@acme.nl']);
   });
 
   it('stores one it could not classify', async () => {
@@ -124,11 +124,11 @@ describe('recording a discovered group', () => {
     const again = await groups.upsert(TENANT, {
       sourceConnectionId: CONN_A,
       address: 'recovered@acme.nl',
-      members: ['rob@acme.nl'],
+      members: ['pat@acme.nl'],
     });
     // A permission granted between two runs must leave the row usable.
     expect(again.row.membersKnown).toBe(true);
-    expect(again.row.members).toEqual(['rob@acme.nl']);
+    expect(again.row.members).toEqual(['pat@acme.nl']);
   });
 
   it('normalises the address, so a case change is not a new group', async () => {
@@ -152,16 +152,16 @@ describe('discovery running again', () => {
     await groups.upsert(TENANT, {
       sourceConnectionId: CONN_A,
       address: 'support@acme.nl',
-      members: ['rob@acme.nl'],
+      members: ['pat@acme.nl'],
     });
     const again = await groups.upsert(TENANT, {
       sourceConnectionId: CONN_A,
       address: 'support@acme.nl',
-      members: ['rob@acme.nl', 'nieuw@acme.nl'],
+      members: ['pat@acme.nl', 'nieuw@acme.nl'],
     });
 
     expect(again.created).toBe(false);
-    expect(again.row.members).toEqual(['rob@acme.nl', 'nieuw@acme.nl']);
+    expect(again.row.members).toEqual(['pat@acme.nl', 'nieuw@acme.nl']);
     // One row: a second would make "which member list is current" depend on
     // read order, and Pattern D recreates from exactly this list.
     const all = (await groups.list(TENANT)).filter((g) => g.address === 'support@acme.nl');
@@ -188,7 +188,7 @@ describe('discovery running again', () => {
     const { row } = await groups.upsert(TENANT, {
       sourceConnectionId: CONN_A,
       address: 'done@acme.nl',
-      members: ['rob@acme.nl'],
+      members: ['pat@acme.nl'],
     });
     // Stand in for what T2 does after recreating the group on the target.
     await db
@@ -199,14 +199,14 @@ describe('discovery running again', () => {
     const again = await groups.upsert(TENANT, {
       sourceConnectionId: CONN_A,
       address: 'done@acme.nl',
-      members: ['rob@acme.nl', 'jan@acme.nl'],
+      members: ['pat@acme.nl', 'jan@acme.nl'],
     });
 
     // Rule 2: a re-run never undoes an action. Resetting this to `pending`
     // would tell the appliance to create a group that already exists.
     expect(again.row.status).toBe('created');
     expect(again.row.targetGroupRef).toBe('soverin:group-9');
-    expect(again.row.members).toEqual(['rob@acme.nl', 'jan@acme.nl']);
+    expect(again.row.members).toEqual(['pat@acme.nl', 'jan@acme.nl']);
   });
 });
 

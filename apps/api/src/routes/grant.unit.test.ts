@@ -166,7 +166,7 @@ const mintLink = (mappingId: string, days = 7) =>
       tenantId: TENANT,
       mappingId,
       purpose: 'grant',
-      createdBy: 'rob',
+      createdBy: 'pat',
       expiresAt: expiryFromDays(days),
     }),
   );
@@ -229,7 +229,7 @@ beforeAll(async () => {
     // names them by the address they sign in with (0108 T8a).
     await q(`INSERT INTO tenant_member (tenant_id, user_id, email) VALUES ($1,$2,$3)`, [
       TENANT,
-      'rob',
+      'pat',
       'owner@example.org',
     ]);
     await q(
@@ -358,7 +358,7 @@ describe('what the page may know before the button', () => {
     const { token } = await mintLink(MAPPING);
     const res = await request(app).get(`/api/grant/${token}`);
     const body = JSON.stringify(res.body);
-    for (const leak of [TENANT, MAPPING, CONN, BOX, CLIENT_ID, CLIENT_SECRET, 'rob']) {
+    for (const leak of [TENANT, MAPPING, CONN, BOX, CLIENT_ID, CLIENT_SECRET, 'pat']) {
       expect(body, `${leak} must not reach a link holder`).not.toContain(leak);
     }
     expect(Object.keys(res.body).sort()).toEqual([
@@ -462,7 +462,7 @@ describe('what the page may know before the button', () => {
     const res = await request(app).get(`/api/grant/${token}`);
     expect(res.body.askedBy).toBe('owner@example.org');
     // The member's address, never their account id.
-    expect(JSON.stringify(res.body)).not.toContain('"rob"');
+    expect(JSON.stringify(res.body)).not.toContain('"pat"');
   });
 
   it('says nothing about who asked when the issuer is no longer a member, rather than guessing', async () => {

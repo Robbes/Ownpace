@@ -17,7 +17,7 @@ import { renderPermissionReport } from './permission-report.ts';
 
 const grant = (overrides: Partial<PermissionGrant> = {}): PermissionGrant => ({
   subject: 'calendar',
-  on: 'Rob — Calendar',
+  on: 'Pat — Calendar',
   grantee: 'anna@acme.nl',
   role: 'read',
   raw: '{}',
@@ -39,7 +39,7 @@ describe('the document as a whole', () => {
     const md = renderPermissionReport({ sections: [listed('Calendars', [grant()])] });
 
     const disclaimer = md.indexOf('has been applied');
-    const firstFinding = md.indexOf('Rob — Calendar');
+    const firstFinding = md.indexOf('Pat — Calendar');
     // §14.2's apply step is deferred; `clean` must not be read as done.
     expect(disclaimer).toBeGreaterThan(-1);
     expect(disclaimer).toBeLessThan(firstFinding);

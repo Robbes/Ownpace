@@ -77,7 +77,7 @@ describe('a digest never mails a name', () => {
     // this function. A name in an email is personal data leaving the system, in
     // the one place nobody can take it back from.
     const summary = summariseQueues(
-      { id: 'm1', name: 'Rob to Nextcloud' },
+      { id: 'm1', name: 'Pat to Nextcloud' },
       {
         status: 'active',
         pendingDecisions: 0,

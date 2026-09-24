@@ -294,7 +294,7 @@ describe('what the audit found', () => {
             files: [
               { id: 'a', name: 'Mr. Jansen severance', mimeType: 'application/vnd.google-apps.document' },
               { id: 'b', name: 'notulen 12.03.2026 ontslag Jansen', mimeType: 'application/pdf' },
-              { id: 'c', name: 'vaststelling R.Berentsen definitief', mimeType: 'application/pdf' },
+              { id: 'c', name: 'vaststelling P.de Groot definitief', mimeType: 'application/pdf' },
             ],
           },
         },
@@ -305,7 +305,7 @@ describe('what the audit found', () => {
     const recorded = JSON.stringify(capture());
 
     expect(recorded).not.toContain('Jansen');
-    expect(recorded).not.toContain('Berentsen');
+    expect(recorded).not.toContain('de Groot');
     expect(recorded).not.toContain('ontslag');
     expect(recorded).not.toContain('2026 ontslag');
   });

@@ -97,7 +97,7 @@ describe('NativeFileRefused says the thing that is true for THIS type', () => {
   });
 
   it('every rendering a policy produces has a file extension', () => {
-    // Without one the export lands as "Aanbiedingstekst" holding ODT bytes,
+    // Without one the export lands as "Voorbeeldtekst" holding ODT bytes,
     // which the owner's desktop offers no application for. The connector falls
     // back to the bare name when the extension is missing rather than
     // inventing one, so a gap here is silent — this is what finds it.

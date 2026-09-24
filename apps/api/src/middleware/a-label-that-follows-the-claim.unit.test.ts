@@ -47,18 +47,18 @@ describe('which stored labels no longer match the verified claim', () => {
   it('treats a change of CASE as the same address', () => {
     /**
      * The comparison decides whether to WRITE. A provider that starts asserting
-     * `Rob@example.com` where it used to assert `rob@example.com` is asserting
+     * `Pat@example.com` where it used to assert `pat@example.com` is asserting
      * the same address; calling that a change would put an UPDATE on every
      * sign-in forever.
      */
     expect(
-      labelsToUpdate([{ tenantId: A, email: 'rob@example.com' }], 'Rob@Example.com', true),
+      labelsToUpdate([{ tenantId: A, email: 'pat@example.com' }], 'Pat@Example.com', true),
     ).toEqual([]);
   });
 
   it('ignores surrounding whitespace on either side', () => {
     expect(
-      labelsToUpdate([{ tenantId: A, email: ' rob@example.com ' }], 'rob@example.com', true),
+      labelsToUpdate([{ tenantId: A, email: ' pat@example.com ' }], 'pat@example.com', true),
     ).toEqual([]);
   });
 

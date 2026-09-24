@@ -80,14 +80,14 @@ function recording(response: { status: number; body: string }) {
 }
 
 /** A 207 naming one card at a path that does NOT embed its UID. */
-const oneCard = (uid: string, href = '/remote.php/dav/addressbooks/users/rob/contacts/e7c1a9.vcf'): string =>
+const oneCard = (uid: string, href = '/remote.php/dav/addressbooks/users/pat/contacts/e7c1a9.vcf'): string =>
   `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
   `<d:response><d:href>${href}</d:href><d:propstat><d:prop><card:address-data>` +
   `BEGIN:VCARD\nVERSION:3.0\nUID:${uid}\nFN:Jan\nEND:VCARD` +
   `</card:address-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>`;
 
 /** A 207 naming one event, likewise. */
-const oneEvent = (uid: string, href = '/remote.php/dav/calendars/rob/personal/9f31.ics'): string =>
+const oneEvent = (uid: string, href = '/remote.php/dav/calendars/pat/personal/9f31.ics'): string =>
   `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">` +
   `<d:response><d:href>${href}</d:href><d:propstat><d:prop><cal:calendar-data>` +
   `BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:${uid}\nEND:VEVENT\nEND:VCALENDAR` +
@@ -98,7 +98,7 @@ const carddav = (response: { status: number; body: string }) => {
   return {
     sent,
     writer: new CardDAVTargetWriter(
-      { url: BASE, username: 'rob', password: 'pw' },
+      { url: BASE, username: 'pat', password: 'pw' },
       { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
     ),
   };
@@ -109,7 +109,7 @@ const caldav = (response: { status: number; body: string }) => {
   return {
     sent,
     writer: new CalDAVTargetWriter(
-      { url: BASE, username: 'rob', password: 'pw' },
+      { url: BASE, username: 'pat', password: 'pw' },
       { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
     ),
   };
@@ -160,7 +160,7 @@ describe('the CardDAV check answers from the card, not from the path', () => {
     const { writer } = carddav({ status: 207, body: oneCard('34222-232@example.com') });
     // Same resource, same reason as the CalDAV case above.
     expect(await writer.findContactByNaturalKey('contacts', '34222-232@example.com')).toBe(
-      '/addressbooks/users/rob/contacts/e7c1a9.vcf',
+      '/addressbooks/users/pat/contacts/e7c1a9.vcf',
     );
   });
 
@@ -203,7 +203,7 @@ describe('the CalDAV per-item existence check carries the same Depth, and reads 
     // caller addresses in: it is recorded as a ledger `targetId`, and
     // endpoint-absolute it doubles the DAV prefix on every later request.
     expect(await writer.findCalendarByNaturalKey('personal', '34222-232@example.com')).toBe(
-      '/calendars/rob/personal/9f31.ics',
+      '/calendars/pat/personal/9f31.ics',
     );
   });
 

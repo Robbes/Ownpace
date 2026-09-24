@@ -269,7 +269,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  caller = { tenantId: TENANT, userId: 'rob', userRole: 'owner' };
+  caller = { tenantId: TENANT, userId: 'pat', userRole: 'owner' };
 });
 
 describe('issuing refuses BEFORE it writes', () => {
@@ -394,7 +394,7 @@ describe('a link that can work', () => {
     // Not in ANY column, in any form — the table holds a hash.
     expect(JSON.stringify(rows[0])).not.toContain(secret);
     expect(rows[0]!.purpose).toBe('grant');
-    expect(rows[0]!.created_by).toBe('rob');
+    expect(rows[0]!.created_by).toBe('pat');
 
     // A day, not the seven-day default: the owner's choice reached the row.
     const expiresIn = new Date(String(rows[0]!.expires_at)).getTime() - Date.now();
@@ -407,7 +407,7 @@ describe('a link that can work', () => {
     expect(res.status).toBe(200);
     expect(res.body.links).toHaveLength(1);
     expect(res.body.links[0].state).toBe('live');
-    expect(res.body.links[0].createdBy).toBe('rob');
+    expect(res.body.links[0].createdBy).toBe('pat');
     // Nothing resembling a token — this endpoint could not produce one.
     expect(JSON.stringify(res.body)).not.toMatch(/grant\//);
   });

@@ -92,7 +92,7 @@ describe('GET /permissions/report (workplan 0029)', () => {
   });
 
   it('serves a report whose blind spots are stated, not omitted', async () => {
-    const res = await fetch(`${base}/permissions/report?mailbox=rob@acme.nl`);
+    const res = await fetch(`${base}/permissions/report?mailbox=pat@acme.nl`);
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/markdown');

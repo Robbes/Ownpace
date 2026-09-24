@@ -41,7 +41,7 @@ const TENANT = asTenantId('9a2c0000-e29b-41d4-a716-446655440001' as never);
 const MAPPING = asMappingId('9a2c0000-e29b-41d4-a716-446655440002' as never);
 
 const POLICY_REFUSAL =
-  '"Factsheet alumni.xlsx" is a Google spreadsheet and has no file to copy.';
+  '"Factsheet voorbeeld.xlsx" is a Google spreadsheet and has no file to copy.';
 
 describe('PgLedger parks without inflating the count (integration)', () => {
   let db: PgDatabase;

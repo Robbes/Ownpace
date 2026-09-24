@@ -42,7 +42,7 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   return {
     ...actual,
     authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-      Object.assign(req, { tenantId: TENANT, userId: 'rob', userRole: 'owner' });
+      Object.assign(req, { tenantId: TENANT, userId: 'pat', userRole: 'owner' });
       next();
     },
     getDbPool: () => driver,
@@ -164,7 +164,7 @@ describe('starting a mapping records what it moved FROM', () => {
     const rows = await auditRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      actor: 'rob',
+      actor: 'pat',
       action: MAPPING_STATUS_ACTION,
       // The KIND, with the id in the detail — the shape the other writers use.
       entity: 'mapping',
@@ -197,7 +197,7 @@ describe('updating a mapping records the transition, and only a transition', () 
     const rows = await auditRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.detail).toMatchObject({ from: 'paused', to: 'cutover', via: 'update' });
-    expect(rows[0]?.actor).toBe('rob');
+    expect(rows[0]?.actor).toBe('pat');
   });
 
   it('restating the status a mapping already has records nothing', async () => {
@@ -236,7 +236,7 @@ describe('finishing a mapping records it too — the transition T1 named', () =>
       to: 'done',
       via: 'finish',
     });
-    expect(rows[1]?.actor).toBe('rob');
+    expect(rows[1]?.actor).toBe('pat');
   });
 
   it('finishing an already-finished mapping records nothing more', async () => {

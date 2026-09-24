@@ -167,7 +167,7 @@ describe('findHrefByUid', () => {
     uids
       .map(
         (uid) =>
-          `<d:response><d:href>/remote.php/dav/addressbooks/users/rob/contacts/${uid}.vcf</d:href>` +
+          `<d:response><d:href>/remote.php/dav/addressbooks/users/pat/contacts/${uid}.vcf</d:href>` +
           `<d:propstat><d:prop><${element}:address-data>BEGIN:VCARD\nVERSION:3.0\nUID:${uid}\nFN:X\nEND:VCARD` +
           `</${element}:address-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`,
       )
@@ -176,7 +176,7 @@ describe('findHrefByUid', () => {
 
   it('finds the card whose own UID matches', () => {
     expect(findHrefByUid(bookHolding(['abc-123']), 'abc-123', 'address-data')).toBe(
-      '/remote.php/dav/addressbooks/users/rob/contacts/abc-123.vcf',
+      '/remote.php/dav/addressbooks/users/pat/contacts/abc-123.vcf',
     );
   });
 
@@ -196,7 +196,7 @@ describe('findHrefByUid', () => {
     expect(findHrefByUid(bookHolding(['12345']), '1234', 'address-data')).toBeUndefined();
     // ...and still finds it when it IS the one asked for.
     expect(findHrefByUid(bookHolding(['12345', '1234']), '1234', 'address-data')).toBe(
-      '/remote.php/dav/addressbooks/users/rob/contacts/1234.vcf',
+      '/remote.php/dav/addressbooks/users/pat/contacts/1234.vcf',
     );
   });
 
@@ -206,11 +206,11 @@ describe('findHrefByUid', () => {
     // to embed the UID.
     const body =
       `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav">` +
-      `<d:response><d:href>/carddav/v1/principals/rob/lists/default/c9f4a1</d:href>` +
+      `<d:response><d:href>/carddav/v1/principals/pat/lists/default/c9f4a1</d:href>` +
       `<d:propstat><d:prop><card:address-data>BEGIN:VCARD\nUID:the-real-uid\nEND:VCARD` +
       `</card:address-data></d:prop></d:propstat></d:response></d:multistatus>`;
     expect(findHrefByUid(body, 'the-real-uid', 'address-data')).toBe(
-      '/carddav/v1/principals/rob/lists/default/c9f4a1',
+      '/carddav/v1/principals/pat/lists/default/c9f4a1',
     );
   });
 

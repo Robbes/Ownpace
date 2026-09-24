@@ -214,7 +214,7 @@ export interface ArchiveSummary {
    * The albums the export carried, with the person's own spelling of each.
    *
    * The folder on disk has already lost characters — Takeout writes
-   * `Test Album'1$#%` as `Test Album_1$#_` — so the title here is the only
+   * `Oud Album'7$#%` as `Oud Album_7$#_` — so the title here is the only
    * place the real name survives. Carried verbatim (0116 T2, rule 3); what a
    * target does with it is the target's decision, not this reader's.
    */

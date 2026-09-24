@@ -160,7 +160,7 @@ beforeAll(async () => {
     );
     await q('INSERT INTO platform_operator (user_id, email) VALUES ($1,$2)', [
       OPERATOR,
-      'rob@example.invalid',
+      'pat@example.invalid',
     ]);
     // The tier evidence (0109 T4 surfaced): a recorded peak for THIS month, a
     // meter total, and three path rows in three different states — so the

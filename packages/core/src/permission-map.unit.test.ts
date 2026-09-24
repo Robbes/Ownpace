@@ -15,7 +15,7 @@ import { mapGrant } from './permission-map.ts';
 
 const grant = (overrides: Partial<PermissionGrant> = {}): PermissionGrant => ({
   subject: 'calendar',
-  on: 'Rob — Calendar',
+  on: 'Pat — Calendar',
   grantee: 'anna@acme.nl',
   role: 'read',
   raw: '{}',

@@ -615,7 +615,7 @@ afternoon — **8477 files, 44.87 GB**, with two albums in it — and it settled
 | folder                      | own `metadata.json` | bucket |
 |-----------------------------|---------------------|--------|
 | `Foto_s van 2024/2025/2026` | **no** (all three)  | year   |
-| `Reis`, `Test Album_1$#_`   | **YES** (both)      | album  |
+| `Wandeling`, `Oud Album_7$#_`   | **YES** (both)      | album  |
 | `Prullenbak` (export #1)    | **no**              | other  |
 
 An album is known POSITIVELY, by carrying its own `metadata.json`, so the year test only has to
@@ -634,12 +634,12 @@ this reader cannot account for is not copied, and is reported by name.
 
 ### Four more things that export settled
 
-1. **The folder name is lossy; the metadata is not.** `Test Album'1$#%` reaches disk as
-   `Test Album_1$#_` — Takeout replaces `'` and `%` with `_`, and leaves `$` and `#`. The album's
-   own `metadata.json` still holds `"title": "Test Album'1$#%"`, so that is where the person's
+1. **The folder name is lossy; the metadata is not.** `Oud Album'7$#%` reaches disk as
+   `Oud Album_7$#_` — Takeout replaces `'` and `%` with `_`, and leaves `$` and `#`. The album's
+   own `metadata.json` still holds `"title": "Oud Album'7$#%"`, so that is where the person's
    real name survives, and what the reader now carries beside the folder name.
 2. **An album's `metadata.json` can be in a DIFFERENT part of the download than its photos.** The
-   owner found `Test Album_1$#_` in two `.zip` parts, photos in one and metadata in the other. A
+   owner found `Oud Album_7$#_` in two `.zip` parts, photos in one and metadata in the other. A
    reader that classified per part would call the photo half the bin and skip it. The tree seam
    merges parts before anything is classified, so it holds — now proved rather than assumed, by a
    test no fixture in the repository had the shape for (they split by year folder, so every album

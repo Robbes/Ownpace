@@ -110,7 +110,7 @@ export interface GrantParts {
  *
  * WHY THIS EXISTS. `grantSet` builds `grantee:role` for COMPARISON, and that
  * string is the wrong thing to put in front of a person: the owner read
- * `b.berentsen@gmail.com:writer` glued to a folder called `2017 Q2` and asked
+ * `k.devries@example.com:writer` glued to a folder called `2017 Q2` and asked
  * why an email address had grown a month on the end of it. A comparison key
  * is machinery; a screen shows words. The two functions are a PAIR and change
  * together, which is why the inverse lives here beside the builder rather than

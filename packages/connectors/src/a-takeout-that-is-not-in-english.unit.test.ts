@@ -206,31 +206,31 @@ describe('the half #1047 left open, now closed — an album is told from a year 
    */
   it('places an album photo ONCE, under the album, whatever the language', async () => {
     const root = await libraryNamed('Google Foto_s', (n) => `Foto_s van ${n}`);
-    const album = join(root, 'Takeout', 'Google Foto_s', 'Reis');
+    const album = join(root, 'Takeout', 'Google Foto_s', 'Wandeling');
     await mkdir(album, { recursive: true });
     await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
-    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Reis' }));
+    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Wandeling' }));
 
     const items = await itemsOf(root);
     const shared = items.find((i) => i.folders.length > 1);
     expect(shared).toBeDefined();
-    expect([...shared!.folders].sort()).toEqual(['Foto_s van 2019', 'Reis']);
+    expect([...shared!.folders].sort()).toEqual(['Foto_s van 2019', 'Wandeling']);
     // The whole point: the album alone, NOT the year folder as well.
-    expect(shared!.placeIn).toEqual(['Reis']);
+    expect(shared!.placeIn).toEqual(['Wandeling']);
     expect(shared!.metadata.years).toEqual(['Foto_s van 2019']);
-    expect(shared!.metadata.albums).toEqual(['Reis']);
+    expect(shared!.metadata.albums).toEqual(['Wandeling']);
   });
 
   it('answers identically in English, which is what it never did before', async () => {
     const root = await libraryNamed('Google Photos', (n) => `Photos from ${n}`);
-    const album = join(root, 'Takeout', 'Google Photos', 'Reis');
+    const album = join(root, 'Takeout', 'Google Photos', 'Wandeling');
     await mkdir(album, { recursive: true });
     await writeFile(join(album, 'IMG_0001.jpg'), PHOTO);
-    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Reis' }));
+    await writeFile(join(album, 'metadata.json'), JSON.stringify({ title: 'Wandeling' }));
 
     const items = await itemsOf(root);
     const shared = items.find((i) => i.folders.length > 1);
-    expect(shared!.placeIn).toEqual(['Reis']);
+    expect(shared!.placeIn).toEqual(['Wandeling']);
     expect(shared!.metadata.years).toEqual(['Photos from 2019']);
   });
 });

@@ -97,7 +97,7 @@ function pass(
   };
 }
 
-const ONE_CALENDAR = [{ path: '/caldav/v2/rob%40example.com/events/' }];
+const ONE_CALENDAR = [{ path: '/caldav/v2/pat%40example.com/events/' }];
 
 describe('a first read that saw nothing claims nothing', () => {
   it('does NOT store a cursor when the first read has no items and no removals', async () => {

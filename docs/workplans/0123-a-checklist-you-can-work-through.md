@@ -84,7 +84,7 @@ not finished the job, though, and all three of these were mine:
 
 - **The comparison key reached the screen.** `grantSet` builds `grantee:role` so two items can be
   checked for carrying exactly the same rights; the group header printed it raw, beside the folder
-  name, on one line. The owner read `b.berentsen@gmail.com:writer` next to a folder called
+  name, on one line. The owner read `k.devries@example.com:writer` next to a folder called
   `2017 Q2` and asked why an email address had grown a month on the end of it. Fixed with
   `readGrant` — the builder's own inverse, living beside it in `@openmig/shared` so the words on
   screen cannot drift from the key underneath — and the folder's NAME and who it is shared WITH

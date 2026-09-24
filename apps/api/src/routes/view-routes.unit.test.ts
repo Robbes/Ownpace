@@ -84,7 +84,7 @@ const tokenFor = (mappingId: string, purpose: 'grant' | 'view', days = 90) =>
       tenantId: TENANT,
       mappingId,
       purpose,
-      createdBy: 'rob',
+      createdBy: 'pat',
       expiresAt: expiryFromDays(days),
     }),
   );
@@ -94,7 +94,7 @@ beforeAll(async () => {
   await runMigrations({ driver, logger: () => {} });
 
   await withClient(async (q) => {
-    await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'Berentsen family']);
+    await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'Example family']);
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
        VALUES ($1,$2,'source','imap','mum','{}'::jsonb,'connected')`,
@@ -186,7 +186,7 @@ describe('what the page opens', () => {
 
     const first = await request(app).get(`/api/view/${link.token}`);
     expect(first.status).toBe(200);
-    expect(first.body.organisation).toBe('Berentsen family');
+    expect(first.body.organisation).toBe('Example family');
     expect(first.body.state).toBe('active');
     expect(first.body.started).toBe(true);
 
@@ -268,7 +268,7 @@ describe('the owner’s kill switch reaches the page', () => {
         tenantId: TENANT,
         mappingId: RUNNING,
         purpose: 'view',
-        createdBy: 'rob',
+        createdBy: 'pat',
         expiresAt: new Date(Date.now() - 1000),
       }),
     );

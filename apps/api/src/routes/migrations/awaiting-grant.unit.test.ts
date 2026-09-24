@@ -44,7 +44,7 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   return {
     ...actual,
     authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-      Object.assign(req, { tenantId: TENANT, userId: 'rob', userRole: 'owner' });
+      Object.assign(req, { tenantId: TENANT, userId: 'pat', userRole: 'owner' });
       next();
     },
     getDbPool: () => driver,

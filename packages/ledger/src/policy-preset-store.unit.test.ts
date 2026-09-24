@@ -112,7 +112,7 @@ describe('auto-resolution', () => {
       subjectKey: 'answered@presets.local',
       summary: 'noticed',
     });
-    await decisions.resolve(TENANT, decision.id, { choice: 'create a mapping' }, 'rob@acme.nl');
+    await decisions.resolve(TENANT, decision.id, { choice: 'create a mapping' }, 'pat@acme.nl');
 
     const second = await decisions.autoResolve(TENANT, decision.id, { closedBy: 'policy_preset' });
 
@@ -120,7 +120,7 @@ describe('auto-resolution', () => {
     // later must not rewrite history somebody already made.
     expect(second).toBeUndefined();
     const [row] = await decisions.list(TENANT, { status: 'resolved' });
-    expect(row?.resolvedBy).toBe('rob@acme.nl');
+    expect(row?.resolvedBy).toBe('pat@acme.nl');
   });
 
   it('re-raising an auto-resolved subject is allowed', async () => {
