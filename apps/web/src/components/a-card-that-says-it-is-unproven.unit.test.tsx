@@ -26,9 +26,12 @@
  *   exists, is `scripts/a-proof-that-was-written-down.unit.test.ts`);
  * - both doors tag exactly the experimental cards, and no proven one, in
  *   English and in Dutch, and no target card (0131 open question 5 is open);
- * - the tag is text inside the card's `<button>`, so a screen reader reads it
- *   as part of the card's name, and the fold with its why sits beside the
- *   card, not inside it (0145 T2);
+ * - the words are *Experimental* and *Experimenteel*, as 0131 T2 and the
+ *   glossary fix them;
+ * - the tag is text inside the card's `<button>` and part of the card's
+ *   accessible name, which is what a screen reader reads (0145 T2): both are
+ *   asserted, because a word hidden from the name still sits in the text; and
+ *   the fold with its why sits beside the card, not inside it;
  * - the appliance shows it too: a fact about a connector is not a fact about
  *   an edition;
  * - nothing is hidden on managed: the export archive card is offered there at
@@ -37,7 +40,8 @@
  *   pass unseen;
  * - the data-type step tags an experimental face of the chosen account and
  *   not a proven one;
- * - the whole-domain option on the Google cards carries the tag.
+ * - the whole-domain option on the Google cards carries the tag in the box's
+ *   name, and its why in a fold, at both doors.
  *
  * The expected sets are read from the table rather than typed out here, so a
  * face that is proven later changes one table and one matrix row (0141 T1),
@@ -125,6 +129,9 @@ const cardButton = (card: FrontDoorCard, locale: Locale): HTMLElement => {
   return screen.getByRole('button', { name: new RegExp(`^${name}`) });
 };
 
+/** The tag's word as a pattern for an accessible name, whole words only. */
+const tagIn = (tag: string): RegExp => new RegExp(`\\b${tag}\\b`);
+
 /** Every verdict in the table, with where it sits, for the checks that walk them all. */
 function everyVerdict(): Array<{ where: string; proof: SourceProof }> {
   const out: Array<{ where: string; proof: SourceProof }> = [];
@@ -178,6 +185,16 @@ describe('one table says which sources have met a real account', () => {
     }
   });
 
+  it('the tag says Experimental in English and Experimenteel in Dutch (0131 T2, the glossary)', () => {
+    // Read from the plan, not from the dictionary: every other case reads the
+    // word from STRINGS, so a Dutch door showing the English word would pass them.
+    expect(STRINGS.en['frontDoor.experimental']).toBe('Experimental');
+    expect(STRINGS.nl['frontDoor.experimental']).toBe('Experimenteel');
+    expect(STRINGS.en['frontDoor.experimental.why']).toBe(
+      'Built, not yet run against a real account of this kind. Keep your old account and check what arrives.',
+    );
+  });
+
   it('an account card is experimental when every face it has is, and not when one is proven', () => {
     for (const kind of PROVIDER_ACCOUNT_KINDS) {
       const faces = Object.values(SOURCE_PROOFS.faces[kind]);
@@ -205,8 +222,10 @@ describe.each(['en', 'nl'] as const)('both doors tag exactly the experimental ca
           // Text inside the button, so it is part of the card's accessible
           // name (0145 T2), never an icon alone.
           expect(button.textContent, `${card.id} is experimental and the wizard does not say so`).toContain(tag);
+          expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
         } else {
           expect(button.textContent, `${card.id} is proven and the wizard calls it experimental`).not.toContain(tag);
+          expect(button, `${card.id} is proven and its name says experimental`).not.toHaveAccessibleName(tagIn(tag));
         }
       }
     });
@@ -220,6 +239,11 @@ describe.each(['en', 'nl'] as const)('both doors tag exactly the experimental ca
         expect(button.textContent?.includes(tag), `${card.id} on the Connections page`).toBe(
           sourceCardIsExperimental(card.id),
         );
+        if (sourceCardIsExperimental(card.id)) {
+          expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
+        } else {
+          expect(button, `${card.id}: a proven card's name says experimental`).not.toHaveAccessibleName(tagIn(tag));
+        }
       }
     });
   }
@@ -265,6 +289,7 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
         // when the card is not offered here.
         const button = cardButton(card, locale);
         expect(button.textContent, `${card.id} is offered in the wizard and not tagged`).toContain(tag);
+        expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
         expect(within(button.parentElement!).getByText(STRINGS[locale]['frontDoor.experimental.why'])).toBeTruthy();
       }
     });
@@ -275,6 +300,7 @@ describe.each(['en', 'nl'] as const)('the cards the owner kept are offered and t
       for (const card of kept) {
         const button = cardButton(card, locale);
         expect(button.textContent, `${card.id} is offered on the Connections page and not tagged`).toContain(tag);
+        expect(button, `${card.id}: the tag is not part of the card's name`).toHaveAccessibleName(tagIn(tag));
       }
     });
   }
@@ -359,6 +385,9 @@ describe('the data-type step tags an experimental face of the chosen account', (
       expect(sourceFaceIsExperimental('microsoft', face), face).toBe(true);
       const button = domainButton(face);
       expect(button.textContent, `the Microsoft 365 account's ${face}`).toContain(STRINGS.en['frontDoor.experimental']);
+      expect(button, `${face}: the tag is not part of the face's name`).toHaveAccessibleName(
+        tagIn(STRINGS.en['frontDoor.experimental']),
+      );
       expect(button.querySelector('details'), `${face}: the fold is inside the button`).toBeNull();
       expect(within(button.parentElement!).getByText(STRINGS.en['frontDoor.experimental.why'])).toBeTruthy();
     }
@@ -371,17 +400,24 @@ describe('the data-type step tags an experimental face of the chosen account', (
     expect(domainButton('calendar').textContent).not.toContain(STRINGS.en['frontDoor.experimental']);
     expect(domainButton('contact').textContent).not.toContain(STRINGS.en['frontDoor.experimental']);
     expect(domainButton('task').textContent).toContain(STRINGS.en['frontDoor.experimental']);
+    expect(domainButton('task')).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
+    expect(domainButton('calendar')).not.toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
   });
 });
 
 describe('the whole-domain option on the Google cards carries the tag', () => {
-  it('beside the service-account key, with the why in its fold, in the wizard', () => {
+  /** The service-account key's box, found by the name a screen reader gives it. */
+  const keyBox = (label: RegExp) => screen.getByRole('textbox', { name: label });
+
+  it('beside the service-account key, in the name of its box, with the why in its fold, in the wizard', () => {
     expect(SOURCE_PROOFS.wholeDomain.verdict).toBe('experimental');
     renderWizard();
     fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
     const label = screen.getByText(/^Service account key/, { selector: 'label' });
     expect(label.textContent).toContain(STRINGS.en['frontDoor.experimental']);
-    expect(screen.getByText(new RegExp(STRINGS.en['frontDoor.experimental.wholeDomain.why']))).toBeTruthy();
+    expect(keyBox(/^Service account key/)).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
+    const why = screen.getByText(new RegExp(STRINGS.en['frontDoor.experimental.wholeDomain.why']));
+    expect(why.closest('details'), 'the why is not behind a fold').not.toBeNull();
   });
 
   it('in Dutch too', () => {
@@ -389,12 +425,22 @@ describe('the whole-domain option on the Google cards carries the tag', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
     const label = screen.getByText(/^Serviceaccount-sleutel/, { selector: 'label' });
     expect(label.textContent).toContain(STRINGS.nl['frontDoor.experimental']);
+    expect(keyBox(/^Serviceaccount-sleutel/)).toHaveAccessibleName(tagIn(STRINGS.nl['frontDoor.experimental']));
   });
 
-  it('on the Connections page', async () => {
+  it('on the Connections page, with the same why in a fold beside the box', async () => {
     await renderAddForm();
     fireEvent.click(screen.getByRole('button', { name: /^Gmail/ }));
     const label = screen.getByText(/^Service account key/);
     expect(label.textContent).toContain(STRINGS.en['frontDoor.experimental']);
+    const box = keyBox(/^Service account key/);
+    expect(box).toHaveAccessibleName(tagIn(STRINGS.en['frontDoor.experimental']));
+    // The two doors say the same thing about the same option.
+    const why = screen.getByText(STRINGS.en['frontDoor.experimental.wholeDomain.why']);
+    expect(why.closest('details'), 'the why is not behind a fold').not.toBeNull();
+    // Beside the box, not inside its label: a fold inside the label would be
+    // read as part of the box's name.
+    expect(box.closest('label')?.contains(why), 'the fold is inside the label').toBe(false);
+    expect(box.closest('label')?.parentElement?.contains(why), 'the fold is not beside the box').toBe(true);
   });
 });

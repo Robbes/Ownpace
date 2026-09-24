@@ -411,7 +411,7 @@ const en = {
   'frontDoor.experimental.why':
     'Built, not yet run against a real account of this kind. Keep your old account and check what arrives.',
   'frontDoor.experimental.wholeDomain.why':
-    'Whole-domain delegation is built and has not yet run against a real Workspace. Keep your old account and check what arrives.',
+    'Domain-wide delegation is built and has not yet run against a real Workspace. Keep your old account and check what arrives.',
   'wizard.m365.viaImap': 'Via IMAP',
   'wizard.m365.viaGraph': 'Via the Graph API',
   'wizard.proto.oauth2.hint': 'IMAP with XOAUTH2, Graph fallback behind it (app registration)',
@@ -2689,9 +2689,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.group.protocol': 'Elke server, via protocol',
   'frontDoor.experimental': 'Experimenteel',
   'frontDoor.experimental.why':
-    'Gebouwd, maar nog niet gebruikt met een echt account van deze soort. Houd uw oude account en controleer wat er aankomt.',
+    'Gebouwd, maar nog niet gebruikt met een echt account van deze soort. Houd uw oude account aan en controleer wat er aankomt.',
   'frontDoor.experimental.wholeDomain.why':
-    'Delegatie voor het hele domein is gebouwd, maar nog niet gebruikt met een echte Workspace. Houd uw oude account en controleer wat er aankomt.',
+    'Domeinbrede delegatie is gebouwd, maar nog niet gebruikt met een echte Workspace. Houd uw oude account aan en controleer wat er aankomt.',
   'wizard.m365.viaImap': 'Via IMAP',
   'wizard.m365.viaGraph': 'Via de Graph-API',
   'wizard.proto.oauth2.hint': 'IMAP met XOAUTH2, met Graph-terugval erachter (appregistratie)',

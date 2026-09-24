@@ -4,6 +4,17 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build review: T1 fixes on the same branch
+(`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`), not merged.** One
+correction to the build note below: its eight rows are not all ones 0131 §1 and this plan's §1
+call proven. §1 here gives the Google account calendar and contacts only. The eighth row, the
+Google account's **file** face, is the builder's addition. Its evidence is the owner's live Google
+to Nextcloud migration: the Sharing page's defect of 2026-09-17 was found on its Drive files
+(`apps/api/src/routes/permissions.ts`, 0042 T8 and T10), and the `google-drive` row rests on the
+same run. Whether that face stays proven, or turns experimental and leaves the frozen table and
+the guard's list, is for the owner, beside whether the frozen table is an acceptable reading of T1
+at all. Until the owner answers, both stand as built.
+
 **2026-09-24, build: T1, the live-proof record, built with 0131 T2 (a) on branch
 `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.** `docs/feature-matrix.md` gains a "Live proofs" section: what counts (the
 seven points of §3 T1) and two tables. *Recorded proofs* has T1's fields and no row yet.

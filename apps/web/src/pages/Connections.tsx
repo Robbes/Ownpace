@@ -617,13 +617,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       sideStepped: (values.serviceAccountKey ?? '').trim() !== '',
     });
 
-  /** One labelled box; where it goes is the map below's decision. */
-  const fieldBox = (field: CredentialField) => (
-    <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+  const labelledBox = (field: CredentialField) => (
+    <label className={`block text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
-        {/* Google's whole-domain option, not yet run against a real
-            Workspace (0131 T2). */}
         {role === 'source' && wholeDomainOptionIsExperimental(field.key) && <ExperimentalTag />}
         {requiredHere(field) && <span className="text-red-600"> *</span>}
       </span>
@@ -669,6 +666,23 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       )}
     </label>
   );
+
+  /**
+   * One labelled box; where it goes is the map below's decision. Google's
+   * whole-domain option, not yet run against a real Workspace (0131 T2),
+   * carries the tag in its label and its why in a fold under the box, as the
+   * wizard shows it. The fold sits outside the `<label>`, so its words are not
+   * read as part of the box's name and pressing it does not focus the box.
+   */
+  const fieldBox = (field: CredentialField) =>
+    role === 'source' && wholeDomainOptionIsExperimental(field.key) ? (
+      <div className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+        {labelledBox(field)}
+        <Hint className="mt-1" why={t('frontDoor.experimental.wholeDomain.why')} />
+      </div>
+    ) : (
+      labelledBox(field)
+    );
 
   if (!open) {
     return (

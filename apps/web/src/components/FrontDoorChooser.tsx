@@ -70,8 +70,10 @@ export function FrontDoorChooser<C extends FrontDoorCard>({
    * The card is a `<button>` inside a cell of its own, so that an experimental
    * card's fold can sit BESIDE it (0131 T2, 0145 T2): the tag's word is inside
    * the button and part of its name, and the why folds under it, outside, where
-   * it can be opened without picking the card. The button fills its cell, so a
-   * row of cards stays one height whether a fold hangs under one or not.
+   * it can be opened without picking the card. The button fills what its cell
+   * leaves: a row of untagged cards stays one height, and a tagged card's
+   * button ends a fold's height above an untagged neighbour's, with the fold
+   * under it.
    */
   const renderCard = (raw: C): React.ReactElement => {
     const card: FrontDoorCard = cardFor ? cardFor(raw) : raw;

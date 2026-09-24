@@ -4,6 +4,25 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build review: T2 (a) fixes on the same branch
+(`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`), not merged.** Two
+reviewers read the build, and main was merged in (its T1 (a) notes and 0148 D11 are kept below,
+newest first). The Connections page now shows the whole-domain option's why too, in a fold beside
+the service-account key and outside its label, so both doors say the same thing about it; before,
+only the wizard did. That why now names the option as the fold it joins does: *Domain-wide
+delegation* / *Domeinbrede delegatie*, not *Whole-domain delegation* / *Delegatie voor het hele
+domein*. The Dutch whys say *Houd uw oude account aan*. The web guard gains a case and asserts
+more. It checks the card's accessible name as well as its text, at both doors, in the data-type
+step and on the service-account key's box. Before, a tag hidden from a screen reader passed all 30
+cases, and with `aria-hidden` on the tag 21 of 31 now fail. It pins the words *Experimental* and
+*Experimenteel* and §3's English why as literals, because a Dutch door showing the English word
+passed every case. It also finds the Connections fold beside the box. On the unchanged code, 1 of
+its 31 cases fails (the Connections fold). The Dutch word set to the English one fails 1, and the
+fold moved inside the label fails 1. `FrontDoorChooser`'s comment no longer claims a row of cards
+stays one height with a fold under one of them: a tagged card's button ends a fold's height above
+an untagged neighbour's. 0141's Status records that the Google account's file face is the
+builder's addition to §1's proven list, put to the owner.
+
 **2026-09-24, build: T2 (a), the table and the *Experimenteel* tag, built with 0141 T1 on branch
 `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.**
 `SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, beside `FRONT_DOOR_FAMILIES`, holds a
