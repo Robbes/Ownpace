@@ -77,8 +77,13 @@ dashboard genuinely queries ClickHouse (its absence killed the webapp process, n
 ```bash
 cd deploy/compose
 
-# Everything, in dependency order (healthchecks gate the app tier):
-docker compose -f managed.yml up -d --build
+# First bring-up on a new machine: ./bootstrap-managed.sh (docs/managed-bring-up.md).
+# A bare `up` cannot stand in for it: pgbouncer stays unhealthy until setup-auth.sql
+# has created its lookup role, the identity provider is never provisioned, and
+# the demo Nextcloud starts too.
+# Bring an existing stack up again — this rebuilds api/web and re-runs
+# setup-zitadel.sh (idempotent):
+./bootstrap-managed.sh --only app
 
 # Migrations: the API runs them itself at boot (packages/ledger migration runner,
 # under an advisory lock, idempotent). There is deliberately NO initdb mount of the
@@ -192,20 +197,15 @@ workplan 0018.
 1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
    There is no SMTP: fetch the magic link from the logs and open it in the same browser:
    ```bash
-   docker logs trigger-api 2>&1 | grep -o 'https://[^ ]*magic[^ ]*' | tail -1
+   ./deploy/compose/trigger-magic-link.sh
    ```
-2. Create an org + project in the dashboard. Copy the project ref (`proj_…`) into `.env` as
-   `TRIGGER_PROJECT_REF`.
-3. Read the prod API key from the trigger DB and set it in `.env` as `TRIGGER_SECRET_KEY`
-   (the dashboard shows it too, under API keys):
-   ```bash
-   docker exec trigger-db psql -U trigger -d triggerdb -Atc \
-     "SELECT e.\"apiKey\" FROM \"RuntimeEnvironment\" e JOIN \"Project\" p ON p.id = e.\"projectId\" WHERE e.slug = 'prod' ORDER BY e.\"createdAt\" DESC LIMIT 1"
-   ```
-4. Recreate the API so it picks up the new values:
-   `docker compose -f managed.yml up -d --force-recreate api`
-   (and re-run `set-task-env.sh` if a value the tasks read changed)
-5. Upload the task-runtime env vars (task containers inherit NOTHING from compose — including
+2. Create an org + project in the dashboard.
+3. Resume with `./deploy/compose/bootstrap-managed.sh --from account`: `trigger-credentials.sh`
+   reads the `proj_…` ref and the prod `tr_prod_…` key out of the instance, writes them to `.env`
+   and restarts the API (see [managed-bring-up.md](./managed-bring-up.md), phase 6). If `.env`
+   still holds the previous instance's pair, that phase reports nothing to do;
+   `./deploy/compose/trigger-credentials.sh --write` overwrites both.
+4. Upload the task-runtime env vars (task containers inherit NOTHING from compose — including
    the `SMTP_*`/`NOTIFY_*` values the digest and the rollback notice read, so a value that lives
    only in `.env` and is never uploaded is a value those tasks will never see):
    ```bash
@@ -1162,6 +1162,7 @@ trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
 - RLS details: [`rls-guide.md`](./rls-guide.md).
 - Workplans: [`0018`](./workplans/0018-trigger-task-deployment.md) (task deployment, closed with
   live evidence), [`0020`](./workplans/0020-managed-stack-productionization.md) (this stack's
-  productionization — T8 will decide the polling scheduler's future),
+  productionization — T8 retired the polling scheduler in favour of the `managed-sync-tick`
+  task, workplan 0022),
   [`0011`](./workplans/0011-managed-edition-hardening.md) (history).
 - Deployment overview: [`deployment.md`](./deployment.md).
