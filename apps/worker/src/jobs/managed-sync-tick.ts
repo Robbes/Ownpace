@@ -38,8 +38,10 @@ import {
   mapWithConcurrency,
   PASS_HARD_LIMIT_MS,
   PASS_RUNNING_STATES,
+  setAuditExportSink,
   type DiscoveryDomain,
 } from '@openmig/shared';
+import { auditExportOn, pgDriver } from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { readOpenPause, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
@@ -57,6 +59,8 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 /**
  * How many mappings the tick may enqueue at once.

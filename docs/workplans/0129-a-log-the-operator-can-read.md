@@ -1,6 +1,6 @@
 # Workplan 0129 — A log the operator can read
 
-## Status — 2026-09-23 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-23: opened from the owner's answers.** The owner asked for *"an logging page, for the
 operator, logging can be viewd and searched, keep is basic. I want retention of 1 month. And i
@@ -63,12 +63,40 @@ journal. The managed guide points Docker's daemon default at the journal with
 file creates those. Guards: `a-month-of-the-applications-errors.unit.test.ts` (6) and
 `a-month-of-container-output.unit.test.ts` (8); 11 mutations, all killed.
 
+**2026-09-24, T4's first half: the line (D4, D5).** Every audit event is also one JSON line on
+the output of the process that recorded it, by the OpenTelemetry log data model's own field
+names: `Timestamp` in nanoseconds, `SeverityText` `INFO`, `Body` the action, `Attributes` and
+`Resource`. The line carries the row's id and its time to the microsecond, so a line and the
+download's copy of the same event are one event to a store that de-duplicates.
+`recordAuditEvent` hands the event over once the tenant's transaction it was written in has
+committed (`afterCommit`, which `withTenant` runs after its `COMMIT`), so an event that was
+rolled back prints nothing. It never waits for the line: on PGlite's one connection, a line that
+waited inside the transaction for its key would wait forever. What may leave is decided field by
+field (`AUDIT_DETAIL_FIELDS` in shared: keep, pseudonym or origin), because no pattern can tell
+a file's name from a migration's state. A field the list does not know is dropped, and an
+address inside a kept string is replaced too. A guard reads every place that writes an audit
+event, from the syntax tree, and fails on a field nobody has classified. A pseudonym is
+`pseudo:` and sixteen hex characters of an HMAC-SHA256 under this deployment's own key (ledger
+migration 0062, `deployment_key`, which the request path cannot read), so the same person is the
+same pseudonym after a restart. An actor that is an identifier stays as it is, an address
+becomes its pseudonym, and an action that is not a name from code leaves as `audit.unnamed`, as
+the log page shows it. Found building it: Trigger.dev runs each task run as a process of its
+own, so the sink set where the worker starts would have missed the digest's events and a
+rollback's. Every task file that opens the database now sets it, and the guard holds all 14 to
+it, with the API, the appliance and the worker. Found in review of the first push: on managed,
+the API's request path connects as `app_user`, which may not read the key, so every line the API
+wrote would have failed; the API reads it once on the owner's connection its migrations use, and
+the guard pins that. The two commands an operator types at a terminal print no line; the
+download will serve their rows. Guards: `an-audit-line-a-collector-can-read` in shared (15) and
+ledger (12), and `every-audit-field-is-classified` (21); 38 mutations, all killed. The download
+that resumes, T4's second half, is next.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | ✅ **Built 2026-09-23, both editions** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable: under Support on managed, **Log** on the appliance. |
 | T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
-| T4 The audit export: one JSON line per event, and a download that resumes | 📋 **Decided** (D4, D5) | §3. OpenTelemetry field names, to stdout; a backfill endpoint with a cursor; pseudonyms by default. |
+| T4 The audit export: one JSON line per event, and a download that resumes | 🟡 **The line built 2026-09-24** (D4, D5) | §3. OpenTelemetry field names, to stdout, pseudonyms by default: built. The backfill endpoint with a cursor is next. |
 
 ## 1. What there is today
 

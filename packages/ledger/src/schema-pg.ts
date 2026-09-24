@@ -1218,6 +1218,18 @@ export const appEvent = pgTable(
   ],
 );
 
+/**
+ * Keys this deployment keeps for itself, one per purpose (migration 0062,
+ * workplan 0129 T4): today the one the audit export pseudonymises addresses and
+ * file names with. Read as the owner by `deploymentKeyFor`; the request path has
+ * no privilege on it.
+ */
+export const deploymentKey = pgTable('deployment_key', {
+  purpose: text('purpose').primaryKey(),
+  key: text('key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ========================= Cursors table (for CursorStore) =========================
 
 export const cursor = pgTable(

@@ -32,14 +32,14 @@
 
 import { z } from 'zod';
 import { schemaTask, logger } from '@trigger.dev/sdk';
-import { tenantCutoverStore, mappingLifecyclePort } from '@openmig/ledger';
+import { tenantCutoverStore, mappingLifecyclePort, auditExportOn, pgDriver } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { asTenantId, asMappingId, renderEvent } from '@openmig/shared';
-import { log } from '@openmig/shared';
+import { log, setAuditExportSink } from '@openmig/shared';
 import { notifierFromEnv } from '@openmig/connectors';
 
 // Job input schema
@@ -98,6 +98,8 @@ export const runRollback = schemaTask({
       throw new Error('DATABASE_URL environment variable required');
     }
     const pool = new Pool({ connectionString: dbUrl });
+    // Each audit event this run records, also as one JSON line on its output (0129 T4).
+    setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
     const db = drizzle(pool, { schema: schemaPg });
     // The cutover ledger is row-secured since migration 0055: every call
     // inside `withTenant`, or a non-superuser session reads nothing.

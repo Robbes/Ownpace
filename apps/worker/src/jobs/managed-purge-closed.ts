@@ -46,11 +46,13 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import type { PgDatabase } from '@openmig/ledger';
+import { auditExportOn, pgDriver } from '@openmig/ledger';
 import { purgeTenant } from '@openmig/managed';
 import {
   log,
   summariseRevocations,
   quiescePlan,
+  setAuditExportSink,
   type QuiescingRun,
 } from '@openmig/shared';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -61,6 +63,8 @@ if (!DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 const revoker = new HttpTokenRevoker();
 
 /**

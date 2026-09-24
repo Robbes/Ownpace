@@ -121,6 +121,14 @@ afterAll(async () => {
  * a narrower GRANT would change nothing.
  */
 const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }> = {
+  deployment_key: {
+    privileges: [],
+    why:
+      "The key the audit export's pseudonyms are made with (migration 0062, workplan 0129 T4). " +
+      'Nothing on the request path has any business with it: the export reads it as the owner, ' +
+      'and a session that could read it could undo every pseudonym the export ever wrote. No ' +
+      'privilege at all, revoked from the default the baseline grants.',
+  },
   app_event: {
     privileges: ['INSERT'],
     why:

@@ -24,9 +24,9 @@ import { schemaTask, logger } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import { applyRelocation, type ApplyDeletionOutcome } from '@openmig/core';
-import { withTenant } from '@openmig/ledger';
+import { withTenant, auditExportOn, pgDriver } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { DISCOVERY_DOMAINS } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, setAuditExportSink } from '@openmig/shared';
 import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
@@ -45,6 +45,8 @@ if (!DATABASE_URL) {
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 type ReceiptOutcome =
   | { state: 'applied'; kind: RemovalKind }

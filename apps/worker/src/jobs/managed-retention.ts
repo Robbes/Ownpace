@@ -38,15 +38,19 @@ import {
   pruneAppEvents,
   retentionDaysFromEnv,
   runRetentionDaysFromEnv,
+  auditExportOn,
+  pgDriver,
   type PgDatabase,
 } from '@openmig/ledger';
-import { log } from '@openmig/shared';
+import { log, setAuditExportSink } from '@openmig/shared';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 export const managedRetention = schedules.task({
   id: 'managed-retention',

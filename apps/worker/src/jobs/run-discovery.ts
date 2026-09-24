@@ -20,11 +20,11 @@ import type {
   TenantId,
   MappingId,
 } from '@openmig/shared';
-import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
+import { withTenant, PgDiscoveryStore, auditExportOn, pgDriver } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
-import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, log, setAuditExportSink } from '@openmig/shared';
 
 /**
  * The sync domains, from the one list (workplan 0113 T5).
@@ -50,6 +50,8 @@ if (!DATABASE_URL) {
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL });
+// Each audit event this task records, also as one JSON line on its output (0129 T4).
+setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 
 /** Best-effort per-item byte size from a listing item (mail/file carry `.size`). */
 function sizeOf(item: unknown): number | undefined {
