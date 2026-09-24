@@ -13,7 +13,8 @@ export type ReportedLink = 'grant' | 'view';
 
 export interface LinkReportBody {
   readonly description: string;
-  readonly replyTo: string;
+  /** Left out when the person wants no answer (the owner, 2026-09-24). */
+  readonly replyTo?: string;
 }
 
 const path = (kind: ReportedLink, link: string) => `/${kind}/${encodeURIComponent(link)}/report`;

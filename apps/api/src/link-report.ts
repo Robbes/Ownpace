@@ -16,8 +16,12 @@
  * ## What the reporter gives, and what the server adds
  *
  * - **What makes them doubt the link**, in their own words.
- * - **An address to reply to.** Typed, and not verified: the reporter has no
- *   account. The ticket says so, so nobody takes it as proven.
+ * - **An address to reply to, if they want an answer.** Typed, and not
+ *   verified: the reporter has no account. The ticket says so, so nobody takes
+ *   it as proven. A report without one is taken too (the owner, 2026-09-24:
+ *   *"should link reports be allowed without a reply address? Yes"*), and is
+ *   filed under the helpdesk's own user, since Zammad needs a customer for
+ *   every ticket; its note says that nobody can be answered.
  *
  * Everything else comes from the rows the link itself names, never from the
  * body: the organisation, the migration, the link, who issued it, from and
@@ -29,9 +33,11 @@
  * The ticket's one article is internal. Its facts include what a progress link
  * does not show (the addresses, who issued the link) and what neither page
  * shows (the organisation's and the migration's ids), and the address the
- * helpdesk knows the reporter by is only as good as their typing. The reporter
- * is still the ticket's customer, so the owner's reply reaches them by email;
- * what nobody at that address can read in the helpdesk is the note. The title
+ * helpdesk knows the reporter by is only as good as their typing. A reporter
+ * who left an address is still the ticket's customer, so the owner's reply
+ * reaches them by email; what nobody at that address can read in the helpdesk
+ * is the note. One who left none is answered by nobody: the ticket is the
+ * helpdesk's own user's, and the note says so. The title
  * is fixed rather than taken from what they wrote, because it is shown
  * wherever the ticket is listed.
  *
@@ -54,7 +60,8 @@ export type ReportedLink = 'grant' | 'view';
 
 export interface LinkReport {
   readonly description: string;
-  readonly replyTo: string;
+  /** Where the owner's answer goes, when the reporter left an address. */
+  readonly replyTo?: string;
 }
 
 /** The same shape the public access-request door accepts. */
@@ -72,9 +79,17 @@ export function parseLinkReport(body: unknown): LinkReport | ReportRefusal {
     return { field: 'description', reason: `At most ${MAX_DESCRIPTION} characters.`, status: 400 };
   }
 
+  // No address, or an empty field, is a report nobody asked to be answered.
+  if (b.replyTo === undefined || b.replyTo === null || (typeof b.replyTo === 'string' && b.replyTo.trim() === '')) {
+    return { description };
+  }
   const replyTo = REPLY_ADDRESS.safeParse(b.replyTo);
   if (!replyTo.success) {
-    return { field: 'replyTo', reason: 'An email address we can reply to.', status: 400 };
+    return {
+      field: 'replyTo',
+      reason: 'An email address we can reply to, or leave it empty.',
+      status: 400,
+    };
   }
   return { description, replyTo: replyTo.data };
 }
@@ -122,10 +137,19 @@ function destination(to: NonNullable<LinkReportFacts['to']>): string {
 
 /**
  * The Zammad ticket a link report becomes (`POST /api/v1/tickets`): an internal
- * note, plain text, with the reporter as the customer (`guess:` finds or makes
- * them) so that a reply reaches them by email.
+ * note, plain text. Its customer is the reporter when they left an address
+ * (`guess:` finds or makes them), so that a reply reaches them by email, and
+ * otherwise the helpdesk's own user (`ownUserId`), since every ticket needs one.
  */
-export function linkReportTicketFor(report: LinkReport, facts: LinkReportFacts, group: string) {
+export function linkReportTicketFor(
+  report: LinkReport,
+  facts: LinkReportFacts,
+  group: string,
+  ownUserId?: number,
+) {
+  if (report.replyTo === undefined && ownUserId === undefined) {
+    throw new Error('A report without a reply address is filed under the helpdesk\'s own user, and none was given.');
+  }
   const title = `Ownpace: a ${LINK_NAME[facts.link]} was reported`;
   const lines = [
     `Link: ${facts.linkId} (${LINK_NAME[facts.link]})`,
@@ -135,12 +159,14 @@ export function linkReportTicketFor(report: LinkReport, facts: LinkReportFacts, 
     `From: ${facts.from ? oneLine(facts.from) : 'no account named'}`,
     `To: ${facts.to ? destination(facts.to) : 'no destination'}`,
     `Access: ${ACCESS[facts.access]}`,
-    `Reply to: ${report.replyTo} (typed by the reporter, not verified)`,
+    report.replyTo === undefined
+      ? 'Reply to: none. The reporter left no address, so nobody can be answered'
+      : `Reply to: ${report.replyTo} (typed by the reporter, not verified)`,
   ];
   return {
     title,
     group,
-    customer_id: `guess:${report.replyTo}`,
+    customer_id: report.replyTo === undefined ? ownUserId : `guess:${report.replyTo}`,
     article: {
       subject: title,
       body: `${lines.join('\n')}\n\nWhat they wrote:\n${report.description}`,
