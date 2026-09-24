@@ -39,8 +39,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
@@ -69,6 +69,43 @@ describe('the readers name the setting, so the checks below compare real names',
 
   it('the API reads the setting', () => {
     expect(read('apps/api/src/access-notify.ts')).toMatch(new RegExp(`\\benv\\.${SETTING}\\b`));
+  });
+});
+
+/**
+ * THE READER ONLY COUNTS IF THE MAIL GOES THROUGH IT. `accessGrantedEvent` is
+ * where the API reads the setting; a grant route that wrote its event by hand,
+ * as it did before the alpha, would send a mail with no mark while the check
+ * above stayed green. `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
+ * drives the route and reads the mail; this says where to look when it fails.
+ */
+describe('the API builds the grant mail through that reader', () => {
+  const API_SRC = 'apps/api/src';
+
+  /** Every shipped `.ts` under the API's source, tests excluded. */
+  const shipped = (): string[] =>
+    (readdirSync(join(REPO_ROOT, API_SRC), { recursive: true }) as string[])
+      .filter((file) => file.endsWith('.ts') && !/\.test\.ts$/.test(file))
+      .map((file) => join(API_SRC, file).split(sep).join('/'));
+
+  it('the grant route calls accessGrantedEvent', () => {
+    expect(
+      read('apps/api/src/routes/access-requests.ts'),
+      'the grant route no longer builds its mail with accessGrantedEvent, so the mail\n' +
+        `never learns ${SETTING}.`,
+    ).toContain('accessGrantedEvent(');
+  });
+
+  it('and nothing else in the API writes an access_granted event by hand', () => {
+    const byHand = shipped().filter(
+      (file) =>
+        file !== 'apps/api/src/access-notify.ts' &&
+        /kind:\s*['"]access_granted['"]/.test(read(file)),
+    );
+    expect(
+      byHand,
+      'an access_granted event written outside accessGrantedEvent carries no alpha mark',
+    ).toEqual([]);
   });
 });
 

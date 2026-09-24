@@ -115,6 +115,14 @@ reading a file drops off its entry by itself.
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 
+### `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
+### `apps/api/src/routes/access-requests.ts`
+
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+
 ### `apps/api/src/routes/billing/index.ts`
 
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
@@ -2439,6 +2447,8 @@ AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 Reads:
 
 - `apps/api/src/access-notify.ts`
+- `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
+- `apps/api/src/routes/access-requests.ts`
 - `apps/web/src/components/AlphaNote.tsx`
 - `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 - `apps/web/src/services/stage.ts`

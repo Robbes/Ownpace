@@ -33,7 +33,7 @@ const SAID = {
     'Alpha: a small invited group is trying this service out. Nothing is charged, nothing is ' +
     'backed up, and the alpha can end. Keep your old account until you have checked what arrived.',
   nl:
-    'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Niets wordt in rekening ' +
+    'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
     'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
     'u hebt gecontroleerd wat er is aangekomen.',
 } as const;

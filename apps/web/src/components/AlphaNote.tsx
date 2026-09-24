@@ -2,11 +2,13 @@
 /**
  * "Alpha: a small invited group is trying this service out." (workplan 0131 T1)
  *
- * Shown at the top of every signed-in page (`Layout.tsx`, beside the platform
- * hold's banner) and under the title of `/login` and `/request-access`, which
- * a tester sees before there is any session. Nothing at all unless the
- * deployment runs the alpha, and never on the appliance (`services/stage.ts`
- * holds the rule and says why).
+ * Shown at the top of every signed-in page: `Layout.tsx`, beside the platform
+ * hold's banner, and under the title of `/invitations`, which sits outside
+ * `Layout` and is where an invited member first meets the service. And under
+ * the title of `/login` and `/request-access`, which a tester sees before
+ * there is any session, before and after the request is sent. Nothing at all
+ * unless the deployment runs the alpha, and never on the appliance
+ * (`services/stage.ts` holds the rule and says why).
  *
  * The shape is the platform hold's, deliberately: an amber note, `role="note"`.
  * Two kinds of platform news in two shapes would look like two different kinds

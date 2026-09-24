@@ -2,6 +2,24 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build review: T1 (a) fixes on the same branch
+(`claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`), not merged.** Two reviewers
+read the build, and this note replaces two statements in the build note below. First, the Dutch
+middle sentence is §3's draft again, word for word: *"Er wordt niets in rekening gebracht, er
+worden geen back-ups gemaakt en de alfa kan stoppen."* It is sixteen words, one over the copy
+budget, and it stays long because 0118 records that safety sentences are not shortened; the
+budget's `ALLOWED_OVER` names `alpha.note.terms` with that reason. Second, "every signed-in page"
+now includes `/invitations`, which sits outside `Layout` (0099). An invited member never passes
+`/request-access` and never receives the grant mail, so the note stands under that screen's
+title. `/request-access` also keeps the note after the request is sent. The web guard covers
+both, on, off and on the appliance (39 cases, 6 of which failed before the change). The grant
+route's call to `accessGrantedEvent` is now held too.
+`apps/api/src/routes/access-request-grant-alpha.unit.test.ts` drives the real route against
+PGlite and reads the mail the transport is handed. With the route's old inline event it fails 2
+of 5. `an-alpha-both-halves-know-about` also refuses an `access_granted` event written anywhere
+else in the API. The glossary gains *alpha* / *alfa*. Whether invitations stay open during the
+alpha is still open question 6; the note only makes sure an invited member is told.
+
 **2026-09-24, build: T1 (a) built on branch
 `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** One setting,
 `OWNPACE_STAGE`, empty by default, so the note is off unless a deployment sets it. `managed.yml`

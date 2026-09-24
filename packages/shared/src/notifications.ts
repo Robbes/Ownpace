@@ -1016,7 +1016,7 @@ const EVENT_BODY: Record<NotificationLocale, EventLines> = {
       'Deze e-mail bevat geen link of code om te bewaren: u kunt hem gerust doorsturen en hij ' +
       'geeft niemand toegang. Uw wachtwoord staat bij de aanmeldservice, nooit bij ons.',
     grantedAlpha:
-      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Niets wordt in rekening ' +
+      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
       'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
       'u hebt gecontroleerd wat er is aangekomen.',
     declinedIntro:

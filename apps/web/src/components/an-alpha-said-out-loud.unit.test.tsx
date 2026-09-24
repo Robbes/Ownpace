@@ -9,7 +9,11 @@
  *
  * So, while the deployment says so, a note stands at the top of every signed-in
  * page, and under the title of `/login` and `/request-access`, which a tester
- * sees before there is any session: in English and in Dutch. The same words
+ * sees before there is any session: in English and in Dutch. "Every signed-in
+ * page" is `Layout`'s AND `/invitations`, which sits outside `Layout` on
+ * purpose (0099): an invited member never passes `/request-access` and never
+ * receives the grant mail, so that screen is where they first meet the
+ * service. And `/request-access` keeps the note after the request is sent. The same words
  * close the access-granted mail, and the last case below holds the two
  * together, because 0139's conditions will change them and a note that says
  * one thing while the mail says another is worse than either alone.
@@ -23,7 +27,7 @@
  * works).
  * The edition is mocked through `services/edition`, the sanctioned seam.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -66,6 +70,8 @@ vi.mock('../services/auth-mode.ts', () => ({
 import Layout from './Layout.tsx';
 import Login from '../pages/Login.tsx';
 import RequestAccess from '../pages/RequestAccess.tsx';
+import Invitations from '../pages/Invitations.tsx';
+import apiClient from '../services/api.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 
@@ -80,7 +86,7 @@ const SAID = {
   nl: {
     lead: 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
     all:
-      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Niets wordt in rekening ' +
+      'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit. Er wordt niets in rekening ' +
       'gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen. Houd uw oude account tot ' +
       'u hebt gecontroleerd wat er is aangekomen.',
   },
@@ -128,6 +134,32 @@ const PAGES = {
         </LocaleProvider>
       </QueryClientProvider>,
     ),
+  /** The same page once the request has gone: the form is replaced by a confirmation. */
+  requestAccessSent: async () => {
+    vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { received: true } });
+    render(
+      <QueryClientProvider client={client()}>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={['/request-access?email=tester%40example.test']}>
+            <RequestAccess />
+          </MemoryRouter>
+        </LocaleProvider>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(document.querySelector('form button[type="submit"]') as HTMLElement);
+    await waitFor(() => expect(document.querySelector('form')).toBeNull());
+  },
+  /** Signed in, outside `Layout` (0099). No token in the store, so it asks nothing. */
+  invitations: () =>
+    render(
+      <QueryClientProvider client={client()}>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={['/invitations']}>
+            <Invitations />
+          </MemoryRouter>
+        </LocaleProvider>
+      </QueryClientProvider>,
+    ),
 } as const;
 
 type Page = keyof typeof PAGES;
@@ -158,6 +190,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   window.localStorage.clear();
 });
 
@@ -167,9 +200,9 @@ describe('with the alpha setting on', () => {
   });
 
   for (const page of PAGE_NAMES) {
-    it.each(LOCALES)(`${page} says it, whole, in %s`, (locale) => {
+    it.each(LOCALES)(`${page} says it, whole, in %s`, async (locale) => {
       inLocale(locale);
-      PAGES[page]();
+      await PAGES[page]();
       expect(theNote(locale)).toHaveTextContent(SAID[locale].all);
     });
   }
@@ -185,13 +218,17 @@ describe('with the alpha setting on', () => {
   });
 
   it.each([
-    // What each page shows first below its title: the sign-in page's line
-    // while it asks the API what it accepts, and the request form's first field.
-    ['login', () => screen.getByText(/checking how this deployment/i)],
-    ['requestAccess', () => screen.getByLabelText(/email address/i)],
-  ] as const)('%s: stands under the title, above the rest of the page', (page, rest) => {
-    PAGES[page]();
-    const title = screen.getByRole('heading', { level: 2 });
+    // What each page shows below its title: the sign-in page's line while it
+    // asks the API what it accepts, the request form's first field, the way
+    // back to sign-in once the request has gone, and the invitation screen's
+    // closing line.
+    ['login', 2, () => screen.getByText(/checking how this deployment/i)],
+    ['requestAccess', 2, () => screen.getByLabelText(/email address/i)],
+    ['requestAccessSent', 2, () => screen.getByRole('link', { name: /sign in/i })],
+    ['invitations', 1, () => screen.getByText(/not now changes nothing/i)],
+  ] as const)('%s: stands under the title, above the rest of the page', async (page, level, rest) => {
+    await PAGES[page]();
+    const title = screen.getByRole('heading', { level });
     const note = theNote('en');
     expect(title.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(note.compareDocumentPosition(rest()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -208,9 +245,9 @@ describe('with the alpha setting on', () => {
 
 describe('without the setting', () => {
   for (const page of PAGE_NAMES) {
-    it.each(LOCALES)(`${page} says nothing about an alpha, in %s`, (locale) => {
+    it.each(LOCALES)(`${page} says nothing about an alpha, in %s`, async (locale) => {
       inLocale(locale);
-      PAGES[page]();
+      await PAGES[page]();
       noAlphaAnywhere();
     });
   }
@@ -229,9 +266,9 @@ describe('on an appliance, never', () => {
   });
 
   for (const page of PAGE_NAMES) {
-    it.each(LOCALES)(`${page} says nothing about an alpha, in %s, even built with the setting`, (locale) => {
+    it.each(LOCALES)(`${page} says nothing about an alpha, in %s, even built with the setting`, async (locale) => {
       inLocale(locale);
-      PAGES[page]();
+      await PAGES[page]();
       noAlphaAnywhere();
     });
   }

@@ -112,6 +112,9 @@ const RequestAccess: React.FC = () => {
         <div className="max-w-md w-full text-center space-y-4">
           <h2 className="text-2xl font-extrabold text-gray-900">{t('access.sent')}</h2>
           <p className="text-sm text-gray-600">{t('access.sentDetail')}</p>
+          {/* Still here once the request has gone (workplan 0131 T1): the page
+              is the same address, and what was asked to join has not changed. */}
+          <AlphaNote className="text-left" />
           <Link to="/login" className="inline-block text-sm text-blue-600 hover:text-blue-500">
             {t('access.backToSignIn')}
           </Link>
