@@ -42,3 +42,4 @@ export * from './moneybird-sales-invoices.ts';
 export * from './occupancy-peak.ts';
 export * from './bytes-moved.ts';
 export * from './tier-calculator.ts';
+export * from './grant-link-allowance.ts';

@@ -34,7 +34,7 @@
  */
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { mappingLink } from './schema-pg.ts';
 import { withMappingLink } from './db.ts';
 import type { PgDatabase } from './db-types.ts';
@@ -346,6 +346,33 @@ export function linkState(
   if (row.revokedAt) return 'revoked';
   if (row.expiresAt.getTime() <= now.getTime()) return 'expired';
   return 'live';
+}
+
+/**
+ * How many grant links an organisation holds that can still be used: the
+ * `live` of `linkState`, not spent, not revoked, not expired (workplan 0108
+ * T8 (d)). A progress link is not counted: it grants nothing. The issue route
+ * counts inside the transaction that inserts, so the limit is held against
+ * what is there when the next one is written.
+ */
+export async function countLiveGrantLinks(
+  db: PgDatabase,
+  tenantId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const rows = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(mappingLink)
+    .where(
+      and(
+        eq(mappingLink.tenantId, tenantId),
+        eq(mappingLink.purpose, 'grant'),
+        isNull(mappingLink.usedAt),
+        isNull(mappingLink.revokedAt),
+        gt(mappingLink.expiresAt, now),
+      ),
+    );
+  return Number(rows[0]?.n ?? 0);
 }
 
 /** The expiry a chosen number of days lands on, from a given moment. */

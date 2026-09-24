@@ -919,6 +919,26 @@ the two operator checks **never print the value they found**: the row is
 identified and acted on by id, and the id is never displayed, because moving a
 credential out of a table and into a scrollback is not a cleanup.
 
+**How many grant links an organisation may hold at once** (workplan 0108 T8
+(d)). As many live grant links as its tier runs migrations at the same time:
+Tiny 1, Small 4, Medium 20, Large 50, Extra large 200, and the largest past the
+end of the table. A customer who needs more for a while, to hand out a week's
+links at once, gets a number of their own:
+
+```bash
+./deploy/compose/operator.sh links <tenant-id>                                # where it stands
+./deploy/compose/operator.sh links <tenant-id> 30 --until 2026-10-01 onboarding  # 30, through that day (UTC)
+./deploy/compose/operator.sh links <tenant-id> 30                             # 30, until cleared
+./deploy/compose/operator.sh links <tenant-id> --tier                         # the tier's number again
+```
+
+The number replaces the tier's while it stands, higher or lower, and one set
+through a day stops by itself, so a burst cannot outlive its reason by being
+forgotten. It lives in `grant_link_allowance` (managed migration 0028), which the
+request path can read and never write. Setting and clearing each write an audit
+row, `grant_links.allowance_set` or `grant_links.allowance_cleared`, in the same
+transaction.
+
 `apps/api/src/scripts/operator-housekeeping.ts` carries a paragraph per check on
 why it is a question worth asking; `operator-housekeeping.integration.test.ts`
 runs all of them against a real database, because SQL nobody has executed is SQL
@@ -1022,9 +1042,9 @@ journalctl -o cat --since today | grep '"ownpace.audit.id"'
 Ownpace sends these lines nowhere itself. The pseudonyms are made with a key in
 `deployment_key`, which only the database owner can read and which every
 backup of the database carries, so keep backups as private as the database.
-Two commands typed at a terminal print no line: the worker's cutover CLI and
-`operator.sh leave`. Their events are in `audit_log` like any other, and the
-download below serves them.
+Three commands typed at a terminal print no line: the worker's cutover CLI,
+`operator.sh leave` and `operator.sh links`. Their events are in `audit_log`
+like any other, and the download below serves them.
 
 **Lines your log store missed** (0129 T4). A collector that was down, or output
 rotated away before it was read, does not lose an event: it is still in

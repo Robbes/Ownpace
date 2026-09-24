@@ -38,6 +38,7 @@ import {
   expiryFromDays,
 } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
 
 // UUID family 5f4f0000-…, unused elsewhere in the repo.
@@ -76,6 +77,16 @@ const DEPLOYMENT_GMAIL_MAPPING = '5f4f0000-e29b-41d4-a716-446655441637';
 const NAMELESS_CONN = '5f4f0000-e29b-41d4-a716-446655441618';
 const NAMELESS_BOX = '5f4f0000-e29b-41d4-a716-446655441628';
 const NAMELESS_MAPPING = '5f4f0000-e29b-41d4-a716-446655441638';
+/**
+ * An organisation that has run nothing, so Tiny, for the live-link limit
+ * (0108 T8 (d)): a Google source ready to grant, and a destination.
+ */
+const LIMIT_TENANT = '5f4f0000-e29b-41d4-a716-446655441603';
+const LIMIT_CONN = '5f4f0000-e29b-41d4-a716-446655441619';
+const LIMIT_TARGET_CONN = '5f4f0000-e29b-41d4-a716-44665544161a';
+const LIMIT_BOX = '5f4f0000-e29b-41d4-a716-446655441629';
+const LIMIT_TARGET_BOX = '5f4f0000-e29b-41d4-a716-44665544162a';
+const LIMIT_MAPPING = '5f4f0000-e29b-41d4-a716-446655441639';
 
 /** Run `fn` on a deployment that carries its own Google client (ADR-0041). */
 async function onTheDeploymentsClient<T>(fn: () => Promise<T>, scopeClass?: string): Promise<T> {
@@ -116,6 +127,16 @@ const app = express();
 app.use(express.json());
 app.use('/api/migrations', linkRoutes);
 
+/** A statement as the owner, outside any route: for a fixture, never for an assertion's subject. */
+async function asOwner(sql: string, params: unknown[] = []): Promise<void> {
+  const conn = await driver.acquire();
+  try {
+    await conn.query(sql, params);
+  } finally {
+    await conn.release();
+  }
+}
+
 /** Read the table directly, outside any route, to see what really exists. */
 async function rowsFor(mappingId: string): Promise<Array<Record<string, unknown>>> {
   const conn = await driver.acquire();
@@ -131,6 +152,9 @@ beforeAll(async () => {
   process.env.WEB_URL = 'https://app.example';
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: issuing a grant link reads the organisation's tier
+  // and the operator's number (0108 T8 (d)), as the API always does.
+  await runManagedMigrations({ driver, logger: () => {} });
 
   const withClient = async (fn: (q: (sql: string, p?: unknown[]) => Promise<unknown>) => Promise<void>) => {
     const conn = await driver.acquire();
@@ -167,9 +191,43 @@ beforeAll(async () => {
     for (const [id, name] of [
       [TENANT, 'links'],
       [OTHER_TENANT, 'other'],
+      [LIMIT_TENANT, 'limit'],
     ]) {
       await q('INSERT INTO tenant (id, name) VALUES ($1,$2)', [id, name]);
     }
+    // This file is about the routes, and issues many links for TENANT: it
+    // runs with room, set the way the operator sets it. The limit itself is
+    // proved on LIMIT_TENANT, which has none.
+    await q(
+      `INSERT INTO grant_link_allowance (tenant_id, live_links, set_by, note)
+       VALUES ($1, 1000, 'operator.sh fixture', 'the routes, not the limit')`,
+      [TENANT],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','gmail','g-limit','{}'::jsonb,'connected',$3)`,
+      [LIMIT_CONN, LIMIT_TENANT, googleCreds],
+    );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
+       VALUES ($1,$2,'target','nextcloud','nc-limit','{"host":"cloud.example.org"}'::jsonb,'connected')`,
+      [LIMIT_TARGET_CONN, LIMIT_TENANT],
+    );
+    for (const [box, conn] of [
+      [LIMIT_BOX, LIMIT_CONN],
+      [LIMIT_TARGET_BOX, LIMIT_TARGET_CONN],
+    ]) {
+      await q(
+        `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address)
+         VALUES ($1,$2,$3,'user','m@example.invalid')`,
+        [box, LIMIT_TENANT, conn],
+      );
+    }
+    await q(
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status)
+       VALUES ($1,$2,$3,$4,'paused')`,
+      [LIMIT_MAPPING, LIMIT_TENANT, LIMIT_BOX, LIMIT_TARGET_BOX],
+    );
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
        VALUES ($1,$2,'source','gmail','g','{}'::jsonb,'connected',$3)`,
@@ -580,5 +638,87 @@ describe('a progress link is the other lifetime, not the same one', () => {
     expect(res.body.links).toHaveLength(1);
     expect(res.body.links[0].purpose).toBe('view');
     expect(res.body.links[0].state).toBe('live');
+  });
+});
+
+describe('as many live grant links as the tier runs migrations (0108 T8 (d))', () => {
+  const issue = (purpose?: 'grant' | 'view') =>
+    request(app)
+      .post(`/api/migrations/${LIMIT_MAPPING}/links`)
+      .send(purpose ? { purpose } : {});
+
+  beforeEach(async () => {
+    caller = { tenantId: LIMIT_TENANT, userId: 'pat', userRole: 'owner' };
+    await asOwner('DELETE FROM mapping_link WHERE tenant_id = $1', [LIMIT_TENANT]);
+    await asOwner('DELETE FROM grant_link_allowance WHERE tenant_id = $1', [LIMIT_TENANT]);
+    await asOwner('DELETE FROM occupancy_peak WHERE tenant_id = $1', [LIMIT_TENANT]);
+  });
+
+  it('issues an organisation on Tiny one live grant link, and refuses the second, writing nothing', async () => {
+    expect((await issue()).status).toBe(201);
+
+    const second = await issue();
+
+    expect(second.status).toBe(409);
+    expect(second.body).toMatchObject({ error: 'grant_links_at_limit', live: 1, limit: 1 });
+    expect(second.body.reason).toBe(
+      'This organisation has 1 grant link that can still be used, and may hold 1 at once: ' +
+        'as many as its tier, Tiny, runs migrations at the same time. ' +
+        'Revoke one that is no longer needed, or wait until one is used or expires.',
+    );
+    expect(await rowsFor(LIMIT_MAPPING)).toHaveLength(1);
+  });
+
+  it('never refuses a progress link: it grants nothing', async () => {
+    await issue();
+
+    expect((await issue('view')).status).toBe(201);
+  });
+
+  it('makes room when a link is revoked, used, or expires', async () => {
+    const revoked = await issue();
+    await request(app).delete(`/api/migrations/${LIMIT_MAPPING}/links/${revoked.body.id as string}`);
+    const used = await issue();
+    expect(used.status).toBe(201);
+    await asOwner('UPDATE mapping_link SET used_at = now() WHERE id = $1', [used.body.id]);
+    const expired = await issue();
+    expect(expired.status).toBe(201);
+    await asOwner("UPDATE mapping_link SET expires_at = now() - interval '1 second' WHERE id = $1", [
+      expired.body.id,
+    ]);
+
+    expect((await issue()).status).toBe(201);
+  });
+
+  it('grows with the tier: four at once, for an organisation that ran two migrations this month', async () => {
+    await asOwner(
+      `INSERT INTO occupancy_peak (tenant_id, month, peak_paths, peak_at)
+       VALUES ($1, date_trunc('month', now())::date, 2, now())`,
+      [LIMIT_TENANT],
+    );
+    for (let n = 0; n < 4; n++) expect((await issue()).status).toBe(201);
+
+    const fifth = await issue();
+
+    expect(fifth.body).toMatchObject({ error: 'grant_links_at_limit', live: 4, limit: 4 });
+    expect(fifth.body.reason).toContain('as many as its tier, Small, runs migrations at the same time');
+  });
+
+  it("holds the operator's number while it stands, and the tier's again once its day has passed", async () => {
+    await asOwner(
+      `INSERT INTO grant_link_allowance (tenant_id, live_links, until, set_by)
+       VALUES ($1, 3, now() + interval '1 day', 'operator.sh fixture')`,
+      [LIMIT_TENANT],
+    );
+    for (let n = 0; n < 3; n++) expect((await issue()).status).toBe(201);
+    const fourth = await issue();
+    expect(fourth.body).toMatchObject({ live: 3, limit: 3 });
+    expect(fourth.body.reason).toMatch(/: the number set for this organisation through \d{4}-\d{2}-\d{2}\. /);
+
+    await asOwner(`UPDATE grant_link_allowance SET until = now() - interval '1 second' WHERE tenant_id = $1`, [
+      LIMIT_TENANT,
+    ]);
+
+    expect((await issue()).body).toMatchObject({ live: 3, limit: 1 });
   });
 });

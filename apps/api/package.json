@@ -10,6 +10,7 @@
     "operator:check": "node src/scripts/operator.ts check",
     "operator:clean": "node src/scripts/operator.ts clean",
     "operator:leave": "node src/scripts/operator.ts leave",
+    "operator:links": "node src/scripts/operator.ts links",
     "operator:list": "node src/scripts/operator.ts list",
     "operator:memberships": "node src/scripts/operator.ts memberships",
     "operator:remove": "node src/scripts/operator.ts remove",

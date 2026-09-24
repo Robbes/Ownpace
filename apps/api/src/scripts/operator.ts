@@ -73,6 +73,7 @@ import { Pool } from 'pg';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
+import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
 import {
   checkByKind,
   HOUSEKEEPING_CHECKS,
@@ -100,6 +101,7 @@ const USAGE = `Usage:
   operator:check [kind]
   operator:clean <kind> [--confirm]
   operator:secrets
+  operator:links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -703,6 +705,16 @@ async function main(): Promise<void> {
         log.info(
           rowCount === 0 ? `No operator with subject ${userId}.` : `${userId} is no longer an operator.`,
         );
+        break;
+      }
+
+      case 'links': {
+        // How many live grant links an organisation may hold, and the
+        // operator's number for a burst (0108 T8 (d)): operator-links.ts.
+        const command = parseLinksCommand(rest);
+        if ('error' in command) throw new Error(command.error);
+        const now = await runLinksCommand(pool, command);
+        for (const line of describeStanding(now)) log.info(line);
         break;
       }
 

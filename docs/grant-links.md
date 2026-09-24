@@ -51,6 +51,17 @@ Each refusal names what to fix:
 | No client id or client secret is stored, and the deployment has no Google client | Add them on the source connection — see [Google Workspace setup](./google-workspace-setup.md), step 3 — or ask whoever runs your Ownpace to set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Your own client, when you store one, is always the one used. Half a pair is refused rather than finished with the deployment's other half. |
 | Mail and files need scopes Google classes as restricted | Through the deployment's own Google client, a link asks for Gmail or Drive only where whoever runs your Ownpace has declared `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, once their application carries those scopes. Or add your own Google client on the source connection. Calendars, contacts and tasks need neither. |
 | `WEB_URL` is not set | A deployment setting. Whoever runs your Ownpace needs to set it and restart; a link built without it would point at the wrong machine. |
+| Your organisation already holds as many grant links as it may | Revoke one that is no longer needed, or wait until one is used or expires (see below). |
+
+### How many at once
+
+On the managed service, an organisation may hold as many grant links that can still be used as
+its tier runs migrations at the same time: Tiny 1, Small 4, Medium 20, Large 50, Extra large
+200. The tier is the one your usage screen shows, so an organisation running more migrations
+gets more links as it grows. Only live links count: a link that was used, revoked or has expired
+does not, and a progress link never does, since it grants nothing. When you need more at once,
+for an onboarding week say, ask us: we can set another number for your organisation, until a
+date or for good.
 
 ## What the other person sees
 

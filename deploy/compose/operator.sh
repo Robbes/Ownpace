@@ -67,6 +67,11 @@
 # deployment no longer holds looks perfect to every query — it fails only when
 # AES-GCM checks the tag, inside somebody's sync pass. It prints no plaintext:
 # a verdict, a name, and what to do.
+#
+# `links` says how many live grant links an organisation may hold (its tier's
+# migrations at the same time, workplan 0108 T8 (d)) and sets another number
+# for a burst, through a day or until cleared: see operator-links.ts. Each
+# change writes an audit row.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,6 +90,7 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh check [kind]" >&2
   echo "  ./deploy/compose/operator.sh clean <kind> [--confirm]" >&2
   echo "  ./deploy/compose/operator.sh secrets" >&2
+  echo "  ./deploy/compose/operator.sh links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]" >&2
   exit 1
 fi
 

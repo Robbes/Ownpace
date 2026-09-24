@@ -120,6 +120,10 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
     `INSERT INTO tenant_pricing (tenant_id, pricing) VALUES ($1, '{"baseFee": 999}'::jsonb)`,
     [tenantId],
   );
+  await conn.query(
+    `INSERT INTO grant_link_allowance (tenant_id, live_links, set_by) VALUES ($1, 30, 'operator.sh fixture')`,
+    [tenantId],
+  );
   // Seeded because the purge names them: without a row, "it was deleted" is a
   // vacuous truth and the assertion proves nothing.
   await conn.query(
