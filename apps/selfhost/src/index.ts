@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -51,7 +51,7 @@ import {
   DECISION_EFFECTS,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
-  runsPasses,
+  runsPassesNow,
   REPORTING_CLOSED,
   FAILURE_GUIDANCE,
   MOVES_MEANING,
@@ -791,6 +791,28 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       return row.status as MappingLifecycle;
     });
 
+  /**
+   * Whether this migration's passes run now (0128 T2): `runsPassesNow`, with
+   * the cutover's own window asked only of a migration in `cutover`, by the
+   * same SQL the managed tick schedules by. Every gate below asks this rather
+   * than the status alone, so a cutover copies from execute until its grace
+   * period ends on both editions.
+   */
+  const passesRunNow = async (m: LoadedMapping, status: MappingLifecycle): Promise<boolean> =>
+    runsPassesNow(
+      status,
+      status === 'cutover' &&
+        (await withTenantContext(m.config.tenantId as string, async (client) => {
+          const { rows } = await client.query(
+            `SELECT EXISTS (SELECT 1 FROM cutover_state c
+                             WHERE c.tenant_id = $1 AND c.mapping_id = $2
+                               AND ${CUTOVER_STILL_COPIES_WHERE}) AS copies`,
+            [m.config.tenantId, m.mailboxMappingId],
+          );
+          return (rows[0] as { copies?: boolean } | undefined)?.copies === true;
+        })),
+    );
+
   /** Stop scheduling a mapping, so a finished migration stops syncing at once. */
   const unscheduleMapping = (m: LoadedMapping) => {
     const handle = scheduled.get(m.config.mappingId);
@@ -812,10 +834,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // mapping marked done went on syncing until the next restart, which makes
       // "finished" mean nothing until someone reboots the appliance.
       const currentStatus = await mappingStatus(m);
-      if (!runsPasses(currentStatus)) {
+      if (!(await passesRunNow(m, currentStatus))) {
         log.info(
           `[selfhost] ${m.config.mappingId} is '${currentStatus}', which does not run passes ` +
-            `(${PASS_RUNNING_STATES.join(' and ')} do) — skipping this pass and unscheduling.`,
+            `(${PASS_RUNNING_STATES.join(' and ')} do, and a cutover until its grace period ends) ` +
+            '— skipping this pass and unscheduling.',
         );
         unscheduleMapping(m);
         return;
@@ -1015,7 +1038,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
     }
 
-    if (runsPasses(status)) {
+    if (await passesRunNow(m, status)) {
       scheduleMapping(m);
       // ADR-0020's on-startup half (0026 T1 item 5): an ACTIVE mapping whose
       // ledger holds zero rows is the lost-ledger shape — active means the
@@ -3337,16 +3360,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const m = mappings.find((x) => x.config.mappingId === id);
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
 
-        // Only a mapping in a RUNNING state syncs, and `runsPasses` is the one
-        // authority on which those are — the same predicate the startup scan
-        // and the per-pass re-read use, so "Sync now" can never disagree with
-        // the schedule about whether this mapping copies.
+        // Only a mapping whose passes run NOW syncs, and `runsPassesNow` is the
+        // one authority on that — asked through `passesRunNow`, as the startup
+        // scan and the per-pass re-read ask it, so "Sync now" can never
+        // disagree with the schedule about whether this mapping copies.
         //
         // Refusing here rather than running anyway keeps one rule about when
         // data moves: a paused mapping is awaiting the operator's green light,
         // and a finished one is finished.
         const status = await mappingStatus(m);
-        if (!runsPasses(status)) {
+        if (!(await passesRunNow(m, status))) {
           return sendJson(res, 409, {
             error: `mapping is '${status}', which does not run passes`,
             hint:
@@ -3356,8 +3379,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                   // point of 0117 T1: `continuous` is also after cutover and
                   // it DOES sync. Naming the states that stop, rather than
                   // the phase, keeps this sentence true as states are added.
-                  'A mapping in cutover or done has stopped syncing; a continuous one keeps ' +
-                  'going, and this one is neither.',
+                  status === 'cutover'
+                  ? 'A mapping in cutover syncs from execute until its grace period ends, if it ' +
+                    'was running when the cutover was executed, and this one does not now; a ' +
+                    'continuous one keeps going.'
+                  : 'A finished mapping has stopped syncing; a continuous one keeps going, and ' +
+                    'this one is not.',
           });
         }
 

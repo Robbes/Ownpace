@@ -78,14 +78,26 @@ describe('the lane runs, in both editions and by one authority', () => {
     // were three separate `=== 'active'` comparisons in code that cannot see
     // each other; a lane missing from any one of them runs on a tick and stops
     // the moment somebody presses a button, or the reverse.
+    //
+    // Since 0128 T2 the predicate is `runsPassesNow`, because a cutover copies
+    // until its grace period ends and the status alone cannot say when that
+    // is. The appliance asks it through ONE wrapper, `passesRunNow`, which
+    // reads the cutover's window by the SQL the managed tick schedules by.
     const tick = source('apps/selfhost/src/index.ts');
-    const asks = [...tick.matchAll(/runsPasses\(/g)].length;
+    const asks = [...tick.matchAll(/passesRunNow\(m, /g)].length;
     expect(
       asks,
-      'the appliance no longer asks `runsPasses` three times (startup, per-pass ' +
+      'the appliance no longer asks `passesRunNow` three times (startup, per-pass ' +
         're-read, and the /run route). A gate that stopped asking it is a gate ' +
         'with its own opinion about which mappings copy.',
     ).toBe(3);
+    // No gate reads the status alone: that is a cutover that never copies
+    // through its grace period on one gate and does on another.
+    expect(tick, 'a gate reads `runsPasses` again, without the cutover window').not.toMatch(/\brunsPasses\(/);
+    const wrapper = tick.slice(tick.indexOf('const passesRunNow = '));
+    const body = wrapper.slice(0, wrapper.indexOf('\n\n'));
+    expect(body).toContain('runsPassesNow(');
+    expect(body, 'the wrapper no longer asks the one SQL rule the tick asks').toContain('CUTOVER_STILL_COPIES_WHERE');
     // And none of them kept a literal beside it.
     expect(
       /(currentStatus|status) [!=]== 'active'/.test(tick),
@@ -96,7 +108,7 @@ describe('the lane runs, in both editions and by one authority', () => {
   it('the managed tick asks it too, through a parameter rather than a literal', () => {
     const sql = source('apps/worker/src/jobs/managed-sync-tick.ts');
     expect(
-      /WHERE m\.status = ANY\(\$\d+::text\[\]\)/.test(sql),
+      /WHERE \(m\.status = ANY\(\$\d+::text\[\]\)/.test(sql),
       "the managed tick's WHERE clause is not parameterised on the running states. " +
         'A literal there is how the managed edition would keep the accident the ' +
         'appliance no longer has — the same migration copying for one edition and ' +
@@ -107,6 +119,9 @@ describe('the lane runs, in both editions and by one authority', () => {
       /WHERE m\.status = 'active'/.test(sql),
       "the literal 'active' is back in the tick's WHERE clause",
     ).toBe(false);
+    // The one state named in it runs for a while (0128 T2), and only by the
+    // rule the appliance's gates ask too.
+    expect(sql).toMatch(/OR \(m\.status = 'cutover'\s+AND EXISTS \(SELECT 1 FROM cutover_state c[\s\S]*?\$\{CUTOVER_STILL_COPIES_WHERE\}/);
   });
 
   it('both editions read the phase off the mapping row, and neither hard-codes it', () => {

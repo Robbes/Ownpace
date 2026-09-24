@@ -807,9 +807,16 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 - The cutover ledger's **`execute`** (APPROVED → CUTOVER_IN_PROGRESS) and **`complete`**
   (GRACE_PERIOD → COMPLETED) write `mailbox_mapping.status` as well as the ledger. A mapping that
-  is `active` or `paused` becomes **`cutover`**: no pass runs after it, and the source is no longer
-  the authority on what exists. `cutover`, `continuous` and `done` are left where they are —
-  `done` with a warning that a rollback will be refused for it.
+  is `active` or `paused` becomes **`cutover`**, and the source is no longer the authority on what
+  exists. `cutover`, `continuous` and `done` are left where they are — `done` with a warning that
+  a rollback will be refused for it.
+- **A migration that was `active` at `execute` keeps being copied until the grace period ends**
+  (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
+  slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is
+  mirrored, and no slot is held. Then no pass runs. One that was `paused` stays stopped. `execute`
+  records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
+  gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
+  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript.
 - The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
   the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
 - **The mapping first, the ledger second**, and every refusal before either write — the order
@@ -821,8 +828,8 @@ Nothing in this amendment is built. It records the decision the three tasks in
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
   lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
 - **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
-  what is unknown after a timeout, so no pass runs; `rollback` is the explicit undo and resumes the
-  sync.
+  what is unknown after a timeout, so no pass runs (FAILED is not a state that copies); `rollback`
+  is the explicit undo and resumes the sync.
 - The `run-cutover` job is prepare-only (it stops at READY_FOR_CUTOVER) and writes no lifecycle;
   the API executes no cutover. The operator CLI is the only executor, for both editions.
 

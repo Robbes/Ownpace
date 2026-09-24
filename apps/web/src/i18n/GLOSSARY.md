@@ -41,6 +41,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | ADR-0014's billed unit: one migration × one data kind | path | **pad** | The operator's usage panel counts *paden*; the raw lifecycle tokens beside the count are server vocabulary and stay verbatim. |
 | The capacity a path occupies | slot | **plek** | "Houdt nu een plek vast" — not *slot* (calque). A paused path keeps its *plek*, and the pricing wording says so. |
 | A pricing tier | package | **pakket** | `access.tier` set it customer-side ("Welk pakket lijkt te passen?"); the operator's usage panel reads the same word, because the operator quotes it to the customer. |
+| The cutover's grace period: from execute until it ends, a migration that was running keeps copying (workplan 0128 T2) | grace period | **overgangsperiode** | Not *respijt*/*gratieperiode* (a payment's grace). The period is a transition, both systems live, and the prose around it calls the cutover *overstap*, as `lane.title` does. |
 | The MX/DNS switch (Finish step 4) | delivery | **e-mailbezorging**, verb **omzetten** | Not *verplaatsen*/*verhuizen* (same owner correction — bare *bezorging* + *verhuist* read as a house move). And not *migratie*: the migration is the copying that is already running; step 4 is the delivery cutover, a different event on the timeline. |
 
 ## States (the StateChip table — full list in `StateChip.tsx`)

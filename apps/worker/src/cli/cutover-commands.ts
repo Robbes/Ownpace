@@ -26,6 +26,7 @@ import {
   enterCutover,
   closeCutover,
   CutoverRefused,
+  cutoverWindowOf,
   type MappingLifecyclePort,
   type VerificationResult,
 } from '@openmig/core';
@@ -35,7 +36,12 @@ import {
   rollbackTransition,
   isAfterCutover,
   runsPasses,
+  runsPassesNow,
+  cutoverStillCopiesAt,
+  cutoverCopiesUntil,
+  keepsCopyingThroughGrace,
   type CutoverTransition,
+  type CutoverWindow,
 } from '@openmig/shared';
 
 /** CLI dependencies */
@@ -138,15 +144,26 @@ export function confirmed(
  * The mapping half of a cutover step, as consequence lines for `confirmed()`
  * — true for THIS mapping rather than generic (ADR-0048). The step reads the
  * mapping again and decides for itself; this is for the person approving.
+ *
+ * At `execute` a running migration keeps copying until the grace period ends
+ * and a paused one stays stopped (0128 T2, `keepsCopyingThroughGrace`); at
+ * `complete` the grace period is over, and a migration still running stops.
  */
 export function mappingHalfLines(
   mappingId: MappingId,
   decision: Exclude<CutoverTransition, { refuse: string }>,
+  step: 'execute' | 'complete',
 ): string[] {
   if (decision.stop) {
+    const move = `mapping ${mappingId} '${decision.from}' -> '${decision.to}'`;
+    const authority = 'the source is no longer the authority on what exists, so no deletion there is mirrored.';
+    if (step === 'complete') {
+      return [`Stop the shadow sync: ${move} — no pass runs after this, and ${authority}`];
+    }
     return [
-      `Stop the shadow sync: mapping ${mappingId} '${decision.from}' -> '${decision.to}' — no pass ` +
-        'runs after this, and the source is no longer the authority on what exists.',
+      keepsCopyingThroughGrace(decision)
+        ? `Move ${move}: it keeps copying until the grace period ends, then stops; ${authority}`
+        : `Move ${move}: it is not copying now, and stays stopped through the grace period; ${authority}`,
     ];
   }
   return [
@@ -524,7 +541,7 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
     if (
       !confirmed(deps, 'execute this cutover', [
         `Move the cutover ledger for mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS (from APPROVED).`,
-        ...mappingHalfLines(deps.mappingId, decision),
+        ...mappingHalfLines(deps.mappingId, decision, 'execute'),
         `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then enter the GRACE_PERIOD.`,
         'Mail delivery follows DNS — this is the point users notice.',
       ])
@@ -542,7 +559,10 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
     });
     if (entered.mapping.changed) {
       CutoverCliOutput.success(
-        `Mapping ${entered.mapping.from} -> ${entered.mapping.to}: the shadow sync has stopped.`,
+        `Mapping ${entered.mapping.from} -> ${entered.mapping.to}: ` +
+          (entered.copiesThroughGrace
+            ? 'it keeps copying until the grace period ends, then stops.'
+            : 'it stays stopped.'),
       );
     } else {
       CutoverCliOutput.warning(`Mapping left '${entered.mapping.from}': ${entered.mapping.note ?? ''}`);
@@ -665,7 +685,7 @@ export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
     if (
       !confirmed(deps, 'complete this cutover', [
         `Mark the cutover ledger for mapping ${deps.mappingId} COMPLETED (from GRACE_PERIOD) — a terminal state.`,
-        ...mappingHalfLines(deps.mappingId, decision),
+        ...mappingHalfLines(deps.mappingId, decision, 'complete'),
         'After this, "rollback" is no longer accepted; reverting means a manual MX change.',
         "Leave the migration's own ending to you: finishing it ('done', which checks unresolved " +
           "failures) or keeping it copying ('continuous') is decided on the Finish page, not here.",
@@ -804,14 +824,23 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
 
 /**
  * What the lifecycle word means for the passes, in one line — derived from the
- * same two predicates the schedulers and the passes read, so this sentence
- * cannot say something the rules do not (ADR-0048).
+ * same predicates the schedulers and the passes read, so this sentence
+ * cannot say something the rules do not (ADR-0048). A cutover copies until
+ * its grace period ends (0128 T2), which the status alone cannot say: that
+ * answer is read from the cutover's own window, when there is one.
  */
-export function lifecycleLine(status: string): string {
+export function lifecycleLine(status: string, cutover?: CutoverWindow, now: Date = new Date()): string {
   if (runsPasses(status)) {
     return isAfterCutover(status)
       ? `${status} — passes run after the cutover; deletions at the source are not mirrored (the continuous lane)`
       : `${status} — passes run; the source is the authority on what exists`;
+  }
+  const until = cutover ? cutoverCopiesUntil(cutover) : null;
+  if (until && runsPassesNow(status, cutoverStillCopiesAt(cutover, now))) {
+    return (
+      `${status} — passes run until ${until.toISOString()}, when the grace period ends; ` +
+      'deletions at the source are not mirrored'
+    );
   }
   if (status === 'done') return `${status} — finished; the shadow sync has ended and nothing runs`;
   if (isAfterCutover(status)) {
@@ -863,10 +892,14 @@ export async function showStatus(deps: CutoverCliDeps): Promise<void> {
     // The mapping half is read regardless of the ledger: a migration with no
     // cutover row still has a lifecycle, and it is the one thing the
     // schedulers act on. A row that cannot be read is said so (hard rule 9),
-    // never presented as a value.
+    // never presented as a value. The ledger's window, when there is one,
+    // says whether a cutover still copies (0128 T2).
     let lifecycle: string;
     try {
-      lifecycle = lifecycleLine(await deps.mappingLifecycle.readStatus());
+      lifecycle = lifecycleLine(
+        await deps.mappingLifecycle.readStatus(),
+        state ? cutoverWindowOf(state) : undefined,
+      );
     } catch (error) {
       lifecycle = `could not be read: ${(error as Error).message}`;
     }

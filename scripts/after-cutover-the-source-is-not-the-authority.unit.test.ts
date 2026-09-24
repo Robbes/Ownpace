@@ -43,7 +43,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isAfterCutover, startTransition } from '../packages/shared/src/lifecycle.ts';
+import {
+  isAfterCutover,
+  runsPasses,
+  runsPassesNow,
+  sourceAuthorityFor,
+  startTransition,
+} from '../packages/shared/src/lifecycle.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
@@ -155,12 +161,23 @@ describe('after cutover the source is not the authority', () => {
     expect(gate, "the appliance's pass gate on `currentStatus` is gone entirely").not.toBeNull();
     expect(
       gate![1]!.trim(),
-      "the appliance's per-pass gate is no longer `!runsPasses(currentStatus)`. If it has " +
-        'become a comparison again, or a predicate that does not answer for the deletion ' +
+      "the appliance's per-pass gate is no longer `!(await passesRunNow(m, currentStatus))`. If " +
+        'it has become a comparison again, or a predicate that does not answer for the deletion ' +
         'detector, then D4 has lost the one place it attaches: `sourceIsAuthorityOnExistence` ' +
         'is `!isAfterCutover(status)`, and a phase that runs while that is false is the only ' +
         'phase where §3a\'s loop can come back.',
-    ).toBe('!runsPasses(currentStatus)');
+    ).toBe('!(await passesRunNow(m, currentStatus))');
+    // Since 0128 T2 that predicate is `runsPassesNow`: `runsPasses`, and a
+    // cutover until its grace period ends. The one state it adds is after
+    // cutover, so the pass it lets run has the detectors absent.
+    for (const status of ['active', 'paused', 'cutover', 'done', 'continuous']) {
+      const runsForAWhile = runsPassesNow(status, true) && !runsPasses(status);
+      if (runsForAWhile) {
+        expect(status).toBe('cutover');
+        expect(isAfterCutover(status)).toBe(true);
+        expect(sourceAuthorityFor(status)).toEqual({ sourceIsAuthorityOnExistence: false });
+      }
+    }
   });
 
   it('the rule cannot outlive the decision that made it', () => {

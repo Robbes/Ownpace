@@ -143,12 +143,16 @@ pnpm exec tsx apps/worker/src/cli/index.ts execute \
 
 Requires state `APPROVED`. This will:
 
-1. **Stop the shadow sync**: the mapping goes `active` (or `paused`) → `cutover`,
-   recorded in `audit_log` — no pass runs after this, and the source is no
-   longer the authority on what exists ([ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md)).
-   A `continuous` mapping keeps copying, by design; a `done` one is left alone
-   with a warning that a rollback will be refused for it. Without `--yes` the
-   command prints what it would do to *this* mapping and exits.
+1. **Move the mapping to `cutover`**: `active` (or `paused`) → `cutover`,
+   recorded in `audit_log`. The source is no longer the authority on what
+   exists ([ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md)). A mapping
+   that was `active` **keeps copying until the grace period ends**, then stops
+   (workplan 0128 T2): mail that still reaches the old server while the MX
+   record propagates is copied across, and nothing deleted there is deleted on
+   the target. One that was `paused` stays stopped. A `continuous` mapping
+   keeps copying, by design; a `done` one is left alone with a warning that a
+   rollback will be refused for it. Without `--yes` the command prints what it
+   would do to *this* mapping and exits.
 2. Transition to `CUTOVER_IN_PROGRESS` — after the mapping, so a failure between
    the two leaves a state a re-run finishes.
 3. Print **`MANUAL STEP REQUIRED`** — the command does **not** change DNS.
@@ -158,8 +162,9 @@ Requires state `APPROVED`. This will:
 5. On confirmation, transition to **`GRACE_PERIOD`** — not COMPLETED; the
    grace window is a real state and rollback is still possible from it.
 6. On propagation timeout, transition to `FAILED`. The mapping stays `cutover`
-   — whether the MX record moved is exactly what is unknown, so no pass runs;
-   `rollback --yes` puts it back to syncing.
+   — whether the MX record moved is exactly what is unknown, so no pass runs,
+   copying through the grace period included; `rollback --yes` puts it back to
+   syncing.
 
 ### Complete cutover (after the grace period)
 
@@ -245,8 +250,14 @@ started and by whom, and the append-only event trail newest first.
 
 ## Post-cutover (grace period)
 
-During the grace period (typically 24–48 hours):
+During the grace period (72 hours on the ledger row; running `complete` ends
+it sooner):
 
+- A migration that was running at `execute` keeps being copied, under the
+  after-cutover rules: new and changed items are copied, deletions at the
+  source are not mirrored. `status` prints until when; after that no pass runs,
+  and the migration's own ending (finish, or keep copying in the continuous
+  lane) is the Finish page's.
 - Monitor mail flow and delivery failures
 - Watch for user complaints or support tickets
 - Keep the rollback procedure ready — `rollback --yes` is still accepted in

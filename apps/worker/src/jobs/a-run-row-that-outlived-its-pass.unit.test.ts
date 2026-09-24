@@ -125,10 +125,15 @@ describe('the clauses that decide whether a mapping is enqueued', () => {
     // migration, two behaviours, decided by which edition a customer bought
     // (hard rule 5). So the states are a parameter, from `PASS_RUNNING_STATES`,
     // which is `runsPasses` as a value.
-    expect(ACTIVE_MAPPINGS_SQL).toMatch(/WHERE m\.status = ANY\(\$\d+::text\[\]\)/);
+    expect(ACTIVE_MAPPINGS_SQL).toMatch(/WHERE \(m\.status = ANY\(\$\d+::text\[\]\)/);
     expect(
       ACTIVE_MAPPINGS_SQL,
       "a literal status is back in the tick's WHERE clause",
     ).not.toMatch(/WHERE m\.status = '/);
+    // Beside the parameter, one state for a while (0128 T2): a cutover, only
+    // while its own ledger row says it still copies, by the shared SQL rule.
+    expect(ACTIVE_MAPPINGS_SQL).toMatch(
+      /OR \(m\.status = 'cutover'\s+AND EXISTS \(SELECT 1 FROM cutover_state c[\s\S]*?\(c\.copies_through_grace AND now\(\) < CASE c\.state/,
+    );
   });
 });

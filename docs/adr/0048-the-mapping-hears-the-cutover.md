@@ -2,7 +2,8 @@
 
 - **Status:** **Accepted 2026-09-19** — the owner's pick the evening ADR-0047 recorded the gap
   ("Go ahead with the CLI cutover row"); **built 2026-09-20** as `enterCutover` and `closeCutover`
-  in `@openmig/core`, the CLI over them, gated against a real ledger.
+  in `@openmig/core`, the CLI over them, gated against a real ledger. **Amended 2026-09-24**: the
+  grace period copies (workplan 0128 T2, the owner's D1 (a)); see the amendment at the end.
 - **Date:** 2026-09-19 (decided); 2026-09-20 (built)
 - **Deciders:** owner
 - **Relates to:** [ADR-0047](./0047-a-rollback-is-a-setback.md) (the rollback is the other half of
@@ -23,9 +24,16 @@
 
 - The cutover ledger's **`execute`** (APPROVED → CUTOVER_IN_PROGRESS) and **`complete`**
   (GRACE_PERIOD → COMPLETED) write `mailbox_mapping.status` as well as the ledger. A mapping that
-  is `active` or `paused` becomes **`cutover`**: no pass runs after it, and the source is no longer
-  the authority on what exists. `cutover`, `continuous` and `done` are left where they are —
-  `done` with a warning that a rollback will be refused for it.
+  is `active` or `paused` becomes **`cutover`**, and the source is no longer the authority on what
+  exists. `cutover`, `continuous` and `done` are left where they are — `done` with a warning that
+  a rollback will be refused for it.
+- **A migration that was `active` at `execute` keeps being copied until the grace period ends**
+  (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
+  slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is
+  mirrored, and no slot is held. Then no pass runs. One that was `paused` stays stopped. `execute`
+  records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
+  gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
+  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript.
 - The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
   the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
 - **The mapping first, the ledger second**, and every refusal before either write — the order
@@ -37,8 +45,8 @@
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
   lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
 - **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
-  what is unknown after a timeout, so no pass runs; `rollback` is the explicit undo and resumes the
-  sync.
+  what is unknown after a timeout, so no pass runs (FAILED is not a state that copies); `rollback`
+  is the explicit undo and resumes the sync.
 - The `run-cutover` job is prepare-only (it stops at READY_FOR_CUTOVER) and writes no lifecycle;
   the API executes no cutover. The operator CLI is the only executor, for both editions.
 
@@ -136,3 +144,51 @@ the way to a terminal state rather than left running behind it forever. Both liv
 - **A separate port per door.** Rejected: one `mappingLifecyclePort` with the door (`via`) named
   per write keeps one audit shape and one transaction helper; two ports would be two places to
   forget the record.
+
+## Amendment, 2026-09-24: the grace period copies
+
+Workplan 0128 asked whether the sync can stay operational after the cutover, and the owner
+answered D1 (a): *"bounded by the grace period, and slotless"*. Until then `execute` stopped every
+pass at once, while `cutover-state.ts` defined the grace period as *"Both systems active,
+monitoring for discrepancies"*. For those 72 hours, mail that still reached the old server while
+the MX record propagated was copied by nothing, and so was anything edited in the old account.
+
+**What changed.** From `execute` until the grace period ends, a migration that was `active` keeps
+being scheduled, and a pass already running keeps going. It runs as a `cutover` pass always did,
+after the cutover: the source is not the authority on what exists, so the deletion detectors are
+absent (0117 D4), and nothing is deleted on the target because it went at the source. `cutover`
+holds no slot (`holdsASlot`, ADR-0014), so the grace period adds no path to anyone's bill; what it
+copies joins the data meter, as every first copy does. When the window closes, passes stop, and
+the owner's own ending is still theirs: finishing, or the continuous lane.
+
+**The window** is read from the ledger row. In `GRACE_PERIOD` it ends `grace_period_hours` after
+`grace_period_started_at`. While `execute` still waits for the MX record (CUTOVER_IN_PROGRESS) it
+ends as long after the row entered that state (`updated_at`), so a cutover whose `execute` never
+finished cannot copy forever. COMPLETED, FAILED and ROLLED_BACK copy nothing. The answer depends
+on the time, so no status word can say it: `runsPassesNow(status, cutoverStillCopies)` joins
+`runsPasses`, and every gate that asked the status now asks it, in both editions: the managed
+tick's query, the pass's re-read between data types, and the appliance's startup scan, per-pass
+re-read and Sync now.
+
+**A paused migration stays stopped.** This decision's table moves `paused` to `cutover` too, so
+that Start cannot later resume it with the detectors present. Under D1 (a) alone, that migration
+would have started copying at `execute`: something the operator had stopped, restarted by a
+cutover. So `execute` decides, while it can still see the status the migration had, whether it
+copies through the grace period (`keepsCopyingThroughGrace`: true for `active` only), and records
+the answer on the ledger row in the same transition. A migration already `cutover` when `execute`
+runs copies nothing through the grace period either. That covers a cutover declared before
+`execute`, and a re-run of an `execute` whose first run moved the mapping and then failed before
+the ledger write: nothing here can tell those two apart, so the answer is the one that copies
+nothing nobody asked for. An owner who wants that migration copied after all has the continuous
+lane, which is entered from `cutover`.
+
+**Where it is said.** The `--yes` confirmation for `execute` now says, for this mapping, whether it
+keeps copying until the grace period ends or stays stopped. `status` prints until when a cutover
+still copies, from the ledger row. The Finish page's note for `cutover` said *"Still syncing until
+you finish it"*, which had been false since this decision; it now says what happens.
+
+Gates: `apps/worker/src/jobs/a-grace-period-that-copies.unit.test.ts` holds the SQL and the
+TypeScript to one answer over every cutover state, both answers of `execute` and both sides of
+the end. It drives the real `enterCutover` over the real store, and asks the tick's own query and
+the pass's own re-read. `apps/selfhost/src/a-grace-period-that-copies.unit.test.ts` boots the
+appliance in a grace period and presses Sync now on both sides of the end.

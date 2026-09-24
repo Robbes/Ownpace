@@ -1106,6 +1106,8 @@ export const cutoverState = pgTable(
     gracePeriodHours: integer('grace_period_hours').notNull().default(72),
     gracePeriodStartedAt: timestamp('grace_period_started_at', { withTimezone: true }),
     gracePeriodCompletedAt: timestamp('grace_period_completed_at', { withTimezone: true }),
+    /** Copied from execute until the grace period ends (0128 T2, migration 0064). */
+    copiesThroughGrace: boolean('copies_through_grace').notNull().default(false),
     targetMailServer: text('target_mail_server'),
     metadata: jsonb('metadata').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
