@@ -44,8 +44,9 @@ convention that is already half-abandoned.
 - **E2E** (on the self-hosted arm64 Spark): nightly black-box gates against a
   running self-host appliance (`e2e.yml`, both persistence backends) and the managed stack
   (`e2e-managed.yml`), a nightly soft lane against a target we do not host
-  (`e2e-live-target.yml`), and a dispatch-only run of the real SMB O365 source (read-only,
-  least-privilege) into a disposable target (`e2e-o365.yml`). See "CI mapping" below.
+  (`e2e-live-target.yml`), and a dispatch-only shadow read of the real SMB O365 source
+  (`e2e-o365.yml`): read-only, least-privilege, a dry run that lists what Graph returns and
+  writes to no target. See "CI mapping" below.
 
 ## Running tests locally
 
