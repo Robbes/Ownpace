@@ -4,6 +4,32 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, review fixes to the T1 build.** Same branch
+(`claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`), not merged.
+
+- **T2 (c)'s open half is now guarded.** The case read the fold before the answer arrived, when
+  it is open whatever the answer. It now waits for the query to succeed with `connection`. A
+  fold that closes on any answer turns three cases red.
+- **A subsection per card, now true and checked.** Google Calendar and Google Contacts had one
+  heading; each has its own id now (`google-calendar`, `google-contacts`). A case maps each source
+  card to its guide and holds that the card's id is a heading under `connect`; the IMAP card is
+  listed as pending until T4.
+- **The Microsoft registration for *Via the Graph API* and *Via IMAP*** moved out of the own-app
+  fold, to `{#application}` under `connect`. Those two cards always take the customer's own
+  registration, so a fold closed where the deployment carries Microsoft's app would hide it as
+  optional. This departs from T8's text, which puts both recipes in the `own-app` section: T8
+  (a) and (b) write them at `{#application}`.
+- **D2 in the Google guide.** The `invalid_grant` causes that only the app's owner can fix
+  (External and still in Testing, a deleted client) are now own-app causes; with this service's
+  app, a token that keeps dying is for whoever runs it.
+- **Smaller.** The Drive about-line names *the Test and save connections button* / *de knop
+  Verbindingen testen en bewaren*, and its guard now asks for that. The Apple guide no longer
+  says the password refusal names a page, and gives the export's download window as Apple's
+  "Available until" date, as the archive guide does. The glossary and the lint say a guide never
+  names the operator, and may say *whoever runs it*. Class 5's "the missing one listed" now has
+  its list: `TRANSLATION_PENDING` in `Docs.unit.test.tsx`, which names the six Dutch guides and
+  fails when one lands and is still listed.
+
 **2026-09-24, T1 in English, T2 (c) and T8 (c) built.** On branch
 `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, stacked on T6 (a)'s
 branch (the next note), not merged. The owner's D10 was committed to `main` after this branch was

@@ -55,7 +55,8 @@ of* it.
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`
-     and `docs/guides/en/`, updated together or the missing one listed. A
+     and `docs/guides/en/`, updated together or the missing one listed in
+     `TRANSLATION_PENDING` (`apps/web/src/pages/Docs.unit.test.tsx`). A
      guide missing in the reader's language is shown in the other one, under
      one line in the reader's own (`docs.otherLanguage`), with `lang` on the
      article;

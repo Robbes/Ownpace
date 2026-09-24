@@ -61,17 +61,17 @@ The one real advantage, and the reason this path is offered at all: **withdrawin
 
 If it is used, the daily download ceiling is **exactly the same** — Google enforces it on the IMAP endpoint, not on the credential — so nothing about throughput changes either way.
 
-### Google Calendar and Google Contacts {#google-calendar}
+### Google Calendar {#google-calendar}
 
-Google still speaks the protocols this product already implements — CalDAV for calendars, CardDAV for contacts — so these sources are the ordinary DAV connectors aimed at Google's endpoints, with one difference: **Google's DAV endpoints take OAuth only**, so requests carry a token minted from your refresh token instead of a password.
+Google still speaks the protocols this product already implements, so this source is the ordinary CalDAV connector aimed at Google's calendar endpoint, with one difference: **Google's DAV endpoints take OAuth only**, so requests carry a token minted from your refresh token instead of a password.
 
-Each product has its own scope, and the refresh token must be consented with it:
+The token must be consented with the calendar scope, `https://www.googleapis.com/auth/calendar`. A token consented for Drive, mail or contacts answers `invalid_scope` here. Google Tasks are not on Google's CalDAV: the **Google account** card reads them, with `https://www.googleapis.com/auth/tasks.readonly`.
 
-- Google Calendar: `https://www.googleapis.com/auth/calendar`
-- Google Contacts: `https://www.googleapis.com/auth/carddav`
-- Google Tasks: `https://www.googleapis.com/auth/tasks.readonly`, on the Google account card only
+### Google Contacts {#google-contacts}
 
-One consent CAN carry several scopes. A token consented for Drive or mail answers `invalid_scope` here.
+The same, for contacts: the ordinary CardDAV connector aimed at Google's contacts endpoint, which also takes OAuth only.
+
+The token must be consented with the contacts scope, `https://www.googleapis.com/auth/carddav`. A token consented for Drive, mail or calendars answers `invalid_scope` here. One consent can carry several scopes, which is what the **Google account** card asks for.
 
 ### Somebody else's account: send them a link {#grant-link}
 
@@ -130,13 +130,11 @@ That is why the measured Drive figure on a connection matches Google's own Googl
 - **`unauthorized_client`** with a service account key means step 3 of [domain-wide delegation](#domain-wide-delegation) is missing or lists the wrong scope — the error names the client id and scope to add. An `invalid_grant` there usually means the subject is not a user in the domain.
 - **`invalid_grant`**: the refresh token has died. **Treat the refresh token as a password.** It grants read access until it is revoked, and it does not expire on its own. It does die if:
 
-1. **the app is External and still in Testing** — Google expires the token after **seven days**, no matter how healthy everything else looks. Check this first: it is the only cause on this list that recurs, and the fix is one dropdown (publishing status → Production);
-2. the account's password changes;
-3. an admin revokes the app;
-4. the OAuth client is deleted;
-5. it goes six months unused.
+1. the account's password changes;
+2. the account's administrator removes the app's access;
+3. it goes six months unused.
 
-All five produce the same `invalid_grant` from Google, and the error message names them. Connect again to mint a new one.
+Each produces the same `invalid_grant` from Google, and the test's message lists these causes along with the two that concern the app, below. Connect again to mint a new one. Where this service's app is used and a new token keeps dying within days, that is the app, not the account: tell whoever runs it. With [your own app](#own-app), two more causes are yours to check, and the first recurs every week: the app is External and still in Testing (see [whose Google account is it?](#own-app-whose-account)), or its OAuth client was deleted.
 
 ## Stopping {#leaving}
 

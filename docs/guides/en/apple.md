@@ -72,7 +72,7 @@ From Apple's own request flow and its support page [HT102208](https://support.ap
 **Request a copy of your data** — the download. You tick categories, Apple verifies the request came from you, and then puts the files on your Data & Privacy page. Two clocks:
 
 - **up to seven days** to prepare, which is the verification period;
-- **fourteen days** to download once it is ready. After that Apple deletes it from that page and you request it again from scratch.
+- a download window that ends on the **"Available until"** date on your own request page. Use that date, not a number of days: the fourteen days often quoted did not match the one request we have watched ([the archive guide](archive.md#apple-deadline) has the detail). After that date Apple deletes it from that page and you request it again from scratch.
 
 The maximum file size is your choice — **1, 2, 5, 10 or 25 GB** — and Apple splits the data into parts no larger than that.
 
@@ -121,7 +121,7 @@ This product does not guess a server address or a provider's behaviour — it me
 
 ## When the test reports a problem {#when-test-says}
 
-If you type your account password by mistake, the connection test says so in these words rather than passing Apple's rejection through: it names this page and explains that the password is the wrong kind, not wrong. That sentence exists because Apple's own error (`AUTHENTICATIONFAILED`) tells you something true and useless. Make an [app-specific password](#app-password) and paste that instead.
+If you type your account password by mistake, the connection test says so in these words rather than passing Apple's rejection through: it explains that the password is the wrong kind, not wrong, and says where to make the right one. That sentence exists because Apple's own error (`AUTHENTICATIONFAILED`) tells you something true and useless. Make an [app-specific password](#app-password) and paste that instead.
 
 ## Stopping {#leaving}
 

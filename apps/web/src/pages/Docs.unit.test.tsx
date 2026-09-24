@@ -55,6 +55,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GRANT_PROVIDERS } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS, type Locale } from '../i18n/strings.ts';
+import { SOURCE_CARDS } from '../components/front-door-cards.ts';
 import Docs, { GUIDE_SLUGS, GuideArticle, guideTitle, pickGuide } from './Docs.tsx';
 
 /**
@@ -86,9 +87,12 @@ beforeEach(() => {
 });
 
 /** The page as the app mounts it: a query client, the real locale provider, a router. */
-function renderAt(path: string, locale: Locale = 'en') {
+function renderAt(
+  path: string,
+  locale: Locale = 'en',
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   window.localStorage.setItem('ownpace.locale', locale);
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <LocaleProvider>
@@ -478,9 +482,12 @@ describe('the own-app section follows what this deployment carries (0148 T2 (c))
       expect(providerClientsGet).toHaveBeenCalled();
       folded.unmount();
 
+      // The fold is open while the answer is loading, whatever it will be, so
+      // the check waits for the answer to arrive before reading the fold.
       providerClientsGet.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
-      const open = renderAt(`/docs/${provider}`);
-      await waitFor(() => expect(providerClientsGet).toHaveBeenCalledTimes(2));
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const open = renderAt(`/docs/${provider}`, 'en', client);
+      await waitFor(() => expect(client.getQueryState(['provider-clients'])?.status).toBe('success'));
       expect(open.container.querySelector('details')!.open).toBe(true);
       open.unmount();
     });
@@ -672,6 +679,67 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
     expect(ids.filter((id) => outline.includes(id)), key).toEqual(
       outline.filter((id) => id !== 'own-app' || ids.includes('own-app')),
     );
+  });
+
+  /**
+   * Each source card a served guide covers has a subsection of its own under
+   * `connect`, whose id is the card's id, so T4's per-card `guide` field and
+   * the checklist can link `google#google-contacts` rather than the family.
+   * The IMAP card's guide arrives with T4 and is listed here as pending.
+   */
+  const CARD_GUIDE: Record<string, string> = {
+    microsoft: 'microsoft',
+    oauth2: 'microsoft',
+    graph: 'microsoft',
+    google: 'google',
+    'google-drive': 'google',
+    gmail: 'google',
+    'google-calendar': 'google',
+    'google-contacts': 'google',
+    dropbox: 'dropbox',
+    box: 'box',
+    apple: 'apple',
+    archive: 'archive',
+  };
+  const CARD_GUIDE_PENDING = ['imap'];
+
+  it('every source card is either given its guide or listed as pending', () => {
+    expect(SOURCE_CARDS.map((card) => card.id).filter((id) => !CARD_GUIDE_PENDING.includes(id)).sort()).toEqual(
+      Object.keys(CARD_GUIDE).sort(),
+    );
+  });
+
+  it.each(SERVED)('%s: each card it covers has its own subsection under connect', (key) => {
+    const slug = key.split('/')[1]!.replace(/\.md$/, '');
+    const lines = linesOutsideFences(SOURCES[key]!);
+    const start = lines.findIndex((line) => /^## .*\{#connect\}\s*$/.test(line));
+    const end = lines.findIndex((line, i) => i > start && /^## /.test(line));
+    const ids = lines
+      .slice(start, end === -1 ? undefined : end)
+      .map((line) => /^#{3,4} .*\{#([\w-]+)\}\s*$/.exec(line)?.[1])
+      .filter((id): id is string => id !== undefined);
+    const cards = Object.entries(CARD_GUIDE)
+      .filter(([, guide]) => guide === slug)
+      .map(([card]) => card);
+
+    expect(start, `${key} has a connect section`).toBeGreaterThanOrEqual(0);
+    for (const card of cards) expect(ids, `${key} has {#${card}} under connect`).toContain(card);
+  });
+
+  /**
+   * `docs/i18n-prose-boundary.md` class 5: a guide is written in both
+   * languages, or the missing one is listed here. The Dutch guides are 0148
+   * T4's; the list shrinks as each lands, and a listed guide that exists fails,
+   * so the list cannot outlive the gap it names.
+   */
+  const TRANSLATION_PENDING: Record<Locale, readonly string[]> = {
+    nl: ['apple', 'archive', 'box', 'dropbox', 'google', 'microsoft'],
+    en: [],
+  };
+
+  it.each(['en', 'nl'] as const)('every guide is written in %s, or listed as pending', (locale) => {
+    const missing = [...GUIDE_SLUGS].filter((slug) => SOURCES[`${locale}/${slug}`] === undefined).sort();
+    expect(missing).toEqual([...TRANSLATION_PENDING[locale]].sort());
   });
 
   it('the served guides use each feature at least once, so the cases above are not passing on nothing', () => {

@@ -30,11 +30,15 @@ Test reads the consent back from Microsoft before it reaches anything, so the ba
 
 **Via IMAP** and **Via the Graph API** authenticate with your own registration under **application** permissions, granted by an administrator in your own tenant. That is what an administrator migrating other people's mailboxes needs, and the Microsoft 365 account card's delegated grant will never do it. The wizard asks for the mailbox address, under **Username**, and for the **Tenant ID**, the **Client ID (application ID)** and the **Client secret** of that registration.
 
-[With your own app](#own-app-application) says where the registration's steps for these two cards stand.
+[The registration these two cards need](#application) says where its steps stand.
 
 ### Via IMAP {#oauth2}
 
 The same registration and the same four fields as **Via the Graph API**; this card reads the mailbox over IMAP.
+
+### The registration these two cards need {#application}
+
+These two cards always take a registration of your own, whatever this service carries, so its steps sit here rather than under [With your own app](#own-app). They are being rewritten and will appear here; until then, the **Microsoft 365 account** card connects a person's own mailbox with **Connect with Microsoft**.
 
 ## What moves {#what-moves}
 
@@ -109,7 +113,3 @@ API permissions → Add a permission → **Microsoft Graph** → **Delegated per
 #### The client secret {#own-app-secret}
 
 Certificates & secrets → New client secret. Copy the **Value** immediately; Entra shows it once. The **Application (client) ID** on the Overview page is the other half. Enter both in **Use your own app registration**, and press **Connect with Microsoft**.
-
-### The Via the Graph API and Via IMAP cards {#own-app-application}
-
-The steps to register the application these two cards need are being rewritten and will appear here; until then, the **Microsoft 365 account** card connects a person's own mailbox with **Connect with Microsoft**.

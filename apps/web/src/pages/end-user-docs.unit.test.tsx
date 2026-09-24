@@ -172,7 +172,8 @@ const OPERATOR_MATERIAL = [
   {
     label: 'the operator',
     re: /\boperators?\b/i,
-    instead: 'Write "this service" ("deze dienst"): a customer guide never speaks of whoever runs it.',
+    instead:
+      'Write "this service" ("deze dienst"), and "whoever runs it" where the reader needs help: a customer guide never names the operator.',
   },
 ];
 
@@ -393,12 +394,14 @@ describe('no served guide carries the application-permission list being rewritte
  * command that proves them": a repository command, which is for whoever runs
  * the service (0148 T1). The button that checks the same three values against
  * Google is on the same screen, so the line names it, in each language by that
- * language's own label.
+ * language's own label and as a button, so the label does not read as a verb.
  */
 describe('the wizard names its own button, not a command', () => {
   it.each(['en', 'nl'] as const)('%s', (locale) => {
     const more = STRINGS[locale]['wizard.about.googleDrive.more'];
-    expect(more).toContain(STRINGS[locale]['wizard.testConnections']);
+    const label = STRINGS[locale]['wizard.testConnections'];
+    // Named as a control, so the label does not run into the verbs around it.
+    expect(more).toContain(locale === 'en' ? `the ${label} button` : `de knop ${label}`);
     expect(more).not.toMatch(/command|commando/i);
   });
 });

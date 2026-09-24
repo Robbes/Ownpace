@@ -1892,7 +1892,7 @@ const en = {
     'Enter its tenant ID, client ID and client secret below, with the mailbox address. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
   'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
   'wizard.about.googleDrive.more':
-    'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values, and Test and save connections checks them against Google before anything is copied.',
+    'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values, and the Test and save connections button checks them against Google before anything is copied.',
   'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
   'wizard.about.dropbox.more':
     'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; below it, the App secret goes in the client-secret field and the refresh token beside it.',
@@ -3731,7 +3731,7 @@ const nl: Record<keyof typeof en, string> = {
     'Vul hieronder de tenant-ID, client-ID en het clientgeheim in, samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
   'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
   'wizard.about.googleDrive.more':
-    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden, en Verbindingen testen en bewaren controleert ze bij Google voordat er iets wordt gekopieerd.',
+    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden, en de knop Verbindingen testen en bewaren controleert ze bij Google voordat er iets wordt gekopieerd.',
   'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
   'wizard.about.dropbox.more':
     'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; daaronder komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
