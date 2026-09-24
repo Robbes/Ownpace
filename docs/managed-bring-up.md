@@ -117,7 +117,7 @@ are **not** product-named and keep their names; nothing above touches them.
 **Host**
 
 - Linux with **Docker** and **Docker Compose v2** (`docker compose version`).
-- **Node 22+** and **pnpm** (the seed, the deploy CLI and the smoke run on the
+- **Node 24+** and **pnpm** (the seed, the deploy CLI and the smoke run on the
   host, not in a container).
 - `openssl`, `curl`, `git`.
 - **~15 GB free disk.** ClickHouse, MinIO, the Trigger.dev images, the task

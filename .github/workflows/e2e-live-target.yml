@@ -49,7 +49,7 @@ name: E2E (live target)
 
 on:
   schedule:
-    # 04:30 UTC — between e2e.yml's 03:30 (pglite) and e2e-managed's 05:30.
+    # 04:30 UTC — after e2e.yml's 23:30 (postgres) and 01:30 (pglite) and e2e-managed's 03:30.
     # This lane runs no Docker stack (node + IMAP + HTTPS only), so it is
     # light; the slot just keeps the Spark's log lines legible.
     - cron: '30 4 * * *'
@@ -68,7 +68,7 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
