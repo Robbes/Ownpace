@@ -40,7 +40,9 @@
   ADR-0047 set, for the same reason: the retryable write goes first, and CUTOVER_IN_PROGRESS beside
   a running mapping is the defect itself.
 - The mapping write is recorded in `audit_log` as `mapping.status` with **`via: 'cutover'`**, in
-  the same transaction as the row, by the same port the rollback writes through.
+  the same transaction as the row, by the same port the rollback writes through. **The mapping's
+  paths move with it in that transaction** (corrected 2026-09-24): `execute` and `complete`
+  release their slots, and a rollback takes them back, as the API's doors do (workplan 0109 T1b).
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
   lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
@@ -192,3 +194,19 @@ TypeScript to one answer over every cutover state, both answers of `execute` and
 the end. It drives the real `enterCutover` over the real store, and asks the tick's own query and
 the pass's own re-read. `apps/selfhost/src/a-grace-period-that-copies.unit.test.ts` boots the
 appliance in a grace period and presses Sync now on both sides of the end.
+
+## Correction, 2026-09-24: the paths move with the mapping
+
+The port this decision wrote through moved the mapping row and recorded it, and moved none of
+its path rows. The API's doors have moved them since workplan 0109 T1b, and ADR-0014 bills by
+them: a path in `cutover` holds no slot. So a cutover executed from the CLI kept every path
+`active` and its slot held, through the grace period and after, and a rollback after it left
+`cutover` rows beside an `active` mapping. Found while mapping workplan 0128 T3 and T4.
+
+`applyMappingStatusChange` now moves the included paths in the same transaction as the row and
+its record, by the one copy of the rule the API's helper uses too (`paths-follow-the-mapping.ts`
+in the ledger). The month's peak is the managed edition's table, which the ledger does not
+write: the API's doors record it as before, and entering the continuous lane now raises it too,
+since the lane takes back the slots a cutover released. A rollback through the CLI is trued up
+the next time the tier is read.
+

@@ -13,32 +13,26 @@
  * connection is what makes "same transaction" impossible to get wrong —
  * `recordMappingStatusChange` established the pattern.
  *
- * Two asymmetries are deliberate, both in the direction that cannot over-bill:
- *
- * - **`active` creates rows** (via `activate`, which stamps
- *   `first_activated_at` exactly once and clears `ended_at`); **every other
- *   state moves only rows that exist.** A pause pressed on a path that never
- *   ran must not conjure a slot-holding row for a path that never cost
- *   anything — absent means `ready`, and `ready` is free (T1a's rule).
- * - **Only `included` domains move.** A domain outside the scope selection is
- *   not a path at all, and this helper is one of the places that keeps that
- *   true at every press.
+ * The moving itself lives in the ledger since 2026-09-24
+ * (`paths-follow-the-mapping.ts`, with its two deliberate asymmetries), so the
+ * cutover CLI's and the rollback job's writes move the same rows by the same
+ * rule. What stays here is this edition's half: the month's peak.
  */
 
-import { and, eq } from 'drizzle-orm';
-import * as schema from '@openmig/ledger';
-import { PgPathLifecycleStore } from '@openmig/ledger';
+import { PgPathLifecycleStore, movePathsWithMapping as movePaths } from '@openmig/ledger';
 import { PgOccupancyPeakStore } from '@openmig/managed';
 import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
 import type { MappingStatus } from './mapping-status-audit.ts';
 
 /**
- * Move every included path of one mapping to follow a mapping-status change.
+ * Move every included path of one mapping to follow a mapping-status change,
+ * and raise the month's peak when that took slots.
  *
  * Call it inside the SAME transaction as the `mailbox_mapping.status` write,
- * after that write. The four mapping states map one-to-one onto ADR-0014's
- * path states of the same name; `ready` has no mapping spelling because it is
- * the state of never having moved at all.
+ * after that write. The moving is the ledger's (`movePathsWithMapping` there),
+ * the one copy the CLI's and the rollback job's writes use too; the peak is
+ * this edition's, and it rises on `active` and on `continuous`, which takes
+ * back the slots a cutover released (0117 D6).
  */
 export async function movePathsWithMapping(
   db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
@@ -46,50 +40,12 @@ export async function movePathsWithMapping(
   mappingId: string,
   to: MappingStatus,
 ): Promise<void> {
-  const included = await db
-    .select({ domain: schema.scopeSelection.domain })
-    .from(schema.scopeSelection)
-    .where(
-      and(
-        eq(schema.scopeSelection.tenantId, tenantId),
-        eq(schema.scopeSelection.mappingId, mappingId),
-        eq(schema.scopeSelection.included, true),
-      ),
-    );
-  if (included.length === 0) return;
-
-  const store = new PgPathLifecycleStore(db);
-
-  if (to === 'active') {
-    for (const { domain } of included) {
-      await store.activate(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain);
-    }
-    // The month's high-water mark rises with the slots just taken (0109 T2) —
-    // same transaction, so a committed activation cannot miss its peak. This
-    // file is the managed API's; the appliance never imports these routes,
-    // which is what lets a managed-chain table be written here (hard rule 5).
-    await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
-    return;
-  }
-
-  // Only rows that exist: a path that never activated has nothing to pause,
-  // cut over or finish, and creating one here would either hold a slot for a
-  // path that never ran (`paused`) or fabricate a history (`cutover`/`done`).
-  const existing = await db
-    .select({ domain: schema.pathLifecycle.domain })
-    .from(schema.pathLifecycle)
-    .where(
-      and(
-        eq(schema.pathLifecycle.tenantId, tenantId),
-        eq(schema.pathLifecycle.mappingId, mappingId),
-      ),
-    );
-  const moved = new Set(existing.map((r) => r.domain));
-  for (const { domain } of included) {
-    if (moved.has(domain)) {
-      await store.moveTo(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain, to);
-    }
-  }
+  const { slotsTaken } = await movePaths(db, tenantId, mappingId, to);
+  // The month's high-water mark rises with the slots just taken (0109 T2) —
+  // same transaction, so a committed activation cannot miss its peak. This
+  // file is the managed API's; the appliance never imports these routes,
+  // which is what lets a managed-chain table be written here (hard rule 5).
+  if (slotsTaken) await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
 }
 
 /**
