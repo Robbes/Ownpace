@@ -24,33 +24,62 @@ providers.
 T9** (§4). The rest follows the first invitation, and one of them, T5, comes due before a
 particular kind of tester is let in.
 
-Nothing is built. Four neighbouring fixes are in the pending consistency PR, and none is merged:
+Nothing is built. Four neighbouring fixes were drafted in the consistency PR, #1137, which
+merged on 2026-09-24:
 
 - a manual *Sync now* and a final pass carry the mapping's `concurrencyKey`;
 - `ThrottleLimiter`'s header stops advertising a global concurrency cap it does not have;
 - the pooler's comment in `managed.yml` gives the pool sizes a managed pass really opens;
 - `docs/performance.md` says which levers the code has already pulled.
 
-Each is marked "fixed in #1137 (pending merge)" where it comes up.
+Each was checked at `main` after the merge, and each is named where it comes up.
+
+**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137
+merged.** Testers use a second compose project, `ownpace-live`, at the production names, beside
+the OTA stack (`ownpace-managed`), which stays the nightly gate's target and the demo (0131 D3,
+0132 D7). Each stack has its own Trigger.dev plane (0132 T1c). So this plan sizes both stacks on
+the one machine (D6, §1). T1's caps are set for each stack, and its formula subtracts the other
+stack. T9 runs on the OTA stack, which has the demo servers that live never gets, with live
+standing beside it. T2d's runbook step is carried by 0142 T6. Checked again at the same time:
+T2d's step now stops a `continuous` migration by the lifecycle's own move rather than by
+`paused`, which the lifecycle refuses after a cutover (§3). T1's preset now names the tasks that
+copy or list. And the multi-connection `PgRateBudget` test that §1 called missing exists (0083).
 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2) | §3. **Alpha minimum.** An explicit preset, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. **T2d's built hold** comes after. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T2 What one organisation can make the machine do | 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
-| T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume that was left behind. |
+| T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
-| T9 One measured rehearsal of the alpha's shape | 📋 **Proposed** (the script); ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded. The numbers set T0's final values and the invite ceiling. |
+| T9 One measured rehearsal of the alpha's shape | 📋 **Proposed** (the script); ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
 | T10 What the providers let every tester do together | 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
 
 ## 1. What there is today
 
 Each fact below was checked at the current checkout on 2026-09-24. Where a fact rests on the review
 alone, or could not be checked from the repository, it says so.
+
+### Two stacks on one machine, once 0132 T1 lands
+
+- Today the reference machine runs one managed stack. `managed.yml` pins `name: ownpace-managed`
+  and gives 17 services a fixed `container_name`, so a second project cannot start yet (0132 §1
+  and T1).
+- Under 0132 D7, `ownpace-live` comes up beside it with its own Postgres, identity provider, API
+  and web app, and a Trigger.dev plane of its own (0132 T1b to T1d). 0132 T1c counts the cost: *"A
+  second ClickHouse, Redis, MinIO, registry and supervisor on the machine. 0143 sizes both stacks
+  together"*.
+- The same machine goes on running three other loads:
+  - the OTA stack, which the managed gate rebuilds from `main` with the demo every night
+    (`e2e-managed.yml`, `cron: '30 3 * * *'`);
+  - the appliance's nightly, which brings a full appliance stack up at 23:30 and 01:30 UTC
+    (`e2e.yml`, on `[self-hosted, linux, arm64]`);
+  - `ci.yml`'s and `security-scan.yml`'s jobs on a push to `main`, on the same self-hosted runner.
+- The owner reports that the machine has the room (D6). Nothing in the repository measures it.
 
 ### No task says which machine it needs, and nothing enforces one
 
@@ -79,13 +108,15 @@ alone, or could not be checked from the repository, it says so.
 - `run-delta-sync` runs on `queue({ name: 'delta-sync', concurrencyLimit: 1 })`, and the comment
   above it says the limit is *"partitioned by `concurrencyKey: mappingId`"*. That is one pass per
   migration, and it is not a cap on the machine. The tick sets the key (`concurrencyKey: row.id`
-  in `managed-sync-tick.ts`), and so does `/start`. The manual *Sync now* route does not set it on
-  main (`apps/api/src/routes/migrations/index.ts`, the `tasks.trigger` of the `/sync` route); that
-  is fixed in #1137 (pending merge). `run-discovery` has the same shape per migration.
+  in `managed-sync-tick.ts`), and so do `/start` and the manual *Sync now* route, which is also
+  the final pass before a cutover (`apps/api/src/routes/migrations/index.ts`). *Sync now* has set
+  it since #1137 (merged 2026-09-24). `run-cutover.ts` passes `concurrencyKey: mappingId` to the
+  final sync it starts. `run-discovery` has the same shape per migration.
 - So the number of passes running at once is the number of migrations that are due. The tick's
   `ENQUEUE_CONCURRENCY = 8` limits how many enqueue calls it makes in parallel, not how many runs
-  execute. Nothing in the tick counts what is already running, except while an operator hold is
-  open, when it counts to report the drain.
+  execute. The tick looks at what is already running only per migration (`running` in
+  `ACTIVE_MAPPINGS_SQL`, counted as `skippedRunning`). It counts the total only while an operator
+  hold is open, to report the drain.
 - The tick decides that a migration is due from its newest run row's `started_at`
   (`ACTIVE_MAPPINGS_SQL`). A run row is opened when the pass starts (`run-delta-sync.ts`, *"Open
   the run-ledger row up front"*). A run that is waiting in the plane's queue therefore has no run
@@ -97,9 +128,10 @@ alone, or could not be checked from the repository, it says so.
 - The architecture document states the intent and nothing enforces it:
   *"per-tenant workspace/namespace, secret scope, concurrency/rate budget"* (§16), and *"Per
   tenant a small concurrency (3-5 parallel mailbox syncs) suffices"* (§21).
-- `ThrottleLimiter`'s header in `packages/shared/src/throttling.ts` lists a *"Global concurrency
-  cap"*. That limiter paces requests inside one pass; it does not cap passes. The header is fixed
-  in #1137 (pending merge).
+- `ThrottleLimiter` paces requests inside one pass; it does not cap passes. Since #1137 (merged
+  2026-09-24) its header in `packages/shared/src/throttling.ts` says so: *"Concurrency cap per
+  limiter instance (one per pass/process — NOT service-wide; the shared, cross-process limit is the
+  RateBudget)"*.
 
 ### What one pass holds in memory
 
@@ -124,8 +156,9 @@ alone, or could not be checked from the repository, it says so.
   `describeCronScheduleProblem` (`packages/shared/src/cron-schedule.ts`) checks syntax only.
   `* * * * *` is accepted, and it asks for a pass (a container) every minute. The wizard offers
   four cadences, hourly, daily, six-hourly and every 15 minutes (`CreateMapping.tsx`), and sends
-  `0 2 * * *` when none is picked. The tick's fallback for a migration without a schedule is
-  `*/15 * * * *` (`DEFAULT_SYNC_SCHEDULE`, `packages/orchestration/src/sync-due.ts`). The update
+  `0 2 * * *` when none is picked. The tick's fallback for a migration without a schedule is every
+  15 minutes, at a minute offset of its own (`defaultScheduleFor`, beside
+  `DEFAULT_SYNC_SCHEDULE = '*/15 * * * *'` in `packages/orchestration/src/sync-due.ts`). The update
   route does not write a schedule, so the cadence is fixed at creation.
 - **Throttle.** The create route accepts `throttleConfig: z.record(z.string(), z.unknown())` and
   stores it through `parseThrottleConfig` (`packages/shared/src/config.ts`), which checks only that
@@ -134,9 +167,11 @@ alone, or could not be checked from the repository, it says so.
   (`tenantThrottleLimiter` in `build-deps-from-mapping.ts`). `downloadBytesPerDay` replaces the
   Gmail ceiling in `imapDownloadPlan` (`packages/shared/src/rate-budget.ts`). A value above
   2 500 000 000 raises Gmail's ceiling, and a value of 0 or below makes `imapDownloadPlan` return
-  no meter at all. That second effect was not in the review; it follows from `ceiling > 0` in the
-  same function. The web app never sends `throttleConfig`, so only a hand-made request can set
-  it.
+  no meter at all (`ceiling > 0` in the same function). That second effect was not in the review.
+  It is deliberate for a server with no ceiling of its own: `byte-budget.unit.test.ts` asserts that
+  a nonsense value reads as *"no meter, never as a zero ceiling"*, for another host. For
+  `imap.gmail.com` it switches Gmail's own ceiling off as well, and no test covers that case. The
+  web app never sends `throttleConfig`, so only a hand-made request can set it.
 - **Stopping one organisation.** The operator hold (managed migration 0023, `platform_pause`) stops
   every organisation at once: the tick reads it (`readOpenPause`) and starts nothing. There is no
   hold for one organisation. The support routes have one write, the member-opened mark. An
@@ -148,7 +183,8 @@ alone, or could not be checked from the repository, it says so.
   organisation applies to it.
 - **The admission gate is the owner.** Every organisation is made by a grant in the access queue
   (0131 §1). The request form asks *"What are you moving?"* with the hint *"Roughly how many
-  mailboxes, and from where"* (`access.note`, `access.noteHint`). It does not ask how large.
+  mailboxes, and from where"* (`access.note`, `access.noteHint`), and *"Which package looks
+  right?"* (`access.tier`). Neither asks how many GB there are, or how large the largest file is.
 
 ### A streamed file never reaches a JMAP target
 
@@ -188,8 +224,8 @@ streaming body, `Content-Length` from the body's size, and one hasher per attemp
   migration is enqueued again about an hour after the kill.
 - Failures are counted per item, up to `MAX_ITEM_ATTEMPTS = 5` (`packages/shared/src/ports.ts`). A
   killed pass records no failure, so a file that cannot finish inside one pass is attempted again
-  on every pass, from byte 0. It never reaches the attempt ceiling, and the rest of its folder
-  behind it waits too.
+  on every pass, from byte 0. It never reaches the attempt ceiling, and every pass of its
+  migration that reaches it ends in the runner's kill.
 - Nothing states a largest file. The only large-file fixture is 32 MB (0120 T6), and
   `pass-deadline.ts` says of its own number: *"Nobody here has yet watched a real 100 GB copy
   against a slow target"*.
@@ -247,12 +283,15 @@ machine.
   §1: the invoice route answers `409 billing_model_retired`). So no run row is pruned for any
   organisation on managed. `run_event` (60 days) and `app_event` (30 days) are pruned regardless.
 - **The task plane.** `managed.yml` sets no retention for the Trigger.dev database, ClickHouse's
-  task events, MinIO's payloads or the task registry. A search for `ttl` or `retention` finds only
+  task events, MinIO's payloads or the task registry. The only retention setting it names is
   `BACKUP_RETENTION_DAYS`. Nothing in `deploy/` or `scripts/` garbage-collects the registry or
-  prunes images. The tick alone is a Trigger.dev run every minute, so 1 440 run records a day
-  before a single pass. `clickhouse-disable-system-logs.xml` switches off ClickHouse's own log
-  tables. `managed.yml` says the old `clickhouse_data` volume *"remains on disk until somebody
-  deliberately removes it"*.
+  prunes images. The tick alone is a Trigger.dev run every minute, so 1 440 run records a day on
+  each plane before a single pass; with live beside the OTA stack there are two planes.
+  `clickhouse-disable-system-logs.xml` switches off ClickHouse's own log tables. `managed.yml`
+  says the old `clickhouse_data` volume *"remains on disk until somebody deliberately removes
+  it"*. That leftover is the OTA stack's; live starts on the current volume.
+- **Two of everything.** The bring-up's *"~15 GB free disk"* is for one stack. Live adds its own
+  images, database, ClickHouse, MinIO and registry (0132 T1c).
 - The Trigger.dev database dumps of `trigger-version.sh drill` are bounded to the newest seven
   (`TRIGGER_BACKUP_KEEP`, default 7).
 - 0099 records the cost of getting this wrong on the same machine: *"the second disk leak on that
@@ -261,19 +300,23 @@ machine.
 ### Nothing has been measured
 
 - `docs/performance.md` has one measurement, the PGlite ledger bench (*"Real throughput is ~270
-  items/s"*). Its lever list is brought up to date in #1137 (pending merge). It has no managed
-  figure.
+  items/s"*). Its lever list has been up to date since #1137 (merged 2026-09-24). It has no
+  managed figure.
 - 0082 names three missing measurements. The tick logging its own duration is done: the summary's
-  `ms`, and the warning at 30 s in `managed-sync-tick.ts`. `pg_stat_statements` is still missing:
+  `ms`, and the warning at 30 s in `managed-sync-tick.ts`. The multi-connection `PgRateBudget`
+  test is done too: `packages/ledger/src/pg-rate-budget.integration.test.ts`, *"PgRateBudget under
+  real concurrency"*, cites 0083 and 0082 T5. `pg_stat_statements` is still missing:
   `managed.yml`'s `postgres` service has no `command` and no `shared_preload_libraries`, and 0083
-  lists it as not done. The multi-connection `PgRateBudget` test is still missing too.
+  lists it as not done.
 - 0084 on the managed gate: *"Not a performance test. It proves the stack works, not that it is
   fast."* The only soak is the O365 24-hour option, which is dispatched by hand
   (`e2e-o365.yml`, `soak_test_24h`).
 - The pooler: transaction mode, `default_pool_size = 25`, `reserve_pool_size = 5`,
   `max_client_conn = 500`, `query_wait_timeout = 120` (`deploy/compose/pgbouncer/pgbouncer.ini`).
-  That the timeout is a wait for a connection, not a limit on a statement, is what the file's
-  comment says once #1137 is merged: fixed in #1137 (pending merge).
+  Since #1137 (merged 2026-09-24) the file's comment says the timeout is a wait for a connection,
+  *"not a statement timeout"*. The pooler's reason in `managed.yml` now says a pass opens *"the
+  job's own plus one per domain"* pool, so the ceiling without pooling is *"concurrent-passes times
+  up to twenty"* connections.
 
 ### The providers' quotas are shared, and some faces do not wait out a 429
 
@@ -291,8 +334,8 @@ machine.
 
 ## 2. The owner's decisions (2026-09-24)
 
-Each gives the question in plain words and the answer as given, typos included, read the way 0131
-reads them.
+Each gives the question in plain words and the answer as given, typos included. Where an answer
+needed a reading, the reading is the one 0131 states, and it is repeated here.
 
 **D1 — the size and length of the alpha.** *Is the test free or paid, for how many people, for
 how long, and in which language?* — *"Free and invite only. 10 to 20 people max. Dutch."* On the
@@ -303,12 +346,15 @@ The first copy is the expensive part. The architecture document says so (*"The *
 is the initial copy**"*, §21), and the Gmail table in §1 shows it.
 
 **D2 — where it runs.** *Where do testers run, and under which host names?* — *"This machine, ci
-states. The OTA address. It's all controlled by me and invite only."* On a tester stack separate
-from CI: *"Yes, but its a controlled rest. I Let people in and support them. Max 10/20 people"*.
+states. The OTA address. It's all controlled by me and invite only."* ("ci states" is read as "CI
+stays".) On a tester stack separate from CI: *"Yes, but its a controlled rest. I Let people in and
+support them. Max 10/20 people"* ("rest" is read as "test").
 
-So the envelope has to leave room for what else the machine runs. That means CI on a push to
-`main`, and the appliance's nightly, which brings a full stack up beside the alpha twice a night
-(0132 T1). The alpha's passes get what is left.
+So the alpha runs on the reference machine, and CI stays on it. D6 later put testers on a second
+stack beside the OTA stack, at the production names rather than the OTA address. The envelope has
+to leave room for everything else the machine runs (§1): the OTA stack and its nightly gate, the
+appliance's nightly twice a night (`e2e.yml`), and CI on a push to `main`. Live's passes get what
+is left.
 
 **D3 — the owner is the gate.** *What may a member and a viewer do, and should only owners and
 admins invite?* — *"I am the gate for letting people in the test."*
@@ -321,17 +367,29 @@ see: what an organisation does once it is in (T2).
 backups kept?* — *"None during the test"*. On the missing database backup: *"No obligations during
 controlled test"*.
 
-So the disk needs no room for dumps of the application database during the alpha. 0134 carries
+So the disk needs no room for a schedule of application-database dumps during the alpha. The one
+dump 0132 T6 keeps across a deploy, if the owner wants a way back, is the exception. 0134 carries
 the rest. What the rehearsal (T9) writes does not have to survive it.
 
 **D5 — who runs what on the machine.** *If the current stack is reused, its demo secrets must be
-rotated.* — *"Who would
-need/het credentials? I aupporrthe test. No one will be added to NetBird network. Devs need to
-setup own private test/dev environments. GitHub PRs and git is the bridge."*
+rotated.* — *"Who would need/het credentials? I aupporrthe test. No one will be added to NetBird
+network. Devs need to setup own private test/dev environments. GitHub PRs and git is the
+bridge."* ("het" is read as "get", and "aupporrthe" as "support the".)
 
 So the rehearsal is the owner's sitting, and the figures that count are the ones from the
 reference machine. The rehearsal script must also run on any managed stack, so that a developer
 can try a change to the caps on their own environment before the pull request.
+
+**D6 — `ownpace-live` beside the OTA stack (0132 D7, which the sibling plans cite as 0132
+D-new).** Later the same day the owner asked: *"check, can't i just (as a start) host a
+'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain? What would i
+need to do to keep alle seperate from each other?"* ("alle seperate" is read as "all separate".)
+Asked whether to make that the decision, with testers on `ownpace-live`: *"Yes! The spark has a
+lot free memory and disk, it will fit."*
+
+So two managed stacks share the machine, each with its own Trigger.dev plane, and this plan sizes
+both. "It will fit" is the owner's report. T9 is where it is measured, and T0's final numbers come
+from that measurement.
 
 ## 3. What each task does
 
@@ -349,8 +407,10 @@ Five numbers, provisional before T9 and final after it, written in this block wi
 5. **Invitations** (§4): how many at once, and in how many waves, up to D1's 20.
 
 For the first number, the provisional value comes from the formula in T1. The owner reads the
-machine's memory (`free -g`) and what the stack already uses (`docker stats --no-stream`) and
-applies it. No figure about the machine goes into this repository beyond what T9 records.
+machine's memory (`free -g`) and what both stacks already use (`docker stats --no-stream`) and
+applies it. The first two numbers are live's. The OTA stack gets its own, small ones, because its
+passes are the demo's and the gate's (T1). No figure about the machine goes into this repository
+beyond what T9 records.
 
 ### T1 — every task names its machine, and the tick knows the box's size
 
@@ -368,15 +428,20 @@ applies it. No figure about the machine goes into this repository beyond what T9
   v4.5.16 here.
 - Read whether the plane's environment concurrency limit can be set and read back on a
   self-hosted plane.
+- Read whether a run that waits on another keeps its container while it waits. `run-cutover`
+  starts the final sync with `runDeltaSync.triggerAndWait`, so a cutover may hold a container of
+  its own beside the pass it waits for.
 
 The answers are written in this block.
 
 **Step 2, the preset.**
 
 - `trigger.config.ts` gets an explicit default `machine`, so no task runs on a preset nobody chose.
-- `run-delta-sync` and `run-cutover` get their own, because they are the tasks that run a copy
-  pass. The size is the smallest preset whose memory covers the worst case, which is written
-  beside it:
+- `run-delta-sync` gets its own, because it is the task that runs a copy pass: the tick's, *Sync
+  now*'s, `/start`'s and a cutover's final sync alike. `run-discovery` gets one too, because it
+  lists everything a migration holds. `run-cutover` itself copies nothing and waits for the pass
+  it started, so the default serves it. The pass preset is the smallest whose memory covers the
+  worst case, which is written beside it:
   - four mail bodies in flight, held whole;
   - a folder's listing;
   - buffered files up to 8 MB, three copies each, four at a time;
@@ -400,11 +465,13 @@ The answers are written in this block.
 - The rest are counted in the summary as `heldForCapacity`, beside `heldBack` and
   `skippedRunning`. One log line names the count, not the migrations.
 - Both numbers are task-environment settings, uploaded by `set-task-env.sh` like
-  `LEDGER_RUN_RETENTION_DAYS`. `managed.env.example` gives the formula:
+  `LEDGER_RUN_RETENTION_DAYS`. Each stack uploads its own from its own checkout, because each has
+  its own plane (0132 T1c). Each tick counts only its own stack's runs, so the two values together
+  must fit the machine. `managed.env.example` gives the formula for live:
 
-  > passes in flight = (host memory − the stack's resident services − the appliance nightly's
-  > stack, 0132 T1 − 20% headroom) ÷ the pass preset's memory, or ÷ T9's measured peak when the
-  > supervisor does not enforce the preset.
+  > live's passes in flight = (host memory − both stacks' resident services − the OTA stack's
+  > passes at its own cap − the appliance nightly's stack (`e2e.yml`) − 20% headroom) ÷ the pass
+  > preset's memory, or ÷ T9's measured peak when the supervisor does not enforce the preset.
 
 **Why the tick and not only the plane.** A run waiting in the plane's queue has no run row, so
 the tick queues its migration again every minute (§1). If step 1 finds the plane's environment
