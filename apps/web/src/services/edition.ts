@@ -16,7 +16,9 @@
  *    a login here instead would be security theatre: a password to lose in
  *    front of a port nobody else can reach. The one caller the bind cannot keep
  *    out, a page on another site in the owner's own browser, is refused by the
- *    appliance when it tries to change anything (`apps/selfhost/src/cross-site.ts`).
+ *    appliance when it tries to change anything (`apps/selfhost/src/cross-site.ts`),
+ *    and when it points a name of its own at this machine to read as well
+ *    (`apps/selfhost/src/host-allowlist.ts`).
  *
  * Build-time rather than runtime because it decides whether auth exists at all,
  * and a value the page could talk itself out of is not a boundary.

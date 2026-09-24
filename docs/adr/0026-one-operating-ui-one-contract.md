@@ -109,6 +109,11 @@ part that matters.
   is refused before any route runs (`apps/selfhost/src/cross-site.ts`). No
   login was added: the appliance's own screens are same-origin, and a script
   sends no such mark.
+  *2026-09-24, later (the owner: "add a Host allowlist"):* nor can a page make
+  itself the appliance's own site by pointing a name it controls at this
+  machine. The appliance answers only to its IP addresses, `localhost` and the
+  names in `SELFHOST_ALLOWED_HOSTS`, and refuses any other `Host` before any
+  route runs, reads included (`apps/selfhost/src/host-allowlist.ts`).
 - **Which navigation exists.** Tenants and billing are managed concepts and are
   hidden rather than shown broken.
 

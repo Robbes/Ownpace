@@ -22,9 +22,10 @@
  * already the browser's to refuse.
  *
  * What this does not stop is a page that makes itself this appliance's own
- * site, by pointing a name it controls at this machine (DNS rebinding). That
- * needs the appliance to know the names it answers to, which changes how it is
- * reached, and is the owner's decision.
+ * site, by pointing a name it controls at this machine (DNS rebinding): to the
+ * browser that page IS this site, so its writes carry no cross-site mark.
+ * `host-allowlist.ts` stops that one, by the name the request asks for (the
+ * owner, 2026-09-24: "add a Host allowlist").
  */
 
 /** Methods that change nothing: these pass whatever site asked. */
