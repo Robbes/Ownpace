@@ -73,7 +73,8 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   carddav: { driven: 'e2e.yml — Nextcloud contacts, same pass' },
   webdav: { driven: 'e2e.yml — Nextcloud files, same pass' },
   // THE O365 HARNESS HAS NEVER RUN. e2e-o365.yml is workflow_dispatch-only and
-  // has ZERO runs in its lifetime; the suite it invokes skips silently unless
+  // has never executed: its only two dispatches (2026-09-06) were cancelled
+  // before any runner took them; the suite it invokes skips silently unless
   // O365_CLIENT_ID and O365_TENANT_ID are set, so even a run without them
   // would report pass having executed nothing. It was recorded here as
   // `driven` on first writing — the exact laundering of an appearance into an

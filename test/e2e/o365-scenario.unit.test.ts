@@ -9,6 +9,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 import {
   decodeJwtToken,
   isTokenReadOnly,
@@ -685,5 +689,58 @@ describe('Comprehensive O365 Scenario (Mocked)', () => {
     }
     
     expect(wouldCreate).toBe(0);
+  });
+});
+
+// ============================================================================
+// The workflow that runs the suite, and the names it sets
+// ============================================================================
+
+/**
+ * `e2e-o365.yml` hands the suite its switches as environment variables, and a
+ * variable set under one name and read under another is a switch wired to
+ * nothing. Until 2026-09-24 the soak input set `SOAKE_TEST_24H` while the suite
+ * read `SOAK_TEST_24H`, so ticking "Enable the 24h soak variant" on a dispatch
+ * could never enable it — and nothing said so, because a soak that is not
+ * enabled is a skip, and a skip is green.
+ */
+describe('e2e-o365.yml sets what the O365 suite reads', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const workflowEnv = Object.keys(
+    (parseYaml(readFileSync(join(here, '../../.github/workflows/e2e-o365.yml'), 'utf8')) as {
+      env?: Record<string, unknown>;
+    }).env ?? {},
+  );
+  const suiteReads = [
+    ...new Set(
+      [...readFileSync(join(here, 'o365-scenario.e2e.test.ts'), 'utf8').matchAll(/process\.env\.([A-Z0-9_]+)/g)].map(
+        (m) => m[1]!,
+      ),
+    ),
+  ];
+
+  /**
+   * Read by the suite and deliberately NOT set by the workflow: the dispatch
+   * offers no duration, so a workflow soak is always the 24 h default. It is a
+   * knob for a hand run, and it carries the switch's own prefix so that somebody
+   * who knows `SOAK_TEST_24H` can guess it (it was `SOAKE_DURATION_MS`).
+   */
+  const HAND_RUN_ONLY = ['SOAK_DURATION_MS'];
+
+  it('found both sides', () => {
+    // Vacuity guard: an empty env block, or a suite that reads its variables
+    // some other way, would make both checks below pass on nothing.
+    expect(workflowEnv.length, 'no top-level env read from e2e-o365.yml').toBeGreaterThan(5);
+    expect(suiteReads.length, 'no process.env reads found in o365-scenario.e2e.test.ts').toBeGreaterThan(5);
+  });
+
+  it('every variable the workflow sets is one the suite reads, by that exact name', () => {
+    const unread = workflowEnv.filter((name) => !suiteReads.includes(name));
+    expect(unread, `set by e2e-o365.yml and read by nothing in the suite: ${unread.join(', ')}`).toEqual([]);
+  });
+
+  it('every variable the suite reads is one the workflow sets, or a named hand-run knob', () => {
+    const unset = suiteReads.filter((name) => !workflowEnv.includes(name) && !HAND_RUN_ONLY.includes(name));
+    expect(unset, `read by the suite and set by nothing: ${unset.join(', ')}`).toEqual([]);
   });
 });

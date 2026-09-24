@@ -153,7 +153,7 @@ describe('O365 End-to-End Scenario', () => {
 
   describe('24h Soak Test Variant', () => {
     const soakEnabled = process.env.SOAK_TEST_24H === 'true';
-    const soakDuration = parseInt(process.env.SOAKE_DURATION_MS || '86400000', 10); // Default 24h
+    const soakDuration = parseInt(process.env.SOAK_DURATION_MS || '86400000', 10); // Default 24h
 
     if (soakEnabled && !skipE2E) {
       it('should run 24h soak test', async () => {
