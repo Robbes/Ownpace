@@ -2,16 +2,17 @@
 
 # `site/legal/` — the published legal surface
 
-Source of truth for the documents the managed service publishes. Markdown here, rendered into
-the public site by [`site/build.mjs`](../build.mjs)
-([workplan 0091](../../docs/workplans/0091-the-names-on-one-box.md) T2). They live outside every
-workspace package for the same reason `site/prices.mjs` does — nothing in `apps/` or `packages/`
-may import them, and nothing here may import anything.
+Source of truth for the documents the managed service publishes. Markdown here, rendered in
+both languages into the public site by [`site/build.mjs`](../build.mjs)
+([workplan 0091](../../docs/workplans/0091-the-names-on-one-box.md) T2), whose `--public` build
+refuses while any placeholder below is unfilled. They live outside every workspace package for
+the same reason `site/prices.mjs` does — nothing in `apps/` or `packages/` may import them, and
+nothing here may import anything.
 
 | File | Published at | Required by |
 |---|---|---|
-| [`privacy.md`](./privacy.md) | `https://ownpace.eu/privacy` | GDPR; Google OAuth verification; Mollie onboarding |
-| [`terms.md`](./terms.md) | `https://ownpace.eu/terms` | Taking money; Google OAuth verification |
+| [`privacy.md`](./privacy.md) | `https://www.ownpace.eu/privacy.html` (Dutch: `/nl/privacy.html`) | GDPR; Google OAuth verification; Mollie onboarding |
+| [`terms.md`](./terms.md) | `https://www.ownpace.eu/terms.html` (Dutch: `/nl/voorwaarden.html`) | Taking money; Google OAuth verification |
 
 **Support address: `support@ownpace.eu`.** It appears in both documents and must appear on the
 front door and in the Google consent-screen configuration. Google's verification requires a
