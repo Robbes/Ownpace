@@ -4528,6 +4528,58 @@ paths:
                     items: { $ref: '#/components/schemas/SupportRetainedInvoice' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/support/audit-export:
+    get:
+      tags: [Support]
+      summary: The audit export's lines, for the operator to backfill a log store
+      description: |
+        Workplan 0129 T4, the managed half (the owner, 2026-09-24: "an
+        operator-only route using your own session"). The lines this
+        deployment's processes print as each audit event commits, read back
+        from the audit log after a cursor, oldest first: OpenTelemetry's log
+        data model, one JSON line per event, addresses and file names as
+        pseudonyms under this deployment's own key, and a detail field nobody
+        classified left out. The appliance's `GET /audit-export`, with the same
+        rules for `after` and `limit`.
+
+        Only events that have settled are served (five minutes): a row's time
+        is its transaction's start, so the newest are the stream's.
+
+        The rows are read through `support_audit_export` (managed migration
+        0026), whose operator predicate is every support view's, so a
+        non-operator gets `200` with nothing. Every page an operator is served
+        is recorded in the support read log (`audit_export`) with where it
+        started and how many lines it served, in the transaction that read it,
+        before the lines are sent. The Support log page's **Audit export**
+        fetches every page on the operator's own session and saves them as
+        one file.
+      parameters:
+        - name: after
+          in: query
+          schema: { type: string, pattern: '^\\s*\\d{1,20}-[0-9a-fA-F-]{36}\\s*$' }
+          description: Start after this line, as `Ownpace-Next-After` gives it (its `Timestamp` and `ownpace.audit.id`, joined by a hyphen). From the first when absent.
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1000 }
+      responses:
+        '200':
+          description: One page of lines, oldest first.
+          headers:
+            Ownpace-Next-After:
+              schema: { type: string }
+              description: Where the next page starts; the cursor sent, unchanged, when nothing followed it.
+            Ownpace-Caught-Up:
+              schema: { type: string, enum: ['true', 'false'] }
+              description: '`true` when this page was the last.'
+          content:
+            application/x-ndjson:
+              schema: { type: string }
+        '400':
+          description: A cursor or a page size that is not one, named in `field`.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500':
+          description: Ours; nothing was sent, and nothing recorded as sent.
+
   /api/support/log:
     get:
       tags: [Support]

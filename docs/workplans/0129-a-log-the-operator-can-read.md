@@ -106,12 +106,49 @@ boundary. Guards: `a-download-that-resumes` in shared (11), ledger (7) and selfh
 mutations, all killed. The managed download waits on the owner: how a log shipper signs in (the
 managed API accepts a person's sign-in only).
 
+**2026-09-24, T4 on managed: the operator's download (D4; the owner, the same day: "an
+operator-only route using your own session").** `GET /api/support/audit-export` serves an
+operator the lines the appliance's download serves: read back from the audit log after a cursor,
+oldest first, with the same key and pseudonyms, and with `Ownpace-Next-After` and
+`Ownpace-Caught-Up` as on the appliance. The managed API accepts a person's sign-in only, so a log
+store cannot fetch it by itself. Under Support, **The log** ends with **Audit export**, which
+fetches page after page on the operator's own session and saves one file of lines. The field then
+holds where the next download starts.
+
+The rows come through `support_audit_export` (managed migration 0026), behind the
+`platform_operator` predicate every support view carries. The alternative was reading each
+organisation under its own policy, with a tenant set for customers the operator does not belong
+to, which `withSubjectAndTenant` says not to do. So a signed-in person who is not an operator gets
+an empty page, and one query serves every customer in the cursor's order. It is the one support
+view that selects `detail`, because the line is made from the whole row. A guard holds it to one
+reader, the download, which makes every row a line.
+
+It is SELECT only. A surviving mutation found why that needs saying: a view over one table is one
+Postgres writes through, past the table's row security, and the schema's default privileges hand
+`app_user` INSERT, UPDATE and DELETE on it. Six older support views have the same shape and are
+their own fix, next.
+
+Each page served is recorded in `support_read` as one read of every customer (`audit_export`, with
+where it started and how many lines it served), in the transaction that read it. A page that
+cannot be recorded, or whose key cannot be read, is not sent. The key is read on the owner's
+connection the API's own stream uses. `after` and `limit` are read by one set of rules in shared
+(`parseAuditExportQuery`, which the appliance now uses too), and the page by one query in ledger
+(`auditExportPageQuery`), so both editions settle, order and resume alike. The API names the two
+headers to CORS, for a web deployed on its own origin.
+
+Guards: `support-audit-export` (9) and `audit-key` (4) in the API; `a-page-of-the-audit-export`
+(4) and `AuditExportDownload` (4) in the web; `support-read-log` (+1) and `support-views` (+2) in
+managed; `a-download-that-resumes` in shared (+4); `every-audit-field-is-classified` (+1, and
+the key's wiring). 50 mutations, 49 killed. The survivor removes the view's `GRANT SELECT`, which
+PGlite's default privileges already give: 0011 found production does not, and the guard that
+holds every support view to its grant comes with the fix for the six.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | ✅ **Built 2026-09-23, both editions** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable: under Support on managed, **Log** on the appliance. |
 | T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
-| T4 The audit export: one JSON line per event, and a download that resumes | 🟡 **The line built; the appliance's download built 2026-09-24** (D4, D5) | §3. OpenTelemetry field names, to stdout, pseudonyms by default: built. The download with a cursor: built on the appliance; managed waits on how a log shipper signs in. |
+| T4 The audit export: one JSON line per event, and a download that resumes | ✅ **Built 2026-09-24, both editions** (D4, D5; the owner the same day: "an operator-only route using your own session") | §3. OpenTelemetry field names, to stdout, pseudonyms by default. The download with a cursor: `GET /audit-export` on the appliance; on managed an operator-only route on the operator's own session, with **Audit export** on the Support log page. |
 
 ## 1. What there is today
 

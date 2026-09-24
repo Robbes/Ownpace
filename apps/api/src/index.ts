@@ -59,6 +59,7 @@ import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
 import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { setAuditKeyDriver } from './audit-key.ts';
 
 // Re-export for backwards compatibility
 export type { AuthenticatedRequest, JwtPayload };
@@ -90,6 +91,10 @@ app.use(helmet());
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3123',
   credentials: true,
+  // Where the audit export's next page starts, and whether there is one (0129
+  // T4): the operator's page reads both, and a browser shows a page on
+  // another origin only the headers named here.
+  exposedHeaders: ['Ownpace-Next-After', 'Ownpace-Caught-Up'],
 }));
 // Without the link credentials, OAuth codes and query values `combined` wrote
 // out in full: `access-log.ts` says what is kept and why.
@@ -335,6 +340,9 @@ if (process.env.NODE_ENV !== 'test') {
       const auditKeyPool = new Pool({ connectionString: migrationUrl, max: 1, idleTimeoutMillis: 1_000 });
       auditKeyPool.on('error', (err) => log.warn(`[audit-export] the key's connection closed: ${err.message}`));
       setAuditExportSink(auditExportOn(pgDriver(auditKeyPool), { 'service.name': 'ownpace-api' }));
+      // The same connection for the operator's download of those lines (0129
+      // T4, `routes/support.ts`), so a person is the same pseudonym in both.
+      setAuditKeyDriver(pgDriver(auditKeyPool));
       app.listen(PORT, () => {
         log.info(`API server running on port ${PORT}`);
         log.info(`Environment: ${process.env.NODE_ENV || 'development'}`);

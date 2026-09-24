@@ -46,18 +46,35 @@
  * it is the database's rather than this file's. What an operator sees of a
  * failure is `last_error_category` (0110 T3), which carries no address, no
  * folder name and no subject.
+ *
+ * One view is the exception, and it is named: `support_audit_export` (managed
+ * migration 0026) selects the audit rows whole, because the audit export's
+ * line is made from the whole row. `/audit-export` is its one reader, and
+ * passes no row through: each leaves as that line, an address or a file name
+ * as its pseudonym and an unclassified field left out.
  */
 
 import { Router } from 'express';
 import type { Response } from 'express';
 import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
-import { withSubject, holdsASlot, PATH_STATES } from '@openmig/ledger';
+import {
+  withSubject,
+  holdsASlot,
+  PATH_STATES,
+  auditExportEventOf,
+  auditExportPageQuery,
+} from '@openmig/ledger';
 import type { LedgerDriver, PathState } from '@openmig/ledger';
 import { recordSupportRead, observedTier } from '@openmig/managed';
+import { auditPseudonymKey } from '../audit-key.ts';
 import {
   LOG_FILTERS,
   LOG_PAGE,
+  auditCursorAfter,
+  auditExportLine,
+  parseAuditExportQuery,
+  pseudonymizer,
   logEventPattern,
   parseLogFilters,
   type LogFilters,
@@ -682,6 +699,93 @@ router.get('/log', authenticateSubject, async (req: AuthenticatedRequest, res: R
     serverFault(res, 'support_log_failed', 'reading the log', error);
   }
 });
+
+/**
+ * THE AUDIT EXPORT'S DOWNLOAD, FOR THE OPERATOR (workplan 0129 T4, its managed
+ * half; the owner, 2026-09-24: "an operator-only route using your own
+ * session").
+ *
+ * The appliance's `GET /audit-export`, on managed: the lines this deployment's
+ * processes print as each audit event commits, read back from the audit log
+ * after a cursor, oldest first, with the same pseudonyms under the same key,
+ * for a log store to backfill what it missed. `Ownpace-Next-After` is where the
+ * next page starts and `Ownpace-Caught-Up` says when there is no more. `after`
+ * and `limit` are read by the appliance's rules (`parseAuditExportQuery`), and
+ * the page by its query (`auditExportPageQuery`): only settled events, in the
+ * order the cursor continues in.
+ *
+ * ## Through a view, and recorded in the same transaction
+ *
+ * Like every screen here: the rows come from `support_audit_export` (managed
+ * migration 0026), whose operator predicate decides who reads them, so a
+ * signed-in person who is not an operator downloads nothing and writes
+ * nothing to the log. The page served is recorded as one read of every
+ * customer (`audit_export`), with where it started and how many lines it
+ * served, in the transaction that read it.
+ *
+ * ## The one route that reads more than metadata
+ *
+ * The view serves the audit rows whole, `detail` included, because the line is
+ * made from the whole row (0129 D4). Nothing leaves as it was read: every row
+ * becomes `auditExportLine`'s line, where an address or a file name is its
+ * pseudonym and a detail field nobody classified is left out.
+ * `every-audit-field-is-classified.unit.test.ts` fails on any other reader of
+ * the view.
+ * The key is read first, on the owner's connection the API's own stream uses
+ * (`audit-key.ts`; the request path is `app_user` and may not read it), so a
+ * page whose lines cannot be made is neither read nor recorded.
+ */
+router.get('/audit-export', authenticateSubject, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return void res
+        .status(401)
+        .json({ error: 'Unauthorized', message: 'No subject on this request' });
+    }
+    const one = (v: unknown) => (typeof v === 'string' ? v : null);
+    const asked = parseAuditExportQuery({ after: one(req.query.after), limit: one(req.query.limit) });
+    if ('field' in asked) {
+      return void res
+        .status(400)
+        .json({ error: 'Bad request', field: asked.field, message: asked.message });
+    }
+    const { after, afterText, limit } = asked;
+
+    const pseudonym = pseudonymizer(await auditPseudonymKey());
+    const events = await withSubject(pool(), userId, async (db) => {
+      const found = await db.execute(
+        auditExportPageQuery(sql`public.support_audit_export`, { ...(after ? { after } : {}), limit }),
+      );
+      const page = (found.rows as Row[]).map(auditExportEventOf);
+      await recordSupportRead(db, {
+        operatorUserId: userId,
+        tenantId: null,
+        view: 'audit_export',
+        query: `${afterText ? `after=${afterText}` : 'from=start'} limit=${limit}`,
+        resultCount: page.length,
+      });
+      return page;
+    });
+
+    const last = events.at(-1);
+    res.writeHead(200, {
+      'content-type': 'application/x-ndjson; charset=utf-8',
+      'ownpace-next-after': last ? auditCursorAfter(last) : (afterText ?? ''),
+      'ownpace-caught-up': String(events.length < limit),
+    });
+    res.end(
+      events
+        .map((e) => `${JSON.stringify(auditExportLine(e, { pseudonym, resource: DOWNLOAD_RESOURCE }))}\n`)
+        .join(''),
+    );
+  } catch (error) {
+    serverFault(res, 'support_audit_export_failed', 'reading the audit export', error);
+  }
+});
+
+/** The process that serves the download, as its lines name it: the API's own stream's resource. */
+const DOWNLOAD_RESOURCE = { 'service.name': 'ownpace-api' } as const;
 
 /**
  * THE PLATFORM STATUS THE CUSTOMER SEES (workplan 0110 T5, the last half).
