@@ -11,7 +11,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { Pool } from 'pg';
+import { sql } from 'drizzle-orm';
 import { runMigrations, listMigrationVersions } from './migrate.ts';
+import { pgDriver, withTenant } from './db.ts';
 
 const ADMIN_URL = process.env.TEST_DATABASE_URL;
 if (!ADMIN_URL) {
@@ -106,6 +108,32 @@ describe('runMigrations', () => {
       await expect(runMigrations({ connectionString: url, logger: () => {} })).rejects.toThrow(
         /newer than this build understands/,
       );
+    });
+  });
+
+  it('hands its connection back as a fresh session, so a pool that migrates can serve (0128 T5, slice 2b)', async () => {
+    // The appliance on Postgres migrates and serves on ONE pool. The baseline's
+    // pg_dump preamble sets `row_security = off` for the session, and a pool
+    // hands that session to the next caller: a `withTenant` that dropped to
+    // the serving role on it was refused. One connection, so the one that ran
+    // the migration is the one that serves.
+    await withFreshDb(async (url) => {
+      const pool = new Pool({ connectionString: url, max: 1 });
+      const driver = pgDriver(pool, { role: 'app_user' });
+      try {
+        await runMigrations({ driver, logger: () => {} });
+        const conn = await driver.acquire();
+        try {
+          expect((await conn.query<{ row_security: string }>('SHOW row_security')).rows[0]?.row_security).toBe('on');
+        } finally {
+          conn.release();
+        }
+        const tenant = '0128e000-e29b-41d4-a716-446655440001';
+        const seen = await withTenant(driver, tenant, (db) => db.execute(sql`SELECT count(*)::int AS n FROM mailbox_mapping`));
+        expect(seen.rows).toEqual([{ n: 0 }]);
+      } finally {
+        await pool.end();
+      }
     });
   });
 });

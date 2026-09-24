@@ -32,13 +32,15 @@
  *    off is **our own migration**: `0001_baseline.sql` is a `pg_dump`, and line
  *    43 of its preamble is `SET row_security = off;`.
  *
- *    On a POOLED driver that is harmless — the setting is session-scoped and
- *    dies with the client that ran the migration. On a SINGLE-connection driver
- *    there is no other session: the appliance applies migrations at startup and
- *    then serves every request on that same connection, so one line of dump
- *    preamble disables row security for the life of the process. Setting it
- *    once at open is not enough, because migrations run after that; hence per
- *    acquire, which costs one statement per transaction.
+ *    On a SINGLE-connection driver there is no other session: the appliance
+ *    applies migrations at startup and then serves every request on that same
+ *    connection, so one line of dump preamble disables row security for the
+ *    life of the process. Setting it once at open is not enough, because
+ *    migrations run after that; hence per acquire, which costs one statement
+ *    per transaction. A POOLED driver is not spared either, as was once written
+ *    here: a pool hands the client that ran the migration to the next caller,
+ *    session settings and all. `runMigrations` now ends with `RESET ALL`, for
+ *    every driver (0128 T5, slice 2b).
  *
  *    This is not a PGlite quirk. Any driver that reuses one long-lived
  *    connection across migrate-then-serve inherits it.

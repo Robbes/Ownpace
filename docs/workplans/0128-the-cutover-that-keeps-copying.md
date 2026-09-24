@@ -22,6 +22,13 @@ that is the same answer as before, so no pass behaves differently today.
   in SQL (`A_PATH_KEPT_AFTER_A_CUTOVER_WHERE`, ledger), beside the rules it already had.
 - **The grace window** is asked when the migration or one of its paths is in `cutover`: one
   window per migration, until the cutover ledger is kept per data type (slice 4).
+- **Found on the way, in CI: an appliance on Postgres could not read a row as its serving role on
+  the connection that ran its migrations.** The baseline is a `pg_dump`, whose preamble turns
+  `row_security` off for the session, and a pool hands that session to the next caller. The
+  appliance's start-up gate now reads through `withTenant`, which drops to the serving role, and
+  was refused there. The same connection could already fail slice 1's per-pass read and 2a's
+  start-up rows, which say so and carry on. `runMigrations` now ends with `RESET ALL`, on every
+  driver; a test migrates and serves on a one-connection pool on Postgres 16.
 
 Evidence:
 - the roll-up and the phase per data type (6 new, 11 in all); the reader on PGlite as `app_user`
