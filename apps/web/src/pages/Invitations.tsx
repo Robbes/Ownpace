@@ -34,6 +34,7 @@ import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import AlphaNote from '../components/AlphaNote.tsx';
 
 const Invitations: React.FC = () => {
   const t = useT();
@@ -112,6 +113,12 @@ const Invitations: React.FC = () => {
             <p className="text-sm text-gray-600">{t('invite.subtitle')}</p>
           </div>
         </div>
+
+        {/* The alpha note (workplan 0131 T1), under the title. Outside `Layout`,
+            so the note there never reaches this page, and an invited member
+            never passes `/request-access` or receives the grant mail: this is
+            where they first read what they are being asked to join. */}
+        <AlphaNote />
 
         {error !== null && (
           <p role="alert" className="text-sm text-red-600">

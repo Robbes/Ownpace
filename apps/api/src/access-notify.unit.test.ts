@@ -39,7 +39,13 @@ vi.mock('@openmig/connectors', async (importOriginal) => {
   };
 });
 
-import { __setChannelForTests, tell, tellOperator } from './access-notify.ts';
+import {
+  __setChannelForTests,
+  accessGrantedEvent,
+  alphaFrom,
+  tell,
+  tellOperator,
+} from './access-notify.ts';
 
 const EVENT = {
   kind: 'access_granted',
@@ -168,5 +174,55 @@ describe('telling the operator that somebody knocked (0093 T3)', () => {
     );
     await tellOperator(KNOCK);
     expect(SENT[0]?.subject).toContain('somebody asked for access');
+  });
+});
+
+/**
+ * The grant mail during the alpha (workplan 0131 T1): the setting is read here,
+ * at the moment the mail is written, and what reaches the TRANSPORT says so.
+ * What the paragraph says is `packages/shared/src/a-grant-mail-that-says-alpha.unit.test.ts`.
+ */
+describe('the grant mail says alpha when the deployment does', () => {
+  const GRANTED = {
+    organisation: 'Familie de Vries',
+    appUrl: 'https://app.ownpace.eu',
+    email: 'stranger@example.test',
+  } as const;
+
+  it('reads only "alpha" as the alpha, and empty or unset as off', () => {
+    expect(alphaFrom({ OWNPACE_STAGE: 'alpha' })).toBe(true);
+    // A typo in case or a stray space must not switch the note off silently.
+    expect(alphaFrom({ OWNPACE_STAGE: ' Alpha ' })).toBe(true);
+    expect(alphaFrom({})).toBe(false);
+    expect(alphaFrom({ OWNPACE_STAGE: '' })).toBe(false);
+    expect(alphaFrom({ OWNPACE_STAGE: 'beta' })).toBe(false);
+  });
+
+  it('marks the event only when the setting is on', () => {
+    expect(accessGrantedEvent(GRANTED, { OWNPACE_STAGE: 'alpha' })).toEqual({
+      kind: 'access_granted',
+      ...GRANTED,
+      alpha: true,
+    });
+    // Unmarked, not `alpha: false`: outside the alpha the event is exactly what
+    // it was before there was an alpha.
+    expect(accessGrantedEvent(GRANTED, {})).toEqual({ kind: 'access_granted', ...GRANTED });
+  });
+
+  it.each([
+    ['en', 'Alpha: a small invited group is trying this service out.'],
+    ['nl', 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.'],
+  ] as const)('what is sent in %s carries the paragraph with the setting, and not without', async (locale, lead) => {
+    __setChannelForTests(channel() as never);
+
+    SENT.length = 0;
+    await expect(
+      tell(GRANTED.email, locale, accessGrantedEvent(GRANTED, { OWNPACE_STAGE: 'alpha' })),
+    ).resolves.toBe('sent');
+    expect(SENT[0]?.body).toContain(lead);
+
+    SENT.length = 0;
+    await expect(tell(GRANTED.email, locale, accessGrantedEvent(GRANTED, {}))).resolves.toBe('sent');
+    expect(SENT[0]?.body).not.toContain(lead);
   });
 });

@@ -11,6 +11,7 @@ import { fetchMe } from '../services/session.ts';
 import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import AlphaNote from '../components/AlphaNote.tsx';
 
 interface TokenClaims {
   sub: string;
@@ -283,6 +284,11 @@ const Login: React.FC = () => {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">{t('login.tagline')}</p>
         </div>
+
+        {/* The alpha note (workplan 0131 T1), under the title and outside the
+            auth-mode branches below: it is there while the page is still
+            asking what the API accepts, and when the API cannot be asked. */}
+        <AlphaNote />
 
         {modeError !== null ? (
           <p role="alert" className="mt-8 text-sm text-red-600">
