@@ -91,12 +91,27 @@ download will serve their rows. Guards: `an-audit-line-a-collector-can-read` in 
 ledger (12), and `every-audit-field-is-classified` (21); 38 mutations, all killed. The download
 that resumes, T4's second half, is next.
 
+**2026-09-24, T4's second half on the appliance: the download (D4, D5).** `GET /audit-export`
+serves the lines the appliance prints, read back from the audit log oldest first, with the same
+key and pseudonyms, a thousand at a time (`readAuditExport`, each organisation under its own
+policy as the log page reads it). `Ownpace-Next-After` is where the next page starts, and it is
+the last line's own `Timestamp` and `ownpace.audit.id` joined by a hyphen, so a log store
+resumes from the newest line it holds and keeps no state of its own; `Ownpace-Caught-Up` says
+when there is no more. A cursor or a page size of the wrong shape is refused by name. An event
+is served only once it is five minutes old (`AUDIT_EXPORT_SETTLE_SECONDS`): a row's time is its
+transaction's start, so a transaction that began earlier and commits later leaves an earlier
+time behind rows already visible, and a download that had read past it would never see it. The
+newest events are the stream's. Like every appliance route it has no login: the bind is the
+boundary. Guards: `a-download-that-resumes` in shared (11), ledger (7) and selfhost (4); 22
+mutations, all killed. The managed download waits on the owner: how a log shipper signs in (the
+managed API accepts a person's sign-in only).
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | ✅ **Built 2026-09-23, both editions** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable: under Support on managed, **Log** on the appliance. |
 | T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
-| T4 The audit export: one JSON line per event, and a download that resumes | 🟡 **The line built 2026-09-24** (D4, D5) | §3. OpenTelemetry field names, to stdout, pseudonyms by default: built. The backfill endpoint with a cursor is next. |
+| T4 The audit export: one JSON line per event, and a download that resumes | 🟡 **The line built; the appliance's download built 2026-09-24** (D4, D5) | §3. OpenTelemetry field names, to stdout, pseudonyms by default: built. The download with a cursor: built on the appliance; managed waits on how a log shipper signs in. |
 
 ## 1. What there is today
 

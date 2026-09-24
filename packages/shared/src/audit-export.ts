@@ -186,6 +186,40 @@ export function nanosSinceEpoch(at: string): string {
   return (seconds * 1_000_000_000n + fraction).toString();
 }
 
+/**
+ * Where a download resumes: after this event, in the order the download
+ * serves them (its time, then its id).
+ */
+export interface AuditExportCursor {
+  /** The event's time, in UTC to the microsecond: `2026-09-24T00:12:34.123456Z`. */
+  readonly at: string;
+  readonly id: string;
+}
+
+const CURSOR = /^(\d{1,20})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+
+/**
+ * The cursor after one event, as the download hands it out: the line's own
+ * `Timestamp` and `ownpace.audit.id`, joined by a hyphen. So a log store can
+ * resume from the newest line it holds, and keeps no state of its own.
+ */
+export function auditCursorAfter(event: Pick<AuditExportEvent, 'at' | 'id'>): string {
+  return `${nanosSinceEpoch(event.at)}-${event.id}`;
+}
+
+/** A cursor as a log store sends it back, or undefined when it is not one. */
+export function parseAuditCursor(text: string): AuditExportCursor | undefined {
+  const match = CURSOR.exec(text.trim().toLowerCase());
+  if (!match) return undefined;
+  // To the microsecond, which is what the row holds: a nanosecond below it
+  // cannot name a different row. Twenty digits reach the year 5138, well
+  // inside what a Date holds, so no cursor the pattern admits overflows one.
+  const micros = BigInt(match[1]!) / 1000n;
+  const date = new Date(Number(micros / 1000n));
+  const fraction = (micros % 1_000_000n).toString().padStart(6, '0');
+  return { at: `${date.toISOString().slice(0, 19)}.${fraction}Z`, id: match[2]! };
+}
+
 /** One audit event as the line a collector reads. */
 export function auditExportLine(
   event: AuditExportEvent,
@@ -201,7 +235,9 @@ export function auditExportLine(
       'event.name': action,
       'ownpace.audit.id': event.id,
       'ownpace.tenant.id': event.tenantId,
-      'ownpace.audit.actor': exportedActor(event.actor, options.pseudonym),
+      // An older row may name nobody as its actor; it is left out rather than
+      // exported as the pseudonym of nothing.
+      ...(event.actor ? { 'ownpace.audit.actor': exportedActor(event.actor, options.pseudonym) } : {}),
       ...(event.entity ? { 'ownpace.audit.entity': event.entity } : {}),
       ...(event.detail ? { 'ownpace.audit.detail': exportedDetail(event.detail, options.pseudonym) } : {}),
     },
