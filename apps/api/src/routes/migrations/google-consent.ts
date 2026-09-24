@@ -512,6 +512,22 @@ const PAGE_STYLE =
   'font-family: system-ui, sans-serif; max-width: 34rem; margin: 4rem auto; line-height: 1.5;';
 
 /**
+ * A whole document around a callback page's body. A bare `<main>` fragment has
+ * no viewport, so a phone lays it out about 980px wide and shrinks it to fit:
+ * the person who has just consented on a phone reads the ending, and the
+ * progress link they are told to keep, at a fraction of its size. It also had
+ * no doctype (quirks mode), no `lang` and no title. `callbackPageHeaders`
+ * hashes `<script>` bodies only, so nothing here changes the page's policy.
+ */
+function shell(body: string): string {
+  return (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8" />' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />' +
+    `<title>Ownpace</title></head><body>${body}</body></html>`
+  );
+}
+
+/**
  * The page the callback renders. On success it hands the token to the
  * window that opened the popup — via postMessage to the WEB origin and
  * ONLY that origin (never `*`: the token must not be readable by whatever
@@ -528,10 +544,10 @@ export function consentResultPage(p: {
   provider?: 'google' | 'dropbox' | 'microsoft';
 }): string {
   if (!p.outcome.ok) {
-    return (
+    return shell(
       `<main style="${PAGE_STYLE}"><h1>Consent did not complete</h1>` +
-      `<p>${esc(p.outcome.reason)}</p>` +
-      '<p>You can close this window and try again from the wizard.</p></main>'
+        `<p>${esc(p.outcome.reason)}</p>` +
+        '<p>You can close this window and try again from the wizard.</p></main>',
     );
   }
   const payload = {
@@ -540,28 +556,28 @@ export function consentResultPage(p: {
     grantedScopes: p.outcome.grantedScopes,
   };
   if (p.webOrigin) {
-    return (
+    return shell(
       `<main style="${PAGE_STYLE}"><h1>Consent received</h1>` +
-      '<p>Handing the result back to the wizard… you can close this window.</p></main>' +
-      '<script>' +
-      `const payload = JSON.parse(${jsString(payload)});` +
-      `const target = JSON.parse(${jsString(p.webOrigin)});` +
-      'if (window.opener) { window.opener.postMessage(payload, target); window.close(); }' +
-      // A window with no opener cannot hand anything back, and a page that
-      // says "handing the result back" while nothing arrives is the owner's
-      // "it told me it worked" of 2026-09-02. Say what happened, and never
-      // show the token: it belongs to the app, not to a screen.
-      " else { document.querySelector('p').textContent = " +
-      "'This window was not opened by Ownpace, so the result could not be handed back. " +
-      "Close it and press Connect with Google again from the same browser tab.'; }" +
-      '</script>'
+        '<p>Handing the result back to the wizard… you can close this window.</p></main>' +
+        '<script>' +
+        `const payload = JSON.parse(${jsString(payload)});` +
+        `const target = JSON.parse(${jsString(p.webOrigin)});` +
+        'if (window.opener) { window.opener.postMessage(payload, target); window.close(); }' +
+        // A window with no opener cannot hand anything back, and a page that
+        // says "handing the result back" while nothing arrives is the owner's
+        // "it told me it worked" of 2026-09-02. Say what happened, and never
+        // show the token: it belongs to the app, not to a screen.
+        " else { document.querySelector('p').textContent = " +
+        "'This window was not opened by Ownpace, so the result could not be handed back. " +
+        "Close it and press Connect with Google again from the same browser tab.'; }" +
+        '</script>',
     );
   }
-  return (
+  return shell(
     `<main style="${PAGE_STYLE}"><h1>Consent received</h1>` +
-    '<p>No web address is configured for this API, so the token could not be handed back ' +
-    'automatically. Copy the refresh token below into the wizard’s Refresh token field:</p>' +
-    `<p><code>${esc(p.outcome.refreshToken)}</code></p></main>`
+      '<p>No web address is configured for this API, so the token could not be handed back ' +
+      'automatically. Copy the refresh token below into the wizard’s Refresh token field:</p>' +
+      `<p><code>${esc(p.outcome.refreshToken)}</code></p></main>`,
   );
 }
 
@@ -630,9 +646,9 @@ export function grantResultPage(
           ? 'Nothing was stored, and your link was not used up, so you can open it again.'
           : 'Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
             'fresh one — issuing another takes them a moment.';
-    return (
+    return shell(
       `<main style="${PAGE_STYLE}"><h1>That did not complete</h1>` +
-      `<p>${esc(outcome.reason)}</p><p>${after}</p></main>`
+        `<p>${esc(outcome.reason)}</p><p>${after}</p></main>`,
     );
   }
   // `esc` on a URL this function itself was handed: it goes into an href and
@@ -645,14 +661,14 @@ export function grantResultPage(
       '<p>Bookmark it. It works for the next 90 days, and the person running the migration ' +
       'can turn it off at any time.</p>'
     : '';
-  return (
+  return shell(
     `<main style="${PAGE_STYLE}"><h1>Thank you — that is done</h1>` +
-    '<p>Your account is now connected, and the migration can read from it. You do not have ' +
-    'to do anything else, and this link will not work again.</p>' +
-    keepThis +
-    '<p>Access is <strong>read-only</strong>: nothing is ever deleted or changed at your ' +
-    'end. You can withdraw it at any time from your Google account’s security settings, ' +
-    'under the third-party apps that have access.</p></main>'
+      '<p>Your account is now connected, and the migration can read from it. You do not have ' +
+      'to do anything else, and this link will not work again.</p>' +
+      keepThis +
+      '<p>Access is <strong>read-only</strong>: nothing is ever deleted or changed at your ' +
+      'end. You can withdraw it at any time from your Google account’s security settings, ' +
+      'under the third-party apps that have access.</p></main>',
   );
 }
 
