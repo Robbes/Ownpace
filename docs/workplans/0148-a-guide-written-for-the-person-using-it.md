@@ -1,11 +1,22 @@
 # Workplan 0148 — A guide written for the person using it
 
-> **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, wizard and checklist without own-app hints where the deployment carries one, export archive card labelled experimental on managed, `Docs.tsx` renderer extended.
+> **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
+question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
+Nextcloud or other target files-kind supporting target."* So the archive form gains a second
+place the export can be: a folder in the files of the migration's own target. T9 builds it, before
+the first invitation, stacked on 0136 T5 in 0131 §6's R2. It works where the target is a Nextcloud
+or a WebDAV server. A JMAP target carries files too, but the reader asks for a file in pieces, by
+byte range, and JMAP does not offer that, so a JMAP target is refused with the sentence the code
+already has. Open question 6 said the create door knew `where: 'target'`. It does not: the door
+drops the field, and T9 closes that (D11). The card keeps its experimental tag until 0141 records
+a run.
+
 **2026-09-24, T6 (a) built.** The renderer's first half is built on branch
-`claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, not merged.
+`claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, merged in #1159.
 `Docs.tsx` is extended and no dependency is added (D6):
 
 - a heading is an `<h2>`–`<h4>` with an id: from a trailing `{#id}`, which leaves the text, or
@@ -101,6 +112,8 @@ English guide for each family of cards live offers, ten at most (T4's table).
 
 - T3's Apple tag (D7), on both editions, because the export archive card stays offered on
   managed with 0131 T2's tag (D10); *Via IMAP* stays (D5);
+- T9, the export read from a folder in the migration's own Nextcloud or WebDAV files (D11),
+  stacked on 0136 T5, which refuses a path on the server;
 - T2 (a), (b) and (d), no about-line, redirect line, checklist or create refusal tells a tester
   to create an app, or register an address on one, where `ownpace-live` carries it;
 - T1 and T4 for every card `ownpace-live` offers: a customer guide in Dutch and English, served in
@@ -124,9 +137,10 @@ the owner announced for *Via IMAP* (D5).
 | T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
-| T6 A renderer that keeps a guide's shape | 🔨 **(a) built** on branch `claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, not merged; (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
+| T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
+| T9 The export read from a folder in the migration's own files | 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today
 
@@ -478,6 +492,40 @@ cannot work, and today there is none. What it brings with it:
   0116 T4), and the wizard has no control for it (§1). Open question 6.
 - **The Apple option is seen on managed too**, so D7's tag and line come before the first
   invitation on both editions, and the archive guide is written before it too (T4).
+
+**D11 — the export read from the tester's own files.** *Can the archive card work on managed?*
+(Open question 6 recommended (a), a folder in the destination's files.) — *"the wizard should be
+able to read a Takeout export from a folder in the tester's Nextcloud or other target files-kind
+supporting target."*
+
+Read as (a). The archive form gains a second place the export can be: a folder in the files of
+the migration's own target (`where: 'target'`, 0116 T4). T9 builds it, before the first
+invitation. What that means:
+
+- **Which targets.** The targets that carry files are JMAP, WebDAV and Nextcloud
+  (`target-domains.ts`:47-84; the Soverin card has no file face). The reader asks for byte ranges
+  of a file. WebDAV serves them and JMAP does not, so a JMAP target is refused by the sentence
+  `archiveStoreInTarget` already writes (`archive-source-factory.ts`:149-162). That leaves a
+  Nextcloud or a WebDAV server. Nothing asks which product answers the URL, which is the owner's
+  constraint of 2026-09-20, quoted at `ArchiveSource.where` (`config.ts`:455-463).
+- **What is there, and what is not.** The shared parser reads `where` (`config.ts`:1202). The
+  pass, the preflight and the Test read through it (0116 T4). The Test answers that the contents
+  are counted at the preflight (`probe-connection.ts`:369), because a connection has no target
+  yet. Open question 6 said the create door knows `where` too. It does not. The migration door's
+  schema has `provider` and `path` only (`routes/migrations/index.ts`:938-946). Its builder passes
+  those two to the parser (:201-204). A reused archive connection's override keeps `path` only
+  (:634-642). The connection form has no field for it (`archiveFields()`,
+  `credential-fields.ts`:287-310). T9 closes all four.
+- **Both editions.** The choice is offered on the appliance too, because `where: 'target'` means
+  the same there (hard rule 5, as `ArchiveSource.where` says). On managed, a path on the server
+  cannot be read (0136 T5). So there the destination's files are the default, and the disk
+  option is shown, not hidden (D10's rule), with the line that it works only on a self-hosted
+  appliance. This is this plan's reading, for the owner to overrule. On the appliance the disk
+  stays the default, so no existing mapping changes meaning.
+- **The card keeps its tag.** No real export has yet been read from a real Nextcloud through a
+  managed stack. 0141 records that run, and 0131 T2's tag stays until it is recorded.
+- **Not the relay.** The relay, which fetches a download for the person and puts it in the
+  target, stays 0116 T4's. Here the person puts the export there.
 
 ## 3. What each task does
 
@@ -921,21 +969,77 @@ the Microsoft guide goes at its top.
 permission. The `oauth2` section names `IMAP.AccessAsApp`, since the card is offered (D5). Run
 against today's `o365-setup.md`, both fail.
 
+### T9 — the export read from a folder in the migration's own files (decided, D11)
+
+**The form.** `archiveFields()` gains a third field, `where`, a choice of two. It is not a secret,
+just as `path` is not.
+
+- *In a folder of your destination's files (Nextcloud or WebDAV)* / *In een map in de bestanden
+  van uw bestemming (Nextcloud of WebDAV)*;
+- *On this appliance's disk* / *Op de schijf van deze appliance*.
+
+The path field's label and hint follow the choice. For the destination, the field asks for the
+folder as it appears in the person's files, from the top (`Exports/takeout-20260904`), or one
+`.zip` in it. For the disk, the field stays as it is. On managed the destination is the default,
+and the disk option is disabled, with the line *Only on a self-hosted appliance* / *Alleen op een
+eigen appliance* (D11). On the appliance the disk stays the default. For the destination, the
+Test answers `probe.countedAtPreflight`, a string that exists. The wizard lets the person continue
+on that answer.
+
+**The doors.** `POST /api/connections` and `POST /api/migrations` accept `where` in an archive's
+values and `sourceConfig`, pass it to `parseArchiveSource`, and store it. `sourceConfigOverride`
+keeps `where` beside `path`, because the next export in a series can be kept somewhere else
+(0116 §5). When `where` is `target`, the migration door checks the target:
+
+- `webdav` or `nextcloud`: accepted;
+- `jmap`: refused with `archiveStoreInTarget`'s sentence;
+- a target with no file face: refused with a sentence that says the export must be in the
+  destination's files, and which targets have them.
+
+The rule is one function in shared, `archiveInTargetRefusal(targetType)`, and the wizard's target
+step reads it too (hard rule 5: one authority, both editions). The JMAP sentence moves to shared
+with it, and `archiveStoreInTarget` imports it. 0136 T5's refusal of a server path on managed
+names this choice.
+
+**The guide.** The archive guide (T4, Dutch and English) gains a section, *Your export in your
+own Nextcloud* / *Uw export in uw eigen Nextcloud*. It says what to do: upload the `.zip` parts
+into one folder of the files the migration writes to, then name that folder. It also says that
+the parts stay in those files after the migration and take their space, and that the person can
+delete them once the result is checked.
+
+**Guard.** Each case fails on today's code.
+
+- In `apps/api`: an archive posted with `where: 'target'` and a Nextcloud target is stored with
+  `where` in the mapping's config. A JMAP target is refused with the sentence, and so is a target
+  with no file face. A reused connection's override keeps `where`.
+- In the web app: the archive form shows the choice. Under a managed build the destination is
+  the default, and the disk option is disabled with its line.
+- In shared: `archiveInTargetRefusal` accepts `webdav` and `nextcloud`, and refuses every other
+  target type the create route knows.
+
+**The gate gets its proof back.** 0136 T5 breaks `smoke-managed.sh`'s archive steps
+(:3161-3230), which write a fixture into the API container. T9 moves the step. The fixture
+Takeout is written into tenant B's files on the demo Nextcloud, where the gate's tenant B already
+migrates files (:2086). A migration from an archive with `where: 'target'` is created against
+that target, and its preflight must count three items, one of them an edited version, as today's
+step does. The `path: "/tmp"` step becomes 0136 T5's refusal.
+
 ## 4. Order
 
 **Before the first invitation**, in this order:
 
-1. T3, one web PR: the flag, the two doors, the guard.
-2. T2 (a), (b) and (d), one PR across the web app, shared and the API.
-3. T6's first half, then T1 and T4 for the Google, Microsoft, Dropbox, Box and Apple cards, with
+1. T3's Apple tag (D7), one web PR with its guard. The flag and the hiding are not built (D10).
+2. T9, the export in the migration's own files (D11), one PR stacked on 0136 T5's.
+3. T2 (a), (b) and (d), one PR across the web app, shared and the API.
+4. T6's first half, then T1 and T4 for the Google, Microsoft, Dropbox, Box and Apple cards, with
    T2 (c), T1's pointer on the appliance (D9), and T8's two recipes in the Microsoft guide (D5).
    Then T4's IMAP, JMAP, DAV, Nextcloud and Soverin guides, in Dutch and English (D8). One PR per
    guide family, each with the guard cases that family needs.
-4. T5's three profiles and the Google account card's mapping.
-5. T0, the owner's reading on `ownpace-live`, which may send text back to step 3.
+5. T5's three profiles and the Google account card's mapping.
+6. T0, the owner's reading on `ownpace-live`, which may send text back to step 4.
 
 **After:** T6's second half, T7, T8's walks (the owner's: (a) before the first *Graph API* tester,
-(b) the run D5 announced) and T5's remaining profiles. T3's Apple tag comes before (D10).
+(b) the run D5 announced) and T5's remaining profiles.
 
 Each code task is its own PR with its guard.
 
@@ -943,7 +1047,7 @@ Each code task is its own PR with its guard.
 
 | Plan | The minimum before the first invitation | Today |
 |---|---|---|
-| 0148 A guide written for the person using it | T3: the export archive is not offered on managed; *Via IMAP* stays, tagged experimental until the owner's run is recorded (D5). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a customer guide in Dutch and English (D8), served in the app, with no operator material, read by the owner against live's screens (T0). The Microsoft guide carries T8's two recipes (D5). T6's first half. T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
+| 0148 A guide written for the person using it | T3: the Apple export tagged *to be tested* on both editions; the export archive stays offered on managed with 0131 T2's tag (D10), and 0136 T5 refuses a typed disk path there. T9: the export read from a folder in the migration's own Nextcloud or WebDAV files (D11). *Via IMAP* stays, tagged experimental until the owner's run is recorded (D5). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a customer guide in Dutch and English (D8), served in the app, with no operator material, read by the owner against live's screens (T0). The Microsoft guide carries T8's two recipes (D5). T6's first half. T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed and asks for a path on the server, which a managed pass cannot read. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
 
 ## Not in this plan
 
@@ -1004,3 +1108,6 @@ Each code task is its own PR with its guard.
    other WebDAV target) and names the folder; the reader and the create door already know
    `where: 'target'` (0116 T4). *Recommended* if testers are to use the card. (b) Leave the card
    labelled and let 0136 T5's refusal say that a managed archive cannot be read yet.
+   *Answered 2026-09-24: (a) (D11).* The owner: *"the wizard should be able to read a Takeout
+   export from a folder in the tester's Nextcloud or other target files-kind supporting target."*
+   The create door did not know `where` after all; T9 teaches it.
