@@ -10,7 +10,9 @@
  *
  * Folded under one line until pressed, and then it says, before anything is
  * sent, where the report goes (to us, never to the organisation that asked),
- * what goes with it, and what the address is for.
+ * what goes with it, and what the address is for. The address may be left
+ * out (the owner, 2026-09-24): a report is taken without one, and the person
+ * is told that nobody can then answer them.
  *
  * ## Where the keyboard is
  *
@@ -50,7 +52,11 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
     retry: false,
   });
   const send = useMutation({
-    mutationFn: () => linkReportApi.send(kind, link, { description: description.trim(), replyTo: replyTo.trim() }),
+    mutationFn: () =>
+      linkReportApi.send(kind, link, {
+        description: description.trim(),
+        ...(replyTo.trim() === '' ? {} : { replyTo: replyTo.trim() }),
+      }),
   });
 
   useEffect(() => {
@@ -67,7 +73,11 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
         role="status"
         className="mt-4 p-4 border border-gray-200 rounded-lg text-sm text-gray-900"
       >
-        <p>{t('linkReport.sent', { ticket: send.data, email: replyTo.trim() })}</p>
+        <p>
+          {replyTo.trim() === ''
+            ? t('linkReport.sent.anonymous', { ticket: send.data })
+            : t('linkReport.sent', { ticket: send.data, email: replyTo.trim() })}
+        </p>
         {next && <p className="mt-2">{t(next)}</p>}
       </div>
     );
@@ -118,7 +128,6 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
             <input
               id={`${formId}-reply-to`}
               type="email"
-              required
               autoComplete="email"
               value={replyTo}
               onChange={(e) => setReplyTo(e.target.value)}
@@ -134,7 +143,7 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
           )}
           <button
             type="submit"
-            disabled={send.isPending || description.trim() === '' || replyTo.trim() === ''}
+            disabled={send.isPending || description.trim() === ''}
             className="px-4 py-2 rounded-md bg-gray-800 text-white text-sm font-medium hover:bg-gray-900 disabled:opacity-50"
           >
             {send.isPending ? t('linkReport.sending') : t('linkReport.send')}

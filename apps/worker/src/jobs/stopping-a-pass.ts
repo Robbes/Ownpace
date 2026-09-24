@@ -17,14 +17,12 @@
  * use, and the tests hand it one.
  */
 
-import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
-import { runsPassesNow } from '@openmig/shared';
+import { pathRunsNow, runsPassesNow } from '@openmig/shared';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { cutoverStillCopies, withTenant } from '@openmig/ledger';
-import * as schemaPg from '@openmig/ledger/schema-pg';
+import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
 
 /**
  * Is this mapping still one a pass may run for?
@@ -78,21 +76,52 @@ export async function whyThePassStops(
   tenantId: TenantId,
   mappingId: MappingId,
 ): Promise<PassHalt | null> {
-  return withTenant(db, tenantId, async (tx) => {
-    const [row] = await tx
-      .select({
-        status: schemaPg.mailboxMapping.status,
-        grantWithdrawnAt: schemaPg.mailboxMapping.grantWithdrawnAt,
-      })
-      .from(schemaPg.mailboxMapping)
-      .where(eq(schemaPg.mailboxMapping.id, mappingId));
-    if (row === undefined) return 'no_longer_runs';
-    // A cutover copies from execute until its grace period ends (0128 T2), and
-    // stops then: asked only of a cutover, since no other state depends on it.
-    const copies = row.status === 'cutover' && (await cutoverStillCopies(tx, tenantId, mappingId));
-    if (!runsPassesNow(row.status, copies)) return 'no_longer_runs';
-    return row.grantWithdrawnAt ? 'grant_withdrawn' : null;
-  });
+  return withTenant(db, tenantId, async (tx) => haltFrom(await readPathPhases(tx, tenantId, mappingId)));
+}
+
+/**
+ * The migration's answer, from its phases: gone, or no longer running (paused,
+ * finished, or a cutover past its grace period, 0128 T2), or its grant taken
+ * back. Null when the pass may go on.
+ */
+export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
+  if (phases === null) return 'no_longer_runs';
+  if (!runsPassesNow(phases.status, phases.stillCopies)) return 'no_longer_runs';
+  return phases.grantWithdrawnAt ? 'grant_withdrawn' : null;
+}
+
+/**
+ * What a pass does before one data type (workplan 0128 T5): stop, when the
+ * migration itself no longer runs or its grant was withdrawn; move on past this
+ * data type, when the migration still runs and this data type does not (its own
+ * cutover past its grace period, or ended), so the next one still gets its turn;
+ * and otherwise run it.
+ *
+ * Until a data type can have a phase of its own, every data type's phase is the
+ * migration's (`readPathPhases`), so a pass never moves on past one: the halt
+ * answers first. The seam is here so that, when mail can be cut over on its own,
+ * the files after it are not stopped with it.
+ */
+export type PassStep =
+  | { readonly run: true }
+  | { readonly skip: 'data_type_no_longer_runs' }
+  | { readonly halt: PassHalt };
+
+export async function passStepBefore(
+  db: Pool,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  domain: string,
+): Promise<PassStep> {
+  return withTenant(db, tenantId, async (tx) => stepFrom(await readPathPhases(tx, tenantId, mappingId), domain));
+}
+
+/** `passStepBefore`'s decision, from the phases already read. */
+export function stepFrom(phases: MigrationPhases | null, domain: string): PassStep {
+  const halt = haltFrom(phases);
+  if (halt) return { halt };
+  if (!pathRunsNow(phases!.phaseOf(domain))) return { skip: 'data_type_no_longer_runs' };
+  return { run: true };
 }
 
 /**
