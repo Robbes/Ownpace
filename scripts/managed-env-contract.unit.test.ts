@@ -46,6 +46,22 @@
  * treated as defaults — an empty value satisfies neither compose's `:?` nor a
  * human reading the file for what to set.
  *
+ * ## A default the example can switch off by accident (2026-09-24)
+ *
+ * The other half of the contract is the `${VAR:-default}` a key falls back to,
+ * and a `.env` starts life as a byte copy of the example. Compose's dotenv
+ * trims the blanks after `=` BEFORE it looks for an inline comment, so
+ *
+ *     OWNPACE_SELLER_COUNTRY=        # empty = NL
+ *
+ * is not empty to Compose: `docker compose config` (v5.1.1) hands the api
+ * `OWNPACE_SELLER_COUNTRY: '# empty = NL'`, the `:-NL` never applies, and the
+ * VAT code takes "# empty = NL" as the seller's member state. Bash `source`
+ * reads the same line as empty, which is why every shell-side check agreed
+ * with the comment. That line and `VAT_OSS_ACTIVE=  # empty = false` were
+ * added to document two api knobs, and nothing noticed. A key that has a
+ * default in `managed.yml` now keeps its note on a line of its own.
+ *
  * ## What this cannot do
  *
  * It cannot see a runner's `.env`. A persisted file can still fall behind, and
@@ -131,5 +147,38 @@ describe('managed.yml cannot demand a variable nothing can supply', () => {
     expect(guard, 'ensure-env-secrets.sh must refuse to replace a live ZITADEL_MASTERKEY').toContain(
       'ZITADEL_MASTERKEY',
     );
+  });
+});
+
+describe('the example cannot switch a compose default off', () => {
+  // `${VAR:-default}` with a NON-EMPTY default: the keys whose fallback a
+  // copied example could silently replace. An empty default (`${SMTP_SECURE:-}`)
+  // has nothing to lose, so it is not this rule's business.
+  const defaults = new Set(
+    [...read('managed.yml').matchAll(/\$\{([A-Z_][A-Z0-9_]*):-([^}]+)\}/g)].map((m) => m[1]!),
+  );
+
+  it('found the defaults it is about', () => {
+    // Vacuity guard: a changed interpolation idiom would empty the set and
+    // pass the assertion below against nothing.
+    expect(defaults.size, 'no `${VAR:-default}` found in managed.yml').toBeGreaterThan(20);
+    expect(defaults.has('OWNPACE_SELLER_COUNTRY')).toBe(true);
+  });
+
+  it('never ships a defaulted key as blanks and a comment', () => {
+    // `KEY=   # note` is the value "# note" to Compose (see the header), so
+    // the default the note describes is exactly what does NOT apply.
+    const glued = read('managed.env.example')
+      .split('\n')
+      .flatMap((line) => {
+        const m = /^([A-Z_][A-Z0-9_]*)=[ \t]+#/.exec(line);
+        return m && defaults.has(m[1]!) ? [m[1]!] : [];
+      });
+    expect(
+      glued,
+      'managed.env.example leaves these empty with a comment on the same line. Compose ' +
+        "reads the comment as the value, so managed.yml's default never applies: move " +
+        'the comment to a line of its own and leave `KEY=` bare',
+    ).toEqual([]);
   });
 });
