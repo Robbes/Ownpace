@@ -32,8 +32,8 @@
  * The month's high-water mark (0109 T2) is the managed edition's table, which
  * this package may not write (hard rule 5). The answer says whether slots were
  * taken, and the API's doors record the peak on it. A write through the
- * ledger's own door (the CLI, the rollback job) is trued up the next time the
- * tier is read (`currentTier`), which is where a peak is priced.
+ * ledger's own door (the CLI, the rollback job) records it through
+ * `applyMappingStatusChange`'s `onSlotsTaken`, which both pass.
  */
 
 import { and, eq } from 'drizzle-orm';
