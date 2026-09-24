@@ -33,15 +33,33 @@ route never matches, and T11 asked the owner to remove it. That came from
 `docs/google-oauth-verification.md` §4b, which records what was registered on 2026-08-20, not what
 the console holds now. §1 and T11 are corrected, with dated notes in §1 and at T11 step 3. The
 owner's open choice, *"add one for app.ownpace.eu or create a new oauth-client"*, is answered in
-T11: a new client for live, carrying live's two addresses. What decides where it goes is that the
-publishing status and the user cap belong to the Google Cloud project, not to a client (Google's
-model as understood here, T11). So: a project of its own if live is to leave Testing. While live
-stays in Testing, as D1 chose, a second client in the test client's project is enough for the
-alpha. T0, T1, T10, §5 and open questions 6 and 7 are reworded to match.
+T11: a new client for live, carrying live's consent address. Live's sign-in address goes on it
+only if T10 keeps a Google sign-in, because ADR-0041's decision gives production *"exactly one
+redirect URI"* (T10). What decides where the client goes is that the publishing status and the
+user cap belong to the Google Cloud project, not to a client (Google's model as understood here,
+T11). So: a project of its own if live is to leave Testing. While live stays in Testing, as D1
+chose, a second client in the test client's project is enough for the alpha. T0, T1, T10, §5 and
+open questions 6 and 7 are reworded to match.
+
+**Before the first invitation.** This is the minimum, for 0131 T5's go/no-go (§5):
+
+- T11: live's own Google client, and live's addresses at Microsoft and Dropbox, each reaching
+  its consent screen with the owner's own account;
+- T1's measurement and choice, then, under T1 (a), T0 for each tester's Google accounts;
+- T10 decided (email and password only is proposed, which is live's starting state);
+- Dropbox, Box and Apple carry 0131 T2's label (D3).
+
+**Before the first tester of each kind**, and only if one is invited: T2 and T3 for Google, T6's
+two consents and its sentence for Microsoft, T7 (a) and (b) for Dropbox, the owner beside the
+first Box run (T8), and 0141 T4's walk before the first Apple tester (T9).
+
+**After, or alongside:** T4's ADR and T5's publisher verification (advised to start now, but a
+tester does not wait on them), T3's optional in-app detection, and T8's rewording of
+`docs/box-setup.md`.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 Each Google account a tester connects is a test user of the production client first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to, listed as test users for the client `ownpace-live` uses (T11). The list belongs to that client's Google Cloud project, so in the test client's project it is one list for both stacks. |
+| T0 Each Google account a tester connects is a test user of the production client first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to, listed as test users for the client `ownpace-live` uses (T11). As Google's model is understood here, the list belongs to that client's Google Cloud project, so in the test client's project it is one list for both stacks (T11). |
 | T1 Testing or Production for the production Google client | ⏳ **Owner** (D1 chose Testing) | §3. Measure first, on the OTA stack's history; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. The choice also decides T11's project: leaving Testing means a project of its own. |
 | T2 What a Google tester is told, and a reconnect the page can find | 📋 **Proposed** (D1) | §3. The steps for the tester, and the word on the failure line matching a button that exists. |
 | T3 An "open it in Safari or Chrome" line before Google's screen | 📋 **Proposed** | §3. Google is reported to refuse consent inside an embedded browser (outside knowledge, §1); nothing on the page says what to do. |
@@ -51,8 +69,8 @@ alpha. T0, T1, T10, §5 and open questions 6 and 7 are reworded to match.
 | T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 📋 **Proposed** (D3) | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
 | T8 Box: experimental, and for organisations with a Box administrator | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
-| T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's (T11). |
-| T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7, D5), before T0 | §3. A new Google client for live, with its own secret and live's two addresses: `https://app.ownpace.eu/api/migrations/google/callback` for the consent and `https://id.ownpace.eu/ui/login/login/externalidp/callback` for a sign-in with Google. The test client holds the OTA stack's two and no production address (D5; corrected 2026-09-24, §1). Its project: the test client's is enough while live stays in Testing; a project of its own if live leaves Testing (T1, open question 7). Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
+| T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |
+| T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7, D5), before T0 | §3. A new Google client for live, with its own secret and live's consent address, `https://app.ownpace.eu/api/migrations/google/callback`. Live's sign-in address, `https://id.ownpace.eu/ui/login/login/externalidp/callback`, is added only if T10 keeps a Google sign-in, and then recorded in ADR-0041, whose decision gives production exactly one redirect URI (T10). The test client holds the OTA stack's two and no production address (D5; corrected 2026-09-24, §1). Its project: the test client's is enough while live stays in Testing; a project of its own if live leaves Testing (T1, open question 7). Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
 
 ## 1. What there is today
 
@@ -92,22 +110,23 @@ https://app.ota.ownpace.eu/api/migrations/google/callback        migration conse
   on `API_URL`. The owner registered it on 2026-09-01 (the header of
   `packages/shared/src/redirect-uris.ts`).
 - The first is the identity provider's own address, where Google returns a person who signs in
-  with Google. `setup-zitadel.sh` prints it for Google as
-  `${ISSUER}/ui/login/login/externalidp/callback` and writes it into `.env` as
+  with Google. `setup-zitadel.sh` names it for Google as
+  `${ISSUER}/ui/login/login/externalidp/callback` in the message it prints when a sign-in provider
+  cannot be added, and writes it into `.env` as
   `IDP_UPSTREAM_CALLBACK_URL`, and the app's Redirect URIs page shows it as `social.upstream`
   (`redirect-uris.ts`). So on the OTA stack one client is registered for both the consent and the
   sign-in, which `managed.env.example` allows: *"One Google OAuth client may serve both if both
   redirect URIs are on it."* Whether the OTA stack's `.env` also names it as `IDP_GOOGLE_CLIENT_ID`
   is a value in that `.env`, not in the repository.
-- No production address is on it: not `app.ownpace.eu`, and not `id.ownpace.eu`. Live's client
-  carries those (T11).
+- No production address is on it: not `app.ownpace.eu`, and not `id.ownpace.eu`. Live's own
+  client carries live's (T11).
 
 **Corrected 2026-09-24.** Until the owner's read, this paragraph said, from workplan 0091 §1 and
 `docs/google-oauth-verification.md` §4b, that `https://app.ownpace.eu/oauth/google/callback` was
 registered on the test client on 2026-08-20, at a planned path the shipped route never matches.
 T11 asked the owner to remove it. §4b records what was registered on 2026-08-20, and its own
 warning asks for the `/oauth/…` entries to be replaced with the shipped path. The owner's read
-shows that the OTA entry was replaced. Neither `/oauth/google/callback` entry is among the two the
+shows the OTA stack's consent entry at the shipped path now. Neither `/oauth/google/callback` entry is among the two the
 client holds now, and the production address at the shipped path is not on it either. T11 no
 longer asks for a removal. §4b still lists the `/oauth/…` entries as registered on 2026-08-20,
 and T11 step 5 adds a dated line there saying what each client holds now.
@@ -321,7 +340,8 @@ provider's callback for a sign-in with Google (`id.ota.ownpace.eu`). The other i
 consent's callback at the shipped path (`app.ota.ownpace.eu`). It holds no production address.
 This is a fact from the console, and it corrects what §1 and T11 said about a `/oauth/…` entry
 (the dated note in §1). The choice at the end is open. T11 gives the advice: a new client for
-live, with live's two addresses, in a Google Cloud project that follows from T1's choice.
+live, with live's consent address, and its sign-in address only if T10 keeps a Google sign-in, in
+a Google Cloud project that follows from T1's choice.
 
 ## 3. What each task does
 
@@ -335,8 +355,10 @@ client is in the test client's project, as T11 advises for as long as live stays
 is one list for both stacks: an account listed for live can consent through the OTA client too,
 and the OTA stack's own test users count against the same limit. The owner keeps that list outside
 the repository, and at the end of the alpha removes the testers' accounts (0131 T4). The limit is
-100, a figure the repository marks as unverified. At 20 testers with up to four accounts each, plus
-the owner's own accounts on both stacks, the list stays under it.
+100, a figure the repository marks as unverified. At 20 testers with up to four accounts each, that
+is 80, which leaves room for about twenty more: the owner's own accounts and anyone else already
+listed for the OTA stack. How many that is sits in the console, not in the repository, so the owner
+counts it once before the first invitation.
 
 No code, so there is no guard.
 
@@ -628,17 +650,24 @@ policy read back afterwards. Live starts with none (§1), so email and password 
 them empty. Step 7 of 0133 T4 then knows whether a Microsoft sign-in's verification mail is part
 of its walk.
 
-If a Google sign-in does stay, live's client serves it, as the OTA client serves both on its stack
-(D5). T11 registers live's sign-in address at `id.ownpace.eu` on that client beside the consent's,
-and live's `.env` names the same pair in `IDP_GOOGLE_CLIENT_ID` and `IDP_GOOGLE_CLIENT_SECRET`
-(`managed.env.example`: *"One Google OAuth client may serve both if both redirect URIs are on
-it."*). `docs/google-oauth-verification.md` §4b gives the production client *"own secret, exactly
-one redirect URI"*. The reason it gives is that test and production do not share a client, and
-both of these addresses are production's. T11's dated note in §4b says so. If T10 settles on email
-and password only, the sign-in address on live's client is simply never used: `setup-zitadel.sh`
-adds Google only when `IDP_GOOGLE_CLIENT_ID` and its secret are both set. Of the two ways this
-paragraph gave before D5 (a second production client, or a second URI on this one), T11 now takes
-the second, the one the OTA stack already uses.
+If T10 settles on email and password only, live's Google client carries the consent address
+alone, and nothing here departs from ADR-0041: `setup-zitadel.sh` adds Google only when
+`IDP_GOOGLE_CLIENT_ID` and its secret are both set.
+
+If a Google sign-in does stay, live's client can serve it, as the OTA client is registered for
+both on its stack (D5). T11 then adds live's sign-in address at `id.ownpace.eu` beside the
+consent's, and live's `.env` names the same pair in `IDP_GOOGLE_CLIENT_ID` and
+`IDP_GOOGLE_CLIENT_SECRET` (`managed.env.example`: *"One Google OAuth client may serve both if
+both redirect URIs are on it."*). That is a second redirect URI on the production client. The
+owner's acceptance of ADR-0041 on 2026-08-26 (its *Decision*, item 2) says production gets *"its
+own client — with its own secret and exactly one redirect URI"*, and
+`docs/google-oauth-verification.md` §4b repeats it. The rule both state is one client per
+environment, and both addresses are production's, so the split between test and production
+holds. Still, it changes the words of an accepted decision, so it is recorded as a dated update
+to ADR-0041, the one T1 already asks for, and in §4b (T11 step 5). The other way, a second
+production client for the sign-in alone, keeps one URI per client at the cost of a second
+secret. If a Google sign-in stays, the recommendation is the second URI, the shape the OTA stack
+already uses.
 
 No code, so there is no guard.
 
@@ -662,29 +691,35 @@ https://app.ownpace.eu/api/migrations/dropbox/callback
 The same page lists the identity provider's address for a sign-in with Google (`social.upstream`,
 read from the `IDP_UPSTREAM_CALLBACK_URL` that `setup-zitadel.sh` writes). With live's issuer at
 `https://id.ownpace.eu` (0132 T1d) it is
-`https://id.ownpace.eu/ui/login/login/externalidp/callback`, the path `setup-zitadel.sh` prints
-for Google, Microsoft and GitHub.
+`https://id.ownpace.eu/ui/login/login/externalidp/callback`, the path `setup-zitadel.sh` names for
+Google, Microsoft and GitHub when it cannot add one of them. It is registered only if a Google
+sign-in stays (T10).
 
 **Google: add to the test client, or a new client? (D5)** The owner's choice is between adding
 live's address to the one client there is and creating a new one. The advice is a new one.
 `docs/google-oauth-verification.md` §4b: *"**Test and production get separate clients**, not two
-paths on one origin."* The same paragraph gives the reason: *"separate clients also mean a leaked
+paths on one origin."* One reason the same paragraph gives: *"separate clients also mean a leaked
 test secret is not a production incident"*. ADR-0041's status line says the client registered on
 2026-08-20 is *"the **test (OTA) client**, with production getting its own client before real
 customers exist"*. Adding `app.ownpace.eu` to the test client would put live's consent on the
 secret the OTA stack holds, which is what both sentences rule out.
 
 1. Create live's OAuth client: a web client with its own secret, no JavaScript origins (§4b), and
-   these authorised redirect URIs, the same pair the OTA client carries (D5) at live's names:
+   one authorised redirect URI, live's consent address:
 
    ```
    https://app.ownpace.eu/api/migrations/google/callback        migration consent
+   ```
+
+   Only if T10 keeps a Google sign-in on live, add the identity provider's address beside it, as
+   the OTA client carries its own (D5), and record it as T10 says:
+
+   ```
    https://id.ownpace.eu/ui/login/login/externalidp/callback    sign-in with Google
    ```
 
-   The first is always needed. The second is used only if T10 keeps a Google sign-in on live;
-   registering it now saves going back to the console. Copy both from live's Redirect URIs page
-   once live runs, since Google matches byte for byte (§4b).
+   Copy each from live's Redirect URIs page once live runs, since Google matches byte for byte
+   (§4b).
 2. Enter its pair in live's `.env` only (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`,
    and `IDP_GOOGLE_CLIENT_ID` and `IDP_GOOGLE_CLIENT_SECRET` only if T10 keeps a Google sign-in).
    The OTA stack keeps the test client.
@@ -694,9 +729,9 @@ secret the OTA stack holds, which is what both sentences rule out.
 4. Give live's client the publishing status T1 chooses, in the project chosen below, and list T0's
    test users on that project's consent screen.
 5. Record in `docs/google-oauth-verification.md` §4b, with the date: that live's client exists,
-   the two redirect URIs it carries and why two where §4b says one (both are production's, and
-   the split §4b asks for is between test and production), what the test client holds now (D5),
-   and the publishing status of each. Values never go there.
+   the redirect URIs it carries (and, if T10 added the sign-in address, why two where §4b says
+   one, as T10 sets out), what the test client holds now (D5), and the publishing status of each.
+   Values never go there.
 
 **Which Google Cloud project, and why it matters more than the client.** A new client separates
 the secret. It does not, by itself, separate what testers meet: the publishing status and the
@@ -727,15 +762,18 @@ If it holds:
 
 - **While live stays in Testing**, as D1 chose and T1 (a) recommends, a second client in the test
   client's project is enough for the alpha. Both stacks are in Testing anyway, and at D4's numbers
-  the shared list stays under the cap (T0).
+  the shared list should stay under the cap, which the owner counts once (T0).
 - **If live is to leave Testing**, by T1 (b) now or by T1's switch trigger later, live's client goes
   in a new project. Otherwise publishing live to Production also publishes the OTA stack's client.
   Live's cap, and later its verification, would then be shared with the test stack.
 
 Changing client later costs one reconnect per Google account. A refresh token belongs to the
 client it was issued to (OAuth 2.0, RFC 6749 §6), and the token request sends the deployment's
-client pair with it (`google-token-provider.ts`), so a new client pair in live's `.env` means every
-Google account connected on live consents again. T1 (b) costs that reconnect already (T1). If the
+client pair with it: `withDeploymentGoogleClient` in `packages/shared/src/google-deployment-client.ts`
+fills the pair from `.env`, and `google-token-provider.ts` sends it. That file's `hintFor` already
+names *"issued to a different client id than the one configured here"* among the causes of
+`invalid_grant`. So a new client pair in live's `.env` means every Google account connected on
+live consents again. T1 (b) costs that reconnect already (T1). If the
 new project's client replaces the old one at the moment live moves to Production, testers
 reconnect once for both, not twice. This is open question 7.
 
@@ -744,7 +782,7 @@ reconnect once for both, not twice. This is open question 7.
 provider with a redirect mismatch. There are two ways to do it:
 
 - **(a) Registrations of live's own**, as for Google. A leaked OTA secret is then not a production
-  incident (the reason `docs/google-oauth-verification.md` §4b gives), publisher verification (T5)
+  incident (a reason `docs/google-oauth-verification.md` §4b gives), publisher verification (T5)
   is done on the registration testers meet, and the Dropbox app's linked-user count (T7) holds only
   live's accounts.
 - **(b) Live's address added** to the registrations the OTA stack already names, if they are
@@ -910,7 +948,14 @@ they can accept. This is the default and must be checked (T6).
 - each tester's Google accounts are listed as test users of the production client (under T1 (a));
 - testers know about the reconnect;
 - a Microsoft work or school tester knows before pressing Connect what their organisation may ask;
-- Dropbox, Box and Apple carry the label.
+- Dropbox, Box and Apple carry the label;
+- T10 is decided.
+
+The gates before the first tester of each kind (T2 and T3 for Google, T6 for Microsoft, T7 for
+Dropbox, the owner beside the first Box run in T8, and 0141 T4 before the first Apple tester) are
+part of the minimum only when such a tester is invited. 0131 T5's row for this plan names T11,
+T1 with T0, T10, the reconnect and the Microsoft sentence; the rest of those gates are listed here
+and in the Status block.
 
 ## Not in this plan
 
@@ -925,8 +970,13 @@ they can accept. This is the default and must be checked (T6).
 - The privacy policy's sentences on sign-in providers and on who holds a Microsoft credential:
   0139. The grant page's legal links are fixed in #1137, merged 2026-09-24.
 - The grant page's "Read-only" box sitting above a scope Google describes more broadly: 0144 T3.
-  The in-app guides that still tell managed testers to create their own Google or Dropbox app:
-  W15, explained to the owner and not planned yet (0131 §5).
+- The in-app guides that still tell managed testers to create their own Google or Dropbox app:
+  W15, which the owner answered the same day (*"Contradict: self-hosters need to make those, but
+  endusers dont, or not in the ownpace-managed deployment. Stop the false hints on managed."*) and
+  which 0148, *A guide written for the person using it*, plans (its T2). The sentences T2 and T6
+  to T9 write for a tester land in 0148's customer guides once its T1 has split them from the
+  operator documents, and T2's steps also go into 0144 T1's tester guide. Records read from a
+  console (T7 (a), T11) stay in the operator documents.
 - A consent popup that Safari may block because `ProviderConsent.tsx` opens it after an awaited
   call (reported by the review, not verified: nothing runs WebKit): 0145 T0 checks it and T5 opens
   the window on the press. A full device list: 0145 T10.
@@ -952,7 +1002,8 @@ they can accept. This is the default and must be checked (T6).
    provider that must therefore stay? The OTA client carries a sign-in address (D5), which
    suggests a Google sign-in was set up or tried on the OTA stack. The repository cannot say
    whether it is in use. If it is Google on live too, live's client carries the sign-in address
-   beside the consent's (T10, T11).
+   beside the consent's, recorded in ADR-0041 as a second redirect URI, or a second production
+   client carries it alone (T10, T11).
 7. **Live's Google client (T11, D5):** a new client, as advised, rather than live's address on the
    test client? And its Google Cloud project: the test client's while live stays in Testing, and a
    new one if live is to leave Testing, as recommended? Or a new project from the start, which

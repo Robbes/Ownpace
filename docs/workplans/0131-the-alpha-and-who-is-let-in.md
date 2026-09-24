@@ -28,13 +28,27 @@ experimental tag stays text inside the card's button with its fold beside the ca
 records that the managed API is handed the helpdesk settings on this branch (2c564a5), not yet on
 `main`. §1's gate failures of 21 to 23 September were re-checked in 0141 §1.
 
+**2026-09-24, later still: W15 and W18 opened as 0148 and 0149, and the owner's three checks
+recorded.** In one message the owner answered the three things there were to check, W15 in four
+points, and W18. W15 is now 0148, *A guide written for the person using it*, and W18 is 0149,
+*Removal fails closed, and reads stay reads* (§5). T5 gains a row for each, from that plan's own
+alpha minimum. 0148 D3 answers open question 4: the export archive card is to be hidden on managed,
+so T2's "Appliance only" tag is dropped. Under 0149 D1, *apply deletions* stays on offer during the
+alpha. That answers 0144's open question 3 against its recommendation to leave the switch off, so
+removal has to fail closed before the first invitation (0149 T1 to T3). T5's 0132 row now says that
+the owner sets live's database passwords in its `.env` before the first bring-up (0132 D8) and that
+every network live joins is its own (0132 D9). Its 0140 row now gives what the one Google client
+holds, as the owner read it in the console (0140 D5). The owner's own steps follow both. 0149 D2
+decides 0009's section headed T9, and 0009's Status block carries a dated note of it, so T5's 0147
+row and §5's W19 entry say so.
+
 | Task | Status | Notes |
 |---|---|---|
 | T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4) | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. |
 | T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
 | T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1) | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |
-| T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0147, 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
+| T5 Go/no-go before the first invitation | 📋 **Proposed** | §3. For each of 0132–0149, 0093 T2c and 0130, the minimum that must be true, plus the owner's own steps. |
 
 ## 1. What there is today
 
@@ -366,9 +380,10 @@ to the other.
 about the edition. The label therefore also shows on the appliance, which offers the same cards.
 
 **The export archive on managed** is not experimental: as the wizard offers it, it cannot work
-there at all (§1). The proposal
-is a different tag on managed only, *"Appliance only"* / *"Alleen op de appliance"*, with the
-card disabled. Open question 4 asks whether to hide it instead.
+there at all (§1). The proposal here was a different tag on managed only, *"Appliance only"* /
+*"Alleen op de appliance"*, with the card disabled. The owner chose to hide it instead: *"cards
+that cant work: hide on manged"* (0148 D3, where "manged" is read as "managed"). 0148 T3 builds
+that, so T2 carries no such tag, and open question 4 is answered.
 
 **Guards.** Each of these fails on today's code, because the table does not exist:
 
@@ -471,7 +486,7 @@ contains more than its row.
 | Plan | The minimum before the first invitation | Today |
 |---|---|---|
 | 0131 The alpha (this plan) | T1 and T3 on `ownpace-live` with the setting on. T2 built. T4 decided, and 0139's conditions say what the end does. Open question 6 answered, and the answer in place. | Nothing built. Any owner or admin can invite by email address (§1). |
-| 0132 ownpace-live beside the nightly gate, on one box | 0132's T1, T1b to T1e, and T3 (D3). **T1:** container names and scripts take the stack from `COMPOSE_PROJECT_NAME`, and a guard fails on a fixed stack name. **T1b:** `ownpace-live` has its own checkout and `.env`, fresh secrets from its first bring-up, its own ports and no demo. Its database passwords are generated before that bring-up, and its application role is created with its own password before anything migrates, because otherwise the baseline creates it with the repository's literal. **T1c:** its own Trigger.dev plane, never the OTA one. **T1d:** its own identity provider at `id.ownpace.eu`, and a web build that names it as the issuer. **T1e:** the production names routed to live's ports. **T3:** checked from a machine off the mesh, port 443 on the production names answers over TLS, the OTA names answer as 0132's open question 7 decides, and nothing else answers; every port that need not be reachable is bound to loopback in both stacks (T1f). The result is written in 0132. Deploying live by hand from a tag (T1g) goes with 0146. The tag live first runs names a commit on which both nightly gates are green on their last N scheduled runs (0132 T6, step 1). 0141 T14 states that rule: scheduled runs only, since a dispatched run's moment was chosen, and a failed or cancelled scheduled run resets the count. The review suggested five, and the owner names N. The runbook and the release checklist say what D3 decided (0132 T1g). | `managed.yml` pins `name: ownpace-managed` and gives 17 services a fixed `container_name`, and scripts address containers by those names, so a second stack cannot start beside the OTA one (0132 §1). The owner reports the ports unreachable off the mesh (D3). `managed.yml` publishes seven ports (the database, the API, the web app, the status page, the identity provider and two for Trigger.dev) on all interfaces, and `www.yml` the site's, unless the host restricts them. The application role's password is a literal in the shared baseline migration (`packages/ledger/migrations/0001_baseline.sql`), and `ensure-env-secrets.sh` generates neither that password nor the database owner's. |
+| 0132 ownpace-live beside the nightly gate, on one box | 0132's T1, T1b to T1e, and T3 (D3). **T1:** container names, networks and scripts take the stack from `COMPOSE_PROJECT_NAME`, and a guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. Every network live's containers join, the one its task runs join included, is live's own and named after it (0132 D9: *"all need to land in their own seperate docker network, with names corresponding with 'ownpace-live'."*). **T1b:** `ownpace-live` has its own checkout and `.env`, fresh secrets from its first bring-up, its own ports and no demo. The owner sets its database passwords in live's `.env` before that bring-up (0132 D8: *"ill set them in .env for the ownpace-live before bringup."*), and its application role is created with its own password before anything migrates, because otherwise the baseline creates it with the repository's literal. **T1c:** its own Trigger.dev plane, never the OTA one. **T1d:** its own identity provider at `id.ownpace.eu`, and a web build that names it as the issuer. **T1e:** the production names routed to live's ports. **T3:** checked from a machine off the mesh, port 443 on the production names answers over TLS, the OTA names answer as 0132's open question 7 decides, and nothing else answers; every port that need not be reachable is bound to loopback in both stacks (T1f). The result is written in 0132. Deploying live by hand from a tag (T1g) goes with 0146. The tag live first runs names a commit on which both nightly gates are green on their last N scheduled runs (0132 T6, step 1). 0141 T14 states that rule: scheduled runs only, since a dispatched run's moment was chosen, and a failed or cancelled scheduled run resets the count. The review suggested five, and the owner names N. The runbook and the release checklist say what D3 decided (0132 T1g). | `managed.yml` pins `name: ownpace-managed` and gives 17 services a fixed `container_name`, and scripts address containers by those names, so a second stack cannot start beside the OTA one (0132 §1). The owner reports the ports unreachable off the mesh (D3). `managed.yml` publishes seven ports (the database, the API, the web app, the status page, the identity provider and two for Trigger.dev) on all interfaces, and `www.yml` the site's, unless the host restricts them. The application role's password is a literal in the shared baseline migration (`packages/ledger/migrations/0001_baseline.sql`), and `ensure-env-secrets.sh` generates neither that password nor the database owner's; `trigger-db`'s password is a literal in `managed.yml` that no `.env` reaches (0132 D8, T2). Compose names the stack's two networks after the project, but the network task runs join is a literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network`), and `ownpace-managed_` names are hard-coded on 13 lines in six files (0132 T1). |
 | 0133 Mail that reaches a tester | On `ownpace-live`, one address outside the owner's own domains walks through the request, the grant mail, the identity provider's verification mail and the first sign-in, and every mail arrives in that inbox. SPF, DKIM and DMARC pass for the sending domain. Live's API and its identity provider both send through the relay, the provider with a login: `setup-zitadel.sh` hands it `SMTP_USER` and `SMTP_PASSWORD` since #1137 (merged 2026-09-24). The notice that a request has arrived reaches the owner. | `managed.env.example` defaults `SMTP_HOST` to `mailpit`, and every bring-up starts Mailpit, with or without the demo (`bootstrap-managed.sh`), so mail stays on the box until live's `.env` names the relay. |
 | 0134 No backups during the alpha, said truthfully | The alpha conditions, T1's note and the grant mail say that nothing is backed up. Nothing the product shows promises a backup that does not exist. The owner has written down what a lost database costs a tester. | The application database has no backup (review); on `ownpace-live` it will hold the testers' data. The runbook's manual recipe dumps the zitadel database and the roles as well since #1137 (merged 2026-09-24), and says neither dump is usable without the stack's `.env`. |
 | 0135 The sign-in page is the front door | Public organisation registration is off at `ownpace-live`'s identity provider (`id.ownpace.eu`), and the setting has been read back; 0135 applies the same to the OTA instance. A user of another organisation cannot sign in to the project. | Open, which is the upstream default (review), so a new instance starts open. The owner reports that no other organisations are hosted on the OTA instance (D3). |
@@ -479,14 +494,16 @@ contains more than its row.
 | 0137 Roles that mean what they say | A viewer or member cannot delete, cut over, repoint credentials or apply deletions. Until that is built, testers invite nobody below admin, and the conditions say so. An admin cannot invite an owner: done in #1137 (merged 2026-09-24), where the invite route answers 403. | Most writes are open to every role (review, including an integration test that asserts it). |
 | 0138 Tasks under row security | Built, or accepted in writing with the reason stated. | Tasks read and write tenant data as the database owner, so row security does not apply in the worker plane (review). |
 | 0139 The legal gate for the alpha | The lawyer's pass is done (D4) and the placeholders hold the owner's facts. The alpha conditions are published in Dutch and English: free, no obligations, a few weeks, no backups, and how it ends. The pages describe the service at the production names (D3). The privacy policy and the conditions are linked from the request page and the grant page; since #1137 (merged 2026-09-24) the grant page links to the privacy policy and the terms on `www.ownpace.eu`, in the reader's language. Each tester's acceptance is recorded with the version and the time. | Drafts with placeholders. `site/build.mjs` refuses `--public` while any placeholder is unfilled. |
-| 0140 Consent screens a tester can pass | `ownpace-live` uses the production Google client, separate from the OTA stack's test client, and Microsoft and Dropbox know live's redirect addresses (D3). Each tester's Google address is a test user before they connect. Testers know Google will ask them to reconnect: after about seven days while the client is in Testing, a figure to confirm on Google's pages. A tester with a Microsoft work or school account knows, before pressing Connect, what their organisation's consent policy may do (0140 explains). Dropbox, Box and Apple carry T2's label. | The client registered on 2026-08-20 is the test (OTA) client, and production gets its own (`docs/google-oauth-verification.md` §4b). The client is in Testing (0089 T2 names the seven-day expiry). |
+| 0140 Consent screens a tester can pass | **T11:** `ownpace-live`'s Google client carries live's consent address, `https://app.ownpace.eu/api/migrations/google/callback`, and live's sign-in address only if T10 keeps a Google sign-in. Microsoft and Dropbox know live's redirect addresses (D3), and each reaches its consent screen with the owner's own account. The owner left the Google choice open, *"I'll need to add one for app.ownpace.eu or create a new oauth-client"* (0140 D5); 0140 T11 advises a new client, separate from the OTA stack's test client. **T1**'s measurement and choice, then each tester's Google address a test user for live's client before they connect (T0). **T10** decided: which sign-in buttons live offers. Testers know Google will ask them to reconnect: after about seven days while the client is in Testing, a figure to confirm on Google's pages. A tester with a Microsoft work or school account knows, before pressing Connect, what their organisation's consent policy may do (0140 explains). Dropbox, Box and Apple carry T2's label. | One Google client exists, the test (OTA) client registered on 2026-08-20 (ADR-0041). The owner read its redirect URIs in the console on 2026-09-24: it holds two, both the OTA stack's, the identity provider's sign-in callback at `id.ota.ownpace.eu` and the migration consent's at `app.ota.ownpace.eu`, and no production address (0140 D5). The `/oauth/…` production entry that `docs/google-oauth-verification.md` §4b records for 2026-08-20 is not among them. The client is in Testing (0089 T2 names the seven-day expiry). |
 | 0141 Proof before strangers | Before the first invitation: 0141's T1, the "Live proofs" section of the feature matrix that this plan's T2 verdicts point at; T9, the organiser canary; T12's walk with two strangers on `ownpace-live`; T14's rule, read before live's first bring-up from a tag; and T11's true sentence, if a first tester brings a Microsoft 365 account. Before a tester who uses a source is granted, if open question 3 settles that such a tester waits: that source's sitting (0141 T2 the Microsoft 365 account, T3's Dropbox half, T4 Apple, T5 Google Tasks, T7 Soverin as a target, which runs on the OTA stack). Before a tester on a Microsoft card, whatever open question 3 settles: T10's move of shared mailboxes to Partial, or the consent run first, as 0141's open question 4 settles. | Nothing built, and the matrix has no "Live proofs" section. The managed gate's last green scheduled run is #191, of 2026-09-20, so T14's count is 0 (0141 §1). The organiser canary is open (0103 T3). `e2e-o365.yml` has never completed a run, and the live-target lane is green because it stands down. |
 | 0142 Alerts someone reads | 0142's T0: its test alert arrived on live, and its recovery too. Its T1 and T2 are on `ownpace-live` with the switch on, and off on the OTA stack. T6, the incident runbook, is in `docs/`. | Nobody is told when the stack, the tick, the disk or a pass fails. `gatus.yaml` has no `alerting` block, the tick records nothing about itself, and outside the workplans `docs/` has no incident procedure (0142 §1). |
 | 0143 A box with a known size | 0143's T1, T2a, T3a and T4 are on `ownpace-live`, and live's caps are uploaded. T9 passed with live standing beside the OTA stack, and its numbers and the runway are written in 0143's Status block. T0's final numbers are set. T2d's step for stopping one organisation is in 0142 T6's runbook. | No task names a machine, and nothing caps passes in flight. An organisation sets its own `maxMappings`, and nothing reads it. A file over 8 MB written to a JMAP target fails with *"No content for …"*, and no largest file is stated. The managed stack has never been measured under load (0143 §1). |
 | 0144 Saying what is true to a tester | 0144's T0: the address testers write to, and the owner's answer on the site copy. T1's tester guide in Dutch, in its short form. T3's line beside *Connect with Google* and its site copy, and its grant page if testers send grant links (0140 open question 2). T6: a person to write to, before and after sign-in. T7: *Request access* on the sign-in page. | No tester guide. The site and the grant page call the connection *"read-only"* where some of the permissions asked for can write. The pages outside the app name nobody to write to, and `Login.tsx` has no link to `/request-access` (0144 §1). |
 | 0145 Phones, screen readers and in-app browsers | 0145's T0, one press of *Connect with Google* on an iPhone, on today's code. T1, the phone menu takes focus and gives it back. T3 (a), each wizard step and each new page starts at the top. T5, the consent window opens on the press itself, with T7 (a). T6, the consent endings in Dutch, and the grant half if testers send grant links. T9 (a), one paragraph in 0144 T1's guide. T10, the walk on two phones, on `ownpace-live`. | Both consent buttons open the window only after an awaited call; whether Safari blocks it is T0's to find out. The closed phone menu stays in the tab order. The grant page's "what will be read" phrase and the consent endings are English only. Nothing checks the app at phone width or in WebKit (0145 §1). |
 | 0146 A release testers can name | The alpha tag exists (0146 T0 recommends `v0.2.0-alpha.1`), and its release is published with its images and SBOM. `ownpace-live`'s build stamp and `/api/version` name that tag's version and commit. If the report form is on at `ownpace-live` (this table's row for 0130 allows an address instead), a problem report sent from there carries the build line. The tasks on `ownpace-live` were built on `node-24`: the task deploy's build output names `triggerdotdev/node:24-bookworm`, where run #193's named `node:21-bookworm`. 0146 T0's answers are written in 0146. Also before the first invitation, carried by 0135 T7: the identity provider's release watch and response window. | The only tag is `v0.1.0-rc.1`, of 2026-08-04, and every build since calls itself that. A problem report carries no build. `trigger.config.ts` names no runtime, so the tasks run Node 21 (0146 §1). |
-| 0147 An index that writes itself | 0147's T3 (a): three dated notes, on 0009, on 0008 T7 and on 0026 row 14, because the owner reads those plans when deciding go or no-go. If the session writing the alpha's plans is not idle by then, they go as their own small pull request. | 0009 says *"Nothing open in this plan."* while its section headed T9 is an open owner decision. 0008 T7 is ✅ with no run linked; both runs of `e2e-o365.yml` were cancelled. 0026 row 14 calls publisher verification moot, a premise 0114's deployment registration changed (0147 §1, T3). |
+| 0147 An index that writes itself | 0147's T3 (a): three dated notes, on 0009, on 0008 T7 and on 0026 row 14, because the owner reads those plans when deciding go or no-go; 0009's note was written on 2026-09-24, and its table row remains. If the session writing the alpha's plans is not idle by then, they go as their own small pull request. | 0009's section headed T9 was an open owner decision until 2026-09-24. Its Status block now opens with a dated note of the decision (0149 D2 and T4), above *"Nothing open in this plan."*, and its table has no row for it. 0008 T7 is ✅ with no run linked; both runs of `e2e-o365.yml` were cancelled. 0026 row 14 calls publisher verification moot, a premise 0114's deployment registration changed (0147 §1, T3). |
+| 0148 A guide written for the person using it | T3: the export archive is not offered on managed, and neither is *Via IMAP* if 0148's open question 1 is answered (a). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a Dutch customer guide, served in the app, with no operator material, read by the owner against live's screens (T0). T6's first half, the parts of the renderer those guides use, and T2 (c). T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
+| 0149 Removal fails closed, and reads stay reads | 0149's T1 to T5, merged and in the alpha tag `ownpace-live` first runs, so that no row on live is written by the old code: a DAV 412 on create is an adoption (T1), a lookup that fails is not an absence (T2), removal and rewrite carry the version and refuse without one (T3), the cutover gate holds when a target that can hash compared nothing (T4, 0009's option 1), and the IMAP source opens folders read-only (T5). T1 to T3 are in the minimum because testers may arm *apply deletions* (0149 D1). The first scheduled run of the appliance nightly after T3 and T4 is green, its three apply legs and its verification leg included, or a red result is explained in writing and dated; the managed smoke's apply half is green on the OTA stack on the same commit. | A 412 on create is recorded `copied`; a failed per-item lookup reads as "not there"; removal and rewrite skip the edit check when no version was recorded; the gate opens when a target that can hash compared nothing; the IMAP source opens folders with SELECT (0149 §1). |
 | 0093 T2c The request door | `TRUST_PROXY` and `ACCESS_REQUEST_MAX_PER_HOUR` reach the API (done in #1137, merged 2026-09-24), and `TRUST_PROXY` is set in `ownpace-live`'s `.env` for the ingress that 0132 settles. Spam protection is 🅿️ **Parked (trigger: junk in the queue, or the request address published)**: the owner reads every request, and a decline can be quiet. | Both are empty by default, so every caller shares one count (§1). |
 | 0130 A problem report that reaches a person | A tester can reach a person. Either the report form works on `ownpace-live`, with a Zammad configured, or the conditions name an address the owner reads. | Built. On `main`, `managed.yml` does not pass `ZAMMAD_URL`, `ZAMMAD_TOKEN` or `ZAMMAD_GROUP` to the API, whose environment is an explicit list, so on a stack started from `main` the form stays off whatever `.env` says, although step 8f of `docs/managed-bring-up.md` says to set them there. On this branch, with this plan's PR, `managed.yml` passes all three to the API, empty by default (2c564a5, guarded by `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`). Whether a Zammad is configured for `ownpace-live` is 0139 T0's fact 3. |
 
@@ -496,15 +513,19 @@ contains more than its row.
    0139 (D4).
 2. The mail-sending account, and the DNS records for the sending domain (0133).
 3. `ownpace-live` brought up from its own checkout and `.env`, never a copy of the OTA stack's,
-   with its database passwords generated before the first bring-up and the application role
-   created with its own password before anything migrates (0132 T1b). D3's answer says the user
-   names are changed, and the answer on the database says the user and password will be; that was
-   about the OTA stack, where 0132 T2 changes them with `ALTER ROLE`, and 0132 records which of
-   these is done there.
+   with its database passwords set by the owner in that `.env` before the first bring-up (0132 D8)
+   and the application role created with its own password before anything migrates (0132 T1b).
+   Every network live's containers join is its own and named after `ownpace-live`, checked as 0132
+   T0 step 5 says (0132 D9). D3's answer says the user names are changed, and the answer on the
+   database says the user and password will be; that was about the OTA stack, where 0132 T2 changes
+   them with `ALTER ROLE`, and 0132 records which of these is done there.
 4. Live's own Trigger.dev account, project and access token, and the production names routed to
-   `ownpace-live` in NetBird (0132 T1c, T1e).
+   `ownpace-live` in NetBird (0132 T1c, T1e). Live's Google client, carrying live's consent
+   address, and live's addresses at Microsoft and Dropbox (0140 T11): a new Google client, as
+   0140 advises, or live's address added to the one client there is, which the owner's answer
+   also allows (0140 D5).
 5. For each tester, before they connect: grant their request in `ownpace-live`'s access queue,
-   and add their Google address as a test user of the production client (D2, 0140).
+   and add their Google address as a test user for live's Google client (D2, 0140 T0).
 6. On `ownpace-live`: the alpha setting from T1 switched on, and `MOLLIE_API_KEY` left empty.
 7. Name N for the nightly gates (0132 T6, 0141 T14), and answer the open questions below.
 
@@ -541,8 +562,9 @@ password before anything migrates (0132 T1b).
 
 - For `ownpace-live`: copy nothing from the OTA stack's `.env`. Before the first bring-up, set
   the database owner's password in live's `.env`, and ClickHouse's and MinIO's, which
-  `bootstrap-managed.sh` reports while they are at their shipped defaults. Changing the database
-  owner's password once the volume exists changes nothing inside it (`bootstrap-managed.sh`).
+  `bootstrap-managed.sh` reports while they are at their shipped defaults. The owner will (0132
+  D8). Changing the database owner's password once the volume exists changes nothing inside it
+  (`bootstrap-managed.sh`).
   Create the application role with its own password before anything migrates (0132 T1b); if the
   baseline got there first, change it with `ALTER ROLE` before the first invitation (0132 T2).
   Keep live's `SECRET_ENCRYPTION_KEY` as its first bring-up made it. Stored credentials are
@@ -569,8 +591,9 @@ The review found more than the ten plans above cover, and this section first nam
 to W19 so that they were not lost. On 2026-09-24 the owner chose, item by item: *"W11 write, W12
 write, W13 write, W14 write, W15 explaoin, W16 write, W17 write, W18 explain, W19 write"*
 ("explaoin" is read as "explain"). The seven the owner said "write" to were opened the same day,
-each under the next free number. The two the owner asked to have explained were explained and are
-not planned yet; each gets the next free number when the owner chooses it.
+each under the next free number. The two the owner asked to have explained were explained, and
+later the same day the owner answered both. They were opened under the next free numbers, 0148
+and 0149.
 
 **Opened 2026-09-24, at the owner's word "write":**
 
@@ -607,14 +630,32 @@ not planned yet; each gets the next free number when the owner chooses it.
   plan's own first line, Status heading and task table (T1), with the hand-written sections kept as
   history (T2), and the Status blocks that contradict themselves or the code corrected as dated
   notes (T3). T3 (a), the notes on 0008 T7, 0009 and 0026 row 14, comes before the first
-  invitation; the rest after.
+  invitation; the rest after. 0009's note, on the decision 0149 T4 carries, was written on
+  2026-09-24.
 
-**Explained to the owner, not planned yet:**
+**Opened 2026-09-24, at the owner's word after the explanation:**
 
-- **W15 Help a tester can use:** in-app guides written for customers rather than operators, in
-  Dutch.
-- **W18 Removal fails closed:** DAV 412 on create, `If-Match` on delete, the IMAP source opening a
-  mailbox with EXAMINE rather than SELECT (0144 §1), and 0009 T9.
+- **W15 → 0148 A guide written for the person using it.** The owner answered in four points:
+  *"Audience: the in-app guide should target the endusers/testers, not the
+  operators/self-hosters (they are more technical, and do need to edit env files/run
+  commands)"*; *"Contradict: self-hosters need to make those, but endusers dont, or not in the
+  ownpace-managed deployment. Stop the false hints on managed."*; *"cards that cant work: hide
+  on manged"*; and *"Gaps: write also dutch guides for each source and target."* ("manged" is
+  read as "managed".) So under 0148 the app serves a guide written for the person who connects
+  an account, and the operator material stays in `docs/` (T1). Where the deployment carries a
+  provider's app, nothing tells a tester to create one or register an address on one (T2). A card
+  that cannot work on managed is hidden there, the export archive first (T3), which answers open
+  question 4. Each source and target card gets a guide in Dutch and in English, Dutch first
+  (T4).
+- **W18 → 0149 Removal fails closed, and reads stay reads.** The owner: *"write as a plan. But we
+  do offer 'apply deletions'. And do hold the cutover-gate when nothing was compared."* So a tester
+  may arm *apply deletions* (0149 D1), and 0149 makes removal fail closed before the first
+  invitation: a DAV 412 on create is an adoption (T1), a lookup that fails is not an absence (T2),
+  and removal carries the version and refuses without one (T3, which proposes the same for a
+  rewrite). The cutover gate holds when a target that can hash compared nothing (T4, D2). 0149
+  reads that as 0009's option 1 and asks the owner to confirm the reading (its open question 1).
+  0149 also proposes that the IMAP source opens folders read-only, with EXAMINE rather than SELECT
+  (T5), and puts it in its alpha minimum.
 
 ## Open questions
 
@@ -642,7 +683,9 @@ not planned yet; each gets the next free number when the owner chooses it.
 4. **The export archive card on managed:** keep it with an "Appliance only" tag and disabled
    (T2's proposal), or hide it on managed? 0136 open question 3 is the same question: 0136 T5
    makes the managed API refuse the disk path and advises hiding the card. One answer serves
-   both plans.
+   both plans. *Answered 2026-09-24, by 0148 D3: hide.* The owner: *"cards that cant work: hide
+   on manged"*. 0148 T3 is to hide the card on managed; it returns when an upload or relay path
+   exists (0148's parked trigger).
 5. **Target cards:** should T2's label also go on targets? Soverin has no recorded live run as a
    target: 0105 T3's supervised run still waits for the owner, and 0141 T7 plans it, on the OTA
    stack. JMAP contacts and files have integration tests and no nightly leg: 0031 T2 says JMAP

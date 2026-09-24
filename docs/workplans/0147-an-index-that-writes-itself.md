@@ -29,13 +29,23 @@ written. T3 is therefore one pull request, made when that session is idle. Every
 a dated note in the plan's own Status block, apart from two SUPERSEDED banners that go under a
 title (§3). Nothing already written is reworded or removed.
 
+**2026-09-24, cross-plan sync: 0009's section headed T9 is decided, and W15 and W18 are 0148 and
+0149.** Later the same day the owner answered W18: *"write as a plan. But we do offer 'apply
+deletions'. And do hold the cutover-gate when nothing was compared."* The last sentence decides
+0009's section headed T9 (0149 D2, read as 0009's option 1), and 0149 T4 carries it. The note on
+0009 that T3 (a) planned was written the same day, at the top of 0009's Status block, by the
+session that synced 0148 and 0149. It records the decision, the answer of 2026-09-21 it replaces,
+and 0149 T4. What T3 (a) still does for 0009 is the table row. The 0009 line numbers this plan
+cites are re-taken after that note. W15, which D1 and *Not in this plan* called not planned, is
+0148.
+
 **Before the first invitation.** This is the minimum, and it is kept small:
 
-- T3 (a): three dated notes, on 0009, on 0008 T7 and on 0026 row 14. The owner reads these
-  plans when deciding go or no-go. Each of them now says that something is settled when it is
-  not, and each bears on a tester's data or credentials (§3). They touch only 0008, 0009 and
-  0026. If the other session is not idle before the first invitation, they go ahead as their own
-  small pull request.
+- T3 (a): three dated notes, on 0009, on 0008 T7 and on 0026 row 14. The owner reads these plans
+  when deciding go or no-go. Each of them said that something is settled when it was not (0008 and
+  0026 still do), and each bears on a tester's data or credentials (§3). 0009's note was written on
+  2026-09-24 (above), and its table row remains. They touch only 0008, 0009 and 0026. If the other
+  session is not idle before the first invitation, they go ahead as their own small pull request.
 
 **After the first invitation**, during or after the alpha: T1, T2, T3 (b), T4 and T5. A tester
 never reads `docs/workplans/`. 0026 row 24 is in T3 (b), not (a): since 0132 D7 the testers use
@@ -69,7 +79,7 @@ follows is read from it.
   - 0008 (:31) calls the harness *"all present"* and the soak *"not verifiable from the repo"*.
     The O365 workflow has never completed a run (T3, 0008).
   - 0009 (:32) says *"**Nothing open in this plan.**"* and lists T1 to T6, while 0009 has T7 to
-    T12 and an open owner decision (T3, 0009).
+    T12 and an owner decision in its section headed T9, open until 2026-09-24 (T3, 0009).
   - 0013 (:36) says *"T1–T8 all done"*. 0013 has a T9 row, *"✅ **Done 2026-09-22**"* (0013:15).
   - 0025 (:60) says *"The one open item in this plan is **T6**"*. 0025:11 has T5 at 🟡.
   - 0026 (:61) says *"COMPLETE 2026-08-09 — all 25 T3 rows decided"*, and later in the same cell
@@ -209,10 +219,11 @@ The review's findings `wp-self-contradicting-status-blocks`, `wp-0009-pass-witho
 and a few smaller ones name 22 plans between them. Each was re-read at this checkout. T3 lists
 every one, with the evidence and the note to add. Three facts are worth having here:
 
-- 0009's Status block says *"**Nothing open in this plan.**"* (0009:10), under a Status
+- 0009's Status block says *"**Nothing open in this plan.**"* (0009:17), under a Status
   heading dated 2026-09-20. A section added on 2026-09-21, *"## T9: a PASS that hashed nothing —
-  the owner's call"* (0009:74), is an open decision. It reuses the number of the table's T9,
-  *"A second press that failed a ready cutover"*, which is done (0009:25).
+  the owner's call"* (0009:81), was an open decision until the owner answered it on 2026-09-24
+  (0149 D2); a dated note at the top of 0009's Status block now says so. It reuses the number of
+  the table's T9, *"A second press that failed a ready cutover"*, which is done (0009:32).
 - 0008 T7 is *"✅ Done"* (0008:13). Its acceptance is *"documented green run linked in this Status
   block"* (0008:114). GitHub lists two runs of `e2e-o365.yml`. Both were dispatched on 2026-09-06
   and both ended `cancelled`.
@@ -227,8 +238,8 @@ Each decision gives the question in plain words and the answer as given, typos i
 **D1 — which further plans are written.** *The review found more than the alpha's ten plans
 cover, listed as W11 to W19: which should be written up as plans, and which only explained?* —
 *"W11 write, W12 write, W13 write, W14 write, W15 explaoin, W16 write, W17 write, W18 explain,
-W19 write"*. ("explaoin" is read as "explain".) W19 is this plan. W15 and W18 were explained and
-are not planned yet.
+W19 write"*. ("explaoin" is read as "explain".) W19 is this plan. W15 and W18 were explained.
+Later the same day the owner answered both, and they became 0148 and 0149 (0131 §5).
 
 **D2 — the repository is what a developer works from.** *If the current stack is reused, its
 demo secrets must be rotated* — *"Who would need/het credentials? I aupporrthe test. No one will
@@ -243,8 +254,10 @@ free number each, in the order they were created. 0131 §5 records it this way: 
 owner said "write" to were opened the same day, each under the next free number. The two the
 owner asked to have explained were explained and are not planned yet; each gets the next free
 number when the owner chooses it."* No answer of the owner's about numbering is on record in
-the owner's own words, so this is how it was done, not a rule the owner stated. T5 proposes the
-same rule for every plan, and open question 5 asks the owner to confirm it.
+the owner's own words, so this is how it was done, not a rule the owner stated. That sentence of
+0131 §5 is quoted as it read then. W15 and W18 took the next free numbers, 0148 and 0149, when the
+owner answered them later the same day. T5 proposes the same rule for every plan, and open
+question 5 asks the owner to confirm it.
 
 **D4 — who reads these plans before the alpha starts.** *What may a member and a viewer do, and
 should only owners and admins invite?* — *"I am the gate for letting people in the test."* On the
@@ -321,7 +334,8 @@ under each marker. Then a table:
 | [0003](./0003-caldav-carddav-webdav.md) | Calendar, Contacts & Files (CalDAV, CardDAV, WebDAV) | — | — | — | undated Status heading · superseded by 0007 · no task table in the Status block |
 | [0009](./0009-cutover-integration.md) | Cutover made real: verification gate, DNS, rollback — integrated & tested | 2026-09-20 | 12 | ✅ 11 · ⏸️ 1 | |
 
-(These two rows are what the rules above give today. After T3, 0009 has a thirteenth row, ⏳.)
+(These two rows are what the rules above give today. After T3, 0009 has a thirteenth row, 📋,
+decided on 2026-09-24 and carried by 0149 T4.)
 
 **Deliberately dumb, as `adr-operative.mjs` is.** The index does not say what a marker means for a
 given plan, and it does not decide whether a plan is open or done, what depends on what, or what
@@ -435,7 +449,7 @@ those of 2026-09-24. If T1 has landed, the same pull request runs `--write`.
 
 | Plan | What the plan says | What is true (checked 2026-09-24) | The note |
 |---|---|---|---|
-| 0009 | *"**Nothing open in this plan.**"* (:10). The table's T9 is *"A second press that failed a ready cutover"*, ✅ (:25). | The section *"## T9: a PASS that hashed nothing — the owner's call"* (:74) is open. It says the gate *"returns **PASS**"* when nothing could be hashed. The code is as it describes: `checksumComparable > 0 ? … : 1` (`packages/core/src/verification.ts`:432), and a test pins it, *"opens the cutover gate on count parity alone when NOTHING could be hashed — the owner's call"* (`packages/core/src/verification-bytes-and-checksums.unit.test.ts`:194). | *"Nothing open"* stopped being true on 2026-09-21. One owner decision is open. It is the section headed T9, which is not the table's T9. A new row, `T13 A PASS that hashed nothing (the section headed "T9")`, at ⏳ **Owner**. The decision is W18's, which is explained and not planned yet. |
+| 0009 | *"**Nothing open in this plan.**"* (:17). The table's T9 is *"A second press that failed a ready cutover"*, ✅ (:32). | The section *"## T9: a PASS that hashed nothing — the owner's call"* (:81) was open until 2026-09-24, when the owner decided it (0149 D2). It says the gate *"returns **PASS**"* when nothing could be hashed. The code is as it describes: `checksumComparable > 0 ? … : 1` (`packages/core/src/verification.ts`:432), and a test pins it, *"opens the cutover gate on count parity alone when NOTHING could be hashed — the owner's call"* (`packages/core/src/verification-bytes-and-checksums.unit.test.ts`:194). | *"Nothing open"* stopped being true on 2026-09-21. **The note is written** (2026-09-24, the top of 0009's Status block): the section headed T9, which is not the table's T9, was answered on 2026-09-21 in the code only and on 2026-09-24 by the owner, and 0149 T4 carries the second answer. What remains is a new row, `T13 A PASS that hashed nothing (the section headed "T9")`, at 📋 **Decided 2026-09-24**, pointing at 0149 T4. 0149 T4's PR also records both decisions in 0009; whichever lands first adds the row, not both. |
 | 0008 T7 | *"✅ Done"* (:13). | The acceptance is *"documented green run linked in this Status block (timestamps showing >1 token lifetime)"* (:114), and the DoD asks for *"≥24 h unattended"* (:29). No run is linked. GitHub lists two runs of `e2e-o365.yml`: 34019235750 and 34019786577, both dispatched on 2026-09-06, both `cancelled`. Without its secrets the suite skips (`e2e-o365.yml`:12). | `🟡 **Corrected: harness built, acceptance not met** — *was:* ✅ Done`. The lane is 0141 T13, and the Microsoft 365 account's live pass is 0141 T2. 0141 T13 (b) leaves this correction to this note. |
 | 0026 row 14 | *"per-customer app registration is the model (owner), and that makes publisher verification MOOT … under this model no tenant ever is"* (:106). | Since 0114 the managed stack carries *"The deployment's own MICROSOFT app registration (workplan 0114)"* (`deploy/compose/managed.env.example`:729), and an empty `MICROSOFT_OAUTH_TENANT=` (:751) means `common`. | The premise changed with 0114. The ADR is 0140 T4, and publisher verification is 0140 T5 (⏳ **Owner**). 0140 T4 lists row 14 among the places that must say the same thing. Whichever lands first writes this note, not both. |
 
@@ -539,9 +553,9 @@ The `## Numbering` section of the README says, written by hand:
 
 ## Not in this plan
 
-- **The decision in 0009's section headed T9.** T3 only makes 0009's Status say that it is open.
-  The decision belongs to W18, *"removal fails closed"*, which was explained to the owner and is
-  not planned yet. W15, *"help a tester can use"*, is not planned yet either.
+- **The decision in 0009's section headed T9.** T3 only makes 0009's Status say where it stands.
+  The decision belongs to W18, *"removal fails closed"*, which the owner answered on 2026-09-24
+  and which is now 0149 (its D2 and T4). W15, *"help a tester can use"*, is now 0148.
 - **The ADR register's rows** (`docs/adr/README.md`). The review found drift there as well. The
   register has its own rules (ADR-0038), and this plan does not touch it.
 - **Unfinished work that no Status block misstates.** It is carried by 0141 to 0146, or by the

@@ -602,7 +602,7 @@ While every organisation is the owner's grant (D3), a tester who hammers the con
 person the owner can write to. Where those probes may go is 0136's subject. The review also found
 no cap on an archive's total bytes or member count (the zip reader caps its central directory
 and each read at 256 MB, `zip-archive.ts`). That is not planned here: as the wizard offers it,
-the archive card cannot work on managed at all (0131 §1 and T2).
+the archive card cannot work on managed at all (0131 §1 and T2), and 0148 T3 is to hide it there.
 
 ### T3 — a streamed file reaches a JMAP target
 
@@ -952,7 +952,9 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
   JMAP files, the order of data types) are handed to 0144 to publish, and 0144 T2 lists them in
   the alpha part of its known-limitations page. The alpha conditions are 0139's.
 - **A release name for the commit T9 measured:** 0146.
-- **In-app guides that state these limits:** W15, not planned yet.
+- **In-app guides that state these limits:** W15, now 0148. Its JMAP guide says that a file over
+  8 MB does not reach a JMAP target yet, and leaves the limits themselves to this plan (0148 T4,
+  *Not in this plan*).
 
 ## Open questions
 

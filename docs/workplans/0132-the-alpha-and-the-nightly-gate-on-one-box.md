@@ -38,8 +38,15 @@ lists what does not follow: every hard-coded `ownpace-managed_` name, 13 lines i
 include the supervisor's `DOCKER_RUNNER_NETWORKS` literal and `reset-trigger.sh`'s volume name.
 T1's guard now fails on any `ownpace-managed_` name. The first of the three checks, what the
 Google client's redirect URIs hold and whether to add one for `app.ownpace.eu` or make a new
-client, is 0140's: its T11 answers it with a new client for live, carrying live's two addresses
-(T1e). Nothing is built.
+client, is 0140's: its T11 answers it with a new client for live, carrying live's consent
+address, and live's sign-in address only if 0140 T10 keeps a Google sign-in (T1e). Nothing is
+built.
+
+**2026-09-24, cross-plan sync after 0148 and 0149.** The entry above, D8 and T1e first said that
+0140 T11 puts "live's two addresses" on live's Google client. 0140 T11 now adds the sign-in address
+only if its T10 keeps a Google sign-in, because ADR-0041's decision gives production one redirect
+URI. All three say so now. The same message's answers on W15 and W18 are 0148 and 0149, which
+change nothing in this plan.
 
 | Task | Status | Notes |
 |---|---|---|
@@ -352,7 +359,8 @@ The eight places in the API that enqueue a task on a person's request, in
     `TRIGGER_DB_PASSWORD`.
   - The first answer is about the Google client's redirect URIs, and ends *"I'll need to add one
     for app.ownpace.eu or create a new oauth-client"*. It is 0140's: its T11 answers it with a new
-    client for live, carrying live's two addresses (T1e here). The third answer is D9.
+    client for live, carrying live's consent address, and live's sign-in address only if 0140 T10
+    keeps a Google sign-in (T1e here). The third answer is D9.
 - **D9, live's networks (later on 2026-09-24).** The third answer: *"3) all need to land in their
   own seperate docker network, with names corresponding with 'ownpace-live'."* ("seperate" is read
   as "separate". "all" is read as everything live runs, and "names" as the networks' names. The
@@ -698,7 +706,8 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
   sign-in with Google (0140 T10). The owner read the client on 2026-09-24: it holds the OTA
   stack's two addresses, and *"I'll need to add one for app.ownpace.eu or create a new
   oauth-client"*. Which client, and its registration, are 0140's: its T11 advises a new client
-  for live with live's two addresses.
+  for live with live's consent address, and the sign-in address only if 0140 T10 keeps a Google
+  sign-in.
 - **The check** is in T0 step 5: `id.ownpace.eu` names itself as the issuer, and the sign-in
   button on `app.ownpace.eu` leads there. T6 step 7 checks that `/api/version` on
   `app.ownpace.eu` names the commit of live's tag.

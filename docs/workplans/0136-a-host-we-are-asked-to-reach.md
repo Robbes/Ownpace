@@ -20,6 +20,12 @@ at bring-up against what the daemon hands out, and leans on 0132 T3's 127.0.0.1 
 both stacks for whatever it misses. §1 gains *Two stacks on one machine*, §2 gains D6, and T2,
 T4, T7 and §4 are re-worded for two stacks.
 
+**2026-09-24, cross-plan sync: open question 3 is answered.** The owner chose to hide cards that
+cannot work on managed: *"cards that cant work: hide on manged"* (0148 D3, where "manged" is read
+as "managed"). 0148 T3 is the task that hides the export archive card there; nothing is built
+yet. T5, the refusal on the managed API, keeps its place: hiding the card does not stop a request
+that names a disk path.
+
 Names used from here on: **live** is the `ownpace-live` stack; **the OTA stack** is
 `ownpace-managed`, the nightly gate's target and the demo. D2 and D3 below were asked before D6:
 "the tester stack" is live, and D3's answers describe the one stack the machine had then, now the
@@ -35,7 +41,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
-| T5 No archive "disk" path on the managed edition | 📋 **Proposed** | §3. Both doors and the probe refuse it. The gate's archive fixture step breaks with it. Needs the owner's answer on how the managed archive card is shown (open question 3). |
+| T5 No archive "disk" path on the managed edition | 📋 **Proposed** | §3. Both doors and the probe refuse it. The gate's archive fixture step breaks with it. The owner chose to hide the managed archive card (open question 3, answered by 0148 D3), and 0148 T3 is the task that hides it. |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
@@ -509,7 +515,8 @@ That leaves the managed archive card with no working shape today. The create doo
 `where: 'target'`, and the wizard has no relay (`guides-archive-managed-path-unusable`). So T5
 comes with open question 3's answer. The advice is to hide the card on managed until an upload or
 relay path exists, or the door learns `where: 'target'`. Label or hide is the owner's call, the
-same one Q9 answered with *"Label"* for the unproven source cards (D5).
+same one Q9 answered with *"Label"* for the unproven source cards (D5). The owner chose hide on
+2026-09-24 (0148 D3), and 0148 T3 builds it.
 
 **Guard:** in the API, a test posts an archive with a path and no `where` to
 `POST /api/connections`, `POST /api/migrations` and `test-connection`. It expects a refusal and no
@@ -654,7 +661,8 @@ edge does not see that traffic.
    (T5). Q9's answer for unproven sources was *"Label"* (D5). An archive that cannot be read on
    managed is a different case from one that is only unproven. 0131 open question 4 asks the same
    question, with an "Appliance only" tag on a disabled card as its proposal; one answer serves
-   both plans.
+   both plans. *Answered 2026-09-24, by 0148 D3: hide.* The owner: *"cards that cant work: hide
+   on manged"*.
 4. **The host firewall rule in T4.** Does the owner want the `DOCKER-USER` rule on the reference
    machine itself, given that CI and both stacks run there (0132)? It changes what containers on
    the two `egress` bridges can reach, and CI's own job containers are on neither. The build

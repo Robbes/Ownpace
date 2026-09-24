@@ -38,6 +38,12 @@ it, and T12(c)'s trigger, 0132 T8, is superseded. The demo Nextcloud stays on th
 five items are marked fixed where they occur. No run of the managed gate has happened since the
 merge: the latest is still #196.
 
+**2026-09-24, cross-plan sync after 0148 and 0149.** Later the same day the owner answered W15
+and W18, which T8 (c) and *Not in this plan* called not planned. W15 is 0148, *A guide written for
+the person using it*, and W18 is 0149, *Removal fails closed, and reads stay reads*; both places
+now point there. The export archive card's row in §1 follows 0148 D3: the card is hidden on
+managed, not tagged.
+
 **Before the first invitation.** This is the minimum, and it is kept small:
 
 - T1, the record;
@@ -104,7 +110,7 @@ The `microsoft` faces are the `graph-*` connectors (`source-face-builders.ts`:13
 | Dropbox | files | experimental | *"(a) Real-endpoint proof — ⏳ … unproven here"* (0055:11). Matrix Files table ⏳, and the open-gaps row :400. |
 | Box | files | experimental | The same words in 0056:10. Matrix Files table ⏳, and the open-gaps row :401. |
 | Apple account (`apple`) | mail, calendar, contacts, tasks | experimental | *"Still **not measured against a live iCloud account**"* (0115:68-69). Matrix :405. Part 1 of `docs/apple-supervised-run.md` is still open. |
-| Export archive (`archive`) | — | cannot work on managed as the wizard offers it | 0131 §1. 0131 T2 proposes an "Appliance only" tag. It is not a proof question. |
+| Export archive (`archive`) | — | cannot work on managed as the wizard offers it | 0131 §1. The owner chose to hide it on managed rather than tag it (0148 D3, T3). It is not a proof question. |
 
 **Targets.**
 
@@ -543,8 +549,8 @@ Until this lands, a tester who wants JMAP for contacts or files is pointed at Ca
 **(b) A Nextcloud we do not run (owner).** Either the first tester whose target is a hosted
 Nextcloud, supervised, with counts only; or the live-target lane armed at a hosted Nextcloud.
 
-**(c) Removal on targets we do not run** (DAV 412 on create, `If-Match` on delete) is W18, which is
-not planned yet.
+**(c) Removal on targets we do not run** (DAV 412 on create, `If-Match` on delete) is W18, now
+0149: its T1 to T3, in its alpha minimum.
 
 ### T9 — the organiser canary (owner, before the first invitation; the gate's fixture proposed)
 
@@ -798,8 +804,8 @@ The numbers and C are written in this block. No code, so there is no guard.
   Tasks (0126 T5): 0143.
 - A known-limitations page that lists what T1's record says is unproven: 0144.
 - A release name testers can quote, and which commit C was: 0146.
-- In-app guides a tester can use: W15, not planned yet.
-- Removal that fails closed on targets: W18, not planned yet.
+- In-app guides a tester can use: W15, now 0148.
+- Removal that fails closed on targets: W18, now 0149.
 
 ## Open questions
 

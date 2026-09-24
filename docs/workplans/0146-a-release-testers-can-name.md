@@ -870,7 +870,7 @@ and response window (0135 T7).
 - Live proof of the sources, and the record of which tag each sitting used: 0141.
 - The tester guide, which tells a tester where the build stamp is: 0144.
 - The workplan index, whose line for 0025 still calls T6 *"the one open item"*: 0147.
-- In-app guides a tester can use: W15, not planned yet.
+- In-app guides a tester can use: W15, now 0148.
 
 ## Open questions
 

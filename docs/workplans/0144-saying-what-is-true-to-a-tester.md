@@ -34,6 +34,16 @@ again at `main` after the merge (`987cb06`), and the line numbers are today's. T
 part of T3 is now tied to 0140's open question 2, as 0145 T6's grant half is: it is needed before
 the first invitation only if testers send grant links during the alpha.
 
+**2026-09-24, cross-plan sync: W15 and W18 are 0148 and 0149, and open question 3 is answered.**
+Later the same day the owner answered W15 and W18. The in-app guides, which §1 and *Not in this
+plan* called W15 and not planned, are 0148, *A guide written for the person using it*. Removal
+that fails closed, W18, is 0149, *Removal fails closed, and reads stay reads*. Its D1 answers open
+question 3: *"But we do offer 'apply deletions'."* So testers may arm the switch, against this
+plan's recommendation (a), and 0149 T1 to T3 make removal fail closed before the first invitation.
+T1's line about the switch, T4 and the lists below change with it. T4 stays after the first
+invitation: its drafted condition is false once 0149 T3 lands, so it is written after that (0149
+T6).
+
 **Before the first invitation.** This is the minimum, and it is kept small:
 
 - T0, the owner's words: the address testers write to, and the site copy;
@@ -45,7 +55,7 @@ the first invitation only if testers send grant links during the alpha.
 
 **After the first invitation**, during or after the alpha: T2, T4, T5's screen changes and T8.
 Until they land, the guide carries their advice: keep the old account, start with an empty
-target, leave *apply deletions* off, and ask the owner to close.
+target, and ask the owner to close. What it says about *apply deletions* follows 0149 D1 (T1).
 
 Everything a tester reads is written in Dutch first and translated into English (D1).
 
@@ -55,7 +65,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
 | T3 "Read-only" replaced by what is true | 📋 **Proposed**; the site copy ⏳ **Owner** (T0) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
-| T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, not planned yet. **After**; until then the guide says to leave *apply deletions* off. |
+| T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
 | T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings now reach the API on this plan's branch, not yet on `main` (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
@@ -92,8 +102,8 @@ and the guides), and the limits are stated where they occur.
   the Apple row is its own row of the open-gaps table (now :405), and
   `google-workspace-setup.md`'s *"What only a real account can prove"* (:512) is a second place
   that states it. Gmail, Google Calendar and Google Contacts moved to ✅ on 2026-09-22, for the
-  owner's own account only (matrix :10-17). Rewriting the guides for customers is W15, not
-  planned yet. Since #1137 (merged 2026-09-24) the open-gaps table also lists Dropbox and Box
+  owner's own account only (matrix :10-17). Rewriting the guides for customers is W15, now
+  0148. Since #1137 (merged 2026-09-24) the open-gaps table also lists Dropbox and Box
   (:400-401).
 
 ### What "read-only" means today
@@ -127,8 +137,8 @@ Two things are true at once:
   The HTTP connectors send only GET, PROPFIND, REPORT and OPTIONS, and Dropbox's POSTs are its
   read calls (`nondestr-source-calls-verified`). That census was not repeated here.
   The IMAP source opens a mailbox with SELECT rather than EXAMINE. It fetches with PEEK, so no
-  message is marked as read, but the protocol would allow writing. Making it EXAMINE is W18, not
-  planned yet.
+  message is marked as read, but the protocol would allow writing. Making it EXAMINE is W18, now
+  0149 T5.
 - **The permission does not.** The privacy draft already says this correctly
   (`site/legal/privacy.md`:120-122: *"Where a provider offers nothing narrow … we say so rather
   than implying otherwise"*). The review's verifier judged the site sentences about the
@@ -181,7 +191,7 @@ tick, the button and a hint. It says nothing about the permission Google will de
   never applies a deletion (`strings.ts`:132-138). It is shown only once *apply deletions* is on
   (`ApplyDeletionsPanel.tsx`:133).
 - **A row recorded as copied when the target refused it** (the review's DAV 412 finding) is a
-  provenance defect. It is W18, not planned yet.
+  provenance defect. It is W18, now 0149 T1.
 
 The terms say *"Deletion at the target only ever happens through a path you switch on and
 approve item by item"* (`site/legal/terms.md`:91-92; Dutch `terms.nl.md`:38-39). Auto-apply
@@ -379,8 +389,12 @@ comes from:
    - Send the owner every Google address you will connect, and wait until it is added (0140 T0 and
      T2).
    - Open links in Safari or Chrome, not inside a mail or chat app (0140 T3).
-   - Leave the switch *Toepassen van verwijderingen inschakelen* alone during the alpha, until T4
-     lands.
+   - What the switch *Toepassen van verwijderingen inschakelen* does. This replaces the earlier
+     advice to leave it alone, since *apply deletions* is offered during the alpha (0149 D1). It is
+     off until you switch it on. Once it is on, a deletion you made in your old account can be
+     applied to the copy at your new provider, item by item, and only to a copy Ownpace wrote
+     there. The line is written once 0149 T1 to T3 have landed, which is before the first
+     invitation (0149 T6).
 3. **Zo begint u.** The request, the owner's grant, the mail, signing in at `app.ownpace.eu`
    with an account at `id.ownpace.eu`, the conditions (0139 T3), then *Verbindingen* and a new
    migration. Read the confirm screen before you press start, and run *Verifieer de migratie*
@@ -608,20 +622,26 @@ that is conditional is stated with its condition:
 The opening sentence, up to *"… following a deletion the owner made on the old one"* (*"… in het
 oude systeem deed"*), is unchanged.
 
-**The comment.** `apply-deletion.ts`:42-45 is corrected in the same PR: for DAV the check is a
-HEAD before the DELETE, not a condition on it. Sending `If-Match`, and refusing a removal that has
-no recorded version, is W18, not planned yet. When W18 lands, the warning can drop its
-condition, and the guard below says so.
+**The comment.** `apply-deletion.ts`:42-45 is corrected: for DAV the check is a HEAD before the
+DELETE, not a condition on it. Sending `If-Match`, and refusing a removal that has no recorded
+version, is W18, now 0149 T3, which also takes over this correction (0149 T6). When W18 lands,
+the warning can drop its condition, and the guard below says so.
 
-**Until T4 lands**, the guide says to leave *apply deletions* off (T1). The switch is off by
-default (§1).
+**2026-09-24, after 0149.** 0149 T1 to T3 are in its alpha minimum (0149 D1), so the condition
+drafted above, *"where it gave none, or cannot be asked, the removal goes ahead"*, is false before
+the first invitation. T4 is therefore written after 0149 T3 lands, and describes the refusal
+instead (0149 T6). Until T4 lands, the warning keeps its present words; 0149 T6 says which of
+them hold once 0149 T1 to T3 have landed. The guide says what the switch does (T1). The switch is
+off by default (§1).
 
 **Guard.** `scripts/a-warning-the-check-keeps.unit.test.ts` fails today. It reads
 `packages/core/src/apply-deletion.ts`. While removal passes a version only when one was recorded
 (the `row.targetVersion !== undefined ?` form), `APPLY_FLAG_WARNING` and `APPLY_FLAG_WARNING_NL`
 must not contain *"never a copy somebody has since edited"* or its Dutch, and must carry the
 condition in both languages. When the condition disappears from the code, the test fails with a
-message that asks for the warning to be reconsidered.
+message that asks for the warning to be reconsidered. 0149 T3 leaves that form in core, because
+the refusal is the writers', so a guard written after 0149 T3 keys on the writers' refusal
+instead (0149 T6).
 
 ### T5 — a destination that is not empty (proposed; the advice before, the screen after)
 
@@ -796,9 +816,10 @@ approves.
 - Phones and screen readers, the grant page's "what will be read" sentence, and the guide's
   accessibility paragraph: 0145 (T6, T9). A build name a tester can quote: 0146.
 - The report form itself: 0130, built.
-- In-app guides written for customers, in Dutch: W15, not planned yet.
+- In-app guides written for customers, in Dutch: W15, now 0148, *A guide written for the person
+  using it*. The line in the site guide that points at *Handleidingen* is proposed there for T1.
 - Removal that fails closed: `If-Match` on a DAV DELETE, a row recorded as copied after a 412, and
-  IMAP opened with EXAMINE. That is W18, not planned yet.
+  IMAP opened with EXAMINE. That is W18, now 0149, *Removal fails closed, and reads stay reads*.
 
 ## Open questions
 
@@ -809,6 +830,9 @@ approves.
    sentence that must go in any case is how-it-works' *"The connection is **read-only**"*.
 3. **Apply deletions during the alpha.** (a) Testers leave it off until T4 lands, and the guide
    says so. *Recommended.* (b) T4 goes in before the first invitation, and testers may try it.
+   *Answered 2026-09-24, by 0149 D1: testers may use it.* The owner: *"But we do offer 'apply
+   deletions'."* Neither option as written: removal fails closed before the first invitation
+   (0149 T1 to T3), and T4's words follow once 0149 T3 has landed (0149 T6).
 4. **An IMAP destination (T5).** (a) The confirm screen says it, and nothing else changes.
    *Recommended for the alpha.* (b) Discovery counts per folder for an IMAP target, so that the
    screen promises only what happens. (c) The IMAP writer adopts across the whole account, as

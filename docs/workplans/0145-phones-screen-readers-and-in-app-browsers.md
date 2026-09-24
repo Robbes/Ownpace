@@ -732,7 +732,8 @@ phone, the OS version, the browser and the language. It never records an address
 - The desktop walk and the fixture-backed grant, view and wizard cases: 0141 T12.
 - A build name a tester can quote: 0146.
 - The in-app guides (`Docs.tsx` serves the English `docs/*-setup.md`), and whether they become
-  Dutch and written for customers: W15, not planned yet.
+  Dutch and written for customers: W15, now 0148, which the owner answered with Dutch customer
+  guides for each source and target (0148 D1, D4).
 
 ## Open questions
 
