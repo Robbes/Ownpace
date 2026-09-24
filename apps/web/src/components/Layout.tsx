@@ -218,7 +218,7 @@ const Layout: React.FC = () => {
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-gray-600 bg-opacity-75 z-20 lg:hidden"
+          className="fixed inset-0 bg-gray-600/75 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
