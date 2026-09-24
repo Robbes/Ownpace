@@ -4,7 +4,7 @@
  * 
  * Provides:
  * - Token bucket rate limiter per (tenant, provider)
- * - Global concurrency cap
+ * - Concurrency cap per limiter instance (one per pass/process — NOT service-wide; the shared, cross-process limit is the RateBudget)
  * - Honor Retry-After header on 429/503 responses
  * - Throttle event counting in run stats
  * - Exponential backoff with jitter for other errors
