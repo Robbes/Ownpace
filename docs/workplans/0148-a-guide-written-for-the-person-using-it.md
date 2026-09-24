@@ -2,6 +2,26 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T6 (a) built.** The renderer's first half is built on branch
+`claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, not merged.
+`Docs.tsx` is extended and no dependency is added (D6):
+
+- a heading is an `<h2>`–`<h4>` with an id: from a trailing `{#id}`, which leaves the text, or
+  else GitHub's slug of the heading. So the ten `#section` links in today's guides resolve;
+- a `#section` link stays in the tab and scrolls to its heading. So does a page opened at
+  `/docs/<slug>#<id>`, which T4's links from the checklist will need;
+- numbered steps are an `<ol>`, which keeps its first number when a sub-list interrupts it;
+- a link inside bold is a link;
+- the article has `lang="en"`, since every served guide is English until T4 picks per locale;
+- the index lists each guide by its first heading, not its slug.
+
+`Docs.unit.test.tsx` tests each feature on fixtures. It also checks every served guide: headings
+with ids, `#` links with no `target` that name an id on the page, no numbered step left inside a
+paragraph, and links inside bold. The plan's `|` and `>` assertions are an `it.todo` until T6 (b),
+because today's guides still use tables and blockquotes. The plan left two choices open. The
+not-found page lists titles too, from the same list as the index. Code inside a link's text
+renders as code. T2 (c)'s `own-app` fold and T6 (b) are not built. `Docs.tsx`:5-8 is left for T7.
+
 **2026-09-24, later still: the owner answered open questions 1 to 5.** *"3) 0148: dont hide IMAP,
 i tested that once and will do that again. extent the guide renderer. Leave the Apple-export
 option in but be clear about it ('to be tested'-label). Add the five new guides already. Yes,
@@ -68,7 +88,7 @@ Apple tag on the appliance (D7). The walks are the owner's: (a) before the first
 | T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: the export archive is hidden on managed (D3); *Via IMAP* stays (D5); the Apple export option stays on the appliance, tagged *to be tested* (D7) | §3. One flag on the card, read by both doors. The archive card returns when an upload or relay path exists: 🅿️ **Parked (trigger: 0116 T4's relay page, or the create door learning `where: 'target'`)**. **Before**; the Apple tag **after**. |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
-| T6 A renderer that keeps a guide's shape | 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
+| T6 A renderer that keeps a guide's shape | 🔨 **(a) built** on branch `claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, not merged; (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 
