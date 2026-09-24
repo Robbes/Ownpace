@@ -55,6 +55,7 @@ import {
 } from '../services/api.ts';
 import { QUALIFICATION_KEYS, credentialFieldRequired } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
+import { optionName } from '../i18n/option-name.ts';
 import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
 
 /**
@@ -645,7 +646,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           <option value="">—</option>
           {field.options.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {optionName(t, option)}
             </option>
           ))}
         </select>
@@ -665,6 +666,17 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       )}
     </label>
   );
+
+  /**
+   * The chosen option's own line, under its field (0148 T3, D7): an export no
+   * reader opens yet says so before anybody asks Apple for a week's wait. A
+   * sibling of the label rather than inside it, so it is not read out as part
+   * of the field's name.
+   */
+  const chosenLine = (field: CredentialField) => {
+    const key = field.options?.find((o) => o.value === (values[field.key] ?? ''))?.hintKey;
+    return key ? <Hint className="sm:col-span-2" text={t(key as StringKey)} tone="caution" /> : null;
+  };
 
   if (!open) {
     return (
@@ -778,7 +790,12 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               </details>
             );
           }
-          return <React.Fragment key={field.key}>{fieldBox(field)}</React.Fragment>;
+          return (
+            <React.Fragment key={field.key}>
+              {fieldBox(field)}
+              {chosenLine(field)}
+            </React.Fragment>
+          );
         })}
       </div>
 

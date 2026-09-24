@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useT, useLocale } from '../i18n/index.tsx';
 import { Hint, whyKeyOf } from '../components/Hint.tsx';
+import { optionName } from '../i18n/option-name.ts';
 import {
   LEAVE_ALL_BEHIND,
   NativeFilePolicyChooser,
@@ -1669,6 +1670,7 @@ const CreateMapping: React.FC = () => {
         (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
       const set = (v: string) => updateField(formKey, v);
       const id = `${side}-${field.key}`;
+      const chosenHintKey = field.options?.find((o) => o.value === value)?.hintKey;
       return (
         <div>
           <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
@@ -1693,7 +1695,7 @@ const CreateMapping: React.FC = () => {
               <option value="">—</option>
               {field.options.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {optionName(t, option)}
                 </option>
               ))}
             </select>
@@ -1740,6 +1742,11 @@ const CreateMapping: React.FC = () => {
               why={fieldWhy(field.hintKey)}
               tone={field.key === 'serviceAccountKey' ? 'caution' : 'muted'}
             />
+          )}
+          {chosenHintKey && (
+            // The chosen option's own line (0148 T3, D7): an export no reader
+            // opens yet says so before anybody asks Apple for a week's wait.
+            <Hint text={t(chosenHintKey as StringKey)} tone="caution" />
           )}
         </div>
       );

@@ -114,6 +114,8 @@ so a count that looks short has a reason you can read.
 
 ## Apple Data & Privacy
 
+**To be tested.** We cannot read an Apple export yet. Request one only for your own records.
+
 ### Asking for it
 
 1. Go to **privacy.apple.com** and sign in with your Apple Account.
