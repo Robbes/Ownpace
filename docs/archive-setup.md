@@ -21,7 +21,7 @@ Two things, and neither of them is a password:
 | | |
 |---|---|
 | **Which export** | Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
-| **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. |
+| **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. The folder can also be in the Nextcloud you are moving to: see [Your export in your own Nextcloud](#your-export-in-your-own-nextcloud). |
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is
 no account to link and nothing to revoke afterwards.
@@ -176,6 +176,35 @@ rather than a `.zip` (we read `.zip`; ask Google for that format, or extract the
 point us at the folder). **We will never tell you an archive is empty when what really
 happened is that we could not read it.** Those are different answers and you deserve the true
 one.
+
+---
+
+## Your export in your own Nextcloud
+
+The export does not have to be on a disk. If the files you are moving to are in a Nextcloud, or
+on another server that offers your files over WebDAV, you can put the export there and we read
+it from that folder.
+
+1. Upload the `.zip` parts of the export into **one folder** of the files the migration will
+   write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the
+   way you always add files, such as the Nextcloud website or its desktop app. Keep every part
+   in that one folder.
+2. On the source step, choose **Export archive**. Under **Where the export is**, choose
+   **In a folder of your destination's files (Nextcloud or WebDAV)**.
+3. Type the folder as it appears in your files, from the top, for example
+   `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
+4. Press **Test**. It says the export is counted at the preflight. That is expected: the
+   destination is chosen on the target step, and until then there is nowhere to look.
+5. Continue, and on the target step choose that same Nextcloud or WebDAV account. The
+   preflight then counts what is in the export, before anything moves.
+
+This works with a Nextcloud or a WebDAV destination only. An account that holds no files, or a
+JMAP account, cannot hand us the export: JMAP does not let us read a file in pieces, and we
+say so on the target step.
+
+**The parts stay where you put them.** We only read them, so after the migration they are still
+in that folder, and they take up as much space in your account as the export itself. Once you
+have checked that everything arrived, delete the folder yourself.
 
 ---
 

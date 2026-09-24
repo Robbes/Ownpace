@@ -25,11 +25,12 @@
  * is refused with that sentence, and neither the probe, the qualifier nor the
  * reader behind them is ever called — so nothing opens the path. The spies are
  * proved live by a control that does reach the probe, and a stored archive in
- * the destination's files (`where: 'target'`, what 0148 T9 will store) is not
+ * the destination's files (`where: 'target'`, what 0148 T9 stores) is not
  * refused, so the rule is the location and not the kind.
  *
- * Until 0148 T9 the doors drop a posted `where`, so EVERY archive posted here
- * is refused, `where: 'target'` included. That is expected, and T9 changes it.
+ * Since 0148 T9 the doors keep a posted `where`, so `where: 'target'` passes
+ * this refusal at every door; what the create door then asks of the
+ * destination is `an-export-in-the-destinations-files.unit.test.ts`'s.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -286,8 +287,8 @@ describe('a STORED archive connection — the Connections page', () => {
   });
 
   it('does not refuse an export in the destination’s files — the rule is the location', async () => {
-    // What 0148 T9 will store. Its Test answers that the contents are counted
-    // at the preflight; the point here is only that it is not THIS refusal.
+    // What 0148 T9 stores. Its Test answers that the contents are counted at
+    // the preflight; the point here is only that it is not THIS refusal.
     storedRow = { ...ARCHIVE_ROW, config: { ...ARCHIVE_ROW.config, where: 'target' } };
     const res = await request(app).post('/api/connections/conn-1/test');
     expect(res.status, JSON.stringify(res.body)).toBe(200);

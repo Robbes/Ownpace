@@ -26,9 +26,11 @@
  *    the row is what this edition cannot serve.
  *
  * `where: 'target'` passes: the path is inside the migration's own file target
- * and is read over the wire (0116 T4). Until 0148 T9 the doors drop a posted
- * `where`, so every archive posted to the managed API is refused; T9 teaches
- * them `where` and the wizard the choice the sentence names.
+ * and is read over the wire (0116 T4). Since 0148 T9 the doors keep a posted
+ * `where`, and the wizard and the Connections page offer the choice the
+ * sentence names, with the destination as managed's default. Whether the
+ * destination can serve it is the create door's next question, asked through
+ * the shared `archiveInTargetRefusal`.
  *
  * The sentence is a refusal, so it renders as served and stays English
  * (`docs/i18n-prose-boundary.md`); `archive_on_server` is the stable code a

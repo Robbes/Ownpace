@@ -19,7 +19,9 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
+  choiceDefaults,
   credentialFieldsFor,
+  followedField,
   isFailureCategory,
   providerDefaultsFor,
   providerDefaultsProvenance,
@@ -28,6 +30,8 @@ import {
   type FailureCategory,
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { ChoiceField } from '../components/ChoiceField.tsx';
+import { isSelfHost } from '../services/edition.ts';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   type ConnectionDeleted,
@@ -531,7 +535,16 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
    */
   const [added, setAdded] = React.useState(false);
 
-  const fields = credentialFieldsFor(role, type);
+  const declared = credentialFieldsFor(role, type);
+  /**
+   * What the form holds: what was typed, over this edition's default for every
+   * choice that has one (0148 T9 — the archive's `where`). It is also what is
+   * posted, so an untouched choice is sent as the answer the screen shows.
+   */
+  const answers: Record<string, string> = { ...choiceDefaults(declared, isSelfHost()), ...values };
+  // A field's label, hint and example can follow another answer: the archive's
+  // path names a folder of the destination's files, or a path on a disk.
+  const fields = declared.map((field) => followedField(field, answers));
   /** Whose published settings sit in the boxes, when a named provider's do. */
   const provenance = providerDefaultsProvenance(role, type);
   const refusalText = useRefusalText(fields);
@@ -569,7 +582,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     setBusy(true);
     setResult(null);
     try {
-      const answer = await connectionsApi.add({ role, type, displayName: name, values });
+      const answer = await connectionsApi.add({ role, type, displayName: name, values: answers });
       setResult(answer);
       // Added either way — a credential that does not work YET is still worth
       // keeping while somebody chases an administrator.
@@ -617,7 +630,18 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     });
 
   /** One labelled box; where it goes is the map below's decision. */
-  const fieldBox = (field: CredentialField) => (
+  const fieldBox = (field: CredentialField) =>
+    field.defaultValue ? (
+      // A choice with an answer already marked (0148 T9): radio buttons, the
+      // way the wizard draws it, from the one component both doors use.
+      <ChoiceField
+        className="text-sm sm:col-span-2"
+        field={field}
+        name={`add-${field.key}`}
+        value={values[field.key]}
+        onChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
+      />
+    ) : (
     <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
@@ -645,7 +669,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
           <option value="">—</option>
           {field.options.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {option.labelKey ? t(option.labelKey as StringKey) : option.label}
             </option>
           ))}
         </select>
@@ -664,7 +688,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         />
       )}
     </label>
-  );
+    );
 
   if (!open) {
     return (

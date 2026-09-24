@@ -25,6 +25,7 @@
 
 import {
   ARCHIVE_PROVIDERS,
+  archiveInJmapTargetSentence,
   archiveProviderName,
   parseArchiveSource,
   type ArchiveProvider,
@@ -152,12 +153,10 @@ export function archiveStoreInTarget(
   targetKind: string,
 ): ArchiveStore {
   if (protocol !== 'webdav') {
-    throw new Error(
-      `This migration's file target is a ${targetKind} account, which this product writes to over ` +
-        'JMAP — and an archive is read by asking for byte ranges of a file, which JMAP does not ' +
-        'offer. Nothing is wrong with the export: either point this archive at a path on the ' +
-        'machine running the pass, or give the migration a file target that speaks WebDAV.',
-    );
+    // The sentence is shared (0148 T9): the create door and the wizard's
+    // target step refuse a JMAP destination in these words before any pass
+    // gets here, through `archiveInTargetRefusal`.
+    throw new Error(archiveInJmapTargetSentence(targetKind));
   }
   return webdavStore(endpoint);
 }

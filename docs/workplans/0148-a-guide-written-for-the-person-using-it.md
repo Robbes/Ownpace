@@ -4,6 +4,63 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T9 built.** The export read from a folder in the migration's own files is built
+on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on
+0136 T5's branch (`…-no-archive-disk-path-on-managed`). Not merged. What it does:
+
+- **The form.** The archive's descriptor gains `where`, a choice of two, before the path. Both
+  doors draw it with one component (`ChoiceField.tsx`), as radio buttons. On managed the
+  destination's files are the default, and the disk is shown disabled with *Only on a self-hosted
+  appliance* / *Alleen op een eigen appliance* (D10, D11). On the appliance the disk stays the
+  default. The path's label, hint and example follow the choice. The descriptor gained
+  `defaultValue`, `follows` and translated options for this, read through `followedField` and
+  `choiceDefaults` in shared.
+- **The doors.** `POST /api/migrations` and `POST /api/connections` accept `where` and store it.
+  An unknown value is refused by name. The builder passes it to `parseArchiveSource`, and a
+  reused connection's override keeps it beside the path. With `where: 'target'` the create door
+  asks `archiveInTargetRefusal(targetType)`, a new shared function that the wizard's target step
+  reads too. WebDAV and Nextcloud pass. JMAP is refused with the sentence `archiveStoreInTarget`
+  throws, which moved to shared word for word. A destination with no files is refused with a
+  sentence that names the two that have them. 0136 T5's refusal lets `where: 'target'` through
+  and still refuses an absent or `disk` location.
+- **The wizard.** The Test of an export in the destination answers `probe.countedAtPreflight`,
+  and the wizard keeps and uses the saved connection on that answer. The target step shows the
+  refusal and holds Next while the destination cannot serve the export.
+- **The guide.** `docs/archive-setup.md` gains *Your export in your own Nextcloud*, written so it
+  can move to `docs/guides/` as it is.
+- **The gate.** `smoke-managed.sh` writes the four-file fixture Takeout into tenant B's files on
+  the demo Nextcloud. It creates a migration from it with `where: "target"`, reusing tenant B's
+  stored Nextcloud connection as the destination, and asks for its preflight. The preflight must
+  count 3 items and 44 bytes in `Photos from 2024`: the two photos and the edited version. The
+  gate checks that `where` and no credential were stored, then takes the migration, its source
+  connection and the folder back. T5's gap line is gone.
+
+Guards: 31 cases in three files named `an-export-in-the-destinations-files`, in shared, the API
+and the web app. 30 failed on the code this branch started from. The shared vacuity floor passed.
+Two mutations were also tried: managed's default set to the disk, and the create door's target
+check switched off. They failed 5 cases in shared and the API, and 7 in the web app. Four
+existing expectations were rewritten on purpose:
+`an-archive-is-a-location-not-an-account` (three fields now), the Connections archive add body
+and the wizard reachability row (a managed build asks for the destination's folder), and
+`a-verdict-that-does-not-say-what-failed`'s archive case (no gap recorded now). The JMAP test in
+`the-store-the-pass-picks` gained an assertion that the pass throws the shared sentence.
+
+Where this differs from §3:
+
+- the gate reads the count from the preflight's row for the year folder. The preflight has no
+  per-kind breakdown, so the edit is shown by the bytes (44 = 14 + 14 + 16). The domain total is
+  4 because it includes the manifest;
+- the gate reuses tenant B's stored Nextcloud connection. The address the script reaches
+  Nextcloud at from outside the stack is not one the run containers can reach;
+- the wizard's Test posted no `provider` or `path` for an archive at all, so its Test was refused
+  for missing fields. It posts all three now;
+- the path's hint fits the twelve-word budget. The example and the note that the parts stay and
+  take space are under its *Why?*;
+- the guide section is in English only, like the served archive guide. The Dutch text comes with
+  T4's Dutch guide;
+- the JMAP sentence is unchanged. It still offers "a path on the machine running the pass",
+  which managed refuses. That is left to the owner.
+
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* So the archive form gains a second
@@ -141,7 +198,7 @@ the owner announced for *Via IMAP* (D5).
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
-| T9 The export read from a folder in the migration's own files | 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
+| T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24** on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today
 

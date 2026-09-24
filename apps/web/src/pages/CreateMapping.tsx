@@ -39,6 +39,8 @@ import {
   sourceDomainRefusal,
   targetDomainRefusal,
   credentialFieldsFor,
+  archiveInTargetRefusal,
+  followedField,
   qualifiedAnswerFor,
   applyProviderDefaults,
   providerDefaultsFor,
@@ -57,6 +59,7 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import {
   SOURCE_CARDS,
   TARGET_CARDS,
@@ -115,6 +118,12 @@ interface FormData {
   /** Export archive: WHERE the export is (the folder, or the `.zip` itself) — this mapping's own answer. */
   sourceArchivePath: string;
   /**
+   * Export archive: WHICH STORE that path is in (0148 T9) — `target`, a folder
+   * of the destination's files, or `disk`. Empty until somebody picks, which
+   * reads as this edition's default (`choiceValue`).
+   */
+  sourceArchiveWhere: string;
+  /**
    * What to CALL the connection this side saves (workplan 0076).
    *
    * Empty means "name it after what it connects to" — the auto-name below.
@@ -165,6 +174,7 @@ const initialFormData: FormData = {
   sourceBoxUserId: '',
   sourceArchiveProvider: '',
   sourceArchivePath: '',
+  sourceArchiveWhere: '',
   sourceConnectionName: '',
   targetConnectionName: '',
   sourceConnectionId: '',
@@ -280,6 +290,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceBoxUserId: '',
     sourceArchiveProvider: '',
     sourceArchivePath: '',
+    sourceArchiveWhere: '',
     sourceConnectionId: '',
   };
 }
@@ -370,6 +381,7 @@ const DRAFT_FIELDS = [
   'sourceBoxUserId',
   'sourceArchiveProvider',
   'sourceArchivePath',
+  'sourceArchiveWhere',
   'sourceTenantId',
   'targetHost',
   'targetPort',
@@ -617,6 +629,10 @@ const CreateMapping: React.FC = () => {
           username: '',
           provider: formData.sourceArchiveProvider,
           path: formData.sourceArchivePath.trim(),
+          // WHICH STORE the path is in (0148 T9), always said: an untouched
+          // choice is posted as the answer the screen shows, never left for
+          // the server to default differently.
+          where: archiveWhere,
         }
       : isDropboxSource
           ? {
@@ -851,6 +867,12 @@ const CreateMapping: React.FC = () => {
             rootFolderId: formData.sourceRootFolderId,
             rootPath: formData.sourceRootPath,
             userId: formData.sourceBoxUserId,
+            // The export archive's three (0116 T1, 0148 T9). The Test posted
+            // none of them, so an archive's Test was refused for a provider and
+            // a path the form had just been given.
+            provider: formData.sourceArchiveProvider,
+            path: formData.sourceArchivePath.trim(),
+            where: archiveWhere,
           }
         : {
             username: formData.targetUsername,
@@ -982,7 +1004,12 @@ const CreateMapping: React.FC = () => {
         values,
       });
       setDraftConnection((d) => ({ ...d, [role]: added.id }));
-      if (added.ok) {
+      // AN EXPORT IN THE DESTINATION'S FILES IS KEPT AND USED (0148 T9). Its
+      // Test cannot measure it — a connection has no destination until the
+      // migration names one — and answers that it is counted at the preflight.
+      // That is not a failure, so the person continues on it with the row
+      // just stored, rather than the create door storing a second one.
+      if (added.ok || added.outcome?.code === 'countedAtPreflight') {
         updateField(role === 'source' ? 'sourceConnectionId' : 'targetConnectionId', added.id);
       }
       return added;
@@ -1234,6 +1261,26 @@ const CreateMapping: React.FC = () => {
   // export and where it is, and nothing else.
   const isArchiveSource = formData.sourceType === 'archive';
   /**
+   * WHICH STORE the archive is in, as the screen shows it (0148 T9): what was
+   * picked, else this edition's default — the destination's files on managed,
+   * the disk on the appliance. One value, read by the form, the Test, the
+   * create body and the target step's refusal alike.
+   */
+  const archiveWhereField = credentialFieldsFor('source', 'archive').find((f) => f.key === 'where');
+  const archiveWhere = archiveWhereField
+    ? choiceValue(archiveWhereField, formData.sourceArchiveWhere)
+    : '';
+  /** The source's answers a field's label can follow (`CredentialField.follows`). */
+  const sourceAnswers = { where: archiveWhere };
+  /**
+   * An export in the destination's files needs a destination whose files the
+   * reader can ask for in byte ranges (0148 D11). The create door's own rule
+   * and its own sentence, read here so the target step says it while the
+   * person is choosing rather than at the last button.
+   */
+  const archiveTargetRefusal = (): string | null =>
+    isArchiveSource && archiveWhere === 'target' ? archiveInTargetRefusal(formData.targetType) : null;
+  /**
    * WHETHER THIS MIGRATION HAS GOOGLE DOCS TO DECIDE ABOUT.
    *
    * Two conditions, and the first one is the owner's bug (2026-09-17): the
@@ -1346,7 +1393,9 @@ const CreateMapping: React.FC = () => {
     // edits one of them, which is exactly what happened twice. So the fields
     // a source DECLARES are the fields it gates on, and a new kind is gated
     // correctly the day its descriptor exists.
-    for (const field of credentialFieldsFor('source', formData.sourceType)) {
+    for (const declared of credentialFieldsFor('source', formData.sourceType)) {
+      // Named by the label the person sees, which may follow another answer.
+      const field = followedField(declared, sourceAnswers);
       if (!sourceFieldRequiredNow(field)) continue;
       const formKey = SOURCE_FORM_FIELD[field.key];
       if (!formKey) continue;
@@ -1375,7 +1424,12 @@ const CreateMapping: React.FC = () => {
         // its own missing-field list (workplan 0070) — one function per step,
         // for the reason the last two of these bugs existed: two switches that
         // agree by hand stop agreeing the moment a provider is added to one.
-        return sideStepMissing(steps[currentStep].id as 'source' | 'target').length === 0;
+        // And a destination an export in its files cannot be read from is no
+        // way forward either (0148 T9).
+        return (
+          sideStepMissing(steps[currentStep].id as 'source' | 'target').length === 0 &&
+          (steps[currentStep].id !== 'target' || archiveTargetRefusal() === null)
+        );
       case 'migration':
         return (
           formData.name.trim() !== '' &&
@@ -1416,6 +1470,10 @@ const CreateMapping: React.FC = () => {
   const blockedReason = (): string | null => {
     if (canProceed()) return null;
     const stepId = steps[currentStep].id;
+    if (stepId === 'target') {
+      const refusal = archiveTargetRefusal();
+      if (refusal) return refusal;
+    }
     if (stepId === 'migration') {
       // The schedule shares this step and can no longer be wrong: the four
       // presets are the whole offer (owner, 2026-09-07), so the only refusal
@@ -1467,9 +1525,11 @@ const CreateMapping: React.FC = () => {
     rootFolderId: 'sourceRootFolderId',
     rootPath: 'sourceRootPath',
     userId: 'sourceBoxUserId',
-    // The export archive's two fields (0116 T5/T6): which export, and where.
+    // The export archive's fields (0116 T5/T6): which export, and where —
+    // and, since 0148 T9, which store that path is in.
     provider: 'sourceArchiveProvider',
     path: 'sourceArchivePath',
+    where: 'sourceArchiveWhere',
   };
 
   /**
@@ -1648,7 +1708,7 @@ const CreateMapping: React.FC = () => {
     const fields = credentialFieldsFor(
       side,
       isSource ? formData.sourceType : formData.targetType,
-    );
+    ).map((field) => (isSource ? followedField(field, sourceAnswers) : field));
     /**
      * One labelled box (workplan 0075: one input in this file instead of
      * thirty). Where it goes is the loop's decision below; what it is stays
@@ -1669,6 +1729,11 @@ const CreateMapping: React.FC = () => {
         (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
       const set = (v: string) => updateField(formKey, v);
       const id = `${side}-${field.key}`;
+      if (field.defaultValue) {
+        // A choice with an answer already marked (0148 T9): the archive's
+        // `where`, drawn by the component the Connections page draws it with.
+        return <ChoiceField field={field} name={id} value={value} onChange={set} />;
+      }
       return (
         <div>
           <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
@@ -1693,7 +1758,7 @@ const CreateMapping: React.FC = () => {
               <option value="">—</option>
               {field.options.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {option.labelKey ? t(option.labelKey as StringKey) : option.label}
                 </option>
               ))}
             </select>
