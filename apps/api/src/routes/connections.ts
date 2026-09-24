@@ -156,7 +156,11 @@ async function qualifyAndRemember(
   //
   // That is the family this repository keeps meeting: a new kind must reach
   // every table, and the tables that GATE are the ones whose absence is
-  // invisible. `smoke-managed.sh` is what turned it into a failure.
+  // invisible. `smoke-managed.sh` is what turned it into a failure, by
+  // measuring a Takeout on the deployed image. Since 0136 T5 the managed API
+  // refuses the disk path that step used, so until 0148 T9 moves it to
+  // `where: "target"` only the unit tests and the appliance's archive E2E
+  // reach this dispatch, and the gate prints that gap beside its verdict.
   if (
     !isQualifiableKind(kind) &&
     !isGoogleGrantKind(kind) &&
@@ -776,9 +780,19 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
     // A STORED archive whose path is on this machine (0136 T5): an archive
     // row from before the refusal, or one written by hand. 409, because the
     // request is fine and the row is what this edition cannot serve. Nothing
-    // is written: the row stays as it is, and the answer says why.
+    // opens the path, but the row's status becomes `error`: the page re-reads
+    // the row after every Test, and a row stored `connected` would otherwise
+    // stay green beside an answer that says it cannot be read.
     const onServer = archiveOnServerRefusal(row.kind, row.config as Record<string, unknown> | null);
-    if (onServer) return void res.status(409).json(onServer);
+    if (onServer) {
+      await withTenantDb(tenantId, pool(), (db) =>
+        db
+          .update(schema.connection)
+          .set({ status: 'error', updatedAt: new Date() })
+          .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
+      );
+      return void res.status(409).json(onServer);
+    }
 
     // A connection with no stored secret cannot be probed — say which it is
     // rather than reporting a credential failure it did not have.

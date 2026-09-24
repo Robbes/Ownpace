@@ -211,6 +211,8 @@ describe('POST /api/migrations — the create door', () => {
   ])('refuses a new archive connection %s, and stores nothing', async (_, over) => {
     const res = await request(app).post('/api/migrations').send(mapping(over));
     refused(res, 400);
+    // This door's documented 400 is the `Error` shape, which carries `message`.
+    expect(res.body.message).toBe(res.body.reason);
     nothingOpened();
     expect(vi.mocked(auth.withTenantDb), 'a refused migration was written').not.toHaveBeenCalled();
   });
@@ -233,19 +235,47 @@ describe('POST /api/migrations — the create door', () => {
   });
 });
 
+/**
+ * What the stored-row Test wrote after the lookup: the `.set(...)` of each
+ * later `withTenantDb` call, run against a stand-in that records it. The mock
+ * above answers without running the callback, so this runs it here.
+ */
+async function statusWritesAfterLookup(): Promise<Array<Record<string, unknown>>> {
+  const sets: Array<Record<string, unknown>> = [];
+  const db = {
+    update: () => ({
+      set: (values: Record<string, unknown>) => {
+        sets.push(values);
+        return { where: async () => undefined };
+      },
+    }),
+  };
+  for (const call of vi.mocked(auth.withTenantDb).mock.calls.slice(1)) {
+    await (call[2] as (d: unknown) => Promise<unknown>)(db);
+  }
+  return sets;
+}
+
 describe('a STORED archive connection — the Connections page', () => {
-  it('refuses to test one whose path is on the server', async () => {
+  it('refuses to test one whose path is on the server, and says so on its card', async () => {
     const res = await request(app).post('/api/connections/conn-1/test');
     refused(res, 409);
     nothingOpened();
+    // The page re-reads the row after every Test so that the card cannot
+    // contradict the answer. A row stored before the refusal was often
+    // `connected`; left alone it would stay green beside "cannot read".
+    const writes = await statusWritesAfterLookup();
+    expect(writes, 'the refused row kept its old status').toHaveLength(1);
+    expect(writes[0]?.['status']).toBe('error');
   });
 
-  it('refuses to rotate one, since rotating probes the stored path first', async () => {
+  it('refuses to rotate one, since rotating probes the stored path first, and writes nothing', async () => {
     const res = await request(app)
       .put('/api/connections/conn-1/credentials')
       .send({ values: { provider: 'google-takeout', path: PATH } });
     refused(res, 409);
     nothingOpened();
+    expect(vi.mocked(auth.withTenantDb), 'a refused rotation wrote to the row').toHaveBeenCalledTimes(1);
   });
 
   it('refuses a stored `where: "disk"` the same way', async () => {

@@ -24,8 +24,11 @@ the build differs from §3:
 
 - **The rotation door is a door too.** `PUT …/credentials` probes the stored config before it
   replaces a secret, so it opened the path like Test did. §3 named "both doors and the probe".
-- **400 for a posted path, 409 for a stored one.** A refused stored row is not written to; its
-  `status` stays what it was.
+- **400 for a posted path, 409 for a stored one.** A refused Test sets the stored row's `status` to
+  `error` without opening anything, because the Connections page re-reads the row after every Test
+  and a row stored `connected` before this task would stay green beside the refusal. A refused
+  rotation writes nothing. The create door's refusal also carries `message`, since its 400 is
+  documented as the `Error` shape.
 - **`probeArchive` and `qualifyArchive` are not changed.** They serve both editions; the managed API
   never reaches them with a server path because every caller refuses first, and the guard's spies
   prove it.
@@ -33,19 +36,34 @@ the build differs from §3:
   reused archive is refused until T9 has the override keep `where`.
 - **The gate:** the `path: "/tmp"` step expects HTTP 400 `archive_on_server`, the sentence's
   *"cannot read a file on the server"*, and no new row. The fixture Takeout, the measured step and
-  the no-secret check are gone, and the section prints a `NOT PROVEN on this stack` line naming
-  0148 T9 instead of failing. That goes against the script's own rule that a gate which cannot
-  prove something is red; §3 asks for it.
+  the no-secret check are gone. The refusal and the row count are two checks, each with its own
+  reason in the verdict's list. The lost proof is recorded by a new `not_proven` helper and printed
+  beside the verdict, on a pass as on a fail (*not proven on this stack: … the archive reader and
+  qualifier in the deployed image — returns with 0148 T9*), without failing the run. That goes
+  against the script's own rule that a gate which cannot prove something is red; §3 asks for it.
+  Guarded in `scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts` (3 of its 11 cases
+  failed on the first build of this branch).
 - **An existing test changed on purpose:** `an-archive-has-no-username-to-give.unit.test.ts`. Its add
   door now expects 400 `archive_on_server` (was 201) and still no `username` demand; its rotation
   fixture row is `where: 'target'`, so it still reaches the shape check it pins. No other test posts
   an archive through `apps/api`: the three archive e2e gates are the appliance's.
 - **`apps/api/docs/openapi.yaml`** documents the refusal on all five doors.
+- **0116's T10 row and status paragraph** carry a dated note that the managed measure is gone until
+  0148 T9.
 
 Not built here: the wizard's choice and the doors' `where` (0148 T9); any web text for the code
-(the sentence renders as served, `docs/i18n-prose-boundary.md`). Archive rows and mappings stored on
-managed before this task keep their disk path. The API now refuses to test them, and a pass reads
-its own run container, not the API's.
+(the sentence renders as served, `docs/i18n-prose-boundary.md`); T9 should add a Dutch
+explanation keyed on `archive_on_server` beside it, or record that it leaves it out. **Still open:
+archive rows and mappings stored on managed before this task keep their disk path.** The API
+refuses to test or rotate them, but `POST /api/migrations/:id/start` and `…/discover` still
+enqueue a pass or a preflight for such a mapping, and an active one runs on the tick without
+either. The worker then opens the path on its own run container's disk, which is ours too, and a
+failed open reports back through the preflight or the failure record. Refusing at `/start` alone
+would not close it, because of the tick, and the builder is shared with the appliance. The
+follow-up: a one-off query for archive connections whose `where` is not `target` on both managed
+stacks (the gate's own `gate: not a takeout` and `gate: takeout fixture` rows on the OTA stack
+among them), deleting or pausing what it finds, and a refusal of `disk` in the managed worker's
+archive builder.
 
 **2026-09-24, night: the refusal has somewhere to point (0148 D11).** The owner answered 0148's open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
@@ -100,7 +118,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
-| T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Both doors and the probe refuse it, with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
+| T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 

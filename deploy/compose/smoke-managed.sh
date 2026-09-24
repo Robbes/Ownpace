@@ -176,6 +176,19 @@ fail_at() { # fail_at [reason] — set the flag AND record where it fired
 "
 }
 
+# WHAT THIS STACK CANNOT PROVE, recorded the same way and printed beside the
+# verdict (workplan 0136 T5). Some proofs are out of reach on managed for a
+# while by design — the archive reader, until 0148 T9 — and the plan asks that
+# the run say so rather than skip in silence, WITHOUT failing. An echo in the
+# middle of the log says it to nobody: a green night ends on `SMOKE PASS`. So a
+# gap goes in a list the verdict prints, and `fail` is not touched.
+NOT_PROVEN=""
+not_proven() { # not_proven <what> — a gap this stack cannot prove; said, not failed
+  NOT_PROVEN="${NOT_PROVEN}  - ${SECTION}: $1
+"
+  echo "NOT PROVEN on this stack: $1"
+}
+
 # `note` names the section AND remembers it, so `fail_at` can say which half of
 # the run was speaking without every call site repeating it.
 note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
@@ -3164,20 +3177,29 @@ code="${r%% *}"; body="${r#* }"
 archive_error="$(jq -r '.error // empty' <<<"$body")"
 archive_reason="$(jq -r '.reason // empty' <<<"$body")"
 archive_rows_after="$(q "SELECT count(*) FROM connection WHERE display_name = 'gate: a path on the server'")"
+# Two questions, each with its own reason, so the verdict says which one broke.
+# What the gate sees is the answer and the row count; that nothing opened the
+# path is the unit guard's to prove (a-path-on-the-server-a-managed-pass-cannot-read).
 if [ "$code" = "400" ] && [ "$archive_error" = "archive_on_server" ] \
-  && [[ "$archive_reason" == *"cannot read a file on the server"* ]] \
-  && [ -n "$archive_rows_before" ] && [ "$archive_rows_after" = "$archive_rows_before" ]; then
-  echo "archive at a path on the server: HTTP 400 archive_on_server, nothing probed or stored"
+  && [[ "$archive_reason" == *"cannot read a file on the server"* ]]; then
+  echo "archive at a path on the server: HTTP 400 archive_on_server, 'cannot read a file on the server'"
 else
-  echo "archive at a path on the server: HTTP $code, error '${archive_error:-<none>}', rows ${archive_rows_before:-?} -> ${archive_rows_after:-?} — ${body:0:250} (expected 400 archive_on_server, 'cannot read a file on the server', no new row)"
-  fail_at "a path on the server was not refused"
+  echo "archive at a path on the server: HTTP $code, error '${archive_error:-<none>}' — ${body:0:250} (expected 400 archive_on_server, 'cannot read a file on the server')"
+  fail_at "a path on the server was not refused: HTTP $code, error '${archive_error:-<none>}'"
+fi
+if [ -z "$archive_rows_before" ] || [ -z "$archive_rows_after" ]; then
+  fail_at "the connection row count could not be read, so a stored refusal would not show"
+elif [ "$archive_rows_after" != "$archive_rows_before" ]; then
+  fail_at "the archive was answered but a row was written: $archive_rows_before -> $archive_rows_after"
+else
+  echo "archive at a path on the server: no row stored ($archive_rows_before -> $archive_rows_after)"
 fi
 
-# AND WHAT THIS GATE NO LONGER PROVES, said out loud rather than left out.
-echo "NOT PROVEN on this stack: the archive reader and qualifier in the deployed image."
-echo "  The measured Takeout step read a path on the API's own disk, which the managed"
-echo "  API now refuses (0136 T5). It returns with 0148 T9, reading the export from the"
-echo "  demo Nextcloud's files (where: \"target\")."
+# AND WHAT THIS GATE NO LONGER PROVES, said beside the verdict rather than left
+# out. The measured Takeout step read a path on the API's own disk, which the
+# managed API now refuses (0136 T5). It returns with 0148 T9, reading the
+# export from the demo Nextcloud's files (`where: "target"`).
+not_proven "the archive reader and qualifier in the deployed image — returns with 0148 T9 (where: \"target\")"
 
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"
@@ -5351,6 +5373,12 @@ fi
 note "verdict"
 api_restart_check "$API_STARTED_AT"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"
+# The gaps first, so a pass names them next to SMOKE PASS and a fail still
+# ends on what failed.
+if [ -n "$NOT_PROVEN" ]; then
+  echo "not proven on this stack (does not fail the run):"
+  printf '%s' "$NOT_PROVEN"
+fi
 if [ "$fail" = "0" ]; then
   echo "SMOKE PASS — evidence in $OUT"
 else

@@ -1960,7 +1960,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         sourceKindFor(body.sourceType),
         body.sourceConnectionId ? sourceConfigOverride(body) : sourceConnectionConfig(body),
       );
-      if (onServer) return void res.status(400).json(onServer);
+      // With `message` too: this door's 400 is documented as the `Error`
+      // shape, and the other refusals here carry one.
+      if (onServer) return void res.status(400).json({ ...onServer, message: onServer.reason });
     }
 
     // Persist the full chain in one tenant-scoped transaction (RLS-enforced):

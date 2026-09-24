@@ -1686,7 +1686,8 @@ paths:
           description: |
             `archive_on_server` (workplan 0136 T5): a stored export archive whose
             path is on this service's own machine, which a managed migration
-            cannot read. Refused before anything is opened; the row is not changed.
+            cannot read. Refused before anything is opened; the row's `status`
+            becomes `error`, so the list does not show it as connected.
   /api/setup/{side}/{provider}:
     get:
       tags: [Setup]
@@ -1828,7 +1829,8 @@ paths:
             Refused, naming what is incoherent or missing. Or `archive_on_server`
             (workplan 0136 T5): an export archive at a path on this service's own
             machine — for a new connection, or in a reused one's override —
-            refused before anything is stored.
+            refused before anything is stored. That refusal also carries
+            `fields: [path]` and `reason`, the same sentence as `message`.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

@@ -226,6 +226,12 @@ a guard one function earlier returned before the chain ran, so the Measured line
 and nothing was red. The archive is the one source this gate can drive COMPLETELY — a fixture
 export tree needs no account, no consent and no network — which is why it is net-positive
 where the Apple block can only be net-zero. The IMPORT half of T10 still waits on T5/T6.
+*2026-09-24: the managed connect-and-measure step is removed by 0136 T5* (branch
+`claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged): the managed
+API now refuses an archive at a path on its own disk, which is what the fixture Takeout was. The
+gate expects that refusal instead and prints *not proven on this stack: the archive reader*
+beside its verdict. The measure returns with 0148 T9, reading the export from the demo
+Nextcloud's files (`where: "target"`); until then only the self-host E2E proves the reader.
 
 **What is left, and what it waits on.** T3b needs an Apple export somebody has opened. T4's
 managed half is gated by D7 below, the one decision still open; its appliance half is what T1
@@ -284,7 +290,7 @@ If the owner decides only one thing here, decide **D1**.
 | T7 Measure before the move | ✅ **Built 2026-09-04** | Items, bytes, folders, the export's date range, and the sentence that an archive is a SNAPSHOT WITH A DATE. **Breaks the count down** — originals, edited versions, motion clips — because the total legitimately exceeds what Google Photos tells the person they have (§4). |
 | T8 The walkthrough | ✅ **Built 2026-09-04** | `docs/archive-setup.md` (the `-setup` suffix is what the app serves at `/docs`): how to request each export, what to expect, how long the links live, and what the product does with it. Per provider, one page. |
 | T9 The pickup (Google only) | 📋 Planned (needs T4) | 0112 T4's two-monthly incremental. **Not applicable to Apple** — see §"The two providers are not the same shape". |
-| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). Its first run found the appliance keyed every mapping of a tenant by ONE id (`uuidFromString`) — fixed, with the in-place upgrade kept. **2026-09-20, the zip route:** a third mapping over the same Takeout as a two-part `.zip` written by Info-ZIP (`test/e2e/fixtures/takeout-zip`), mounted read-only, pointed at part 1, imported into a `from-zip/` subfolder of the same account and compared with the folder route: the same four things written, byte for byte, and the manifest with the same name and the same bytes. |
+| T10 The gate | ✅ **Built 2026-09-05** (in two gates) | Connect + measure in the MANAGED E2E (2026-09-04). **2026-09-24: the managed connect+measure step is removed by 0136 T5** (a disk path is refused on managed; branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged); the gate says it is not proven, and it returns with 0148 T9 (`where: "target"`). The IMPORT in the SELF-HOST E2E (2026-09-05): a fixture Takeout mounted read-only into the appliance, a second paused mapping green-lit by the last gate, imported into the e2e-target Nextcloud — placement asserted against the real server (album copy, no year duplicate), the manifest read back, a second pass writing nothing. The managed gate cannot carry the import at all: its run containers share no filesystem with the API (T4). Its first run found the appliance keyed every mapping of a tenant by ONE id (`uuidFromString`) — fixed, with the in-place upgrade kept. **2026-09-20, the zip route:** a third mapping over the same Takeout as a two-part `.zip` written by Info-ZIP (`test/e2e/fixtures/takeout-zip`), mounted read-only, pointed at part 1, imported into a `from-zip/` subfolder of the same account and compared with the folder route: the same four things written, byte for byte, and the manifest with the same name and the same bytes. |
 
 ## Why this exists
 
