@@ -95,6 +95,7 @@ import {
 } from './migrations/index.ts';
 import { serverFault } from '../server-fault.ts';
 import { withinBudget } from './within-budget.ts';
+import { archiveOnServerRefusal } from './archive-on-the-server.ts';
 
 const router = Router();
 
@@ -689,6 +690,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
           // wizard's own door has always passed it; this door builds exactly
           // what that one builds.
           targetConnectionConfig({ targetType: type as TargetKind, targetConfig: half } as never);
+    const kind = role === 'source' ? sourceKindFor(type as never) : type;
+    // NOT A PATH ON THIS MACHINE (0136 T5). Judged on the config this door
+    // would store, before the probe below opens it and the qualifier walks it
+    // inside this process. See `archive-on-the-server.ts`.
+    const onServer = archiveOnServerRefusal(kind, config);
+    if (onServer) return void res.status(400).json(onServer);
     const creds =
       role === 'source'
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
@@ -707,7 +714,6 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             creds as Record<string, string>,
           );
 
-    const kind = role === 'source' ? sourceKindFor(type as never) : type;
     const inserted = await withTenantDb(tenantId, pool(), (db) =>
       db
         .insert(schema.connection)
@@ -767,6 +773,12 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
     if (!row) {
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
     }
+    // A STORED archive whose path is on this machine (0136 T5): an archive
+    // row from before the refusal, or one written by hand. 409, because the
+    // request is fine and the row is what this edition cannot serve. Nothing
+    // is written: the row stays as it is, and the answer says why.
+    const onServer = archiveOnServerRefusal(row.kind, row.config as Record<string, unknown> | null);
+    if (onServer) return void res.status(409).json(onServer);
 
     // A connection with no stored secret cannot be probed — say which it is
     // rather than reporting a credential failure it did not have.
@@ -859,6 +871,11 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     if (!row) {
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
     }
+    // Rotating probes the STORED config before anything is replaced, so a
+    // stored archive on this machine's disk is refused here as at the test
+    // door (0136 T5).
+    const onServer = archiveOnServerRefusal(row.kind, row.config as Record<string, unknown> | null);
+    if (onServer) return void res.status(409).json(onServer);
 
     // By wizard type, not by kind — the descriptor is keyed the wizard's way.
     const type = wizardTypeForConnectionKind(row.kind);

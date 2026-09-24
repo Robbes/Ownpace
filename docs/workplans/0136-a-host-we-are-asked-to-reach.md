@@ -4,6 +4,49 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T5 built** on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`,
+not merged. On the managed API an export archive whose `where` is absent or `disk` is refused
+before anything opens the path, with the code `archive_on_server` and one English sentence: *"A
+managed migration cannot read a file on the server: a path here names a place on this service's
+own machine, not on yours. On the managed service, the export goes in a folder of the Nextcloud or
+WebDAV files the migration writes to."* The rule is one function, `archiveOnServerRefusal`
+(`apps/api/src/routes/archive-on-the-server.ts`), and five doors call it: `POST /api/connections`,
+`POST /api/migrations/test-connection` and `POST /api/migrations` (a new connection, and a reused
+one's path override) answer 400; `POST /api/connections/:id/test` and
+`PUT /api/connections/:id/credentials` answer 409 for a stored row, since the request is fine and
+the row is what managed cannot serve. `parseArchiveSource` is unchanged and `where: 'target'`
+passes. Until 0148 T9 the doors drop a posted `where`, so every archive posted to the managed API
+is refused. The guard, `a-path-on-the-server-a-managed-pass-cannot-read.unit.test.ts`, failed 10 of
+its 12 route cases on the unchanged code; the 2 that passed are its controls (a non-archive probe,
+which proves the spies are live, and a stored `where: 'target'` row). Spies on the probe, the
+qualifier and the reader behind both show none is called. Four mutations each turned it red. Where
+the build differs from §3:
+
+- **The rotation door is a door too.** `PUT …/credentials` probes the stored config before it
+  replaces a secret, so it opened the path like Test did. §3 named "both doors and the probe".
+- **400 for a posted path, 409 for a stored one.** A refused stored row is not written to; its
+  `status` stays what it was.
+- **`probeArchive` and `qualifyArchive` are not changed.** They serve both editions; the managed API
+  never reaches them with a server path because every caller refuses first, and the guard's spies
+  prove it.
+- **A reused connection is judged on this mapping's override alone,** which keeps `path` only, so a
+  reused archive is refused until T9 has the override keep `where`.
+- **The gate:** the `path: "/tmp"` step expects HTTP 400 `archive_on_server`, the sentence's
+  *"cannot read a file on the server"*, and no new row. The fixture Takeout, the measured step and
+  the no-secret check are gone, and the section prints a `NOT PROVEN on this stack` line naming
+  0148 T9 instead of failing. That goes against the script's own rule that a gate which cannot
+  prove something is red; §3 asks for it.
+- **An existing test changed on purpose:** `an-archive-has-no-username-to-give.unit.test.ts`. Its add
+  door now expects 400 `archive_on_server` (was 201) and still no `username` demand; its rotation
+  fixture row is `where: 'target'`, so it still reaches the shape check it pins. No other test posts
+  an archive through `apps/api`: the three archive e2e gates are the appliance's.
+- **`apps/api/docs/openapi.yaml`** documents the refusal on all five doors.
+
+Not built here: the wizard's choice and the doors' `where` (0148 T9); any web text for the code
+(the sentence renders as served, `docs/i18n-prose-boundary.md`). Archive rows and mappings stored on
+managed before this task keep their disk path. The API now refuses to test them, and a pass reads
+its own run container, not the API's.
+
 **2026-09-24, night: the refusal has somewhere to point (0148 D11).** The owner answered 0148's open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* 0148 T9 adds that choice to the wizard and
@@ -57,7 +100,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
-| T5 No archive "disk" path on the managed edition | 📋 **Decided 2026-09-24 (0148 D10)**; before the first invitation — *was:* 📋 Proposed | §3. Both doors and the probe refuse it, with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
+| T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Both doors and the probe refuse it, with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 

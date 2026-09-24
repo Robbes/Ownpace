@@ -3134,100 +3134,50 @@ else
   fail_at
 fi
 
-# ---------- the export archive, and the one gate that costs nothing ----------
+# ---------- the export archive: a path on the server is refused ----------
 #
-# THE ONLY SOURCE THIS GATE CAN DRIVE COMPLETELY, and it is worth saying why
-# before the assertions (workplan 0116 T1/T7).
+# WHAT THIS SECTION PROVED UNTIL WORKPLAN 0136 T5, AND WHAT IT PROVES NOW.
 #
-# Every other provider source here is `uncoverable` in the coverage table for
-# one reason: it needs a real account at a real company and a consent screen
-# somebody presses. The Apple block above is the extreme case — it can only
-# assert the two refusals that return BEFORE any network call, because creating
-# a sentinel Apple connection would fire a bogus password at Apple on every
-# nightly run.
+# It wrote a small Takeout inside the API container and added it as an archive
+# connection, and the API measured it: three items, one of them an edit. That
+# was the one live proof that the archive reader, the qualifier and the
+# credential descriptor reached the DEPLOYED image (0116 T10). It worked
+# because the API opened a path on its OWN disk — which is exactly what 0136
+# T5 stops: a tester could type any path and learn what the API container
+# holds. On managed a path on the server is now refused at every door, before
+# anything opens it, so that step cannot pass here any more, and this section
+# says so rather than skipping it in silence (0136 T5, *The gate loses a proof*).
 #
-# An archive needs NONE of that. It is a folder of files, so a fixture tree
-# written into the API container is a complete and honest stand-in: the same
-# bytes a person's export contains, minus the person. No account, no consent, no
-# egress — and unlike Apple's block this one is not net-zero, it is net-POSITIVE.
-# It creates a connection, tests it against real bytes, and reads the measure
-# back off the stored row.
-#
-# WHAT THAT BUYS over the unit tests, which is the part they cannot: it proves
-# the archive reader, the qualifier and the credential descriptor all reached the
-# DEPLOYED image, and that the `archive` kind survived into the database's CHECK
-# constraint. A kind dropped from any of those during a build answers differently
-# here while every unit test stays green.
+# The proof comes back with 0148 T9, stacked on T5: the fixture Takeout goes
+# into tenant B's files on the demo Nextcloud and a migration reads it with
+# `where: "target"`, the export's place on managed (0148 D11).
 note "the export archive"
 
-# The smallest Takeout that is still a Takeout: one year folder, two photos with
-# DIFFERENT bytes (identical bytes would collapse to one item, correctly, and
-# hide what is being counted), and a sidecar so the date range is real.
-ARCHIVE_ROOT="/tmp/smoke-takeout"
-PHOTOS_DIR="$ARCHIVE_ROOT/Takeout/Google Photos/Photos from 2024"
-if docker exec "$API_CONTAINER" sh -lc "
-      mkdir -p '$PHOTOS_DIR' &&
-      printf 'gate-photo-one'   > '$PHOTOS_DIR/IMG_0001.jpg' &&
-      printf 'gate-photo-two'   > '$PHOTOS_DIR/IMG_0002.jpg' &&
-      printf 'gate-edit-of-one' > '$PHOTOS_DIR/IMG_0001-edited.jpg' &&
-      printf '%s' '{\"photoTakenTime\":{\"timestamp\":\"1700000000\"}}' \
-        > '$PHOTOS_DIR/IMG_0001.jpg.supplemental-metadata.json'
-    " >/dev/null 2>&1; then
-  echo "fixture Takeout written inside '$API_CONTAINER' at $ARCHIVE_ROOT"
-
-  # AN UNREADABLE ARCHIVE IS `unknown`, NEVER AN EMPTY ONE. Asserted FIRST,
-  # because it is the property most worth having on a real stack: a truncated
-  # 25 GB download is the common case, and answering "you have no photos" to
-  # somebody who waited a week for it is the worst sentence this product could
-  # produce. `/tmp` exists and is not a Takeout, which is exactly the shape of
-  # somebody pointing at the wrong folder.
-  r="$(http POST "$API/api/connections" "$TOK_R" \
-    '{"role":"source", "type":"archive", "displayName":"gate: not a takeout", "values":{"provider":"google-takeout","path":"/tmp"}}')"
-  code="${r%% *}"; body="${r#* }"
-  archive_answer="$(jq -r '.qualification.domains.file.answer // empty' <<<"$body")"
-  if [ "$code" = "201" ] && [ "$archive_answer" = "unknown" ]; then
-    echo "archive we cannot open: file face is 'unknown' with a reason, not a measured 'no'"
-  else
-    echo "archive we cannot open: HTTP $code, file answer '${archive_answer:-<none>}' — ${body:0:200} (expected 201 and 'unknown')"
-    fail_at
-  fi
-
-  # AND THE REAL ONE. Three items from four files, because Takeout's sidecar is
-  # metadata rather than an item — and the breakdown says which of the three is
-  # the edit, which is what stops the total reading as a duplication bug.
-  r="$(http POST "$API/api/connections" "$TOK_R" \
-    "{\"role\":\"source\", \"type\":\"archive\", \"displayName\":\"gate: takeout fixture\", \"values\":{\"provider\":\"google-takeout\",\"path\":\"$ARCHIVE_ROOT\"}}")"
-  code="${r%% *}"; body="${r#* }"
-  archive_answer="$(jq -r '.qualification.domains.file.answer // empty' <<<"$body")"
-  archive_items="$(jq -r '.qualification.domains.file.volume.items // empty' <<<"$body")"
-  archive_edited="$(jq -r '.qualification.domains.file.volume.byKind.edited // empty' <<<"$body")"
-  if [ "$code" = "201" ] && [ "$archive_answer" = "yes" ] \
-    && [ "$archive_items" = "3" ] && [ "$archive_edited" = "1" ]; then
-    echo "archive measured on the real stack: 3 items, 1 of them an edited version, from 4 files"
-  else
-    echo "archive measure: HTTP $code, answer '${archive_answer:-<none>}', items '${archive_items:-<none>}', edited '${archive_edited:-<none>}' — ${body:0:250} (expected 201, yes, 3, 1)"
-    fail_at
-  fi
-
-  # A path is not a password: this kind stores NO credential, and the row's
-  # secret is the shape that proves it. Read from the database rather than from
-  # the API's echo, because the echo is what a route chose to say and this is
-  # what was written.
-  archive_secret="$(q "SELECT coalesce(secret_ref, '<null>') FROM connection WHERE display_name = 'gate: takeout fixture' LIMIT 1")"
-  case "$archive_secret" in
-    *'"username"'*|*'"password"'*)
-      echo "archive connection stored a credential-shaped secret: ${archive_secret:0:120} (a path is not a password)"
-      fail_at ;;
-    *) echo "archive connection stored no credential fields, which is this kind's truth" ;;
-  esac
-
-  # Left behind on purpose: the fixture is four small files in the container's
-  # own /tmp, the container is torn down with the stack, and removing it here
-  # would only make a re-run of the block below impossible to debug.
+# A PATH ON THE SERVER IS REFUSED, and nothing is stored. `/tmp` exists in
+# every container, so if the door let it through the API would answer with
+# what it found there. The row count is taken before and after, because a
+# refusal that still wrote the row would be a refusal in name only.
+archive_rows_before="$(q "SELECT count(*) FROM connection WHERE display_name = 'gate: a path on the server'")"
+r="$(http POST "$API/api/connections" "$TOK_R" \
+  '{"role":"source", "type":"archive", "displayName":"gate: a path on the server", "values":{"provider":"google-takeout","path":"/tmp"}}')"
+code="${r%% *}"; body="${r#* }"
+archive_error="$(jq -r '.error // empty' <<<"$body")"
+archive_reason="$(jq -r '.reason // empty' <<<"$body")"
+archive_rows_after="$(q "SELECT count(*) FROM connection WHERE display_name = 'gate: a path on the server'")"
+if [ "$code" = "400" ] && [ "$archive_error" = "archive_on_server" ] \
+  && [[ "$archive_reason" == *"cannot read a file on the server"* ]] \
+  && [ -n "$archive_rows_before" ] && [ "$archive_rows_after" = "$archive_rows_before" ]; then
+  echo "archive at a path on the server: HTTP 400 archive_on_server, nothing probed or stored"
 else
-  echo "could not write the fixture Takeout into '$API_CONTAINER' — the archive gate did not run"
-  fail_at
+  echo "archive at a path on the server: HTTP $code, error '${archive_error:-<none>}', rows ${archive_rows_before:-?} -> ${archive_rows_after:-?} — ${body:0:250} (expected 400 archive_on_server, 'cannot read a file on the server', no new row)"
+  fail_at "a path on the server was not refused"
 fi
+
+# AND WHAT THIS GATE NO LONGER PROVES, said out loud rather than left out.
+echo "NOT PROVEN on this stack: the archive reader and qualifier in the deployed image."
+echo "  The measured Takeout step read a path on the API's own disk, which the managed"
+echo "  API now refuses (0136 T5). It returns with 0148 T9, reading the export from the"
+echo "  demo Nextcloud's files (where: \"target\")."
 
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
 report_markdown "shared-address runbook" "/api/shared-addresses/runbook" "## Before you start"

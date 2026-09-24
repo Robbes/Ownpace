@@ -23,6 +23,16 @@
  * is refused by name exactly as before. And WHICH export is checked by name
  * here too, because past this door the shared parser throws on an unknown
  * one, and a throw there is a 500 wearing the wrong sentence.
+ *
+ * Since workplan 0136 T5 the managed API refuses an archive whose path is on
+ * its own disk, AFTER the shape check and before anything is probed or
+ * stored (`a-path-on-the-server-a-managed-pass-cannot-read`). Until 0148 T9
+ * teaches the doors `where`, that is every archive posted here — so the add
+ * door's answer is now that refusal, and what this file still holds is that
+ * the refusal it meets is the location one and never `invalid_values:
+ * username`. The rotation door is driven on a row in the destination's files
+ * (`where: 'target'`), the one location the managed API serves, so it still
+ * reaches its shape check.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -44,6 +54,8 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
     },
     // One archive row, for the rotation door to look up; the same array
     // answers the add door's insert, whose `.returning({ id })` it satisfies.
+    // In the destination's files: a row whose path is on this machine's disk
+    // is refused before its shape is checked (0136 T5).
     withTenantDb: async () => [
       {
         id: 'conn-1',
@@ -51,7 +63,7 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
         role: 'source',
         kind: 'archive',
         displayName: 'x',
-        config: { type: 'archive', provider: 'google-takeout', path: '/nowhere' },
+        config: { type: 'archive', provider: 'google-takeout', path: '/nowhere', where: 'target' },
         secretRef: '{}',
       },
     ],
@@ -82,7 +94,7 @@ const ARCHIVE = {
 };
 
 describe('POST /api/connections — the add door', () => {
-  it('adds an archive from its descriptor fields alone, asking for no username', async () => {
+  it('takes an archive past its shape check from its descriptor fields alone, asking for no username', async () => {
     const res = await request(app).post('/api/connections').send(ARCHIVE);
     expect(
       res.body.fields ?? [],
@@ -90,8 +102,11 @@ describe('POST /api/connections — the add door', () => {
         'managed gate met in E2E #154',
     ).not.toContain('username');
     expect(res.body.error).not.toBe('invalid_values');
-    // Past the shape: probed (stubbed), stored, answered as created.
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    // Past the shape, and refused for WHERE the export is: a path on this
+    // service's own disk (0136 T5). Was 201 (probed, stored, created) until
+    // then; 0148 T9 gives the door the location that is created again.
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(res.body.error).toBe('archive_on_server');
   });
 
   it('still refuses an account kind without one, by name — the descriptor decides', async () => {

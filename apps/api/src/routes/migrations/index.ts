@@ -103,6 +103,7 @@ import {
   updateTransition,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
+import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -1765,9 +1766,14 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
         });
       }
       const half = { sourceType: body.sourceType, sourceConfig: body.sourceConfig };
+      const config = sourceConnectionConfig(half);
+      // NOT A PATH ON THIS MACHINE (0136 T5), judged on exactly what the probe
+      // would open. See `archive-on-the-server.ts`.
+      const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), config);
+      if (onServer) return void res.status(400).json(onServer);
       const result = await probeSourceConnection(
         sourceKindFor(body.sourceType),
-        sourceConnectionConfig(half),
+        config,
         sourceCredentialRecord(half),
       );
       return void res.json(result);
@@ -1940,6 +1946,21 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         message: 'Tenant ID not found in authentication context',
       });
       return;
+    }
+
+    // NOT A PATH ON THIS MACHINE (0136 T5). Nothing here opens the path, but
+    // what this door stores a pass would read, so it is refused before
+    // anything is written. Judged on what would be written for WHERE: the new
+    // connection's config, or — reusing one — this mapping's override, which
+    // is where the next export in a series is named (0116 §5). A reused row's
+    // own `where` is not consulted, so an override that does not say
+    // `target` is refused; 0148 T9 has the override keep `where`.
+    if (body.sourceType === 'archive') {
+      const onServer = archiveOnServerRefusal(
+        sourceKindFor(body.sourceType),
+        body.sourceConnectionId ? sourceConfigOverride(body) : sourceConnectionConfig(body),
+      );
+      if (onServer) return void res.status(400).json(onServer);
     }
 
     // Persist the full chain in one tenant-scoped transaction (RLS-enforced):
