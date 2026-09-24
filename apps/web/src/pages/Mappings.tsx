@@ -322,6 +322,7 @@ const Mappings: React.FC = () => {
                       )}
                       <Link
                         to={`/mappings/${mapping.id}`}
+                        aria-label={t('mappings.action.open')}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         <Edit className="w-5 h-5" />

@@ -9,7 +9,7 @@
  * routes titled themselves with the brand (selfhost) or a bare "Mappings"
  * (managed), naming no mapping.
  */
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -119,6 +119,23 @@ describe('the sidebar identity block (T2)', () => {
     expect(screen.queryByText('user@example.com')).not.toBeInTheDocument();
     // Sign out is still real on managed.
     expect(screen.getByText('Sign out')).toBeInTheDocument();
+  });
+});
+
+describe('the phone menu has a name a screen reader can say', () => {
+  // Below 1024px the menu button is the only way to the navigation, and it
+  // and its close button held only a lucide icon, which lucide marks
+  // aria-hidden: two controls announced as "button" and nothing else.
+  it('names the menu button and says whether the menu is open, and names its close button', () => {
+    renderLayout('/dashboard');
+
+    const menu = screen.getByRole('button', { name: 'Menu' });
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
   });
 });
 

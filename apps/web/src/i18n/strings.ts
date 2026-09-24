@@ -26,6 +26,7 @@ const en = {
   'nav.dashboard': 'Dashboard',
   'nav.mappings': 'Migrations',
   'nav.back': 'Back',
+  'nav.menu': 'Menu',
   'nav.review': 'Review',
   'nav.deletions': 'Deletions',
   'nav.moves': 'Moves',
@@ -733,6 +734,7 @@ const en = {
   // 0037 T2: a paused mapping's row leads to the confirm screen — the Play
   // button it used to render could only earn a 409.
   'mappings.action.reviewAndStart': 'Review and start',
+  'mappings.action.open': 'Open',
   'mappings.action.delete': 'Delete',
   // 0037 T5: mapping deletion destroys config and ledger linkage, so the
   // button arms with the mapping's own name (hard rule 2's posture).
@@ -2160,6 +2162,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.dashboard': 'Overzicht',
   'nav.mappings': 'Migraties',
   'nav.back': 'Terug',
+  'nav.menu': 'Menu',
   'nav.review': 'Controleren en bevestigen',
   'nav.deletions': 'Verwijderingen',
   'nav.moves': 'Verplaatsingen',
@@ -2870,6 +2873,7 @@ const nl: Record<keyof typeof en, string> = {
     'Er worden geen nieuwe rondes gestart. Een ronde die al loopt maakt het huidige gegevenstype af en stopt dan. Er gaat niets verloren: Controleren en starten gaat verder waar het gebleven was.',
   'mappings.action.startSync': 'Start synchronisatie',
   'mappings.action.reviewAndStart': 'Controleren en starten',
+  'mappings.action.open': 'Openen',
   'mappings.action.delete': 'Verwijderen',
   'mappings.delete.explain':
     'Verwijdert instellingen en registratie van de migratie; bij uw bron of bestemming wordt niets aangeraakt.',
