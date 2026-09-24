@@ -1463,6 +1463,29 @@ reporter's own words. The reply address is typed, not verified. It is the
 ticket's customer, so a reply you write reaches it. Three reports a day per
 link, thirty an hour for every link together.
 
+### 8g. The alpha note *(only on the stack testers use)*
+
+While the service is an alpha (workplan 0131 T1), every tester is told so: a
+note at the top of every signed-in page and under the title of the sign-in and
+request pages, and a paragraph at the end of the access-granted mail, in
+English and Dutch. It is off unless you set it, and you set it only on the
+stack testers use:
+
+```
+OWNPACE_STAGE=alpha
+```
+
+The web bundle bakes it in at build time and the API reads it at start, so
+rebuild and recreate both:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml up -d --build --wait api web
+```
+
+Open the sign-in page: the note is under the title. Empty, or any value but
+`alpha`, is no note and no paragraph. The appliance never shows it.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash

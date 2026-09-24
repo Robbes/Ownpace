@@ -60,6 +60,10 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   'grant.readOnly': 'consent sentence, verbatim by owner decision',
   // Names the progress page since 0108 T8 (c) (owner, 2026-09-24: "yes").
   'grant.withdraw': 'consent sentence, verbatim by owner decision',
+  // The alpha note's middle sentence (0131 T1): nothing charged, nothing backed
+  // up (0131 D5), the alpha can end. Sixteen words in Dutch. Safety sentences
+  // stay verbatim — owner, 2026-09-05 — and the mail says the same words.
+  'alpha.note.terms': 'safety sentence, verbatim by owner decision',
 };
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };

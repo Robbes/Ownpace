@@ -4,6 +4,39 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T6 (a) built.** The renderer's first half is built on branch
+`claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, not merged.
+`Docs.tsx` is extended and no dependency is added (D6):
+
+- a heading is an `<h2>`–`<h4>` with an id: from a trailing `{#id}`, which leaves the text, or
+  else GitHub's slug of the heading. So the ten `#section` links in today's guides resolve;
+- a `#section` link stays in the tab and scrolls to its heading. So does a page opened at
+  `/docs/<slug>#<id>`, which T4's links from the checklist will need;
+- numbered steps are an `<ol>`, which keeps its first number when a sub-list interrupts it;
+- a link inside bold is a link;
+- the article has `lang="en"`, since every served guide is English until T4 picks per locale;
+- the index lists each guide by its first heading, not its slug.
+
+`Docs.unit.test.tsx` tests each feature on fixtures. It also checks every served guide: headings
+with ids, `#` links with no `target` that name an id on the page, no paragraph that begins with a
+numbered step, and links inside bold. The plan's `|` and `>` assertions are an `it.todo` until
+T6 (b), because today's guides still use tables and blockquotes. The build goes beyond the plan on
+two points: the not-found page lists titles too, from the same list as the index, and code inside
+a link's text renders as code. T2 (c)'s `own-app` fold and T6 (b) are not built. `Docs.tsx`:5-8
+is left for T7.
+
+After review, one effect of the first half is fixed and the others are recorded. A numbered step
+is now a list item of its own, and its continuation lines render as a paragraph after it until
+T6 (b). So a bold span that opened on a step's line and closed on the next showed both `**` as
+text. `archive-setup.md`'s step 5 did, and it had rendered as bold while the steps were one
+paragraph. That step and `google-workspace-setup.md`'s step 1 are rewrapped with no word changed,
+and the served-guides case now checks that a bold span opened on a numbered step's line closes on
+it. Two effects were there before this build and stay. Bold across a bullet's continuation line
+(`apple-setup.md`:125 and :222, `google-workspace-setup.md`:91) shows its `**` until T6 (b). The
+renderer has no italics, so `*x*` shows its asterisks, and bold that holds italics is not bold
+(`dropbox-setup.md`:26, `microsoft-setup.md`:86, `google-workspace-setup.md`'s step 1). Neither
+half of T6 names italics.
+
 **2026-09-24, night: the archive card is labelled, not hidden (D10).** The owner: *"Hide the archive
 card on manage: I don't want them hidden. I want labelled as 'expirimental'."* ("manage" is read as
 "managed", "expirimental" as "experimental".) So the export archive card stays offered at both doors
@@ -51,7 +84,8 @@ work. No target and not the IMAP source has a guide, and every guide is in Engli
 first chose to have this explained (*"W15 explaoin"*, 0131 §5), and then answered it on four
 points (§2). This plan records those answers as D1 to D4, and 0131 §5 calls this work W15.
 
-Nothing in this plan is built. Five of the review's guide findings were fixed in #1137, merged on
+When this plan was opened, nothing in it was built. T6 (a) has been built since (see the first note).
+Five of the review's guide findings were fixed in #1137, merged on
 2026-09-24, and are checked again in §1: the checklist strings, the dead *Read the full setup
 guide* link, the stale "credentials step", the mechanical text defects and the missing
 `Tasks.Read` row. One sentence was left out of that fix on purpose, for the archive decision that
@@ -90,7 +124,7 @@ the owner announced for *Via IMAP* (D5).
 | T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
-| T6 A renderer that keeps a guide's shape | 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
+| T6 A renderer that keeps a guide's shape | 🔨 **(a) built** on branch `claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, not merged; (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 

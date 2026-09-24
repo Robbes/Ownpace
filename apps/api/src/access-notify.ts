@@ -69,6 +69,41 @@ export function __setChannelForTests(replacement: ReturnType<typeof notifierFrom
 }
 
 /**
+ * Whether this deployment runs the alpha (workplan 0131 T1).
+ *
+ * One setting, `OWNPACE_STAGE=alpha`, which `managed.yml` hands to this
+ * process and, as the build arg `VITE_OWNPACE_STAGE`, to the web bundle
+ * (`scripts/an-alpha-both-halves-know-about.unit.test.ts`). The same rule as
+ * the bundle's (`apps/web/src/services/stage.ts`): unset or empty is off, and
+ * only `alpha`, trimmed and in any case, is on. The appliance never sets it;
+ * it has no access queue and sends no grant mail.
+ */
+export function alphaFrom(env: { readonly OWNPACE_STAGE?: string }): boolean {
+  return env.OWNPACE_STAGE?.trim().toLowerCase() === 'alpha';
+}
+
+/**
+ * The mail a granted person receives, marked when the deployment runs the
+ * alpha so that it says so in the note's words (`renderEvent`).
+ *
+ * Built here rather than in the route so the setting is read in one place,
+ * at the moment the mail is written, and so a test can hand it an
+ * environment instead of changing the process's.
+ */
+export function accessGrantedEvent(
+  granted: { readonly organisation: string; readonly appUrl: string; readonly email: string },
+  env: { readonly OWNPACE_STAGE?: string } = process.env,
+): NotificationEvent {
+  return {
+    kind: 'access_granted',
+    organisation: granted.organisation,
+    appUrl: granted.appUrl,
+    email: granted.email,
+    ...(alphaFrom(env) ? { alpha: true } : {}),
+  };
+}
+
+/**
  * Send one event to one address, and say what became of it.
  *
  * Never throws. The caller is a route that has already committed something

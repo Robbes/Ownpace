@@ -61,6 +61,11 @@ ENV VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
 # the honest default — the screen then shows the address as plain text.
 ARG VITE_IDP_CONSOLE_USER_URL=
 ENV VITE_IDP_CONSOLE_USER_URL=$VITE_IDP_CONSOLE_USER_URL
+# Whether this deployment runs the alpha (workplan 0131 T1): `alpha` shows the
+# note on the signed-in pages, the sign-in page and the request page. managed.yml
+# passes it from OWNPACE_STAGE. Empty, the default, is no note.
+ARG VITE_OWNPACE_STAGE=
+ENV VITE_OWNPACE_STAGE=$VITE_OWNPACE_STAGE
 RUN pnpm --filter @openmig/web build
 
 FROM nginx:1.31-alpine AS runtime

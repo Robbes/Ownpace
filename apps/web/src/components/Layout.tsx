@@ -27,6 +27,7 @@ import { LOCALES } from '../i18n/strings.ts';
 import BuildStamp from './BuildStamp.tsx';
 import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
+import AlphaNote from './AlphaNote.tsx';
 import {
   activeNavHref,
   mappingDisplayName,
@@ -413,6 +414,11 @@ const Layout: React.FC = () => {
             keyboard float an overlay above the viewport bottom, which hid the
             wizard's Next button behind it with nothing left to scroll to. */}
         <main className="p-4 pb-24 lg:p-8 lg:pb-8">
+          {/* The alpha note (workplan 0131 T1), first: a standing fact about
+              the service, on every signed-in page, in the same amber shape as
+              the hold below. Nothing unless the deployment runs the alpha, and
+              never on the appliance. */}
+          <AlphaNote className="mb-4" />
           {/* An operator hold, above whatever screen this is (migration
               0023). Here rather than on one page because a hold is
               platform-wide: it stops copying for every migration this person
