@@ -51,7 +51,9 @@ export interface ManagedTier {
 
 /** ADR-0014's five, in ascending order. Numbers guarded against the ADR's own table. */
 export const MANAGED_TIERS: ReadonlyArray<ManagedTier> = [
-  { id: 'tiny', name: 'Tiny', paths: 1, dataGb: 250, setup: 4, monthly: 2 },
+  // Free since 2026-09-24, and free means no billing: no invoice, no payment
+  // method, no top-up (ADR-0014's operative rules).
+  { id: 'tiny', name: 'Tiny', paths: 1, dataGb: 250, setup: 0, monthly: 0 },
   { id: 'small', name: 'Small', paths: 4, dataGb: 750, setup: 8, monthly: 4 },
   { id: 'medium', name: 'Medium', paths: 20, dataGb: 2 * GB_PER_TB, setup: 15, monthly: 8 },
   { id: 'large', name: 'Large', paths: 50, dataGb: 7.5 * GB_PER_TB, setup: 50, monthly: 39 },

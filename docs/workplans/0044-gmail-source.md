@@ -1,5 +1,7 @@
 # Workplan 0044 — Gmail as a first-class mail source
 
+> **In one line:** Gmail as a first-class mail source over IMAP with XOAUTH2: `gmail-source-factory.ts` on Drive's OAuth client and `GOOGLE_MAIL_REFRESH_TOKEN`, All Mail/Starred/Important views dropped, in both editions, the config parser, create API and wizard.
+
 ## Status — 2026-08-16 (update this block at the end of every session)
 
 | Task | Status | Evidence |

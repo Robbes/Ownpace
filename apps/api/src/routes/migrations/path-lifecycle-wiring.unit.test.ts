@@ -29,7 +29,7 @@ process.env.SECRET_ENCRYPTION_KEY =
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { applyMappingStatusChange, pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -259,6 +259,56 @@ describe('ending releases the slot, with the date on the row', () => {
   });
 });
 
+describe("the cutover CLI's own write moves the paths too (it wrote the mapping alone)", () => {
+  // `execute`, `complete` and a rollback reach the mapping through the
+  // ledger's `applyMappingStatusChange`, not through a route. It moved no
+  // path, so a cutover executed from the CLI kept every path `active`, and
+  // its slots, after the cutover had released them.
+  it('execute releases the slots, and a rollback takes them back with the first date kept', async () => {
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    const started = await pathRows();
+    expect(started.map((r) => r.state)).toEqual(['active', 'active']);
+
+    await applyMappingStatusChange(driver, TENANT, {
+      mappingId: MAPPING,
+      from: 'active',
+      to: 'cutover',
+      actor: 'cli',
+      via: 'cutover',
+    });
+    const cut = await pathRows();
+    expect(cut.map((r) => r.state)).toEqual(['cutover', 'cutover']);
+    for (const r of cut) expect(r.ended_at).not.toBeNull();
+
+    await applyMappingStatusChange(driver, TENANT, {
+      mappingId: MAPPING,
+      from: 'cutover',
+      to: 'active',
+      actor: 'cli',
+      via: 'rollback',
+    });
+    const back = await pathRows();
+    expect(back.map((r) => r.state)).toEqual(['active', 'active']);
+    for (const [i, r] of back.entries()) {
+      expect(r.ended_at).toBeNull();
+      // A path that was cut over and rolled back has not started again.
+      expect(r.first_activated_at).toEqual(started[i]!.first_activated_at);
+    }
+  });
+
+  it('moves no path that is not one, and conjures none for a mapping that never ran', async () => {
+    // The fixture's `contact` is in the scope table with included=false.
+    await applyMappingStatusChange(driver, TENANT, {
+      mappingId: MAPPING,
+      from: 'paused',
+      to: 'cutover',
+      actor: 'cli',
+      via: 'cutover',
+    });
+    expect(await pathRows()).toEqual([]);
+  });
+});
+
 describe('the month remembers its peak (0109 T2)', () => {
   interface PeakRow {
     month: string;
@@ -301,6 +351,25 @@ describe('the month remembers its peak (0109 T2)', () => {
     // paused held the slots, so the resume re-reached 2 — re-reaching a level
     // is not setting it: the evidence date stays the moment it was SET.
     expect(after).toEqual(set);
+  });
+
+  it('entering the continuous lane takes the slots back, and the peak rises with them (0117 D6)', async () => {
+    await request(app).post(`/api/migrations/${MAPPING}/start`).send({});
+    expect((await request(app).put(`/api/migrations/${MAPPING}`).send({ status: 'cutover' })).status).toBe(200);
+    // A new month: nothing recorded yet, and the cutover holds no slot.
+    const conn = await driver.acquire();
+    try {
+      await conn.query('DELETE FROM occupancy_peak');
+    } finally {
+      await conn.release();
+    }
+
+    const res = await request(app).put(`/api/migrations/${MAPPING}`).send({ status: 'continuous' });
+    expect(res.status).toBe(200);
+    expect((await pathRows()).map((r) => r.state)).toEqual(['continuous', 'continuous']);
+    const rows = await peakRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.peak_paths).toBe(2);
   });
 
   it('finishing releases slots but the month keeps its mark', async () => {

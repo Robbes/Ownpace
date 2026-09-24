@@ -1,5 +1,7 @@
 # Workplan 0037 — The wizard reaches the finish line
 
+> **In one line:** Makes the managed CreateMapping wizard completable: per-step gates, a `/mappings/:mappingId/confirm` route for paused mappings, target/domain refusals at create and each pass, cron checks, credential inputs, the row Delete and oauth2/graph app registration.
+
 ## Status — 2026-08-10 (update this block at the end of every session)
 
 | Task | Status | Evidence |

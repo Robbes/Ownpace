@@ -1,5 +1,7 @@
 # Workplan 0062 — connections you can see and re-test
 
+> **In one line:** The Connections page and `GET /api/connections`: each tenant's source and target connections with status and mailbox usage, and a Test button running the wizard's read-only probe and writing `connection.status`.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0148 — A guide written for the person using it
 
+> **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, wizard and checklist without own-app hints where the deployment carries one, export archive card hidden on managed, `Docs.tsx` renderer extended.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24, T6 (a) built.** The renderer's first half is built on branch

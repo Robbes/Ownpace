@@ -33,9 +33,9 @@ export const TIERS = [
     who: 'One person, one thing at a time',
     paths: 1,
     dataGb: 250,
-    setup: 4,
-    monthly: 2,
-    note: 'Move your mail, then your contacts, then your calendar, then your files — one after another. The patient option, and the cheapest.',
+    setup: 0,
+    monthly: 0,
+    note: 'Move your mail, then your contacts, then your calendar, then your files — one after another. The patient option, and free.',
   },
   {
     id: 'small',
@@ -203,3 +203,4 @@ export const total = (tier, months) => tier.setup + tier.monthly * months;
 
 /** @param {Tier} tier */
 export const firstMonth = (tier) => tier.setup + tier.monthly;
+

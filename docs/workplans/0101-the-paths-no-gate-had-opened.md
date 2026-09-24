@@ -1,5 +1,7 @@
 # 0101 — The paths no gate had opened
 
+> **In one line:** Brings unrequested API routes (readiness, shared addresses, permissions, billing, offboarding) into `smoke-managed.sh` with `gate-coverage.unit.test.ts`, and puts rollback, CLI cutover and `PUT /api/migrations/:id` on shared `mailbox_mapping` transitions.
+
 ## Status — 2026-09-20 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0085 — ending the service, and meaning it
 
+> **In one line:** Tenant offboarding: close, grace window and purge replacing the cascading tenant DELETE, detached invoices and an `erasure_record`, token revocation also on connection delete, standing-grant reminders, backup retention wording and self-host `forget-me`.
+
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 **Complete (2026-08-18, finished 2026-08-19).** T1–T9 are done. T9 was a

@@ -1,5 +1,7 @@
 # Workplan 0007 — Multi-domain sync for real: calendar, contacts & files end-to-end
 
+> **In one line:** Calendar, contacts and files synced beside mail: ledger `item_type`, per-domain sync in `domain-sync.ts`, CalDAV, CardDAV and WebDAV sources and writers against Stalwart and Nextcloud, and `runAllDomains` in the worker.
+
 ## Status — 2026-07-09 (update this block at the end of every session)
 
 | Task | Status | Evidence |

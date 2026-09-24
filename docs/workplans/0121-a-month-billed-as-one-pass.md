@@ -1,5 +1,7 @@
 # Workplan 0121 — A month billed as one pass
 
+> **In one line:** `usage_metric` compute metering that recorded a month as its last pass, replaced by `run`-ledger derivation with quantities frozen on invoices, per-tenant `pruneRuns` retention, invoice-backed usage history and `/api/billing/usage` showing the tier.
+
 ## Status — 2026-09-09 (update this block at the end of every session)
 
 **2026-09-09, later: T4 decided and the customer's screen rebuilt on it.** The owner took

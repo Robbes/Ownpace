@@ -1,5 +1,7 @@
 # Workplan 0061 — the provider setup checklist
 
+> **In one line:** Provider setup checklist: per-flow steps in `shared/provider-setup.ts`, per-tenant state in the `setup_step` table, the `/api/setup` routes and the `Setup.tsx` page linked from the CreateMapping wizard, marking admin-gated steps.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

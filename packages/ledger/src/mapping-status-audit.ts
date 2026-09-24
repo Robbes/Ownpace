@@ -46,6 +46,7 @@ import { PgLedger } from './ledger.ts';
 import { withTenant } from './db.ts';
 import type { LedgerDriver } from './driver.ts';
 import * as schemaPg from './schema-pg.ts';
+import { movePathsWithMapping } from './paths-follow-the-mapping.ts';
 
 /** The audit action every mapping status transition is recorded under. */
 export const MAPPING_STATUS_ACTION = 'mapping.status';
@@ -127,7 +128,7 @@ export async function recordMappingStatusChange(
 }
 
 /**
- * The row AND its record, in one transaction.
+ * The row, its paths AND its record, in one transaction.
  *
  * The API's call sites do these two steps inside `withTenantDb`'s
  * transaction; a caller outside the API has no such wrapper, and two separate
@@ -140,6 +141,12 @@ export async function recordMappingStatusChange(
  * `updatedAt` is stamped here, not left to the database: there is no trigger
  * on this table (workplan 0109 T1), so a writer that omits it leaves the
  * column reading whenever somebody last touched the row for another reason.
+ *
+ * The mapping's path rows move with it (`movePathsWithMapping`), as they do
+ * at every door the API serves. Without it a cutover executed from the CLI
+ * kept every path `active`, holding its slot after the cutover had released
+ * it. The month's peak is not written here: it is the managed edition's
+ * table, and the next read of the tier trues it up.
  */
 export async function applyMappingStatusChange(
   source: LedgerDriver | Pool,
@@ -156,6 +163,7 @@ export async function applyMappingStatusChange(
           eq(schemaPg.mailboxMapping.tenantId, tenantId),
         ),
       );
+    if (change.from !== change.to) await movePathsWithMapping(db, tenantId, change.mappingId, change.to);
     await recordMappingStatusChange(db, tenantId, change);
   });
 }

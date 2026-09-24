@@ -1,5 +1,7 @@
 # Workplan 0110 — support you can actually give
 
+> **In one line:** Metadata-only, read-only operator support on managed: `support_*` views in the managed chain, the `support_read` log, `/support` tenant and migration screens, failure categories per domain and item, and platform status from Gatus.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: the views were not read-only, and now are.** The owner's decided ground is

@@ -1,5 +1,7 @@
 # Workplan 0122 — The link that shows
 
+> **In one line:** A progress page for the person being migrated via a `view`-purpose `mapping_link`: `viewRowFor` keeping `lastError` out, `GET /api/view/:link`, the `/view/:link` page, `MappingLinksPanel`, minting at grant, and a third slice for holder start and pause.
+
 ## Status — 2026-09-10 (update this block at the end of every session)
 
 **2026-09-10, later: slice 2 built.** The owner: *"you do both, and continue autonomously."*

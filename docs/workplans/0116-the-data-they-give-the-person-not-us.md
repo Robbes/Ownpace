@@ -1,5 +1,7 @@
 # Workplan 0116 — The data they give the person, not us
 
+> **In one line:** Importing provider exports: an `archive` source whose credential is a location, `ArchiveReader` for Google Photos Takeout and Apple Data and Privacy, `zip-archive.ts`, albums as folders with a manifest, and the upload relay into the target.
+
 ## Status — 2026-09-21 (update this block at the end of every session)
 
 **2026-09-21: the same-named-album question is PARKED, with a list beside it.** Empty albums do

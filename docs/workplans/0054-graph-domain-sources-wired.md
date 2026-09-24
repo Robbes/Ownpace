@@ -1,5 +1,7 @@
 # Workplan 0054 — the three orphaned Graph sources, wired
 
+> **In one line:** Wires the orphaned Graph calendar, contacts and OneDrive connectors through a Graph domain-source factory reusing the mail factory's Entra flows, adds the `graph-drive` mapping-file type and corrects the feature matrix.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

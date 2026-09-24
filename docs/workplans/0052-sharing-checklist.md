@@ -1,5 +1,7 @@
 # Workplan 0052 — the sharing checklist
 
+> **In one line:** The ADR-0032 sharing checklist for carrying source share grants over to the target: the `share_grant` table, share-queue engine, a Nextcloud OCS share verb, routes in both editions, the `Sharing.tsx` screen, and digest and completion-report lines.
+
 ## Status — 2026-08-16 (update this block at the end of every session)
 
 | Task | Status | Evidence |

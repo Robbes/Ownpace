@@ -1,5 +1,7 @@
 # Workplan 0067 — the wizard's dead ends, and what a shared connection may not answer
 
+> **In one line:** CreateMapping wizard dead ends: Box and Dropbox gates and blocked-reason text from one `sourceStepMissing()`, `ConnectionPicker` on the source and target steps, narrowed config overrides, a required Box subject on reuse, and a reachability test.
+
 ## Status — 2026-09-05 (update this block at the end of every session)
 
 | Task | Status | Evidence |

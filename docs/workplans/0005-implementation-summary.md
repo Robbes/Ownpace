@@ -1,5 +1,7 @@
 # Workplan 0005 Implementation Summary
 
+> **In one line:** Superseded by 0011; history of the first managed-edition work: multi-tenant schema and Postgres RLS policies, `TriggerScheduler`, Trigger.dev sync, cutover and rollback jobs, the Trigger webhook route, and planned API, web UI and Mollie billing.
+
 > ⚠️ **SUPERSEDED by [workplan 0011](./0011-managed-edition-hardening.md)** (2026-07-09) — kept
 > as history, do not execute from this file. The original 0005 plan document was deleted with
 > `.agents_tmp/` (restoration tracked in workplan 0006 item C). Verified state at supersession:

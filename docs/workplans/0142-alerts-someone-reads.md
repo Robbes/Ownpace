@@ -1,5 +1,7 @@
 # Workplan 0142 — Alerts someone reads
 
+> **In one line:** Telling the operator when `ownpace-live` fails: an alert channel, Gatus alerts on the Ownpace status rows, a `managed-sync-tick` heartbeat, disk, queue and PgBouncer watches, an off-machine probe and `docs/incident-runbook.md`.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that

@@ -1,5 +1,7 @@
 # Workplan 0090 — the cap we do not count
 
+> **In one line:** Gmail's 2,500 MB/day IMAP download cap: a `ByteBudget` meter wired into `ImapFlowSource`, a pause in `runDomainSync` before the lockout shown to the customer via `paused_reason`, and the cap's minimum days on the price calculator.
+
 ## Status — 2026-08-26 (update this block at the end of every session)
 
 | Task | Status | Evidence |

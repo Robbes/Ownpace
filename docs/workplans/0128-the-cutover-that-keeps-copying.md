@@ -1,5 +1,7 @@
 # Workplan 0128 — The cutover that keeps copying
 
+> **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, ending or continuing chosen data types in the continuous lane, and per-data-type stop and resume on managed.
+
 ## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-23: opened from the owner's answers.** Two things came out of one conversation about

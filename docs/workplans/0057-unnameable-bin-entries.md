@@ -1,5 +1,7 @@
 # Workplan 0057 — what a bin read could not name
 
+> **In one line:** How the Drive, Box, Dropbox and WebDAV bin reads treat entries outside the root (silent) versus unnameable ones (counted), via `TrashListing` on the `FileSource` port and `unplaceableDiscards` on the domain-sync result.
+
 ## Status — 2026-08-17 (update this block at the end of every session)
 
 | Task | Status | Evidence |

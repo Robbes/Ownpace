@@ -1,5 +1,7 @@
 # Workplan 0014 — Proton Drive as a files target
 
+> **In one line:** Plan for Proton Drive as a files target: a `ProtonDriveTarget` writer, reindexer and trash-based remover on the Proton Drive SDK, to begin only once ADR-0025's conditions hold (SDK GA and a non-interactive credential).
+
 ## Status — 2026-07-30 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -1,5 +1,7 @@
 # Workplan 0046 — "Prove it" in the wizard
 
+> **In one line:** A Test connections button on the wizard's credentials step and `POST /api/migrations/test-connection` (`probe-connection.ts`), probing sources through the builders a sync pass uses and DAV, IMAP and JMAP targets, read-only; managed edition only.
+
 ## Status — 2026-08-16 (update this block at the end of every session)
 
 | Task | Status | Evidence |

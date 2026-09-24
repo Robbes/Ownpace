@@ -1,5 +1,7 @@
 # Workplan 0107 — the front door
 
+> **In one line:** The connection chooser regrouped into "Your provider" and "Any server, by protocol", with provider icons, rendered as one `FrontDoorChooser` by the CreateMapping wizard and the Connections add-form; ids and stored kinds unchanged.
+
 ## Status — 2026-09-01 (update this block at the end of every session)
 
 | Task | Status | Evidence |

@@ -57,4 +57,5 @@ tempo" in de praktijk betekent.
 dat de hele keten werkt. Doe daarna de rest.
 
 **Begin met alles tegelijk als u het niet spannend vindt.** De rekening daalt vanzelf zodra
-er iets klaar is, dus er valt niets te winnen met zuinig aan doen.
+er iets klaar is. Eén voor één is juist gratis (Tiny), en langzamer; wat beter is, bepaalt
+u.

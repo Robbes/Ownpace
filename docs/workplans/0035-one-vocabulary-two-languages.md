@@ -1,5 +1,7 @@
 # Workplan 0035 — One vocabulary, two languages (terminology & i18n completion)
 
+> **In one line:** Web UI terminology and i18n: one `StateChip` for state words, bilingual QueueScreen, DiscoveryCounts, ApplyDeletionsPanel, Login, CreateMapping, Billing, Dashboard and Mappings, a hardcoded-text guard test, the mapping-versus-migration glossary, NL copy fixes.
+
 ## Status — 2026-08-09 (update this block at the end of every session)
 
 | Task | Status | Evidence |

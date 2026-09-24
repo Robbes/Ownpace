@@ -1,5 +1,7 @@
 # Workplan 0045 — Google Calendar & Contacts as sources
 
+> **In one line:** Google Calendar and Contacts as sources over the existing CalDAV and CardDAV connectors, which gain Bearer OAuth with per-request token minting, plus `google-dav-source-factory.ts`, per-product refresh tokens and two wizard cards.
+
 ## Status — 2026-08-16 (update this block at the end of every session)
 
 | Task | Status | Evidence |
