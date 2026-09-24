@@ -2070,11 +2070,11 @@ const en = {
   'setup.dropbox.exchange_code.yields': 'a refresh token.',
   'setup.google.create_oauth_client.title': 'Create a Google OAuth client',
   'setup.google.create_oauth_client.detail':
-    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Desktop or Web application.',
+    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, as a Web application.',
   'setup.google.create_oauth_client.yields': 'a Client ID and a Client Secret.',
   'setup.google.enable_api.title': 'Enable the product’s API',
   'setup.google.enable_api.detail':
-    'In the same project, enable the API that matches the source you picked — Drive, Gmail, Calendar, People or Tasks. A client without it fails on the first call.',
+    'In the same project, enable the API that matches the source you picked — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API or Google Tasks API. A client without it fails on the first call.',
   'setup.google.consent_scope.title': 'Consent a read-only refresh token',
   'setup.google.consent_scope.detail':
     'Have the account owner consent with the scope for that product; a token consented for one Google product does not work for another. Or use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
@@ -2112,10 +2112,10 @@ const en = {
   'setup.jmap.account_exists.title': 'Make sure the destination account exists',
   'setup.jmap.account_exists.detail':
     'Create the mailbox on the JMAP server first, with enough quota. Nothing here creates accounts.',
-  'setup.jmap.api_token.title': 'Create an API token',
+  'setup.jmap.api_token.title': 'Create an app password for it',
   'setup.jmap.api_token.detail':
-    'Generate a token for that account in the server\u2019s own settings, with permission to write mail and files.',
-  'setup.jmap.api_token.yields': 'a username and an API token.',
+    'Create an app password for that account in the server\u2019s own settings, where it offers one; this product signs in with the username and that password.',
+  'setup.jmap.api_token.yields': 'a username and an app password.',
   'setup.davbasic.account_exists.title': 'Make sure the destination account exists',
   'setup.davbasic.account_exists.detail':
     'Create the account on the target server first, with enough quota for what is coming. Nothing here creates accounts.',
@@ -3825,11 +3825,11 @@ const nl: Record<keyof typeof en, string> = {
   'setup.dropbox.exchange_code.yields': 'een refresh-token.',
   'setup.google.create_oauth_client.title': 'Maak een Google OAuth-client',
   'setup.google.create_oauth_client.detail':
-    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Desktop- of Web-toepassing.',
+    'Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID, als Web-toepassing.',
   'setup.google.create_oauth_client.yields': 'een Client-ID en een Client-geheim.',
   'setup.google.enable_api.title': 'Zet de API van het product aan',
   'setup.google.enable_api.detail':
-    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Drive, Gmail, Calendar, People of Tasks. Zonder dat mislukt de eerste aanroep.',
+    'Zet in hetzelfde project de API aan die past bij de gekozen bron — Google Drive API, Gmail API, CalDAV API, Google Contacts CardDAV API of Google Tasks API. Zonder dat mislukt de eerste aanroep.',
   'setup.google.consent_scope.title': 'Laat een alleen-lezen refresh-token toestemmen',
   'setup.google.consent_scope.detail':
     'Laat de accounthouder toestemmen met de scope van dat product; een token voor het ene Google-product werkt niet voor het andere. Of gebruik een service-account met domain-wide delegation, dat een beheerder eenmalig voor het hele domein autoriseert.',
@@ -3867,10 +3867,10 @@ const nl: Record<keyof typeof en, string> = {
   'setup.jmap.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.jmap.account_exists.detail':
     'Maak de postbus eerst aan op de JMAP-server, met genoeg quota. Dit product maakt zelf geen accounts aan.',
-  'setup.jmap.api_token.title': 'Maak een API-token',
+  'setup.jmap.api_token.title': 'Maak er een app-wachtwoord voor',
   'setup.jmap.api_token.detail':
-    'Genereer in de instellingen van de server een token voor dat account, met rechten om mail en bestanden te schrijven.',
-  'setup.jmap.api_token.yields': 'een gebruikersnaam en een API-token.',
+    'Maak in de instellingen van de server zelf een app-wachtwoord voor dat account, als die dat aanbiedt; dit product meldt zich aan met de gebruikersnaam en dat wachtwoord.',
+  'setup.jmap.api_token.yields': 'een gebruikersnaam en een app-wachtwoord.',
   'setup.davbasic.account_exists.title': 'Zorg dat het doelaccount bestaat',
   'setup.davbasic.account_exists.detail':
     'Maak het account eerst aan op de doelserver, met genoeg quota voor wat eraan komt. Dit product maakt zelf geen accounts aan.',
