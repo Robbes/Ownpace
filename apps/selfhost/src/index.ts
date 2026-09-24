@@ -104,6 +104,7 @@ import {
   ENV_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
 import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, setAuditExportSink, AUDIT_PSEUDONYM_PURPOSE, auditCursorAfter, auditExportLine, parseAuditCursor, pseudonymizer } from '@openmig/shared';
+import { isCrossSiteWrite } from './cross-site.ts';
 import {
   assembleShareAnnouncements,
   createFailureStreakGate,
@@ -1388,6 +1389,20 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   const server = createServer(async (req, res) => {
     try {
+      // A page on another site cannot press this appliance's buttons: a write a
+      // browser marks cross-site is refused before any route sees it
+      // (cross-site.ts). A script or curl sends no such mark.
+      if (isCrossSiteWrite(req.method, req.headers['sec-fetch-site'])) {
+        log.warn(
+          `[selfhost] refused a ${req.method} to ${(req.url ?? '').split('?')[0]}: a page on another ` +
+            'website sent it through a browser on this machine.',
+        );
+        return sendJson(res, 403, {
+          error: 'Refused: this request was sent by a page on another website.',
+          hint: "Use the appliance's own screens, at its own address. A script or curl is not affected.",
+        });
+      }
+
       // The operating UI (ADR-0026), under /ui so it cannot collide with the
       // JSON routes below — several of which share a name with one of its
       // screens. Returns false for anything outside the mount, so this can
