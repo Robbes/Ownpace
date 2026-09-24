@@ -103,6 +103,12 @@ part that matters.
   is consistent with what already ships; the protection is the bind address, and
   an operator who changes it is changing that decision. A login there would be a
   password to lose in front of a port nobody else can reach.
+  *2026-09-24:* one caller the bind cannot keep out is a page on another site,
+  opened in the owner's own browser, which can send a body-less POST here
+  without asking first. A write the browser marks `Sec-Fetch-Site: cross-site`
+  is refused before any route runs (`apps/selfhost/src/cross-site.ts`). No
+  login was added: the appliance's own screens are same-origin, and a script
+  sends no such mark.
 - **Which navigation exists.** Tenants and billing are managed concepts and are
   hidden rather than shown broken.
 

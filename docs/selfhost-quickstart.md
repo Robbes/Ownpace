@@ -66,6 +66,10 @@ Edit `deploy/selfhost/.env`:
   own (by design; the bind IS the boundary), so only open it on a network
   where everyone who can reach the port is allowed to press those buttons,
   behind your own firewall.
+  A website you visit cannot press them through your browser: a request that
+  would change something, sent by a page on another site, is refused (browsers
+  mark it `Sec-Fetch-Site: cross-site`). The appliance's own screens, and a
+  script or `curl`, are not affected.
   Also optional: `SELFHOST_PORT` (the compose files default to `8081`),
   `SELFHOST_IMAGE` (pin to a release tag — `X.Y.Z` from v0.1.0 on; rc.1 lives only at
   `ghcr.io/robbes/open-migrate-selfhost` — or a verified
