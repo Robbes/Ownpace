@@ -2232,8 +2232,12 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   `trigger-version.sh backup`, and its restore is drilled on every managed gate
   run. The same treatment for `ownpace-db` is not built.)
 - **Anybody's first account.** `setup-zitadel.sh` stands the provider up; it
-  does not create people. Invite-only means the owner does that, and the
-  provisioning path for it is workplan 0093 T6, not yet built.
+  does not create people. People are let in through the access-request queue
+  (§8c; workplan 0093 T6/T7, done): once an operator is appointed as §8c
+  describes, granting a request (`POST /api/access-requests/<id>/grant`)
+  creates the organisation and its owner invitation in one transaction, and
+  the asker becomes a member the first time they sign in with a verified
+  email.
 - **The Trigger.dev instance's own upgrade path** between major versions.
 - **Bring-up from scratch, tested.** The nightly
   [`e2e-managed.yml`](../.github/workflows/e2e-managed.yml) runs this script
@@ -2250,4 +2254,5 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
 - [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) — symptoms across both editions
 - [`rls-guide.md`](./rls-guide.md) — why the app connects as `app_user`
 - [`status-page.md`](./status-page.md) — what the status page can and cannot tell you
-- [`performance.md`](./performance.md) — the pooler, the rate budget, the tick
+- [`performance.md`](./performance.md) — the PGlite ledger benchmark, bounded
+  concurrency and the remaining throughput levers (the pooler is phase 3 above)
