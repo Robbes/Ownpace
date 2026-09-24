@@ -924,6 +924,12 @@ services:
       # Found by the guard below on its first run, not by reading: this one is
       # consulted by the same function and was missed by the same enumeration.
       NOTIFY_DIGEST: ${NOTIFY_DIGEST:-}
+      # THE ACCESS-REQUEST LIMIT'S TWO KNOBS, read by apps/api/src/index.ts
+      # (Express 'trust proxy') and knock-limit.ts. Empty is today's behaviour:
+      # one service-wide bucket of 60 an hour. Workplan 0093 T2c says when to
+      # set them. `scripts/a-limit-the-api-was-never-handed.unit.test.ts`.
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:
