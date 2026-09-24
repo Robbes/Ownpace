@@ -312,21 +312,18 @@ When multiple tests share the same Stalwart accounts, clean ALL target mailboxes
 state before each test:
 
 ```typescript
+// packages/testing/src/imap-test-client.ts (the package's `./imap-test-client` export);
+// today's callers import it by relative path.
+import { withImapTestClient, purgeAllMailboxes } from '../../../packages/testing/src/imap-test-client.ts';
+
 async function cleanTargetMailboxes(): Promise<void> {
-  const config: ImapSimpleOptions = { /* ... */ };
-  const conn = await imap.connect(config);
-  
-  const mailboxes = await conn.getMailboxes();
-  for (const mailbox of Object.values(mailboxes)) {
-    await conn.openBox(mailbox.name);
-    const all = await conn.search(['ALL'], { fields: ['UID'] });
-    if (all.length > 0) {
-      const uids = all.map(r => r.attributes.uid);
-      await conn.addFlags(uids, '\\Deleted');
-      await conn.expunge();
-    }
+  const { failed } = await withImapTestClient(
+    { host: STALWART_IMAP_HOST, port: STALWART_IMAP_PORT, user: TARGET_ACCOUNT, password: TARGET_PASSWORD },
+    (client) => purgeAllMailboxes(client),
+  );
+  for (const [mailbox, reason] of Object.entries(failed)) {
+    console.warn(`Could not clean mailbox ${mailbox}: ${reason}`);
   }
-  conn.end();
 }
 
 async function cleanDatabaseState(tenantId: string, mappingId: string): Promise<void> {
@@ -356,21 +353,12 @@ beforeEach(async () => {
 
 ### Unique accounts per test (advanced)
 
-For true isolation, each test file can start its own Stalwart container with unique accounts:
-
-```typescript
-import { generateTestAccounts, startStalwartIsolated } from '@openmig/testing';
-
-const TEST_ACCOUNTS = generateTestAccounts('mytest');
-
-beforeAll(async () => {
-  const stalwart = await startStalwartIsolated([
-    { name: TEST_ACCOUNTS.source.name, password: TEST_ACCOUNTS.source.password },
-    { name: TEST_ACCOUNTS.target.name, password: TEST_ACCOUNTS.target.password },
-  ]);
-  // Use stalwart.imapHost, stalwart.imapPort, etc.
-});
-```
+For true isolation, a test file would start its own Stalwart container with unique accounts.
+**No helper for that exists today.** The sample that stood here imported `generateTestAccounts`
+and `startStalwartIsolated` from `@openmig/testing`, and neither has ever been in the repository.
+What `@openmig/testing` does export is `startTestEnvironment` / `stopTestEnvironment`
+(`packages/testing/src/testcontainers-setup.ts`), which start the whole shared stack, not one
+Stalwart per file.
 
 **Trade-offs:**
 - ✅ Complete isolation: No shared state at all
@@ -459,39 +447,43 @@ the same jobs run on the self-hosted arm64 Spark. Image builds are GitHub-hosted
 on the Spark. The Spark runner executes trusted workflows only. Both the `integration-tests` job
 and `e2e.yml` install `stalwart-cli` as a host binary for their respective provisioning phases.
 
-## Appendix — untested seams (verified against the tree, 2026-08-02)
+## Appendix — untested seams (verified against the tree, 2026-08-02; re-verified 2026-09-24)
 
 What has **no** dedicated test, stated here so it is a fact in the repo rather
 than a rediscovery. This list is the honest complement to the coverage above;
 each entry is a candidate for a workplan, not a promise.
 
-- **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, all eight).
+- **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, fourteen
+  task files at the 2026-09-24 re-check).
   The logic inside them is tested through extracted seams —
-  `sync-due.unit.test.ts` proves the tick's due-evaluation,
-  `cutover-preparation.integration.test.ts` drives `prepareCutover`'s body
-  against a real ledger, apply/verify logic lives in `@openmig/core` with its
-  own suites — but the `schemaTask` wrappers themselves (payload schemas,
-  `configure()` wiring, error paths) execute only in live smokes
-  (`deploy/compose/smoke-managed.sh`). The 0022 cutover's in-runner API-URL
+  `packages/orchestration/src/sync-due.unit.test.ts` proves the tick's
+  due-evaluation, `cutover-preparation.integration.test.ts` drives
+  `prepareCutover`'s body against a real ledger, the colocated suites in
+  `jobs/` drive exported pieces such as `buildTask` and `runDigest`, and
+  apply/verify logic lives in `@openmig/core` with its own suites — but the
+  `schemaTask` wrappers themselves (payload schemas, `configure()` wiring,
+  error paths) execute only in live smokes (`deploy/compose/smoke-managed.sh`,
+  which `e2e-managed.yml` runs nightly). The 0022 cutover's in-runner API-URL
   bug lived exactly in that untested layer.
-- **`apps/worker/src/build-deps-from-mapping.ts`** — the managed, DB-driven
-  deps builder (its appliance-side sibling `build-deps.ts` has
-  `build-deps.unit.test.ts`). Exercised only inside live task runs; the #207
-  all-domain-deps bug lived here.
-- **`apps/worker/src/enabled-domains.ts`** — the explicit enabled-domains
-  rule (the #207 fix itself). No direct test; covered indirectly wherever
-  callers are tested, and by the live smoke.
-- **Web pages with no jsdom suite**: `Billing`, `CreateMapping`, `Dashboard`,
-  `Failures`, `Login`, `Mappings`, `Moves`, `OperatorDashboard`, `Settings`,
-  `Tenants`. (Covered: Confirm, Deletions, Finish, MappingDetail, Verify —
-  plus the queue primitives/panel component suites.)
-- **Web services/stores with no direct suite**: `billing-service`,
-  `mapping-service`, `operating-service` (exercised heavily *through* the
-  page suites, but has no test of its own), `auth-store`, `mapping-store`.
+- **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
+  `RedirectUris`. (`ReportProblem` is covered by
+  `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a
+  colocated `*.unit.test.tsx`.)
+- **Web services/stores with no suite of their own**: `grant-link-service`,
+  `platform-service`, `view-service`, `mapping-cache`, and `auth-store` (the
+  last exercised through the page and component suites, but with no test of
+  its own).
 - **Mollie billing**: the webhook handler IS covered
   (`invoice-billing.integration.test.ts`, incl. double-delivery no-op) — but
   against a **mocked Mollie client**; no test speaks the real Mollie API.
 
 Removed from this list since the 2026-08-01 review: `managed-scheduler.ts`
 (deleted outright, 0022 T4) and the Mollie webhook handler (its coverage was
-found, not added — the review overcounted).
+found, not added — the review overcounted). Removed at the 2026-09-24
+re-check: `build-deps-from-mapping.ts` and `enabled-domains.ts`, both now in
+`packages/orchestration/src` with `build-deps-from-mapping.unit.test.ts` and
+`enabled-domains.unit.test.ts`; the pages and services that gained suites
+(`Billing`, `CreateMapping`, `Dashboard`, `Failures`, `Login`, `Mappings`,
+`Moves`, `Tenants`; `billing-service`, `mapping-service`,
+`operating-service`); and `OperatorDashboard`, `Settings` and
+`mapping-store`, which no longer exist.
