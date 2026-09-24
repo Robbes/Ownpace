@@ -845,7 +845,8 @@ typo is fixed by re-running.
 
 **This block used to read the connection out of `.env` with `grep
 '^DATABASE_URL='`, and that could not work on any stack** — `managed.yml`
-COMPOSES `DATABASE_URL` from `POSTGRES_*` and `DB_HOST` (line 742), so the file
+COMPOSES `DATABASE_URL` from `POSTGRES_*` and `DB_HOST` (in the `api` service's
+`environment:`), so the file
 has never carried such a line. The grep returned empty, the assignment
 succeeded, and the script refused for a requirement the reader had just
 apparently met. `operator.sh` is the same answer `seed-managed.sh` already was

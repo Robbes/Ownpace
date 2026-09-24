@@ -1415,10 +1415,10 @@ phase_app() {
   # kind of instruction nobody should have to be given.
   #
   # So zitadel comes up on its own first (it already declares
-  # `depends_on: postgres: service_healthy`, and its healthcheck is the
-  # provider's own `ready`, not a port probe — it listens well before its
-  # migrations are done). The second `up` below is idempotent for anything
-  # already running.
+  # `depends_on: postgres: service_healthy`, and its readiness is asked from
+  # the host by `wait_for_idp_ready`, not by a port probe — it listens well
+  # before its migrations are done). The second `up` below is idempotent for
+  # anything already running.
   #
   # Until workplan 0099 NOTHING invoked this script at all: it was documented as
   # a step somebody runs by hand, so a bring-up produced a stack whose sign-in
