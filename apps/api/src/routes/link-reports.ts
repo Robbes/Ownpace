@@ -50,7 +50,7 @@ import {
   type LinkReportFacts,
   type ReportedLink,
 } from '../link-report.ts';
-import { createZammadTicket, reportingConfig, ZammadRefused } from '../services/zammad.ts';
+import { createZammadTicket, reportingConfig, ZammadRefused, zammadOwnUserId } from '../services/zammad.ts';
 import { namedAccount, readAskedBy, readGrantRows, whereFromAndTo } from './migrations/grant-subject.ts';
 
 /** Three reports a day, per link. */
@@ -178,7 +178,16 @@ export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}):
     }
 
     try {
-      const ticket = await createZammadTicket(config, linkReportTicketFor(parsed, facts, config.group), deps.fetchImpl);
+      // A report without a reply address is filed under the helpdesk's own
+      // user (the owner, 2026-09-24): asked only then, since an addressed
+      // report's customer is the reporter.
+      const ownUserId =
+        parsed.replyTo === undefined ? await zammadOwnUserId(config, deps.fetchImpl) : undefined;
+      const ticket = await createZammadTicket(
+        config,
+        linkReportTicketFor(parsed, facts, config.group, ownUserId),
+        deps.fetchImpl,
+      );
       res.status(201).json({ ticket });
     } catch (err) {
       // On the operator's log page (0129 T1), and on this line with its
