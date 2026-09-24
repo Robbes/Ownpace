@@ -1,5 +1,7 @@
 # Apple (iCloud) setup — one password, four faces, and no button
 
+**Operator and self-host document.** The customer guide is [the Apple guide](guides/en/apple.md), served in the app at `/docs/apple`.
+
 An Apple migration authenticates with **one app-specific password**. There is no
 consent screen to click, and that is a fact about Apple rather than a gap in
 this product — the reason is below, because it is the first question everybody

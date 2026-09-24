@@ -1108,6 +1108,17 @@ const en = {
   'docs.title': 'Setup guides',
   'docs.all': '← All setup guides',
   'docs.notFound': 'There is no guide by that name; these ship with this version:',
+  // Workplan 0148 T4: a guide not yet written in the reader's language is
+  // shown in the other one, under this line, in the reader's own.
+  'docs.otherLanguage': 'This guide is not yet available in English; the Dutch version follows.',
+  // Workplan 0148 D9: the appliance's index only. Its owner runs it, and the
+  // operator material the guides stopped carrying is in the repository. The
+  // plan's wording, one word shorter to fit 0118's fifteen-word line.
+  'docs.operatorDocs':
+    'Running your own appliance? Settings and commands are in the operator documents in the repository.',
+  // Workplan 0148 T2 (c): the fold over a guide's own-app section, closed
+  // where this service carries the provider's app.
+  'docs.ownAppFold': 'Only if you want to use your own app',
   'mappings.lastSync': 'Last sync:',
   'mappings.never': 'Never',
   'mappings.filtered.lead': 'Showing only:',
@@ -1881,7 +1892,7 @@ const en = {
     'Enter its tenant ID, client ID and client secret below, with the mailbox address. Register the app and grant admin consent in your own tenant first; the checklist below has the steps.',
   'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
   'wizard.about.googleDrive.more':
-    'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values and ends with one read-only command that proves them.',
+    'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values, and Test and save connections checks them against Google before anything is copied.',
   'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
   'wizard.about.dropbox.more':
     'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; below it, the App secret goes in the client-secret field and the refresh token beside it.',
@@ -3247,6 +3258,10 @@ const nl: Record<keyof typeof en, string> = {
   'docs.title': 'Instelhandleidingen',
   'docs.all': '← Alle instelhandleidingen',
   'docs.notFound': 'Er is geen handleiding met die naam; deze horen bij deze versie:',
+  'docs.otherLanguage': 'Deze handleiding is er nog niet in het Nederlands; hieronder staat de Engelse versie.',
+  'docs.operatorDocs':
+    "Draait u een eigen appliance? Instellingen en commando's staan in de beheerdersdocumenten in de repository.",
+  'docs.ownAppFold': 'Alleen als u een eigen app wilt gebruiken',
   'mappings.lastSync': 'Laatste synchronisatie:',
   'mappings.never': 'Nooit',
   'mappings.filtered.lead': 'Alleen zichtbaar:',
@@ -3716,7 +3731,7 @@ const nl: Record<keyof typeof en, string> = {
     'Vul hieronder de tenant-ID, client-ID en het clientgeheim in, samen met het mailboxadres. Registreer de app en verleen eerst beheerderstoestemming in uw eigen tenant; de checklist hieronder heeft de stappen.',
   'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
   'wizard.about.googleDrive.more':
-    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden en eindigt met één alleen-lezen commando dat ze bewijst.',
+    'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden, en Verbindingen testen en bewaren controleert ze bij Google voordat er iets wordt gekopieerd.',
   'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
   'wizard.about.dropbox.more':
     'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; daaronder komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',

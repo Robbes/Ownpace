@@ -21,13 +21,12 @@
  * fixture case below, and the served-guides case checks the same properties
  * on every guide the build ships.
  *
- * WHAT WAITS FOR T6 (b). The plan's full guard also says no rendered paragraph
- * begins with `|` or `>`. Today's guides still use GFM tables and
- * blockquotes (86 and 64 lines), and tables, blockquotes, continuation lines
- * and indented fences are the renderer's second half, after the first
- * invitation. Asserting them now would fail on content this build does not
- * claim to render, so they are an `it.todo` below rather than a weakened
- * assertion.
+ * WHAT WAITED FOR THE SPLIT. The plan's full guard also says no rendered
+ * paragraph begins with `|` or `>`. The operator documents that were served
+ * until 0148 T1 used GFM tables and blockquotes (86 and 64 lines), which the
+ * renderer's second half (T6 (b)) takes up. The customer guides in
+ * `docs/guides/` are written without them, as T6 says a guide is until then,
+ * so the assertion runs over every served guide now instead of waiting.
  *
  * ONE THING THE FIRST HALF BROKE, AND WHAT KEEPS IT FIXED. A numbered step is
  * now a list item of its own, and its continuation lines are not joined to it
@@ -37,32 +36,82 @@
  * So the served-guides case checks that a bold span opened on a numbered
  * step's line closes on it, and the guides are wrapped to match.
  *
- * "In both languages" is T4's: today every served guide is English, so the
- * served-guides case runs over the one language there is.
+ * WHAT 0148 T1 ADDED. The page serves `docs/guides/<locale>/<slug>.md` instead
+ * of `docs/*-setup.md`, in the reader's language, and falls back to the other
+ * language under one line in the reader's own, with `lang` on the article
+ * (T4's "Which language"). A guide's `{#own-app}` section folds into a closed
+ * `<details>` where `/api/provider-clients` says the deployment carries that
+ * provider's app, read through the wizard's own query key (T2 (c)). On the
+ * appliance the index ends with one line pointing to the operator documents
+ * (D9). The served-guides case runs over every guide in every language it is
+ * written in; while `docs/guides/nl/` is empty that is English only, and a
+ * Dutch reader meets the fallback, which the language case checks.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import Docs, { GUIDE_SLUGS, GuideArticle, guideTitle } from './Docs.tsx';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GRANT_PROVIDERS } from '@openmig/shared';
+import { LocaleProvider } from '../i18n/index.tsx';
+import { STRINGS, type Locale } from '../i18n/strings.ts';
+import Docs, { GUIDE_SLUGS, GuideArticle, guideTitle, pickGuide } from './Docs.tsx';
 
-function renderAt(path: string) {
+/**
+ * The deployment facts the page reads for the own-app fold, and the edition
+ * the index reads for its appliance line. `VITE_EDITION` is baked at build
+ * time, so the edition module is mocked (the 0034 guardrail's seam).
+ */
+const { providerClientsGet, edition } = vi.hoisted(() => ({
+  providerClientsGet: vi.fn(),
+  edition: { selfhost: false },
+}));
+
+vi.mock('../services/mapping-service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
+  providerClientsApi: { get: providerClientsGet },
+}));
+
+vi.mock('../services/edition.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/edition.ts')>()),
+  isSelfHost: () => edition.selfhost,
+}));
+
+beforeEach(() => {
+  providerClientsGet
+    .mockReset()
+    .mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
+  edition.selfhost = false;
+  window.localStorage.setItem('ownpace.locale', 'en');
+});
+
+/** The page as the app mounts it: a query client, the real locale provider, a router. */
+function renderAt(path: string, locale: Locale = 'en') {
+  window.localStorage.setItem('ownpace.locale', locale);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/docs" element={<Docs />} />
-        <Route path="/docs/:slug" element={<Docs />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <LocaleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/docs" element={<Docs />} />
+            <Route path="/docs/:slug" element={<Docs />} />
+          </Routes>
+        </MemoryRouter>
+      </LocaleProvider>
+    </QueryClientProvider>,
   );
 }
 
 /** Renders a fixture through the same article the page uses, at `/docs/fixture`. */
-function renderFixture(body: string, path = '/docs/fixture') {
+function renderFixture(body: string, path = '/docs/fixture', ownAppFolded = false) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/docs/:slug" element={<GuideArticle body={body} />} />
+        <Route
+          path="/docs/:slug"
+          element={<GuideArticle body={body} lang="en" ownAppFolded={ownAppFolded} />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -116,21 +165,33 @@ const FIXTURE = [
   '# a comment in a fence, not a heading',
   '1. nor a list',
   '```',
+  '',
+  '## With your own app {#own-app}',
+  '',
+  'Create the app first.',
+  '',
+  '### The redirect address {#own-app-redirect}',
+  '',
+  'Register the address the wizard shows.',
+  '',
+  '## Stopping {#leaving}',
+  '',
+  'Revoke it at the provider.',
 ].join('\n');
 
 describe('the in-app setup guides', () => {
   it('renders the repository\'s own Box guide, not a copy of it', () => {
-    renderAt('/docs/box-setup');
+    renderAt('/docs/box');
 
-    // A sentence that exists only in docs/box-setup.md, and which is the whole
+    // A sentence that exists only in the Box guide, and which is the whole
     // reason a Box setup stalls (workplan 0056).
-    expect(screen.getByText(/Custom Apps Manager/)).toBeTruthy();
+    expect(screen.getAllByText(/Custom Apps Manager/).length).toBeGreaterThan(0);
   });
 
   it('ships a guide for each provider that has one', () => {
     const { container } = renderAt('/docs');
 
-    for (const slug of ['box-setup', 'dropbox-setup', 'google-workspace-setup', 'o365-setup']) {
+    for (const slug of ['apple', 'archive', 'box', 'dropbox', 'google', 'microsoft']) {
       expect(
         container.querySelector(`a[href="/docs/${slug}"]`),
         `${slug} is referenced by the UI`,
@@ -138,11 +199,20 @@ describe('the in-app setup guides', () => {
     }
   });
 
+  it('serves no operator document: the *-setup.md files stay in docs/', () => {
+    const { container } = renderAt('/docs');
+
+    expect([...GUIDE_SLUGS].filter((slug) => slug.endsWith('-setup'))).toEqual([]);
+    expect(container.querySelector('a[href$="-setup"]')).toBeNull();
+    renderAt('/docs/box-setup');
+    expect(screen.getByText(/no guide by that name/)).toBeTruthy();
+  });
+
   it('names what DOES exist when a reference is stale, rather than a bare 404', () => {
     const { container } = renderAt('/docs/no-such-guide');
 
     expect(screen.getByText(/no guide by that name/)).toBeTruthy();
-    expect(container.querySelector('a[href="/docs/box-setup"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/docs/box"]')).not.toBeNull();
   });
 });
 
@@ -162,6 +232,9 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
       ['H4', 'the-code-part--twice-1', 'The code part — twice'],
       // `####` is the deepest level the renderer takes, and stays an h4.
       ['H4', 'deepest', 'Deepest'],
+      ['H3', 'own-app', 'With your own app'],
+      ['H4', 'own-app-redirect', 'The redirect address'],
+      ['H3', 'leaving', 'Stopping'],
     ]);
     // Inline markdown inside a heading still renders.
     expect(headings[3]!.querySelector('code')?.textContent).toBe('code');
@@ -228,6 +301,17 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
     expect(scrolled.map((el) => el.id)).toEqual(['before-you-start']);
   });
 
+  it('links another guide by its file name, in the tab, with the section it names', () => {
+    // The Apple guide sends its export section to `archive.md#apple-privacy`
+    // (0148 T1): the slug alone lost the section.
+    renderFixture('See [the archive guide](archive.md#apple-privacy), or [the whole of it](archive.md).');
+
+    const section = screen.getByRole('link', { name: 'the archive guide' });
+    expect(section.getAttribute('href')).toBe('/docs/archive#apple-privacy');
+    expect(section.getAttribute('target')).toBeNull();
+    expect(screen.getByRole('link', { name: 'the whole of it' }).getAttribute('href')).toBe('/docs/archive');
+  });
+
   it('renders code inside a link\'s text as code, not as backticks', () => {
     renderFixture(FIXTURE);
 
@@ -252,16 +336,239 @@ describe('a renderer that keeps a guide\'s shape (0148 T6 (a)), on fixtures', ()
   });
 });
 
-/** Every served guide, read through the same build-time import as the page. */
+describe('the own-app section folds where the service has its own app (0148 T2 (c)), on fixtures', () => {
+  it('is an open <details> after its heading where the service carries no app', () => {
+    const { container } = renderFixture(FIXTURE);
+    const fold = container.querySelector('details')!;
+
+    expect(fold, 'the own-app section is a <details>').not.toBeNull();
+    expect(fold.open).toBe(true);
+    // The heading stays outside, so the section can still be linked and read
+    // as a heading; everything under it, to the next heading of its level, folds.
+    expect(fold.previousElementSibling?.id).toBe('own-app');
+    expect(fold.querySelector('summary')?.textContent).toBe('Only if you want to use your own app');
+    expect(fold.textContent).toContain('Create the app first.');
+    expect(fold.querySelector('#own-app-redirect')).not.toBeNull();
+    expect(fold.textContent).not.toContain('Revoke it at the provider.');
+    // Only the own-app section folds.
+    expect(container.querySelectorAll('details').length).toBe(1);
+  });
+
+  it('is closed where the service carries the app, and opens when a link names what is inside', () => {
+    const scrolled = recordScrolls();
+    const { container } = renderFixture(FIXTURE, '/docs/fixture#own-app-redirect', true);
+    const fold = container.querySelector('details')!;
+
+    expect(fold.open, 'a link to a heading inside the fold opens it').toBe(true);
+    expect(scrolled.map((el) => el.id)).toEqual(['own-app-redirect']);
+  });
+
+  it('stays closed when nothing names it', () => {
+    const { container } = renderFixture(FIXTURE, '/docs/fixture', true);
+    expect(container.querySelector('details')!.open).toBe(false);
+  });
+
+  it('opens when a link names its heading', () => {
+    const scrolled = recordScrolls();
+    const { container } = renderFixture(FIXTURE, '/docs/fixture#own-app', true);
+
+    expect(container.querySelector('details')!.open).toBe(true);
+    expect(scrolled.map((el) => el.id)).toEqual(['own-app']);
+  });
+});
+
+describe('a guide in the reader\'s language, or the other one under a notice (0148 T4)', () => {
+  const library = {
+    en: new Map([
+      ['both', '# Both, in English'],
+      ['english-only', '# English only'],
+    ]),
+    nl: new Map([
+      ['both', '# Beide, in het Nederlands'],
+      ['dutch-only', '# Alleen Nederlands'],
+    ]),
+  };
+
+  it('picks the reader\'s language where the guide is written in it', () => {
+    expect(pickGuide(library, 'both', 'nl')).toEqual({
+      body: '# Beide, in het Nederlands',
+      lang: 'nl',
+      otherLanguage: false,
+    });
+    expect(pickGuide(library, 'both', 'en')).toMatchObject({ lang: 'en', otherLanguage: false });
+  });
+
+  it('falls back to the other language, and says so, in both directions', () => {
+    expect(pickGuide(library, 'english-only', 'nl')).toEqual({
+      body: '# English only',
+      lang: 'en',
+      otherLanguage: true,
+    });
+    expect(pickGuide(library, 'dutch-only', 'en')).toEqual({
+      body: '# Alleen Nederlands',
+      lang: 'nl',
+      otherLanguage: true,
+    });
+  });
+
+  it('finds nothing for a slug neither language has, including an object\'s own property names', () => {
+    expect(pickGuide(library, 'no-such-guide', 'en')).toBeUndefined();
+    expect(pickGuide(library, 'constructor', 'nl')).toBeUndefined();
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    it(`every served guide, read in ${locale}: its own language, or the notice and the other one`, () => {
+      for (const slug of [...GUIDE_SLUGS].sort()) {
+        const own = SOURCES[`${locale}/${slug}`];
+        const { container, unmount } = renderAt(`/docs/${slug}`, locale);
+        const article = container.querySelector('article')!;
+        const notice = within(container).queryByText(STRINGS[locale]['docs.otherLanguage']);
+
+        if (own !== undefined) {
+          expect(article.getAttribute('lang'), `${slug} in ${locale}`).toBe(locale);
+          expect(notice, `${slug} in ${locale} needs no notice`).toBeNull();
+        } else {
+          const other = locale === 'en' ? 'nl' : 'en';
+          expect(SOURCES[`${other}/${slug}`], `${slug} exists in some language`).toBeDefined();
+          expect(article.getAttribute('lang'), `${slug}, the ${other} version`).toBe(other);
+          expect(notice, `${slug} in ${locale} says it is the ${other} version`).not.toBeNull();
+          // The notice is in the reader's language, not the guide's.
+          expect(notice!.getAttribute('lang')).toBe(locale);
+        }
+        unmount();
+      }
+    });
+  }
+
+  it('words the notice as the plan gives it, in both languages', () => {
+    expect(STRINGS.nl['docs.otherLanguage']).toBe(
+      'Deze handleiding is er nog niet in het Nederlands; hieronder staat de Engelse versie.',
+    );
+    expect(STRINGS.en['docs.otherLanguage']).toBe(
+      'This guide is not yet available in English; the Dutch version follows.',
+    );
+  });
+});
+
+describe('the own-app section follows what this deployment carries (0148 T2 (c))', () => {
+  /** The guides whose provider a deployment can carry an app for: slug and provider are one name. */
+  const grantGuides = [...GUIDE_SLUGS].filter((slug) => (GRANT_PROVIDERS as readonly string[]).includes(slug));
+
+  it('has an own-app section in exactly the Google, Dropbox and Microsoft guides', () => {
+    const withSection = Object.entries(SOURCES)
+      .filter(([, body]) => /^#{1,4} .*\{#own-app\}\s*$/m.test(body))
+      .map(([key]) => key.split('/')[1]!);
+    expect([...new Set(withSection)].sort()).toEqual(['dropbox', 'google', 'microsoft']);
+    expect(grantGuides.sort()).toEqual(['dropbox', 'google', 'microsoft']);
+  });
+
+  for (const provider of ['google', 'dropbox', 'microsoft'] as const) {
+    it(`${provider}: closed where /api/provider-clients says deployment, open where it says connection`, async () => {
+      providerClientsGet.mockResolvedValue({
+        google: 'connection',
+        dropbox: 'connection',
+        microsoft: 'connection',
+        [provider]: 'deployment',
+      });
+      const folded = renderAt(`/docs/${provider}`);
+      const fold = () => folded.container.querySelector('details')!;
+      expect(fold(), `${provider} has an own-app fold`).not.toBeNull();
+      await waitFor(() => expect(fold().open).toBe(false));
+      expect(fold().previousElementSibling?.id).toBe('own-app');
+      expect(providerClientsGet).toHaveBeenCalled();
+      folded.unmount();
+
+      providerClientsGet.mockResolvedValue({ google: 'connection', dropbox: 'connection', microsoft: 'connection' });
+      const open = renderAt(`/docs/${provider}`);
+      await waitFor(() => expect(providerClientsGet).toHaveBeenCalledTimes(2));
+      expect(open.container.querySelector('details')!.open).toBe(true);
+      open.unmount();
+    });
+  }
+
+  it('stays open where the answer never comes, as on the appliance, which serves no such route', async () => {
+    providerClientsGet.mockRejectedValue(new Error('404'));
+    const { container } = renderAt('/docs/google');
+
+    await waitFor(() => expect(providerClientsGet).toHaveBeenCalled());
+    expect(container.querySelector('details')!.open).toBe(true);
+  });
+
+  it('reads the fact the wizard reads, under the same query key', async () => {
+    // One cache entry for the whole app: the wizard and the consent panel ask
+    // `['provider-clients']`, and a second key would be a second answer.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['provider-clients'], { google: 'deployment', dropbox: 'connection', microsoft: 'connection' });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/docs/google']}>
+          <Routes>
+            <Route path="/docs/:slug" element={<Docs />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(container.querySelector('details')!.open).toBe(false);
+    expect(providerClientsGet).not.toHaveBeenCalled();
+  });
+
+  it('the Box guide has no fold: Box has no deployment app', () => {
+    const { container } = renderAt('/docs/box');
+    expect(container.querySelector('details')).toBeNull();
+    expect(providerClientsGet).not.toHaveBeenCalled();
+  });
+});
+
+describe('the appliance\'s /docs points to the operator documents (0148 D9)', () => {
+  for (const locale of ['en', 'nl'] as const) {
+    it(`${locale}: the line ends the index on the appliance, and is absent on managed`, () => {
+      const line = STRINGS[locale]['docs.operatorDocs'];
+
+      edition.selfhost = true;
+      const appliance = renderAt('/docs', locale);
+      const link = within(appliance.container).getByRole('link', { name: line });
+      expect(link.getAttribute('href')).toBe('https://github.com/Robbes/Ownpace/tree/main/docs');
+      // The last thing on the index, after the guides.
+      const items = [...appliance.container.querySelectorAll('a')];
+      expect(items[items.length - 1]).toBe(link);
+      appliance.unmount();
+
+      edition.selfhost = false;
+      const managed = renderAt('/docs', locale);
+      expect(within(managed.container).queryByText(line)).toBeNull();
+      managed.unmount();
+    });
+  }
+
+  it('words the line as the plan gives it, in both languages', () => {
+    // D9's wording, less its first article, so it fits the fifteen words a
+    // line on screen gets (workplan 0118's copy budget).
+    expect(STRINGS.en['docs.operatorDocs']).toBe(
+      'Running your own appliance? Settings and commands are in the operator documents in the repository.',
+    );
+    expect(STRINGS.nl['docs.operatorDocs']).toBe(
+      'Draait u een eigen appliance? Instellingen en commando\'s staan in de beheerdersdocumenten in de repository.',
+    );
+  });
+});
+
+/**
+ * Every served guide, read through the same build-time import as the page,
+ * keyed `<locale>/<slug>`.
+ */
 const SOURCES: Record<string, string> = Object.fromEntries(
   Object.entries(
-    import.meta.glob('../../../../docs/*-setup.md', {
+    import.meta.glob('../../../../docs/guides/*/*.md', {
       query: '?raw',
       import: 'default',
       eager: true,
     }) as Record<string, string>,
-  ).map(([path, body]) => [path.split('/').pop()!.replace(/\.md$/, ''), body]),
+  ).map(([path, body]) => [path.split('/').slice(-2).join('/').replace(/\.md$/, ''), body]),
 );
+
+/** The `<locale>/<slug>` keys, sorted: every guide in every language it is written in. */
+const SERVED = Object.keys(SOURCES).sort();
 
 /** The source's lines that are not inside a fence at the start of a line. */
 function linesOutsideFences(body: string): string[] {
@@ -290,18 +597,19 @@ function boldLinksIn(lines: string[]): number {
 
 describe('every served guide keeps its shape (0148 T6 (a))', () => {
   it('reads the same guides the page serves', () => {
-    expect(Object.keys(SOURCES).sort()).toEqual([...GUIDE_SLUGS].sort());
+    expect([...new Set(SERVED.map((key) => key.split('/')[1]!))].sort()).toEqual([...GUIDE_SLUGS].sort());
     expect(GUIDE_SLUGS.size).toBeGreaterThan(0);
   });
 
-  for (const slug of [...GUIDE_SLUGS].sort()) {
-    it(`${slug}: headings with ids, same-tab # links, numbered steps, links in bold, lang`, () => {
-      const source = SOURCES[slug]!;
+  for (const key of SERVED) {
+    const [locale, slug] = key.split('/') as [Locale, string];
+    it(`${key}: headings with ids, same-tab # links, numbered steps, links in bold, lang, no | or >`, () => {
+      const source = SOURCES[key]!;
       const lines = linesOutsideFences(source);
-      const { container } = renderAt(`/docs/${slug}`);
+      const { container } = renderAt(`/docs/${slug}`, locale);
       const article = container.querySelector('article')!;
 
-      expect(article.getAttribute('lang')).toBe('en');
+      expect(article.getAttribute('lang')).toBe(locale);
 
       // Every heading line is a heading element, h2–h4, with an id of its own.
       const headings = [...article.querySelectorAll('h1, h2, h3, h4, h5, h6')];
@@ -326,9 +634,10 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
         expect(article.querySelector(`[id="${id}"]`), `#${id} is on the page`).not.toBeNull();
       }
 
-      // No paragraph begins with a numbered step, and numbered lines make a list.
+      // No paragraph begins with a numbered step, a table row or a quote: the
+      // renderer has none of the last two until T6 (b), so a guide uses none.
       for (const p of article.querySelectorAll('p')) {
-        expect(p.textContent ?? '').not.toMatch(/^\s*\d+\.\s/);
+        expect(p.textContent ?? '').not.toMatch(/^\s*(\d+\.\s|\||>)/);
       }
       const numbered = lines.filter((line) => /^\s*\d+\.\s/.test(line) && !/^ {4}/.test(line));
       if (numbered.length > 0) expect(article.querySelectorAll('ol').length).toBeGreaterThan(0);
@@ -348,10 +657,26 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
     });
   }
 
+  /**
+   * T4's one outline, the same ids in every guide and both languages, so a
+   * link from the checklist or a refusal can name a section without knowing
+   * which guide it is in. Top-level sections only; a card's own subsection
+   * (`{#gmail}`) sits under `connect`.
+   */
+  it.each(SERVED)('%s: the outline, in order, with its ids', (key) => {
+    const ids = linesOutsideFences(SOURCES[key]!)
+      .map((line) => /^## .*\{#([\w-]+)\}\s*$/.exec(line)?.[1])
+      .filter((id): id is string => id !== undefined);
+    const outline = ['before', 'connect', 'what-moves', 'when-test-says', 'leaving', 'own-app'];
+
+    expect(ids.filter((id) => outline.includes(id)), key).toEqual(
+      outline.filter((id) => id !== 'own-app' || ids.includes('own-app')),
+    );
+  });
+
   it('the served guides use each feature at least once, so the cases above are not passing on nothing', () => {
-    // Today: ten #section links, two links inside bold, numbered steps in four
-    // guides (0148 §1). Counted from the sources, not the render, so this case
-    // holds whichever of the cases above is run alone.
+    // Counted from the sources, not the render, so this case holds whichever
+    // of the cases above is run alone.
     const all = Object.values(SOURCES).map((body) => linesOutsideFences(body));
     const count = (pattern: RegExp) =>
       all.reduce((n, lines) => n + (lines.join('\n').match(pattern) ?? []).length, 0);
@@ -361,23 +686,22 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
     expect(count(/^ *\d+\. .*\*\*/gm), 'numbered steps that hold bold').toBeGreaterThan(0);
   });
 
-  it('the index shows each guide\'s title, its first heading, not its slug', () => {
-    const { container } = renderAt('/docs');
+  for (const locale of ['en', 'nl'] as const) {
+    it(`the index shows each guide's title, its first heading, in ${locale} or the language it falls back to`, () => {
+      const { container } = renderAt('/docs', locale);
 
-    for (const slug of GUIDE_SLUGS) {
-      const first = linesOutsideFences(SOURCES[slug]!).find((line) => /^#{1,4}\s+/.test(line));
-      expect(first, `${slug} has a heading`).toBeDefined();
-      const title = first!.replace(/^#{1,4}\s+/, '').replace(/\s*\{#[\w-]+\}\s*$/, '');
+      for (const slug of GUIDE_SLUGS) {
+        const lang = SOURCES[`${locale}/${slug}`] !== undefined ? locale : locale === 'en' ? 'nl' : 'en';
+        const first = linesOutsideFences(SOURCES[`${lang}/${slug}`]!).find((line) => /^#{1,4}\s+/.test(line));
+        expect(first, `${lang}/${slug} has a heading`).toBeDefined();
+        const title = first!.replace(/^#{1,4}\s+/, '').replace(/\s*\{#[\w-]+\}\s*$/, '');
 
-      const link = container.querySelector(`a[href="/docs/${slug}"]`);
-      expect(link?.textContent, slug).toBe(title);
-      expect(link?.textContent).not.toBe(slug);
-      expect(link?.getAttribute('lang')).toBe('en');
-    }
-    expect(within(container).queryByText('box-setup')).toBeNull();
-  });
-
-  it.todo(
-    'no rendered paragraph begins with | or > — waits for T6 (b): today\'s guides still use tables and blockquotes',
-  );
+        const link = container.querySelector(`a[href="/docs/${slug}"]`);
+        expect(link?.textContent, slug).toBe(title);
+        expect(link?.textContent).not.toBe(slug);
+        expect(link?.getAttribute('lang')).toBe(lang);
+      }
+      expect(within(container).queryByText('box')).toBeNull();
+    });
+  }
 });

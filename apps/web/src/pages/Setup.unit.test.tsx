@@ -257,7 +257,20 @@ describe('Setup — links the full guide only when there is one', () => {
     renderPage();
 
     const guide = await screen.findByText('Read the full setup guide');
-    expect(guide.getAttribute('href')).toBe('/docs/box-setup');
+    expect(guide.getAttribute('href')).toBe('/docs/box');
+  });
+
+  // One guide per family of cards (workplan 0148 T4): the Google products
+  // share `google`, the Microsoft cards `microsoft`.
+  it.each([
+    ['gmail', '/docs/google'],
+    ['graph', '/docs/microsoft'],
+  ])('links the family guide for %s', async (provider, href) => {
+    get.mockResolvedValue(checklist({ provider }));
+    renderPage(`/setup/source/${provider}`);
+
+    const guide = await screen.findByText('Read the full setup guide');
+    expect(guide.getAttribute('href')).toBe(href);
   });
 
   it('offers no link to a guide that does not exist', async () => {

@@ -52,6 +52,19 @@ of* it.
    theirs and stays verbatim; `credentialsRefused` is ours and carries the
    pair. When adding server prose, ask **who wrote this sentence** before
    asking which class it is.
+5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
+   for the person who connects an account:
+   - documents authored in each language, side by side in `docs/guides/nl/`
+     and `docs/guides/en/`, updated together or the missing one listed. A
+     guide missing in the reader's language is shown in the other one, under
+     one line in the reader's own (`docs.otherLanguage`), with `lang` on the
+     article;
+   - a provider's screen words in the provider's own words in that language;
+   - the wizard's labels as `strings.ts` has them in that language;
+   - a server finding or refusal quoted verbatim, in English, as it is shown.
+
+   The `docs/*-setup.md` files are the operator and self-host documents, in
+   English, and are not served (0148 T1).
 
 ## For future prose
 

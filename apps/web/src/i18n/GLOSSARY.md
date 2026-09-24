@@ -42,6 +42,9 @@ Two kinds of words render; only the first belongs to this glossary:
 | The capacity a path occupies | slot | **plek** | "Houdt nu een plek vast" — not *slot* (calque). A paused path keeps its *plek*, and the pricing wording says so. |
 | A pricing tier | package | **pakket** | `access.tier` set it customer-side ("Welk pakket lijkt te passen?"); the operator's usage panel reads the same word, because the operator quotes it to the customer. |
 | The cutover's grace period: from execute until it ends, a migration that was running keeps copying (workplan 0128 T2) | grace period | **overgangsperiode** | Not *respijt*/*gratieperiode* (a payment's grace). The period is a transition, both systems live, and the prose around it calls the cutover *overstap*, as `lane.title` does. |
+| A customer guide at `/docs` (workplan 0148 T1): written for the person who connects an account | guide / setup guide | **handleiding** / **instelhandleiding** | The nav says *Handleidingen*. A guide never speaks of whoever runs the service: it says *deze dienst* / *this service*. |
+| The operator and self-host documents in the repository's `docs/` (workplan 0148 D9) | operator documents | **beheerdersdocumenten** | Named only in the appliance's `/docs` line, whose reader runs the appliance. Not *operatordocumenten*. |
+| An app a person creates at Google, Dropbox or Microsoft instead of this service's (workplan 0148 T2) | your own app | **eigen app** | The service's is *de eigen app van deze dienst*; the guide's fold reads *Alleen als u een eigen app wilt gebruiken*. |
 | The MX/DNS switch (Finish step 4) | delivery | **e-mailbezorging**, verb **omzetten** | Not *verplaatsen*/*verhuizen* (same owner correction — bare *bezorging* + *verhuist* read as a house move). And not *migratie*: the migration is the copying that is already running; step 4 is the delivery cutover, a different event on the timeline. |
 
 ## States (the StateChip table — full list in `StateChip.tsx`)
