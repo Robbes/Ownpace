@@ -1,6 +1,34 @@
 # Workplan 0110 — support you can actually give
 
-## Status — 2026-09-23 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: the views were not read-only, and now are.** The owner's decided ground is
+*read-only*, and §3 said *"`GRANT SELECT` and nothing else. The views are not updatable."*
+Neither held.
+
+- The schema's default privileges (ledger 0001) hand `app_user` INSERT, UPDATE and DELETE on
+  every view made here, as on every table.
+- Six support views read a single table, and Postgres writes through such a view with the
+  view owner's rights, past that table's row security: `support_tenants`,
+  `support_tenant_connections`, `support_tenant_migrations`, `support_tenant_invoices`,
+  `support_migration_domains` and `support_tenant_members`.
+- An operator's transaction deleted every organisation through `support_tenants`, on PGlite and
+  on Postgres 16, in probes that rolled it back. No route writes through a view, so reaching it
+  took a bug somewhere else. The database is where this plan says such a bug stops.
+
+A surviving mutation found it while 0129 T4's download was being built; that view is SELECT only
+from the start. Managed migration 0027 revokes INSERT, UPDATE and DELETE on every older support
+view, the joins and the union included, so there is one rule. `support-views.unit.test.ts` now
+holds three things:
+- every support view's privileges, read from the catalog, are SELECT and nothing else, so a view
+  made later without its REVOKE is red;
+- not even an operator deletes through any of them;
+- every view is granted SELECT by name in the migrations. PGlite's default privileges would
+  forgive a missing grant (0011's lesson).
+
+Without 0027, 15 of the new tests fail: the nine privilege checks and the six deletes. With it,
+on Postgres 16, an operator still reads every organisation and a delete is refused with
+*"permission denied for view support_tenants"*.
 
 **2026-09-23: a name Nextcloud will not store, and a mailbox under a file.** The owner's
 live OneDrive → Nextcloud migration had one file fail five times. It was a `.htaccess`, which
@@ -198,8 +226,10 @@ consent table. That is what "on by default" means in SQL, and it is worth seeing
 than buried: the only thing between an Ownpace login and every customer's migration metadata is
 one row in `platform_operator`. Which is why §4 is no longer about a switch.
 
-**Read-only by construction.** `GRANT SELECT` and nothing else. The views are not updatable and
-nothing asks them to be.
+**Read-only by construction.** `GRANT SELECT` and nothing else, and since managed 0027 a REVOKE
+of the rest: the schema's default privileges grant INSERT, UPDATE and DELETE on every view, and
+six of these read one table, which Postgres writes through (the status entry of 2026-09-24).
+Nothing asks them to be written.
 
 **The risk this carries, stated plainly.** These views must cross tenant RLS to be useful, which
 means they are definer-rights: they bypass the very policies that protect every other read. That

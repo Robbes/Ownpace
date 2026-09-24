@@ -31,6 +31,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations, withSubject } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from './migrate-managed.ts';
@@ -411,6 +414,79 @@ describe('a view cannot arrive without the predicate', () => {
   });
 });
 
+
+/**
+ * SELECT, AND NOTHING ELSE (managed migration 0027).
+ *
+ * The schema's default privileges (ledger 0001) hand `app_user` INSERT, UPDATE
+ * and DELETE on every view made here, as on every table. A view over a single
+ * table is one Postgres writes through, with the view owner's rights and past
+ * that table's row security: before 0027 an operator's transaction deleted
+ * every customer through `support_tenants`, on PGlite and on Postgres 16 alike.
+ * Each view's privileges are read from the catalog, so a view made later
+ * without its REVOKE is red here rather than writable.
+ */
+describe('a view is read, and nothing else', () => {
+  const PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+
+  /** A statement as an operator's transaction runs it, rolled back whatever it did. */
+  async function asOperatorThenUndo(statement: string): Promise<Error | null> {
+    const conn = await driver.acquire();
+    try {
+      await conn.query('BEGIN');
+      await conn.query('SET LOCAL ROLE app_user');
+      await conn.query("SELECT set_config('app.current_user', $1, true)", [OPERATOR]);
+      await conn.query("SELECT set_config('app.current_tenant', '', true)");
+      try {
+        await conn.query(statement);
+        return null;
+      } catch (e) {
+        return e as Error;
+      }
+    } finally {
+      await conn.query('ROLLBACK');
+      await conn.release();
+    }
+  }
+
+  it.each(SUPPORT_VIEWS)('%s: app_user may SELECT it, and nothing else', async (view) => {
+    const conn = await driver.acquire();
+    try {
+      const r = await conn.query(
+        `SELECT p FROM unnest($2::text[]) AS p WHERE has_table_privilege('app_user', $1, p)`,
+        [`public.${view}`, PRIVILEGES],
+      );
+      expect((r.rows as Array<{ p: string }>).map((x) => x.p)).toEqual(['SELECT']);
+    } finally {
+      await conn.release();
+    }
+  });
+
+  it.each(SUPPORT_VIEWS)('%s: not even an operator deletes through it', async (view) => {
+    // The six over one table refuse for want of the privilege; the joins, the
+    // aggregate and the union could never be written through at all.
+    const refused = await asOperatorThenUndo(`DELETE FROM public.${view}`);
+
+    expect(refused?.message).toMatch(/permission denied|cannot delete from view/);
+  });
+
+  it('every support view is granted to app_user by name, whose absence PGlite would forgive', () => {
+    // 0011's lesson: here the default privileges give app_user SELECT on every
+    // view, so a view nobody granted passes every test in this file and can
+    // still fail where the migrations ran as another role, with "permission
+    // denied for view". The catalog cannot tell a default grant from a
+    // written one; the migrations can.
+    const dir = fileURLToPath(new URL('../migrations/', import.meta.url));
+    const written = readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .map((f) => readFileSync(join(dir, f), 'utf8'))
+      .join('\n');
+
+    for (const view of SUPPORT_VIEWS) {
+      expect(written, view).toContain(`GRANT SELECT ON public.${view} TO app_user;`);
+    }
+  });
+});
 
 describe('the log that has to earn standing access', () => {
   /** What this subject can see of `support_read` — their own reads, per policy. */
