@@ -633,8 +633,9 @@ hold is needed.
    `ownpace-managed_ownpace-network` for the OTA stack, `ownpace-live_ownpace-network` for live.
 
    ```bash
+   project=ownpace-managed   # the stack you are checking: ownpace-live for live
    set -a; . deploy/compose/.env; set +a
-   net="${COMPOSE_PROJECT_NAME:-ownpace-managed}_ownpace-network"
+   net="${project}_ownpace-network"
    ask() { PGPASSWORD="$2" docker run --rm -e PGPASSWORD --network "$net" \
      postgres:18-alpine psql -h postgres -U "$1" -d "${POSTGRES_DB:-openmigrate}" -tAc 'SELECT 1' >/dev/null 2>&1; }
    ask "${APP_DB_USER:-app_user}" "$APP_DB_PASSWORD" && echo "control: opens" || echo "CONTROL FAILED"
