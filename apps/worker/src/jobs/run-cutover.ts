@@ -42,23 +42,20 @@
 
 import { z } from 'zod';
 import { asTenantId, asMappingId } from '@openmig/shared';
-import { AbortTaskRunError, schemaTask, logger } from '@trigger.dev/sdk';
-import { tenantCutoverStore, createLedgerVerificationReader, type CutoverStateStore } from '@openmig/ledger';
+import { AbortTaskRunError, configure, schemaTask, logger } from '@trigger.dev/sdk';
+import { tenantCutoverStore, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
   prepareTransition,
-  runShadowPass,
-  runVerification,
-  createRealVerificationDeps,
   passCounts,
   type CutoverState,
   type PassCounts,
   type VerificationResult,
 } from '@openmig/core';
 import { Pool } from 'pg';
-import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
-import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 import { log as appLog } from '@openmig/shared';
+import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
+import { runCutoverGate } from './cutover-gate.ts';
 
 // Job input schema
 const CutoverJobSchema = z.object({
@@ -88,7 +85,10 @@ export interface CutoverPreparationResult {
    * `start-cutover` reports as "attempt N". 1 for a first preparation.
    */
   attempt: number;
-  finalSync?: { created: number; skipped: number };
+  /** The final sync's counts, every data type added up. */
+  finalSync?: PassCounts;
+  /** And per data type, as the pass reported them (workplan 0128 T1). */
+  finalSyncByDomain?: Readonly<Record<string, PassCounts>>;
   verification?: Pick<VerificationResult, 'overallStatus' | 'score' | 'totalDiscrepancies'>;
 }
 
@@ -106,11 +106,14 @@ export interface CutoverPreparationDeps {
   >;
   /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
   log: (message: string) => void;
-  /** Final delta sync. Omit (or pass undefined) to skip it. */
+  /**
+   * The final sync: the pass the scheduler runs, over every data type the
+   * migration has (`final-sync.ts`). Omit (or pass undefined) to skip it.
+   */
   // All four counts, not two: this is the last pass before the owner stops
   // using the old system, and the one where knowing what it changed matters
   // most. It was narrowed to `created`/`skipped` here, before it was logged.
-  runFinalSync?: () => Promise<PassCounts>;
+  runFinalSync?: () => Promise<FinalSyncReport>;
   /** The §20 verification gate. Omit to skip it. */
   runGate?: () => Promise<VerificationResult>;
 }
@@ -124,6 +127,19 @@ export class CutoverGateFailed extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'CutoverGateFailed';
+  }
+}
+
+/**
+ * The final sync did not finish every data type (workplan 0128 T1), so the
+ * target is behind the source. A verdict like the gate's, and recorded the
+ * same way: FAILED once, not retried, because a retry at once would ask the
+ * same pass the same question.
+ */
+export class FinalSyncNotFinished extends CutoverGateFailed {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FinalSyncNotFinished';
   }
 }
 
@@ -213,10 +229,18 @@ export async function prepareCutover(
   const result: CutoverPreparationResult = { ready: false, state: 'PREPARING', from, attempt };
 
   if (deps.runFinalSync) {
-    deps.log('Running final delta sync...');
-    const delta = await deps.runFinalSync();
-    result.finalSync = delta;
-    deps.log(`Final delta sync: ${passCounts(delta)}`);
+    deps.log('Running the final sync over every data type the migration has...');
+    const sync = await deps.runFinalSync();
+    result.finalSync = sync.total;
+    result.finalSyncByDomain = sync.byDomain;
+    const lines = Object.entries(sync.byDomain).map(([domain, counts]) => `${domain}: ${passCounts(counts)}`);
+    deps.log(`Final sync: ${lines.length > 0 ? lines.join('; ') : 'no data type is selected for this migration'}`);
+    if (sync.notFinished.length > 0) {
+      throw new FinalSyncNotFinished(
+        `The final sync did not finish: ${sync.notFinished.join('; ')}. The target is behind the ` +
+          'source, so this cutover is not ready. Prepare it again once the passes have caught up.',
+      );
+    }
   } else {
     deps.log('Final delta sync SKIPPED at the caller\'s request.');
   }
@@ -307,59 +331,29 @@ export const runCutover = schemaTask({
         runFinalSync: options.skipFinalSync
           ? undefined
           : async () => {
-              const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
-              try {
-                const delta = await runShadowPass(deps);
-                return {
-                  created: delta.created,
-                  updated: delta.updated,
-                  adopted: delta.adopted,
-                  skipped: delta.skipped,
-                };
-              } finally {
-                await deps.close(); // release the deps' pool
+              // The pass the scheduler runs, on the migration's own queue, so a
+              // scheduled pass already under way finishes first rather than
+              // running beside this one (final-sync.ts). Loaded here and not at
+              // the top: the task file opens its database pool when imported.
+              const { runDeltaSync } = await import('./run-delta-sync.ts');
+              // The in-network API address, for the reason managed-sync-tick gives.
+              configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' });
+              const pass = await runDeltaSync.triggerAndWait(
+                { tenantId, mappingId },
+                {
+                  concurrencyKey: mappingId,
+                  tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'cutover-final-sync'],
+                },
+              );
+              if (!pass.ok) {
+                const why = pass.error instanceof Error ? pass.error.message : JSON.stringify(pass.error);
+                throw new Error(`The final sync failed: ${why}`);
               }
+              return finalSyncReport(pass.output);
             },
         runGate: options.skipVerification
           ? undefined
-          : async () => {
-              const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
-              const targets = await buildTargetReindexers(pool, tenantId, mappingId);
-              // Declared out here so `finally` can close it: it owns its own pool.
-              const verificationReader = createLedgerVerificationReader({ connectionString: dbUrl });
-              try {
-                return await runVerification(
-                  createRealVerificationDeps({
-                    tenantId: asTenantId(tenantId),
-                    mappingId: asMappingId(mappingId),
-                    config: {
-                      checksumSamplePercentage: 5,
-                      minSampleSize: 10,
-                      maxSampleSize: 1000,
-                      requiredMatchPercentage: 0.99,
-                      maxDiscrepancyPercentage: 0.01,
-                      verifyMail: true,
-                      verifyCalendar: true,
-                      verifyContacts: true,
-                      verifyFiles: true,
-                      verifyTasks: true,
-                    },
-                    verificationReader,
-                    // One reindexer per domain, each reading its own target.
-                    // A domain with no reindexer is reported NOT_VERIFIABLE
-                    // rather than measured against another domain's listing —
-                    // which is what happened when a single (mail) reindexer was
-                    // handed to all four, making every calendar/contact/file
-                    // item look missing.
-                    targetReindexers: targets.reindexers,
-                  }),
-                );
-              } finally {
-                await targets.close();
-                await verificationReader.close(); // it opens its own pool
-                await deps.close();
-              }
-            },
+          : () => runCutoverGate(pool, dbUrl, tenantId, mappingId),
       });
     } catch (error) {
       const err = error as Error;

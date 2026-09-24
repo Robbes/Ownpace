@@ -27,6 +27,7 @@ import {
 import { budgetPauseToReason } from '@openmig/shared';
 import { mappingStillRuns, taskErrorFor } from './stopping-a-pass.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
+import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
 import {
@@ -285,6 +286,15 @@ export const runDeltaSync = schemaTask({
     let itemsProcessed = 0;
 
     /**
+     * What each data type did, and where the pass stopped if it stopped early:
+     * returned, so a caller that waits for this pass can read it. The cutover's
+     * final sync is one (workplan 0128 T1, `final-sync.ts`): it must know which
+     * data types this pass did not finish before it calls a target current.
+     */
+    const outcomes: Record<string, DomainOutcome> = {};
+    let stoppedBefore: string | undefined;
+
+    /**
      * Seconds per domain for THIS run, closed over by the domain loop and
      * handed to `finishRun` below.
      *
@@ -362,6 +372,7 @@ export const runDeltaSync = schemaTask({
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });
           });
+          stoppedBefore = domain;
           break;
         }
 
@@ -577,6 +588,13 @@ export const runDeltaSync = schemaTask({
               );
             });
           }
+          outcomes[domain] = {
+            created: result.created,
+            updated: result.updated,
+            adopted: result.adopted,
+            skipped: result.skipped,
+            ...(result.deadlinePause ? { stopped: 'deadline' as const } : result.budgetPause ? { stopped: 'budget' as const } : {}),
+          };
           // The data axis (0109 T3): this pass's first-copy bytes join the
           // tenant's lifetime meter. Managed-side by construction — the
           // engine's number is a neutral pass statistic; pricing it is this
@@ -719,11 +737,17 @@ export const runDeltaSync = schemaTask({
 
       await closeRun('succeeded', 0);
 
+      const report: DeltaSyncOutput = {
+        asked: domains,
+        domains: outcomes,
+        ...(stoppedBefore !== undefined ? { stoppedBefore } : {}),
+      };
       return {
         success: true,
         tenantId: typedPayload.tenantId,
         mappingId: typedPayload.mappingId,
         runId,
+        ...report,
       };
     } catch (error) {
       // Close the run row as failed so history shows the failure instead of a

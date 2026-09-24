@@ -1,6 +1,6 @@
 # Workplan 0128 — The cutover that keeps copying
 
-## Status — 2026-09-23 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
 
 **2026-09-23: opened from the owner's answers.** Two things came out of one conversation about
 the cutover.
@@ -17,9 +17,25 @@ the cutover.
    fresh in the target elsewhere."* It can, and §2 says why it is safe. This plan answers in three
    parts (T2–T4), two of which wait on the owner (§4).
 
+**2026-09-24, T1 built.** The preparation's final sync is `run-delta-sync` itself: the job
+triggers it and waits, on the migration's own queue, so a scheduled pass already running
+finishes first and the two never overlap. The pass now reports what each data type did, and
+where it stopped early (`final-sync.ts`). The job logs a count per data type. When the pass did
+not finish a data type, because it stopped at its deadline or at the day's download budget, or
+the migration was paused before it, the job names it and stops short of ready
+(`FinalSyncNotFinished`, recorded once like a gate verdict). The target is behind the source
+then, and verifying it would call a stale copy current. Both gates, the job's and the operator's
+`verify`, are now one function (`cutover-gate.ts`). It verifies the data types the migration
+selected and no others, so a data type it does not have reads SKIPPED as not part of it, and it
+no longer builds the mail source and target, which it never used. That build is what refused a
+migration without mail. A Microsoft → Nextcloud migration of calendars, contacts and files is
+now prepared and verified like any other (`a-cutover-without-mail.integration.test.ts`, run
+against Postgres 16). Guards: `a-final-sync-of-every-data-type` (15) and that integration test
+(4); the preparation's integration tests read the new report; 22 mutations, all killed.
+
 | Task | Status | Notes |
 |---|---|---|
-| T1 The final sync covers every data type | 📋 **Decided 2026-09-23** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
+| T1 The final sync covers every data type | ✅ **Built 2026-09-24** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
 | T2 Passes keep running through the grace period | 📋 **Proposed**; waits on D1 | §3. From execute until the grace period ends, the migration keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. |
 | T3 The ending is a choice: end, or keep copying which data types | 📋 **Proposed** with T4 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. |
 | T4 A data type can be stopped and resumed | 📋 **Proposed**; waits on D2 | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. |
@@ -44,7 +60,7 @@ Finish checklist (ADR-0026). Its final pass is the ordinary pass (`requestFinalP
 
 Three facts decide the rest.
 
-- **The final sync is mail only.** `prepareCutover`'s `runFinalSync` builds
+- **The final sync is mail only** *(until 2026-09-24, when T1 was built)*. `prepareCutover`'s `runFinalSync` builds
   `buildDepsFromMapping` and runs `runShadowPass`, the mail reconcile. On a migration with more
   than mail, calendars, contacts, files and tasks that changed since the last scheduled pass are
   not in it. On a migration without mail, building the mail target refuses

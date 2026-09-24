@@ -305,13 +305,26 @@ If issues are detected during cutover or the grace period:
    recorded once and not retried. Until 2026-09-20 a second run on a ready
    cutover marked it `FAILED`, and from `FAILED` the job could not run at all.
 
+   The job's final sync is the ordinary pass, `run-delta-sync`, over every
+   data type the migration has. It is queued behind any pass already running
+   on the migration, and the job waits for it and logs a count per data type.
+   When the pass did not finish a data type (it stopped at its deadline or at
+   the day's download budget, or the migration was paused before it got
+   there), the job names that data type and does not mark the cutover ready:
+   the target is behind the source. That is recorded once and not retried;
+   prepare again once the passes have caught up. Until 2026-09-24 the final
+   sync copied mail only, and a migration without mail could not be prepared
+   at all (workplan 0128 T1).
+
 ### Verification failed
 
 **Symptoms**: `verify` reports FAIL and exits non-zero.
 
 **Resolution**:
 1. Review the specific failed check — DNS legs name the record; the data
-   gate prints per-domain discrepancies and recommendations.
+   gate prints per-domain discrepancies and recommendations. The data gate
+   checks the data types the migration has; one it does not have reads
+   `SKIPPED` ("disabled in the config"), never as a failure.
 2. Fix the underlying issue (missing DNS record, re-sync missing items).
 3. Re-run `verify`. Do not proceed until it exits 0.
 
