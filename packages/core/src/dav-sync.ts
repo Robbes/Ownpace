@@ -411,7 +411,8 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     naturalKeyText: (item) => item.item.path,
     // NO `displayName`, deliberately: the key above IS the name. A second copy
     // of the path on the same row would be noise, and the screen already falls
-    // back to the identifier when there is no name.
+    // back to the identifier when there is no name. The failures queue serves
+    // no key, so it reads the file's name from it (`nameOfFailure`, ledger).
 
     // Only when the source can answer it cheaply. Without it the loop can spot
     // a moved file only on a cursor-less pass, which in production is the first

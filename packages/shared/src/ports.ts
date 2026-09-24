@@ -1979,9 +1979,12 @@ export interface ItemFailure {
    * A future caller that forwards a whole row somewhere is the thing to watch,
    * which is why this comment names the four rather than saying "it is fine".
    *
-   * Absent for a file (whose key IS its name), for mail (whose Subject this
-   * codebase cannot decode yet), and on every row written before 2026-09-17.
-   * The screen then shows what it has always shown.
+   * For a FILE it is the last segment of its path, read from the row's key
+   * when the queue is listed (`nameOfFailure` in the ledger): a file's row
+   * stores no name of its own, and until 2026-09-23 its failure named only
+   * the folder. Absent for mail (whose Subject this codebase cannot decode
+   * yet), on every row written before 2026-09-17, and for a file whose key was
+   * never recorded. The screen then shows what it has always shown.
    */
   readonly displayName?: string;
   readonly collection?: string;
