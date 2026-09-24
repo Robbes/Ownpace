@@ -1006,6 +1006,20 @@ const en = {
   'view.withdrawn.removeYourself': 'To be sure, remove the app yourself from the apps with access:',
   'view.withdrawn.since': 'Nothing more is read from your account. To continue later, ask for a new link.',
   'view.withdrawn.check': 'Your Google account lists the apps that still have access:',
+  // Report this link (workplan 0108 T8 (d)): on the grant and progress pages,
+  // to the owner's helpdesk, never to the organisation that asked.
+  'linkReport.open': 'Report this link',
+  'linkReport.intro': 'Your report goes to the Ownpace team, not to {organisation}.',
+  'linkReport.description': 'What makes you doubt this link?',
+  'linkReport.replyTo': 'Your email address (optional)',
+  'linkReport.replyTo.hint': 'Only if you want an answer; we use it for nothing else.',
+  'linkReport.sentWith': 'Sent with it: which link this is, so we can find who sent it.',
+  'linkReport.send': 'Send the report',
+  'linkReport.sending': 'Sending…',
+  'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
+  'linkReport.sent.anonymous': 'Sent. Your report is number {ticket}. Without an address, we cannot answer you.',
+  'linkReport.next.grant': 'You need not continue: nothing is read unless you allow it at Google.',
+  'linkReport.next.withdraw': 'To stop the copying now, withdraw the access above.',
   'state.lifecycle.active': 'Active',
   'state.lifecycle.paused': 'Paused',
   'state.lifecycle.cutover': 'In cutover',
@@ -1505,6 +1519,14 @@ const en = {
   'pause.hold.since': 'Paused since',
   'pause.hold.why':
     'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally; new copying starts again by itself once the update is done, and continues from exactly where it stopped.',
+  // The alpha note (workplan 0131 T1): three sentences, one paragraph, the
+  // same words as the access-granted mail (`grantedAlpha` in @openmig/shared's
+  // notifications.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
+  // together). Split only so each fits the copy budget; they render as one
+  // paragraph, and must match 0139's alpha conditions once those exist.
+  'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
+  'alpha.note.terms': 'Nothing is charged, nothing is backed up, and the alpha can end.',
+  'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
     'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
@@ -3164,6 +3186,18 @@ const nl: Record<keyof typeof en, string> = {
   'view.withdrawn.removeYourself': 'Verwijder voor de zekerheid zelf de app bij de apps met toegang:',
   'view.withdrawn.since': 'Er wordt niets meer uit uw account gelezen. Later verder? Vraag om een nieuwe link.',
   'view.withdrawn.check': 'Uw Google-account toont welke apps nog toegang hebben:',
+  'linkReport.open': 'Deze link melden',
+  'linkReport.intro': 'Uw melding gaat naar het team van Ownpace, niet naar {organisation}.',
+  'linkReport.description': 'Waarom twijfelt u aan deze link?',
+  'linkReport.replyTo': 'Uw e-mailadres (niet verplicht)',
+  'linkReport.replyTo.hint': 'Alleen als u antwoord wilt; we gebruiken het nergens anders voor.',
+  'linkReport.sentWith': 'Meegestuurd: welke link dit is, zodat we de afzender kunnen vinden.',
+  'linkReport.send': 'Melding versturen',
+  'linkReport.sending': 'Versturen…',
+  'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
+  'linkReport.sent.anonymous': 'Verstuurd. Uw melding heeft nummer {ticket}. Zonder adres kunnen we u niet antwoorden.',
+  'linkReport.next.grant': 'U hoeft niet door te gaan: er wordt niets gelezen zonder uw toestemming bij Google.',
+  'linkReport.next.withdraw': 'Wilt u het kopiëren nu stoppen? Trek dan hierboven de toegang in.',
   'state.lifecycle.active': 'Actief',
   'state.lifecycle.paused': 'Gepauzeerd',
   'state.lifecycle.cutover': 'In cutover',
@@ -3369,6 +3403,13 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond; nieuw kopiëren start vanzelf weer zodra de update klaar is, en gaat verder waar het stopte.',
+  // 0131 T1's words. `alpha.note.terms` is sixteen words here, one over the
+  // copy budget, and stays so: a safety sentence is not shortened (0118), and
+  // it is named in the budget's ALLOWED_OVER.
+  'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
+  'alpha.note.terms':
+    'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
+  'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',

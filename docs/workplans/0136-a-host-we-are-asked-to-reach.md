@@ -4,6 +4,20 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: the refusal has somewhere to point (0148 D11).** The owner answered 0148's open
+question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
+Nextcloud or other target files-kind supporting target."* 0148 T9 adds that choice to the wizard and
+teaches both doors `where`, stacked on T5. So T5's sentence names the folder in the destination's
+files, and the gate's archive steps move to the demo Nextcloud with T9 instead of staying without a
+proof.
+
+**2026-09-24, night: T5 moves before the first invitation (0148 D10).** The owner kept the managed
+archive card, labelled: *"Hide the archive card on manage: I don't want them hidden. I want labelled
+as 'expirimental'."* So a tester can reach the archive form on managed, type a path on the server,
+and press Test, which opens that path inside the API process. T5 refuses it on every managed door,
+and it is in the alpha minimum now. It is built in the readiness session's group R2 (0131 §6),
+beside the label. Open question 3 is answered a second time.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that the
 managed edition connects to any host a signed-in person types, from inside the network that holds
 the rest of the stack, and shows the person what the remote answered. The owner's answer to that
@@ -43,7 +57,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
-| T5 No archive "disk" path on the managed edition | 📋 **Proposed** | §3. Both doors and the probe refuse it. The gate's archive fixture step breaks with it. The owner chose to hide the managed archive card (open question 3, answered by 0148 D3), and 0148 T3 is the task that hides it. |
+| T5 No archive "disk" path on the managed edition | 📋 **Decided 2026-09-24 (0148 D10)**; before the first invitation — *was:* 📋 Proposed | §3. Both doors and the probe refuse it, with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
@@ -520,6 +534,18 @@ relay path exists, or the door learns `where: 'target'`. Label or hide is the ow
 same one Q9 answered with *"Label"* for the unproven source cards (D5). The owner chose hide on
 2026-09-24 (0148 D3), and 0148 T3 builds it.
 
+**2026-09-24, later: labelled, not hidden (0148 D10).** The owner: *"Hide the archive card on
+manage: I don't want them hidden. I want labelled as 'expirimental'."* The card stays offered on
+managed with 0131 T2's tag, so T5 is what stands between a tester and the API opening a typed path.
+It comes before the first invitation. The refusal's sentence says that a managed pass cannot read a
+file on the server, and that the export can be read from the migration's own file target once the
+wizard offers that (0148 open question 6).
+
+**2026-09-24, night: the wizard offers it (0148 D11).** The owner: *"the wizard should be able to
+read a Takeout export from a folder in the tester's Nextcloud or other target files-kind supporting
+target."* 0148 T9 builds the choice, stacked on this task. So the sentence names it: on managed, the
+export goes in a folder of the Nextcloud or WebDAV files the migration writes to.
+
 **Guard:** in the API, a test posts an archive with a path and no `where` to
 `POST /api/connections`, `POST /api/migrations` and `test-connection`. It expects a refusal and no
 call to the reader. It fails on today's code.
@@ -529,9 +555,9 @@ on the disk path. The first posts `path: "/tmp"` and expects the file face to be
 changes to expect the refusal. The second writes a small Takeout fixture inside the API
 container (`ARCHIVE_ROOT="/tmp/smoke-takeout"`) and expects a measured count of three items. T5
 breaks it, and with it the step the gate uses to show that the archive reader reached the
-deployed image. It moves to `where: 'target'` once the door can express that. Until then the
-managed gate has no live proof of the archive reader, and its output says so rather than
-skipping the step in silence.
+deployed image. It moves to `where: 'target'` with 0148 T9, which is stacked on this task, so the
+gap lasts until T9 merges. Until then the managed gate has no live proof of the archive reader,
+and its output says so rather than skipping the step in silence.
 
 ### T6 — guard tests for each
 
@@ -627,11 +653,12 @@ edge does not see that traffic.
    (internal hosts refused, the Docker networks among them, redirects checked) and not T3. This
    plan advises T3 as part of the same minimum, and 0131's row should say so if the owner
    accepts.
-2. **After the alpha opens: T4, T5 and T7.** T4 is the second lock, for whatever T1 misses. It
+2. **After the alpha opens: T4 and T7.** (T5 moved before the first invitation on 2026-09-24,
+   0148 D10.) T4 is the second lock, for whatever T1 misses. It
    touches the compose file and the host's firewall, and it deserves its own bring-up on the OTA
    stack first, where the gate runs every night. It reaches live by a tag (0132 T1g), not as a
-   change under testers. T5 waits on how the managed archive card is shown. T7 follows the
-   code.
+   change under testers. T5 no longer waits: the card is labelled (0148 D10), and 0148 T9 is
+   stacked on it (0148 D11). T7 follows the code.
 3. **If T1 and T3 cannot be ready in time,** the alternative that 0131 T5 records is the owner's
    written acceptance of this section, and this plan advises that it be dated. It is given knowing
    that every tester is someone the owner let in, and that the alpha's conditions (0139) say a
@@ -662,9 +689,10 @@ edge does not see that traffic.
 3. **The managed archive card.** Hide it on managed until an upload or relay exists, or label it
    (T5). Q9's answer for unproven sources was *"Label"* (D5). An archive that cannot be read on
    managed is a different case from one that is only unproven. 0131 open question 4 asks the same
-   question, with an "Appliance only" tag on a disabled card as its proposal; one answer serves
-   both plans. *Answered 2026-09-24, by 0148 D3: hide.* The owner: *"cards that cant work: hide
-   on manged"*.
+   question, with an "Appliance only" tag on a disabled card as its proposal; one answer serves both
+   plans. *Answered 2026-09-24, by 0148 D3: hide.* The owner: *"cards that cant work: hide on
+   manged"*. *Answered again the same day, by 0148 D10: label.* The owner: *"Hide the archive card
+   on manage: I don't want them hidden. I want labelled as 'expirimental'."*
 4. **The host firewall rule in T4.** Does the owner want the `DOCKER-USER` rule on the reference
    machine itself, given that CI and both stacks run there (0132)? It changes what containers on
    the two `egress` bridges can reach, and CI's own job containers are on neither. The build

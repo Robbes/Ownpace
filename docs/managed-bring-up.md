@@ -1452,6 +1452,42 @@ ticket. Restart the API, sign in, and the link appears; send yourself a test
 report. A report that Zammad refuses is answered with a reference, and recorded
 for the log page as `report.not-delivered`.
 
+The same setting switches on **Report this link** on the grant and progress
+pages (workplan 0108 T8 (d)). Somebody who doubts a link they were sent tells
+you, not the organisation that sent it. Such a ticket is titled *Ownpace: a
+grant link was reported* (or *a progress link*), in the same group. Its one
+article is an **internal note**. First the facts, one line each: the link's id
+(never the link), the organisation and migration with their ids, who issued the
+link, from, to, and whether access was given. Then, under *What they wrote*, the
+reporter's own words. A reply address is optional. When given, it is typed,
+not verified, and it is the ticket's customer, so a reply you write reaches
+it. Without one, the ticket is filed under the user your `ZAMMAD_TOKEN`
+belongs to, and the note says nobody can be answered. Three reports a day per
+link, thirty an hour for every link together.
+
+### 8g. The alpha note *(only on the stack testers use)*
+
+While the service is an alpha (workplan 0131 T1), every tester is told so: a
+note at the top of every signed-in page and under the title of the sign-in and
+request pages, and a paragraph at the end of the access-granted mail, in
+English and Dutch. It is off unless you set it, and you set it only on the
+stack testers use:
+
+```
+OWNPACE_STAGE=alpha
+```
+
+The web bundle bakes it in at build time and the API reads it at start, so
+rebuild and recreate both:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml up -d --build --wait api web
+```
+
+Open the sign-in page: the note is under the title. Empty, or any value but
+`alpha`, is no note and no paragraph. The appliance never shows it.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash

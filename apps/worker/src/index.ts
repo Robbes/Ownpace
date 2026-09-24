@@ -32,7 +32,7 @@ import {
   mailboxMapping,
   pgDriver,
 } from '@openmig/ledger';
-import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { log, phasesOfTheMigration, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { and, eq } from 'drizzle-orm';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -153,7 +153,7 @@ async function main() {
   if (once) {
     // Run once mode
     log.info('[Worker] Running all enabled domains...');
-    const results = await runAllDomains(config, statusStore, lifecycle);
+    const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle));
     
     const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
     const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
@@ -174,7 +174,7 @@ async function main() {
     scheduler.schedule(config.mappingId, config.schedule.cron, async () => {
       log.info('[Worker] Running scheduled sync...');
       try {
-        const results = await runAllDomains(config, statusStore, lifecycle);
+        const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle));
         
         const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
         const totalCreated = results.reduce((sum, r) => sum + r.created, 0);

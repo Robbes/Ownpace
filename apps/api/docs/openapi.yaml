@@ -2417,6 +2417,104 @@ paths:
             address is a raw IP, which Google will not accept as a redirect URI.
         '503': { description: The link could not be checked just now. }
 
+  /api/grant/{link}/report:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: The whole credential — `<id>.<secret>`, one path segment.
+        schema: { type: string }
+    get:
+      tags: [Grant links]
+      summary: Whether this link can be reported
+      description: |
+        `true` only when the deployment has a Zammad set up, as for the
+        signed-in form. The grant page offers "Report this link" only then.
+        Link-authenticated: a progress (`view`) link is refused here.
+      security: []
+      responses:
+        '200':
+          description: The answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                required: [available]
+        '401':
+          description: The link is not a live grant link.
+    post:
+      tags: [Grant links]
+      summary: Report this link to the owner, for the person asked to grant
+      description: |
+        Workplan 0108 T8 (d), the owner's decision of 2026-09-24: a report goes
+        to the problem report form's Zammad (0130). Becomes an internal note on
+        a ticket. A typed reply address is the ticket's customer, so the owner's
+        reply reaches them by email. It is optional (the owner, 2026-09-24):
+        without one, the ticket is filed under the helpdesk token's own user and
+        nobody can be answered. The note carries what the link's
+        own rows say, one line per fact: the organisation, the migration, the
+        link's id (never the link), who issued it, from, to, and whether access
+        was given. Then, under its own label, what they wrote. The title is
+        fixed.
+
+        Link-authenticated like the grant page: a link that no longer opens
+        it cannot report. Three reports a day per link, and thirty an hour for
+        every grant and progress link together; only a report that parses
+        counts.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: { type: string, maxLength: 5000 }
+                replyTo:
+                  type: string
+                  format: email
+                  maxLength: 320
+                  description: Optional. Empty or absent means the person wants no answer.
+              required: [description]
+      responses:
+        '201':
+          description: Delivered, with the ticket's number.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string }
+                required: [ticket]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: The link is not a live grant link. Nothing was sent.
+        '410':
+          description: The migration was deleted while the report was being read.
+        '429':
+          description: Too many reports of this link today, or of all links this hour. Carries `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: Ours; nothing the person did.
+        '502':
+          description: Zammad did not take the ticket. Carries a reference the log page finds.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: This deployment has no Zammad set up, or the link could not be checked just now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /api/view/{link}:
     parameters:
       - name: link
@@ -2574,6 +2672,104 @@ paths:
             written for the person holding the link.
         '500':
           description: Ours; nothing the person did.
+
+  /api/view/{link}/report:
+    parameters:
+      - name: link
+        in: path
+        required: true
+        description: The whole credential — `<id>.<secret>`, one path segment.
+        schema: { type: string }
+    get:
+      tags: [Grant links]
+      summary: Whether this link can be reported
+      description: |
+        `true` only when the deployment has a Zammad set up, as for the
+        signed-in form. The progress page offers "Report this link" only then.
+        Link-authenticated: a credential (`grant`) link is refused here.
+      security: []
+      responses:
+        '200':
+          description: The answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                required: [available]
+        '401':
+          description: The link is not a live progress link.
+    post:
+      tags: [Grant links]
+      summary: Report this link to the owner, for the person who granted
+      description: |
+        Workplan 0108 T8 (d), the owner's decision of 2026-09-24: a report goes
+        to the problem report form's Zammad (0130). Becomes an internal note on
+        a ticket. A typed reply address is the ticket's customer, so the owner's
+        reply reaches them by email. It is optional (the owner, 2026-09-24):
+        without one, the ticket is filed under the helpdesk token's own user and
+        nobody can be answered. The note carries what the link's
+        own rows say, one line per fact: the organisation, the migration, the
+        link's id (never the link), who issued it, from, to, and whether access
+        was given. Then, under its own label, what they wrote. The title is
+        fixed.
+
+        Link-authenticated like the progress page: a link that no longer opens
+        it cannot report. Three reports a day per link, and thirty an hour for
+        every grant and progress link together; only a report that parses
+        counts.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: { type: string, maxLength: 5000 }
+                replyTo:
+                  type: string
+                  format: email
+                  maxLength: 320
+                  description: Optional. Empty or absent means the person wants no answer.
+              required: [description]
+      responses:
+        '201':
+          description: Delivered, with the ticket's number.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string }
+                required: [ticket]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: The link is not a live progress link. Nothing was sent.
+        '410':
+          description: The migration was deleted while the report was being read.
+        '429':
+          description: Too many reports of this link today, or of all links this hour. Carries `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: Ours; nothing the person did.
+        '502':
+          description: Zammad did not take the ticket. Carries a reference the log page finds.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: This deployment has no Zammad set up, or the link could not be checked just now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /api/migrations/{mappingId}/deletions:
     parameters:
@@ -5850,4 +6046,14 @@ components:
           type: string
           description: Five-field cron. An unparseable value is refused at create, not silently replaced by a default.
           examples: ['*/15 * * * *']
+        status:
+          type: string
+          enum: [paused, active]
+          default: paused
+          description: |
+            Where the migration begins: a draft (`paused`, the default) that
+            waits for `/start`, or `active`, running from its first minute.
+            `cutover`, `done` and `continuous` are refused here with a 400 that
+            says so. Each is reached once the migration exists, through the
+            cutover, Finish and Keep copying, which check what they need.
       required: [sourceConfig, targetConfig]

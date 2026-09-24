@@ -48,7 +48,7 @@ import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
-import { tell, tellOperator, type TellOutcome } from '../access-notify.ts';
+import { accessGrantedEvent, tell, tellOperator, type TellOutcome } from '../access-notify.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, knockLimitFromEnv, type KnockLimiter } from '../knock-limit.ts';
 
@@ -579,12 +579,13 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
     const where = appUrl();
     let notified: TellOutcome;
     if (where) {
-      notified = await tell(outcome.email, outcome.locale, {
-        kind: 'access_granted',
-        organisation: outcome.name,
-        appUrl: where,
-        email: outcome.email,
-      });
+      // During the alpha the mail says so (workplan 0131 T1): `OWNPACE_STAGE`
+      // is read inside `accessGrantedEvent`.
+      notified = await tell(
+        outcome.email,
+        outcome.locale,
+        accessGrantedEvent({ organisation: outcome.name, appUrl: where, email: outcome.email }),
+      );
     } else {
       // `off` to the operator, because what they need to know is the same in
       // both cases: nobody was told, and the manual step is theirs. WHY goes to

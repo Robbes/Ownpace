@@ -4,6 +4,60 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build review: T1 (a) fixes on the same branch
+(`claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`), not merged.** Two reviewers
+read the build, and this note replaces two statements in the build note below. First, the Dutch
+middle sentence is §3's draft again, word for word: *"Er wordt niets in rekening gebracht, er
+worden geen back-ups gemaakt en de alfa kan stoppen."* It is sixteen words, one over the copy
+budget, and it stays long because 0118 records that safety sentences are not shortened; the
+budget's `ALLOWED_OVER` names `alpha.note.terms` with that reason. Second, "every signed-in page"
+now includes `/invitations`, which sits outside `Layout` (0099). An invited member never passes
+`/request-access` and never receives the grant mail, so the note stands under that screen's
+title. `/request-access` also keeps the note after the request is sent. The web guard covers
+both, on, off and on the appliance (39 cases, 6 of which failed before the change). The grant
+route's call to `accessGrantedEvent` is now held too.
+`apps/api/src/routes/access-request-grant-alpha.unit.test.ts` drives the real route against
+PGlite and reads the mail the transport is handed. With the route's old inline event it fails 2
+of 5. `an-alpha-both-halves-know-about` also refuses an `access_granted` event written anywhere
+else in the API. The glossary gains *alpha* / *alfa*. Whether invitations stay open during the
+alpha is still open question 6; the note only makes sure an invited member is told.
+
+**2026-09-24, build: T1 (a) built on branch
+`claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** One setting,
+`OWNPACE_STAGE`, empty by default, so the note is off unless a deployment sets it. `managed.yml`
+passes it to the API, and to the web build as the build argument `VITE_OWNPACE_STAGE`, which
+`apps/web/Dockerfile` declares; Vite exposes only `VITE_` names. `managed.env.example` and step 8g
+of `docs/managed-bring-up.md` say how to switch it on. With `OWNPACE_STAGE=alpha`, the note stands
+at the top of every signed-in page (`Layout.tsx`, above the pause banner) and under the title of
+`/login` and `/request-access` (`AlphaNote.tsx`), in the pause banner's amber `role="note"` shape.
+The access-granted mail ends with the same words as a paragraph of its own (`accessGrantedEvent`
+in `apps/api/src/access-notify.ts`, `grantedAlpha` in `notifications.ts`). Both are in English and
+Dutch. The appliance never shows the note, whatever its bundle was built with
+(`apps/web/src/services/stage.ts`). The three guards §3 names are in place, and each failed on the
+unchanged code: `an-alpha-said-out-loud.unit.test.tsx` 12 of 25, the mail's test beside
+`notifications.ts` (`a-grant-mail-that-says-alpha.unit.test.ts`) 4 of 7, and
+`scripts/an-alpha-both-halves-know-about.unit.test.ts` 8 of 14. Two things differ from §3's draft.
+The Dutch middle sentence reads *"Niets wordt in rekening gebracht, …"*, because the draft's
+sixteen words are one over the copy budget (0118). The mail carries the note's three sentences as
+one paragraph rather than one sentence, so the pages and the mail say the same words, and a test
+holds them together. T1 (b), the links to the alpha conditions and the tester guide, waits on 0139
+T2 and T10 and on 0144 T1; `AlphaNote.tsx` and the mail's paragraph mark where they go. The site
+build's half is 0144 T1's guard.
+
+**2026-09-24, night: the export read from the tester's own files (0148 D11).** The owner answered
+0148's open question 6: *"the wizard should be able to read a Takeout export from a folder in the
+tester's Nextcloud or other target files-kind supporting target."* So the archive card gains a way
+to complete on managed: the export in a folder of the migration's own Nextcloud or WebDAV files.
+0148 T9 builds it in R2, stacked on 0136 T5 (§6), and T5's row for 0148 names it. The card keeps
+T2's tag until 0141 records a run.
+
+**2026-09-24, night: the archive card is labelled, not hidden (0148 D10).** The owner: *"Hide the
+archive card on manage: I don't want them hidden. I want labelled as 'expirimental'."* So T2's table
+gives the export archive card the *experimental* verdict, and it keeps its place at both doors on
+managed. Open question 4 is answered a second time, the other way. 0136 T5, the managed API refusing
+a typed disk path, moves into the minimum with it, and joins R2 in §6. T5's row for 0148 and §6's R2
+say so.
+
 **2026-09-24, evening: the plans are being built, in fourteen groups split between two sessions
 (§6).** The owner answered how: *"One PR per task"*, the order *"3 (tester-facing) then 1
 (safety/foundation) then 2 (live)"*, and *"Yes, but create logical groups you can stack, and
@@ -62,7 +116,7 @@ of the gate answer.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4) | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. |
+| T1 The word "alpha" wherever a tester meets the service | 📋 **Decided 2026-09-24** (D1, D4). (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-alpha-said-out-loud`, not merged.** (b) 📋 waits on 0139 T2, T10 and 0144 T1 | §3. A note on every signed-in page, on the sign-in and request pages, and one sentence in the grant mail, in Dutch and English. Managed only. Off unless the deployment sets it. (a) is the setting, the note and the mail's paragraph; (b) is their links to the conditions and the tester guide. |
 | T2 An "experimental" label on sources nobody has run against a real account | 📋 **Decided 2026-09-24** (D6) | §3. One table in shared, read by both doors and by the wizard's data-type step. Both editions. |
 | T3 Billing says nothing is charged during the alpha | 📋 **Decided 2026-09-24** (D1) | §3. One sentence on the Billing page and one on the request form. Hiding the four metered cards, and leaving run rows unpruned for the alpha, are **Proposed**. |
 | T4 What the end of the alpha does to organisations, credentials and identities | ⏳ **Owner** | §3 and open question 1. What exists today, three options, one recommended. |
@@ -403,6 +457,14 @@ there at all (§1). The proposal here was a different tag on managed only, *"App
 that cant work: hide on manged"* (0148 D3, where "manged" is read as "managed"). 0148 T3 builds
 that, so T2 carries no such tag, and open question 4 is answered.
 
+**2026-09-24, later: labelled after all (0148 D10).** The owner: *"Hide the archive card on manage:
+I don't want them hidden. I want labelled as 'expirimental'."* So the archive card is not hidden.
+T2's table gives it the *experimental* verdict, and the tag shows on it at both doors, on both
+editions. Its why is the general one; that the card cannot complete on managed yet is said by the
+refusal 0136 T5 adds, and 0148's open question 6 asks whether the wizard learns the one place a
+managed pass can read an export. The owner answered yes the same night: a folder in the tester's
+Nextcloud or WebDAV files (0148 D11), built by 0148 T9.
+
 **Guards.** Each of these fails on today's code, because the table does not exist:
 
 - `apps/web/src/components/a-card-that-says-it-is-unproven.unit.test.tsx`: every `SOURCE_CARDS`
@@ -520,7 +582,7 @@ contains more than its row.
 | 0145 Phones, screen readers and in-app browsers | 0145's T0, one press of *Connect with Google* on an iPhone, on today's code. T1, the phone menu takes focus and gives it back. T3 (a), each wizard step and each new page starts at the top. T5, the consent window opens on the press itself, with T7 (a). T6, the consent endings in Dutch, and the grant half if testers send grant links. T9 (a), one paragraph in 0144 T1's guide. T10, the walk on two phones, on `ownpace-live`. | Both consent buttons open the window only after an awaited call; whether Safari blocks it is T0's to find out. The closed phone menu stays in the tab order. The grant page's "what will be read" phrase and the consent endings are English only. Nothing checks the app at phone width or in WebKit (0145 §1). |
 | 0146 A release testers can name | The alpha tag exists (0146 T0 recommends `v0.2.0-alpha.1`), and its release is published with its images and SBOM. `ownpace-live`'s build stamp and `/api/version` name that tag's version and commit. If the report form is on at `ownpace-live` (this table's row for 0130 allows an address instead), a problem report sent from there carries the build line. The tasks on `ownpace-live` were built on `node-24`: the task deploy's build output names `triggerdotdev/node:24-bookworm`, where run #193's named `node:21-bookworm`. 0146 T0's answers are written in 0146. Also before the first invitation, carried by 0135 T7: the identity provider's release watch and response window. | The only tag is `v0.1.0-rc.1`, of 2026-08-04, and every build since calls itself that. A problem report carries no build. `trigger.config.ts` names no runtime, so the tasks run Node 21 (0146 §1). |
 | 0147 An index that writes itself | 0147's T3 (a): three dated notes, on 0009, on 0008 T7 and on 0026 row 14, because the owner reads those plans when deciding go or no-go; 0009's note was written on 2026-09-24, and its table row remains. If the session writing the alpha's plans is not idle by then, they go as their own small pull request. | 0009's section headed T9 was an open owner decision until 2026-09-24. Its Status block now opens with a dated note of the decision (0149 D2 and T4), above *"Nothing open in this plan."*, and its table has no row for it. 0008 T7 is ✅ with no run linked; both runs of `e2e-o365.yml` were cancelled. 0026 row 14 calls publisher verification moot, a premise 0114's deployment registration changed (0147 §1, T3). |
-| 0148 A guide written for the person using it | T3: the export archive is not offered on managed; *Via IMAP* stays, tagged experimental until the owner's run is recorded (0148 D5). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a customer guide in Dutch and English (0148 D8), served in the app, with no operator material, read by the owner against live's screens (T0). The Microsoft guide carries 0148 T8's two recipes (D5). T6's first half, the parts of the renderer those guides use, and T2 (c). T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
+| 0148 A guide written for the person using it | T3: the Apple export tagged *to be tested* on both editions; the export archive stays offered on managed with T2's tag (0148 D10), and 0136 T5 refuses a typed disk path there. 0148 T9: the export read from a folder in the migration's own Nextcloud or WebDAV files (0148 D11). *Via IMAP* stays, tagged experimental until the owner's run is recorded (0148 D5). T2 (a), (b) and (d): where `ownpace-live` carries Google's, Dropbox's or Microsoft's app, no about-line, redirect line, checklist or create refusal tells a tester to create one or register an address on it. T1 and T4 for every card live offers: a customer guide in Dutch and English (0148 D8), served in the app, with no operator material, read by the owner against live's screens (T0). The Microsoft guide carries 0148 T8's two recipes (D5). T6's first half, the parts of the renderer those guides use, and T2 (c). T5's profiles for Apple, Nextcloud and Soverin, and the Google account card's. | The seven served guides are in English and written for operators; no target and not the IMAP source has one. The archive card is offered on managed and asks for a path on the server, which a managed pass cannot read. The wizard's about-lines, the redirect line under its button, the checklist and the create refusals say "your own" whatever the deployment carries (0148 §1). |
 | 0149 Removal fails closed, and reads stay reads | 0149's T1 to T5, merged and in the alpha tag `ownpace-live` first runs, so that no row on live is written by the old code: a DAV 412 on create is an adoption (T1), a lookup that fails is not an absence (T2), removal and rewrite carry the version, removal refuses a row without one, and a rewrite of such a row goes ahead (T3, D3), the cutover gate holds when a target that can hash compared nothing (T4, 0009's option 1), and the IMAP source opens folders read-only (T5). T1 to T3 are in the minimum because testers may arm *apply deletions* (0149 D1). The first scheduled run of the appliance nightly after T3 and T4 is green, its three apply legs and its verification leg included, or a red result is explained in writing and dated; the managed smoke's apply half is green on the OTA stack on the same commit. | A 412 on create is recorded `copied`; a failed per-item lookup reads as "not there"; removal and rewrite skip the edit check when no version was recorded; the gate opens when a target that can hash compared nothing; the IMAP source opens folders with SELECT (0149 §1). |
 | 0093 T2c The request door | `TRUST_PROXY` and `ACCESS_REQUEST_MAX_PER_HOUR` reach the API (done in #1137, merged 2026-09-24), and `TRUST_PROXY` is set in `ownpace-live`'s `.env` for the ingress that 0132 settles. Spam protection is 🅿️ **Parked (trigger: junk in the queue, or the request address published)**: the owner reads every request, and a decline can be quiet. | Both are empty by default, so every caller shares one count (§1). |
 | 0130 A problem report that reaches a person | A tester can reach a person. Either the report form works on `ownpace-live`, with a Zammad configured, or the conditions name an address the owner reads. | Built. On `main`, `managed.yml` does not pass `ZAMMAD_URL`, `ZAMMAD_TOKEN` or `ZAMMAD_GROUP` to the API, whose environment is an explicit list, so on a stack started from `main` the form stays off whatever `.env` says, although step 8f of `docs/managed-bring-up.md` says to set them there. On this branch, with this plan's PR, `managed.yml` passes all three to the API, empty by default (2c564a5, guarded by `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`). Whether a Zammad is configured for `ownpace-live` is 0139 T0's fact 3. |
@@ -653,20 +715,20 @@ and 0149.
 **Opened 2026-09-24, at the owner's word after the explanation:**
 
 - **W15 → 0148 A guide written for the person using it.** The owner answered in four points:
-  *"Audience: the in-app guide should target the endusers/testers, not the
-  operators/self-hosters (they are more technical, and do need to edit env files/run
-  commands)"*; *"Contradict: self-hosters need to make those, but endusers dont, or not in the
-  ownpace-managed deployment. Stop the false hints on managed."*; *"cards that cant work: hide
-  on manged"*; and *"Gaps: write also dutch guides for each source and target."* ("manged" is
-  read as "managed".) So under 0148 the app serves a guide written for the person who connects
-  an account, and the operator material stays in `docs/` (T1). Where the deployment carries a
-  provider's app, nothing tells a tester to create one or register an address on one (T2). A card
-  that cannot work on managed is hidden there, the export archive first (T3), which answers open
-  question 4. Each source and target card gets a guide in Dutch and in English, Dutch first
+  *"Audience: the in-app guide should target the endusers/testers, not the operators/self-hosters
+  (they are more technical, and do need to edit env files/run commands)"*; *"Contradict:
+  self-hosters need to make those, but endusers dont, or not in the ownpace-managed deployment. Stop
+  the false hints on managed."*; *"cards that cant work: hide on manged"*; and *"Gaps: write also
+  dutch guides for each source and target."* ("manged" is read as "managed".) So under 0148 the app
+  serves a guide written for the person who connects an account, and the operator material stays in
+  `docs/` (T1). Where the deployment carries a provider's app, nothing tells a tester to create one
+  or register an address on one (T2). A card that cannot work on managed is hidden there, the export
+  archive first (T3), which answers open question 4. (The owner later kept the archive card,
+  labelled: 0148 D10.) Each source and target card gets a guide in Dutch and in English, Dutch first
   (T4). The owner then answered 0148's five questions. *Via IMAP* stays on managed (D5), the
-  renderer in `Docs.tsx` is extended (D6), and the Apple export stays on the appliance, tagged
-  *to be tested* (D7). The five new guides are written in English as well before the first
-  invitation (D8), and the appliance's `/docs` points to the operator documents (D9).
+  renderer in `Docs.tsx` is extended (D6), and the Apple export stays on the appliance, tagged *to
+  be tested* (D7). The five new guides are written in English as well before the first invitation
+  (D8), and the appliance's `/docs` points to the operator documents (D9).
 - **W18 → 0149 Removal fails closed, and reads stay reads.** The owner: *"write as a plan. But we
   do offer 'apply deletions'. And do hold the cutover-gate when nothing was compared."* So a tester
   may arm *apply deletions* (0149 D1), and 0149 makes removal fail closed before the first
@@ -708,7 +770,7 @@ works M1 to M7, each group in its numbered order.
 | Group | The stack, in order | Mostly touches | Waits on the owner for |
 |---|---|---|---|
 | **R1. The alpha, said out loud** | 1. 0131 T1 (a), the alpha setting and note. 2. 0131 T3 (a), nothing charged. 3. 0144 T7, *Request access* under the sign-in button. 4. 0144 T6 (a) and (c), a person to write to. 5. 0134 T1 (a) and (b), the erasure wording and the start-up check. 6. 0139 T10 (c) and (a), the `--no-drafts` switch and the one link module. 7. 0139 T4 (a), (b) and (d), the notices. 8. 0131 T1 (b), the links. 9. 0139 T3, acceptance recorded at first sign-in. | `Layout.tsx`, `Login.tsx`, `RequestAccess.tsx`, `Billing.tsx`, `strings.ts`, `notifications.ts`, the access-request routes, `site/` | 0144 T0 (the address testers write to); 0139 T2 (the conditions) for steps 7 to 9 |
-| **R2. Cards and hints** | 1. 0148 T3 (a), the archive card hidden on managed. 2. 0141 T1 with 0131 T2 (a), the live-proof record and the *Experimenteel* tag, which 0140 T8 (a) and T9 (a) then carry. 3. 0148 T2 (a), (b) and (d), no hint to create an app the deployment carries. 4. 0144 T3 (a) and (c), the line beside *Connect with Google* and the grant page's "read-only". 5. 0140 T2 (b), T3 (a), T6 (b) and T7 (b), the consent screens' own lines. 6. 0141 T10 (a), shared mailboxes to Partial. | `front-door-cards.ts`, `FrontDoorChooser.tsx`, `CreateMapping.tsx`, `Setup.tsx`, `provider-setup.ts`, the create route, `microsoft-consent.ts`, `feature-matrix.md` | none |
+| **R2. Cards and hints** | 1. 0141 T1 with 0131 T2 (a), the live-proof record and the *Experimenteel* tag, which the export archive card carries on managed (0148 D10) and 0140 T8 (a) and T9 (a) carry too. 2. 0136 T5, the managed API refuses a typed disk path, with the sentence it says instead (moved here with D10). 3. 0148 T9, the export read from a folder in the migration's own Nextcloud or WebDAV files (0148 D11), stacked on step 2. 4. 0148 T3's Apple tag (D7), on both editions. 5. 0148 T2 (a), (b) and (d), no hint to create an app the deployment carries. 6. 0144 T3 (a) and (c), the line beside *Connect with Google* and the grant page's "read-only". 7. 0140 T2 (b), T3 (a), T6 (b) and T7 (b), the consent screens' own lines. 8. 0141 T10 (a), shared mailboxes to Partial. (0148 T3 (a), the hiding, is dropped: D10.) | `front-door-cards.ts`, `FrontDoorChooser.tsx`, `CreateMapping.tsx`, `Setup.tsx`, `provider-setup.ts`, the create route, `microsoft-consent.ts`, `feature-matrix.md`, `apps/api`'s connection and migration routes (0136 T5, 0148 T9), `credential-fields.ts`, `smoke-managed.sh`'s archive steps | none |
 | **R3. Guides** | 1. 0148 T6 (a), the renderer's first half. 2. 0148 T1 with T2 (c) and T8 (c), customer guides served and operator material left in `docs/`. 3. 0148 T4 (a) with T8 (a) and (b), the Google, Microsoft, Dropbox, Box and Apple guides in Dutch and English. 4. 0148 T4 (b), the IMAP, JMAP, DAV, Nextcloud and Soverin guides. 5. 0148 T5 (a), the checklist profiles. | `Docs.tsx`, `docs/guides/`, the end-user-docs lint, `ci.yml`'s filter | 0148 T0, the reading, after step 4 |
 | **R4. Phones and screen readers** | 1. 0145 T1 (a), the phone menu's focus. 2. 0145 T3 (a), each step starts at the top. 3. 0145 T5 (a) with T7 (a), the consent window on the press. 4. 0145 T6 (a) and (b), one language through the consent and the grant. 5. 0145 T4 (a), errors announced. | `Layout.tsx`, `CreateMapping.tsx`, `ProviderConsent.tsx`, the grant and view pages | 0145 T0 (one press on an iPhone) before step 3 |
 | **R5. What a tester reads outside the app** | 1. 0144 T3 (b), the site stops saying "read-only". 2. 0144 T1 (a) with T5 (a) and 0145 T9 (a), the tester guide's short form. 3. 0141 T12 (a1), 0145 T10 (a) and 0141 T7 (a), the runbook stages and the Soverin corrections. 4. 0133 T1 (a), passing mail on by hand. | `site/`, the owner test runbook, `docs/managed-bring-up.md` | 0144 T0 (the site copy), 0139 T2 |
@@ -757,12 +819,14 @@ works M1 to M7, each group in its numbered order.
    0059 T5 records that nobody has confirmed Graph serves that combination. If it does not, the
    face needs rebuilding, not fixing. 0141 recommends (b), because each of those proofs is one
    sitting, and the calendar may need a rebuild rather than a fix.
-4. **The export archive card on managed:** keep it with an "Appliance only" tag and disabled
-   (T2's proposal), or hide it on managed? 0136 open question 3 is the same question: 0136 T5
-   makes the managed API refuse the disk path and advises hiding the card. One answer serves
-   both plans. *Answered 2026-09-24, by 0148 D3: hide.* The owner: *"cards that cant work: hide
-   on manged"*. 0148 T3 is to hide the card on managed; it returns when an upload or relay path
-   exists (0148's parked trigger).
+4. **The export archive card on managed:** keep it with an "Appliance only" tag and disabled (T2's
+   proposal), or hide it on managed? 0136 open question 3 is the same question: 0136 T5 makes the
+   managed API refuse the disk path and advises hiding the card. One answer serves both plans.
+   *Answered 2026-09-24, by 0148 D3: hide.* The owner: *"cards that cant work: hide on manged"*.
+   0148 T3 is to hide the card on managed; it returns when an upload or relay path exists (0148's
+   parked trigger). *Answered again 2026-09-24, by 0148 D10: label.* The owner: *"Hide the archive
+   card on manage: I don't want them hidden. I want labelled as 'expirimental'."* The card stays,
+   with T2's tag, and 0136 T5 refuses the disk path on managed.
 5. **Target cards:** should T2's label also go on targets? Soverin has no recorded live run as a
    target: 0105 T3's supervised run still waits for the owner, and 0141 T7 plans it, on the OTA
    stack. JMAP contacts and files have integration tests and no nightly leg: 0031 T2 says JMAP

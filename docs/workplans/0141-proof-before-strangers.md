@@ -118,7 +118,7 @@ The `microsoft` faces are the `graph-*` connectors (`source-face-builders.ts`:13
 | Dropbox | files | experimental | *"(a) Real-endpoint proof — ⏳ … unproven here"* (0055:11). Matrix Files table ⏳, and the open-gaps row :400. |
 | Box | files | experimental | The same words in 0056:10. Matrix Files table ⏳, and the open-gaps row :401. |
 | Apple account (`apple`) | mail, calendar, contacts, tasks | experimental | *"Still **not measured against a live iCloud account**"* (0115:68-69). Matrix :405. Part 1 of `docs/apple-supervised-run.md` is still open. |
-| Export archive (`archive`) | — | cannot work on managed as the wizard offers it | 0131 §1. The owner chose to hide it on managed rather than tag it (0148 D3, T3). It is not a proof question. |
+| Export archive (`archive`) | — | cannot work on managed as the wizard offers it | 0131 §1. The owner first chose to hide it on managed (0148 D3), then to keep it, labelled experimental (0148 D10). A proof on managed reads the export from a folder in the migration's own Nextcloud or WebDAV files, which 0148 T9 adds to the wizard (0148 D11). |
 
 **Targets.**
 
