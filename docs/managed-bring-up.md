@@ -255,7 +255,12 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   defaults. Fine for a demo box on localhost; not fine for anything a customer
   reaches. **Change them before the `data` phase** — changing
   `POSTGRES_PASSWORD` after the volume exists does not change the password
-  inside it.
+  inside it. `APP_DB_PASSWORD` has the same trap from the other side:
+  migration `0001_baseline.sql` creates `app_user` with the password
+  `app_password` whatever `.env` says, so a new value must also be applied to
+  the role once the migrations have run — `ALTER ROLE app_user PASSWORD '…'`
+  (see [operator-runbook.md, "The two database roles"](./operator-runbook.md#the-two-database-roles-why-there-are-two-db-urls))
+  — or the API cannot connect through `APP_DATABASE_URL`.
 - `CORS_ORIGIN` / `WEB_URL` / `API_URL`. On a real deployment these are the
   public https addresses. `API_URL` is where **Mollie's servers** deliver
   payment webhooks: with `MOLLIE_API_KEY` set, the API refuses to boot in
