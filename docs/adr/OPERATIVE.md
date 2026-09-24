@@ -880,3 +880,6 @@ Nothing in this amendment is built. It records the decision the three tasks in
   the status a mapping already has is a request, not a transition: 200, nothing recorded.
 - **The Finish page's lane switch sends `PUT`**, the verb this path is served by. A web test pins
   the verb.
+- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
+  `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
+  reaches them once it exists, through the cutover, Finish and Keep copying.
