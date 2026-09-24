@@ -56,13 +56,25 @@
   10. The privacy policy is incorporated by reference (§4); its own revision
       (roles per ADR-0035: processor for migrated content, controller for
       account data) is a separate pass, not in this draft.
+
+  What changed in v1.2 (2026-09-24), and the question it raises:
+
+  11. §6 and §8 — the owner made the Tiny tier free, with no billing at all
+      (ADR-0014, 2026-09-24): no setup fee, no monthly, no invoice, and no
+      payment method registered. Leaving Tiny for a paid tier needs the
+      customer's consent first, and a month without that consent is not
+      billed. QUESTIONS: §10 caps liability at "the amount you paid us in the
+      twelve months before the claim", which is zero for a customer on Tiny —
+      does a zero cap survive art. 6:237 BW toward consumers, or does the
+      clause need a floor, and which? And does §7's proportionate amount on
+      withdrawal need a word for a service that costs nothing?
 -->
 
 # Terms of service
 
 **Applies to:** the Ownpace **managed service** at `ownpace.eu`.
-**Version:** 1.1 (draft for legal review — not yet published; see `site/legal/README.md`)
-**Last updated:** 2026-08-30
+**Version:** 1.2 (draft for legal review — not yet published; see `site/legal/README.md`)
+**Last updated:** 2026-09-24
 
 > **These terms do not govern the software.** Ownpace is open source under the Apache
 > License 2.0, and running it yourself is governed by that licence and nothing here. These
@@ -139,6 +151,10 @@ and no price you only learn after speaking to somebody.
   how much data you have moved — not chosen from a menu.
 - **Finishing migrations lowers your bill automatically**, without you asking. The amount of
   data you have moved sets a floor.
+- **Tiny is free**: one migration at a time, up to 250 GB, with no setup fee, no monthly
+  charge and no invoice. You register no payment method for it. Growing past it — a second
+  migration at the same time, or more data — moves you to a paid tier, and we ask you before
+  it does; nothing is billed for a month you did not agree to leave Tiny.
 - The setup fee is charged **once**, on the highest tier you reach. Moving up later costs only
   the difference; moving back down never re-charges it.
 - **Prices include VAT.** What you see is what you pay. Invoices to business customers state
@@ -172,7 +188,7 @@ If you are a business customer, this section does not apply to you.
 ## 8. Billing, renewal, and not billing you for forgetting
 
 Billing is **monthly in arrears**, by the payment method you registered, through our payment
-provider Mollie. If we offer a discounted term paid up front — a year, say — and you choose
+provider Mollie. On Tiny nothing is billed, so there is nothing to register. If we offer a discounted term paid up front — a year, say — and you choose
 it, that term is billed at its start; the discount is the price of the commitment.
 
 **You can cancel a monthly subscription at any time**, effective at the end of the current

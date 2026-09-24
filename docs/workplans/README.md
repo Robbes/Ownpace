@@ -26,7 +26,7 @@ at the top of each alpha plan.
 <!-- Edit the plan's own first line, "In one line" or Status block, then run: -->
 <!--   node scripts/workplan-index.mjs --write -->
 
-146 plans. Task rows by the marker their Status cell starts with: ✅ 581 · 🟢 10 · 🟡 25 · 📋 156 · ⏳ 38 · ⬜ 9 · 🔨 8 · 🚧 1 · ⛔ 12 · ⚠️ 11 · ⏸️ 5 · 🅿️ 4 · 🕓 1 · 📝 1 · 🔎 1 · unmarked 7.
+146 plans. Task rows by the marker their Status cell starts with: ✅ 582 · 🟢 10 · 🟡 25 · 📋 155 · ⏳ 38 · ⬜ 9 · 🔨 8 · 🚧 1 · ⛔ 12 · ⚠️ 11 · ⏸️ 5 · 🅿️ 4 · 🕓 1 · 📝 1 · 🔎 1 · unmarked 7.
 
 | Plan | Title | In one line | Status as of | Rows | Markers | Note |
 |---|---|---|---|---|---|---|
@@ -139,7 +139,7 @@ at the top of each alpha plan.
 | [0106](./0106-the-account-shaped-connection.md) | the account-shaped connection | Account-shaped connections: `qualifyAccount` probes DAV, IMAP and JMAP faces and `qualifyGoogleGrant` reads Google scopes into a per-domain `qualification` record, with the `soverin` and `google` kinds, `domainsToScopes` and `PROVIDER_DIRECTORY` prefills. | 2026-09-05 | 7 | ✅ 6 · 🟡 1 |  |
 | [0107](./0107-the-front-door.md) | the front door | The connection chooser regrouped into "Your provider" and "Any server, by protocol", with provider icons, rendered as one `FrontDoorChooser` by the CreateMapping wizard and the Connections add-form; ids and stored kinds unchanged. | 2026-09-01 | 4 | ✅ 4 |  |
 | [0108](./0108-the-link-that-grants.md) | the link that grants | Grant links: the `mapping_link` bearer table and middleware, the public `/grant/:link` page where a migrated person gives Google consent for their own migration, with account binding, withdrawal, audit rows and a per-tier live-link limit. | 2026-09-24 | 8 | ✅ 8 |  |
-| [0109](./0109-the-invoice-speaks-tiers.md) | the invoice speaks tiers | Moves managed billing from the retired metered `pricing.ts` to ADR-0014's tiers: a 409 on the invoice route, per-path `path_lifecycle`, `occupancy_peak`, the `bytes_moved` meter, `tier-calculator.ts`, a tier invoice line, top-ups and a possible free band. | 2026-08-31 | 9 | ✅ 5 · 🟡 1 · 📋 3 |  |
+| [0109](./0109-the-invoice-speaks-tiers.md) | the invoice speaks tiers | Moves managed billing from the retired metered `pricing.ts` to ADR-0014's tiers: a 409 on the invoice route, per-path `path_lifecycle`, `occupancy_peak`, the `bytes_moved` meter, `tier-calculator.ts`, a tier invoice line, top-ups and a possible free band. | 2026-09-24 | 9 | ✅ 6 · 🟡 1 · 📋 2 |  |
 | [0110](./0110-support-you-can-actually-give.md) | support you can actually give | Metadata-only, read-only operator support on managed: `support_*` views in the managed chain, the `support_read` log, `/support` tenant and migration screens, failure categories per domain and item, and platform status from Gatus. | 2026-09-24 | 3 | ✅ 3 |  |
 | [0111](./0111-an-invoice-that-is-a-document.md) | an invoice that is a document | The invoice as a legal document, numbered and rendered by Moneybird: `billing_party` buyer data, VIES checks in `vat_consultation`, VAT treatment and OSS, the Moneybird adapter and mirror, an immutability trigger, credit notes and VAT-inclusive prices. | 2026-08-30 | 11 | ✅ 8 · 📋 3 |  |
 | [0112](./0112-google-photos-through-takeout.md) | Google Photos, through Takeout | Superseded by 0116; planned Google Photos migration through Takeout archives: a reader pairing media with JSON sidecars, a `google-photos-archive` source, albums as folders on Nextcloud, the two-monthly incremental pickup and a Picker API button. | 2026-09-05 | 7 | 📋 7 |  |

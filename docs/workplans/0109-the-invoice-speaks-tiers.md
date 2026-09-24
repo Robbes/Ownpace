@@ -2,7 +2,25 @@
 
 > **In one line:** Moves managed billing from the retired metered `pricing.ts` to ADR-0014's tiers: a 409 on the invoice route, per-path `path_lifecycle`, `occupancy_peak`, the `bytes_moved` meter, `tier-calculator.ts`, a tier invoice line, top-ups and a possible free band.
 
-## Status — 2026-08-31 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: T8 decided — Tiny is free, and free means no billing.** The owner: *"make the
+Tiny tier Free, no billing needed."* Tiny itself, not a sixth row below it: one migration at a
+time, up to 250 GB, no setup fee, no monthly, no invoice, no payment method and no billing
+details asked. The tier table moved into ADR-0014's operative rules, where the two price guards
+now read it, strictly: a cell is `free` or whole euros, and anything else fails by name (the
+old parse read a garbled cell as zero). The site says "free", never "€0": the Tiny card, the
+landing page's line, the estimator (which offers Tiny no top-up), and the pricing and
+how-it-works pages, which no longer say there is "nothing to gain by rationing", because going
+one at a time is now the free way. The app's Billing screen says *"Free: nothing is invoiced on
+this tier"* and asks for no invoice details while the tier is free; Support says *free*. The
+terms (draft v1.2) follow in §6 and §8; §10's liability cap reads as zero for a free customer,
+which is in the lawyer's briefing and the owner's to decide. **For T5:** a month billed at Tiny
+issues nothing, and leaving Tiny needs consent first, since a free organisation registered no way
+to pay. **For T6:** no top-up on Tiny. Guards: both ADR-parity guards read the operative table
+strictly; the site's own test holds the Tiny card, the landing line and no "€0" on any page; a
+browser test drives the estimator onto Tiny and then Small; Billing and Support say free. 16
+mutations, all killed, one of them a garbled price cell the old parse would have read as zero.
 
 **2026-08-31: T4 surfaced — the tier is visible before the invoice.** The whole
 measurement layer had no reader a person could open: the first wrong number would
@@ -67,14 +85,14 @@ per mapping, so nothing above it can be right until that moves.
 | Task | Status | Evidence |
 |---|---|---|
 | T0 What the invoice route does until tiers exist (owner decision) | ✅ **Decided (a) refuse, and built, 2026-08-27** | `POST /api/billing/invoices/generate` answers **409 `billing_model_retired`** for every well-formed request, in one sentence that names what it *would* have billed — a retired model, every byte counted twice, items that moved nothing — and says plainly that nothing is wrong with the account and a figure comes from a person until the tiers ship. **409 rather than 501**: the request is well-formed and the caller entitled to make it; the deployment cannot honour it. The refusal is FIRST in the handler and touches no database, so a refused call leaves not even a draft — a test asserts that by making `getDbPool` throw. **The old body is deleted rather than left unreachable behind the refusal**: dead code under a `return` is code nobody maintains and everybody assumes still works, and git has it. Nothing else in billing changes — usage, listing, payment methods and the webhook all behave normally, because what is refused is *minting a bill*, the one operation that turns a wrong model into a number somebody could be asked to pay. **The guard cannot outlive its reason**: one test re-reads `packages/managed/src/pricing.ts` and fails the moment it mentions tiers, so removing this refusal becomes something CI insists on when T4/T5 land rather than something they must remember. Proofs by breaking: the route billing again → 3 red; the reason reduced to "disabled" → 1; tier code appearing in `pricing.ts` → 1 (the trip-wire firing as designed). |
-| T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
+| T1 A lifecycle per PATH, not per mapping | 🟡 T1a done 2026-08-27; **T1b (the wiring) BUILT 2026-08-30** — the four writers move the paths in-transaction, T2/T3 unblocked; **a fifth writer found and wired 2026-09-24**: the cutover CLI and the rollback job write the mapping through the ledger's `applyMappingStatusChange`, which moved no path, so a CLI cutover kept its slots. The moving now lives in the ledger (`paths-follow-the-mapping.ts`) and that write calls it; entering the continuous lane now raises the month's peak too; **T1c (the cutover grain) extracted — needs an owner decision** (0104's one-announcement rule vs paths ending one at a time) | The unit ADR-0014 bills is `(mapping, domain)`. The billing ledger now moves with every press; only the machinery for paths ENDING one at a time still waits. |
 | T2 The peak, recorded rather than recomputed | ✅ **Built 2026-08-30** (managed migration 0015, `PgOccupancyPeakStore`, recorded inside the activation transaction) | "Six at the same time on 12 August" now comes from `occupancy_peak`: per-tenant per-month high-water, raise-only by trigger for every role, tie keeps its first date. Under-records only (concurrency, quiet months) — T4 trues up the live month before reading. **The month it files under was fixed 2026-09-09**: `date_trunc('month', ts::timestamptz)::date` truncates in the DATABASE SESSION's timezone, which nothing here sets, so on a Dutch appliance an activation at 2026-09-30T23:30Z was filed under 1 October — September's invoice missing its own evidence, October's quoting a date in September. Now `AT TIME ZONE 'UTC'`, matching what migration 0015 documents the column to hold and what `forMonth` already asked for. |
 | T3 The first-copy byte meter, append-only | ✅ **Built 2026-08-30** (engine statistic + managed migration 0016 + worker flush) | `firstCopyBytes` computed in the one shared loop at the moment of each target CREATE; `bytes_moved` raised by the managed worker after each pass, raise-only by trigger. Never the same query as 0090's byte budget, and never a live-row SUM — proved byte-exact by sensitivity at the engine. |
 | T4 The tier calculator, and its drift guard | ✅ **Built 2026-08-30** (`tier-calculator.ts`, on T1–T3 the same evening); **surfaced 2026-08-31** on the support tenant screen | The third copy of the numbers, held to the first two: the same structurally-identical ADR-table parse the site guard runs, PLUS an agreement grid driving this derivation and `site/calculator.mjs`'s over every boundary (195 points — tier and axis must match). `currentTier` derives from the month's peak (with T2's true-up, closing the quiet-month gap) and the meter's total, and answers with the EVIDENCE T5 quotes. Proved by breaking: a one-euro price drift and a wrong-axis derivation each turn red. **Surfaced**: `support_tenant_usage` (managed 0017) + `observedTier` (the read-only twin — looking moves no billing mark) render tier, axis, peak+date, live per-state counts and GB on the operator's tenant screen, parity with `currentTier` pinned before and after its true-up — so a wrong derivation is seen by the operator months before a customer sees a bill. **The view read a different month from the customer until 2026-09-09**: its join was `date_trunc('month', now())::date` — session-timezone dependent, like the writer — while the tenant's own `/api/billing/usage` read the peak in UTC. For the last hour or two of every month the earlier pair of eyes was looking at a different number from the one it exists to check. Managed migration 0024 pins the join to UTC. |
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. **Carries a dependency found in 0121 T4 (2026-09-09):** `rowFromIssuedInvoice` reads `metadata.costByDriver` off issued invoices to answer for months the run ledger no longer holds, and returns `null` without it — so dropping the breakdown makes newer months vanish from usage history SILENTLY while older ones keep rendering. T5 either keeps writing a breakdown or teaches that fallback the tier shape. Same reshape covers `/usage/history`, which still prices its ledger-derived rows with the retired `calculateCost` (nothing renders them today). |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
-| T8 The free band, if acquisition wants one | 📋 **Owner's call** — see the section below | Raised by the owner on 2026-09-08 and re-raised 2026-09-09. A pricing decision on the DATA axis, which costs no rows and needs no new machinery. Parked here rather than in 0121, whose subject is compute. |
+| T8 The free band, if acquisition wants one | ✅ **Decided and built 2026-09-24**: Tiny is free | The owner: *"make the Tiny tier Free, no billing needed."* Tiny itself, not a new row; no invoice, no payment method, no top-up. See the section below and ADR-0014's amendment. |
 
 ## Why this exists
 
@@ -390,7 +408,14 @@ written down.
 
 ## T8 — the free band, if acquisition wants one
 
-**Not decided. Recorded here so it is not lost, with what is already known about its shape.**
+**Decided 2026-09-24 by the owner: *"make the Tiny tier Free, no billing needed."*** Tiny
+itself became the free band, rather than a sixth row below it: N is Tiny's own 250 GB, and
+the site still publishes five tiers. The four questions below are answered in ADR-0014's
+amendment of that date: the axis stays cumulative, free means no invoice, and the setup fee's
+friction is gone, leaving the invite-only access grant as the brake. The text below is the
+record from before the decision.
+
+**Not decided (2026-09-08). Recorded here so it is not lost, with what is already known about its shape.**
 
 The owner's words, 2026-09-08:
 

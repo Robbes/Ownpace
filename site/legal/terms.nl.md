@@ -8,8 +8,8 @@
 # Servicevoorwaarden
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 1.1 (concept voor juridische toetsing — nog niet gepubliceerd; zie `site/legal/README.md`)
-**Laatst bijgewerkt:** 2026-08-30
+**Versie:** 1.2 (concept voor juridische toetsing — nog niet gepubliceerd; zie `site/legal/README.md`)
+**Laatst bijgewerkt:** 2026-09-24
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie en niets hiervan. Deze voorwaarden
@@ -87,6 +87,11 @@ geen prijs die u pas hoort na een gesprek.
   hoeveel gegevens u hebt verhuisd — niet gekozen uit een menu.
 - **Verhuizingen afronden verlaagt uw rekening automatisch**, zonder dat u erom vraagt. De
   hoeveelheid verhuisde gegevens legt daarbij een ondergrens.
+- **Tiny is gratis**: één verhuizing tegelijk, tot 250 GB, zonder inrichtingskosten, zonder
+  maandbedrag en zonder factuur. U legt er geen betaalwijze voor vast. Groeit u eroverheen —
+  een tweede verhuizing tegelijk, of meer gegevens — dan gaat u naar een betaald pakket, en we
+  vragen het u eerst; voor een maand waarin u niet hebt ingestemd Tiny te verlaten, wordt
+  niets gerekend.
 - De inrichtingskosten worden **één keer** gerekend, over het hoogste pakket dat u bereikt.
   Later omhoog kost alleen het verschil; weer omlaag betekent nooit opnieuw rekenen.
 - **Prijzen zijn inclusief btw.** Wat u ziet is wat u betaalt. Facturen aan zakelijke klanten
@@ -120,7 +125,8 @@ Bent u zakelijke klant, dan geldt dit hoofdstuk niet voor u.
 ## 8. Facturatie, verlenging, en niet betalen voor vergeten
 
 Er wordt **maandelijks achteraf** gefactureerd, via de betaalwijze die u hebt vastgelegd, door
-onze betaaldienstverlener Mollie. Bieden we een vooruitbetaalde termijn met korting aan — een
+onze betaaldienstverlener Mollie. Op Tiny wordt niets gefactureerd, dus er valt niets vast te
+leggen. Bieden we een vooruitbetaalde termijn met korting aan — een
 jaar, bijvoorbeeld — en kiest u die, dan wordt die termijn bij aanvang gefactureerd; de korting
 is de prijs van de toezegging.
 

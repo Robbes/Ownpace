@@ -11,8 +11,8 @@ without a recorded version is rewritten from the source when its source item cha
 and then carries the version the target returns. Removal still refuses such a row (D1). §2 states
 the reading and what it accepts. T3 is now decided in both halves. For a rewrite, the server
 checks a row that has a version, and a row without one is rewritten as today. T7 follows D3, and
-0009's note records that the reading is confirmed. Open question 3, on weak versions, is still
-open.
+0009's note records that the reading is confirmed. Open question 3, on weak versions, was
+answered the same day: *"0149 question 3: accept"* (D4). No open question is left in this plan.
 
 **2026-09-24: opened from the owner's answer.** The readiness review of 2026-09-23 found that
 *apply deletions*, the one path in the product that removes anything, relies on two facts it
@@ -355,6 +355,14 @@ T1 (T7). There, the item that was already at that address on the target, the cus
 overwritten when the source item changes. `ownpace-live` has no such rows if the alpha tag
 carries T1 (T7), so on live D3 matters only for a target that returns no ETag on PUT.
 
+**D4 — a target that gives only weak versions.** *On such a target nothing is ever removed, and a
+rewrite keeps today's check: accept that, or measure first which targets send weak ETags?* (Open
+question 3 recommended accepting it.) — *"0149 question 3: accept"*.
+
+So T3 is built as written: removal treats a weak version as none and refuses, and a rewrite keeps
+a HEAD and a comparison for it. The first nightly after T3 still shows whether Nextcloud and
+Stalwart send weak ETags on PUT, but nothing waits on it.
+
 ## 3. What each task does
 
 Before editing a file, grep `docs/LESSONS.md` for it (`AGENTS.md`, session protocol). Today it
@@ -527,7 +535,7 @@ in the alpha minimum for two reasons:
 
 On `ownpace-live` few rows lack a version. Live's database is new, so no row predates the
 version, and T1 stops making rows without one. What remains is a target that returns no ETag on
-PUT, or only a weak one (open question 3).
+PUT, or only a weak one (D4).
 
 **What changes with it, in the same PR:**
 
@@ -827,4 +835,5 @@ stack and the appliances.
 3. **A target that gives only weak versions (T3).** Under T3 nothing on it is ever removed, and a
    rewrite keeps today's check, a HEAD and a comparison. (a) Accept that, since removal fails
    closed. *Recommended.* (b) Measure first which of the targets testers bring send weak ETags on
-   PUT. The first nightly after T3 shows it for Nextcloud and Stalwart.
+   PUT. The first nightly after T3 shows it for Nextcloud and Stalwart. *Answered 2026-09-24: (a),
+   accept (D4).* The owner: *"0149 question 3: accept"*.

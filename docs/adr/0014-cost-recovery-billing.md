@@ -1,6 +1,6 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers) and **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
+- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) and **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
   resources to five tiers on paths running at the same time, and "no profit" no longer
   describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20
@@ -24,6 +24,27 @@
   Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is
   **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
   place a number is not published, because past the end of the scale we have to actually look.
+- **The tiers, as they hold now.** The price guards (`site/site.unit.test.ts`,
+  `packages/managed/src/tier-calculator.unit.test.ts`) parse THIS table, so a price change is
+  made here, in place, and the site and the managed code follow or turn red. The table in the
+  narrative below is the 2026-08-20 record and is not read by anything.
+
+  | tier | paths at the same time | data moved | setup | monthly |
+  |---|---|---|---|---|
+  | **Tiny** | 1 | 250 GB | free | free |
+  | **Small** | 4 | 750 GB | €8 | €4 |
+  | **Medium** | 20 | 2 TB | €15 | €8 |
+  | **Large** | 50 | 7.5 TB | €50 | €39 |
+  | **Extra large** | 200 | 15 TB | €150 | €99 |
+
+- **Tiny is free, and free means no billing** (the owner, 2026-09-24: *"make the Tiny tier
+  Free, no billing needed"*). No setup fee, no monthly, and no invoice: not a €0 invoice, which
+  would still cost a payment instrument, a VAT treatment and a bookkeeping row. An organisation
+  on Tiny registers no payment method and is not asked for billing details. **Leaving Tiny is
+  where billing starts**, so it is consented, as every step up is: a second migration at the
+  same time, or data past 250 GB, moves it to Small once it has said yes. A month it did not
+  consent to leave Tiny is billed as Tiny, which is nothing: under-billing, never a surprise
+  invoice.
 - **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
   allowance: the cost it stands for — the initial copy — is one-off, so a monthly allowance
   would be blown in month one and idle ever after. Re-copies, retries, updates and delta passes
@@ -32,7 +53,8 @@
   which is a number the customer can predict before starting — the same number the
   pre-preflight estimates.
 - **Running out of room does not have to mean moving up. Pay your setup fee again and your
-  allowance grows by another whole band.** Small: €8 buys another 750 GB, on Small, at €4 a
+  allowance grows by another whole band.** Tiny has no setup fee and so no top-up: its 250 GB is
+  the free band's edge, and past it the tier is Small. Small: €8 buys another 750 GB, on Small, at €4 a
   month. **Tiers buy lanes; top-ups buy room** — and which one someone needs is a question they
   can answer about themselves. Buyable repeatedly, never expiring, never refunded, and it is the
   customer's own tier's fee, so the page gains a mechanism without gaining a price.
@@ -86,7 +108,7 @@
   applied retroactively, and never taken as a reason to stop, pause or block a path. If the
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Tiny €4 + €2 · Small €8 + €4 · Medium €15 + €8 ·
+  splits into a one-off setup plus a monthly — Tiny free · Small €8 + €4 · Medium €15 + €8 ·
   Large €50 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
   way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
@@ -103,7 +125,9 @@
   Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
 - **The data ceiling is a PRICE, not a policy.** Crossing it moves the tier automatically and
   announced, the same way crossing a path ceiling does — never a silent throttle, never a
-  surprise invoice — with a warning at 80% that names what the next band costs. Calling that
+  surprise invoice — with a warning at 80% that names what the next band costs. From Tiny,
+  which is free, the move waits for the organisation's yes (above), because it is where billing
+  starts. Calling that
   "fair use" was a hedge; a number that changes a bill is a price, and saying so is the more
   explicit position, not the harsher one. **A residual fair-use clause remains** for what a
   number cannot express — reselling, pathological churn — and for nothing else.
@@ -112,10 +136,11 @@
   finishes eight paths and keeps one running falls to Small the following month, by the
   capacity rule and the automatic downgrade above rather than by a special case. A special case
   would only have hidden the front-loaded cost.
-- **Start everything; it falls by itself.** The published advice is to activate all the paths
-  at once and let automatic downgrade do the rest as each one cuts over — **not** to ration
-  paths to stay inside a band. Tiny exists for people who would rather go one at a time, and it
-  is cheaper for them; nobody should be nudged into it by fear of the next tier up.
+- **Start everything, or go one at a time: say both, and steer toward neither.** Everything at
+  once is faster, and its bill falls by itself as each path cuts over. One at a time is Tiny,
+  which is free (2026-09-24). The page says both in those words. Nobody is nudged into
+  rationing by fear of the next tier up, and nobody is sent past the free way by a page that
+  only praises the fast one.
 - **We do not take money from inattention.** A path billing with nothing to show gets a
   periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
   never runs past **12 months without an explicit re-confirmation**. A product promising "it
@@ -871,3 +896,47 @@ path that copies nothing because nothing changed is working correctly, and the l
   onboarding was ~71% of all hours. Which means this decision and workplan 0088's calculator are
   not two projects but one: the manual, the preflight and the error messages have to be good
   enough that nobody needs you.
+
+## Amendment, 2026-09-24: Tiny is free, and free means no billing
+
+The owner, 2026-09-24: *"make the Tiny tier Free, no billing needed."* That settles workplan
+0109 T8, the free band acquisition might want (*"a free tier up to x GB of traffic, just to get
+people onboard and having the smaller / lighter migrations for free"*, 2026-09-08). It settles
+it as Tiny itself rather than a sixth row below Tiny: the band that already exists for one
+migration at a time, up to 250 GB, now costs nothing.
+
+**What changed.** Tiny's setup fee and monthly are zero. The tier table now lives in the
+operative rules above, amended in place, and the price guards parse it there; the table in the
+2026-08-20 record stays as it was, a record. T8's four questions, answered:
+
+1. **The axis stays cumulative.** Free means *your first 250 GB, ever*, not an allowance that
+   refills each month.
+2. **N is Tiny's own 250 GB.** No new band, no new id; the site still publishes five tiers.
+3. **Free means no invoice**, the owner's *"no billing needed"*: no payment method, no billing
+   details, no VAT treatment and no bookkeeping row for an organisation on Tiny. The invoicer
+   (0109 T5) issues nothing for a month billed at Tiny.
+4. **The setup fee was the only friction on the entry band, and it is gone.** What still makes
+   an unattended, credentialed byte-mover cost something to start is the invite-only access
+   grant, which stays.
+
+**Consequences:**
+
+- **Stepping up from Tiny costs Small's whole setup, €8,** the difference from zero. The total
+  is still independent of the ramp: €0 then €8 is what starting on Small costs. The worked
+  examples above that quote Tiny at €4 + €2 are the 2026-08-20 record.
+- **No top-up on Tiny.** A top-up costs the tier's setup fee again, which on Tiny is nothing, so
+  it would make the data axis meaningless. Past 250 GB the tier is Small.
+- **Leaving Tiny is where billing starts, so it is consented.** This was already the rule for
+  every step up, and a free organisation has registered no way to pay. A month it did not
+  consent to leave Tiny is billed as Tiny: nothing. This under-bills rather than
+  surprise-invoices, the direction this ADR already chose.
+- **"Start everything" is no longer the only advice.** Going one at a time is now free, so the
+  page says both, and steers toward neither.
+- **The cross-subsidy grows by one tier.** Large and XL fund Tiny as well as Small and Medium.
+  Workplan 0109 T8 recorded the cost before the decision: an entry band free of charge anchors
+  the published price at zero for the lightest case.
+- **The terms follow** (`site/legal/README.md`: "If ADR-0014 changes, terms §6 and §8 change
+  with it"). §10's cap on liability, *"the amount you paid us in the twelve months before the
+  claim"*, reads as zero for an organisation on Tiny; that sentence is the owner's to decide,
+  and it is left as it stands until they have.
+
