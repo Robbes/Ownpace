@@ -44,13 +44,30 @@ const repoRoot = join(here, '..', '..', '..');
 /** The ADR's own spelling of a data ceiling — the same formatter the site guards with. */
 const size = (gb: number): string => (gb >= GB_PER_TB ? `${gb / GB_PER_TB} TB` : `${gb} GB`);
 
+/**
+ * A price cell: `free`, or whole euros. Anything else is a broken table and
+ * fails by name: a lenient parse read "free", "—" and a garbled cell alike as
+ * zero, which is the one price that must never arrive by accident.
+ */
+function euros(cell: string, what: string): number {
+  const value = cell === 'free' ? 0 : /^€\d+$/.test(cell) ? Number(cell.slice(1)) : Number.NaN;
+  expect(Number.isNaN(value), `ADR-0014: ${what} reads "${cell}", which is neither "free" nor whole euros`).toBe(false);
+  return value;
+}
+
 /** Parse ADR-0014's tier table — structurally identical to site/site.unit.test.ts. */
 function tiersFromAdr(): Map<string, { paths: number; data: string; setup: number; monthly: number }> {
   const adr = readFileSync(join(repoRoot, 'docs/adr/0014-cost-recovery-billing.md'), 'utf8');
-  const rows = adr
+  // The table that holds NOW lives in the ADR's operative rules, amended in
+  // place (ADR-0038); the narrative keeps the 2026-08-20 table as a record,
+  // and a guard that read both would count ten rows.
+  const start = adr.indexOf('\n## Operative rules');
+  const operative = adr.slice(start, adr.indexOf('\n## ', start + 1));
+  const rows = operative
     .split('\n')
+    .map((l) => l.trim())
     .filter((l) => /^\|\s*\*\*(Tiny|Small|Medium|Large|Extra large)\*\*/.test(l));
-  expect(rows.length, 'ADR-0014 no longer has a five-row tier table').toBe(5);
+  expect(rows.length, "ADR-0014's operative rules no longer have a five-row tier table").toBe(5);
 
   const out = new Map<string, { paths: number; data: string; setup: number; monthly: number }>();
   for (const row of rows) {
@@ -58,12 +75,13 @@ function tiersFromAdr(): Map<string, { paths: number; data: string; setup: numbe
       .split('|')
       .slice(1, -1)
       .map((x) => x.trim());
+    // | tier | paths at the same time | data moved | setup | monthly |
     const name = c[0]!.replace(/\*\*/g, '');
     out.set(name.toLowerCase(), {
-      paths: Number(c[2]),
-      data: c[3]!,
-      setup: Number(c[4]!.replace(/[^0-9]/g, '')),
-      monthly: Number(c[5]!.replace(/[^0-9]/g, '')),
+      paths: Number(c[1]),
+      data: c[2]!,
+      setup: euros(c[3]!, `${name}'s setup`),
+      monthly: euros(c[4]!, `${name}'s monthly`),
     });
   }
   return out;

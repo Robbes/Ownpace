@@ -90,6 +90,27 @@ live in [README.md](./README.md), the register.
   Tiny 250 GB · Small 750 GB · Medium 2 TB · Large 7.5 TB · XL 15 TB. One path and 400 GB is
   **Small**, because size says so. Past XL on either axis, **talk to us** — that is the one
   place a number is not published, because past the end of the scale we have to actually look.
+- **The tiers, as they hold now.** The price guards (`site/site.unit.test.ts`,
+  `packages/managed/src/tier-calculator.unit.test.ts`) parse THIS table, so a price change is
+  made here, in place, and the site and the managed code follow or turn red. The table in the
+  narrative below is the 2026-08-20 record and is not read by anything.
+
+  | tier | paths at the same time | data moved | setup | monthly |
+  |---|---|---|---|---|
+  | **Tiny** | 1 | 250 GB | free | free |
+  | **Small** | 4 | 750 GB | €8 | €4 |
+  | **Medium** | 20 | 2 TB | €15 | €8 |
+  | **Large** | 50 | 7.5 TB | €50 | €39 |
+  | **Extra large** | 200 | 15 TB | €150 | €99 |
+
+- **Tiny is free, and free means no billing** (the owner, 2026-09-24: *"make the Tiny tier
+  Free, no billing needed"*). No setup fee, no monthly, and no invoice: not a €0 invoice, which
+  would still cost a payment instrument, a VAT treatment and a bookkeeping row. An organisation
+  on Tiny registers no payment method and is not asked for billing details. **Leaving Tiny is
+  where billing starts**, so it is consented, as every step up is: a second migration at the
+  same time, or data past 250 GB, moves it to Small once it has said yes. A month it did not
+  consent to leave Tiny is billed as Tiny, which is nothing: under-billing, never a surprise
+  invoice.
 - **The data axis is CUMULATIVE and it counts each item's FIRST successful copy.** Not a monthly
   allowance: the cost it stands for — the initial copy — is one-off, so a monthly allowance
   would be blown in month one and idle ever after. Re-copies, retries, updates and delta passes
@@ -98,7 +119,8 @@ live in [README.md](./README.md), the register.
   which is a number the customer can predict before starting — the same number the
   pre-preflight estimates.
 - **Running out of room does not have to mean moving up. Pay your setup fee again and your
-  allowance grows by another whole band.** Small: €8 buys another 750 GB, on Small, at €4 a
+  allowance grows by another whole band.** Tiny has no setup fee and so no top-up: its 250 GB is
+  the free band's edge, and past it the tier is Small. Small: €8 buys another 750 GB, on Small, at €4 a
   month. **Tiers buy lanes; top-ups buy room** — and which one someone needs is a question they
   can answer about themselves. Buyable repeatedly, never expiring, never refunded, and it is the
   customer's own tier's fee, so the page gains a mechanism without gaining a price.
@@ -152,7 +174,7 @@ live in [README.md](./README.md), the register.
   applied retroactively, and never taken as a reason to stop, pause or block a path. If the
   arithmetic is ever wrong it must **under-bill, never halt a migration**.
 - **The setup fee is on the HIGHEST tier ever reached, and it is paid in steps.** Each tier
-  splits into a one-off setup plus a monthly — Tiny €4 + €2 · Small €8 + €4 · Medium €15 + €8 ·
+  splits into a one-off setup plus a monthly — Tiny free · Small €8 + €4 · Medium €15 + €8 ·
   Large €50 + €39 · XL €150 + €99. A tier reached on the **data** axis charges its step the same
   way a tier reached on the path axis does. Stepping up later costs the **difference** in setup, once; stepping down
   refunds nothing, because the onboarding was consumed. This makes the total independent of
@@ -169,7 +191,9 @@ live in [README.md](./README.md), the register.
   Deliberate contrast with the incumbents, and part of the same honesty claim as `SKIPPED`.
 - **The data ceiling is a PRICE, not a policy.** Crossing it moves the tier automatically and
   announced, the same way crossing a path ceiling does — never a silent throttle, never a
-  surprise invoice — with a warning at 80% that names what the next band costs. Calling that
+  surprise invoice — with a warning at 80% that names what the next band costs. From Tiny,
+  which is free, the move waits for the organisation's yes (above), because it is where billing
+  starts. Calling that
   "fair use" was a hedge; a number that changes a bill is a price, and saying so is the more
   explicit position, not the harsher one. **A residual fair-use clause remains** for what a
   number cannot express — reselling, pathological churn — and for nothing else.
@@ -178,10 +202,11 @@ live in [README.md](./README.md), the register.
   finishes eight paths and keeps one running falls to Small the following month, by the
   capacity rule and the automatic downgrade above rather than by a special case. A special case
   would only have hidden the front-loaded cost.
-- **Start everything; it falls by itself.** The published advice is to activate all the paths
-  at once and let automatic downgrade do the rest as each one cuts over — **not** to ration
-  paths to stay inside a band. Tiny exists for people who would rather go one at a time, and it
-  is cheaper for them; nobody should be nudged into it by fear of the next tier up.
+- **Start everything, or go one at a time: say both, and steer toward neither.** Everything at
+  once is faster, and its bill falls by itself as each path cuts over. One at a time is Tiny,
+  which is free (2026-09-24). The page says both in those words. Nobody is nudged into
+  rationing by fear of the next tier up, and nobody is sent past the free way by a page that
+  only praises the fast one.
 - **We do not take money from inattention.** A path billing with nothing to show gets a
   periodic, one-click *"keep it or finish it"* through the existing summary mail — and billing
   never runs past **12 months without an explicit re-confirmation**. A product promising "it

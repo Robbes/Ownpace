@@ -1,6 +1,24 @@
 # Workplan 0109 — the invoice speaks tiers
 
-## Status — 2026-08-31 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: T8 decided — Tiny is free, and free means no billing.** The owner: *"make the
+Tiny tier Free, no billing needed."* Tiny itself, not a sixth row below it: one migration at a
+time, up to 250 GB, no setup fee, no monthly, no invoice, no payment method and no billing
+details asked. The tier table moved into ADR-0014's operative rules, where the two price guards
+now read it, strictly: a cell is `free` or whole euros, and anything else fails by name (the
+old parse read a garbled cell as zero). The site says "free", never "€0": the Tiny card, the
+landing page's line, the estimator (which offers Tiny no top-up), and the pricing and
+how-it-works pages, which no longer say there is "nothing to gain by rationing", because going
+one at a time is now the free way. The app's Billing screen says *"Free: nothing is invoiced on
+this tier"* and asks for no invoice details while the tier is free; Support says *free*. The
+terms (draft v1.2) follow in §6 and §8; §10's liability cap reads as zero for a free customer,
+which is in the lawyer's briefing and the owner's to decide. **For T5:** a month billed at Tiny
+issues nothing, and leaving Tiny needs consent first, since a free organisation registered no way
+to pay. **For T6:** no top-up on Tiny. Guards: both ADR-parity guards read the operative table
+strictly; the site's own test holds the Tiny card, the landing line and no "€0" on any page; a
+browser test drives the estimator onto Tiny and then Small; Billing and Support say free. 16
+mutations, all killed, one of them a garbled price cell the old parse would have read as zero.
 
 **2026-08-31: T4 surfaced — the tier is visible before the invoice.** The whole
 measurement layer had no reader a person could open: the first wrong number would
@@ -72,7 +90,7 @@ per mapping, so nothing above it can be right until that moves.
 | T5 The invoice says the tier and its evidence | 📋 Planned (needs T2–T4) | One line, a tier name, a peak and a date — and the per-driver breakdown gone. **Carries a dependency found in 0121 T4 (2026-09-09):** `rowFromIssuedInvoice` reads `metadata.costByDriver` off issued invoices to answer for months the run ledger no longer holds, and returns `null` without it — so dropping the breakdown makes newer months vanish from usage history SILENTLY while older ones keep rendering. T5 either keeps writing a breakdown or teaches that fallback the tier shape. Same reshape covers `/usage/history`, which still prices its ledger-derived rows with the retired `calculateCost` (nothing renders them today). |
 | T6 Top-ups, step-ups and the floor | 📋 Planned (needs T4) | The mechanics ADR-0014 published and nothing implements. |
 | T7 Extend the leakage guard before, not after | ✅ **Obsolete as written — resolved by the guard itself, verified 2026-08-30** | The premise ("a fixed list of five") is stale: the guard's table list now DERIVES from the managed chain's own SQL, so `occupancy_peak` was appliance-forbidden the moment migration 0015 existed, with no list to edit. Verified green with the new table; T3's meter inherits the same coverage for free. |
-| T8 The free band, if acquisition wants one | 📋 **Owner's call** — see the section below | Raised by the owner on 2026-09-08 and re-raised 2026-09-09. A pricing decision on the DATA axis, which costs no rows and needs no new machinery. Parked here rather than in 0121, whose subject is compute. |
+| T8 The free band, if acquisition wants one | ✅ **Decided and built 2026-09-24**: Tiny is free | The owner: *"make the Tiny tier Free, no billing needed."* Tiny itself, not a new row; no invoice, no payment method, no top-up. See the section below and ADR-0014's amendment. |
 
 ## Why this exists
 
@@ -388,7 +406,14 @@ written down.
 
 ## T8 — the free band, if acquisition wants one
 
-**Not decided. Recorded here so it is not lost, with what is already known about its shape.**
+**Decided 2026-09-24 by the owner: *"make the Tiny tier Free, no billing needed."*** Tiny
+itself became the free band, rather than a sixth row below it: N is Tiny's own 250 GB, and
+the site still publishes five tiers. The four questions below are answered in ADR-0014's
+amendment of that date: the axis stays cumulative, free means no invoice, and the setup fee's
+friction is gone, leaving the invite-only access grant as the brake. The text below is the
+record from before the decision.
+
+**Not decided (2026-09-08). Recorded here so it is not lost, with what is already known about its shape.**
 
 The owner's words, 2026-09-08:
 

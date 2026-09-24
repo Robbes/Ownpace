@@ -491,9 +491,9 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
   });
 
   it('says a quiet month plainly rather than rendering a bare zero', async () => {
-    mountWithUsage({
+    const { container } = mountWithUsage({
       ...USAGE,
-      tier: { id: 'tiny', name: 'Tiny', paths: 1, data_gb: 250, setup: 4, monthly: 2 },
+      tier: { id: 'tiny', name: 'Tiny', paths: 1, data_gb: 250, setup: 0, monthly: 0 },
       decided_by: 'both',
       evidence: { peak_paths: 0, gb_moved: 0 },
       recorded_peak_paths: 0,
@@ -502,6 +502,10 @@ describe('the package the month has earned so far (0109 T4, surfaced)', () => {
       paths_by_state: {},
     });
     expect(await screen.findByText(STRINGS.en['support.usage.noPeak'])).toBeInTheDocument();
+    // Tiny is free (ADR-0014, 2026-09-24): the operator reads "free", which is
+    // what they quote to the customer, not "€0.00 per month".
+    expect(container.textContent).toContain(`Tiny · ${STRINGS.en['support.usage.free']}`);
+    expect(container.textContent).not.toContain(STRINGS.en['support.usage.perMonth']);
   });
 
   it("renders the table's deliberate end as words, never as a missing package", async () => {

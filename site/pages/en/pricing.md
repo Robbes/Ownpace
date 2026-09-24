@@ -14,9 +14,15 @@ another is one.
 
 ## The parts worth knowing before you pay
 
+**Tiny is free.** One migration at a time, up to 250 GB, costs nothing: no setup fee, nothing a
+month, no invoice, and no card or billing details to give us. Moving your mail, then your
+contacts, then your calendar, then your files, one after another, is the free way. Starting
+more at once is the faster way, and it is priced like any other tier. A second migration at
+the same time, or more than 250 GB, moves you to Small, and we ask you before it does.
+
 **Finishing lowers your bill, automatically.** When a migration cuts over it stops counting,
-and the tier falls on its own without you asking. So there is nothing to gain by rationing
-what you start — begin everything, and let the bill come down as each thing finishes.
+and the tier falls on its own without you asking. So if you start everything at once, the bill
+comes down as each thing finishes. We do not steer you either way.
 
 **Pausing does not lower it.** A paused migration is holding its place and can resume in a
 second, which is the point of it. Finishing is what frees the space.
@@ -39,7 +45,8 @@ storage page before you start.
 
 **Running out of room does not have to mean moving up a tier.** You can buy another whole
 band of room for the same one-off fee, and stay where you are. Tiers buy capacity; top-ups
-buy room. Whichever is cheaper for you is the one we will point at.
+buy room. Whichever is cheaper for you is the one we will point at. Tiny is free, so it has
+no top-up: past its 250 GB, it is Small.
 
 **We do not take money from inattention.** If a migration is running with nothing left to
 do, we ask you — in one click — whether to keep it or finish it. And we never bill past

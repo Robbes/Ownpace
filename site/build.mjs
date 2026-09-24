@@ -43,6 +43,7 @@ import {
   total,
   firstMonth,
 } from './prices.mjs';
+import { freeTier as free } from './calculator.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
 
@@ -564,19 +565,29 @@ function tierCards(locale) {
   const c = COPY[locale];
   return (
     '<div class="tiers">' +
-    TIERS.map((t) => {
+    TIERS.map((t, i) => {
       const featured = t.id === 'small';
+      // A free tier says so, and says where it ends: never "€0", which reads
+      // as a price that could be billed (ADR-0014, 2026-09-24).
+      const next = TIERS[i + 1];
+      const prices = free(t)
+        ? `<div class="price">${c.tierFree} <span>${c.tierFreeFor}</span></div>
+  <div class="price" style="font-size:1.1rem">${c.tierNoInvoice} <span>${c.tierNoInvoiceWhy}</span></div>`
+        : `<div class="price">${money(firstMonth(t))} <span>${c.tierFirstMonth}</span></div>
+  <div class="price" style="font-size:1.1rem">${money(t.monthly)} <span>${c.tierThen}</span></div>`;
+      const terms = free(t)
+        ? `<li>${c.tierFreeEdge(next.name)}</li>`
+        : `<li>${c.tierSetup(money(t.setup))}</li>
+    <li>${c.tierThree(money(total(t, 3)))}</li>`;
       return `<div class="tier${featured ? ' featured' : ''}">
   ${featured ? `<span class="badge">${c.tierBadge}</span>` : ''}
   <h3>${t.name}</h3>
   <p class="who">${esc(t.who)}</p>
-  <div class="price">${money(firstMonth(t))} <span>${c.tierFirstMonth}</span></div>
-  <div class="price" style="font-size:1.1rem">${money(t.monthly)} <span>${c.tierThen}</span></div>
+  ${prices}
   <ul>
     <li>${c.tierPaths(t.paths)}</li>
     <li>${c.tierData(size(t.dataGb))}</li>
-    <li>${c.tierSetup(money(t.setup))}</li>
-    <li>${c.tierThree(money(total(t, 3)))}</li>
+    ${terms}
   </ul>
   <p class="note">${esc(t.note)}</p>
   <p><a class="btn ${featured ? 'btn-primary' : 'btn-ghost'}" href="${esc(orderHref(locale, t))}">${c.tierStart(t.name)}</a></p>
@@ -597,7 +608,7 @@ function landing(locale) {
     <a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>
     <a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a>
   </div>
-  <p class="fineprint">${c.heroFine(money(firstMonth(TIERS[0])))} ${esc(c.vatIncluded)}</p>
+  <p class="fineprint">${free(TIERS[0]) ? c.heroFree(TIERS[0].name, size(TIERS[0].dataGb)) : c.heroFine(money(firstMonth(TIERS[0])))} ${esc(c.vatIncluded)}</p>
 </section>
 
 <h2>${c.diffTitle}</h2>
@@ -712,12 +723,15 @@ const CALC_GLUE = `
     card.hidden = false;
     var t = d.tier;
     $('tier-name').textContent = fill(S.tierLine, t.name);
-    $('tier-setup').textContent = fill(S.tierSetup, euro(t.setup));
-    $('tier-monthly').textContent = fill(S.tierMonthly, euro(t.monthly));
+    var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
+    var isFree = freeTier(t);
+    $('tier-setup').textContent = isFree ? S.tierFree : fill(S.tierSetup, euro(t.setup));
+    $('tier-monthly').textContent = isFree ? fill(S.tierFreeEdge, sizeOf(t.dataGb), next.name) : fill(S.tierMonthly, euro(t.monthly));
+    $('tier-first').hidden = isFree;
+    $('tier-three').hidden = isFree;
     $('tier-first').textContent = fill(S.tierFirstMonth, euro(t.setup + t.monthly));
     $('tier-three').textContent = fill(S.tierThree, euro(t.setup + t.monthly * 3));
 
-    var next = cfg.tiers[cfg.tiers.indexOf(t) + 1];
     var vs = topUpAgainstStepUp(t, next);
     $('topup-line').textContent = !vs ? '' :
       fill(S.topUpLine, t.name, euro(vs.topUpOnce), sizeOf(t.dataGb), next.name, euro(vs.stepUpNow), euro(vs.stepUpMonthlyMore))

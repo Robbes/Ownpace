@@ -14,10 +14,16 @@ die alle vier tegelijk verhuist, doet er vier tegelijk; iemand die ze na elkaar 
 
 ## Wat u wilt weten voordat u betaalt
 
+**Tiny is gratis.** Eén verhuizing tegelijk, tot 250 GB, kost niets: geen inrichtingskosten,
+niets per maand, geen factuur, en geen kaart of factuurgegevens die u ons hoeft te geven. Uw
+e-mail, dan uw contacten, dan uw agenda, dan uw bestanden, na elkaar: dat is de gratis weg.
+Meer tegelijk starten is de snellere weg, en die kost wat elk ander pakket kost. Een tweede
+verhuizing tegelijk, of meer dan 250 GB, brengt u naar Small, en we vragen het u eerst.
+
 **Afronden verlaagt uw rekening, automatisch.** Zodra een verhuizing is overgestapt, telt hij
-niet meer mee en zakt het pakket vanzelf, zonder dat u erom hoeft te vragen. Er valt dus niets
-te winnen met zuinig beginnen — start alles, en laat de rekening dalen naarmate er dingen
-klaar zijn.
+niet meer mee en zakt het pakket vanzelf, zonder dat u erom hoeft te vragen. Start u alles
+tegelijk, dan daalt de rekening dus naarmate er dingen klaar zijn. Wij sturen u geen van
+beide kanten op.
 
 **Pauzeren verlaagt hem niet.** Een gepauzeerde verhuizing houdt zijn plek vast en kan in een
 seconde verder, en dat is precies het nut ervan. Afronden is wat de plek vrijmaakt.
@@ -34,7 +40,8 @@ op de opslagpagina van uw eigen aanbieder.
 
 **Ruimte tekort komen hoeft niet te betekenen dat u omhoog moet.** U kunt er voor hetzelfde
 eenmalige bedrag een hele band ruimte bij kopen en blijven waar u zit. Pakketten kopen
-capaciteit; bijkopen koopt ruimte. Wat voor u goedkoper is, is wat wij zullen aanwijzen.
+capaciteit; bijkopen koopt ruimte. Wat voor u goedkoper is, is wat wij zullen aanwijzen. Tiny
+is gratis en kent dus geen bijkoop: voorbij de 250 GB is het Small.
 
 **We verdienen niet aan onoplettendheid.** Loopt er een verhuizing zonder dat er nog iets te
 doen valt, dan vragen we u — met één klik — of u hem wilt houden of afronden. En we brengen
