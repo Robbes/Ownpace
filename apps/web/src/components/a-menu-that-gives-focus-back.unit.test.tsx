@@ -26,10 +26,10 @@
  *
  * With a wide screen the drawer is the sidebar, always on screen, and nothing
  * about it is `inert`. Which screen is narrow is decided by the same media
- * condition Tailwind puts `lg:` behind, and the last case asks the installed
- * Tailwind for it: a `(min-width: 1024px)` would disagree with the stylesheet
- * for anyone whose browser font is larger than 16 px, which is exactly the
- * reader this is for.
+ * condition Tailwind puts `lg:` behind, and the last case compiles the app's
+ * own stylesheet with the installed Tailwind to ask for it. A
+ * `(min-width: 1024px)` would disagree with the stylesheet for anyone whose
+ * browser font is larger than 16 px, which is exactly the reader this is for.
  *
  * jsdom implements neither `matchMedia` nor what `inert` does, so this asks
  * for the attribute and for `document.activeElement`. The real browser's half
@@ -41,7 +41,7 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { compile } from 'tailwindcss';
 
@@ -237,6 +237,22 @@ describe('a narrow screen', () => {
     expect(menu).toHaveAttribute('aria-expanded', 'false');
     expect(drawer).toHaveAttribute('inert');
   });
+
+  it('gives focus back to the menu button when a link to this same page is followed', () => {
+    // No route change, so no new page takes focus (T3 (b)). Without this the
+    // focused link goes `inert` with its drawer and focus falls to the body.
+    renderLayout('/dashboard');
+    const { drawer, menu } = parts();
+
+    fireEvent.click(menu);
+    const here = screen.getByRole('link', { name: 'Dashboard' });
+    here.focus();
+    fireEvent.click(here);
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(drawer).toHaveAttribute('inert');
+    expect(document.activeElement).toBe(menu);
+  });
 });
 
 describe('a wide screen', () => {
@@ -253,6 +269,23 @@ describe('a wide screen', () => {
     fireEvent.click(menu);
     expect(drawer).not.toHaveAttribute('inert');
     expect(page).not.toHaveAttribute('inert');
+  });
+
+  it('leaves nothing behind when the sidebar links to this same page', () => {
+    // On a wide screen there is no drawer to close, so nothing may be owed
+    // focus later: a link out of the drawer, once narrow, is not a close that
+    // gives focus back to the menu button.
+    media.wide = true;
+    renderLayout('/dashboard');
+    const { menu } = parts();
+    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+
+    media.resize(false);
+    fireEvent.click(menu);
+    fireEvent.click(screen.getByRole('link', { name: 'Migrations' }));
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(document.activeElement).not.toBe(menu);
   });
 
   it('follows the window across the breakpoint', () => {
@@ -283,12 +316,18 @@ describe('a wide screen', () => {
     expect(asked.size, 'the layout asked matchMedia nothing').toBe(1);
     const [query] = [...asked];
 
-    // Read from disk, not imported with `?raw`: vitest stubs every .css
-    // import to an empty string (see a-class-tailwind-draws-nothing-for).
-    const indexCss = createRequire(import.meta.url).resolve('tailwindcss/index.css');
-    const content = readFileSync(indexCss, 'utf8');
-    const compiler = await compile('@import "tailwindcss";', {
-      loadStylesheet: async () => ({ path: indexCss, base: dirname(indexCss), content }),
+    // The app's own stylesheet, not a bare `@import "tailwindcss"`, so that a
+    // `--breakpoint-lg` set in its `@theme` moves the answer too. Read from
+    // disk, not imported with `?raw`: vitest stubs every .css import to an
+    // empty string (see a-class-tailwind-draws-nothing-for).
+    const appCss = resolve(__dirname, '..', 'index.css');
+    const tailwindCss = createRequire(import.meta.url).resolve('tailwindcss/index.css');
+    const compiler = await compile(readFileSync(appCss, 'utf8'), {
+      base: dirname(appCss),
+      loadStylesheet: async (id, base) => {
+        const path = id === 'tailwindcss' ? tailwindCss : resolve(base, id);
+        return { path, base: dirname(path), content: readFileSync(path, 'utf8') };
+      },
     });
     const css = compiler.build(['lg:translate-x-0']);
     const lg = /@media\s+([^{]+?)\s*\{\s*\.lg\\:translate-x-0/.exec(css);

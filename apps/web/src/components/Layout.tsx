@@ -84,7 +84,8 @@ const Layout: React.FC = () => {
    * - open, focus moves to its close button and the page behind is `inert`;
    * - Escape, the close button and the backdrop close it, and focus goes back
    *   to the menu button. Following a link closes it as before; where focus
-   *   goes on a new page is 0145 T3 (b).
+   *   goes on a new page is 0145 T3 (b), and a link to the page already shown
+   *   gives focus back to the menu button (`followLink`).
    *
    * From `lg` up the drawer is the sidebar and none of this applies, even if
    * the window was widened with the drawer open.
@@ -123,6 +124,15 @@ const Layout: React.FC = () => {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen, closeDrawer]);
   const location = useLocation();
+  // Following a link closes the drawer. To another page, focus goes to that
+  // page (0145 T3 (b)). To the page already shown there is no route change and
+  // nothing takes focus: the followed link goes `inert` with its drawer, and a
+  // browser drops focus to the body. So it goes back to the menu button, as it
+  // does on Escape. The query is ignored: it is not a route change either.
+  const followLink = (to: string) => {
+    if (drawerOpen && to.split('?')[0] === location.pathname) closeDrawer();
+    else setSidebarOpen(false);
+  };
   const routeCtx = mappingRouteContext(location.pathname);
   const selfHostEdition = isSelfHost();
   // THE MIGRATION'S NAME, for the header. The same query key the hub already
@@ -336,7 +346,7 @@ const Layout: React.FC = () => {
                 <Link
                   key={item.href}
                   to={item.href}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={() => followLink(item.href)}
                   className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                     isActive
                       ? 'bg-blue-50 text-blue-700'
@@ -397,7 +407,7 @@ const Layout: React.FC = () => {
             {!selfHost && reportingAvailable && (
               <Link
                 to={`/report?from=${encodeURIComponent(location.pathname)}`}
-                onClick={() => setSidebarOpen(false)}
+                onClick={() => followLink('/report')}
                 className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <MessageSquareWarning className="w-5 h-5 mr-3" />
