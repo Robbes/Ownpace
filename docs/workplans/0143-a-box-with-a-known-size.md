@@ -900,8 +900,8 @@ move this number to fit"*.
 - **T9**, because every number above is a guess until it has run once on the machine that will
   carry it, with both stacks on it.
 
-0131 T5's go/no-go table lists 0131 to 0140, 0093 T2c and 0130, and has no row for this plan yet.
-The row proposed for it:
+0131 T5's go/no-go table carries a row for this plan since the cross-plan review of 2026-09-24,
+taken from the text below. The row:
 
 - T1, T2a, T3a and T4 are on `ownpace-live`, and live's caps are uploaded;
 - T9 passed with live standing beside the OTA stack, and its numbers and the runway are written

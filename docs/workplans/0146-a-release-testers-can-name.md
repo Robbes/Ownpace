@@ -11,8 +11,8 @@ only "pre-release", which nothing says when ends. The review's other findings on
 drill, the managed chain's upgrade gate, the frozen MinIO image and the pins Dependabot leaves
 alone are taken up in T4, T7 and T8. The owner chose to have this plan written: *"W11 write, W12
 write, W13 write, W14 write, W15 explaoin, W16 write, W17 write, W18 explain, W19 write"*. 0131 §5
-calls this work W17. Its one-line summary there says "a beta tag"; the owner's word is *Alpha*
-(D1), so this plan proposes an alpha tag.
+calls this work W17. Its one-line summary there first said "a beta tag"; the owner's word is
+*Alpha* (D1), so this plan proposes an alpha tag, and 0131 §5 now says so.
 
 Later the same day the owner put testers on a stack of their own, `ownpace-live`, beside the OTA
 stack on the same machine (0131 D3; 0132 D7 carries the second stack). That shapes this plan: the

@@ -674,8 +674,8 @@ first measurements to set thresholds from.
 - **T6**, because the first bad day should not be the first time the steps are worked out, and
   0139 T8 needs a way in.
 
-0131 T5's go/no-go table lists 0131 to 0140, 0093 T2c and 0130, and has no row for this plan
-yet. The row proposed for it: T0's test alert arrived on live, and its recovery too; T1 and T2 are
+0131 T5's go/no-go table carries a row for this plan since the cross-plan review of 2026-09-24,
+taken from the text below. The row: T0's test alert arrived on live, and its recovery too; T1 and T2 are
 on `ownpace-live` with the switch on, and off on the OTA stack; T6 is in `docs/`. As with the other
 rows, the owner may accept a gap in writing instead, dated, with the reason.
 

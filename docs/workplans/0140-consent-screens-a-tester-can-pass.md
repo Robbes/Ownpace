@@ -180,8 +180,9 @@ app's development or production status, or how many accounts may link to it. The
 writes `DROPBOX_OAUTH_CLIENT_ID=gatedropboxappkey` into the OTA stack's `.env` when no value is
 present (`e2e-managed.yml`, `env-upsert.sh --if-absent`). The repository therefore cannot say
 whether the reference machine carries a real Dropbox app. The placeholder stays on the OTA stack
-while the gate writes it; 0132 T5 takes it out only if that stack stops being a demo. Live's `.env` is its own and CI never writes to it (0132 D7, T1b), so live carries a
-Dropbox app only if the owner enters one. Its redirect address is `API_URL` plus
+while the gate writes it: 0132 T5, which would take it out, is parked for that stack until it
+stops being a demo. Live's `.env` is its own and CI never writes to it (0132 D7, T1b), so live
+carries a Dropbox app only if the owner enters one. Its redirect address is `API_URL` plus
 `/api/migrations/dropbox/callback` (`dropbox-oauth-routes.ts`), so that app must carry live's
 address (T11).
 
@@ -352,7 +353,7 @@ reconnect recorded (a) or the first tester's connection still working on day eig
 ### T2 — what a Google tester is told, and a reconnect the page can find
 
 **The steps, for the tester.** The owner gives these to each Google tester. They move into a
-tester guide once there is one (0144, W14 in 0131 §5). The Dutch text
+tester guide once there is one (0144 T1, whose sections 2 and 3 take them). The Dutch text
 is written with the first tester's real screens, using Google's own Dutch words as they appear on
 them.
 
@@ -406,8 +407,8 @@ under "My link says it does not work".
 more prominently, with a button that copies the link.
 
 **The check.** Before the first grant link goes out, the owner opens one link from WhatsApp and one
-from the mail app they use, on their own phone, and records here what Google did. A full device
-list is on 0131's list of further work (§5 there).
+from the mail app they use, on their own phone, and records here what Google did. The full device
+list, with the in-app browsers the first testers use, is 0145 T10's walk on two phones.
 
 **Guard.** `apps/web/src/pages/a-grant-page-that-names-a-real-browser.unit.test.tsx` renders
 `Grant` and a Google `ProviderConsentPanel` in EN and NL and finds the sentence in each. It fails
@@ -549,8 +550,8 @@ The password opens mail, calendars and contacts over IMAP, CalDAV and CardDAV. R
 property of the product's connectors, which have no write path (privacy policy §4.1). It is not a
 limit of the password, and the tester is told so in those words.
 
-Walking Part 1 of `docs/apple-supervised-run.md` with the owner's own Apple Account before the
-first Apple tester belongs to the live proofs on 0131's list of further work (§5 there).
+Walking Part 1 of `docs/apple-supervised-run.md` with the owner's own Apple Account, and the first
+pass it asks for, is 0141 T4, before a tester who uses the Apple card is granted.
 
 No code, so there is no guard.
 
@@ -797,8 +798,8 @@ they can accept. This is the default and must be checked (T6).
 ## Not in this plan
 
 - The label itself and the table behind it: 0131 T2.
-- Live runs that would move a source from experimental to proven, including Apple's Part 1:
-  on 0131's list of further work (§5 there).
+- Live runs that would move a source from experimental to proven: 0141, where Apple's Part 1 and
+  first pass are T4.
 - Standing up `ownpace-live` with its own `.env`, identity provider and production names: 0132
   T1b to T1e.
 - Removing the gate's placeholder client pairs from the OTA stack: 0132 T5, parked with 0026 row
@@ -806,12 +807,12 @@ they can accept. This is the default and must be checked (T6).
 - The identity provider's verification mail: 0133.
 - The privacy policy's sentences on sign-in providers and on who holds a Microsoft credential:
   0139. The grant page's legal links are fixed in #1137, merged 2026-09-24.
-- The grant page's "Read-only" box sitting above a scope Google describes more broadly, and the
-  in-app guides that still tell managed testers to create their own Google or Dropbox app: on
-  0131's list of further work (§5 there).
+- The grant page's "Read-only" box sitting above a scope Google describes more broadly: 0144 T3.
+  The in-app guides that still tell managed testers to create their own Google or Dropbox app:
+  W15, explained to the owner and not planned yet (0131 §5).
 - A consent popup that Safari may block because `ProviderConsent.tsx` opens it after an awaited
-  call (reported by the review, not verified: nothing runs WebKit), and a full device list: on
-  0131's list of further work (§5 there).
+  call (reported by the review, not verified: nothing runs WebKit): 0145 T0 checks it and T5 opens
+  the window on the press. A full device list: 0145 T10.
 - Google's verification submission and the restricted-scope assessment: 0089 T5 and ADR-0041,
   unchanged.
 
