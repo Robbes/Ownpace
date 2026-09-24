@@ -114,6 +114,17 @@ domain the address must match exactly, apart from capitals. If the migration nam
 of the account, sign-in is refused, and the page shows the account's own address. A
 migration's account cannot be changed afterwards, so create it again with that address.
 
+### If they doubt it
+
+Under that question, the page offers **Report this link** (workplan 0108 T8 (d)). A report goes to
+whoever runs your Ownpace, **not to you**: what the person wrote, an address to reply to if they
+want an answer, and which link it was, so they can find the migration and who issued the link. The progress page offers the
+same, for somebody who granted and then had doubts. It appears only where the service has a
+helpdesk set up.
+
+A report changes nothing by itself. The link keeps working until you revoke it, and nothing is
+read unless the person grants. Whoever runs your Ownpace may ask you about it.
+
 ## Managing them afterwards
 
 The list under **Grant links** shows every link for the migration and what became of it:

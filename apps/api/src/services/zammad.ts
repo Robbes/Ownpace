@@ -16,6 +16,8 @@
  * Without the first two, the form is not offered at all.
  */
 
+import { log } from '@openmig/shared';
+
 export interface ZammadConfig {
   readonly url: string;
   readonly token: string;
@@ -55,6 +57,39 @@ export function zammadConfigFrom(env: NodeJS.ProcessEnv = process.env): ZammadCo
     );
   }
   return { url: url.replace(/\/+$/, ''), token, group: env.ZAMMAD_GROUP?.trim() || 'Users' };
+}
+
+/**
+ * The configuration a door may send with, or undefined when reporting is not
+ * set up or is set up wrongly, and then said in the log. Every door asks this
+ * and nothing else: the signed-in form (0130) and a link's report (0108 T8 (d)).
+ */
+export function reportingConfig(env: NodeJS.ProcessEnv | undefined): ZammadConfig | undefined {
+  try {
+    return zammadConfigFrom(env);
+  } catch (err) {
+    log.error(`[api] problem reports are switched off: ${(err as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
+ * The helpdesk's own user: the one the API token belongs to
+ * (`GET /api/v1/users/me`). A link report sent without a reply address is
+ * filed under it (the owner, 2026-09-24): Zammad needs a customer for every
+ * ticket, and this one is the owner's own, so nothing is sent to an address
+ * nobody gave.
+ */
+export async function zammadOwnUserId(config: ZammadConfig, fetchImpl: typeof fetch = fetch): Promise<number> {
+  const response = await fetchImpl(`${config.url}/api/v1/users/me`, {
+    method: 'GET',
+    headers: { Authorization: `Token token=${config.token}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new ZammadRefused(response.status);
+  const body = (await response.json()) as { id?: unknown };
+  if (typeof body.id !== 'number') throw new ZammadRefused(response.status);
+  return body.id;
 }
 
 /** Create the ticket, and answer its number. */

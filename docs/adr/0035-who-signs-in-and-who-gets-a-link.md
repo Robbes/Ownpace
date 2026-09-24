@@ -38,6 +38,7 @@
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
 - The migrated person can **take their grant back** from their progress page: revoked at Google where Google will, deleted here whatever Google answers, and they are told which (0108 T8 (c), 2026-09-24). Until they grant again, nothing reads that account for that migration, on any credential.
+- The person holding a link can **report it** from the grant page or the progress page: a ticket on the owner's helpdesk, never a message to the organisation that asked, offered only where a helpdesk is set up (0108 T8 (d), 2026-09-24). A reply address is optional: a report without one is filed under the helpdesk's own user and cannot be answered (the owner, 2026-09-24).
 
 ## Context
 

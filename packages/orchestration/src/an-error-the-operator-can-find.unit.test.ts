@@ -25,6 +25,7 @@ import {
   type AppEvent,
   type MigrationStatusStore,
   type SwitchedOffState,
+  phasesOfTheMigration,
 } from '@openmig/shared';
 import { runAllDomains } from './orchestration.ts';
 
@@ -75,7 +76,7 @@ describe('a data type that fails, in the appliance and the command-line worker',
     const said = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { store, calls } = fakeStore();
 
-    await runAllDomains(mapping(), store, 'active');
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'));
 
     expect(calls).toContain('failed calendar');
     expect(events).toHaveLength(1);

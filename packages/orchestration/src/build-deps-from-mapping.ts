@@ -26,9 +26,10 @@ import {
   microsoftTenant,
   log,
   sourceAuthorityFor,
+  type PathPhaseOf,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
-import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget } from '@openmig/ledger';
+import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readPathPhases } from '@openmig/ledger';
 import {
   createTokenProvider,
   type ArchiveStore,
@@ -246,6 +247,14 @@ export async function buildDepsFromMapping(
     throw new Error('Mapping not found or access denied');
   }
   refuseAWithdrawnGrant(mappings[0]!);
+  // Mail's own phase (0128 T5), read by the one reader every gate asks, so
+  // this pass and the pass's stop check cannot disagree about it.
+  const mailPhase = await withTenant(pool, tenantId, async (txDb) =>
+    (await readPathPhases(txDb, tenantId, mappingId))?.phaseOf('email'),
+  );
+  if (mailPhase === undefined) {
+    throw new Error('Mapping not found or access denied');
+  }
 
   // Load connections and credentials WITHIN tenant context (RLS enforced)
   const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
@@ -432,11 +441,10 @@ export async function buildDepsFromMapping(
     {
       tenantId: tenantId as ReconcileDeps['tenantId'],
       mappingId: mappingId as ReconcileDeps['mappingId'],
-      // The pass's phase, from the mapping row this function already read
-      // (0117 D4). The mail domain's stake in it is the largest: its ONLY
-      // deletion evidence is the owner's bin, so after cutover that scan is
-      // what must not happen.
-      ...sourceAuthorityFor(mappings[0]!.status),
+      // Mail's own phase (0117 D4, 0128 T5). The mail domain's stake in it is
+      // the largest: its ONLY deletion evidence is the owner's bin, so after
+      // its cutover that scan is what must not happen.
+      ...sourceAuthorityFor(mailPhase.phase),
       ...(mappings[0]!.targetFolderPrefix
         ? { targetFolderPrefix: mappings[0]!.targetFolderPrefix }
         : {}),
@@ -485,8 +493,8 @@ async function loadDomainConnections(
   targetFolderPrefix?: string;
   /** The mapping's stored throttle choice, for `tenantThrottleLimiter`. */
   throttleConfig?: Partial<import('@openmig/shared').ThrottleConfig> | null;
-  /** `mailbox_mapping.status`, for `sourceAuthorityFor` (0117 D4). */
-  status: string;
+  /** Each data type's phase, for `sourceAuthorityFor` (0117 D4, 0128 T5). */
+  phaseOf: PathPhaseOf;
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const mappingRows = await txDb
@@ -502,15 +510,15 @@ async function loadDomainConnections(
         // path has always had (2026-09-07) — the column existed, this query
         // just never asked for it.
         throttleConfig: mailboxMapping.throttleConfig,
-        // The pass's PHASE (0117 D4). Read from the mapping's own row, which
-        // is the only thing that knows whether cutover has happened — never
-        // from a config file, and never from a caller's opinion.
-        status: mailboxMapping.status,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
     const mapping = mappingRows[0];
-    if (!mapping) {
+    // Each data type's phase, from the one reader every gate asks (0128 T5):
+    // the same answer as the status above today, and the right one once a
+    // data type can be cut over on its own.
+    const phases = await readPathPhases(txDb, tenantId, mappingId);
+    if (!mapping || !phases) {
       throw new Error(`Mapping not found or access denied: ${mappingId}`);
     }
     refuseAWithdrawnGrant(mapping);
@@ -589,7 +597,7 @@ async function loadDomainConnections(
       throttleConfig: mapping.throttleConfig as
         | Partial<import('@openmig/shared').ThrottleConfig>
         | null,
-      status: mapping.status,
+      phaseOf: phases.phaseOf,
     };
   });
 }
@@ -696,7 +704,7 @@ export async function buildDomainDepsFromMapping(
       target: tgt,
       targetFolderPrefix,
       throttleConfig,
-      status,
+      phaseOf,
     } = await loadDomainConnections(pool, tenantId, mappingId);
     // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
     // Until today only `buildDepsFromMapping` built one, so every calendar,
@@ -719,15 +727,15 @@ export async function buildDomainDepsFromMapping(
     // repaired twice already: four branches asking the same question by hand
     // is three chances to forget it.
     refuseDomainTheTargetCannotCarry(domain, tgt.kind);
-    // The pass's phase, on `common` so all four branches carry it and none
-    // can be the one that forgot (0117 D4). Derived from the mapping's own
-    // `status` — see `sourceAuthorityFor`.
+    // This data type's phase, on `common` so all four branches carry it and
+    // none can be the one that forgot (0117 D4). Its own phase, not the
+    // migration's (0128 T5) — see `sourceAuthorityFor`.
     const common = {
       tenantId: tId,
       mappingId: mId,
       ledger,
       cursors,
-      ...sourceAuthorityFor(status),
+      ...sourceAuthorityFor(phaseOf(domain).phase),
     };
     // As in `build-deps.ts`: a choice about this migration, carried with the
     // target's dependencies rather than with the endpoint.

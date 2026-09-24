@@ -124,22 +124,57 @@ describe('the lane runs, in both editions and by one authority', () => {
     expect(sql).toMatch(/OR \(m\.status = 'cutover'\s+AND EXISTS \(SELECT 1 FROM cutover_state c[\s\S]*?\$\{CUTOVER_STILL_COPIES_WHERE\}/);
   });
 
-  it('both editions read the phase off the mapping row, and neither hard-codes it', () => {
+  it("both editions read each data type's own phase, and neither hard-codes it", () => {
     // The one value that must never be an opinion. `true` written into a
     // production dep builder is a continuous lane with the detectors back.
+    //
+    // And since 0128 T5 (the owner's D8: the cutover is per data type), the
+    // opinion must be the DATA TYPE's: a phase read through `readPathPhases`
+    // and handed over as a `PathPhase`, never the migration's own status.
+    // Today the two are the same answer; the day mail can be cut over on its
+    // own, a builder still asking the migration would give mail's pass the
+    // detectors back while the migration reads `active` for its files.
     for (const file of [
       'packages/orchestration/src/build-deps-from-mapping.ts',
       'packages/orchestration/src/orchestration.ts',
     ]) {
       const src = source(file);
-      expect(src, `${file} no longer derives the phase from the lifecycle`).toContain(
-        'sourceAuthorityFor(',
-      );
+      const calls = src
+        .split('\n')
+        .filter((line) => line.includes('sourceAuthorityFor(') && !line.trimStart().startsWith('*') && !line.includes('import'));
+      expect(calls.length, `${file} no longer derives the phase from the lifecycle`).toBeGreaterThan(0);
+      for (const line of calls) {
+        expect(line, `${file} asks the migration's status, not a data type's phase`).toMatch(
+          /sourceAuthorityFor\([^)]*(\([^)]*\))?\.phase\)/,
+        );
+      }
       expect(
         /sourceIsAuthorityOnExistence:\s*(true|false)/.test(src),
-        `${file} hard-codes the phase instead of reading it from the mapping's status`,
+        `${file} hard-codes the phase instead of reading it from the database`,
       ).toBe(false);
     }
+  });
+
+  it('each asks the one reader, for the data type it is building', () => {
+    // Managed: mail asks for mail's phase, and the other four for their own,
+    // through `readPathPhases`, the reader the pass's stop check asks too.
+    const managed = source('packages/orchestration/src/build-deps-from-mapping.ts');
+    expect(managed.match(/readPathPhases\(txDb, tenantId, mappingId\)/g)?.length).toBe(2);
+    expect(managed).toContain(".phaseOf('email')");
+    expect(managed).toContain('sourceAuthorityFor(phaseOf(domain).phase)');
+    // The appliance: the pass is handed the reader's phases, read just before
+    // it, and asks that one reading both questions — whether each data type
+    // still runs, and whether its source still decides what exists.
+    const appliance = source('apps/selfhost/src/index.ts');
+    const pass = appliance.slice(appliance.indexOf('const results = await runAllDomains('));
+    expect(appliance).toContain('readPathPhases(tdb, tenantId, mappingId)');
+    expect(appliance).toContain('const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);');
+    expect(pass.slice(0, pass.indexOf(');'))).toMatch(
+      /statusStore,\s*phaseOf,\s*ledgerOptions,\s*\(domain\) => pathRunsNow\(phaseOf\(domain\)\),/,
+    );
+    expect(source('packages/orchestration/src/orchestration.ts')).toContain(
+      'const authority = (domain: DiscoveryDomain) => sourceAuthorityFor(phaseOf(domain).phase);',
+    );
   });
 
   it('the refusal stops telling somebody a post-cutover mapping never syncs', () => {

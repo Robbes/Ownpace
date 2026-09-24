@@ -2,7 +2,15 @@
 
 > **In one line:** Importing provider exports: an `archive` source whose credential is a location, `ArchiveReader` for Google Photos Takeout and Apple Data and Privacy, `zip-archive.ts`, albums as folders with a manifest, and the upload relay into the target.
 
-## Status — 2026-09-21 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: the wizard's control for `where: 'target'` comes before the relay (0148 D11).** The
+owner, answering 0148's open question 6: *"the wizard should be able to read a Takeout export from a
+folder in the tester's Nextcloud or other target files-kind supporting target."* So the archive form
+and both create doors learn `where` in 0148 T9, before the first alpha invitation, for a person who
+put the export in their own Nextcloud or WebDAV files themselves. T4's note that the control
+*"arrives with the relay page (slice 2)"* no longer holds: the relay page sets the same field for
+the people the relay is for, and adds no second control. The rest of T4 is unchanged.
 
 **2026-09-21: the same-named-album question is PARKED, with a list beside it.** Empty albums do
 not ship, so how Takeout disambiguates the owner's two `Thailand` albums could not be answered
