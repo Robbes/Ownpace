@@ -95,6 +95,7 @@ import {
 } from './migrations/index.ts';
 import { serverFault } from '../server-fault.ts';
 import { withinBudget } from './within-budget.ts';
+import { archiveOnServerRefusal } from './archive-on-the-server.ts';
 
 const router = Router();
 
@@ -155,7 +156,11 @@ async function qualifyAndRemember(
   //
   // That is the family this repository keeps meeting: a new kind must reach
   // every table, and the tables that GATE are the ones whose absence is
-  // invisible. `smoke-managed.sh` is what turned it into a failure.
+  // invisible. `smoke-managed.sh` is what turned it into a failure, by
+  // measuring a Takeout on the deployed image. Since 0136 T5 the managed API
+  // refuses the disk path that step used, so until 0148 T9 moves it to
+  // `where: "target"` only the unit tests and the appliance's archive E2E
+  // reach this dispatch, and the gate prints that gap beside its verdict.
   if (
     !isQualifiableKind(kind) &&
     !isGoogleGrantKind(kind) &&
@@ -689,6 +694,12 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
           // wizard's own door has always passed it; this door builds exactly
           // what that one builds.
           targetConnectionConfig({ targetType: type as TargetKind, targetConfig: half } as never);
+    const kind = role === 'source' ? sourceKindFor(type as never) : type;
+    // NOT A PATH ON THIS MACHINE (0136 T5). Judged on the config this door
+    // would store, before the probe below opens it and the qualifier walks it
+    // inside this process. See `archive-on-the-server.ts`.
+    const onServer = archiveOnServerRefusal(kind, config);
+    if (onServer) return void res.status(400).json(onServer);
     const creds =
       role === 'source'
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
@@ -707,7 +718,6 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             creds as Record<string, string>,
           );
 
-    const kind = role === 'source' ? sourceKindFor(type as never) : type;
     const inserted = await withTenantDb(tenantId, pool(), (db) =>
       db
         .insert(schema.connection)
@@ -766,6 +776,22 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
     const row = found[0];
     if (!row) {
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
+    }
+    // A STORED archive whose path is on this machine (0136 T5): an archive
+    // row from before the refusal, or one written by hand. 409, because the
+    // request is fine and the row is what this edition cannot serve. Nothing
+    // opens the path, but the row's status becomes `error`: the page re-reads
+    // the row after every Test, and a row stored `connected` would otherwise
+    // stay green beside an answer that says it cannot be read.
+    const onServer = archiveOnServerRefusal(row.kind, row.config as Record<string, unknown> | null);
+    if (onServer) {
+      await withTenantDb(tenantId, pool(), (db) =>
+        db
+          .update(schema.connection)
+          .set({ status: 'error', updatedAt: new Date() })
+          .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId))),
+      );
+      return void res.status(409).json(onServer);
     }
 
     // A connection with no stored secret cannot be probed — say which it is
@@ -859,6 +885,11 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     if (!row) {
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
     }
+    // Rotating probes the STORED config before anything is replaced, so a
+    // stored archive on this machine's disk is refused here as at the test
+    // door (0136 T5).
+    const onServer = archiveOnServerRefusal(row.kind, row.config as Record<string, unknown> | null);
+    if (onServer) return void res.status(409).json(onServer);
 
     // By wizard type, not by kind — the descriptor is keyed the wizard's way.
     const type = wizardTypeForConnectionKind(row.kind);
