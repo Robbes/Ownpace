@@ -32,6 +32,7 @@ import {
 } from '@openmig/connectors';
 import * as cutoverCli from './cutover-commands.ts';
 import { runCutoverGate } from '../jobs/cutover-gate.ts';
+import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
 import { log } from '@openmig/shared';
 
 /** Parse cutover CLI arguments */
@@ -288,7 +289,11 @@ async function main() {
     targetIp,
     assumeYes,
     // The mapping half of a rollback (ADR-0047): the row and its audit record.
-    mappingLifecycle: mappingLifecyclePort(pool, tenantId, mappingId, 'cli'),
+    // The month's peak rises with the slots a rollback takes back, on a
+    // database that keeps one (0109 T2); a self-hosted one keeps none.
+    mappingLifecycle: mappingLifecyclePort(pool, tenantId, mappingId, 'cli', {
+      onSlotsTaken: raiseThePeakWhereThereIsOne(tenantId as TenantId),
+    }),
     ...(reason ? { rollbackReason: reason } : {}),
     // The real §20 gate, the one the preparation task runs (cutover-gate.ts):
     // the data types the migration has, each against its own target. A

@@ -14,6 +14,9 @@
  *   that no longer opens its page;
  * - **what the ticket is:** an internal note with a title nobody typed, the
  *   reporter as its customer, the facts from the rows, and never the link;
+ * - **a report without a reply address** (the owner, 2026-09-24): taken, and
+ *   filed under the helpdesk's own user, with a note that nobody can be
+ *   answered;
  * - **what it costs:** three a day per link and thirty an hour for every link,
  *   one count for both doors, and a refused report costs nothing;
  * - **what the person is told** when nobody can receive it, or it did not
@@ -41,6 +44,7 @@ import {
   type LinkReportDeps,
 } from './link-reports.ts';
 import { createKnockLimiter } from '../knock-limit.ts';
+import { linkReportTicketFor, type LinkReportFacts } from '../link-report.ts';
 
 // UUID family d8a10000-…, unused elsewhere in the repo.
 const TENANT = 'd8a10000-e29b-41d4-a716-446655440801';
@@ -55,10 +59,23 @@ const REPORT = { description: 'I do not know this organisation.\nNobody told me 
 
 let driver: LedgerDriver;
 
-/** Zammad, as a function: what it was sent, and what it answers. */
-function zammad(status = 201) {
+/**
+ * Zammad, as a function: the tickets it was sent, and what it answers. Asked
+ * who its token belongs to (`users/me`), it answers user 7, or `self` when
+ * given; those questions are kept apart, in `asked`.
+ */
+function zammad(status = 201, self: { status: number; body: unknown } = { status: 200, body: { id: 7 } }) {
   const calls: Array<{ url: string; init: RequestInit; body: Record<string, unknown> }> = [];
+  const asked: Array<{ url: string; init: RequestInit }> = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
+    if (url.endsWith('/api/v1/users/me')) {
+      asked.push({ url, init });
+      return {
+        ok: self.status >= 200 && self.status < 300,
+        status: self.status,
+        json: async () => self.body,
+      };
+    }
     calls.push({ url, init, body: JSON.parse(String(init.body)) as Record<string, unknown> });
     return {
       ok: status >= 200 && status < 300,
@@ -66,7 +83,7 @@ function zammad(status = 201) {
       json: async () => ({ id: 9, number: '41001' }),
     };
   }) as unknown as typeof fetch;
-  return { calls, fetchImpl };
+  return { calls, asked, fetchImpl };
 }
 
 /** Both doors, as `index.ts` mounts them, on fresh counts unless the test hands some over. */
@@ -310,23 +327,96 @@ describe('what the ticket is', () => {
   });
 });
 
-describe('what it costs', () => {
-  it('refuses a report without words or without an address, and sends nothing', async () => {
+describe('a report without a reply address (the owner, 2026-09-24)', () => {
+  it("is taken, and filed under the helpdesk's own user, whose note says nobody can be answered", async () => {
     const link = await mintLink('grant');
+    const { calls, asked, fetchImpl } = zammad();
+
+    const res = await request(app({ env: CONFIGURED, fetchImpl }))
+      .post(`/api/grant/${link.token}/report`)
+      .send({ description: REPORT.description });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ ticket: '41001' });
+    // Who the token belongs to, asked of the same helpdesk with the same token.
+    expect(asked.map((a) => a.url)).toEqual(['https://help.example.invalid/api/v1/users/me']);
+    expect((asked[0]!.init.headers as Record<string, string>).Authorization).toBe('Token token=test-token-not-real');
+    const ticket = calls[0]!.body as { customer_id: unknown; article: { body: string; internal: boolean } };
+    expect(ticket.customer_id).toBe(7);
+    expect(ticket.article.internal).toBe(true);
+    const lines = ticket.article.body.split('\n');
+    expect(lines).toContain('Reply to: none. The reporter left no address, so nobody can be answered');
+    expect(ticket.article.body).not.toContain('guess:');
+  });
+
+  it('counts an empty field, or one of spaces, as no address', async () => {
+    const link = await mintLink('view');
     const { calls, fetchImpl } = zammad();
+    const a = app({ env: CONFIGURED, fetchImpl });
+    for (const replyTo of ['', '   ', null]) {
+      const res = await request(a).post(`/api/view/${link.token}/report`).send({ description: 'x', replyTo });
+      expect(res.status).toBe(201);
+    }
+    expect(calls.map((c) => c.body.customer_id)).toEqual([7, 7, 7]);
+  });
+
+  it("asks nobody who the helpdesk is when an address was left", async () => {
+    const link = await mintLink('grant');
+    const { asked, fetchImpl } = zammad();
+    await request(app({ env: CONFIGURED, fetchImpl })).post(`/api/grant/${link.token}/report`).send(REPORT);
+    expect(asked).toEqual([]);
+  });
+
+  it('is never built without somebody to file it under', () => {
+    const facts: LinkReportFacts = {
+      link: 'grant',
+      linkId: 'a-link-id',
+      tenantId: TENANT,
+      organisation: 'An organisation',
+      mappingId: MAPPING,
+      state: 'active',
+      issuedBy: null,
+      from: null,
+      to: null,
+      access: 'none',
+    };
+    expect(() => linkReportTicketFor({ description: 'x' }, facts, 'Users')).toThrow(/own user/);
+    expect(linkReportTicketFor({ description: 'x' }, facts, 'Users', 7).customer_id).toBe(7);
+  });
+
+  it("is not delivered, and says so, when the helpdesk will not say who it is", async () => {
+    const link = await mintLink('grant');
+    // A refusal that still names a user is a refusal, and an answer whose id
+    // is not a number names nobody: each case is refused by its own check.
+    for (const self of [{ status: 401, body: { id: 7 } }, { status: 200, body: { id: '7' } }]) {
+      const { calls, fetchImpl } = zammad(201, self);
+      const res = await request(app({ env: CONFIGURED, fetchImpl }))
+        .post(`/api/grant/${link.token}/report`)
+        .send({ description: 'x' });
+      expect(res.status).toBe(502);
+      expect(res.body.error).toBe('report_not_delivered');
+      expect(calls).toEqual([]);
+    }
+  });
+});
+
+describe('what it costs', () => {
+  it('refuses a report without words, or with something that is not an address, and sends nothing', async () => {
+    const link = await mintLink('grant');
+    const { calls, asked, fetchImpl } = zammad();
     const a = app({ env: CONFIGURED, fetchImpl });
 
     const empty = await request(a).post(`/api/grant/${link.token}/report`).send({ ...REPORT, description: '   ' });
     expect(empty.status).toBe(400);
     expect(empty.body.field).toBe('description');
-    const noAddress = await request(a).post(`/api/grant/${link.token}/report`).send({ description: 'x' });
-    expect(noAddress.status).toBe(400);
-    expect(noAddress.body.field).toBe('replyTo');
     const notAnAddress = await request(a)
       .post(`/api/grant/${link.token}/report`)
       .send({ ...REPORT, replyTo: 'reporter at example' });
+    expect(notAnAddress.status).toBe(400);
     expect(notAnAddress.body.field).toBe('replyTo');
+    expect(notAnAddress.body.reason).toContain('or leave it empty');
     expect(calls).toEqual([]);
+    expect(asked).toEqual([]);
   });
 
   it('takes three reports a day of one link, and a refused one does not count', async () => {

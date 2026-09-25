@@ -23,6 +23,7 @@ import {
   type AppEvent,
   type MigrationStatusStore,
   type SwitchedOffState,
+  phasesOfTheMigration,
 } from '@openmig/shared';
 import { runAllDomains } from './orchestration.ts';
 
@@ -68,7 +69,7 @@ describe('a data type that fails', () => {
       getStatus: async () => [],
     };
 
-    await runAllDomains(mapping(), store, 'active');
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'));
 
     expect(events).toHaveLength(1);
     expect(marked).toEqual([events[0]!.reference]);
