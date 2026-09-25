@@ -1,5 +1,7 @@
 # Dropbox setup — the app, the consent, the three values
 
+**Operator and self-host document.** The customer guide is [the Dropbox guide](guides/en/dropbox.md), served in the app at `/docs/dropbox`.
+
 A Dropbox migration authenticates with **your own Dropbox app** and a
 refresh token consented by the account being migrated. Read-only by construction: create
 the app with only the read scopes and this product could not write to the Dropbox even if

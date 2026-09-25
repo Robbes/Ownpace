@@ -1,5 +1,7 @@
 # Microsoft 365 setup — the registration, the radio button, the consent
 
+**Operator and self-host document.** The customer guide is [the Microsoft guide](guides/en/microsoft.md), served in the app at `/docs/microsoft`.
+
 A Microsoft 365 migration authenticates with an **app registration in Microsoft Entra ID**
 and a refresh token consented by the account being migrated. Read-only by construction: the
 registration is created with only the `.Read` delegated permissions listed below, so this product

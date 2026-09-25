@@ -1,5 +1,7 @@
 # Google Workspace setup — Drive, Gmail, Calendar and Contacts as migration sources
 
+**Operator and self-host document.** The customer guide is [the Google guide](guides/en/google.md), served in the app at `/docs/google`.
+
 The Microsoft equivalent of this guide is [`o365-setup.md`](./o365-setup.md).
 
 This is what you do once, in **your own** Google Cloud project, to let Ownpace read a Google

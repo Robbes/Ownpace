@@ -226,10 +226,18 @@ jobs:
           # Workplans, ADRs and architecture notes are unaffected — they are not
           # top-level and the narrow rule still holds for them.
           #
+          # `docs/guides/**` added 2026-09-24 (workplan 0148 T1). The customer
+          # guides moved out of `docs/*-setup.md` into `docs/guides/<locale>/`,
+          # a folder `docs/*.md` does not select, and `end-user-docs.unit.test.tsx`
+          # and `Docs.unit.test.tsx` read every file there through the page's own
+          # glob. The `-setup.md` files stay selected by `docs/*.md`: they are the
+          # operator documents now, and other guards still read them.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
             docs/*.md
+            docs/guides/**
             docs/adr/**
             README.md
             AGENTS.md
