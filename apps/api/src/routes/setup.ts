@@ -10,12 +10,19 @@
  * here. A step nobody has touched has no row at all and reads as `open`, so a
  * step added in a later release is open for every tenant the moment it ships,
  * with no backfill — see `provider-setup.ts` for why that split exists.
+ *
+ * WHAT THIS DEPLOYMENT CARRIES is read on every request (workplan 0148 T2 (b)):
+ * `providerClientFacts()`, the fact the wizard reads over
+ * `/api/provider-clients`, so a step about creating one's own Google client or
+ * Dropbox app is not listed where the service has its own. The appliance's
+ * route (`apps/selfhost/src/index.ts`) passes no facts and keeps every step.
  */
 
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
 import {
+  providerClientFacts,
   setupStepsFor,
   summariseSetup,
   type SetupSide,
@@ -53,7 +60,7 @@ const DecisionSchema = z.object({
 
 /** Steps (from code) merged with state (from the ledger), plus the summary. */
 async function readChecklist(tenantId: string, side: SetupSide, provider: string) {
-  const steps = setupStepsFor(side, provider);
+  const steps = setupStepsFor(side, provider, providerClientFacts());
   const rows = await withTenantDb(tenantId, pool(), (db) =>
     new PgLedger(db).listSetupSteps(tenantId as TenantId, side, provider),
   );
@@ -116,7 +123,11 @@ router.put(
       }
       // Refuse a step this provider does not have, rather than storing a row
       // nothing will ever read back: a typo'd key would otherwise look saved.
-      const known = setupStepsFor(side, provider).some((s) => s.key === stepKey);
+      // The SAME list the page was shown: a step the deployment left out is
+      // not one anybody here could have ticked.
+      const known = setupStepsFor(side, provider, providerClientFacts()).some(
+        (s) => s.key === stepKey,
+      );
       if (!known) {
         return void res.status(404).json({
           error: 'unknown_step',

@@ -118,20 +118,66 @@ describe('what the consent asks for', () => {
 
 describe("Entra's refusals become sentences with a way forward", () => {
   it('names the tenant-policy cases a first customer actually meets', () => {
-    expect(microsoftConsentRefusal('... AADSTS65001: The user or administrator has not consented'))
-      .toContain('administrator');
-    expect(microsoftConsentRefusal('AADSTS90094: admin consent required')).toContain('Entra ID');
+    for (const whose of ['deployment', 'connection'] as const) {
+      expect(
+        microsoftConsentRefusal('... AADSTS65001: The user or administrator has not consented', whose),
+      ).toContain('administrator');
+      expect(microsoftConsentRefusal('AADSTS90094: admin consent required', whose)).toContain(
+        'Entra ID',
+      );
+    }
   });
 
   it('recognises a single-tenant registration asked about common', () => {
     // This one reads like a typo and is not one.
-    const s = microsoftConsentRefusal('AADSTS700016: Application not found in the directory');
+    // A registration the person typed in: they own its settings, so they are told which.
+    const s = microsoftConsentRefusal(
+      'AADSTS700016: Application not found in the directory',
+      'connection',
+    );
     expect(s).toContain('multi-tenant');
     expect(s).toContain('MICROSOFT_OAUTH_TENANT');
   });
 
+  it("with this service's own registration, AADSTS700016 names no operator setting (0148 T2 (d))", () => {
+    // A tester can neither re-register the service's application nor set a
+    // variable on a deployment they do not run. The sentence says whose
+    // setting it is and who to tell; the operator's sentence above stays for
+    // a registration the person typed in themselves.
+    const s = microsoftConsentRefusal(
+      'AADSTS700016: Application not found in the directory',
+      'deployment',
+    );
+    expect(s).not.toContain('MICROSOFT_OAUTH_TENANT');
+    expect(s).not.toContain('multi-tenant');
+    expect(s).not.toContain('docs/microsoft-setup.md');
+    expect(s).toContain("this service's application");
+    expect(s).toContain('tell whoever runs it');
+    expect(s).toContain('AADSTS700016');
+  });
+
+  it("with this service's own registration, AADSTS900023 names no operator setting either", () => {
+    // The directory asked about is the deployment's (`resolveMicrosoftClient`
+    // takes the tenant from the environment when no pair was typed in), so an
+    // invalid one is the operator's setting, as 700016's registration is.
+    const s = microsoftConsentRefusal(
+      "AADSTS900023: Specified tenant identifier 'x' is neither a valid DirectoryName nor a valid external domain.",
+      'deployment',
+    );
+    expect(s).not.toContain('MICROSOFT_OAUTH_TENANT');
+    expect(s).not.toContain('multi-tenant');
+    expect(s).not.toContain('docs/microsoft-setup.md');
+    expect(s).toContain('tell whoever runs it');
+    expect(s).toContain('AADSTS900023');
+    // A registration the person typed in keeps the operator's sentence.
+    expect(microsoftConsentRefusal('AADSTS900023: Specified tenant identifier', 'connection')).toContain(
+      'MICROSOFT_OAUTH_TENANT',
+    );
+  });
+
   it('says nothing about an error it does not recognise, so the raw words survive', () => {
-    expect(microsoftConsentRefusal('AADSTS50000: something else entirely')).toBeNull();
+    expect(microsoftConsentRefusal('AADSTS50000: something else entirely', 'connection')).toBeNull();
+    expect(microsoftConsentRefusal('AADSTS50000: something else entirely', 'deployment')).toBeNull();
   });
 });
 
@@ -142,6 +188,7 @@ describe('the code exchange', () => {
     clientSecret: 'app-secret',
     tenant: 'common',
     redirectUri: BASE.redirectUri,
+    whose: 'connection' as const,
   };
   const ok = (body: unknown) =>
     (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
