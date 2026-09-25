@@ -141,6 +141,9 @@ export const PROVEN_BEFORE_THE_RECORD = 'before the record';
 /** The word a Live proofs row uses for Google's whole-domain delegation. */
 export const WHOLE_DOMAIN_PROOF_KIND = 'whole-domain';
 
+/** The word a Live proofs row uses for a shared mailbox (Pattern S); its face is email. */
+export const SHARED_MAILBOX_PROOF_KIND = 'shared-mailbox';
+
 const PROVEN_EARLIER: SourceProof = { verdict: 'proven', recorded: PROVEN_BEFORE_THE_RECORD };
 const EXPERIMENTAL: SourceProof = { verdict: 'experimental' };
 
@@ -187,6 +190,14 @@ export const SOURCE_PROOFS: {
   >;
   /** Google's whole-domain delegation (ADR-0033), an option on every Google card. */
   readonly wholeDomain: SourceProof;
+  /**
+   * A shared mailbox (Pattern S, SAD §14.1), read as `/users/{address}` with
+   * application permissions. Not a card: the scope manifest's "Shared
+   * mailboxes" row sits under *Partial* while this is experimental and under
+   * *Migrates* once it is proven (0141 T10,
+   * `a-shared-mailbox-promise-with-its-proof.unit.test.ts`).
+   */
+  readonly sharedMailbox: SourceProof;
 } = {
   kinds: {
     // Against the Stalwart the appliance nightly runs: "proven on a server we
@@ -230,6 +241,10 @@ export const SOURCE_PROOFS: {
   },
   // Parked until a Workspace the owner administers, or a tester who asks (0141 T6).
   wholeDomain: EXPERIMENTAL,
+  // Nobody has copied a real one. 0027 T0's consent run on the test tenant,
+  // then one Pattern S copy recorded by 0141 T1's rule, is what flips it
+  // (0141 T10 (b)); the Microsoft 365 account's delegated grant cannot.
+  sharedMailbox: EXPERIMENTAL,
 };
 
 /** True when the id is an account kind, whose verdicts are per face. */

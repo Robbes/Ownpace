@@ -2,7 +2,68 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-25 (update this block at the end of every session)
+
+**2026-09-25, build: T10 (a), shared mailboxes to Partial, on branch
+`claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged.** The owner decided
+it on 2026-09-25. Asked *"The rest of group R2 is still Proposed in the plans. Which should I build
+now, before the first invitation?"*, the owner chose all three: 0144 T3 (a) and (c), the 0140
+consent-screen lines (T2 (b), T3 (a), T6 (b), T7 (b)), and this task. That also answers open
+question 4: Partial for the alpha, and the consent run (T10 (b)) after.
+
+- **The row.** "Shared mailboxes" moved from *Migrates* to *Partial* in `scope-manifest.ts`, whose
+  version is now 2026-09-25. Its line: *"Needs your own app registration; not yet copied from a
+  real shared mailbox."* Its fold keeps the Pattern S text, says that an administrator grants the
+  application permissions to your own app registration, and says that the *Microsoft 365
+  account* button reads the signed-in person's own mailbox only, so it cannot copy a shared one.
+- **One authority.** Whether a shared mailbox has been copied is a verdict in 0131 T2's table,
+  `SOURCE_PROOFS.sharedMailbox` in `packages/shared/src/front-door.ts`, set to experimental. Its
+  Live proofs row, when the consent run records one, has the kind `shared-mailbox`
+  (`SHARED_MAILBOX_PROOF_KIND`) and the face `email`.
+- **The matrix.** The Shared content bullet for a shared mailbox went from ✅ to ⏳, with the
+  reason. The open gaps gained a shared-mailbox row, and the Live proofs intro names the verdict
+  and the row a proof writes. `docs/shared-mailboxes.md` gained two limits (none copied yet; the
+  Microsoft 365 account button cannot read one), and the architecture doc's §11.2 #1 lists
+  Pattern S under *Partial*.
+
+**Guards**, shown failing on the unchanged tree first:
+
+- `packages/shared/src/a-shared-mailbox-promise-with-its-proof.unit.test.ts` holds the row to the
+  verdict: under *Migrates* only when proven, under *Partial* while experimental, and while it is
+  experimental the line says "not yet copied" and the fold names the Microsoft 365 account's own
+  mailbox. It failed 4 of its 11 cases and passes 11 of 11.
+- `scripts/a-proof-that-was-written-down.unit.test.ts` holds the verdict to a Live proofs row, as
+  it does every other verdict. Until the verdict is proven, no line, bullet or cell of the matrix
+  marks a shared mailbox ✅, and the open gaps list one. It failed 5 of its 25 cases (two of them
+  by a TypeError, where its walk of every verdict met the missing one) and passes 25 of 25.
+- `apps/web/src/components/a-card-that-says-it-is-unproven.unit.test.tsx`'s walk of every verdict
+  includes the new one. It failed 1 of 31 and passes 31 of 31.
+
+Each of seven mutations fails a guard: the row back under *Migrates*, the verdict proven with no
+row, the bullet back to ✅, the gap row removed, a `shared-mailbox` row while the verdict is
+experimental, the line without "not yet copied", and the fold without the Microsoft 365 account
+sentence.
+
+**Deviations from §3 T10.**
+
+- The plan's line, *"Needs your own app registration with application permissions; not yet copied
+  from a real shared mailbox."*, is 104 characters, and
+  `a-promise-compressed-out-of-existence.unit.test.ts` holds a manifest line to 90. So "with
+  application permissions" moved to the fold, which still says "application permissions on the
+  source", the phrase that guard keeps.
+- The plan's guard reads the Live proofs table itself. This one reads the verdict, and the verdict
+  is held to the table by the guard that holds every other verdict, so that 0131 T2's table stays
+  the single authority. Moving the row back is three edits in one pull request: the verdict, the
+  Live proofs row, and the manifest row. Two rules the plan does not name were added on the
+  matrix's side: no ✅ for a shared mailbox, and an open-gaps row, both until the verdict is proven.
+- The manifest is server prose, rendered verbatim (`ScopeManifestPanel.tsx`, the prose boundary),
+  and no row of it has Dutch. This row is English too, and no string was added; the column title
+  is already *Gedeeltelijk* in Dutch.
+- No *Experimental* tag goes with the verdict: it decides the manifest's column, as T10 asks, and
+  no card or face.
+
+Not claimed here: T10 (b), the owner's consent run (0027 T0) and the Pattern S copy it records,
+which is what takes the row back to *Migrates*.
 
 **2026-09-24, build review: T1 fixes on the same branch
 (`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`), not merged.** One
@@ -112,7 +173,7 @@ for the card says so.
 | T7 Soverin as a target | ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud) | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
-| T10 Shared mailboxes: Partial until one is copied | 📋 **Proposed** (the move); ⏳ **Owner** (0027 T0's consent run, after) | §3. **Before a tester on a Microsoft card.** |
+| T10 Shared mailboxes: Partial until one is copied | 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)); ⏳ **Owner** (0027 T0's consent run, after) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed** | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
@@ -861,7 +922,8 @@ The numbers and C are written in this block. No code, so there is no guard.
    both stacks under a public name. Which does the owner use for T2 to T5 and T9? T7 is not
    affected: it runs on the OTA stack, whose demo Nextcloud stays (0132 T5 is parked there).
 4. **Shared mailboxes.** Partial for the alpha (T10 (a), recommended), or the consent run first
-   (T10 (b))?
+   (T10 (b))? **Answered 2026-09-25:** (a) now, before the first invitation, and the consent run
+   after (Status, 2026-09-25).
 5. **The O365 runner.** Add the `spark` label to the runner, or drop it from the workflow? Are the
    `O365_*` secrets set?
 6. **N, and dispatched runs.** Recommended: N = 5, the review's number, and scheduled runs only.

@@ -160,7 +160,10 @@ export const SCOPE_MANIFEST: ScopeManifest = {
   //
   // Bumped on 2026-09-23 because the set DID change: Google Tasks moved from
   // "does not migrate" to "migrates" (workplan 0126 T2).
-  version: '2026-09-23',
+  //
+  // Bumped on 2026-09-25: shared mailboxes moved from "migrates" to "partial"
+  // until one is copied (workplan 0141 T10 (a)).
+  version: '2026-09-25',
   migrates: [
     { item: 'Email', detail: 'Folders incl. Sent / Drafts / Archive, flags/keywords, timestamps.' },
     { item: 'Calendar', detail: 'Events, recurrence, attendees (ICS).' },
@@ -203,21 +206,32 @@ export const SCOPE_MANIFEST: ScopeManifest = {
       more: FILES_MORE,
       appliesTo: ['dropbox', 'box', 'archive', 'standards'],
     },
-    {
-      item: 'Shared mailboxes',
-      detail: 'Copied like any other mailbox, with the same checks.',
-      appliesTo: ['microsoft'],
-      more:
-        'Pattern S — the shared store is copied as an ordinary mapping: the full folder tree ' +
-        'incl. Sent/Drafts/Archive, same idempotency and verification as any mailbox. Needs ' +
-        'application permissions on the source (see docs/shared-mailboxes.md).',
-    },
   ],
   partial: [
     // Pattern D moved down from `migrates` on 2026-08-04 (workplan 0027 T4).
     // Under *Migrates* it promised a recreation no code performs, which is
     // the promise 0026's truth pass exists to stop us making. Pattern S went
     // with it and came back the same day, when 0027 T3 landed.
+    //
+    // Pattern S moved down again on 2026-09-25 (workplan 0141 T10 (a), the
+    // owner's choice): the code is built, and nobody has copied a real shared
+    // mailbox with it (0027 T0 waits on the consent run). The Microsoft 365
+    // account card, the one most people pick, cannot read one at all. Which
+    // column it sits in is `SOURCE_PROOFS.sharedMailbox`'s to say, in
+    // front-door.ts: under *Migrates* once that verdict is proven, and the
+    // verdict is proven only by a Live proofs row in the feature matrix
+    // (`a-shared-mailbox-promise-with-its-proof.unit.test.ts`).
+    {
+      item: 'Shared mailboxes',
+      detail: 'Needs your own app registration; not yet copied from a real shared mailbox.',
+      appliesTo: ['microsoft'],
+      more:
+        'Pattern S — the shared store is copied as an ordinary mapping: the full folder tree ' +
+        'incl. Sent/Drafts/Archive, same idempotency and verification as any mailbox. Needs ' +
+        'application permissions on the source, granted by an administrator to your own app ' +
+        'registration (see docs/shared-mailboxes.md). The Microsoft 365 account button reads ' +
+        "the signed-in person's own mailbox only, so it cannot copy a shared one.",
+    },
     {
       item: 'Distribution lists (Pattern D)',
       detail: 'Read and written up for you; recreating them is manual.',
