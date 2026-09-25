@@ -25,7 +25,7 @@ import {
   passCounts,
 } from '@openmig/core';
 import { budgetPauseToReason } from '@openmig/shared';
-import { whyThePassStops, taskErrorFor, type PassHalt } from './stopping-a-pass.ts';
+import { passStepBefore, taskErrorFor, type PassHalt } from './stopping-a-pass.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -373,8 +373,23 @@ export const runDeltaSync = schemaTask({
         // AND THE PERSON MAY HAVE TAKEN THEIR GRANT BACK (0108 T8 (c)): the
         // same re-read, and a line of its own, because what brings the
         // migration back is a new grant, not the owner's Resume.
-        const halt = await whyThePassStops(pool, tenantId, mappingId);
-        if (halt) {
+        //
+        // AND THIS DATA TYPE MAY NO LONGER RUN while the others do (0128 T5):
+        // its own cutover past its grace period, or ended. Then the pass moves
+        // on to the next one rather than stopping, so files are not stopped
+        // with mail. Until a data type can have a phase of its own, this never
+        // happens: every data type's phase is the migration's.
+        const step = await passStepBefore(pool, tenantId, mappingId, domain);
+        if ('skip' in step) {
+          const line = `skipped ${domain}: this data type no longer runs passes (its own cutover is past its grace period, or it has ended) — nothing failed`;
+          log.info(`[delta-sync] ${line}`);
+          await withTenant(pool, tenantId, async (db) => {
+            await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });
+          });
+          continue;
+        }
+        if ('halt' in step) {
+          const halt = step.halt;
           const line =
             halt === 'grant_withdrawn'
               ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`

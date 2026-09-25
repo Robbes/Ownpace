@@ -90,6 +90,21 @@ export interface MappingStatusChange {
 }
 
 /**
+ * What a caller outside the API adds to a status change through the ledger's
+ * own door (workplan 0109 T2).
+ */
+export interface MappingStatusChangeOptions {
+  /**
+   * Run in the change's own transaction, after its paths moved, when they took
+   * slots: `active`, or `continuous`, which takes back what a cutover released.
+   * The managed edition raises the month's peak here, in a table this package
+   * may not write (hard rule 5), so the mark rises with the slots it counts.
+   * Omitted, nothing but the ledger's own rows is written.
+   */
+  readonly onSlotsTaken?: (db: Db) => Promise<void>;
+}
+
+/**
  * Record that a mapping moved from one status to another.
  *
  * A no-op when `from === to`. A PATCH that sets the status a mapping already
@@ -145,13 +160,17 @@ export async function recordMappingStatusChange(
  * The mapping's path rows move with it (`movePathsWithMapping`), as they do
  * at every door the API serves. Without it a cutover executed from the CLI
  * kept every path `active`, holding its slot after the cutover had released
- * it. The month's peak is not written here: it is the managed edition's
- * table, and the next read of the tier trues it up.
+ * it. The month's peak is not written by this package: it is the managed
+ * edition's table. A caller that has one passes `onSlotsTaken`, and the peak
+ * rises in the same transaction as the slots it counts. Until 2026-09-24 no
+ * caller did, and a comment here said the next read of the tier would true it
+ * up, but nothing in production reads it that way.
  */
 export async function applyMappingStatusChange(
   source: LedgerDriver | Pool,
   tenantId: string,
   change: MappingStatusChange,
+  options: MappingStatusChangeOptions = {},
 ): Promise<void> {
   await withTenant(source, tenantId, async (db) => {
     await db
@@ -163,7 +182,10 @@ export async function applyMappingStatusChange(
           eq(schemaPg.mailboxMapping.tenantId, tenantId),
         ),
       );
-    if (change.from !== change.to) await movePathsWithMapping(db, tenantId, change.mappingId, change.to);
+    if (change.from !== change.to) {
+      const { slotsTaken } = await movePathsWithMapping(db, tenantId, change.mappingId, change.to);
+      if (slotsTaken && options.onSlotsTaken) await options.onSlotsTaken(db);
+    }
     await recordMappingStatusChange(db, tenantId, change);
   });
 }
@@ -185,6 +207,7 @@ export function mappingLifecyclePort(
   tenantId: string,
   mappingId: string,
   actor: string,
+  options: MappingStatusChangeOptions = {},
 ): MappingLifecyclePort {
   return {
     async readStatus() {
@@ -203,13 +226,12 @@ export function mappingLifecyclePort(
       return row.status;
     },
     async setStatus(change) {
-      await applyMappingStatusChange(source, tenantId, {
-        mappingId,
-        from: change.from,
-        to: change.to,
-        actor,
-        via: change.via,
-      });
+      await applyMappingStatusChange(
+        source,
+        tenantId,
+        { mappingId, from: change.from, to: change.to, actor, via: change.via },
+        options,
+      );
     },
   };
 }

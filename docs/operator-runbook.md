@@ -447,7 +447,9 @@ internal note. First come the facts, from the rows, one line each:
 
 - the link's id, the organisation and the migration with their ids and state;
 - who issued the link, from, to, and whether access was given;
-- the reply address, which they typed and nobody verified.
+- the reply address, which they typed and nobody verified, or *none* when they left none. A
+  report without one is filed under the helpdesk user your `ZAMMAD_TOKEN` belongs to, and
+  cannot be answered.
 
 Then, under *What they wrote*, the reporter's own words. Anything shaped like a fact below that
 label is theirs. The organisation typed its own name, accounts and host, and may be who the

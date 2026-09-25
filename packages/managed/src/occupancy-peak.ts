@@ -21,7 +21,14 @@
  * over-bill — and the second is closed where it matters: the tier calculator
  * (T4) calls `recordCurrentOccupancy` as a true-up for the month it is about
  * to read, so a standing fleet is counted at invoice time even if nobody
- * pressed anything all month.
+ * pressed anything all month. That is `currentTier`, for the invoice, which
+ * nothing calls yet: the screens read `observedTier`, which writes nothing and
+ * takes the higher of the mark and the live count.
+ *
+ * Every door that takes slots records here in its own transaction: the API's
+ * (start, a migration created running, the lane, a kind added), and since
+ * 2026-09-24 the ledger's own door on a rollback, from the cutover CLI and the
+ * `run-rollback` job (`onSlotsTaken`, `raiseThePeakWhereThereIsOne`).
  */
 
 import { and, eq, sql } from 'drizzle-orm';

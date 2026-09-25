@@ -22,6 +22,7 @@ import {
   type DiscoveryDomain,
   type MigrationStatusStore,
   type SwitchedOffState,
+  phasesOfTheMigration,
 } from '@openmig/shared';
 import { recordSwitchedOff, runAllDomains } from './orchestration.ts';
 
@@ -103,7 +104,7 @@ describe('on every pass', () => {
     // Nothing is ticked, so the pass has no lane to run and reaches no
     // connector: what is left is exactly the part of a pass under test.
     const { store, calls } = fakeStore({ calendar: 3 });
-    const results = await runAllDomains(mapping({ calendar: dav(false) }), store, 'active');
+    const results = await runAllDomains(mapping({ calendar: dav(false) }), store, phasesOfTheMigration('active'));
 
     for (const d of DISCOVERY_DOMAINS) expect(calls).toContain(`off ${d}`);
     expect(results.map((r) => [r.domain, r.disabled])).toEqual(

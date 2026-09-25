@@ -39,6 +39,7 @@ import { and, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { asTenantId, asMappingId, renderEvent } from '@openmig/shared';
+import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
 import { log, setAuditExportSink } from '@openmig/shared';
 import { notifierFromEnv } from '@openmig/connectors';
 
@@ -119,7 +120,10 @@ export const runRollback = schemaTask({
         tenantId: asTenantId(tenantId),
         mappingId: asMappingId(mappingId),
         cutoverStore: cutoverPersistence,
-        mapping: mappingLifecyclePort(pool, tenantId, mappingId, 'trigger-job'),
+        // The month's peak rises with the slots a rollback takes back (0109 T2).
+        mapping: mappingLifecyclePort(pool, tenantId, mappingId, 'trigger-job', {
+          onSlotsTaken: raiseThePeakWhereThereIsOne(asTenantId(tenantId)),
+        }),
         rolledBackBy: 'trigger-job',
         reason,
         // `logger` from the SDK, not `ctx.logger`: Trigger.dev v4's

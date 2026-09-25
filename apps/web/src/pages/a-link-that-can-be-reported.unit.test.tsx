@@ -86,7 +86,7 @@ function renderAt(path: string) {
 async function fillIn(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Report this link' }));
   await user.type(screen.getByLabelText('What makes you doubt this link?'), '  I do not know them.  ');
-  await user.type(screen.getByLabelText('Your email address'), 'reporter@example.invalid');
+  await user.type(screen.getByLabelText('Your email address (optional)'), 'reporter@example.invalid');
 }
 
 beforeEach(() => {
@@ -115,11 +115,14 @@ describe('on the grant page', () => {
 
     expect(screen.getByText('Your report goes to the Ownpace team, not to Acme Legal.')).toBeInTheDocument();
     expect(screen.getByText('Sent with it: which link this is, so we can find who sent it.')).toBeInTheDocument();
-    expect(screen.getByText('We use it only to reply to you.')).toBeInTheDocument();
-    // Nothing to send until both are there.
+    expect(screen.getByText('Only if you want an answer; we use it for nothing else.')).toBeInTheDocument();
+    // Nothing to send until they say what makes them doubt it; the address may stay empty.
     expect(screen.getByRole('button', { name: 'Send the report' })).toBeDisabled();
+    await user.type(screen.getByLabelText('What makes you doubt this link?'), '   ');
+    expect(screen.getByRole('button', { name: 'Send the report' })).toBeDisabled();
+    expect(screen.getByLabelText('Your email address (optional)')).not.toBeRequired();
     await user.type(screen.getByLabelText('What makes you doubt this link?'), 'x');
-    expect(screen.getByRole('button', { name: 'Send the report' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send the report' })).toBeEnabled();
     expect(sendMock).not.toHaveBeenCalled();
   });
 
@@ -164,6 +167,21 @@ describe('on the grant page', () => {
     expect(screen.getByRole('status')).toHaveFocus();
   });
 
+  it('sends without an address when none is given, and says nobody can answer them', async () => {
+    const user = userEvent.setup();
+    renderAt('/grant/abc.def');
+    await user.click(await screen.findByRole('button', { name: 'Report this link' }));
+    await user.type(screen.getByLabelText('What makes you doubt this link?'), 'I do not know them.');
+    await user.type(screen.getByLabelText('Your email address (optional)'), '   ');
+    await user.click(screen.getByRole('button', { name: 'Send the report' }));
+
+    expect(sendMock).toHaveBeenCalledWith('grant', 'abc.def', { description: 'I do not know them.' });
+    expect(
+      await screen.findByText('Sent. Your report is number 41001. Without an address, we cannot answer you.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveFocus();
+  });
+
   it('keeps what they wrote when the report is refused, with the reason', async () => {
     sendMock.mockRejectedValue(new Error('refused'));
     serverMessageMock.mockReturnValue('Your report could not be delivered just now. Reference 0a1b2c3d.');
@@ -182,6 +200,7 @@ describe('on the grant page', () => {
     renderAt('/grant/abc.def');
     await user.click(await screen.findByRole('button', { name: 'Deze link melden' }));
     expect(screen.getByText('Uw melding gaat naar het team van Ownpace, niet naar Acme Legal.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Uw e-mailadres (niet verplicht)')).toBeInTheDocument();
   });
 });
 
@@ -224,6 +243,9 @@ describe('the service', () => {
     const body = { description: 'x', replyTo: 'reporter@example.invalid' };
     expect(await linkReportApi.send('grant', 'abc.def', body)).toBe('41001');
     expect(postMock).toHaveBeenCalledWith('/grant/abc.def/report', body);
+    // And without an address, as the form sends it when none was given.
+    expect(await linkReportApi.send('view', 'abc.def', { description: 'x' })).toBe('41001');
+    expect(postMock).toHaveBeenLastCalledWith('/view/abc.def/report', { description: 'x' });
   });
 
   it('offers nothing on any answer but true, or on no answer at all', async () => {

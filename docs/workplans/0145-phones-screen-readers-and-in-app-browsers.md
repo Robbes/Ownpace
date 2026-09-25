@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build: T1 built on branch
+`claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged, except the skip
+link, which §3 puts after.** Everything is in `apps/web/src/components/Layout.tsx`. Below `lg`, a
+closed drawer is `inert`. Opening it moves focus to its close button and makes the page behind it
+`inert`. Escape, the close button and the backdrop close it and give focus back to the menu
+button. Following a link closes it as before, and where focus goes on the new page is still
+T3 (b). A link to the page already shown is not a route change, so T3 (b) will never move focus
+for it: that link closes the drawer the way Escape does and gives focus back to the menu button.
+Without that, the focused link went `inert` with its drawer and focus fell to the body. The menu
+button now carries `aria-controls`, naming the drawer, and `aria-expanded` says whether the drawer
+is open on this screen. From `lg` up nothing is `inert`. The guard is
+`apps/web/src/components/a-menu-that-gives-focus-back.unit.test.tsx`. Of its 13 cases, 11 failed
+on the unchanged code. The two that passed are wide-screen cases: nothing is `inert`, and a
+sidebar link to the page already shown leaves no focus owed for later. Each mutation made the
+guard fail: removing the focus move (3 cases), removing the return of focus (3), closing on any
+key (1), asking `(min-width: 1024px)` (1), `inert` at every width (2), not closing the drawer when
+the window widens (1), giving focus back after a same-page link on a wide screen too (1), and a
+`--breakpoint-lg` set in `apps/web/src/index.css` (1). The Tailwind case compiles the app's own
+stylesheet, not a bare `@import "tailwindcss"`, so a breakpoint moved there moves the answer.
+Where the build differs from §3:
+
+- **The media condition is `(width >= 64rem)`, not `(min-width: 1024px)`.** It is the condition
+  Tailwind 4 puts `lg:` behind, word for word. In a media query a rem follows the browser's font
+  size, so for a reader whose default font is larger than 16 px, 1024 px and the stylesheet
+  disagree on a band of widths. That reader is who this task is for. The guard asks the
+  installed Tailwind for the condition. Safari 16.4, the iPhone floor in the README, reads this
+  syntax, and the stylesheet already depends on it.
+- **`aria-controls` is not in §3.** The build brief asked for it. It names the drawer through
+  React's `useId`.
+- **Without `matchMedia` the layout counts as wide.** That is how it behaved before, with the
+  drawer never `inert`. Every supported browser has `matchMedia`, and jsdom does not. So the
+  menu case in `Layout.unit.test.tsx` now stubs a narrow screen, because without one the drawer
+  never opens.
+- **Escape is heard on the document, not only in the drawer.** A tap on the drawer's own text
+  leaves focus on the body, and Escape has to work from there too.
+- **Widening the window with the drawer open closes the drawer.** Otherwise it would come back
+  over the page, and take focus, when the window was narrowed again.
+- **A link to the page already shown gives focus back to the menu button.** §3 says focus goes
+  to the new page (T3 (b)), and here there is none. The query string is ignored, as a route
+  change ignores it.
+- **The guard has 13 cases, not §3's four.** The additions are `aria-controls`, the close
+  button and the backdrop giving focus back, a key other than Escape doing nothing, a followed
+  link closing the drawer, a link to the page already shown (narrow and wide), the window
+  crossing the breakpoint both ways, and the Tailwind condition.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 went through
 the managed edition the way a tester would meet it on a phone: with and without a screen reader,
 and inside the browser another app opens. Six of its findings were mechanical, and #1137, merged
@@ -57,7 +102,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | Task | Status | Notes |
 |---|---|---|
 | T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 is built. |
-| T1 The phone menu takes focus and gives it back | 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
+| T1 The phone menu takes focus and gives it back | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
 | T4 Errors are announced | 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
