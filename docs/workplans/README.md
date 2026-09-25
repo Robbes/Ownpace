@@ -26,7 +26,7 @@ at the top of each alpha plan.
 <!-- Edit the plan's own first line, "In one line" or Status block, then run: -->
 <!--   node scripts/workplan-index.mjs --write -->
 
-146 plans. Task rows by the marker their Status cell starts with: ✅ 582 · 🟢 10 · 🟡 27 · 📋 146 · ⏳ 38 · ⬜ 9 · 🔨 17 · 🚧 1 · ⛔ 12 · ⚠️ 11 · ⏸️ 5 · 🅿️ 4 · 🕓 1 · 📝 1 · 🔎 1 · unmarked 7.
+146 plans. Task rows by the marker their Status cell starts with: ✅ 582 · 🟢 10 · 🟡 29 · 📋 145 · ⏳ 38 · ⬜ 9 · 🔨 16 · 🚧 1 · ⛔ 12 · ⚠️ 11 · ⏸️ 5 · 🅿️ 4 · 🕓 1 · 📝 1 · 🔎 1 · unmarked 7.
 
 | Plan | Title | In one line | Status as of | Rows | Markers | Note |
 |---|---|---|---|---|---|---|
