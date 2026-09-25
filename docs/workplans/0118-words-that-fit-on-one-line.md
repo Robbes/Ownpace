@@ -1,8 +1,25 @@
 # Workplan 0118 — Words that fit on one line
 
-> **In one line:** Shortens the web UI's English and Dutch copy to one-line hints and intros, folding the rest under Why? or More via the `Hint` component, with the `words-that-fit-on-one-line` guard enforcing word budgets over the whole dictionary.
+> **In one line:** Shortens the web UI's English and Dutch copy to one-line hints and intros, folding the rest under Why? or More via the `Hint` component, with the `words-that-fit-on-one-line` guard enforcing word budgets on hints, intros, placeholders and titles (no generic cap since 2026-09-25).
 
-## Status — 2026-09-14 (update this block at the end of every session)
+## Status — 2026-09-25 (update this block at the end of every session)
+
+**2026-09-25: the generic cap is gone (owner).** *"remove the generic 15-word cap rule and
+enforcement, it forces you to hide additional text. We will have to work on what text to actually
+show and what to fold. But now we fold to often."*
+
+The guard held every line that is not a hint, an intro, a placeholder or a title to fifteen words.
+None of §2's decisions named that cap; it came with T4b's reach over the whole dictionary. It made
+a sentence fold whenever its line ran one word over. That happened again the same day: two of
+0128 T4's lines ran one word over, and their second halves were folded to get green.
+- `budgetFor` gives those lines no budget. The four caps §2 decided stay: a hint 12 words and
+  one sentence, an intro 15, a placeholder 8, a title 8.
+- `ALLOWED_OVER` is empty. Every sentence it named was of the kind that no longer has a budget.
+  They stay verbatim by T5's decision, not because the list names them, and a new check refuses
+  an allowance for a key without a budget.
+- **Next, with the owner:** what each screen shows and what it folds. The folds made to fit the
+  generic cap are the first to review; T1–T4b's rows name them.
+
 
 **2026-09-14: §4 corrected — the board understated itself.** No code changed. "Not done,
 honestly" still claimed T2–T4 carried their long copy and that the guard did not reach their
@@ -76,7 +93,7 @@ T1 is this document's first slice and the proof that the rule can be kept by a t
 | T3 The migration's own pages — Confirm, the hub, Finish, grant links, shared addresses | ✅ Done 2026-09-05 | Eighteen strings to budget; the appliance how-to (52), the grant-link blurb (41) and the shared-addresses empty state (40) fold. The snapshot note was already inside a fold and is `confirm.snapshot.more` now, so its suffix says so. Step 4's "nobody can check this for you" folds under *More*; its warning and step 5's promise stay verbatim in `ALLOWED_OVER`. Six prefixes join the guard. |
 | T4 The queues, Verify, Sharing, the permissions handover, the small screens | ✅ Done 2026-09-05 | `sharing.intro` 44 → 12 with the settle-each-row paragraph under *More*; `permissions.body` 57 → 15 and `permissions.blindSpot` 69 → 12, the Exchange and file-platform detail under *More*; `autoApply.hint` 59 → 12 with its four conditions under *Why?*; the delete-migration sentence keeps its promise on the line. Sixteen prefixes under the guard, plus every zero-over prefix (dashboard, receipts, state words). |
 | T4b The operator's and sign-in screens — support, tenants, login, queue, billing, access, invite, notifications, redirects | ✅ Done 2026-09-05 | `support.recorded` 27 → 15 with the read-log detail under *Why?*; `support.usage.note` 40 → 15; `queue.tellThemHelp` and `queue.alreadyOwnsHelp` 44 → 15 each, the public-form and double-press reasoning under *Why?*; `redirects.intro` 45 → 14 and `redirects.unconfigured` 35 → 13, the rest under *More* and *Why?*; `login.noOrganisation.already` 33 → 14. The guard now covers the whole dictionary. |
-| T5 The verbatim set | ✅ Done 2026-09-05 | **Not shortened** (owner, 2026-09-05), and every one is named in `ALLOWED_OVER` with its reason: the three `probe.scheduling.*` safety sentences (T2), Finish's step-4 warning and step-5 promise (T3), the five `failure.*` remedies and the three `grant.*` consent sentences (T4). Thirteen keys; the guard refuses an allowance for a key that no longer exists, so a removed sentence takes its excuse with it. `grant.disclosure` needed no allowance: it fits. |
+| T5 The verbatim set | ✅ Done 2026-09-05 | **Not shortened** (owner, 2026-09-05), and until 2026-09-25, when the generic cap they ran over was dropped, every one was named in `ALLOWED_OVER` with its reason: the three `probe.scheduling.*` safety sentences (T2), Finish's step-4 warning and step-5 promise (T3), the five `failure.*` remedies and the three `grant.*` consent sentences (T4). Thirteen keys; the guard refuses an allowance for a key that no longer exists, so a removed sentence takes its excuse with it. `grant.disclosure` needed no allowance: it fits. |
 
 ## 1. Why this exists
 
@@ -98,6 +115,7 @@ screen and the rest one click away.
 | Where do the long explanations go? | **Folded in place**, under the hint, behind a native `<details>` whose summary is one word: *Why?* under a field, *How?* under a checklist step, *More* under a chosen source. Nothing is deleted that said something. |
 | May consent, safety and remedy sentences be shortened? | **No.** They are promises and remedies, not explanations. They stay verbatim and are named in the guard's allowance when their screens come under it. |
 | What first? | **The wizard and the checklist**, in one PR with the guard. Then one screen family per PR. |
+| Anything else that stays on screen? | **No cap** (owner, 2026-09-25). The guard had held it to fifteen words, which none of the decisions above named, and it made text fold that should show. What a screen shows and what it folds is decided screen by screen. |
 
 Two rules the owner did not have to be asked about, because the repository already holds them:
 both languages change together (the dictionary's key parity is compile-time, and the guard
@@ -117,11 +135,13 @@ still open starts open — the one somebody is on.
 
 `apps/web/src/i18n/words-that-fit-on-one-line.unit.test.ts` runs the budgets over every key
 in the dictionary, in both languages: `.hint` 12 words and one sentence, `.intro` 15,
-`.placeholder` 8, `.title` 8, anything else that stays on screen 15; `.why`, `.more` and a
-checklist `.detail` are folded and have no budget. The counter is pinned on its own snippets
+`.placeholder` 8, `.title` 8; `.why`, `.more` and a checklist `.detail` are folded and have no
+budget. Anything else has had no budget since 2026-09-25; until then it had 15 (see the Status
+block). The counter is pinned on its own snippets
 first (a thirteen-word hint, a two-sentence hint, a placeholder that is a sentence), so a green
 tree cannot be a counter that counts nothing. A sentence that must run over is named in
-`ALLOWED_OVER` with its reason; since T4b there is no prefix list, only that allowance.
+`ALLOWED_OVER` with its reason; since T4b there is no prefix list, only that allowance. The
+allowance is empty since 2026-09-25, and names only keys that have a budget.
 
 Proof by breaking, in the order it happened: the guard's first run over the rewritten
 dictionary refused two English lines — `wizard.connectionName.taken` at 16 words and
@@ -153,6 +173,11 @@ shortened; the Dutch passed first time.
   *e.g. 1234567890*, because the checklist already says where to look.
 
 ## 4. Not done, honestly
+
+- **What each screen shows and what it folds** (owner, 2026-09-25): *"We will have to work on
+  what text to actually show and what to fold. But now we fold to often."* The generic cap is
+  gone, but the folds made to fit it are still folded. Which of them come back onto the screen is
+  the owner's call, screen by screen; T1–T4b's rows name the folds.
 
 - **One sentence was dropped rather than folded.** The Google account card used to say that
   Gmail and Drive stay separate cards because they need a Google security review this product

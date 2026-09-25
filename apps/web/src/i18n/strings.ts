@@ -3437,9 +3437,8 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond; nieuw kopiëren start vanzelf weer zodra de update klaar is, en gaat verder waar het stopte.',
-  // 0131 T1's words. `alpha.note.terms` is sixteen words here, one over the
-  // copy budget, and stays so: a safety sentence is not shortened (0118), and
-  // it is named in the budget's ALLOWED_OVER.
+  // 0131 T1's words. `alpha.note.terms` is sixteen words here, and stays so: a
+  // safety sentence is not shortened (0118).
   'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
   'alpha.note.terms':
     'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
