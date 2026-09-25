@@ -1524,6 +1524,12 @@ const en = {
   'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
   'alpha.note.terms': 'Nothing is charged, nothing is backed up, and the alpha can end.',
   'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
+  // Nothing charged (workplan 0131 T3): the first sentence of the Billing
+  // line that takes the subtitle's place, and the last sentence of the
+  // request form's package hint. One key, so the two cannot drift apart.
+  // "Charged", as the note says it, and not "invoiced", which is what a tier
+  // says (0109 T8).
+  'alpha.nothingCharged': 'Nothing is charged during the alpha.',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
     'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
@@ -3408,6 +3414,7 @@ const nl: Record<keyof typeof en, string> = {
   'alpha.note.terms':
     'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
   'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
+  'alpha.nothingCharged': 'Tijdens de alfa wordt niets in rekening gebracht.',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',
