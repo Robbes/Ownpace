@@ -56,6 +56,7 @@ import {
 } from '../services/api.ts';
 import { QUALIFICATION_KEYS, credentialFieldRequired } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
+import { optionName } from '../i18n/option-name.ts';
 import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
 
 /**
@@ -520,6 +521,8 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const [type, setType] = React.useState(frontDoorCards('source')[0]?.id ?? '');
   const [displayName, setDisplayName] = React.useState('');
   const [values, setValues] = React.useState<Record<string, string>>({});
+  /** Prefix for the chosen option's line, which its select points at. */
+  const chosenIdBase = React.useId();
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
   /**
@@ -617,6 +620,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       sideStepped: (values.serviceAccountKey ?? '').trim() !== '',
     });
 
+  /** The chosen option's own line key, where it has one (0148 T3, D7). */
+  const chosenHintKey = (field: CredentialField): string | undefined =>
+    field.options?.find((o) => o.value === (values[field.key] ?? ''))?.hintKey;
+
   const labelledBox = (field: CredentialField) => (
     <label className={`block text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
@@ -640,13 +647,14 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         // — the wrong reader finds none of its landmarks and reports nothing.
         <select
           className="input w-full"
+          aria-describedby={chosenHintKey(field) ? `${chosenIdBase}-${field.key}` : undefined}
           value={values[field.key] ?? ''}
           onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
         >
           <option value="">—</option>
           {field.options.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {optionName(t, option)}
             </option>
           ))}
         </select>
@@ -683,6 +691,23 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     ) : (
       labelledBox(field)
     );
+
+  /**
+   * The chosen option's own line, under its field (0148 T3, D7): an export no
+   * reader opens yet says so before anybody asks Apple for a week's wait. A
+   * sibling of the label rather than inside it, so it is not read out as part
+   * of the field's name.
+   */
+  const chosenLine = (field: CredentialField) => {
+    const key = chosenHintKey(field);
+    // It appears on a choice, so it is a status a screen reader announces,
+    // and the select's description while it stands.
+    return key ? (
+      <div id={`${chosenIdBase}-${field.key}`} role="status" className="sm:col-span-2">
+        <Hint text={t(key as StringKey)} tone="caution" />
+      </div>
+    ) : null;
+  };
 
   if (!open) {
     return (
@@ -797,7 +822,12 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
               </details>
             );
           }
-          return <React.Fragment key={field.key}>{fieldBox(field)}</React.Fragment>;
+          return (
+            <React.Fragment key={field.key}>
+              {fieldBox(field)}
+              {chosenLine(field)}
+            </React.Fragment>
+          );
         })}
       </div>
 

@@ -4,6 +4,50 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T3's Apple tag built (D7).** On branch
+`claude/ownpace-public-readiness-y7orc6-an-export-we-cannot-read-yet`, not merged. The archive
+form keeps the Apple export and says it cannot be read yet, on both editions:
+
+- the exports a reader exists for are listed in `archive-providers.ts`
+  (`ARCHIVE_PROVIDERS_WITH_READERS`), and a test in orchestration,
+  `the-form-and-the-readers-agree.unit.test.ts`, holds that list equal to `READERS`.
+  `archiveProvidersWithReaders()` stays and still reads `READERS`;
+- at both doors, the wizard and the Connections page, an option whose export has no reader shows
+  *To be tested* / *Nog te testen* in its name. While it is chosen, a line under the field says
+  *"We cannot read an Apple export yet. Request one only for your own records."* Both come from
+  the list, so when a reader lands they go and nothing else changes;
+- the card's hint carries the tag after Apple, and `archive-setup.md`'s Apple part opens with
+  the tag and the line, before the request.
+
+The guard, `apps/web/src/components/an-export-we-cannot-read-yet.unit.test.tsx`, has 26 cases,
+and all 26 failed before the build: a managed and an appliance build, both doors, both
+languages. The orchestration test's 2 cases failed too. Where the build differs from §3:
+
+- **The guard's name.** §3's `a-card-that-cannot-work-is-not-offered` named the hiding that D10
+  dropped.
+- **The Dutch line changes one word.** D7's *"Vraag er alleen een aan voor uw eigen archief"*
+  makes the line 16 words, and a line on screen may have 15 (`words-that-fit-on-one-line`). It
+  reads *"Vraag die alleen aan voor uw eigen archief."*
+- **The card's hint is reworded** so it stays within the 12 words a hint may have: *"A Google
+  Takeout or Apple (to be tested) download: photos and files."* and *"Een gedownloade Google
+  Takeout- of Apple-export (nog te testen): foto’s en bestanden."* In Dutch the tag follows
+  *Apple-export*, which is one word. The hint is a sentence, so it is the one place a landed
+  reader has to be answered by hand; the guard fails until it is.
+- **The line is shown below the field's own hint**, not instead of it. The Connections form
+  shows no field hints, so there the line is the only one. The line is keyed per export
+  (`wizard.archiveProvider.noReader.apple-privacy`), because it names the company, and
+  `descriptor-labels-resolve.unit.test.ts` now checks a choice's keys in both languages.
+- **One existing test changed on purpose.** `CreateMapping.reachability.unit.test.tsx` found the
+  Test button by `/Test/i`, which now also matches the archive card's hint. Its nine queries
+  are anchored, `/^Test/i`, as its Next button already was.
+
+After review, on the same branch: the rest of `archive-setup.md`'s Apple part no longer says we
+read an Apple export today. Step 3, *Getting it ready for us*, *One thing Apple removes* and the
+*Which export* row now say *will read* or *to be tested*. T1/T4 carry this wording into
+`docs/guides/`. The line under the field is now a status, and the select points at it
+(`aria-describedby`), so a screen reader hears it. The guard gained one case per door, edition
+and language: 34 cases, and the 8 new ones failed on the pages before this fix.
+
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* So the archive form gains a second
@@ -220,9 +264,9 @@ the owner announced for *Via IMAP* (D5).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
-| T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English** on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, not merged: six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
-| T2 No hint to create an app where the deployment carries one | 🔨 **(c) built** on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, not merged; (a), (b) and (d) not started. 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
-| T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
+| T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English** merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
+| T2 No hint to create an app where the deployment carries one | 🔨 **(c) built** merged in #1173 (2026-09-25); (a), (b) and (d) not started. 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
+| T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) on branch `claude/ownpace-public-readiness-y7orc6-an-export-we-cannot-read-yet`; not merged — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |

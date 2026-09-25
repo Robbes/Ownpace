@@ -80,7 +80,7 @@ In the contact and calendar information Apple exports, **email addresses are par
 
 On the **Connections** page, add a connection and choose **Export archive**. It asks for two things:
 
-- **Which export**: Google Takeout or Apple Data & Privacy.
+- **Which export**: Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet).
 - **Where the archive is**: the folder you extracted the download into, or the `.zip` itself, as a path on the computer that runs the migrations. The card reads the export where it lies and cannot take an upload yet, so the export has to be on that computer's own disk. If your migrations do not run on a computer you can put files on, this card cannot reach your export yet.
 
 Then press **Add and test**. Testing does not move anything. It opens the archive and tells you what is in it:
