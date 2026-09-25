@@ -998,6 +998,8 @@ function firstUid(text?: string): string | undefined {
 export async function verifyMapping(
   config: MappingConfig,
   ledger?: LedgerOptions,
+  /** The data types its owner stopped (0128 T4): skipped, *stopped by you* (D6). */
+  stopped: ReadonlySet<DiscoveryDomain> = new Set(),
 ): Promise<VerificationResult> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!ledger?.ledgerDb && !databaseUrl) {
@@ -1070,6 +1072,7 @@ export async function verifyMapping(
           // tick, in the same commit, rather than becoming the one domain a
           // cutover passes without reading (0113 T5).
           verifyTasks: config.domains?.tasks?.enabled ?? false,
+          stoppedByOwner: [...stopped].map((domain) => GATE_NAME[domain]),
         },
         verificationReader,
         targetReindexers: reindexers,

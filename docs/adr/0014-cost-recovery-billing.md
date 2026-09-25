@@ -963,6 +963,6 @@ beside it (`path_lifecycle.stopped_at`, ledger migration 0066).
    and the operator's usage view count carried data types only.
 
 `holdsASlot(state, stopped)` in `@openmig/ledger` is the one rule, and the count, a move into
-the lane and the operator's screen all derive from it. The pricing page gains one sentence,
-beside the lane's, when the stop is offered on a screen (0128 T4's doors, slice 3b).
+the lane and the operator's screen all derive from it. The pricing page says it in one
+paragraph beside the lane's, in both languages, since the stop's doors (0128 T4, slice 3b).
 

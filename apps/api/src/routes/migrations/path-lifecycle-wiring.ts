@@ -19,7 +19,13 @@
  * rule. What stays here is this edition's half: the month's peak.
  */
 
-import { PgPathLifecycleStore, movePathsWithMapping as movePaths } from '@openmig/ledger';
+import {
+  PgPathLifecycleStore,
+  movePathsWithMapping as movePaths,
+  stopOrResumePath,
+  type PathStopChange,
+  type PathStopOutcome,
+} from '@openmig/ledger';
 import { PgOccupancyPeakStore } from '@openmig/managed';
 import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
 import type { MappingStatus } from './mapping-status-audit.ts';
@@ -70,4 +76,21 @@ export async function activateAddedPath(
   await new PgPathLifecycleStore(db).activate(tenantId as TenantId, mappingId as MappingId, domain);
   // The month's high-water mark rises with the slot, as it does on a start.
   await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
+}
+
+/**
+ * Stop or resume one data type (0128 T4), through the ledger's own door, and
+ * raise the month's peak when a resume in the lane took back its slot (D2 (c)):
+ * same transaction, as every other door that takes slots.
+ */
+export async function stopOrResumeDataType(
+  db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
+  tenantId: string,
+  change: PathStopChange,
+): Promise<PathStopOutcome> {
+  const outcome = await stopOrResumePath(db, tenantId, change);
+  if ('slotsTaken' in outcome && outcome.slotsTaken) {
+    await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
+  }
+  return outcome;
 }

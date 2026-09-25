@@ -1975,10 +1975,12 @@ paths:
         it, neither side's last Test measured that it cannot, and the migration
         has not reached cutover.
 
-        Adding only: nothing here takes a data type off. A running migration's
-        new path takes its slot at once, a paused one's at its next start. The
-        migration's `updatedAt` moves, so the next preflight counts afresh.
-        Nothing is enqueued: the next pass copies the new data type.
+        Adding only: nothing here takes a data type off; a data type is
+        stopped and resumed on its own doors (`…/domains/{domain}/stop`). A
+        running migration's new path takes its slot at once, a paused one's at
+        its next start. The migration's `updatedAt` moves, so the next preflight
+        counts afresh. Nothing is enqueued: the next pass copies the new data
+        type. The addition is recorded (`path.added`).
       requestBody:
         required: true
         content:
@@ -2012,6 +2014,92 @@ paths:
             `kind_refused`, with a `reason` that says what to do instead: the
             data type is already there, one side cannot carry it, the last Test
             measured that it cannot, or the migration is past cutover.
+
+  /api/migrations/{mappingId}/domains/{domain}/stop:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - name: domain
+        in: path
+        required: true
+        schema: { type: string, enum: [email, calendar, contact, file, task] }
+    post:
+      tags: [Migrations]
+      summary: Stop one data type of a running migration
+      description: |
+        Stops ONE data type (workplan 0128 T4). Its copies stay, its record
+        stays, and it no longer follows the source; resuming continues where
+        it stopped. Only while the migration runs (`active` or `continuous`),
+        only a data type the migration carries, and only one before its
+        cutover or kept in the lane.
+
+        The last data type still copying cannot be stopped: end the migration
+        instead (D5). Before the cutover a stopped data type keeps its slot, as
+        a pause does; in the continuous lane it releases it (D2 (c)). The
+        progress strip says `stopped`, the check that everything arrived skips
+        it (D6), and the stop is recorded (`path.status`). Nothing is enqueued:
+        every pass reads the stop afresh.
+      responses:
+        '200':
+          description: Stopped, or already stopped (`changed` false).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, domain, stopped, changed]
+                properties:
+                  id: { type: string }
+                  domain: { type: string, enum: [email, calendar, contact, file, task] }
+                  stopped: { type: boolean, enum: [true] }
+                  changed: { type: boolean }
+        '400':
+          description: '`invalid_domain`: the path names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `stop_refused`, with `refused` the stable part and a `reason` that
+            says what to do instead: `not_running` (the migration is paused,
+            in its cutover or finished), `not_a_path` (the migration does not
+            carry this data type), `not_stoppable` (the data type is past its
+            cutover or has ended), or `last_one_copying` (end the migration
+            instead).
+
+  /api/migrations/{mappingId}/domains/{domain}/resume:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - name: domain
+        in: path
+        required: true
+        schema: { type: string, enum: [email, calendar, contact, file, task] }
+    post:
+      tags: [Migrations]
+      summary: Resume one stopped data type
+      description: |
+        Resumes a data type its owner stopped (workplan 0128 T4). It follows
+        the source again from where it stopped. In the continuous lane it
+        takes its slot back, and the month's peak rises with it (D2 (c)). The
+        resume is recorded (`path.status`).
+      responses:
+        '200':
+          description: Resumed, or already running (`changed` false).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, domain, stopped, changed]
+                properties:
+                  id: { type: string }
+                  domain: { type: string, enum: [email, calendar, contact, file, task] }
+                  stopped: { type: boolean, enum: [false] }
+                  changed: { type: boolean }
+        '400':
+          description: '`invalid_domain`: the path names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `resume_refused`, with `refused` and a `reason`: `not_running`,
+            `not_a_path` or `not_stoppable`, as for a stop.
 
   /api/migrations/{mappingId}/sync:
     parameters:

@@ -1134,6 +1134,20 @@ If those copies must be current when you finish, switch it back on and restart:
 the next pass continues where it stopped (new items are copied, edits are picked
 up, deletions at the source are reported), and then finish.
 
+**Stopping one data type without editing the file** (workplan 0128 T4). On a
+running migration, `POST /mappings/{id}/domains/{kind}/stop` stops one data type
+and `…/resume` starts it again; the managed edition has the same pair under
+`/api/migrations/{id}/domains/{kind}/`. The stop is kept in the database, not in
+the mapping file, so a restart keeps it. It means what a switch-off means: the
+copies stay and no longer follow the source, and a resume continues where it
+stopped. Three differences:
+
+- `/status` says `stopped` even when nothing was copied yet;
+- the last data type still copying cannot be stopped: end the migration instead;
+- the check that everything arrived skips it, *stopped by you*.
+
+Each stop and resume is in the audit log as `path.status`, with who pressed it.
+
 ## Health & troubleshooting
 
 - **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and

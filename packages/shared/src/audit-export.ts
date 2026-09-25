@@ -109,6 +109,10 @@ export const AUDIT_DETAIL_FIELDS = {
   // applying (0108 T8 (d)): a count and a date.
   liveLinks: 'keep',
   until: 'keep',
+  // A data type added, stopped or resumed (0128 T4), and the phase it was in
+  // then: product vocabulary (`calendar`, `continuous`), naming nobody.
+  domain: 'keep',
+  phase: 'keep',
   // Names and addresses.
   on: 'pseudonym',
   folder: 'pseudonym',
