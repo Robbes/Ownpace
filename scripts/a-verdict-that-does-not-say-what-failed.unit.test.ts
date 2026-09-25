@@ -169,3 +169,87 @@ describe('the verdict prints what was recorded', () => {
     expect(out).not.toContain('what failed:');
   });
 });
+
+/**
+ * WHAT THE GATE COULD NOT PROVE, said beside the verdict (workplan 0136 T5).
+ *
+ * The same lesson from the other side. When the managed API stopped reading a
+ * path on its own disk, the archive section lost the one live proof that the
+ * archive reader reached the deployed image, and 0136 T5 asks that the output
+ * SAY so rather than skip the step in silence, without failing the run. A
+ * line in the middle of a log several thousand lines long says it to nobody:
+ * a green night ends on `SMOKE PASS` and the gap shows only to whoever
+ * searches for it — the `skipped-no-item` and `SMOKE PASS` of run #6 again.
+ * So a gap is recorded like a failure is, and printed next to the verdict on a
+ * pass and on a fail, while the flag stays where it was.
+ */
+describe('what the gate could not prove is printed beside the verdict', () => {
+  /** The `not_proven` definition, taken from the script rather than restated. */
+  function notProvenDefinition(): string {
+    const start = smoke.indexOf('not_proven() {');
+    const end = smoke.indexOf('\n}\n', start);
+    expect(start, 'smoke-managed.sh defines no not_proven()').toBeGreaterThan(-1);
+    return smoke.slice(start, end + 3);
+  }
+
+  /** From the verify/apply line to the exit: everything the verdict prints. */
+  function verdictTail(): string {
+    const start = smoke.indexOf('echo "verify: $VERIFY_RESULT');
+    const end = smoke.indexOf('exit "$fail"', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return smoke.slice(start, end);
+  }
+
+  function run(fail: string): string {
+    return execFileSync(
+      'bash',
+      [
+        '-c',
+        [
+          'set -u',
+          `fail=${fail}`,
+          'FAIL_REASONS=""',
+          'NOT_PROVEN=""',
+          'VERIFY_RESULT=done',
+          'APPLY_RESULT=applied',
+          'OUT=/tmp/evidence.txt',
+          'SECTION="the export archive"',
+          failAtDefinition(),
+          notProvenDefinition(),
+          'not_proven "the archive reader in the deployed image (0148 T9)"',
+          `[ "$fail" = "${fail}" ] || echo "NOT_PROVEN MOVED THE FLAG"`,
+          fail === '1' ? 'fail_at "a reason"' : ':',
+          verdictTail(),
+        ].join('\n'),
+      ],
+      { encoding: 'utf8' },
+    );
+  }
+
+  it('a pass names the gap next to SMOKE PASS, and stays a pass', () => {
+    const out = run('0');
+    expect(out).not.toContain('NOT_PROVEN MOVED THE FLAG');
+    expect(out).toContain('SMOKE PASS');
+    const verdictAt = out.indexOf('verify: done');
+    const gapAt = out.lastIndexOf('the archive reader in the deployed image (0148 T9)');
+    expect(gapAt, 'the gap is not printed with the verdict').toBeGreaterThan(verdictAt);
+    expect(gapAt).toBeLessThan(out.indexOf('SMOKE PASS'));
+    // And it names the section it came from, as a failure's entry does.
+    expect(out).toContain('- the export archive: the archive reader in the deployed image (0148 T9)');
+  });
+
+  it('a fail still ends on what failed, with the gap above it', () => {
+    const out = run('1');
+    const gapAt = out.lastIndexOf('the archive reader in the deployed image (0148 T9)');
+    expect(gapAt).toBeGreaterThan(out.indexOf('verify: done'));
+    expect(gapAt).toBeLessThan(out.indexOf('SMOKE FAIL'));
+    expect(out.indexOf('what failed:')).toBeGreaterThan(gapAt);
+  });
+
+  it('the archive section records its gap through it, not with a bare echo', () => {
+    const section = smoke.slice(smoke.indexOf('note "the export archive"'));
+    const next = section.indexOf('\nreport_json ');
+    expect(code(section.slice(0, next)).some((l) => /^\s*not_proven\s+"/.test(l))).toBe(true);
+  });
+});

@@ -387,11 +387,23 @@ const en = {
   // card name cannot: this is a SNAPSHOT with a date on it, not a live
   // account — and because it is, a later export only ever ADDS: nothing is
   // removed from the target because an export no longer mentions it (§5).
-  'wizard.proto.archive.hint': 'A Google Takeout or Apple export you downloaded: photos and files.',
+  //
+  // APPLE IS TAGGED WHILE NO READER OPENS IT (0148 T3, owner decision D7), in
+  // the hint as in the form's option. The hint is a sentence, so it is the one
+  // place a landed reader is answered by hand; `an-export-we-cannot-read-yet`
+  // fails until it is. "download" rather than "export you downloaded" keeps
+  // it inside the twelve words a hint may spend.
+  'wizard.proto.archive.hint': 'A Google Takeout or Apple (to be tested) download: photos and files.',
   'wizard.archiveProvider': 'Which export',
   'wizard.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
   'wizard.archiveProvider.why':
     'It decides how we read the export, and the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
+  // An export no reader opens yet (0148 T3, D7): the tag inside the option's
+  // name, and the line under the field while it is chosen, keyed per export
+  // because it names the company. Both leave the form when a reader lands.
+  'wizard.archiveProvider.untested': 'To be tested',
+  'wizard.archiveProvider.noReader.apple-privacy':
+    'We cannot read an Apple export yet. Request one only for your own records.',
   'wizard.archivePath': 'Where the archive is',
   'wizard.archivePath.hint': 'The folder you extracted the download into, or the .zip itself.',
   'wizard.archivePath.why':
@@ -2707,12 +2719,15 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.appleAppPassword.why':
     'Apple weigert het accountwachtwoord hier met opzet. Maak er een aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'wizard.proto.archive.hint':
-    'Een Google Takeout- of Apple-export die u hebt gedownload: foto’s en bestanden.',
+    'Een gedownloade Google Takeout- of Apple-export (nog te testen): foto’s en bestanden.',
   'wizard.archiveProvider': 'Welke export',
   'wizard.archiveProvider.hint':
     'Welk bedrijf het archief maakte; bij de verkeerde keuze vinden we niets.',
   'wizard.archiveProvider.why':
     'Dat bepaalt hoe wij de export lezen, en aan de bestanden zelf is het niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
+  'wizard.archiveProvider.untested': 'Nog te testen',
+  'wizard.archiveProvider.noReader.apple-privacy':
+    'Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
   'wizard.archivePath': 'Waar het archief staat',
   'wizard.archivePath.hint':
     'De map waarin u de download hebt uitgepakt, of het .zip-bestand zelf.',

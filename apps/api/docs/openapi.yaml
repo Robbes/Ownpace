@@ -1526,7 +1526,14 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
-        '400': { description: Unknown type, a missing required field, or a value the schema refuses. }
+        '400':
+          description: |
+            Unknown type, a missing required field, or a value the schema refuses.
+            Or `archive_on_server` (workplan 0136 T5): an export archive whose
+            `where` is absent or `disk`, a path on this service's own machine,
+            which a managed migration cannot read. Refused before anything is
+            probed or stored; the sentence says the export goes in a folder of
+            the Nextcloud or WebDAV files the migration writes to.
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/connections/{id}:
     delete:
@@ -1604,6 +1611,11 @@ paths:
         '400': { description: A missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
+        '409':
+          description: |
+            `archive_on_server` (workplan 0136 T5): a stored export archive whose
+            path is on this service's own machine. Rotating probes the stored
+            path first, so it is refused before anything is opened or replaced.
   /api/connections/{id}/test:
     post:
       tags: [Connections]
@@ -1670,6 +1682,12 @@ paths:
                           sentence: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
+        '409':
+          description: |
+            `archive_on_server` (workplan 0136 T5): a stored export archive whose
+            path is on this service's own machine, which a managed migration
+            cannot read. Refused before anything is opened; the row's `status`
+            becomes `error`, so the list does not show it as connected.
   /api/setup/{side}/{provider}:
     get:
       tags: [Setup]
@@ -1758,7 +1776,11 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
-        '400': { description: The body named neither side's shapes. }
+        '400':
+          description: |
+            The body named neither side's shapes. Or `archive_on_server` (workplan
+            0136 T5): an export archive at a path on this service's own machine,
+            refused before anything is probed.
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations:
     get:
@@ -1803,7 +1825,12 @@ paths:
             application/json:
               schema: { type: object }
         '400':
-          description: Refused, naming what is incoherent or missing.
+          description: |
+            Refused, naming what is incoherent or missing. Or `archive_on_server`
+            (workplan 0136 T5): an export archive at a path on this service's own
+            machine — for a new connection, or in a reused one's override —
+            refused before anything is stored. That refusal also carries
+            `fields: [path]` and `reason`, the same sentence as `message`.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

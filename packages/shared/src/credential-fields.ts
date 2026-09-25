@@ -25,7 +25,26 @@
  * adds no new translations to drift.
  */
 
-import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES } from './archive-providers.ts';
+import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES, hasArchiveReader } from './archive-providers.ts';
+
+/**
+ * One choice in a closed list (`CredentialField.options`).
+ *
+ * `label` is verbatim in every language. The two keys are ours, so they are
+ * keys, and both exist for one case today (workplan 0148 T3, owner decision
+ * D7): an export the form offers and no reader can open yet. The option stays,
+ * and says so twice: a tag inside its name, and a line under the field while
+ * it is chosen. A door that does not know the keys shows the bare label, which
+ * is today's screen and nothing worse.
+ */
+export interface CredentialOption {
+  readonly value: string;
+  readonly label: string;
+  /** A tag shown as TEXT inside the option's name, after the label. */
+  readonly tagKey?: string;
+  /** A line shown under the field while this option is the one chosen. */
+  readonly hintKey?: string;
+}
 
 export interface CredentialField {
   /**
@@ -78,7 +97,7 @@ export interface CredentialField {
    * "Google Takeout" is the heading on Google's own page, and translating it
    * would send somebody looking for a page that does not exist.
    */
-  readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string }>;
+  readonly options?: ReadonlyArray<CredentialOption>;
   /**
    * The example value shown in the empty box, VERBATIM (workplan 0075).
    *
@@ -293,9 +312,22 @@ function archiveFields(): ReadonlyArray<CredentialField> {
       // Derived from the shared vocabulary rather than written out: this list
       // and `ARCHIVE_PROVIDERS` disagreeing would mean a form offering an
       // export the create door refuses, or hiding one it accepts.
+      //
+      // AN EXPORT NO READER OPENS YET STAYS, AND SAYS SO (0148 T3, D7). Apple's
+      // takes up to a week to prepare and Test then refuses it as a wiring
+      // gap, so the option carries *To be tested* and, while chosen, the line
+      // that it cannot be read yet. Both come from the readers list, so a
+      // landed reader removes them here and nowhere else. The line is keyed
+      // per export because it names the company.
       options: ARCHIVE_PROVIDERS.map((value) => ({
         value,
         label: ARCHIVE_PROVIDER_NAMES[value],
+        ...(hasArchiveReader(value)
+          ? {}
+          : {
+              tagKey: 'wizard.archiveProvider.untested',
+              hintKey: `wizard.archiveProvider.noReader.${value}`,
+            }),
       })),
       hintKey: 'wizard.archiveProvider.hint',
     },
