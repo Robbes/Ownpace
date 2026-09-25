@@ -100,8 +100,9 @@ interface FormData {
   sourceClientId: string;
   sourceClientSecret: string;
   /** Google Drive (workplan 0042): the delegated, read-only refresh token —
-   *  docs/google-workspace-setup.md is where all three of its values come
-   *  from, and the wizard says so beside the fields. */
+   *  the Google guide (`/docs/google`, docs/guides/<locale>/google.md) is
+   *  where all three of its values come from, and the wizard says so beside
+   *  the fields. */
   sourceRefreshToken: string;
   /** ADR-0033: a pasted key file selects domain-wide delegation. */
   sourceServiceAccountKey: string;

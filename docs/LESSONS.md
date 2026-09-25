@@ -743,6 +743,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/box-setup.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
 ### `docs/dav-sync.md`
 
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
@@ -755,6 +759,10 @@ reading a file drops off its entry by itself.
 ### `docs/google-workspace-setup.md`
 
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+
+### `docs/guides/en/box.md`
+
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
 ### `docs/managed-bring-up.md`
 
@@ -1613,7 +1621,9 @@ Reads:
 - `docs/adr/OPERATIVE.md`
 - `docs/apple-setup.md`
 - `docs/architecture/solution-architecture.md`
+- `docs/box-setup.md`
 - `docs/feature-matrix.md`
+- `docs/guides/en/box.md`
 - `docs/managed-bring-up.md`
 - `docs/rls-guide.md`
 - `docs/workplans/0115-the-account-apple-will-not-hand-over.md`

@@ -1,5 +1,7 @@
 # Bringing an export archive
 
+**Operator and self-host document.** The customer guide is [the export archive guide](guides/en/archive.md), served in the app at `/docs/archive`.
+
 Some of your data cannot be moved by connecting an account, because the company holding it
 does not offer any way for another program to read it. **Google Photos** and **iCloud Drive**
 are the two that matter most: there is no key you can give us that opens them.
