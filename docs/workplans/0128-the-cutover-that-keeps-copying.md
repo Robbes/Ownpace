@@ -2,7 +2,29 @@
 
 > **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, a cutover per data type (`path_lifecycle`), ending or keeping each data type in the continuous lane, and per-data-type stop and resume on both editions.
 
-## Status — 2026-09-25 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26: the lane's doors, three defects.** Found while building T4, fixed at the
+migration's level ahead of slice 7, which makes the same doors per data type:
+- **The appliance had no lane door**, so the Finish page's *Keep copying* was answered 404
+  there, against D4 (a). It now serves `PUT /mappings/{id}` with `{"status": "continuous"}`, the
+  request both editions' page sends. It asks managed's rule (`updateTransition`), writes through
+  the ledger's own door (paths and audit record), enters the lane only (every other move has its
+  own door on the appliance), and schedules the passes the lane runs. On the appliance the lane
+  says nothing of a tier: it bills nothing.
+- **The lane had no End.** *"Still copying. End it whenever you like."* stood over nothing to
+  press. The Finish page now offers *End copying* there, through Finish's own door on both
+  editions, with its refusal over open failures and the force that passes it.
+- **Pause was offered in the lane**, and refused every time: no update brings a migration back
+  before its cutover. The migration page offers it on an active migration only.
+- A *Keep copying* that fails now says why, in the server's words, after *Could not switch it
+  on.*
+
+Evidence: the appliance end to end (1: refused before the cutover, a pause refused as another
+door's, its refusals after the cutover, the lane entered from a finished migration with its
+passes scheduled, each move recorded, the paths moved, and the lane ended by Finish); the Finish page
+(6: the End, its refusal and force, none before the cutover, a failed Keep's reason, and the
+lane's words on each edition); Pause on each state (2).
 
 **2026-09-25: T4, the last of three parts (T5 slice 3c): Stop and Resume on the migration's
 page, on both editions.** T4 is built.
@@ -579,7 +601,8 @@ retrying them. (b) was to keep the lane a second press after finishing.
 
 **D4 — the appliance (T3, T4)?** **Decided 2026-09-24: (a)**, *"2a"*. The appliance gets the same
 choice, data types included, with a stopped data type kept in its own database. Its *Keep
-copying* button fails today: it calls a route the appliance does not serve, and is answered 404.
+copying* button failed until 2026-09-25: it called a route the appliance did not serve,
+and was answered 404.
 (b) was managed only, with the appliance's button hidden until then.
 
 **D5 — stopping the last data type still copying (T4)?** **Decided 2026-09-24: (a)**, *"3a"*.

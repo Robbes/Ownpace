@@ -55,6 +55,7 @@ import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
+import { isSelfHost } from '../services/edition.ts';
 
 type Outcome =
   | { readonly state: 'pending' }
@@ -180,7 +181,10 @@ const Finish: React.FC = () => {
   // this door was that somebody is TOLD before they enter. A single button with
   // the explanation beside it would let a fast reader enter without meeting it.
   const [laneAsked, setLaneAsked] = React.useState<Record<string, boolean>>({});
-  const [laneState, setLaneState] = React.useState<Record<string, 'pending' | 'failed'>>({});
+  // A failure keeps the server's own sentence (0128 D4): the appliance answered
+  // this press 404 for as long as it had no lane door, and "could not switch
+  // it on" alone gave nobody a reason to look further.
+  const [laneState, setLaneState] = React.useState<Record<string, 'pending' | { failed: string }>>({});
 
   const keepCopying = (mappingId: string) => {
     setLaneState((l) => ({ ...l, [mappingId]: 'pending' }));
@@ -193,8 +197,8 @@ const Finish: React.FC = () => {
         });
         void queryClient.invalidateQueries();
       })
-      .catch(() => {
-        setLaneState((l) => ({ ...l, [mappingId]: 'failed' }));
+      .catch((err: unknown) => {
+        setLaneState((l) => ({ ...l, [mappingId]: { failed: serverMessage(err) } }));
       });
   };
 
@@ -397,9 +401,18 @@ const Finish: React.FC = () => {
             {(m.lifecycle === 'cutover' || m.lifecycle === 'done') && (
               <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded">
                 <p className="text-sm font-medium text-gray-900">{t('lane.title')}</p>
-                <Hint text={t('lane.intro')} why={t('lane.why')} tone="body" open={laneAsked[id]} />
-                {laneState[id] === 'failed' && (
-                  <p className="mt-2 text-sm text-amber-800">{t('lane.failed')}</p>
+                {/* The appliance bills nothing, so its lane says nothing of a
+                    tier (0128 D4: the same choice, on its own terms). */}
+                <Hint
+                  text={t('lane.intro')}
+                  why={t(isSelfHost() ? 'lane.selfhost.why' : 'lane.why')}
+                  tone="body"
+                  open={laneAsked[id]}
+                />
+                {typeof laneState[id] === 'object' && (
+                  <p className="mt-2 text-sm text-amber-800">
+                    {t('lane.failed')} {laneState[id].failed}
+                  </p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {laneAsked[id] ? (
@@ -410,7 +423,7 @@ const Finish: React.FC = () => {
                         onClick={() => keepCopying(id)}
                         className="px-3 py-1.5 text-sm rounded bg-blue-700 text-white disabled:opacity-50"
                       >
-                        {t('lane.confirm')}
+                        {t(isSelfHost() ? 'lane.selfhost.confirm' : 'lane.confirm')}
                       </button>
                       <button
                         type="button"
@@ -432,8 +445,60 @@ const Finish: React.FC = () => {
                 </div>
               </div>
             )}
+            {/* THE LANE'S END (0128 D3). This line promised "end it whenever you
+                like" with nothing to press: the checklist below is for a
+                migration that has not finished, and a lane migration had no
+                Finish at all. Ending is the same door as finishing (both
+                editions' `/finish`, `finishTransition`), and its refusal is the
+                same: open failures, which only force passes. */}
             {m.lifecycle === 'continuous' && (
-              <p className="mt-3 text-sm text-gray-600">{t('lane.running')}</p>
+              <div className="mt-3 text-sm">
+                <p className="text-gray-600">{t('lane.running')}</p>
+                {outcome?.state === 'done' ? (
+                  <p className="mt-2 flex items-start gap-2 text-emerald-700">
+                    <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    {outcome.result.effect}
+                  </p>
+                ) : outcome?.state === 'refused' ? (
+                  <div className="mt-2">
+                    <p className="flex items-start gap-2 text-amber-800">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      {outcome.error}
+                    </p>
+                    {outcome.hint && <p className="mt-1 text-gray-600">{outcome.hint}</p>}
+                    {outcome.forceable && (
+                      <button
+                        onClick={() => finish(id, true)}
+                        className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50"
+                      >
+                        <Flag className="w-3 h-3" />
+                        {t('finish.forceButton')}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {outcome?.state === 'failed' && (
+                      <p className="mt-2 flex items-start gap-2 text-red-800">
+                        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        {outcome.error}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => finish(id, false)}
+                      disabled={outcome?.state === 'pending'}
+                      className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 disabled:opacity-50"
+                    >
+                      {outcome?.state === 'pending' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Flag className="w-4 h-4" />
+                      )}
+                      {t('lane.end')}
+                    </button>
+                  </>
+                )}
+              </div>
             )}
 
             {!finishable ? null : outcome?.state === 'done' ? (

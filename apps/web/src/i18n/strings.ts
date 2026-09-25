@@ -1769,6 +1769,13 @@ const en = {
   'lane.cancel': 'Not now',
   'lane.running': 'Still copying. End it whenever you like.',
   'lane.failed': 'Could not switch it on.',
+  // The lane on the appliance (0128 D4): the same choice, and no tier to keep.
+  'lane.selfhost.why':
+    'Deletions at the old provider stop being mirrored — anything you remove there stays in ' +
+    'your new home. It runs on this appliance until you end it.',
+  'lane.selfhost.confirm': 'Keep copying',
+  // The lane's end (0128 D3): the same door as finishing, from the lane.
+  'lane.end': 'End copying',
   'finish.aftermath.title': 'What remains available',
   'finish.aftermath.verify': 'Verification report',
   'finish.aftermath.runs': 'Run history (on the migration page)',
@@ -3691,6 +3698,11 @@ const nl: Record<keyof typeof en, string> = {
   'lane.cancel': 'Nu niet',
   'lane.running': 'Kopieert nog. U kunt het altijd beëindigen.',
   'lane.failed': 'Kon dit niet inschakelen.',
+  'lane.selfhost.why':
+    'Verwijderingen bij de oude aanbieder worden niet meer gespiegeld — wat u daar weghaalt ' +
+    'blijft in uw nieuwe huis staan. Het loopt op dit apparaat door tot u het beëindigt.',
+  'lane.selfhost.confirm': 'Blijven kopiëren',
+  'lane.end': 'Kopiëren beëindigen',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
   'finish.aftermath.runs': 'Uitvoeringsgeschiedenis (op de migratiepagina)',
