@@ -2482,8 +2482,10 @@ paths:
       description: |
         Workplan 0108 T8 (d), the owner's decision of 2026-09-24: a report goes
         to the problem report form's Zammad (0130). Becomes an internal note on
-        a ticket, with the typed reply address as the ticket's customer, so the
-        owner's reply reaches them by email. The note carries what the link's
+        a ticket. A typed reply address is the ticket's customer, so the owner's
+        reply reaches them by email. It is optional (the owner, 2026-09-24):
+        without one, the ticket is filed under the helpdesk token's own user and
+        nobody can be answered. The note carries what the link's
         own rows say, one line per fact: the organisation, the migration, the
         link's id (never the link), who issued it, from, to, and whether access
         was given. Then, under its own label, what they wrote. The title is
@@ -2502,8 +2504,12 @@ paths:
               type: object
               properties:
                 description: { type: string, maxLength: 5000 }
-                replyTo: { type: string, format: email, maxLength: 320 }
-              required: [description, replyTo]
+                replyTo:
+                  type: string
+                  format: email
+                  maxLength: 320
+                  description: Optional. Empty or absent means the person wants no answer.
+              required: [description]
       responses:
         '201':
           description: Delivered, with the ticket's number.
@@ -2732,8 +2738,10 @@ paths:
       description: |
         Workplan 0108 T8 (d), the owner's decision of 2026-09-24: a report goes
         to the problem report form's Zammad (0130). Becomes an internal note on
-        a ticket, with the typed reply address as the ticket's customer, so the
-        owner's reply reaches them by email. The note carries what the link's
+        a ticket. A typed reply address is the ticket's customer, so the owner's
+        reply reaches them by email. It is optional (the owner, 2026-09-24):
+        without one, the ticket is filed under the helpdesk token's own user and
+        nobody can be answered. The note carries what the link's
         own rows say, one line per fact: the organisation, the migration, the
         link's id (never the link), who issued it, from, to, and whether access
         was given. Then, under its own label, what they wrote. The title is
@@ -2752,8 +2760,12 @@ paths:
               type: object
               properties:
                 description: { type: string, maxLength: 5000 }
-                replyTo: { type: string, format: email, maxLength: 320 }
-              required: [description, replyTo]
+                replyTo:
+                  type: string
+                  format: email
+                  maxLength: 320
+                  description: Optional. Empty or absent means the person wants no answer.
+              required: [description]
       responses:
         '201':
           description: Delivered, with the ticket's number.
@@ -6066,4 +6078,14 @@ components:
           type: string
           description: Five-field cron. An unparseable value is refused at create, not silently replaced by a default.
           examples: ['*/15 * * * *']
+        status:
+          type: string
+          enum: [paused, active]
+          default: paused
+          description: |
+            Where the migration begins: a draft (`paused`, the default) that
+            waits for `/start`, or `active`, running from its first minute.
+            `cutover`, `done` and `continuous` are refused here with a 400 that
+            says so. Each is reached once the migration exists, through the
+            cutover, Finish and Keep copying, which check what they need.
       required: [sourceConfig, targetConfig]

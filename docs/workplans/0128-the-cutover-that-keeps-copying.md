@@ -4,6 +4,158 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: T4, the first of three parts (T5 slice 3a): the stop is kept and obeyed.**
+Readers before writers again: nothing can stop a data type yet (the doors are 3b, the screens
+3c), so no pass behaves differently today.
+- **The stop is kept beside the phase**, not in it: `path_lifecycle.stopped_at` (ledger
+  migration 0066), NULL while the data type runs. A stopped data type keeps its phase, and a
+  cutover, a rollback or a move into the lane moves its phase as they move every other; the stop
+  stays until its owner resumes it. Both editions keep it in their own database (D4).
+- **Every gate obeys it.** The reader carries it on each data type's phase, whichever phase is
+  believed: a status set by hand does not start a data type its owner stopped. `pathRunsNow` is
+  false for it, so the managed pass and the appliance's pass move past it and say *"you stopped
+  this data type"*, not that it ended. A kept data type in the lane that its owner stopped does
+  not keep a migration past its grace period running, in the reader or the tick.
+- **What a stop holds (D2 (c))**, in `holdsASlot(state, stopped)`: its slot while the migration is
+  before its cutover, none in the lane, where `ended_at` says when it stopped costing anything.
+  The count the tier is read off (`slotsHeld`) now counts only the data types a migration carries
+  (`scope_selection.included`), the item 2a left out, and the operator's usage view counts the
+  same (managed migration 0029), keyed by state and stop. ADR-0014 is amended.
+- **A running migration whose every data type is stopped** still starts passes, which move past
+  each one. Its owner cannot make one: the last data type still copying cannot be stopped (D5,
+  in 3b's door).
+
+Evidence:
+- the rules (3 new): a stop runs no pass in any phase and leaves who decides what exists to the
+  phase; it is kept where the rows agree and where the status is believed; it adds up as its
+  state;
+- the slot rule and the count on PGlite as `app_user` (5 new): `holdsASlot` for every state and
+  both answers of a stop, and the count equal to it path by path; a data type the migration no
+  longer carries holds nothing; a stop survives a cutover, a move into the lane (releasing its
+  slot) and a rollback (keeping it); `ended_at` stamped for a stop in the lane;
+- the reader (2 new) and the three gates on the same rows, with stopped rows in the matrix (810
+  combinations) and a stopped kept data type past the grace period (1 new);
+- the pass's decision (3 new) and the appliance's pass (1 new): moved past, and said as a stop;
+- the operator's usage view and screen: carried data types only, a stop in the lane counted under
+  its own key and not as a slot, and the screen still agreeing with the tier calculator.
+
+**2026-09-24, night: T5's second slice, second half (2b): the reader reads the rows, and every
+gate asks whether any data type runs.** Until a data type can be cut over on its own (slice 5),
+that is the same answer as before, so no pass behaves differently today.
+- **The reader** (`readPathPhases`) reads the migration's included path rows. Where they add up
+  to its status (`rollUpPhases`, §3's roll-up), each data type's phase is its own row's, and a
+  data type with no row has the migration's. Where they do not, as after a status set back by
+  hand on the appliance, the status is believed for every data type (decided in 2a). A
+  switched-off data type's row is not a path, and is not read.
+- **One gate for all of them: `anyRuns`.** Nothing runs while the migration is held (`paused`).
+  Otherwise the migration runs by its own status, with its cutover's window, or, where its rows
+  add up to that status, because one of its paths runs. The one case only a row can answer is a
+  data type kept in the lane while another is past its cutover's grace period.
+- **Who asks it:** the managed pass's stop check (`haltFrom`), and the appliance's three gates
+  (its pass's first check, its schedule at start-up, its run-now door), through one wrapper.
+  The managed tick chooses in one SQL statement, so it asks the one case the status cannot see
+  in SQL (`A_PATH_KEPT_AFTER_A_CUTOVER_WHERE`, ledger), beside the rules it already had.
+- **The grace window** is asked when the migration or one of its paths is in `cutover`: one
+  window per migration, until the cutover ledger is kept per data type (slice 4).
+- **Found on the way, in CI: an appliance on Postgres could not read a row as its serving role on
+  the connection that ran its migrations.** The baseline is a `pg_dump`, whose preamble turns
+  `row_security` off for the session, and a pool hands that session to the next caller. The
+  appliance's start-up gate now reads through `withTenant`, which drops to the serving role, and
+  was refused there. The same connection could already fail slice 1's per-pass read and 2a's
+  start-up rows, which say so and carry on. `runMigrations` now ends with `RESET ALL`, on every
+  driver; a test migrates and serves on a one-connection pool on Postgres 16.
+
+Evidence:
+- the roll-up and the phase per data type (6 new, 11 in all); the reader on PGlite as `app_user`
+  (5 new, 14 in all): rows that agree, a data type with none, a path in its cutover under a
+  running migration, rows that do not add up in either direction, a held migration with a data
+  type kept in the lane, and a switched-off data type;
+- the tick's own query, the pass's stop check and the reader on the same rows, over every
+  status, both sides of the grace period and every pair of rows two data types can have (490
+  combinations), with a switched-off data type kept in the lane, and a third data type beside a
+  kept one in each of its states: one answer everywhere (6 tests);
+- the appliance on PGlite: a migration past its grace period with calendars kept is scheduled at
+  start-up and runs on Sync now, and is refused once its rows no longer add up; the pass's
+  decision goes on while any data type runs;
+- the lane guard now pins the appliance's three gates to the one wrapper, the wrapper to the
+  reader, and the tick to the kept-lane rule; the source-authority guard pins the appliance's
+  per-pass gate to the wrapper, and holds every phase a data type runs in after its cutover to
+  its detectors being absent;
+- 19 mutations, all killed: in the reader, the roll-up, the phase per data type, the tick's SQL,
+  the pass's stop check, the appliance's wrapper and its per-pass gate.
+
+**2026-09-24, night: T5's second slice, first half (2a): path rows everyone can trust.** Slice 2
+is split in two. 2a writes the rows and changes no gate; 2b, now that slice 1 is in, has the
+reader read them. Nothing reads these rows for a gate yet, so no pass behaves differently.
+- **Ledger migration 0065** gives every migration that has started its path rows, from its own
+  status. `active` and `continuous` always get them. `paused` gets them only once it has run a
+  pass, since one that never ran is a draft, and a draft's paths are `ready`: free, and absent.
+  `cutover` and `done` get them released, `ended_at` at the migration's last change.
+  `first_activated_at` is the first pass, or the creation. A row that exists is left alone.
+  Until now, only migrations started through the managed API's doors since 2026-08-30 had rows.
+- **The appliance** writes its scope rows from its configuration at every start-up, `included`
+  as the file has it: a switched-off data type names itself, but is not a path. Then it gives
+  its paths their rows by the same rule (`pathsFromTheMapping`, one migration at a time). Its
+  Start and Finish go through the ledger's own door (`applyMappingStatusChange`): the status,
+  its paths and an audit record in one transaction. Until now they wrote a raw UPDATE that
+  moved no path and left no record.
+- **Not in 2a, and why:**
+  - *`slotsHeld` limited to selected data types*: nothing deselects a path. A stop is kept beside
+    the phase (D6), and the one writer of `included = false` is the appliance, which has no bill.
+  - *A path audit record*: while every path moves with its migration, the migration's own record
+    says it, and a row per path would repeat it. It comes with slice 3, where a path first moves
+    on its own.
+- **For 2b, decided here so it is not forgotten:** the appliance's Finish tells its operator to
+  set the status back by hand to resume, which leaves the path rows behind. So when the rows'
+  roll-up disagrees with the migration's status, the reader believes the status. That is
+  today's answer, and it never gives back a deletion detector a cutover took away.
+
+Evidence:
+- the migration on a database migrated to 0064 and filled, then taken to the end of the chain;
+  and `pathsFromTheMapping` on the same rows, migration by migration: the same rows, over a draft,
+  a paused migration that ran, one running with no pass yet, a cutover, a finished one, one in the
+  lane, a switched-off data type and a row that already existed (3); `recordScope` (1);
+- the appliance on PGlite (3): the scope rows at start-up and none for a draft; Start and Finish
+  moving the paths with a record of each; an older migration's rows at the next start-up;
+- every appliance, ledger, orchestration and guard test (293 files, 3,707 tests).
+
+**2026-09-24, night: T5's first slice built. A pass asks each data type its own phase.** Nothing
+changes yet: until a data type can have a phase of its own, every one has the migration's. The
+readers go in first, so that no gate can meet a cut-over data type it does not understand.
+- **The rules** are in shared (`path-phase.ts`: `PathPhase`, `pathRunsNow`,
+  `pathSourceAuthority`). `phasesOfTheMigration` is today's answer for every data type.
+- **The one reader** is in the ledger (`readPathPhases`). It reads the migration's row and its
+  cutover's grace window. It is the function that will learn to read path rows in slice 2.
+- **The managed pass** asks before each data type (`passStepBefore`):
+  - stop, when the migration no longer runs or its grant was withdrawn;
+  - move on past a data type that no longer runs while the others do, so files are not
+    stopped with mail;
+  - run it otherwise.
+- **Both managed builders** take the deletion answer from their own data type's phase, through
+  the reader.
+- **The appliance's pass** reads every data type's phase once, and asks that one reading both
+  questions: whether each data type still runs, moving on past one that does not, as the managed
+  pass does; and whether its source still decides what exists.
+- **The standalone worker** keeps running the configuration it is handed, with the migration's
+  phase. It has never refused a pass for the migration's state, and gains no refusal.
+- **Left for slice 2, on purpose:** the managed tick and the appliance's own gates (its pass's
+  first check, its schedule at start-up and its run-now door) still ask whether the migration
+  runs. Until a data type can be cut over on its own, that is the same question as whether any of
+  its data types runs, so they learn the second with the rows. §3's *one snapshot per pass* is
+  refined to *one answer per data type per pass*: the managed pass's stop check reads again
+  before each data type, as it always has, to see a Pause or a withdrawn grant.
+
+Evidence:
+- the rules (5), the reader on PGlite as `app_user` (9), the pass's decision and its loop (6),
+  and the appliance's pass (4): each data type its own answer, moving on past one that no longer
+  runs, and the standalone worker's run unchanged;
+- the guard on the builders now requires each answer to come from a data type's phase, and pins
+  that every builder and the appliance ask the one reader, the appliance both questions of one
+  reading;
+- the unit suites of every package touched, and the integration tests of the stop check, a
+  cutover without mail and a withdrawn grant, on Postgres 16;
+- 22 mutations, all killed.
+
 **2026-09-24, evening: the owner answered the five questions for T3 and T4, and split the
 cutover.** *"1a 2a 3a 4a 5a. But for 5a: this is only after cutover and we need to split up
 cutover, since someone might want to keep syncing some kinds, like keeps files running, while
@@ -86,7 +238,7 @@ its test.
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
 | T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | 📋 **Decided: D2 (c), D4, D5, D6**; next | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | 📋 **Decided: D8**; designed 2026-09-24, next | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slice 1 (the readers) built the same night | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -243,12 +395,20 @@ their own cutover.
 - **Readers before writers.** Every gate must read a data type's phase before any data type can
   have a phase of its own. Otherwise mail that was cut over would meet a gate still reading the
   migration as `active`, and the deletion detectors would come back for it.
-- **One snapshot per pass.** The phases are read once when a pass starts, so a data type cannot
-  change its answer halfway through a pass.
+- **One answer per data type per pass.** A data type's phase is read once for its turn in a pass
+  and holds for the whole of it, so a data type cannot change its answer halfway through its own
+  copy. The appliance reads every data type's phase once, when its pass starts. The managed pass
+  reads each one when its turn comes, because its stop check has always read the migration again
+  before each data type, to see a Pause or a withdrawn grant. The builder's reading is the later
+  one, so the deletion answer follows the phase as it is when the copy starts (slice 1).
 - **No row is not `ready`.** For billing, a missing path row means `ready`, and holds nothing.
   For a gate that would be wrong: every migration activated before 2026-08-30, and every
   appliance migration, has no rows. A gate falls back to the migration's own status, and the rows
   are backfilled from it.
+- **Rows that do not add up to the status are not believed.** Something that writes the status
+  alone leaves the rows behind: the appliance's operator, told to set it back by hand to resume.
+  Then the status is every data type's phase, which is the answer every gate gave before the rows
+  existed, and never gives back a deletion detector a cutover took away.
 - **Shares per data type.** `share_grant.subject` already says which data type a share belongs to
   (`drive_item`, `calendar`, `mailbox`), so each share waits for its own data type's cutover, and
   each data type's shares are announced once, then (D8).
@@ -273,15 +433,23 @@ cutover; once every one is past it, a new data type is a new migration, as today
 - The CLI's `--domain` is the mail domain, so the data type's flag is `--kind`.
 
 **The order, one pull request each.**
-1. **The readers**, with no change in behaviour: a per-pass snapshot of every data type's phase,
-   today each equal to the migration's status, threaded through the managed tick, the pass and
-   its stop check (which moves past a finished data type rather than stopping the whole pass), the
-   dependency builders' source authority, and the appliance's gates.
+1. **The readers**, with no change in behaviour: every data type's phase, today each equal to the
+   migration's status, read by one reader (`readPathPhases`) and threaded through the managed
+   pass and its stop check (which moves past a data type that no longer runs rather than stopping
+   the whole pass), the dependency builders' source authority, and the appliance's pass, which
+   moves past one the same way. *Built 2026-09-24.*
 2. **Path rows everyone can trust:** a backfill from the migration's status, the appliance writing
    its scope and path rows and moving its status through the ledger's own door with an audit
-   record, a path audit record, and `slotsHeld` limited to selected data types. Then the snapshot
-   reads the rows.
-3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6).
+   record, a path audit record, and `slotsHeld` limited to selected data types. Then the reader
+   reads the rows, and the managed tick and the appliance's own gates (its pass's first check,
+   its schedule at start-up, its run-now door) ask whether any data type runs, rather than
+   whether the migration does. Until slice 5 the two are the same answer. *Built 2026-09-24, in
+   two halves (2a, 2b), without the path audit record and the `slotsHeld` limit, which wait for
+   slice 3 (see the Status block).*
+3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6). In three parts:
+   the stop kept and obeyed, with its slot rule (3a, *built 2026-09-24*); the doors on both
+   editions, with the path audit record, D5's refusal and D6's verification (3b); the screens
+   (3c).
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration.
 5. **The cutover per data type:** `--kind` on the CLI, the cutover and rollback transitions per

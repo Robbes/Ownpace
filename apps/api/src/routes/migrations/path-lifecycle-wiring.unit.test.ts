@@ -422,3 +422,57 @@ describe('a mapping created directly as active', () => {
     for (const r of rows) expect(r.first_activated_at).not.toBeNull();
   });
 });
+
+describe('a migration begins paused or active, and nothing later', () => {
+  // Creation asked `updateTransition` nothing, so a migration posted as
+  // `continuous` was scheduled with no slot and no lane telling, and one posted
+  // as `cutover` or `done` had a cutover nobody ran. No screen sends them.
+  const create = (status?: string) =>
+    request(app)
+      .post('/api/migrations')
+      .send({
+        name: 'born late',
+        sourceType: 'imap',
+        targetType: 'jmap',
+        sourceConfig: { host: 'src.example.invalid', port: 993, username: 'c@example.invalid', password: 'p' },
+        targetConfig: { host: 'dst.example.invalid', port: 443, username: 'c@example.invalid', password: 'p' },
+        syncConfig: { domains: ['email'] },
+        ...(status === undefined ? {} : { status }),
+      });
+
+  /** How many migrations exist, read outside any route. */
+  async function migrations(): Promise<number> {
+    const conn = await driver.acquire();
+    try {
+      const r = await conn.query('SELECT count(*)::int AS n FROM mailbox_mapping');
+      return (r.rows[0] as { n: number }).n;
+    } finally {
+      await conn.release();
+    }
+  }
+
+  it.each(['cutover', 'done', 'continuous'])("refuses one created as '%s', and writes nothing", async (status) => {
+    const before = await migrations();
+    const res = await create(status);
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain(`not '${status}'`);
+    expect(res.body.message).toContain('Keep copying');
+    expect(res.body.details.map((d: { path: string[] }) => d.path)).toEqual([['status']]);
+    expect(await migrations()).toBe(before);
+  });
+
+  it('begins as a draft when nothing is said, with no path rows', async () => {
+    const res = await create();
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe('paused');
+    expect(await pathRows(res.body.id)).toEqual([]);
+  });
+
+  it('begins paused or active when asked', async () => {
+    expect((await create('paused')).body.status).toBe('paused');
+    const running = await create('active');
+    expect(running.status).toBe(201);
+    expect(running.body.status).toBe('active');
+    expect((await pathRows(running.body.id)).map((r) => r.state)).toEqual(['active']);
+  });
+});

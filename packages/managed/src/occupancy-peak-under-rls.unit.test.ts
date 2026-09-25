@@ -26,7 +26,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import type { TenantId } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, type TenantId } from '@openmig/shared';
 import { runManagedMigrations } from './migrate-managed.ts';
 import { PgOccupancyPeakStore } from './occupancy-peak.ts';
 
@@ -74,6 +74,13 @@ beforeEach(async () => {
       `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
        VALUES ($1,$2,$3,'active')`,
       [MAPPING_A, TENANT_A, BOX_A],
+    );
+    // Every data type the migration carries is a path (scope rows first:
+    // only a path holds a slot, 0128 T4).
+    await conn.query(
+      `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
+       SELECT $1, $2, d, true FROM unnest($3::text[]) AS d`,
+      [TENANT_A, MAPPING_A, [...DISCOVERY_DOMAINS]],
     );
     // Slot-holders for A: two active, one paused. `paused` holds a slot
     // (ADR-0014's counter-intuitive rule), so the store must count 3.

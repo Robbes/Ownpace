@@ -8,6 +8,7 @@ export * from './app-event-store.ts';
 export * from './audit-export-sink.ts';
 export * from './audit-export-read.ts';
 export * from './cutover-grace.ts';
+export * from './path-phases.ts';
 export * from './db.ts';
 // The connection seam (workplan 0015 T1) — what a PGlite driver would implement.
 export * from './driver.ts';
@@ -44,3 +45,4 @@ export * from './mapping-link-store.ts';
 // customer; `purgeTenant` is executed only by apps/worker. The appliance's
 // own ending is `apps/selfhost/src/forget-me.ts`, which revokes and nothing
 // else, because that is the only part its operator cannot do themselves.
+export * from './a-path-for-every-migration.ts';

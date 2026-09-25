@@ -352,7 +352,7 @@ live in [README.md](./README.md), the register.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
 - The migrated person can **take their grant back** from their progress page: revoked at Google where Google will, deleted here whatever Google answers, and they are told which (0108 T8 (c), 2026-09-24). Until they grant again, nothing reads that account for that migration, on any credential.
-- The person holding a link can **report it** from the grant page or the progress page: a ticket on the owner's helpdesk, never a message to the organisation that asked, offered only where a helpdesk is set up (0108 T8 (d), 2026-09-24).
+- The person holding a link can **report it** from the grant page or the progress page: a ticket on the owner's helpdesk, never a message to the organisation that asked, offered only where a helpdesk is set up (0108 T8 (d), 2026-09-24). A reply address is optional: a report without one is filed under the helpdesk's own user and cannot be answered (the owner, 2026-09-24).
 
 ## [ADR-0036: The managed edition is its own package and its own migration chain](./0036-the-managed-edition-is-its-own-package-and-its-own-chain.md)
 
@@ -842,7 +842,9 @@ Nothing in this amendment is built. It records the decision the three tasks in
   mirrored, and no slot is held. Then no pass runs. One that was `paused` stays stopped. `execute`
   records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
   gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
-  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript.
+  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the
+  pass and the appliance ask it through the one reader's `anyRuns`, which also asks it of each
+  data type's own row, so a data type kept in the lane runs after the migration's window closes.
 - The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
   the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
 - **The mapping first, the ledger second**, and every refusal before either write — the order
@@ -880,3 +882,6 @@ Nothing in this amendment is built. It records the decision the three tasks in
   the status a mapping already has is a request, not a transition: 200, nothing recorded.
 - **The Finish page's lane switch sends `PUT`**, the verb this path is served by. A web test pins
   the verb.
+- **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
+  `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
+  reaches them once it exists, through the cutover, Finish and Keep copying.

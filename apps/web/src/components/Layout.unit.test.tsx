@@ -126,6 +126,21 @@ describe('the phone menu has a name a screen reader can say', () => {
   // Below 1024px the menu button is the only way to the navigation, and it
   // and its close button held only a lucide icon, which lucide marks
   // aria-hidden: two controls announced as "button" and nothing else.
+  //
+  // A NARROW SCREEN, stated: the menu exists only below `lg`, and since 0145
+  // T1 the layout asks `matchMedia` which side it is on. jsdom has none, and
+  // without one the layout is the wide sidebar, whose drawer never opens.
+  // The focus half is a-menu-that-gives-focus-back.unit.test.tsx.
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    return () => vi.unstubAllGlobals();
+  });
+
   it('names the menu button and says whether the menu is open, and names its close button', () => {
     renderLayout('/dashboard');
 

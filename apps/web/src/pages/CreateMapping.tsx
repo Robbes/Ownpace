@@ -49,6 +49,7 @@ import {
   type CredentialField,
   credentialFieldRequired,
   carriesGoogleNativeFiles,
+  sourceFaceIsExperimental,
 } from '@openmig/shared';
 import {
   connectionsApi,
@@ -62,6 +63,11 @@ import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
+import {
+  ExperimentalTag,
+  ExperimentalWhy,
+  wholeDomainOptionIsExperimental,
+} from '../components/ExperimentalTag.tsx';
 import {
   SOURCE_CARDS,
   TARGET_CARDS,
@@ -1781,6 +1787,10 @@ const CreateMapping: React.FC = () => {
         <div>
           <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
             {t(field.labelKey as StringKey)}
+            {/* Google's whole-domain option, not yet run against a real
+                Workspace (0131 T2): the word in the label, the why in the
+                field's own fold below, so the field keeps one fold. */}
+            {isSource && wholeDomainOptionIsExperimental(field.key) && <ExperimentalTag />}
             {fieldRequiredNow(isSource, field) && <Required />}
           </label>
           {field.multiline ? (
@@ -1845,7 +1855,13 @@ const CreateMapping: React.FC = () => {
             // amber: it is the one line to read before pasting.
             <Hint
               text={t(field.hintKey as StringKey)}
-              why={fieldWhy(field.hintKey)}
+              why={
+                isSource && wholeDomainOptionIsExperimental(field.key)
+                  ? [fieldWhy(field.hintKey), t('frontDoor.experimental.wholeDomain.why')]
+                      .filter(Boolean)
+                      .join(' ')
+                  : fieldWhy(field.hintKey)
+              }
               tone={field.key === 'serviceAccountKey' ? 'caution' : 'muted'}
             />
           )}
@@ -2234,6 +2250,7 @@ const CreateMapping: React.FC = () => {
                 // walking six steps to a refusal is a worse answer than not
                 // being offered (0116 T1). The Connections page shows them.
                 cards={migratableSourceCards()}
+                role="source"
                 selectedId={formData.sourceType}
                 onPick={onPickSource}
                 gridClass="sm:grid-cols-2"
@@ -2383,6 +2400,7 @@ const CreateMapping: React.FC = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.selectTarget')}</h3>
               <FrontDoorChooser
                 cards={TARGET_CARDS}
+                role="target"
                 selectedId={formData.targetType}
                 onPick={onPickTarget}
                 gridClass="sm:grid-cols-3"
@@ -2497,46 +2515,57 @@ const CreateMapping: React.FC = () => {
                   // trap the wizard behind a button that cannot be un-pressed.
                   const locked =
                     (unavailable || measuredNo) && !formData.domains.includes(type.id);
+                  // A face of the chosen source that has not yet met a real
+                  // account (0131 T2): the word inside the button, the fold
+                  // beside it (0145 T2). Only where the face can be ticked at
+                  // all; an unavailable one already says why it is not here.
+                  const experimental =
+                    !unavailable && sourceFaceIsExperimental(formData.sourceType, type.id);
                   return (
-                    <button
-                      key={type.id}
-                      onClick={() => toggleDomain(type.id)}
-                      disabled={locked}
-                      className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                        formData.domains.includes(type.id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
-                    >
-                      <div className="flex items-center">
-                        <type.icon
-                          className={`w-6 h-6 mr-3 ${
-                            formData.domains.includes(type.id)
-                              ? 'text-blue-600'
-                              : 'text-gray-400'
-                          }`}
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{t(type.nameKey)}</p>
-                          <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
-                          {unavailable && (
-                            <p className="text-xs text-amber-700 mt-1">
-                              {t('wizard.domain.notForTarget')}
+                    <div key={type.id} className="flex flex-col">
+                      <button
+                        onClick={() => toggleDomain(type.id)}
+                        disabled={locked}
+                        className={`w-full flex-1 p-4 border-2 rounded-lg text-left transition-colors ${
+                          formData.domains.includes(type.id)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        } ${locked ? 'opacity-50 cursor-not-allowed hover:border-gray-200' : ''}`}
+                      >
+                        <div className="flex items-center">
+                          <type.icon
+                            className={`w-6 h-6 mr-3 ${
+                              formData.domains.includes(type.id)
+                                ? 'text-blue-600'
+                                : 'text-gray-400'
+                            }`}
+                          />
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {t(type.nameKey)}
+                              {experimental && <ExperimentalTag />}
                             </p>
-                          )}
-                          {measuredNo && (
-                            <p className="text-xs text-amber-700 mt-1" title={measured?.detail}>
-                              {t('wizard.domain.measuredNo')}
-                            </p>
-                          )}
-                          {!unavailable && !measuredNo && measured?.answer === 'unknown' && (
-                            <p className="text-xs text-gray-400 mt-1" title={measured?.detail}>
-                              {t('wizard.domain.unmeasured')}
-                            </p>
-                          )}
+                            <p className="text-sm text-gray-500">{t(type.hintKey)}</p>
+                            {unavailable && (
+                              <p className="text-xs text-amber-700 mt-1">
+                                {t('wizard.domain.notForTarget')}
+                              </p>
+                            )}
+                            {measuredNo && (
+                              <p className="text-xs text-amber-700 mt-1" title={measured?.detail}>
+                                {t('wizard.domain.measuredNo')}
+                              </p>
+                            )}
+                            {!unavailable && !measuredNo && measured?.answer === 'unknown' && (
+                              <p className="text-xs text-gray-400 mt-1" title={measured?.detail}>
+                                {t('wizard.domain.unmeasured')}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      {experimental && <ExperimentalWhy />}
+                    </div>
                   );
                 })}
               </div>

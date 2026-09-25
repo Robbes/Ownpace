@@ -117,8 +117,8 @@ migration's account cannot be changed afterwards, so create it again with that a
 ### If they doubt it
 
 Under that question, the page offers **Report this link** (workplan 0108 T8 (d)). A report goes to
-whoever runs your Ownpace, **not to you**: what the person wrote, an address to reply to, and which
-link it was, so they can find the migration and who issued the link. The progress page offers the
+whoever runs your Ownpace, **not to you**: what the person wrote, an address to reply to if they
+want an answer, and which link it was, so they can find the migration and who issued the link. The progress page offers the
 same, for somebody who granted and then had doubts. It appears only where the service has a
 helpdesk set up.
 

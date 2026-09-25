@@ -32,6 +32,7 @@ import {
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { ChoiceField } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
+import { ExperimentalTag, wholeDomainOptionIsExperimental } from '../components/ExperimentalTag.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   type ConnectionDeleted,
@@ -629,8 +630,8 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       sideStepped: (values.serviceAccountKey ?? '').trim() !== '',
     });
 
-  /** One labelled box; where it goes is the map below's decision. */
-  const fieldBox = (field: CredentialField) =>
+  /** One labelled box, or a choice with an answer already marked (0148 T9). */
+  const labelledBox = (field: CredentialField) =>
     field.defaultValue ? (
       // A choice with an answer already marked (0148 T9): radio buttons, the
       // way the wizard draws it, from the one component both doors use.
@@ -642,9 +643,10 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         onChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
       />
     ) : (
-    <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+    <label className={`block text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
+        {role === 'source' && wholeDomainOptionIsExperimental(field.key) && <ExperimentalTag />}
         {requiredHere(field) && <span className="text-red-600"> *</span>}
       </span>
       {field.multiline ? (
@@ -688,6 +690,23 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         />
       )}
     </label>
+    );
+
+  /**
+   * One labelled box; where it goes is the map below's decision. Google's
+   * whole-domain option, not yet run against a real Workspace (0131 T2),
+   * carries the tag in its label and its why in a fold under the box, as the
+   * wizard shows it. The fold sits outside the `<label>`, so its words are not
+   * read as part of the box's name and pressing it does not focus the box.
+   */
+  const fieldBox = (field: CredentialField) =>
+    role === 'source' && wholeDomainOptionIsExperimental(field.key) ? (
+      <div className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+        {labelledBox(field)}
+        <Hint className="mt-1" why={t('frontDoor.experimental.wholeDomain.why')} />
+      </div>
+    ) : (
+      labelledBox(field)
     );
 
   if (!open) {
@@ -745,6 +764,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         <span className="block text-sm text-gray-700 mb-2">{t('connections.type')}</span>
         <FrontDoorChooser
           cards={frontDoorCards(role)}
+          role={role}
           selectedId={type}
           onPick={(card) => {
             setType(card.id);

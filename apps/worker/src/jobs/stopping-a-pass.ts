@@ -17,14 +17,12 @@
  * use, and the tests hand it one.
  */
 
-import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { AbortTaskRunError } from '@trigger.dev/sdk';
 import { PassAbortError } from '@openmig/core';
-import { runsPassesNow } from '@openmig/shared';
+import { pathRunsNow } from '@openmig/shared';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { cutoverStillCopies, withTenant } from '@openmig/ledger';
-import * as schemaPg from '@openmig/ledger/schema-pg';
+import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
 
 /**
  * Is this mapping still one a pass may run for?
@@ -33,10 +31,12 @@ import * as schemaPg from '@openmig/ledger/schema-pg';
  * moment it enqueued: a run already in the queue — or already copying — knows
  * nothing of the PATCH that paused it.
  *
- * The predicate is `runsPassesNow`, the same function the lifecycle module
- * defines for every other caller, asked with the cutover's own window (0128
- * T2), so the pass stops exactly when the tick would not have started it: a
- * cutover's pass runs until its grace period ends, and not after.
+ * The predicate is the reader's `anyRuns` (0128 T5, slice 2b): `runsPassesNow`,
+ * the same function the lifecycle module defines for every other caller, asked
+ * with the cutover's own window (0128 T2) of the migration, or of a path kept
+ * in the lane when its rows add up to the migration's status. So the pass stops
+ * exactly when the tick would not have started it: a cutover's pass runs until
+ * its grace period ends, and not after, unless a data type of it is kept.
  * `PASS_RUNNING_STATES` is the same two states as
  * a VALUE, and that form exists for `managed-sync-tick`'s SQL, "the query
  * that cannot call a function" — this is TypeScript and can, so it does.
@@ -78,21 +78,57 @@ export async function whyThePassStops(
   tenantId: TenantId,
   mappingId: MappingId,
 ): Promise<PassHalt | null> {
-  return withTenant(db, tenantId, async (tx) => {
-    const [row] = await tx
-      .select({
-        status: schemaPg.mailboxMapping.status,
-        grantWithdrawnAt: schemaPg.mailboxMapping.grantWithdrawnAt,
-      })
-      .from(schemaPg.mailboxMapping)
-      .where(eq(schemaPg.mailboxMapping.id, mappingId));
-    if (row === undefined) return 'no_longer_runs';
-    // A cutover copies from execute until its grace period ends (0128 T2), and
-    // stops then: asked only of a cutover, since no other state depends on it.
-    const copies = row.status === 'cutover' && (await cutoverStillCopies(tx, tenantId, mappingId));
-    if (!runsPassesNow(row.status, copies)) return 'no_longer_runs';
-    return row.grantWithdrawnAt ? 'grant_withdrawn' : null;
-  });
+  return withTenant(db, tenantId, async (tx) => haltFrom(await readPathPhases(tx, tenantId, mappingId)));
+}
+
+/**
+ * The migration's answer, from its phases: gone, or no longer running (paused,
+ * finished, or a cutover past its grace period, 0128 T2), or its grant taken
+ * back. Null when the pass may go on.
+ */
+export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
+  if (phases === null) return 'no_longer_runs';
+  // No data type of it runs any more (0128 T5, slice 2b): the migration's own
+  // answer, or a path kept in the lane while another is past its cutover.
+  if (!phases.anyRuns) return 'no_longer_runs';
+  return phases.grantWithdrawnAt ? 'grant_withdrawn' : null;
+}
+
+/**
+ * What a pass does before one data type (workplan 0128 T5): stop, when the
+ * migration itself no longer runs or its grant was withdrawn; move on past this
+ * data type, when the migration still runs and this data type does not (its own
+ * cutover past its grace period, ended, or stopped by its owner, 0128 T4), so the
+ * next one still gets its turn; and otherwise run it.
+ *
+ * Until a data type can have a phase of its own, every data type's phase is the
+ * migration's (`readPathPhases`), so a pass never moves on past one: the halt
+ * answers first. The seam is here so that, when mail can be cut over on its own,
+ * the files after it are not stopped with it.
+ */
+export type PassStep =
+  | { readonly run: true }
+  | { readonly skip: 'data_type_no_longer_runs' | 'stopped_by_its_owner' }
+  | { readonly halt: PassHalt };
+
+export async function passStepBefore(
+  db: Pool,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  domain: string,
+): Promise<PassStep> {
+  return withTenant(db, tenantId, async (tx) => stepFrom(await readPathPhases(tx, tenantId, mappingId), domain));
+}
+
+/** `passStepBefore`'s decision, from the phases already read. */
+export function stepFrom(phases: MigrationPhases | null, domain: string): PassStep {
+  const halt = haltFrom(phases);
+  if (halt) return { halt };
+  const path = phases!.phaseOf(domain);
+  // Its owner stopped it (0128 T4): said as such, not as an ending.
+  if (path.stopped === true) return { skip: 'stopped_by_its_owner' };
+  if (!pathRunsNow(path)) return { skip: 'data_type_no_longer_runs' };
+  return { run: true };
 }
 
 /**

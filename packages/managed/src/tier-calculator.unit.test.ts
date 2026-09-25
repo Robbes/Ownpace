@@ -225,6 +225,12 @@ describe('currentTier — the live derivation, with its evidence', () => {
     const conn = await driver.acquire();
     try {
       for (const [domain, state] of states) {
+        // A path is a data type the migration carries (0128 T4): its scope row first.
+        await conn.query(
+          `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
+           VALUES ($1,$2,$3,true) ON CONFLICT (mapping_id, domain) DO NOTHING`,
+          [TENANT, MAPPING, domain],
+        );
         await conn.query(
           `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
            VALUES ($1,$2,$3,$4,now())`,

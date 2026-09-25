@@ -41,7 +41,7 @@ import {
   setAuditExportSink,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { CUTOVER_STILL_COPIES_WHERE, auditExportOn, pgDriver } from '@openmig/ledger';
+import { A_PATH_KEPT_AFTER_A_CUTOVER_WHERE, CUTOVER_STILL_COPIES_WHERE, auditExportOn, pgDriver } from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { readOpenPause, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
@@ -204,7 +204,11 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
                OR (m.status = 'cutover'
                    AND EXISTS (SELECT 1 FROM cutover_state c
                                 WHERE c.tenant_id = m.tenant_id AND c.mapping_id = m.id
-                                  AND ${CUTOVER_STILL_COPIES_WHERE})))
+                                  AND ${CUTOVER_STILL_COPIES_WHERE}))
+               -- A data type kept in the lane while another is past its
+               -- cutover's grace period (0128 T5, slice 2b): the reader's
+               -- anyRuns, for the one case the status cannot see.
+               OR (${A_PATH_KEPT_AFTER_A_CUTOVER_WHERE}))
           -- A grant the person took back (0108 T8 (c), ledger migration 0063):
           -- nothing reads their account until they grant it again, so no pass
           -- is started for it. The pass's own re-read and the source builder
