@@ -17,6 +17,7 @@
 import React from 'react';
 import { fieldDefault, type CredentialField } from '@openmig/shared';
 import { useT, type StringKey } from '../i18n/index.tsx';
+import { optionName } from '../i18n/option-name.ts';
 import { isSelfHost } from '../services/edition.ts';
 
 /** The answer a choice shows: what was picked, else this edition's default. */
@@ -59,7 +60,7 @@ export const ChoiceField: React.FC<{
                 className="mt-0.5"
               />
               <span>
-                {option.labelKey ? t(option.labelKey as StringKey) : option.label}
+                {optionName(t, option)}
                 {locked && option.applianceOnlyKey && (
                   <span className="block text-xs text-gray-500">
                     {t(option.applianceOnlyKey as StringKey)}

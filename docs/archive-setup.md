@@ -22,7 +22,7 @@ Two things, and neither of them is a password:
 
 | | |
 |---|---|
-| **Which export** | Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
+| **Which export** | Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet). This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
 | **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. The folder can also be in the Nextcloud you are moving to: see [Your export in your own Nextcloud](#your-export-in-your-own-nextcloud). |
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is
@@ -116,12 +116,14 @@ so a count that looks short has a reason you can read.
 
 ## Apple Data & Privacy
 
+**To be tested.** We cannot read an Apple export yet. Request one only for your own records.
+
 ### Asking for it
 
 1. Go to **privacy.apple.com** and sign in with your Apple Account.
 2. Choose **Request a copy of your data**.
 3. Tick what you want. For moving files and photos that is **iCloud Drive files and documents**
-   and **iCloud Photos**. You can tick more; we read files and photos from it.
+   and **iCloud Photos**. You can tick more; files and photos are what we will read from it.
 4. Choose a maximum file size — Apple offers **1, 2, 5, 10 or 25 GB** parts. Pick larger parts
    unless your connection is unreliable.
 5. Confirm. Apple shows a page thanking you and saying your data is being prepared.
@@ -150,12 +152,14 @@ your hands.
 
 ### Getting it ready for us
 
-Extract every part into the same folder, and point us at that folder.
+Extract every part into the same folder. Once we can read an Apple export, that folder is what
+you point us at.
 
 ### One thing Apple removes
 
 In the contact and calendar information Apple exports, **email addresses are partly hidden**.
-This does not affect your files or photos, which is what we read from an Apple export.
+This does not affect your files or photos, which are what we will read from an Apple export
+once we can.
 
 ---
 

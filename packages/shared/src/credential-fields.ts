@@ -25,7 +25,37 @@
  * adds no new translations to drift.
  */
 
-import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES } from './archive-providers.ts';
+import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES, hasArchiveReader } from './archive-providers.ts';
+
+/**
+ * One choice in a closed list (`CredentialField.options`).
+ *
+ * `label` is verbatim in every language. The two keys are ours, so they are
+ * keys, and both exist for one case today (workplan 0148 T3, owner decision
+ * D7): an export the form offers and no reader can open yet. The option stays,
+ * and says so twice: a tag inside its name, and a line under the field while
+ * it is chosen. A door that does not know the keys shows the bare label, which
+ * is today's screen and nothing worse.
+ */
+export interface CredentialOption {
+  readonly value: string;
+  /** Verbatim in every language — a provider's own name for its product. */
+  readonly label?: string;
+  /** Ours, so a key (0148 T9): the archive's two places are our words. */
+  readonly labelKey?: string;
+  /** A tag shown as TEXT inside the option's name, after the label (0148 T3). */
+  readonly tagKey?: string;
+  /** A line shown under the field while this option is the one chosen (0148 T3). */
+  readonly hintKey?: string;
+  /**
+   * Can only be answered where the pass runs on the person's own machine
+   * (0148 D11). A managed door SHOWS it, disabled, with `applianceOnlyKey`
+   * beside it — never hides it (D10: nothing is hidden on managed).
+   */
+  readonly applianceOnly?: boolean;
+  /** The line beside an `applianceOnly` answer on managed. */
+  readonly applianceOnlyKey?: string;
+}
 
 export interface CredentialField {
   /**
@@ -78,7 +108,7 @@ export interface CredentialField {
    * "Google Takeout" is the heading on Google's own page, and translating it
    * would send somebody looking for a page that does not exist.
    */
-  readonly options?: ReadonlyArray<CredentialFieldOption>;
+  readonly options?: ReadonlyArray<CredentialOption>;
   /**
    * THE VALUE A DOOR STARTS FROM, per edition (workplan 0148 T9).
    *
@@ -149,22 +179,6 @@ export interface CredentialField {
 }
 
 /** One answer of a {@link CredentialField.options} choice. */
-export interface CredentialFieldOption {
-  readonly value: string;
-  /** Verbatim in every language — a provider's own name for its product. */
-  readonly label?: string;
-  /** Ours, so a key (0148 T9): the archive's two places are our words. */
-  readonly labelKey?: string;
-  /**
-   * Can only be answered where the pass runs on the person's own machine
-   * (0148 D11). A managed door SHOWS it, disabled, with `applianceOnlyKey`
-   * beside it — never hides it (D10: nothing is hidden on managed).
-   */
-  readonly applianceOnly?: boolean;
-  /** The line beside an `applianceOnly` answer on managed. */
-  readonly applianceOnlyKey?: string;
-}
-
 /**
  * The field as it reads given the other answers on the form: its label, hint
  * and example after {@link CredentialField.follows}. A field that follows
@@ -390,9 +404,22 @@ function archiveFields(): ReadonlyArray<CredentialField> {
       // Derived from the shared vocabulary rather than written out: this list
       // and `ARCHIVE_PROVIDERS` disagreeing would mean a form offering an
       // export the create door refuses, or hiding one it accepts.
+      //
+      // AN EXPORT NO READER OPENS YET STAYS, AND SAYS SO (0148 T3, D7). Apple's
+      // takes up to a week to prepare and Test then refuses it as a wiring
+      // gap, so the option carries *To be tested* and, while chosen, the line
+      // that it cannot be read yet. Both come from the readers list, so a
+      // landed reader removes them here and nowhere else. The line is keyed
+      // per export because it names the company.
       options: ARCHIVE_PROVIDERS.map((value) => ({
         value,
         label: ARCHIVE_PROVIDER_NAMES[value],
+        ...(hasArchiveReader(value)
+          ? {}
+          : {
+              tagKey: 'wizard.archiveProvider.untested',
+              hintKey: `wizard.archiveProvider.noReader.${value}`,
+            }),
       })),
       hintKey: 'wizard.archiveProvider.hint',
     },
