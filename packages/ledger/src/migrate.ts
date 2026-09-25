@@ -188,6 +188,16 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
       return { applied, alreadyApplied: [...alreadyApplied], currentVersion };
     } finally {
       await client.query('SELECT pg_advisory_unlock($1)', [lockKey]);
+      // Hand the connection back as a fresh session. The baseline is a
+      // `pg_dump`, and its preamble sets `row_security = off` for the SESSION.
+      // A pool does not end the session: it hands the same connection to the
+      // next caller, and a `withTenant` that drops to the serving role on it is
+      // refused ("query would be affected by row-level security policy"). The
+      // appliance on Postgres migrates and serves on one pool, and met exactly
+      // that at start-up (0128 T5, slice 2b). PGlite's driver re-asserts the
+      // setting on every acquire; this puts back every setting a migration
+      // changed, on every driver.
+      await client.query('RESET ALL');
     }
   } finally {
     client.release();

@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: T5's second slice, second half (2b): the reader reads the rows, and every
+gate asks whether any data type runs.** Until a data type can be cut over on its own (slice 5),
+that is the same answer as before, so no pass behaves differently today.
+- **The reader** (`readPathPhases`) reads the migration's included path rows. Where they add up
+  to its status (`rollUpPhases`, §3's roll-up), each data type's phase is its own row's, and a
+  data type with no row has the migration's. Where they do not, as after a status set back by
+  hand on the appliance, the status is believed for every data type (decided in 2a). A
+  switched-off data type's row is not a path, and is not read.
+- **One gate for all of them: `anyRuns`.** Nothing runs while the migration is held (`paused`).
+  Otherwise the migration runs by its own status, with its cutover's window, or, where its rows
+  add up to that status, because one of its paths runs. The one case only a row can answer is a
+  data type kept in the lane while another is past its cutover's grace period.
+- **Who asks it:** the managed pass's stop check (`haltFrom`), and the appliance's three gates
+  (its pass's first check, its schedule at start-up, its run-now door), through one wrapper.
+  The managed tick chooses in one SQL statement, so it asks the one case the status cannot see
+  in SQL (`A_PATH_KEPT_AFTER_A_CUTOVER_WHERE`, ledger), beside the rules it already had.
+- **The grace window** is asked when the migration or one of its paths is in `cutover`: one
+  window per migration, until the cutover ledger is kept per data type (slice 4).
+- **Found on the way, in CI: an appliance on Postgres could not read a row as its serving role on
+  the connection that ran its migrations.** The baseline is a `pg_dump`, whose preamble turns
+  `row_security` off for the session, and a pool hands that session to the next caller. The
+  appliance's start-up gate now reads through `withTenant`, which drops to the serving role, and
+  was refused there. The same connection could already fail slice 1's per-pass read and 2a's
+  start-up rows, which say so and carry on. `runMigrations` now ends with `RESET ALL`, on every
+  driver; a test migrates and serves on a one-connection pool on Postgres 16.
+
+Evidence:
+- the roll-up and the phase per data type (6 new, 11 in all); the reader on PGlite as `app_user`
+  (5 new, 14 in all): rows that agree, a data type with none, a path in its cutover under a
+  running migration, rows that do not add up in either direction, a held migration with a data
+  type kept in the lane, and a switched-off data type;
+- the tick's own query, the pass's stop check and the reader on the same rows, over every
+  status, both sides of the grace period and every pair of rows two data types can have (490
+  combinations), with a switched-off data type kept in the lane, and a third data type beside a
+  kept one in each of its states: one answer everywhere (6 tests);
+- the appliance on PGlite: a migration past its grace period with calendars kept is scheduled at
+  start-up and runs on Sync now, and is refused once its rows no longer add up; the pass's
+  decision goes on while any data type runs;
+- the lane guard now pins the appliance's three gates to the one wrapper, the wrapper to the
+  reader, and the tick to the kept-lane rule; the source-authority guard pins the appliance's
+  per-pass gate to the wrapper, and holds every phase a data type runs in after its cutover to
+  its detectors being absent;
+- 19 mutations, all killed: in the reader, the roll-up, the phase per data type, the tick's SQL,
+  the pass's stop check, the appliance's wrapper and its per-pass gate.
+
 **2026-09-24, night: T5's second slice, first half (2a): path rows everyone can trust.** Slice 2
 is split in two. 2a writes the rows and changes no gate; 2b, now that slice 1 is in, has the
 reader read them. Nothing reads these rows for a gate yet, so no pass behaves differently.
@@ -325,6 +370,10 @@ their own cutover.
   For a gate that would be wrong: every migration activated before 2026-08-30, and every
   appliance migration, has no rows. A gate falls back to the migration's own status, and the rows
   are backfilled from it.
+- **Rows that do not add up to the status are not believed.** Something that writes the status
+  alone leaves the rows behind: the appliance's operator, told to set it back by hand to resume.
+  Then the status is every data type's phase, which is the answer every gate gave before the rows
+  existed, and never gives back a deletion detector a cutover took away.
 - **Shares per data type.** `share_grant.subject` already says which data type a share belongs to
   (`drive_item`, `calendar`, `mailbox`), so each share waits for its own data type's cutover, and
   each data type's shares are announced once, then (D8).
@@ -359,7 +408,9 @@ cutover; once every one is past it, a new data type is a new migration, as today
    record, a path audit record, and `slotsHeld` limited to selected data types. Then the reader
    reads the rows, and the managed tick and the appliance's own gates (its pass's first check,
    its schedule at start-up, its run-now door) ask whether any data type runs, rather than
-   whether the migration does. Until slice 5 the two are the same answer.
+   whether the migration does. Until slice 5 the two are the same answer. *Built 2026-09-24, in
+   two halves (2a, 2b), without the path audit record and the `slotsHeld` limit, which wait for
+   slice 3 (see the Status block).*
 3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6).
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration.

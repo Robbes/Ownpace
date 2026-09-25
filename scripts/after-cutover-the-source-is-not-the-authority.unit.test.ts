@@ -50,6 +50,7 @@ import {
   sourceAuthorityFor,
   startTransition,
 } from '../packages/shared/src/lifecycle.ts';
+import { pathRunsNow, pathSourceAuthority } from '../packages/shared/src/path-phase.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
@@ -154,19 +155,20 @@ describe('after cutover the source is not the authority', () => {
     // `=== 'active'` reappearing here is a second opinion about which mappings
     // copy, and the first one to disagree wins silently.
     const tick = read('apps/selfhost/src/index.ts');
-    // Greedy up to the LAST `)` before the brace, so a predicate call —
-    // which has a `)` of its own inside the condition — is captured whole
-    // rather than truncated at its first bracket.
-    const gate = /if \((.*currentStatus.*)\)\s*\{/.exec(tick);
-    expect(gate, "the appliance's pass gate on `currentStatus` is gone entirely").not.toBeNull();
+    // The per-pass gate is the one that re-reads `currentStatus` for the line
+    // it logs when it skips. Greedy up to the LAST `)` before the brace, so a
+    // predicate call — which has a `)` of its own inside the condition — is
+    // captured whole rather than truncated at its first bracket.
+    const gate = /const currentStatus = [^\n]*\n\s*if \((.*)\)\s*\{/.exec(tick);
+    expect(gate, "the appliance's per-pass gate, after its re-read of `currentStatus`, is gone entirely").not.toBeNull();
     expect(
       gate![1]!.trim(),
-      "the appliance's per-pass gate is no longer `!(await passesRunNow(m, currentStatus))`. If " +
+      "the appliance's per-pass gate is no longer `!(await passesRunNow(m))`. If " +
         'it has become a comparison again, or a predicate that does not answer for the deletion ' +
         'detector, then D4 has lost the one place it attaches: `sourceIsAuthorityOnExistence` ' +
         'is `!isAfterCutover(status)`, and a phase that runs while that is false is the only ' +
         'phase where §3a\'s loop can come back.',
-    ).toBe('!(await passesRunNow(m, currentStatus))');
+    ).toBe('!(await passesRunNow(m))');
     // Since 0128 T2 that predicate is `runsPassesNow`: `runsPasses`, and a
     // cutover until its grace period ends. The one state it adds is after
     // cutover, so the pass it lets run has the detectors absent.
@@ -176,6 +178,18 @@ describe('after cutover the source is not the authority', () => {
         expect(status).toBe('cutover');
         expect(isAfterCutover(status)).toBe(true);
         expect(sourceAuthorityFor(status)).toEqual({ sourceIsAuthorityOnExistence: false });
+      }
+    }
+    // Since 0128 T5 slice 2b the wrapper asks the reader's `anyRuns`, which
+    // also runs a data type kept in the lane after its migration's window
+    // closed. Every phase a data type runs in after its cutover answers for
+    // its own detector: absent.
+    for (const phase of ['active', 'paused', 'cutover', 'done', 'continuous']) {
+      for (const stillCopies of [true, false]) {
+        const path = { phase, stillCopies };
+        if (pathRunsNow(path) && isAfterCutover(phase)) {
+          expect(pathSourceAuthority(path), phase).toEqual({ sourceIsAuthorityOnExistence: false });
+        }
       }
     }
   });

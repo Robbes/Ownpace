@@ -33,7 +33,9 @@
   mirrored, and no slot is held. Then no pass runs. One that was `paused` stays stopped. `execute`
   records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
   gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
-  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript.
+  managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the
+  pass and the appliance ask it through the one reader's `anyRuns`, which also asks it of each
+  data type's own row, so a data type kept in the lane runs after the migration's window closes.
 - The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
   the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
 - **The mapping first, the ledger second**, and every refusal before either write — the order
