@@ -1853,6 +1853,16 @@ paths:
         `kindChoices` lists each data type the migration copies (`on`) or could
         gain (`addable`, or `refused` with a `reason`). It is the list
         `POST /api/migrations/{mappingId}/domains` accepts from.
+
+        `stopChoices` (workplan 0128 T4) lists each data type the migration
+        carries with its stop: `stopped`, and `offer`, the press
+        `…/domains/{domain}/stop` or `…/resume` accepts now (`stop`, `resume`
+        or null). Both ask one rule, so the page offers exactly what the door
+        accepts. Where there is no press, `held` says why when the page must
+        say so: `last_one_copying` (D5) or `not_running` (a stopped data type
+        on a migration that does not run). A `domainStatus` row its owner
+        stopped carries `stoppedByOwner: true`; one switched off otherwise
+        does not.
       responses:
         '200':
           description: The migration.

@@ -22,6 +22,8 @@ import {
   CutoverStore,
   PATH_ADDED_ACTION,
   pathStopRefusalReason,
+  readPathStopFacts,
+  pathStopChoices,
 } from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
@@ -2483,7 +2485,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted } =
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts } =
       await withTenantDb(
       tenantId,
       pool,
@@ -2499,7 +2501,15 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           );
         const mapping = mappings[0];
         if (!mapping) {
-          return { mapping: null, sourceConn: null, targetConn: null, scopeRows: [], domainStatus: [], failures: [] };
+          return {
+            mapping: null,
+            sourceConn: null,
+            targetConn: null,
+            scopeRows: [],
+            domainStatus: [],
+            failures: [],
+            stopFacts: undefined,
+          };
         }
 
         // THE MAPPING'S OWN CONNECTIONS, through its mailboxes — not the
@@ -2520,7 +2530,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted] =
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts] =
           await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
@@ -2543,6 +2553,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // happened to an item that this page had no counter for, so its
           // totals never added up and there was nothing to read instead.
           new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
+          // What the stop door would accept for each data type (0128 T4,
+          // slice 3c), read the way the door reads it.
+          readPathStopFacts(db, tenantId, mappingId),
         ]);
 
         return {
@@ -2553,6 +2566,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           domainStatus,
           failures,
           adopted,
+          stopFacts,
         };
       },
     );
@@ -2656,6 +2670,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
         },
         process.env,
       ),
+      // Each data type's stop, as the page offers it (0128 T4, slice 3c): the
+      // page offers exactly the press `…/stop` or `…/resume` accepts, because
+      // both ask `decidePathStop`.
+      ...(stopFacts === undefined ? {} : { stopChoices: pathStopChoices(stopFacts) }),
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,

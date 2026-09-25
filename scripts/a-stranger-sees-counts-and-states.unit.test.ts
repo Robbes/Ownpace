@@ -85,6 +85,9 @@ const EVERY_FIELD: Required<DomainStatusReport> = {
   lastErrorReference: '0f1e2d3c',
   lastPass: { items: 40, wallMs: 3000, sourceFetchMs: 1000, targetWriteMs: 900, ledgerMs: 50, hashMs: 20, overlap: 2.1 },
   pausedReason: { kind: 'daily-download-ceiling', provider: 'imap.gmail.com', windowResetsAt: null },
+  // Left out of the link (0128 T4, slice 3c): `stopped` crosses as the state;
+  // whose stop it was points at a Resume only the owner can press.
+  stoppedByOwner: true,
 };
 
 describe('what a progress link may open', () => {
@@ -108,6 +111,12 @@ describe('what a progress link may open', () => {
   it('never carries the pass timings', () => {
     const row = viewRowFor(EVERY_FIELD) as unknown as Record<string, unknown>;
     expect(row.lastPass).toBeUndefined();
+  });
+
+  it("never says whose stop it was: the state crosses, the owner's way back does not", () => {
+    const row = viewRowFor({ ...EVERY_FIELD, state: 'stopped' }) as unknown as Record<string, unknown>;
+    expect(row.state).toBe('stopped');
+    expect('stoppedByOwner' in row).toBe(false);
   });
 
   it('carries the failure CATEGORY and side, which name nothing', () => {

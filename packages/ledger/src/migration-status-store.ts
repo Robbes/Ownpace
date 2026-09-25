@@ -454,6 +454,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       ...(isPauseReason(row.status.pausedReason)
         ? { pausedReason: row.status.pausedReason }
         : {}),
+      // Whose stop it is (0128 T4, slice 3c): the screens say *stopped by you*
+      // for this one, and *switched off* for one the mapping file turned off.
+      ...(row.stoppedByOwner === true ? { stoppedByOwner: true as const } : {}),
     }));
   }
 }

@@ -34,10 +34,20 @@
  * The answer says whether slots were taken, so the managed edition raises the
  * month's peak in the same transaction, as its other doors do (hard rule 5
  * keeps that table out of this package).
+ *
+ * ## One answer for the page and the door (slice 3c)
+ *
+ * The door decides from facts (`readPathStopFacts`) by one rule
+ * (`decidePathStop`), and the migration page is offered what that rule
+ * accepts (`pathStopChoices`), as `kindChoices` does for adding a data type.
+ * The page cannot offer a press the door refuses, and the door cannot accept
+ * one the page never offered, but for a race: then the door's refusal is
+ * shown as it is.
  */
 
 import { sql } from 'drizzle-orm';
-import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
+import type { DiscoveryDomain, MappingId, PathStopChoice, TenantId } from '@openmig/shared';
 import type { PgDatabase } from './db-types.ts';
 import { PgLedger } from './ledger.ts';
 import { holdsASlot, type PathState } from './path-lifecycle-store.ts';
@@ -81,6 +91,95 @@ export type PathStopOutcome =
 type Row = Record<string, unknown>;
 const rowsOf = (result: unknown): Row[] => ((result as { rows?: Row[] }).rows ?? []) as Row[];
 
+/** What a stop or a resume is decided from: the migration, and each data type it carries. */
+export interface PathStopFacts {
+  /** The migration's lifecycle word (`mailbox_mapping.status`). */
+  readonly status: string;
+  /**
+   * Each data type the migration carries (`scope_selection.included`), in the
+   * order a person ticks them, with its path row's phase and stop. One with
+   * no row has no `phase`: it runs in the migration's, unstopped.
+   */
+  readonly carried: ReadonlyArray<{
+    readonly domain: DiscoveryDomain;
+    readonly phase?: PathState;
+    readonly stopped: boolean;
+  }>;
+}
+
+/** What the door would do: refuse, change nothing, or change it in `phase`. */
+export type PathStopDecision =
+  | Exclude<PathStopRefusal, { readonly refused: 'not_found' }>
+  | { readonly changes: false }
+  | { readonly changes: true; readonly phase: PathState; readonly hasRow: boolean };
+
+const runs = (state: string): boolean => (STATES_A_DATA_TYPE_STOPS_IN as readonly string[]).includes(state);
+
+/**
+ * The one rule: whether this press is accepted, from the facts alone. The
+ * door asks it under its locks, and `pathStopChoices` asks it for the page.
+ */
+export function decidePathStop(facts: PathStopFacts, domain: DiscoveryDomain, stop: boolean): PathStopDecision {
+  if (!runs(facts.status)) return { refused: 'not_running', status: facts.status };
+  const path = facts.carried.find((p) => p.domain === domain);
+  if (path === undefined) return { refused: 'not_a_path' };
+  const phase = path.phase ?? (facts.status as PathState);
+  if (!runs(phase)) return { refused: 'not_stoppable', phase };
+  if (path.stopped === stop) return { changes: false };
+  if (stop) {
+    // D5. A data type with no row runs in the migration's phase, so it copies.
+    const othersCopying = facts.carried.filter(
+      (p) => p.domain !== domain && (p.phase === undefined || (runs(p.phase) && !p.stopped)),
+    );
+    if (othersCopying.length === 0) return { refused: 'last_one_copying' };
+  }
+  return { changes: true, phase, hasRow: path.phase !== undefined };
+}
+
+/**
+ * Read the facts. Undefined when the migration is not there, or is another
+ * organisation's (row security). With `lock`, the migration's row and its
+ * data types' rows are held until the transaction ends, so two presses on
+ * one migration are decided one after the other, each on what the other did.
+ */
+export async function readPathStopFacts(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  { lock = false }: { readonly lock?: boolean } = {},
+): Promise<PathStopFacts | undefined> {
+  const forUpdate = lock ? sql`FOR UPDATE` : sql``;
+  const [mapping] = rowsOf(
+    await db.execute(sql`
+      SELECT status FROM mailbox_mapping
+       WHERE id = ${mappingId} AND tenant_id = ${tenantId}
+       ${forUpdate}`),
+  );
+  if (mapping === undefined) return undefined;
+  const included = new Set(
+    rowsOf(
+      await db.execute(sql`
+        SELECT domain FROM scope_selection
+         WHERE mapping_id = ${mappingId} AND tenant_id = ${tenantId} AND included`),
+    ).map((r) => String(r.domain)),
+  );
+  const rows = new Map(
+    rowsOf(
+      await db.execute(sql`
+        SELECT domain, state, stopped_at IS NOT NULL AS stopped FROM path_lifecycle
+         WHERE mapping_id = ${mappingId} AND tenant_id = ${tenantId}
+         ${forUpdate}`),
+    ).map((r) => [String(r.domain), { phase: String(r.state) as PathState, stopped: r.stopped === true }]),
+  );
+  return {
+    status: String(mapping.status),
+    carried: DISCOVERY_DOMAINS.filter((domain) => included.has(domain)).map((domain) => {
+      const row = rows.get(domain);
+      return row === undefined ? { domain, stopped: false } : { domain, ...row };
+    }),
+  };
+}
+
 /**
  * Stop or resume one data type of a running migration. Call it inside the
  * caller's own tenant transaction; it writes nothing when it refuses.
@@ -92,55 +191,16 @@ export async function stopOrResumePath(
 ): Promise<PathStopOutcome> {
   const { mappingId, domain, stop } = change;
 
-  const [mapping] = rowsOf(
-    await db.execute(sql`
-      SELECT status FROM mailbox_mapping
-       WHERE id = ${mappingId} AND tenant_id = ${tenantId}
-         FOR UPDATE`),
-  );
-  if (mapping === undefined) return { refused: 'not_found' };
-  const status = String(mapping.status);
-  if (!(STATES_A_DATA_TYPE_STOPS_IN as readonly string[]).includes(status)) {
-    return { refused: 'not_running', status };
-  }
+  const facts = await readPathStopFacts(db, tenantId, mappingId, { lock: true });
+  if (facts === undefined) return { refused: 'not_found' };
+  const decision = decidePathStop(facts, domain, stop);
+  if ('refused' in decision) return decision;
+  if (!decision.changes) return { changed: false, slotsTaken: false };
+  const { phase } = decision;
 
-  const [scope] = rowsOf(
-    await db.execute(sql`
-      SELECT included FROM scope_selection
-       WHERE mapping_id = ${mappingId} AND tenant_id = ${tenantId} AND domain = ${domain}`),
-  );
-  if (scope?.included !== true) return { refused: 'not_a_path' };
-
-  // A data type with no row (written by hand, or never backfilled) runs in
-  // the migration's phase, unstopped. It is given that row only below, once
-  // nothing is refused: a refusal writes nothing.
-  const [path] = rowsOf(
-    await db.execute(sql`
-      SELECT state, stopped_at IS NOT NULL AS stopped FROM path_lifecycle
-       WHERE mapping_id = ${mappingId} AND domain = ${domain}
-         FOR UPDATE`),
-  );
-  const phase = (path === undefined ? status : String(path.state)) as PathState;
-  if (!(STATES_A_DATA_TYPE_STOPS_IN as readonly string[]).includes(phase)) {
-    return { refused: 'not_stoppable', phase };
-  }
-  if ((path?.stopped === true) === stop) return { changed: false, slotsTaken: false };
-
-  if (stop) {
-    // D5. A data type with no row runs in the migration's phase, so it copies.
-    const [others] = rowsOf(
-      await db.execute(sql`
-        SELECT count(*)::int AS n
-          FROM scope_selection s
-          LEFT JOIN path_lifecycle p ON p.mapping_id = s.mapping_id AND p.domain = s.domain
-         WHERE s.mapping_id = ${mappingId} AND s.tenant_id = ${tenantId} AND s.included
-           AND s.domain <> ${domain}
-           AND (p.id IS NULL OR (p.state IN ('active', 'continuous') AND p.stopped_at IS NULL))`),
-    );
-    if (Number(others?.n ?? 0) === 0) return { refused: 'last_one_copying' };
-  }
-
-  if (path === undefined) {
+  // A data type with no row (written by hand, or never backfilled) is given
+  // it only now, once nothing is refused: a refusal writes nothing.
+  if (!decision.hasRow) {
     await db.execute(sql`
       INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, updated_at)
       VALUES (${tenantId}, ${mappingId}, ${domain}, ${phase}, now(), now())`);
@@ -171,6 +231,36 @@ export async function stopOrResumePath(
   });
 
   return { changed: true, slotsTaken: !stop && holdsAfter && !holdsASlot(phase, true) };
+}
+
+/**
+ * What the migration page offers for each data type it carries: the press the
+ * door accepts now, which is the one that turns it the other way, or none.
+ *
+ * Where there is none, `held` says why only when the page must say so (the
+ * page words it, since it is a code: the i18n prose boundary):
+ *
+ * - `not_running`: a stopped data type on a migration that does not run.
+ *   Its owner looks for Resume; it comes back with the migration.
+ * - `last_one_copying`: D5, the last one still copying, where the migration
+ *   carries more than one. With one data type there was never anything to
+ *   stop, and saying so on every page load would be noise.
+ *
+ * Anything else, such as a migration past its cutover, offers nothing and
+ * says nothing: the page's other lines say where the migration is.
+ */
+export function pathStopChoices(facts: PathStopFacts): PathStopChoice[] {
+  return facts.carried.map(({ domain, stopped }) => {
+    const decision = decidePathStop(facts, domain, !stopped);
+    if (!('refused' in decision)) return { domain, stopped, offer: stopped ? 'resume' : 'stop' };
+    const held =
+      stopped && decision.refused === 'not_running'
+        ? 'not_running'
+        : !stopped && decision.refused === 'last_one_copying' && facts.carried.length > 1
+          ? 'last_one_copying'
+          : undefined;
+    return { domain, stopped, offer: null, ...(held === undefined ? {} : { held }) };
+  });
 }
 
 /**
