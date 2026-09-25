@@ -8,7 +8,7 @@ A Microsoft 365 migration authenticates with an **app registration in Microsoft 
 
 - The Microsoft account whose data moves, and its sign-in: a work or school account, or a personal Microsoft account.
 - Where the organisation requires an administrator to approve applications, that administrator. The consent says so if it is needed: see [When the test reports a problem](#when-test-says).
-- For the **Via IMAP** and **Via the Graph API** cards: an app registration in your own tenant, with an administrator's consent. See [those two cards](#graph).
+- For the **Via IMAP** and **Via the Graph API** cards: an app registration in your own tenant, with an administrator's consent. See [the registration they need](#application).
 
 ## Connecting {#connect}
 
@@ -30,15 +30,60 @@ Test reads the consent back from Microsoft before it reaches anything, so the ba
 
 **Via IMAP** and **Via the Graph API** authenticate with your own registration under **application** permissions, granted by an administrator in your own tenant. That is what an administrator migrating other people's mailboxes needs, and the Microsoft 365 account card's delegated grant will never do it. The wizard asks for the mailbox address, under **Username**, and for the **Tenant ID**, the **Client ID (application ID)** and the **Client secret** of that registration.
 
-[The registration these two cards need](#application) says where its steps stand.
+Both cards read one mailbox's mail. Calendars, contacts, OneDrive and To Do come through the **Microsoft 365 account** card.
+
+This card reads the mailbox through Microsoft Graph, with one Microsoft Graph permission: [Via the Graph API: the Microsoft Graph permission](#application-graph).
 
 ### Via IMAP {#oauth2}
 
-The same registration and the same four fields as **Via the Graph API**; this card reads the mailbox over IMAP.
+The same four fields as **Via the Graph API**; this card reads the mailbox over IMAP. Its permission is not a Microsoft Graph one. IMAP belongs to Exchange Online, so the permission and the mailbox are given there: [Via IMAP: the Exchange Online permission](#application-imap).
 
 ### The registration these two cards need {#application}
 
-These two cards always take a registration of your own, whatever this service carries, so its steps sit here rather than under [With your own app](#own-app). They are being rewritten and will appear here; until then, the **Microsoft 365 account** card connects a person's own mailbox with **Connect with Microsoft**.
+These two cards always take a registration of your own, whatever this service carries, so its steps sit here rather than under [With your own app](#own-app). An administrator of your Microsoft 365 organisation does them once. The screens are named as Microsoft's admin centres name them in English.
+
+1. [Entra admin centre](https://entra.microsoft.com) → Identity → Applications → **App registrations** → New registration. Choose **Accounts in this organizational directory only**, leave the redirect address empty, and register.
+2. On the Overview page, copy the **Application (client) ID** and the **Directory (tenant) ID**. They go in the wizard's **Client ID (application ID)** and **Tenant ID** fields.
+3. **Certificates & secrets** → New client secret. Copy the **Value** at once, because Entra shows it only once. It goes in the wizard's **Client secret** field.
+4. Add the permission of the card you use, and consent to it as an administrator: the two sections below have the steps. An application permission has no signed-in person to ask, so it works only once an administrator has consented.
+
+No refresh token is involved: these cards sign in as the application itself, and the wizard asks for none.
+
+#### Via the Graph API: the Microsoft Graph permission {#application-graph}
+
+**API permissions** → **Add a permission** → **Microsoft Graph** → **Application permissions**. Add:
+
+- `Mail.Read` — "Read mail in all mailboxes": the mailbox's folders and its messages, each message as Microsoft stores it.
+
+Nothing else: the card reads mail, and this one permission covers it. Then **Grant admin consent for** your organisation, and confirm.
+
+**Read the width before you grant it.** As an application permission, `Mail.Read` can read every mailbox in the organisation, not only the one you type in the wizard. This service reads only the mailbox the connection names, and never writes to it. Exchange Online can limit an application to named mailboxes; Microsoft documents that as role-based access control for applications in Exchange Online, and it is set in Exchange, not here.
+
+#### Via IMAP: the Exchange Online permission {#application-imap}
+
+This card signs in to Exchange Online's IMAP server as the application. Such a token carries only permissions given on **Office 365 Exchange Online**, so a Microsoft Graph permission, whatever its name, does nothing for it.
+
+1. **API permissions** → **Add a permission** → **APIs my organization uses** → search for **Office 365 Exchange Online** → **Application permissions**. Add:
+
+- `IMAP.AccessAsApp` — IMAP access to mailboxes, as the application.
+
+2. **Grant admin consent for** your organisation, and confirm.
+3. Register the application in Exchange Online. An Exchange administrator does this in Exchange Online PowerShell, after `Install-Module -Name ExchangeOnlineManagement` once:
+
+```
+Connect-ExchangeOnline -Organization <your tenant ID>
+New-ServicePrincipal -AppId <Application (client) ID> -ObjectId <Object ID of the enterprise application>
+```
+
+The Object ID is the one on the Overview page of the application under **Enterprise applications**, not the one under **App registrations**. With the wrong one, the card's sign-in fails.
+
+4. Give the application the mailbox the card reads. `Get-ServicePrincipal | fl` shows the service principal you just registered and its identity:
+
+```
+Add-MailboxPermission -Identity <the mailbox address> -User <the service principal's identity> -AccessRights FullAccess
+```
+
+Repeat step 4 for each mailbox the card should read. FullAccess is the permission Microsoft documents for this; this service only reads the mailbox.
 
 ## What moves {#what-moves}
 
@@ -64,6 +109,8 @@ Microsoft publishes no OAuth revocation endpoint, so deleting our copy of your r
 An erasure receipt says this in as many words, because a credential we deleted and a permission still standing at the provider are two different things.
 
 An **administrator's** consent — the one **Via IMAP** and **Via the Graph API** carry — lives somewhere else and only an administrator can remove it: Entra → Enterprise applications → Permissions.
+
+For **Via IMAP**, an Exchange administrator also takes the mailbox back with `Remove-MailboxPermission`, and removes the application from Exchange Online with `Remove-ServicePrincipal`. Deleting the app registration stops the application from signing in at all.
 
 ## With your own app {#own-app}
 
