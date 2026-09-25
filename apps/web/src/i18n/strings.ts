@@ -408,6 +408,18 @@ const en = {
   'wizard.archivePath.hint': 'The folder you extracted the download into, or the .zip itself.',
   'wizard.archivePath.why':
     'If the export arrived in several parts, keep them in one folder and name any one of them: we read them all, and we say so if one is missing. Or extract them all into the same folder first. Nothing is written there: we only read.',
+  // WHERE THE EXPORT IS KEPT (workplan 0148 T9, D11): in a folder of the
+  // destination's own files, or on the appliance's disk. On managed the disk
+  // is shown, disabled, with the line under it (the owner: "'Only on a
+  // self-hosted appliance': ok").
+  'wizard.archiveWhere': 'Where the export is',
+  'wizard.archiveWhere.target': "In a folder of your destination's files (Nextcloud or WebDAV)",
+  'wizard.archiveWhere.disk': "On this appliance's disk",
+  'wizard.archiveWhere.disk.onlyAppliance': 'Only on a self-hosted appliance',
+  'wizard.archivePath.target': "Folder in your destination's files",
+  'wizard.archivePath.target.hint': 'The folder as your files show it, from the top.',
+  'wizard.archivePath.target.why':
+    'For example Exports/takeout-20260904, or one .zip in that folder: we read the other parts beside it too. Upload the .zip parts of the export into one folder of the files this migration writes to, and name that folder here. The parts stay there after the migration and take up space; delete them once you have checked the result.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
@@ -2733,6 +2745,14 @@ const nl: Record<keyof typeof en, string> = {
     'De map waarin u de download hebt uitgepakt, of het .zip-bestand zelf.',
   'wizard.archivePath.why':
     'Bestaat de export uit meerdere delen, zet die dan in één map en wijs er een willekeurig deel van aan: wij lezen ze allemaal, en zeggen het als er een ontbreekt. Of pak ze eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
+  'wizard.archiveWhere': 'Waar de export staat',
+  'wizard.archiveWhere.target': 'In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)',
+  'wizard.archiveWhere.disk': 'Op de schijf van deze appliance',
+  'wizard.archiveWhere.disk.onlyAppliance': 'Alleen op een eigen appliance',
+  'wizard.archivePath.target': 'Map in de bestanden van uw bestemming',
+  'wizard.archivePath.target.hint': 'De map zoals u die in uw bestanden ziet, vanaf de hoofdmap.',
+  'wizard.archivePath.target.why':
+    'Bijvoorbeeld Exports/takeout-20260904, of één .zip in die map: de andere delen ernaast lezen wij ook. Zet de .zip-delen van de export in één map in de bestanden waar deze migratie naartoe schrijft, en vul die map hier in. De delen blijven daar na de migratie staan en nemen ruimte in; verwijder ze zodra u het resultaat hebt gecontroleerd.',
   'wizard.proto.microsoft.hint':
     'Eén Microsoft 365-account, één aanmelding: e-mail, agenda’s, contacten en OneDrive.',
   'wizard.group.provider': 'Uw aanbieder',

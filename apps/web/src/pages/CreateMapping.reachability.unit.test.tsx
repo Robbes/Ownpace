@@ -211,12 +211,15 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
   },
   // The export archive (workplan 0116 T5/T6): no username, no secret. Which
   // export is a CHOICE — the `<select>` takes a change event like any input —
-  // and where it is, is a path.
+  // and where it is, is a path. This harness is a managed build, where the
+  // export is in a folder of the destination's files by default (0148 T9), so
+  // the path is asked for under that label; the appliance's disk label is
+  // walked in `an-export-in-the-destinations-files.unit.test.tsx`.
   {
     name: 'Export archive',
     required: [
       [/^Which export/, 'google-takeout'],
-      [/^Where the archive is/, '/srv/exports/takeout-20260904'],
+      [/^Folder in your destination's files/, 'Exports/takeout-20260904'],
     ],
   },
 ];
@@ -235,6 +238,7 @@ const GATE_LABELS = [
   'Refresh token',
   'Which export',
   'Where the archive is',
+  "Folder in your destination's files",
 ];
 
 describe('every source type gets past its own first step', () => {

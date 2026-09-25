@@ -26,6 +26,8 @@ import {
 import {
   ARCHIVE_PROVIDERS,
   ARCHIVE_PROVIDER_ORIGINS,
+  ARCHIVE_WHERE,
+  archiveInTargetRefusal,
   archiveProviderName,
   asMappingId,
   asTenantId,
@@ -207,9 +209,16 @@ export function sourceConnectionConfig(
     // refuse must not be one this door stores. The superRefine has already
     // said so with a field-anchored message, so a throw here is a coding
     // error rather than an input one.
+    //
+    // AND WHICH STORE THE PATH IS IN (0148 T9). This passed `provider` and
+    // `path` only, so a posted `where` was dropped here and every archive was
+    // stored as a path on the machine running the pass — the one place a
+    // managed pass cannot read (0136 T5). Passed through as it came: absent
+    // stays absent, which the parser reads as `disk`.
     return parseArchiveSource({
       provider: cfg.provider,
       path: cfg.path,
+      ...(cfg.where === undefined ? {} : { where: cfg.where }),
     }) as unknown as Record<string, unknown>;
   }
   if (body.sourceType === 'box') {
@@ -590,6 +599,11 @@ export function knownConnectionValues(
     rootFolderId: str(cfg.rootFolderId),
     rootPath: str(cfg.rootPath),
     userId: str(cfg.userId),
+    // WHICH STORE an export archive's row is in (0148 T9 review). The wizard
+    // reusing the row starts its choice from this, so the screen shows the
+    // store the pass will read rather than this edition's default — which on
+    // the appliance flipped a row in the destination's files to the disk.
+    where: str(cfg.where),
   };
 
   // Only what this provider asks for, and never a secret one. The descriptor
@@ -683,7 +697,18 @@ export function sourceConfigOverride(
       // changed provider is a different connection, and letting a mapping
       // override it would let one row's export be opened by the other's
       // reader, which reports emptiness rather than failing (0116 §5).
-      return keep({ path: cfg.path });
+      //
+      // `where` travels WITH the path (0148 T9): a path means nothing until it
+      // says which store it is in, and the next export in a series can be kept
+      // somewhere else — on the disk last time, in the destination's files
+      // this time. Kept only a path, a reused connection's override could not
+      // say "in the destination" at all.
+      //
+      // And ONLY with the path (T9 review). The pass lays the override over
+      // the stored row key by key, so a `where` alone would move the ROW's
+      // path into another store: a folder of the destination's files looked
+      // for on the disk, or a disk path looked for in the Nextcloud.
+      return keep(cfg.path ? { path: cfg.path, where: cfg.where } : {});
     case 'gmail':
     case 'google-calendar':
     case 'google-contacts':
@@ -924,6 +949,40 @@ function getSharedPool() {
   return _dbPool;
 }
 
+/**
+ * A stored connection's config, read in this tenant, or `undefined` when no
+ * such row is this tenant's. Only the config: a door judging a location has
+ * no business with the credential beside it. A missing row is not refused
+ * here — the create transaction's reuse check says which id was wrong.
+ */
+async function storedConnectionConfig(
+  tenantId: string,
+  connectionId: string,
+): Promise<Record<string, unknown> | undefined> {
+  const rows = await withTenantDb(tenantId, getSharedPool(), (db) =>
+    db
+      .select({ config: schema.connection.config })
+      .from(schema.connection)
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId))),
+  );
+  const config = rows[0]?.config;
+  return config && typeof config === 'object' ? (config as Record<string, unknown>) : undefined;
+}
+
+/**
+ * WHERE THE PASS WILL READ a reused archive connection (0148 T9 review): the
+ * stored row with this mapping's override laid over it key by key, as
+ * `build-deps-from-mapping.ts` lays it. A reuse that names the next export's
+ * folder and not its store reads that folder in the ROW's store, so the doors
+ * judge this, not the override alone.
+ */
+export function archiveLocationOnReuse(
+  stored: Readonly<Record<string, unknown>> | undefined,
+  override: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return { ...(stored ?? {}), ...override };
+}
+
 // Schema validation
 /**
  * Exported for the retraction guard (`sync-mode.unit.test.ts`).
@@ -988,6 +1047,21 @@ export const CreateMappingBase = z.object({
     provider: z.string().optional(),
     /** Archive only: WHERE the archive is. Not a secret — a path is not a password. */
     path: z.string().optional(),
+    /**
+     * Archive only (workplan 0148 T9): WHICH STORE `path` is in — `disk`, the
+     * machine running the pass, or `target`, a folder of the files this
+     * migration writes to (0116 T4). Absent means `disk`, the shared parser's
+     * default. An unknown value is refused here by name rather than dropped,
+     * because dropped it would mean `disk`: on managed a refusal about a path
+     * on the server, for a misspelling of ours.
+     */
+    where: z
+      .enum(ARCHIVE_WHERE, {
+        message:
+          `where: expected ${ARCHIVE_WHERE.map((w) => `"${w}"`).join(' or ')} — "target" is a folder ` +
+          "of the destination's own files, \"disk\" a path on the machine running the pass.",
+      })
+      .optional(),
     /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
      *  validated by the shared parser in the superRefine, not re-enumerated
      *  here — one authority, both editions. */
@@ -1445,6 +1519,16 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     const archiveRefusal = sourceDomainRefusal('archive', body.syncConfig.domains);
     if (archiveRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: archiveRefusal });
+    }
+    // IN THE DESTINATION'S FILES, THE DESTINATION HAS TO HAVE FILES THE
+    // READER CAN ASK FOR (0148 T9, D11). The shared rule, which the wizard's
+    // target step reads too: WebDAV and Nextcloud serve byte ranges; JMAP has
+    // files and no ranges, and is refused in the sentence the pass writes;
+    // the rest have no files at all. Anchored to `targetType`, because the
+    // destination is the choice to change.
+    if (body.sourceConfig.where === 'target') {
+      const inTarget = archiveInTargetRefusal(body.targetType);
+      if (inTarget) ctx.addIssue({ code: 'custom', path: ['targetType'], message: inTarget });
     }
   } else if (body.sourceType === 'box') {
     // No refreshToken demanded, by DESIGN: Box rotates refresh tokens on
@@ -2026,19 +2110,36 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
 
     // NOT A PATH ON THIS MACHINE (0136 T5). Nothing here opens the path, but
     // what this door stores a pass would read, so it is refused before
-    // anything is written. Judged on what would be written for WHERE: the new
-    // connection's config, or — reusing one — this mapping's override, which
-    // is where the next export in a series is named (0116 §5). A reused row's
-    // own `where` is not consulted, so an override that does not say
-    // `target` is refused; 0148 T9 has the override keep `where`.
+    // anything is written. Judged on WHERE THE PASS WILL READ (0148 T9
+    // review): the new connection's config, or — reusing one — the stored
+    // row with this mapping's override laid over it, which is what the pass
+    // reads (`archiveLocationOnReuse`). Judged on the override alone, a row in
+    // the destination's files reused with the next export's folder was
+    // refused as a path on the server, and a JMAP destination was let through
+    // for it, to fail in the pass.
     if (body.sourceType === 'archive') {
-      const onServer = archiveOnServerRefusal(
-        sourceKindFor(body.sourceType),
-        body.sourceConnectionId ? sourceConfigOverride(body) : sourceConnectionConfig(body),
-      );
+      const location = body.sourceConnectionId
+        ? archiveLocationOnReuse(
+            await storedConnectionConfig(tenantId, body.sourceConnectionId),
+            sourceConfigOverride(body),
+          )
+        : sourceConnectionConfig(body);
+      const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), location);
       // With `message` too: this door's 400 is documented as the `Error`
       // shape, and the other refusals here carry one.
       if (onServer) return void res.status(400).json({ ...onServer, message: onServer.reason });
+      // And in the destination's files, a destination that can serve it: the
+      // superRefine's rule (0148 D11), asked again of the location the pass
+      // will read, because a reused row can say `target` when the body does
+      // not. The same shape as the schema's refusal, anchored the same way.
+      const inTarget = location['where'] === 'target' ? archiveInTargetRefusal(body.targetType) : null;
+      if (inTarget) {
+        return void res.status(400).json({
+          error: 'Validation error',
+          message: inTarget,
+          details: [{ code: 'custom', path: ['targetType'], message: inTarget }],
+        });
+      }
     }
 
     // Persist the full chain in one tenant-scoped transaction (RLS-enforced):
