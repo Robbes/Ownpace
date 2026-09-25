@@ -27,6 +27,7 @@ import { serverMessage } from '../services/api.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
+import { isAlpha } from '../components/AlphaNote.tsx';
 
 /** A failed read said as such (hard rule 9 / 0033 T2) — before this, a failed
  *  usage read rendered "No usage data available yet" and a failed invoices
@@ -434,6 +435,45 @@ const InvoiceDetailsCard: React.FC<{ free: boolean }> = ({ free }) => {
   );
 };
 
+/**
+ * What stands under the title: what the page is for, or, during the alpha,
+ * that nothing on it is a bill (workplan 0131 T3).
+ *
+ * The alpha is free (0131 D1) and nothing in the code can charge: the invoice
+ * route answers 409 to every call. A subtitle about managing "your
+ * subscription" and "payments", above a paid tier's set-up fee and monthly
+ * price, read like a bill all the same. So while the deployment runs the
+ * alpha, the subtitle gives way to one line, and everything below it stays:
+ * the tier block keeps its prices, because the measurement is one of the
+ * things worth trying (0121 T4), and a free tier keeps saying "free" (0109
+ * T8). The two agree: the line says nothing is charged during the alpha, the
+ * tier says nothing is invoiced on Tiny.
+ *
+ * The second sentence is the free tier's own, word for word (owner,
+ * 2026-09-24, 0131 open question 7: *"show the free tier's 'not needed' text
+ * instead, also in the second sentence"*), and the invoice details card says
+ * the same during the alpha, on every tier.
+ *
+ * A viewer or member is shown no figures and no invoice details (the reads
+ * are owner and admin only), so they read the first sentence alone: the
+ * second is about a form they are not shown.
+ */
+const Subtitle: React.FC<{ figuresShown: boolean }> = ({ figuresShown }) => {
+  const t = useT();
+  if (!isAlpha()) return <p className="text-gray-500 mt-1">{t('billing.subtitle')}</p>;
+  return (
+    <p className="text-gray-500 mt-1">
+      {t('alpha.nothingCharged')}
+      {figuresShown && (
+        <>
+          {' '}
+          {t('billing.party.notNeeded')}
+        </>
+      )}
+    </p>
+  );
+};
+
 const Billing: React.FC = () => {
   const t = useT();
   const { currency, dateTime } = useFormatters();
@@ -487,7 +527,7 @@ const Billing: React.FC = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('billing.title')}</h1>
-          <p className="text-gray-500 mt-1">{t('billing.subtitle')}</p>
+          <Subtitle figuresShown={false} />
         </div>
         <p className="text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-4">
           {t('billing.adminOnly')}
@@ -508,7 +548,7 @@ const Billing: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('billing.title')}</h1>
-        <p className="text-gray-500 mt-1">{t('billing.subtitle')}</p>
+        <Subtitle figuresShown />
       </div>
 
       {/* Current Usage */}
@@ -652,7 +692,10 @@ const Billing: React.FC = () => {
       </div>
 
       {/* Who invoices are addressed to — above the invoices it will be on. */}
-      <InvoiceDetailsCard free={usage?.tier != null && isFreeTier(usage.tier)} />
+      {/* During the alpha nothing is invoiced on any tier (0131 T3, owner's
+          answer to open question 7), so the card says so as it does on a
+          free tier, instead of asking for details nobody needs yet. */}
+      <InvoiceDetailsCard free={isAlpha() || (usage?.tier != null && isFreeTier(usage.tier))} />
 
       {/* Invoices */}
       <div className="bg-white rounded-lg border border-gray-200">
