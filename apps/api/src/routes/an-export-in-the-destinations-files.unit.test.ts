@@ -109,7 +109,12 @@ vi.mock('@openmig/orchestration/archive-source-factory', async (importOriginal) 
 });
 
 const { default: connectionRoutes } = await import('./connections.ts');
-const { default: migrationRoutes, sourceConfigOverride, sourceConnectionConfig } = await import(
+const {
+  default: migrationRoutes,
+  knownConnectionValues,
+  sourceConfigOverride,
+  sourceConnectionConfig,
+} = await import(
   './migrations/index.ts'
 );
 
@@ -140,6 +145,24 @@ function mapping(targetType: string, extra: Record<string, unknown> = {}) {
   };
 }
 
+/** A row stored before 0136 T5: a path on the machine running the pass, no `where`. */
+const DISK_ROW = { type: 'archive', provider: 'google-takeout', path: '/srv/exports/takeout-20260904' };
+/** A row stored in the destination's files, as the Connections page stores one. */
+const TARGET_ROW = { type: 'archive', provider: 'google-takeout', path: FOLDER, where: 'target' };
+const REUSED = '11111111-1111-4111-8111-111111111111';
+
+/**
+ * A reuse that names the next export's folder and not its store: what an API
+ * client may post, since `where` is optional. The door demands the path on a
+ * reuse (0116 T5/T6), so a path is always there.
+ */
+function reuse(targetType: string) {
+  const body = mapping(targetType, { sourceConnectionId: REUSED });
+  const { where: _unsaid, ...rest } = body.sourceConfig;
+  body.sourceConfig = { ...rest, provider: '', path: 'Exports/takeout-20261104' } as never;
+  return body;
+}
+
 const insertedInto = (table: unknown) => inserts.filter((i) => i.table === table).map((i) => i.values);
 
 beforeEach(() => {
@@ -163,7 +186,11 @@ describe('POST /api/migrations — an export in a Nextcloud destination', () => 
 
   it('a REUSED connection’s override keeps `where` beside the path', async () => {
     // The second export of a series names its own place (0116 §5).
-    selects = [[{ id: 'conn-archive', role: 'source', kind: 'archive', qualification: null }]];
+    selects = [
+      // The door reads the stored row's location first, then reuses it.
+      [{ config: DISK_ROW }],
+      [{ id: 'conn-archive', role: 'source', kind: 'archive', qualification: null }],
+    ];
     const body = mapping('nextcloud', { sourceConnectionId: '11111111-1111-4111-8111-111111111111' });
     body.sourceConfig = { ...body.sourceConfig, provider: '' };
     const res = await request(app).post('/api/migrations').send(body);
@@ -173,11 +200,64 @@ describe('POST /api/migrations — an export in a Nextcloud destination', () => 
   });
 });
 
+/**
+ * A REUSE IS JUDGED ON WHERE THE PASS WILL READ (0148 T9 review).
+ *
+ * The pass reads the stored row with this mapping's override laid over it key
+ * by key (`build-deps-from-mapping.ts`), so a reuse that names a folder and
+ * not its store reads the folder in the row's store. The doors judged the
+ * override alone: a row in the destination's files was refused on managed as
+ * a path on the server, and a JMAP destination was let through for it, to
+ * fail in the pass.
+ */
+describe('POST /api/migrations — a reused archive connection', () => {
+  it('accepts a row stored in the destination’s files, reused with a folder and no `where`', async () => {
+    selects = [
+      [{ config: TARGET_ROW }],
+      [{ id: 'conn-archive', role: 'source', kind: 'archive', qualification: null }],
+    ];
+    const res = await request(app).post('/api/migrations').send(reuse('nextcloud'));
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const [stored] = insertedInto(schema.mailboxMapping);
+    expect(stored?.['sourceConfigOverride']).toEqual({ path: 'Exports/takeout-20261104' });
+  });
+
+  it('refuses a JMAP destination for that row, in the shared sentence', async () => {
+    selects = [[{ config: TARGET_ROW }]];
+    const res = await request(app).post('/api/migrations').send(reuse('jmap'));
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(res.body.message).toContain(archiveInTargetRefusal('jmap')!);
+    const paths = (res.body.details as Array<{ path: string[] }>).map((d) => d.path.join('.'));
+    expect(paths).toContain('targetType');
+    expect(insertedInto(schema.mailboxMapping), 'a refused migration was written').toEqual([]);
+  });
+
+  it('still refuses a disk-path row reused the same way: its store is the server’s disk', async () => {
+    selects = [[{ config: DISK_ROW }]];
+    const res = await request(app).post('/api/migrations').send(reuse('nextcloud'));
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(res.body.error).toBe('archive_on_server');
+    expect(insertedInto(schema.mailboxMapping), 'a refused migration was written').toEqual([]);
+  });
+
+  it('never stores a `where` without the path it places', () => {
+    const half = {
+      sourceType: 'archive',
+      sourceConfig: { username: '', useSsl: true, provider: '', path: '', where: 'target' },
+    } as never;
+    expect(sourceConfigOverride(half)).toEqual({});
+  });
+
+  it('the wizard learns where a stored row is: `where` is one of its known values', () => {
+    expect(knownConnectionValues('source', 'archive', TARGET_ROW)).toMatchObject({ where: 'target' });
+  });
+});
+
 describe('POST /api/migrations — a destination the export cannot be read from', () => {
   it('refuses a JMAP destination with the sentence the pass writes', async () => {
     const res = await request(app).post('/api/migrations').send(mapping('jmap'));
     expect(res.status, JSON.stringify(res.body)).toBe(400);
-    expect(res.body.message).toContain(archiveInJmapTargetSentence('jmap'));
+    expect(res.body.message).toContain(archiveInJmapTargetSentence('JMAP'));
     expect(insertedInto(schema.connection), 'a refused migration was written').toEqual([]);
   });
 

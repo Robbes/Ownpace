@@ -2692,7 +2692,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.archiveWhere.disk': 'Op de schijf van deze appliance',
   'wizard.archiveWhere.disk.onlyAppliance': 'Alleen op een eigen appliance',
   'wizard.archivePath.target': 'Map in de bestanden van uw bestemming',
-  'wizard.archivePath.target.hint': 'De map zoals uw bestanden die tonen, vanaf het begin.',
+  'wizard.archivePath.target.hint': 'De map zoals u die in uw bestanden ziet, vanaf de hoofdmap.',
   'wizard.archivePath.target.why':
     'Bijvoorbeeld Exports/takeout-20260904, of één .zip in die map: de andere delen ernaast lezen wij ook. Zet de .zip-delen van de export in één map in de bestanden waar deze migratie naartoe schrijft, en vul die map hier in. De delen blijven daar na de migratie staan en nemen ruimte in; verwijder ze zodra u het resultaat hebt gecontroleerd.',
   'wizard.proto.microsoft.hint':

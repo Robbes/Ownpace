@@ -177,6 +177,10 @@ point us at the folder). **We will never tell you an archive is empty when what 
 happened is that we could not read it.** Those are different answers and you deserve the true
 one.
 
+An export you put in a folder of the files you are moving to is not opened by **Test**: it is
+counted at the preflight, once the migration knows where those files are. See
+[Your export in your own Nextcloud](#your-export-in-your-own-nextcloud).
+
 ---
 
 ## Your export in your own Nextcloud
@@ -184,6 +188,10 @@ one.
 The export does not have to be on a disk. If the files you are moving to are in a Nextcloud, or
 on another server that offers your files over WebDAV, you can put the export there and we read
 it from that folder.
+
+**There is no need to unpack it.** Upload the `.zip` files exactly as Google or Apple delivered
+them, every part into the same folder. We read them where they lie, a few megabytes at a time,
+and never change them. If you already unpacked the export into that folder, that works too.
 
 1. Upload the `.zip` parts of the export into **one folder** of the files the migration will
    write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the
@@ -193,18 +201,24 @@ it from that folder.
    **In a folder of your destination's files (Nextcloud or WebDAV)**.
 3. Type the folder as it appears in your files, from the top, for example
    `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
-4. Press **Test**. It says the export is counted at the preflight. That is expected: the
-   destination is chosen on the target step, and until then there is nowhere to look.
+4. Press **Test and save connections**. It says the export is counted at the preflight. That
+   is expected: the destination is chosen on the target step, and until then there is nowhere
+   to look.
 5. Continue, and on the target step choose that same Nextcloud or WebDAV account. The
    preflight then counts what is in the export, before anything moves.
+
+**Your photos arrive as ordinary files and folders.** What we write into your files is never a
+`.zip`: every album becomes a folder, a photo in no album goes into a folder for its year, such
+as `Photos from 2019`, and one file at the top lists everything the export knew about each
+photo.
 
 This works with a Nextcloud or a WebDAV destination only. An account that holds no files, or a
 JMAP account, cannot hand us the export: JMAP does not let us read a file in pieces, and we
 say so on the target step.
 
-**The parts stay where you put them.** We only read them, so after the migration they are still
-in that folder, and they take up as much space in your account as the export itself. Once you
-have checked that everything arrived, delete the folder yourself.
+**The `.zip` files stay where you put them.** We only read them, so after the migration they
+are still in that folder, and they take up as much space in your account as the export itself.
+Once you have checked that everything arrived, delete them yourself.
 
 ---
 

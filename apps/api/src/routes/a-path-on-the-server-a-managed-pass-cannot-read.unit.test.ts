@@ -232,7 +232,24 @@ describe('POST /api/migrations — the create door', () => {
       );
     refused(res, 400);
     nothingOpened();
-    expect(vi.mocked(auth.withTenantDb), 'a refused migration was written').not.toHaveBeenCalled();
+    // REWRITTEN ON PURPOSE by 0148 T9's review: this asked that the door touch
+    // no database at all. The door now READS the stored row first, because
+    // the pass reads the row with the override laid over it, and an override
+    // with no `where` is in whatever store the row is in. So there is one
+    // call, and run against a database that can only be read, it reads the
+    // row's config and nothing else — a write would throw here.
+    expect(vi.mocked(auth.withTenantDb), 'a refused migration was written').toHaveBeenCalledTimes(1);
+    const selected: unknown[] = [];
+    const readOnly = {
+      select: (columns: unknown) => {
+        selected.push(columns);
+        const query = { from: () => query, where: async () => [] };
+        return query;
+      },
+    };
+    const [lookup] = vi.mocked(auth.withTenantDb).mock.calls;
+    await (lookup![2] as (db: unknown) => Promise<unknown>)(readOnly);
+    expect(selected.map((c) => Object.keys(c as object))).toEqual([['config']]);
   });
 });
 

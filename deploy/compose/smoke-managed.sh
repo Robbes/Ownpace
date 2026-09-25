@@ -3230,7 +3230,9 @@ NC="http://${nc_host:-localhost}:${nc_port:-8083}"
 # tenant B's own and is left exactly as it was.
 ARCHIVE_TAG="smoke-archive-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 ARCHIVE_DIR="$ARCHIVE_TAG"
-ARCHIVE_NAME="gate: an export in the destination"
+# Tagged, so a row an aborted run left behind says which run it was. The
+# rows are never FOUND by this name: see the source connection below.
+ARCHIVE_NAME="gate: an export in the destination ${ARCHIVE_TAG}"
 ARCHIVE_FILES="${NC}/remote.php/dav/files/${TARGET_DAV_USER}/${ARCHIVE_DIR}"
 # Encoded once, as a DAV href is: two of these folder names have spaces.
 ARCHIVE_PHOTOS="Takeout/Google%20Photos/Photos%20from%202024"
@@ -3265,6 +3267,7 @@ for pair in "IMG_0001.jpg|gate-photo-one" "IMG_0002.jpg|gate-photo-two" \
 done
 
 archive_mapping_id=""
+archive_source_id=""
 if [ "$archive_written" = "1" ]; then
   echo "fixture Takeout written into ${TARGET_DAV_USER}'s files at ${ARCHIVE_DIR}/"
 
@@ -3291,6 +3294,15 @@ if [ "$archive_written" = "1" ]; then
   # tick, so nothing is ever copied into tenant B's files from it.
   if [ "$code" = "201" ] && [ -n "$archive_mapping_id" ] && [ "$archive_mapping_status" = "paused" ]; then
     echo "migration from an export in the destination ('$archive_target_kind' target): created and paused"
+    # THIS RUN'S SOURCE CONNECTION, through THIS RUN'S MIGRATION, the way the
+    # destination is found above. The create answer does not carry its id,
+    # and a display name is shared by every run that left its row behind: a
+    # lookup by it reads, or deletes, whichever row Postgres returns first
+    # (the lesson of a-person-opened-in-the-wrong-organisation). Read now,
+    # because the migration is deleted before its source connection.
+    archive_source_id="$(q "SELECT c.id FROM mailbox_mapping m JOIN mailbox mb ON mb.id = m.source_mailbox_id JOIN connection c ON c.id = mb.connection_id WHERE m.id = '$archive_mapping_id'")"
+    [ -n "$archive_source_id" ] \
+      || fail_at "the migration from an export in the destination has no source connection row"
   else
     fail_at "a migration from an export in the destination was not created: HTTP $code, status '${archive_mapping_status:-<none>}' — ${body:0:250}"
   fi
@@ -3302,7 +3314,7 @@ if [ -n "$archive_mapping_id" ]; then
   # STORED WITH ITS PLACE. Read from the database, not the API's echo: a door
   # that dropped `where` stored a path on the server, which is what this
   # section's first half refuses.
-  archive_where="$(q "SELECT coalesce(config->>'where', '<none>') FROM connection WHERE display_name = '${ARCHIVE_NAME} (source)'")"
+  archive_where="$(q "SELECT coalesce(config->>'where', '<none>') FROM connection WHERE id = '$archive_source_id'")"
   if [ "$archive_where" = "target" ]; then
     echo "archive connection stored with where 'target'"
   else
@@ -3313,7 +3325,7 @@ if [ -n "$archive_mapping_id" ]; then
   # secret is the shape that proves it. Read from the database rather than from
   # the API's echo, because the echo is what a route chose to say and this is
   # what was written.
-  archive_secret="$(q "SELECT coalesce(secret_ref, '<null>') FROM connection WHERE display_name = '${ARCHIVE_NAME} (source)' LIMIT 1")"
+  archive_secret="$(q "SELECT coalesce(secret_ref, '<null>') FROM connection WHERE id = '$archive_source_id'")"
   case "$archive_secret" in
     *'"username"'*|*'"password"'*)
       fail_at "the archive connection stored a credential-shaped secret: ${archive_secret:0:120} (a path is not a password)" ;;
@@ -3366,7 +3378,6 @@ if [ -n "$archive_mapping_id" ]; then
   r="$(http DELETE "$API/api/migrations/${archive_mapping_id}" "$TOK_R")"
   case "${r%% *}" in 200|204) ;; *) archive_left=$((archive_left + 1)); echo "DELETE migration: HTTP ${r%% *}" ;; esac
 fi
-archive_source_id="$(q "SELECT id FROM connection WHERE display_name = '${ARCHIVE_NAME} (source)' LIMIT 1")"
 if [ -n "$archive_source_id" ]; then
   r="$(http DELETE "$API/api/connections/${archive_source_id}" "$TOK_R")"
   case "${r%% *}" in 200|204) ;; *) archive_left=$((archive_left + 1)); echo "DELETE source connection: HTTP ${r%% *}" ;; esac

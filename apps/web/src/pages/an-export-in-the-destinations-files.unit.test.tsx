@@ -195,6 +195,77 @@ describe('the doors post where', () => {
       values: { provider: 'google-takeout', path: 'Exports/takeout-20260904', where: 'target' },
     });
     expect(await screen.findByText(en['probe.countedAtPreflight'])).toBeTruthy();
+    // KEPT AND USED (0148 T9 review): the answer is not a failure, so the
+    // wizard continues on the row it just stored. A connection in use hides
+    // what belongs to the connection — which export — and keeps this
+    // mapping's own answers, where and which folder. Without that, the create
+    // door would store the same archive a second time.
+    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
+    expect(radio(TO_TARGET).checked).toBe(true);
+    expect(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`))).toBeTruthy();
+    expect(connectionsApi.add).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+});
+
+/**
+ * A STORED ROW SAYS WHERE IT IS (0148 T9 review). A reused connection's choice
+ * starts from the row's own `where`, not this edition's default: the screen
+ * shows the store the pass will read, and the target step judges that one.
+ */
+describe('the wizard reusing a stored archive connection', () => {
+  const stored = (knownValues: Record<string, string>) =>
+    [
+      {
+        id: 'c-stored',
+        role: 'source',
+        kind: 'archive',
+        displayName: 'my photos',
+        status: 'connected',
+        createdAt: '2026-09-01T00:00:00Z',
+        usedByMigrations: 0,
+        knownValues,
+      },
+    ] as never;
+
+  it('on the appliance, a row in the destination’s files shows the destination, not the disk', async () => {
+    editionFlag.selfhost = true;
+    vi.mocked(connectionsApi.list).mockResolvedValue(stored({ where: 'target' }));
+    renderWizard();
+    pickArchive();
+    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
+    expect(radio(TO_TARGET).checked).toBe(true);
+    expect(radio(ON_DISK).checked).toBe(false);
+  });
+
+  it('on managed, a row stored before `where` shows the disk it is on, disabled', async () => {
+    vi.mocked(connectionsApi.list).mockResolvedValue(stored({}));
+    renderWizard();
+    pickArchive();
+    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
+    expect(radio(ON_DISK).checked).toBe(true);
+    expect(radio(ON_DISK).disabled).toBe(true);
+    // Marked and not answerable here: the create door refuses the disk on
+    // managed, so Next says so on this step, and the other answer is the way on.
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath'])}`)), {
+      target: { value: 'Exports/takeout-20261104' },
+    });
+    expect(nextButton()).toBeDisabled();
+    expect(blockedReason()).toContain(en['wizard.archiveWhere']);
+    fireEvent.click(radio(TO_TARGET));
+    await waitFor(() => expect(nextButton()).toBeEnabled());
+  });
+
+  it('still asks for this migration’s folder: the door refuses a reuse without one', async () => {
+    vi.mocked(connectionsApi.list).mockResolvedValue(stored({ where: 'target' }));
+    renderWizard();
+    pickArchive();
+    await waitFor(() => expect(screen.queryByLabelText(/^Which export/)).toBeNull());
+    expect(nextButton()).toBeDisabled();
+    expect(blockedReason()).toContain(en['wizard.archivePath.target']);
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${escape(en['wizard.archivePath.target'])}`)), {
+      target: { value: 'Exports/takeout-20261104' },
+    });
     await waitFor(() => expect(nextButton()).toBeEnabled());
   });
 });
@@ -227,7 +298,7 @@ describe('the wizard’s target step reads the same rule as the create door', ()
   it('a Nextcloud destination is not refused for it', async () => {
     await toTargetStep();
     fireEvent.click(screen.getByRole('button', { name: /^Nextcloud/ }));
-    expect(blockedReason() ?? '').not.toContain('destination has no files');
+    expect(blockedReason() ?? '').not.toContain('have no files');
     expect(blockedReason() ?? '').not.toContain('JMAP');
   });
 });

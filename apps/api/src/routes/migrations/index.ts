@@ -556,6 +556,11 @@ export function knownConnectionValues(
     rootFolderId: str(cfg.rootFolderId),
     rootPath: str(cfg.rootPath),
     userId: str(cfg.userId),
+    // WHICH STORE an export archive's row is in (0148 T9 review). The wizard
+    // reusing the row starts its choice from this, so the screen shows the
+    // store the pass will read rather than this edition's default — which on
+    // the appliance flipped a row in the destination's files to the disk.
+    where: str(cfg.where),
   };
 
   // Only what this provider asks for, and never a secret one. The descriptor
@@ -655,7 +660,12 @@ export function sourceConfigOverride(
       // somewhere else — on the disk last time, in the destination's files
       // this time. Kept only a path, a reused connection's override could not
       // say "in the destination" at all.
-      return keep({ path: cfg.path, where: cfg.where });
+      //
+      // And ONLY with the path (T9 review). The pass lays the override over
+      // the stored row key by key, so a `where` alone would move the ROW's
+      // path into another store: a folder of the destination's files looked
+      // for on the disk, or a disk path looked for in the Nextcloud.
+      return keep(cfg.path ? { path: cfg.path, where: cfg.where } : {});
     case 'gmail':
     case 'google-calendar':
     case 'google-contacts':
@@ -894,6 +904,40 @@ function getSharedPool() {
     _dbPool = getDbPool();
   }
   return _dbPool;
+}
+
+/**
+ * A stored connection's config, read in this tenant, or `undefined` when no
+ * such row is this tenant's. Only the config: a door judging a location has
+ * no business with the credential beside it. A missing row is not refused
+ * here — the create transaction's reuse check says which id was wrong.
+ */
+async function storedConnectionConfig(
+  tenantId: string,
+  connectionId: string,
+): Promise<Record<string, unknown> | undefined> {
+  const rows = await withTenantDb(tenantId, getSharedPool(), (db) =>
+    db
+      .select({ config: schema.connection.config })
+      .from(schema.connection)
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId))),
+  );
+  const config = rows[0]?.config;
+  return config && typeof config === 'object' ? (config as Record<string, unknown>) : undefined;
+}
+
+/**
+ * WHERE THE PASS WILL READ a reused archive connection (0148 T9 review): the
+ * stored row with this mapping's override laid over it key by key, as
+ * `build-deps-from-mapping.ts` lays it. A reuse that names the next export's
+ * folder and not its store reads that folder in the ROW's store, so the doors
+ * judge this, not the override alone.
+ */
+export function archiveLocationOnReuse(
+  stored: Readonly<Record<string, unknown>> | undefined,
+  override: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return { ...(stored ?? {}), ...override };
 }
 
 // Schema validation
@@ -1990,20 +2034,36 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
 
     // NOT A PATH ON THIS MACHINE (0136 T5). Nothing here opens the path, but
     // what this door stores a pass would read, so it is refused before
-    // anything is written. Judged on what would be written for WHERE: the new
-    // connection's config, or — reusing one — this mapping's override, which
-    // is where the next export in a series is named (0116 §5). A reused row's
-    // own `where` is not consulted, so an override that does not say
-    // `target` is refused; since 0148 T9 the override keeps `where`, and the
-    // wizard posts it on reuse as it posts the path.
+    // anything is written. Judged on WHERE THE PASS WILL READ (0148 T9
+    // review): the new connection's config, or — reusing one — the stored
+    // row with this mapping's override laid over it, which is what the pass
+    // reads (`archiveLocationOnReuse`). Judged on the override alone, a row in
+    // the destination's files reused with the next export's folder was
+    // refused as a path on the server, and a JMAP destination was let through
+    // for it, to fail in the pass.
     if (body.sourceType === 'archive') {
-      const onServer = archiveOnServerRefusal(
-        sourceKindFor(body.sourceType),
-        body.sourceConnectionId ? sourceConfigOverride(body) : sourceConnectionConfig(body),
-      );
+      const location = body.sourceConnectionId
+        ? archiveLocationOnReuse(
+            await storedConnectionConfig(tenantId, body.sourceConnectionId),
+            sourceConfigOverride(body),
+          )
+        : sourceConnectionConfig(body);
+      const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), location);
       // With `message` too: this door's 400 is documented as the `Error`
       // shape, and the other refusals here carry one.
       if (onServer) return void res.status(400).json({ ...onServer, message: onServer.reason });
+      // And in the destination's files, a destination that can serve it: the
+      // superRefine's rule (0148 D11), asked again of the location the pass
+      // will read, because a reused row can say `target` when the body does
+      // not. The same shape as the schema's refusal, anchored the same way.
+      const inTarget = location['where'] === 'target' ? archiveInTargetRefusal(body.targetType) : null;
+      if (inTarget) {
+        return void res.status(400).json({
+          error: 'Validation error',
+          message: inTarget,
+          details: [{ code: 'custom', path: ['targetType'], message: inTarget }],
+        });
+      }
     }
 
     // Persist the full chain in one tenant-scoped transaction (RLS-enforced):

@@ -55,16 +55,34 @@ describe('archiveInTargetRefusal — which destinations an export can be read fr
 
   it('refuses JMAP with the sentence the pass writes: files, but no byte ranges', () => {
     const refusal = archiveInTargetRefusal('jmap')!;
-    expect(refusal).toBe(archiveInJmapTargetSentence('jmap'));
+    expect(refusal).toBe(archiveInJmapTargetSentence('JMAP'));
     expect(refusal).toContain('byte ranges');
     expect(refusal).toContain('WebDAV');
+  });
+
+  it('names the destination as a person reads it, never by its lower-case key', () => {
+    // The door and the wizard's target step show this sentence to a person
+    // (0148 T9 review): "a jmap account" is our vocabulary, not theirs.
+    expect(archiveInTargetRefusal('jmap')).toContain('a JMAP account');
+    expect(archiveInTargetRefusal('jmap')).not.toContain('a jmap account');
+  });
+
+  it('reads right for every name, whatever its first letter (no "a IMAP")', () => {
+    expect(archiveInTargetRefusal('imap')).toBe(
+      "This export is to be read from a folder in the destination's files, and IMAP " +
+        'destinations have no files. WebDAV and Nextcloud destinations have them: choose one of ' +
+        'those as the destination, and put the export in a folder of its files.',
+    );
+    for (const type of EVERY_TARGET) {
+      expect(archiveInTargetRefusal(type) ?? '', type).not.toMatch(/\ba [AEIOU]/);
+    }
   });
 
   it('refuses a destination with no files by saying so, and which ones have them', () => {
     for (const type of ['imap', 'caldav', 'carddav', 'soverin'] as const) {
       const refusal = archiveInTargetRefusal(type)!;
       expect(refusal, type).toContain("the destination's files");
-      expect(refusal, type).toContain('has no files');
+      expect(refusal, type).toContain('have no files');
       expect(refusal, type).toContain('Nextcloud');
       expect(refusal, type).toContain('WebDAV');
     }

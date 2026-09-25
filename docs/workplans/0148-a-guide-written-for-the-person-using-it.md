@@ -61,6 +61,50 @@ Where this differs from §3:
 - the JMAP sentence is unchanged. It still offers "a path on the machine running the pass",
   which managed refuses. That is left to the owner.
 
+**2026-09-25, T9 reviewed and fixed** on the same branch, one more commit. Not merged. Two
+reviewers found five things to fix and five nits:
+
+- **A reused export connection keeps its own store.** The wizard posted this edition's default
+  `where` on every reuse, and the pass lays the override over the stored row, so on the
+  appliance a row in the destination's files was read from the disk. The wizard now starts the
+  choice from the row's own `where` (none means the disk), which the connection list returns
+  (`knownConnectionValues`). The create door reads the stored row's config and judges 0136 T5's
+  refusal and `archiveInTargetRefusal` on the row with the override laid over it, as the pass
+  reads it. The override keeps `where` only beside a path. On a reuse the source step still asks
+  for this migration's folder, as the door does, and on managed a row on the disk holds Next
+  and names *Where the export is*. The wizard's picker never offered a stored archive at all:
+  `sourceKindOf` mapped `archive` to `o365`. It maps it to `archive` now. Found and left for
+  their own tasks: that table also sends `microsoft` and `apple` to `o365`, so their stored
+  connections are not offered either, and a reused Box connection passes the source step
+  without the subject the create door demands on a reuse.
+- **The Test's kept connection has a guard.** After `countedAtPreflight` the wizard continues on
+  the row it saved: *Which export* is hidden, the folder and the choice stay, and the row is
+  added once.
+- **The gate finds its source connection through its own migration**, as it finds the
+  destination, and never by display name. The name carries the run's tag.
+- **The sentences.** The JMAP refusal names the destination *JMAP*, not `jmap`, and is true on
+  both editions: a WebDAV or Nextcloud destination, or, on a self-hosted appliance, the disk.
+  This replaces the last bullet above. The no-files refusal is plural (*IMAP destinations have
+  no files*), so no article has to agree with the name.
+- **The guide** names the wizard's button, **Test and save connections**, and *Pointing us at
+  it* says that an export in the destination's files is counted at the preflight, not by Test.
+- **Two nits applied.** The Dutch path hint reads *De map zoals u die in uw bestanden ziet,
+  vanaf de hoofdmap.* The wizard draws *counted at the preflight* with a grey question mark,
+  not the red error mark.
+
+The owner asked about this feature the same day: *"yes, but how can we work with what was
+uploaded? Will it be added unpacked in that target? Then: yes."* (D11, added 2026-09-25). The
+guide's section now says it plainly: there is no need to unpack, the photos arrive as ordinary
+files and folders, and the `.zip` files stay and take their space until the person deletes them.
+
+Guards: 11 cases in the unit project and 3 in the browser project failed on the first T9 commit.
+Mutations failed them again: dropping the `countedAtPreflight` clause (1 case), the row's `where`
+(2), the managed disk row's hold on Next (1), and the door's read of the stored row together
+with the path-less override (5, T5's reuse case among them). One existing
+expectation was rewritten on purpose: T5's reuse case in
+`a-path-on-the-server-a-managed-pass-cannot-read` expected no database call at all, and now
+expects one read of the stored row's config, proved read-only.
+
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* So the archive form gains a second
@@ -198,7 +242,7 @@ the owner announced for *Via IMAP* (D5).
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
-| T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24** on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
+| T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24**, review fixed 2026-09-25, on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today
 
@@ -585,6 +629,18 @@ invitation. What that means:
   managed stack. 0141 records that run, and 0131 T2's tag stays until it is recorded.
 - **Not the relay.** The relay, which fetches a download for the person and puts it in the
   target, stays 0116 T4's. Here the person puts the export there.
+
+**Added 2026-09-25: is the upload unpacked?** Asked whether the tester puts the Takeout export in
+a Nextcloud folder, the owner wrote: *"yes, but how can we work with what was uploaded? Will it be
+added unpacked in that target? Then: yes."* The answer, from `webdav-archive-store.ts` and
+`selfhost-archive-in-target-import.e2e.test.ts`: the uploaded `.zip` parts are read where they
+lie, by PROPFIND and HTTP `Range`, a few MB at a time. Nothing is unpacked on a server, and the
+parts are left byte-identical. An export the person already extracted into the folder works too.
+What the migration writes into the destination is unpacked: albums as folders, photos in no album
+in a folder per year, and the manifest. So the archive guide's section says three things plainly:
+there is no need to unpack (upload the `.zip` files as delivered, all parts in one folder); the
+photos arrive as ordinary files and folders; and the `.zip` files stay in that folder, taking
+their space, until the person deletes them after checking the result.
 
 ## 3. What each task does
 

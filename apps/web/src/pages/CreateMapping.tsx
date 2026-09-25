@@ -29,6 +29,7 @@ import {
   Folder,
   ListChecks,
   AlertCircle,
+  HelpCircle,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -60,6 +61,7 @@ import {
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
+import { isSelfHost } from '../services/edition.ts';
 import {
   SOURCE_CARDS,
   TARGET_CARDS,
@@ -207,6 +209,11 @@ function sourceKindOf(sourceType: string): string {
   if (sourceType === 'google') return 'google';
   if (sourceType === 'dropbox') return 'dropbox';
   if (sourceType === 'box') return 'box';
+  // The export archive (0116 T1): one word on both sides, as the server's
+  // `sourceKindFor` has it. Missing here, an archive fell to 'o365', so the
+  // picker never offered a stored export and a reuse could only start from
+  // the wizard's own Test (found in 0148 T9's review).
+  if (sourceType === 'archive') return 'archive';
   return sourceType === 'imap' ? 'imap' : 'o365';
 }
 
@@ -1265,11 +1272,23 @@ const CreateMapping: React.FC = () => {
    * picked, else this edition's default — the destination's files on managed,
    * the disk on the appliance. One value, read by the form, the Test, the
    * create body and the target step's refusal alike.
+   *
+   * A STORED ROW SAYS WHERE IT IS (T9 review). Reusing a connection, the
+   * answer starts from the row's own `where` — absent means the disk, as the
+   * shared parser reads it — and not from this edition's default. The default
+   * was posted as the override's `where`, and the pass lays that over the
+   * row: on the appliance a row in the destination's files was read from the
+   * disk. A row this screen has not listed yet (the one its own Test just
+   * stored) was stored with the answer on screen, so that answer stands.
    */
   const archiveWhereField = credentialFieldsFor('source', 'archive').find((f) => f.key === 'where');
-  const archiveWhere = archiveWhereField
-    ? choiceValue(archiveWhereField, formData.sourceArchiveWhere)
-    : '';
+  const reusedSource = formData.sourceConnectionId
+    ? (existingConnections ?? []).find((c) => c.id === formData.sourceConnectionId)
+    : undefined;
+  const archiveWhere = !archiveWhereField
+    ? ''
+    : formData.sourceArchiveWhere ||
+      (reusedSource ? (reusedSource.knownValues?.['where'] ?? 'disk') : choiceValue(archiveWhereField, ''));
   /** The source's answers a field's label can follow (`CredentialField.follows`). */
   const sourceAnswers = { where: archiveWhere };
   /**
@@ -1374,8 +1393,13 @@ const CreateMapping: React.FC = () => {
     }
 
     // A stored connection answers every credential-identifying field on this
-    // step, and the step hides them all. Nothing left to require.
-    if (formData.sourceConnectionId) return out;
+    // step, and the step hides them all. Nothing left to require — except, for
+    // an export archive, THIS mapping's own answers (`perMapping`): which
+    // folder, and which store it is in. The create door demands the folder on
+    // every reuse (0116 T5/T6), so without it here Next let the person through
+    // to a refusal at the last button (0148 T9 review).
+    const reusing = Boolean(formData.sourceConnectionId);
+    if (reusing && !isArchiveSource) return out;
 
     // THE DEMAND FOLLOWS THE DESCRIPTOR HERE TOO (2026-09-07, after #842 did
     // the target side).
@@ -1394,8 +1418,22 @@ const CreateMapping: React.FC = () => {
     // a source DECLARES are the fields it gates on, and a new kind is gated
     // correctly the day its descriptor exists.
     for (const declared of credentialFieldsFor('source', formData.sourceType)) {
+      if (reusing && !declared.perMapping) continue;
       // Named by the label the person sees, which may follow another answer.
       const field = followedField(declared, sourceAnswers);
+      // AN ANSWER ONLY THE APPLIANCE CAN GIVE is no answer on managed (0148
+      // D11). The form shows it disabled; it is still MARKED when a reused
+      // row stored before 0136 T5 is on the disk, and the create door refuses
+      // it, so it gates here and the other answer is the way on.
+      const answer = sourceAnswers[declared.key as keyof typeof sourceAnswers];
+      if (
+        !isSelfHost() &&
+        answer !== undefined &&
+        declared.options?.some((option) => option.value === answer && option.applianceOnly)
+      ) {
+        out.push(t(field.labelKey as StringKey));
+        continue;
+      }
       if (!sourceFieldRequiredNow(field)) continue;
       const formKey = SOURCE_FORM_FIELD[field.key];
       if (!formKey) continue;
@@ -1732,7 +1770,12 @@ const CreateMapping: React.FC = () => {
       if (field.defaultValue) {
         // A choice with an answer already marked (0148 T9): the archive's
         // `where`, drawn by the component the Connections page draws it with.
-        return <ChoiceField field={field} name={id} value={value} onChange={set} />;
+        // Given the answer as this screen resolved it, which for a reused row
+        // is the row's own (T9 review), not only what was clicked.
+        const resolved = isSource
+          ? sourceAnswers[field.key as keyof typeof sourceAnswers]
+          : undefined;
+        return <ChoiceField field={field} name={id} value={resolved ?? value} onChange={set} />;
       }
       return (
         <div>
@@ -1977,6 +2020,14 @@ const CreateMapping: React.FC = () => {
           <div className="mt-3 flex items-start gap-2 text-sm">
             {r.ok ? (
               <Check className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+            ) : r.outcome?.code === 'countedAtPreflight' ? (
+              // Not a failure (0148 T9 review): an export in the destination's
+              // files is counted at the preflight, and the wizard continues on
+              // it. A red mark beside that sentence contradicted it.
+              <HelpCircle
+                aria-hidden="true"
+                className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500"
+              />
             ) : (
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
@@ -2229,6 +2280,9 @@ const CreateMapping: React.FC = () => {
                 // above must not reapply over it.
                 defaultedConnection.current.source = sourceConnectionKind;
                 updateField('sourceConnectionId', id);
+                // A row just picked shows the store IT is in (0148 T9
+                // review), not an answer given for another one.
+                updateField('sourceArchiveWhere', '');
               }}
             />
 

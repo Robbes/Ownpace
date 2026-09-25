@@ -19,8 +19,9 @@
  * archive calls this one function before anything opens a path:
  *
  *  - `POST /api/connections` (add) and `POST /api/migrations/test-connection`
- *    and `POST /api/migrations` (create, a new connection or a reused one's
- *    override) — a path somebody posted, answered 400;
+ *    and `POST /api/migrations` (create: a new connection, or a reused one's
+ *    stored row with this mapping's override laid over it, as the pass reads
+ *    it — 0148 T9's review) — a path somebody posted, answered 400;
  *  - `POST /api/connections/:id/test` and `PUT /api/connections/:id/credentials`
  *    — a path already stored, answered 409, because the request is fine and
  *    the row is what this edition cannot serve.
@@ -70,9 +71,9 @@ export interface ArchiveOnServerRefusal {
  *
  * `kind` is the connection kind (for an archive the wizard's word and the
  * kind are the same word). `location` is the config the door would store or
- * read — the new connection's, a reused connection's override, or the stored
- * row's — so the judgement is on what the pass and the probe would actually
- * see, never on a field the door drops on the way in.
+ * read — the new connection's, a reused connection's row with the override
+ * laid over it, or the stored row's — so the judgement is on what the pass and
+ * the probe would actually see, never on a field the door drops on the way in.
  */
 export function archiveOnServerRefusal(
   kind: string,
