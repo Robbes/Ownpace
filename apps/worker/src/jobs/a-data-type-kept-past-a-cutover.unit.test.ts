@@ -20,8 +20,8 @@
  * copies; one that does not start a pass the reader would run is a kept data
  * type that stands still. So this file runs the tick's own query and the
  * reader on the same rows, over every status, both sides of the grace period,
- * and every pair of path rows two data types can have, and holds them to one
- * answer. A third data type is named but switched off, with a row that would
+ * and every pair of path rows two data types can have, stopped by their owner
+ * or not, and holds them to one answer. A third data type is named but switched off, with a row that would
  * run: it is not a path, for either.
  *
  * PGlite: real Postgres, the same migration chain, no container.
@@ -43,8 +43,21 @@ const TARGET_MAILBOX = '0128d000-e29b-41d4-a716-446655440004';
 const MAPPING = asMappingId('0128d000-e29b-41d4-a716-446655440005');
 
 const STATUSES = ['active', 'paused', 'cutover', 'done', 'continuous'] as const;
-/** A path row's state, or `null` for a data type with no row. */
-const ROWS = [null, 'ready', 'active', 'paused', 'cutover', 'continuous', 'done'] as const;
+/**
+ * A path row's state, or `null` for a data type with no row. ` (stopped)` is a
+ * row its owner stopped (0128 T4): kept in the lane, or before its cutover.
+ */
+const ROWS = [
+  null,
+  'ready',
+  'active',
+  'active (stopped)',
+  'paused',
+  'cutover',
+  'continuous',
+  'continuous (stopped)',
+  'done',
+] as const;
 type Row = (typeof ROWS)[number];
 
 let driver: LedgerDriver;
@@ -84,10 +97,11 @@ async function place(status: string, windowOpen: boolean, email: Row, calendar: 
     ['file', file],
   ] as const) {
     if (state === null) continue;
+    const [phase, stopped] = state.endsWith(' (stopped)') ? [state.slice(0, -' (stopped)'.length), true] : [state, false];
     await query(
-      `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
-       VALUES ($1, $2, $3, $4, now())`,
-      [TENANT, MAPPING, domain, state],
+      `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, stopped_at)
+       VALUES ($1, $2, $3, $4, now(), ${stopped ? 'now()' : 'NULL'})`,
+      [TENANT, MAPPING, domain, phase],
     );
   }
 }
@@ -201,6 +215,17 @@ describe('a data type kept in the lane after its cutover', () => {
   });
 });
 
+describe('a data type kept in the lane, and stopped by its owner (0128 T4)', () => {
+  it('runs nothing once the migration is past its grace period, in the tick and the reader alike', async () => {
+    await place('cutover', false, 'cutover', 'continuous (stopped)');
+    const phases = await read();
+    expect(phases!.anyRuns).toBe(false);
+    expect(phases!.phaseOf('calendar')).toEqual({ phase: 'continuous', stillCopies: false, stopped: true });
+    expect(await theTickStartsIt()).toBe(false);
+    expect(await whyThePassStops(driver as unknown as Pool, TENANT, MAPPING)).toBe('no_longer_runs');
+  });
+});
+
 describe('a third data type beside the kept one', () => {
   it('takes the kept one\'s passes away while it is before its cutover, in the tick and the reader alike', async () => {
     // Before its cutover under a migration in `cutover`, the rows do not add
@@ -216,9 +241,11 @@ describe('a third data type beside the kept one', () => {
       null: true,
       ready: false,
       active: false,
+      'active (stopped)': false,
       paused: false,
       cutover: true,
       continuous: true,
+      'continuous (stopped)': true,
       done: true,
     });
   });
@@ -254,7 +281,8 @@ describe('the tick, the pass and the appliance give one answer, for every combin
     expect(cases).toBe(STATUSES.length * 2 * ROWS.length * ROWS.length);
     // One data type kept, beside one in its cutover, in both orders. Kept beside
     // a data type with no row, or with both kept, the rows add up to
-    // `continuous`, which is not the status: the status is believed.
+    // `continuous`, which is not the status: the status is believed. Kept but
+    // stopped by its owner, it runs nothing.
     expect(keptDecides).toBe(2);
   }, 120_000);
 });

@@ -4,6 +4,41 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, night: T4, the first of three parts (T5 slice 3a): the stop is kept and obeyed.**
+Readers before writers again: nothing can stop a data type yet (the doors are 3b, the screens
+3c), so no pass behaves differently today.
+- **The stop is kept beside the phase**, not in it: `path_lifecycle.stopped_at` (ledger
+  migration 0066), NULL while the data type runs. A stopped data type keeps its phase, and a
+  cutover, a rollback or a move into the lane moves its phase as they move every other; the stop
+  stays until its owner resumes it. Both editions keep it in their own database (D4).
+- **Every gate obeys it.** The reader carries it on each data type's phase, whichever phase is
+  believed: a status set by hand does not start a data type its owner stopped. `pathRunsNow` is
+  false for it, so the managed pass and the appliance's pass move past it and say *"you stopped
+  this data type"*, not that it ended. A kept data type in the lane that its owner stopped does
+  not keep a migration past its grace period running, in the reader or the tick.
+- **What a stop holds (D2 (c))**, in `holdsASlot(state, stopped)`: its slot while the migration is
+  before its cutover, none in the lane, where `ended_at` says when it stopped costing anything.
+  The count the tier is read off (`slotsHeld`) now counts only the data types a migration carries
+  (`scope_selection.included`), the item 2a left out, and the operator's usage view counts the
+  same (managed migration 0029), keyed by state and stop. ADR-0014 is amended.
+- **A running migration whose every data type is stopped** still starts passes, which move past
+  each one. Its owner cannot make one: the last data type still copying cannot be stopped (D5,
+  in 3b's door).
+
+Evidence:
+- the rules (3 new): a stop runs no pass in any phase and leaves who decides what exists to the
+  phase; it is kept where the rows agree and where the status is believed; it adds up as its
+  state;
+- the slot rule and the count on PGlite as `app_user` (5 new): `holdsASlot` for every state and
+  both answers of a stop, and the count equal to it path by path; a data type the migration no
+  longer carries holds nothing; a stop survives a cutover, a move into the lane (releasing its
+  slot) and a rollback (keeping it); `ended_at` stamped for a stop in the lane;
+- the reader (2 new) and the three gates on the same rows, with stopped rows in the matrix (810
+  combinations) and a stopped kept data type past the grace period (1 new);
+- the pass's decision (3 new) and the appliance's pass (1 new): moved past, and said as a stop;
+- the operator's usage view and screen: carried data types only, a stop in the lane counted under
+  its own key and not as a slot, and the screen still agreeing with the tier calculator.
+
 **2026-09-24, night: T5's second slice, second half (2b): the reader reads the rows, and every
 gate asks whether any data type runs.** Until a data type can be cut over on its own (slice 5),
 that is the same answer as before, so no pass behaves differently today.
@@ -411,7 +446,10 @@ cutover; once every one is past it, a new data type is a new migration, as today
    whether the migration does. Until slice 5 the two are the same answer. *Built 2026-09-24, in
    two halves (2a, 2b), without the path audit record and the `slotsHeld` limit, which wait for
    slice 3 (see the Status block).*
-3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6).
+3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6). In three parts:
+   the stop kept and obeyed, with its slot rule (3a, *built 2026-09-24*); the doors on both
+   editions, with the path audit record, D5's refusal and D6's verification (3b); the screens
+   (3c).
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration.
 5. **The cutover per data type:** `--kind` on the CLI, the cutover and rollback transitions per

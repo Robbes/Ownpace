@@ -153,14 +153,18 @@ describe("every data type's phase, while none has a phase of its own", () => {
 });
 
 describe("each data type's phase, once its data types have rows of their own (slice 2b)", () => {
-  /** The paths' rows, as a test places them, after the migration's own. */
+  /**
+   * The paths' rows, as a test places them, after the migration's own. A state
+   * ending in ` (stopped)` is a row its owner stopped (0128 T4).
+   */
   async function paths(rows: Record<string, string>): Promise<void> {
     await query(`DELETE FROM path_lifecycle WHERE mapping_id = $1`, [MAPPING]);
-    for (const [domain, state] of Object.entries(rows)) {
+    for (const [domain, row] of Object.entries(rows)) {
+      const stopped = row.endsWith(' (stopped)');
       await query(
-        `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at)
-         VALUES ($1, $2, $3, $4, now())`,
-        [TENANT, MAPPING, domain, state],
+        `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, stopped_at)
+         VALUES ($1, $2, $3, $4, now(), ${stopped ? 'now()' : 'NULL'})`,
+        [TENANT, MAPPING, domain, stopped ? row.slice(0, -' (stopped)'.length) : row],
       );
     }
   }
@@ -253,5 +257,31 @@ describe("each data type's phase, once its data types have rows of their own (sl
     const phases = await read(TENANT, MAPPING);
     expect(phases!.phaseOf('contact')).toEqual({ phase: 'cutover', stillCopies: false });
     expect(phases!.anyRuns).toBe(false);
+  });
+
+  it('reads a stop, and keeps it whichever phase is believed (0128 T4)', async () => {
+    await place('active');
+    await paths({ email: 'active (stopped)', calendar: 'active' });
+    const running = await read(TENANT, MAPPING);
+    expect(running!.phaseOf('email')).toEqual({ phase: 'active', stillCopies: false, stopped: true });
+    expect(running!.phaseOf('calendar')).toEqual({ phase: 'active', stillCopies: false });
+    // The migration still runs: its calendars do.
+    expect(running!.anyRuns).toBe(true);
+
+    // A status set by hand that the rows do not add up to: the status is every
+    // data type's phase, and the stop is still its owner's.
+    await place('continuous');
+    await paths({ email: 'active (stopped)', calendar: 'active' });
+    expect((await read(TENANT, MAPPING))!.phaseOf('email')).toEqual({
+      phase: 'continuous',
+      stillCopies: false,
+      stopped: true,
+    });
+  });
+
+  it('runs no kept data type its owner stopped, once the migration is past its grace period', async () => {
+    await place('cutover', { copies: true, minutesPastTheEnd: 5 });
+    await paths({ email: 'cutover', calendar: 'continuous (stopped)' });
+    expect((await read(TENANT, MAPPING))!.anyRuns).toBe(false);
   });
 });

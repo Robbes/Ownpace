@@ -86,6 +86,33 @@ describe('what a pass does before a data type', () => {
   });
 });
 
+describe('a data type its owner stopped (0128 T4, slice 3a)', () => {
+  it('is moved past, said as a stop, while the others run', () => {
+    const mailStopped = migration('active', { email: { phase: 'active', stillCopies: false, stopped: true } });
+    expect(stepFrom(mailStopped, 'email')).toEqual({ skip: 'stopped_by_its_owner' });
+    expect(stepFrom(mailStopped, 'file')).toEqual({ run: true });
+    // In the lane, and in a cutover's grace period, a stop still holds.
+    const keptButStopped = migration('continuous', { email: { phase: 'continuous', stillCopies: false, stopped: true } });
+    expect(stepFrom(keptButStopped, 'email')).toEqual({ skip: 'stopped_by_its_owner' });
+    const inGrace = migration('cutover', { email: { phase: 'cutover', stillCopies: true, stopped: true } }, null, {
+      stillCopies: true,
+    });
+    expect(stepFrom(inGrace, 'email')).toEqual({ skip: 'stopped_by_its_owner' });
+  });
+
+  it('does not outrank the migration: a paused migration or a withdrawn grant still stops the pass', () => {
+    const stopped = { email: { phase: 'paused', stillCopies: false, stopped: true } };
+    expect(stepFrom(migration('paused', stopped), 'email')).toEqual({ halt: 'no_longer_runs' });
+    expect(stepFrom(migration('active', stopped, new Date()), 'email')).toEqual({ halt: 'grant_withdrawn' });
+  });
+
+  it('is logged by the pass as a stop, in its own words', () => {
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'run-delta-sync.ts'), 'utf8');
+    const skip = src.slice(src.indexOf("if ('skip' in step) {"), src.indexOf("if ('halt' in step) {"));
+    expect(skip).toMatch(/step\.skip === 'stopped_by_its_owner'[\s\S]*you stopped this data type/);
+  });
+});
+
 describe('the pass', () => {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'run-delta-sync.ts'), 'utf8');
   const loop = src.slice(src.indexOf('for (const domain of domains) {'));

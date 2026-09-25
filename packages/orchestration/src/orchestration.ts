@@ -432,6 +432,12 @@ export async function runAllDomains(
     if (!enabled) continue;
     if (runsNow(domain)) {
       running.push(domain);
+    } else if (phaseOf(domain).stopped === true) {
+      // Its owner stopped it (0128 T4): said as such, not as an ending.
+      log.info(
+        `[Worker] skipped ${domain}: you stopped this data type — nothing failed, ` +
+          'its copies stay, and resuming continues where it stopped',
+      );
     } else {
       log.info(
         `[Worker] skipped ${domain}: this data type no longer runs passes ` +

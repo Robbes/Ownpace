@@ -176,14 +176,23 @@ beforeAll(async () => {
       [TENANT_A],
     );
     await q('INSERT INTO bytes_moved (tenant_id, bytes) VALUES ($1, 100000000000)', [TENANT_A]);
-    for (const [domain, state] of [
-      ['email', 'active'],
-      ['calendar', 'paused'],
-      ['contact', 'cutover'],
-    ]) {
+    // And, since 0128 T4, one path stopped in the lane, and a row for a data
+    // type the migration no longer carries, which is not a path.
+    for (const [domain, state, included, stopped] of [
+      ['email', 'active', true, false],
+      ['calendar', 'paused', true, false],
+      ['contact', 'cutover', true, false],
+      ['file', 'continuous', true, true],
+      ['task', 'active', false, false],
+    ] as const) {
       await q(
-        `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state)
+        `INSERT INTO scope_selection (tenant_id, mapping_id, domain, included)
          VALUES ($1, $2, $3, $4)`,
+        [TENANT_A, MAPPING_A, domain, included],
+      );
+      await q(
+        `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, stopped_at)
+         VALUES ($1, $2, $3, $4, ${stopped ? 'now()' : 'NULL'})`,
         [TENANT_A, MAPPING_A, domain, state],
       );
     }
@@ -345,10 +354,11 @@ describe('the tier evidence, per tenant (0109 T4 surfaced)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.peak_paths).toBe(2);
     expect(Number(rows[0]?.bytes_moved)).toBe(100_000_000_000);
-    // Counts PER STATE, raw — which states hold a slot is `holdsASlot`'s call,
-    // in code, and the view restating that list is the drift the ledger's own
-    // SLOT_HOLDING_STATES comment records being bitten by.
-    expect(rows[0]?.paths_by_state).toEqual({ active: 1, paused: 1, cutover: 1 });
+    // Counts PER STATE and per stop, raw — which hold a slot is `holdsASlot`'s
+    // call, in code, and the view restating that list is the drift the
+    // ledger's own SLOT_HOLDING_STATES comment records being bitten by. Only
+    // the data types a migration carries are counted (managed 0029).
+    expect(rows[0]?.paths_by_state).toEqual({ active: 1, paused: 1, cutover: 1, 'continuous (stopped)': 1 });
   });
 
   it('serves a tenant with NO usage as one row of nulls, never as absence', async () => {
