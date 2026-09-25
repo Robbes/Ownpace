@@ -21,6 +21,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { createPgliteDb, runMigrations, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
 import {
+  log,
   parseMappingConfig,
   pathRunsNow,
   phasesOfTheMigration,
@@ -129,6 +130,20 @@ describe("the appliance's pass", () => {
     const phaseOf: PathPhaseOf = (d) =>
       d === 'calendar' ? { phase: 'cutover', stillCopies: false } : { phase: 'active', stillCopies: false };
     expect(await passWith(phaseOf, (d) => pathRunsNow(phaseOf(d)))).toEqual({ contact: true });
+  });
+
+  it('moves on past a data type its owner stopped, and says it was stopped, not ended (0128 T4)', async () => {
+    const phaseOf: PathPhaseOf = (d) =>
+      d === 'calendar' ? { phase: 'active', stillCopies: false, stopped: true } : { phase: 'active', stillCopies: false };
+    const said = vi.spyOn(log, 'info').mockImplementation(() => {});
+    try {
+      expect(await passWith(phaseOf, (d) => pathRunsNow(phaseOf(d)))).toEqual({ contact: true });
+      const lines = said.mock.calls.map((c) => String(c[0]));
+      expect(lines).toContainEqual(expect.stringContaining('skipped calendar: you stopped this data type'));
+      expect(lines.some((l) => l.includes('skipped calendar: this data type no longer runs'))).toBe(false);
+    } finally {
+      said.mockRestore();
+    }
   });
 
   it('runs every data type it is handed when nobody asks, as the standalone worker always has', async () => {

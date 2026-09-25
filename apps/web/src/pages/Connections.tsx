@@ -28,6 +28,7 @@ import {
   type FailureCategory,
 } from '@openmig/shared';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { ExperimentalTag, wholeDomainOptionIsExperimental } from '../components/ExperimentalTag.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   type ConnectionDeleted,
@@ -623,11 +624,11 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
   const chosenHintKey = (field: CredentialField): string | undefined =>
     field.options?.find((o) => o.value === (values[field.key] ?? ''))?.hintKey;
 
-  /** One labelled box; where it goes is the map below's decision. */
-  const fieldBox = (field: CredentialField) => (
-    <label className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+  const labelledBox = (field: CredentialField) => (
+    <label className={`block text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
       <span className="block text-gray-700 mb-1">
         {t(field.labelKey as StringKey)}
+        {role === 'source' && wholeDomainOptionIsExperimental(field.key) && <ExperimentalTag />}
         {requiredHere(field) && <span className="text-red-600"> *</span>}
       </span>
       {field.multiline ? (
@@ -673,6 +674,23 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
       )}
     </label>
   );
+
+  /**
+   * One labelled box; where it goes is the map below's decision. Google's
+   * whole-domain option, not yet run against a real Workspace (0131 T2),
+   * carries the tag in its label and its why in a fold under the box, as the
+   * wizard shows it. The fold sits outside the `<label>`, so its words are not
+   * read as part of the box's name and pressing it does not focus the box.
+   */
+  const fieldBox = (field: CredentialField) =>
+    role === 'source' && wholeDomainOptionIsExperimental(field.key) ? (
+      <div className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
+        {labelledBox(field)}
+        <Hint className="mt-1" why={t('frontDoor.experimental.wholeDomain.why')} />
+      </div>
+    ) : (
+      labelledBox(field)
+    );
 
   /**
    * The chosen option's own line, under its field (0148 T3, D7): an export no
@@ -746,6 +764,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
         <span className="block text-sm text-gray-700 mb-2">{t('connections.type')}</span>
         <FrontDoorChooser
           cards={frontDoorCards(role)}
+          role={role}
           selectedId={type}
           onPick={(card) => {
             setType(card.id);

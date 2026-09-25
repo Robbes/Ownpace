@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -52,7 +52,6 @@ import {
   DECISION_EFFECTS,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
-  runsPassesNow,
   REPORTING_CLOSED,
   FAILURE_GUIDANCE,
   MOVES_MEANING,
@@ -793,26 +792,23 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
 
   /**
-   * Whether this migration's passes run now (0128 T2): `runsPassesNow`, with
-   * the cutover's own window asked only of a migration in `cutover`, by the
-   * same SQL the managed tick schedules by. Every gate below asks this rather
-   * than the status alone, so a cutover copies from execute until its grace
-   * period ends on both editions.
+   * Whether any of this migration's data types runs passes now: the reader's
+   * `anyRuns` (`readPathPhases`, the one every gate asks; 0128 T5, slice 2b).
+   * That is `runsPassesNow` of the migration, with its cutover's own window by
+   * the same SQL the managed tick schedules by, or of a data type kept in the
+   * lane while another is past its cutover's grace period, when its rows add up
+   * to the migration's status. Every gate below asks this rather than the status
+   * alone, so a cutover copies from execute until its grace period ends, and a
+   * kept data type after it, on both editions. A migration gone since its
+   * status was read runs nothing.
    */
-  const passesRunNow = async (m: LoadedMapping, status: MappingLifecycle): Promise<boolean> =>
-    runsPassesNow(
-      status,
-      status === 'cutover' &&
-        (await withTenantContext(m.config.tenantId as string, async (client) => {
-          const { rows } = await client.query(
-            `SELECT EXISTS (SELECT 1 FROM cutover_state c
-                             WHERE c.tenant_id = $1 AND c.mapping_id = $2
-                               AND ${CUTOVER_STILL_COPIES_WHERE}) AS copies`,
-            [m.config.tenantId, m.mailboxMappingId],
-          );
-          return (rows[0] as { copies?: boolean } | undefined)?.copies === true;
-        })),
+  const passesRunNow = async (m: LoadedMapping): Promise<boolean> => {
+    const tenantId = m.config.tenantId as string;
+    const phases = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+      readPathPhases(tdb, tenantId, m.mailboxMappingId),
     );
+    return phases?.anyRuns === true;
+  };
 
   /** Stop scheduling a mapping, so a finished migration stops syncing at once. */
   const unscheduleMapping = (m: LoadedMapping) => {
@@ -835,7 +831,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // mapping marked done went on syncing until the next restart, which makes
       // "finished" mean nothing until someone reboots the appliance.
       const currentStatus = await mappingStatus(m);
-      if (!(await passesRunNow(m, currentStatus))) {
+      if (!(await passesRunNow(m))) {
         log.info(
           `[selfhost] ${m.config.mappingId} is '${currentStatus}', which does not run passes ` +
             `(${PASS_RUNNING_STATES.join(' and ')} do, and a cutover until its grace period ends) ` +
@@ -1091,7 +1087,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
     }
 
-    if (await passesRunNow(m, status)) {
+    if (await passesRunNow(m)) {
       scheduleMapping(m);
       // ADR-0020's on-startup half (0026 T1 item 5): an ACTIVE mapping whose
       // ledger holds zero rows is the lost-ledger shape — active means the
@@ -3436,7 +3432,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // data moves: a paused mapping is awaiting the operator's green light,
         // and a finished one is finished.
         const status = await mappingStatus(m);
-        if (!(await passesRunNow(m, status))) {
+        if (!(await passesRunNow(m))) {
           return sendJson(res, 409, {
             error: `mapping is '${status}', which does not run passes`,
             hint:

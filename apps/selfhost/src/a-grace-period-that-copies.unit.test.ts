@@ -41,7 +41,40 @@ const MAPPING = '0128a000-e29b-41d4-a716-446655440102';
 /** The row the appliance keeps for that mapping. */
 const ROW = uuidFromString(mappingSeed(TENANT, MAPPING));
 
-function configDir(): string {
+/** Its calendars, beside its mail, for a data type kept in the lane (0128 T5, slice 2b). */
+const CALENDARS = {
+  enabled: true,
+  source: {
+    type: 'caldav',
+    url: 'http://127.0.0.1:1/remote.php/dav',
+    user: 'source',
+    auth: { kind: 'login', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
+  },
+  target: {
+    type: 'caldav',
+    url: 'http://127.0.0.1:1/remote.php/dav',
+    user: 'target',
+    auth: { kind: 'login', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
+  },
+};
+
+const MAIL = {
+  source: {
+    type: 'imap-oauth2',
+    host: '127.0.0.1',
+    port: 1,
+    user: 'nobody@invalid',
+    auth: { kind: 'login', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
+  },
+  target: {
+    type: 'jmap',
+    baseUrl: 'http://127.0.0.1:1',
+    user: 'nobody@invalid',
+    auth: { kind: 'basic', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
+  },
+};
+
+function configDir(withCalendars = false): string {
   const dir = tempDir('ownpace-grace-cfg-');
   writeFileSync(
     join(dir, 'grace.mapping.json'),
@@ -49,19 +82,9 @@ function configDir(): string {
       tenantId: TENANT,
       mappingId: MAPPING,
       schedule: { cron: '0 5 31 2 *' }, // 31 February: valid, never fires.
-      source: {
-        type: 'imap-oauth2',
-        host: '127.0.0.1',
-        port: 1,
-        user: 'nobody@invalid',
-        auth: { kind: 'login', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
-      },
-      target: {
-        type: 'jmap',
-        baseUrl: 'http://127.0.0.1:1',
-        user: 'nobody@invalid',
-        auth: { kind: 'basic', passwordFromEnv: 'OPENMIG_TEST_NOPE' },
-      },
+      ...MAIL,
+      // A domains block names every data type it runs, mail too.
+      ...(withCalendars ? { domains: { mail: { enabled: true, ...MAIL }, calendar: CALENDARS } } : {}),
     }),
   );
   return dir;
@@ -164,6 +187,60 @@ describe('a migration in cutover, on the appliance', () => {
       dataDir,
       `UPDATE cutover_state SET grace_period_started_at = now() - interval '1 hour', copies_through_grace = false
         WHERE mapping_id = $1`,
+      [ROW],
+    );
+    booted = await boot(config, dataDir);
+    try {
+      expect(booted.scheduledAtStartup).toBe(false);
+      const run = await fetch(`${booted.base}/mappings/${MAPPING}/run`, { method: 'POST' });
+      expect(run.status).toBe(409);
+    } finally {
+      await booted.handle.stop();
+    }
+  }, 180_000);
+
+  it('is copied after its grace period for a data type kept in the lane, and only while its rows say so', async () => {
+    // 0128 T5, slice 2b: each data type's phase is its own path row's, where
+    // the rows add up to the migration's status. Mail is past its cutover's
+    // grace period; calendars are kept in the lane. The migration's own answer
+    // is "no longer runs", and the kept data type's is "runs".
+    const config = configDir(true);
+    const dataDir = tempDir('ownpace-kept-db-');
+
+    await (await boot(config, dataDir)).handle.stop();
+    await asTheDatabase(dataDir, `UPDATE mailbox_mapping SET status = 'cutover' WHERE id = $1`, [ROW]);
+    await asTheDatabase(
+      dataDir,
+      `INSERT INTO cutover_state (tenant_id, mapping_id, state, grace_period_hours, copies_through_grace,
+                                  grace_period_started_at, updated_at)
+       VALUES ($1, $2, 'GRACE_PERIOD', 72, true, now() - interval '73 hours', now() - interval '73 hours')`,
+      [TENANT, ROW],
+    );
+    await asTheDatabase(
+      dataDir,
+      `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, ended_at)
+       VALUES ($1, $2, 'email', 'cutover', now() - interval '80 hours', now() - interval '73 hours'),
+              ($1, $2, 'calendar', 'continuous', now() - interval '80 hours', NULL)`,
+      [TENANT, ROW],
+    );
+
+    let booted = await boot(config, dataDir);
+    try {
+      expect(booted.scheduledAtStartup, 'the startup scan schedules a migration with a data type kept').toBe(true);
+      const before = await runsOf(booted.base);
+      const run = await fetch(`${booted.base}/mappings/${MAPPING}/run`, { method: 'POST' });
+      expect(run.status, await run.clone().text()).toBe(200);
+      expect(await runsOf(booted.base)).toBe(before + 1);
+    } finally {
+      await booted.handle.stop();
+    }
+
+    // Mail back before its cutover under a migration in `cutover`: the rows no
+    // longer add up to the status, which was written alone. The status is
+    // believed, and its grace period is over.
+    await asTheDatabase(
+      dataDir,
+      `UPDATE path_lifecycle SET state = 'active', ended_at = NULL WHERE mapping_id = $1 AND domain = 'email'`,
       [ROW],
     );
     booted = await boot(config, dataDir);

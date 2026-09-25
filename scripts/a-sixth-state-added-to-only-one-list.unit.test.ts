@@ -138,7 +138,10 @@ describe('the lane exists in every vocabulary that decides something about it', 
 describe('and the two rules that make it safe to run', () => {
   it('D6: it holds a slot — a path that never ends never gives its capacity back', () => {
     expect(PATH_STATES).toContain(LANE);
-    expect(holdsASlot(LANE as (typeof PATH_STATES)[number])).toBe(true);
+    expect(holdsASlot(LANE as (typeof PATH_STATES)[number], false)).toBe(true);
+    // Unless its owner stopped it there (0128 T4, D2 (c)): a stop in the lane
+    // is usually for good, and releases the slot.
+    expect(holdsASlot(LANE as (typeof PATH_STATES)[number], true)).toBe(false);
     // Derived, never listed twice — the WHERE clause that counts slots reads
     // this, so a disagreement here bills a different number than it charges.
     expect(SLOT_HOLDING_STATES).toContain(LANE);
