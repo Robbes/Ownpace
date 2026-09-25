@@ -2,7 +2,45 @@
 
 > **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, a cutover per data type (`path_lifecycle`), ending or keeping each data type in the continuous lane, and per-data-type stop and resume on both editions.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-25 (update this block at the end of every session)
+
+**2026-09-25: T4, the second of three parts (T5 slice 3b): the doors to stop and resume a data
+type, on both editions.** The screens are 3c; until then the doors are the API's and the
+appliance's own.
+- **One door both editions press** (`stopOrResumePath`, ledger), in the caller's transaction:
+  - only while the migration runs (`active` or `continuous`), only a data type it carries, and
+    only one before its cutover or kept in the lane;
+  - never the last data type still copying (D5): the refusal points at ending the migration;
+  - the stop kept beside the phase, `ended_at` by `holdsASlot` (a stop in the lane releases its
+    slot, a resume there takes it back), and `stopped` on the progress strip even with nothing
+    copied yet;
+  - an audit record, `path.status`: the path audit record 2a left for the first door that moves
+    a path on its own. Refusals write nothing, not even the row a data type without one gets.
+- **The stop decides what the progress strip says**, not the word a pass writes: a pass already
+  copying a data type when it is stopped finishes it and writes `completed`, and the strip still
+  says `stopped` for as long as the stop is on the path (D6's reason for keeping it there).
+- **Managed:** `POST /api/migrations/:id/domains/:domain/stop` and `…/resume`. A resume in the
+  lane raises the month's peak in the same transaction, as every door that takes slots does.
+- **The appliance** (D4): `POST /mappings/:id/domains/:domain/stop` and `…/resume`, the stop in its
+  own database. The start-up that switches on every data type its file names no longer undoes an
+  owner's stop on the progress strip: only the resume door clears it.
+- **D6:** the check that everything arrived skips a stopped data type and says *stopped by you*:
+  the managed Finish check, the cutover gate and the appliance's verify alike. The managed
+  Finish check now asks the gate's own configuration (`verificationConfigFor`) rather than a
+  copy of it.
+- **Found on the way:** adding a data type (0125 T6) wrote no audit record; it now writes
+  `path.added`. The pricing page says what a stop holds (D2 (c)) in both languages, and the Dutch
+  page gains the paragraph on keeping copying that only the English one had.
+
+Evidence:
+- the door on PGlite as `app_user` (15): a stop and a resume, what each holds before the cutover
+  and in the lane, D5 (a data type with no row counts as copying, one past its cutover does
+  not), every refusal writing nothing, the strip over a pass's word, and the appliance's
+  start-up; and on Postgres 16 as the serving role, on a pool that migrated first (1);
+- the managed doors (6), the appliance end to end (1: a draft refused, a stop kept across a
+  restart, the pass and the verify skipping it, a resume, both recorded), D6 in core, the gate
+  and the Finish check (3), `stoppedDomains` (2), and the add door's record on Postgres;
+- 26 mutations, all killed.
 
 **2026-09-24, night: T4, the first of three parts (T5 slice 3a): the stop is kept and obeyed.**
 Readers before writers again: nothing can stop a data type yet (the doors are 3b, the screens
@@ -448,8 +486,8 @@ cutover; once every one is past it, a new data type is a new migration, as today
    slice 3 (see the Status block).*
 3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6). In three parts:
    the stop kept and obeyed, with its slot rule (3a, *built 2026-09-24*); the doors on both
-   editions, with the path audit record, D5's refusal and D6's verification (3b); the screens
-   (3c).
+   editions, with the path audit record, D5's refusal and D6's verification (3b, *built
+   2026-09-25*); the screens (3c).
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration.
 5. **The cutover per data type:** `--kind` on the CLI, the cutover and rollback transitions per

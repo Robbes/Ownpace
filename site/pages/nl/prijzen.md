@@ -28,6 +28,18 @@ beide kanten op.
 **Pauzeren verlaagt hem niet.** Een gepauzeerde verhuizing houdt zijn plek vast en kan in een
 seconde verder, en dat is precies het nut ervan. Afronden is wat de plek vrijmaakt.
 
+**Tenzij u ons vraagt te blijven kopiëren.** Sommige mensen willen dat het oude account het
+nieuwe blijft aanvullen nadat ze zijn verhuisd: een gedeelde agenda waar iemand anders nog in
+schrijft, een map waar een collega nog dingen in zet. Dat is een verhuizing die nooit klaar is,
+dus hij blijft meetellen: het pakket blijft staan waar het staat tot u hem beëindigt. We zetten
+het niet voor u aan, en we rekenen niet langer dan twaalf maanden zonder het u opnieuw te vragen.
+
+**Eén soort gegevens stoppen werkt als pauzeren, tot u bent verhuisd.** U kunt uw e-mail
+stoppen terwijl uw contacten en agenda blijven doorlopen, en hem later weer starten. Vóór de
+overstap houdt een gestopte soort zijn plek vast, zoals een pauze. Blijft u na de overstap
+kopiëren, dan telt een gestopte soort niet meer mee. Het pakket kijkt naar het drukste moment
+van de maand, dus stoppen en weer starten binnen één maand verlaagt het niet.
+
 **Inrichting betaalt u één keer, over het grootste pakket dat u ooit bereikt.** Gaat u later
 omhoog, dan betaalt u alleen het verschil. Gaat u omlaag, dan wordt het nooit opnieuw
 gerekend. Of u nu klein begon en groeide of meteen groot startte: het totaal is hetzelfde. Er

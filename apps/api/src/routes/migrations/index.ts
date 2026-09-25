@@ -12,10 +12,17 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
-import { activateAddedPath, movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { activateAddedPath, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgMigrationStatusStore, PgLedger, RunStore, CutoverStore } from '@openmig/ledger';
+import {
+  PgMigrationStatusStore,
+  PgLedger,
+  RunStore,
+  CutoverStore,
+  PATH_ADDED_ACTION,
+  pathStopRefusalReason,
+} from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
   ARCHIVE_PROVIDER_ORIGINS,
@@ -3461,6 +3468,14 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
         .set({ updatedAt: new Date() })
         .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
       if (mapping.status === 'active') await activateAddedPath(db, tenantId, mappingId, domain);
+      // Recorded, as every other door that changes what a migration carries
+      // (found building 0128 T4: this one wrote no record).
+      await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+        actor: req.userId ?? 'unknown',
+        action: PATH_ADDED_ACTION,
+        entity: 'path',
+        detail: { mappingId, domain },
+      });
 
       const now = new Set<string>([...current, domain]);
       return { kind: 'added', domains: DISCOVERY_DOMAINS.filter((d) => now.has(d)) } as const;
@@ -3479,5 +3494,55 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
     serverFault(res, 'add_kind_failed', 'adding a kind to this migration', error);
   }
 });
+
+/**
+ * POST /api/migrations/:mappingId/domains/:domain/stop and …/resume — STOP OR
+ * RESUME ONE DATA TYPE of a running migration (workplan 0128 T4, T5 slice 3b;
+ * the owner's D2 (c), D5, D6).
+ *
+ * Its copies stay, its record stays, it no longer follows the source, and a
+ * resume continues where it stopped. The ledger's own door
+ * (`stopOrResumePath`) checks, writes and records in this one transaction: only
+ * while the migration runs, only a data type it carries, never the last one
+ * still copying (D5: end the migration instead). A resume in the lane takes its
+ * slot back, and the month's peak rises with it.
+ *
+ * Nothing is enqueued: every pass reads each data type's stop afresh.
+ */
+/** One handler for both doors: `stop` true for …/stop, false for …/resume. */
+function stopOrResumeRoute(stop: boolean) {
+  const action = stop ? 'stop' : 'resume';
+  return async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { mappingId, domain: rawDomain } = req.params;
+      const tenantId = req.tenantId;
+      if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
+      if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+      const parsed = z.enum(DISCOVERY_DOMAINS).safeParse(rawDomain);
+      if (!parsed.success) {
+        const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+        return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
+      }
+      const domain = parsed.data;
+
+      const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        stopOrResumeDataType(db, tenantId, { mappingId, domain, stop, actor: req.userId ?? 'unknown' }),
+      );
+      if ('refused' in outcome) {
+        if (outcome.refused === 'not_found') {
+          return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        }
+        const reason = pathStopRefusalReason(outcome, domain);
+        return void res.status(409).json({ error: `${action}_refused`, refused: outcome.refused, message: reason, reason });
+      }
+      res.json({ id: mappingId, domain, stopped: stop, changed: outcome.changed });
+    } catch (error) {
+      serverFault(res, `${action}_domain_failed`, `${stop ? 'stopping' : 'resuming'} a data type`, error);
+    }
+  };
+}
+
+router.post('/:mappingId/domains/:domain/stop', authenticate, stopOrResumeRoute(true));
+router.post('/:mappingId/domains/:domain/resume', authenticate, stopOrResumeRoute(false));
 
 export default router;
