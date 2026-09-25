@@ -33,6 +33,12 @@ colleague still drops things into. That is a migration that never finishes, so i
 counting: the tier stays where it is until you end it. We will not switch it on for you, and
 we will not bill past twelve months without asking you again.
 
+**Stopping one kind of data works like a pause, until you have moved.** You can stop your
+mail while your contacts and calendar keep flowing, and start it again later. Before the move,
+a stopped kind keeps its place, as a pause does. Once you keep copying after the move, a
+stopped kind no longer counts. The tier reads the busiest moment of the month, so stopping and
+starting again within one month does not lower it.
+
 **Setup is charged once, on the largest tier you ever reach.** Move up later and you pay
 only the difference. Move down and it is never charged again. Whether you started small and
 grew or started at full size, the total is the same — so there is nothing to gain by

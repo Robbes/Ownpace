@@ -1953,6 +1953,14 @@ const en = {
   'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
   'wizard.about.googleDrive.more':
     'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values, and the Test and save connections button checks them against Google before anything is copied.',
+  // Where the deployment carries the provider's app (0148 T2 (a)): one line per
+  // provider, and the fold keeps only what is particular to the card.
+  'wizard.about.deploymentApp.google':
+    'Uses this service’s own Google app: press Connect with Google and approve at Google.',
+  'wizard.about.deploymentApp.dropbox':
+    'Uses this service’s own Dropbox app: press Connect with Dropbox and approve at Dropbox.',
+  'wizard.about.deploymentApp.googleDrive.more':
+    'Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason.',
   'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
   'wizard.about.dropbox.more':
     'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; below it, the App secret goes in the client-secret field and the refresh token beside it.',
@@ -2120,6 +2128,9 @@ const en = {
   'setup.waitingOnOthers': 'waiting on an administrator',
   'setup.allDone': 'Everything is settled; complete the wizard.',
   'setup.nothingToDo': 'Nothing to set up in advance; go straight to the wizard.',
+  // Every step was about one's own app, and this service has its own (0148 T2 (b)).
+  'setup.deploymentApp':
+    'Nothing to create: this service has its own {provider} app. Press Connect with {provider}.',
   // ---- Choosing a provider, and narrowing by who you are (workplan 0068) ----
   'setup.choose.title': 'What are you setting up?',
   'setup.choose.intro':
@@ -2167,9 +2178,15 @@ const en = {
   'setup.dropbox.scopes.title': 'Give it read-only permissions',
   'setup.dropbox.scopes.detail':
     'On the Permissions tab enable files.metadata.read and files.content.read, and nothing that writes. Add sharing.read as well if you want to browse shared folders here.',
+  // Connect with Dropbox consents and exchanges the code (2026-09-02) where the
+  // deployment serves it; the appliance does not, so both manual steps stay and
+  // each line is true with or without the button (0148 T2 (b)).
+  'setup.dropbox.redirect_uri.title': 'Using the button? Register its redirect address',
+  'setup.dropbox.redirect_uri.detail':
+    'Only for Connect with Dropbox in the wizard: under the button it shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
   'setup.dropbox.consent.title': 'Have the account owner consent once',
   'setup.dropbox.consent.detail':
-    'Send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
+    'Connect with Dropbox does this step and the next when the account owner presses it. Without the button, send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
   'setup.dropbox.exchange_code.title': 'Exchange the code for a refresh token',
   'setup.dropbox.exchange_code.detail':
     'Swap the code from the previous step at Dropbox\u2019s token endpoint, once. Access tokens are minted from the result per run; nothing else long-lived is stored.',
@@ -3828,6 +3845,12 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
   'wizard.about.googleDrive.more':
     'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden, en de knop Verbindingen testen en bewaren controleert ze bij Google voordat er iets wordt gekopieerd.',
+  'wizard.about.deploymentApp.google':
+    'Gebruikt de eigen Google-app van deze dienst: druk op Verbinden met Google en geef toestemming.',
+  'wizard.about.deploymentApp.dropbox':
+    'Gebruikt de eigen Dropbox-app van deze dienst: druk op Verbinden met Dropbox en geef toestemming.',
+  'wizard.about.deploymentApp.googleDrive.more':
+    'Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden.',
   'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
   'wizard.about.dropbox.more':
     'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; daaronder komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
@@ -3947,6 +3970,8 @@ const nl: Record<keyof typeof en, string> = {
   'setup.waitingOnOthers': 'wacht op een beheerder',
   'setup.allDone': 'Alles is afgehandeld; rond de wizard af.',
   'setup.nothingToDo': 'Vooraf niets in te stellen; ga direct naar de wizard.',
+  'setup.deploymentApp':
+    'Niets aan te maken: deze dienst heeft een eigen {provider}-app. Druk op Verbinden met {provider}.',
   // ---- Aanbieder kiezen en de lijst afstemmen op wie u bent (workplan 0068) ----
   'setup.choose.title': 'Wat wilt u instellen?',
   'setup.choose.intro':
@@ -3993,9 +4018,12 @@ const nl: Record<keyof typeof en, string> = {
   'setup.dropbox.scopes.title': 'Geef de app alleen-leesrechten',
   'setup.dropbox.scopes.detail':
     'Zet op het tabblad Permissions files.metadata.read en files.content.read aan, en niets dat schrijft. Voeg sharing.read toe als u hier gedeelde mappen wilt kunnen bekijken.',
+  'setup.dropbox.redirect_uri.title': 'Gebruikt u de knop? Registreer dan het redirect-adres',
+  'setup.dropbox.redirect_uri.detail':
+    'Alleen voor Verbinden met Dropbox in de wizard: onder de knop verschijnt een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
   'setup.dropbox.consent.title': 'Laat de accounthouder eenmalig toestemming geven',
   'setup.dropbox.consent.detail':
-    'Stuur de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
+    'Verbinden met Dropbox doet deze stap en de volgende als de accounthouder erop drukt. Zonder de knop stuurt u de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
   'setup.dropbox.exchange_code.title': 'Wissel de code in voor een refresh-token',
   'setup.dropbox.exchange_code.detail':
     'Wissel de code uit de vorige stap eenmalig in bij het token-eindpunt van Dropbox. Toegangstokens worden per run aangemaakt; verder wordt niets langlevends bewaard.',

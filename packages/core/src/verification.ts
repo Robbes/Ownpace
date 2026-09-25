@@ -56,6 +56,12 @@ export interface VerificationConfig {
    * between that and a cutover.
    */
   verifyTasks: boolean; // Default: true
+  /**
+   * The data types their owner stopped (workplan 0128 T4, D6). Each is
+   * reported SKIPPED, *stopped by you*: it no longer follows the source, so
+   * checking it against the source would show it falling behind as missing.
+   */
+  stoppedByOwner?: readonly VerificationDomain[];
 }
 
 /** Verification dependencies */
@@ -206,6 +212,14 @@ export async function runVerification(
         dataType,
         'SKIPPED',
         `${dataType} verification was disabled in the config — this domain was NOT checked.`,
+      );
+    }
+    // D6 (0128 T4): a data type its owner stopped is skipped, and says why.
+    if (config.stoppedByOwner?.includes(dataType)) {
+      return notMeasured(
+        dataType,
+        'SKIPPED',
+        `${dataType} was stopped by you: it no longer follows the source, so it is NOT checked against it.`,
       );
     }
     // NOTHING RECORDED IS NOT A PASS, and it is decided here — before the

@@ -222,4 +222,33 @@ describe('verification domain scope', () => {
     // The one thing it must never say about an unchecked domain.
     expect(result.calendar.status).not.toBe('PASS');
   });
+
+  it('skips a data type its owner stopped, says so, and does not lower the verdict for it (0128 T4, D6)', async () => {
+    // Calendars are on, and would be measured, but their owner stopped them:
+    // they no longer follow the source, so checking them against it would
+    // show them falling behind as missing.
+    const stopped = createRealVerificationDeps({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      config: {
+        ...BASE_CONFIG,
+        verifyMail: true,
+        verifyCalendar: true,
+        verifyContacts: false,
+        verifyFiles: false,
+        verifyTasks: false,
+        stoppedByOwner: ['calendar'],
+      },
+      verificationReader: ledgerReader(),
+      targetReindexers: { mail: mailReindexer(), calendar: reindexer([]) },
+    });
+
+    const result = await runVerification(stopped);
+    expect(result.calendar.status).toBe('SKIPPED');
+    expect(result.calendar.missingOnTarget).toBe(0);
+    expect(result.calendar.issues.map((i) => i.message).join('\n')).toContain('stopped by you');
+    expect(result.mail.status).toBe('PASS');
+    expect(result.overallStatus).toBe('PASS');
+  });
 });
+

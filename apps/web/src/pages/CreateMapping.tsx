@@ -1173,8 +1173,15 @@ const CreateMapping: React.FC = () => {
        *
        * Shown on every attempt, not only on failure, because it has to be
        * registered BEFORE the first one can work.
+       *
+       * AND ONLY WHERE THE PERSON HAS SOMEWHERE TO REGISTER IT (workplan 0148
+       * T2 (a)): with a client or app they typed in. A consent without one ran
+       * on the deployment's own application, whose addresses are the
+       * operator's to register — and "Register this exact address in your
+       * Google client" told a tester to find a client they do not have.
        */
-      setConsentRedirect(redirectUri ?? null);
+      const typedOwnClient = 'clientId' in ownClientPair;
+      setConsentRedirect(typedOwnClient ? (redirectUri ?? null) : null);
       window.open(url, `ownpace-${grantProvider ?? 'google'}-consent`, 'popup,width=520,height=640');
     } catch (error) {
       setConsentNote(serverMessage(error));
@@ -1345,6 +1352,25 @@ const CreateMapping: React.FC = () => {
     (formData.sourceType === 'apple' && 'wizard.about.apple') ||
     (isArchiveSource && 'wizard.about.archive') ||
     undefined;
+  /**
+   * WHERE THE DEPLOYMENT CARRIES THE APP, the line says so (workplan 0148 T2
+   * (a), owner decision D2). The lines above say "Uses your own Google OAuth
+   * client" and "your own read-only Dropbox app" — true where each connection
+   * brings one, and beside the fold that says "This deployment has its own
+   * Google client" the opposite of true. The same fact the fold reads,
+   * `deploymentClient`, picks one line per provider; the fold under More keeps
+   * only what is particular to the card, which for Drive is its Docs sentence
+   * and for the others is nothing.
+   */
+  const deploymentAbout: { text: StringKey; more?: StringKey } | undefined = !deploymentClient
+    ? undefined
+    : isDriveSource
+      ? { text: 'wizard.about.deploymentApp.google', more: 'wizard.about.deploymentApp.googleDrive.more' }
+      : isGmailSource || isGoogleDavSource
+        ? { text: 'wizard.about.deploymentApp.google' }
+        : isDropboxSource
+          ? { text: 'wizard.about.deploymentApp.dropbox' }
+          : undefined;
   // One half of a pair typed is a pair being typed, not a pair left to the
   // deployment: the server refuses the half rather than completing it, and a
   // customer's id with the deployment's secret would fail at the provider's
@@ -2274,13 +2300,22 @@ const CreateMapping: React.FC = () => {
                 gridClass="sm:grid-cols-2"
                 cardFor={sourceCardFor}
               />
-              {aboutSource && (
+              {deploymentAbout ? (
                 <Hint
                   className="mt-4"
                   label="more"
-                  text={t(aboutSource)}
-                  why={t(`${aboutSource}.more` as StringKey)}
+                  text={t(deploymentAbout.text)}
+                  {...(deploymentAbout.more ? { why: t(deploymentAbout.more) } : {})}
                 />
+              ) : (
+                aboutSource && (
+                  <Hint
+                    className="mt-4"
+                    label="more"
+                    text={t(aboutSource)}
+                    why={t(`${aboutSource}.more` as StringKey)}
+                  />
+                )
               )}
             </div>
 

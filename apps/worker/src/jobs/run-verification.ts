@@ -29,7 +29,8 @@ import { createLedgerVerificationReader, withTenant, auditExportOn, pgDriver } f
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
-import { enabledDomains } from '@openmig/orchestration/enabled-domains';
+import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
+import { verificationConfigFor } from './cutover-gate.ts';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 
 const VerificationJobSchema = z.object({
@@ -87,6 +88,8 @@ export const runVerificationTask = schemaTask({
       // whose source is not IMAP, found live on the DAV-only demo tenant
       // (0018 T5, 2026-08-01).
       const enabled = await enabledDomains(pool, tenantId, mappingId);
+      // And those its owner stopped (0128 T4, D6): skipped, *stopped by you*.
+      const stopped = await stoppedDomains(pool, tenantId, mappingId);
 
       // One reindexer per domain (a domain with no reindexer reports
       // NOT_VERIFIABLE rather than being measured against another domain's
@@ -101,18 +104,9 @@ export const runVerificationTask = schemaTask({
           createRealVerificationDeps({
             tenantId: asTenantId(tenantId),
             mappingId: asMappingId(mappingId),
-            config: {
-              checksumSamplePercentage: 5,
-              minSampleSize: 10,
-              maxSampleSize: 1000,
-              requiredMatchPercentage: 0.99,
-              maxDiscrepancyPercentage: 0.01,
-              verifyMail: enabled.has('email'),
-              verifyCalendar: enabled.has('calendar'),
-              verifyContacts: enabled.has('contact'),
-              verifyTasks: enabled.has('task'),
-              verifyFiles: enabled.has('file'),
-            },
+            // The gate's own configuration, as the cutover asks it: the
+            // selected data types, less those their owner stopped.
+            config: verificationConfigFor(enabled, stopped),
             verificationReader,
             targetReindexers: targets.reindexers,
           }),

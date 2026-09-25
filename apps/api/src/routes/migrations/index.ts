@@ -12,10 +12,17 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
-import { activateAddedPath, movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { activateAddedPath, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgMigrationStatusStore, PgLedger, RunStore, CutoverStore } from '@openmig/ledger';
+import {
+  PgMigrationStatusStore,
+  PgLedger,
+  RunStore,
+  CutoverStore,
+  PATH_ADDED_ACTION,
+  pathStopRefusalReason,
+} from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
   ARCHIVE_PROVIDER_ORIGINS,
@@ -89,6 +96,7 @@ import {
   dropboxDeploymentClient,
   microsoftDeploymentClient,
   halfMicrosoftClientPairProblem,
+  providerClientFacts,
   resolveGoogleClient,
   resolveDropboxClient,
   parseGoogleDriveSource,
@@ -346,6 +354,41 @@ function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecre
   return googleDeploymentClient() === null
     ? (['clientId', 'clientSecret', 'refreshToken'] as const)
     : (['refreshToken'] as const);
+}
+
+/** Whether this deployment carries the provider's app: the fact the wizard reads too. */
+function carriesApp(provider: 'google' | 'dropbox'): boolean {
+  return providerClientFacts()[provider] === 'deployment';
+}
+
+/**
+ * THE REFUSAL WHERE THIS SERVICE CARRIES THE APP (workplan 0148 T2 (d), owner
+ * decision D2: "Stop the false hints on managed").
+ *
+ * With the deployment's Google client or Dropbox app configured, the door asks
+ * only for the refresh token — and the refusal still opened "authenticates with
+ * your own Google Cloud OAuth client", sending a tester to create what the
+ * service already has. So each caller branches on `carriesApp`, the one fact
+ * the wizard reads (`providerClientFacts()`), and here names the token and the
+ * button that fills it in. Where each connection brings its own app, each row
+ * keeps the sentence it had. English, as refusals are
+ * (`docs/i18n-prose-boundary.md`).
+ *
+ * `consented`, when given, is the scope the token must carry — for somebody
+ * pasting one rather than pressing the button, which asks for it itself.
+ */
+function deploymentAppTokenRefusal(
+  sourceType: string,
+  provider: 'Google' | 'Dropbox',
+  missing: ReadonlyArray<string>,
+  consented?: string,
+): string {
+  return (
+    `A '${sourceType}' source needs a refresh token` +
+    (consented ? ` consented with the ${consented} scope` : '') +
+    `, and this service has its own ${provider} app: press Connect with ${provider}, which ` +
+    `fills it in. sourceConfig is missing ${missing.join(', ')}.`
+  );
 }
 
 /**
@@ -1250,11 +1293,12 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
-          `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
-          'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
-          'read-only command that proves all three before anything migrates.',
+        message: carriesApp('google')
+          ? deploymentAppTokenRefusal('google-drive', 'Google', missing)
+          : "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
+            `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
+            'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
+            'read-only command that proves all three before anything migrates.',
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -1293,10 +1337,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
-          `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+        message: carriesApp('google')
+          ? deploymentAppTokenRefusal(body.sourceType, 'Google', missing, scope)
+          : `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
+            `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
+            `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
       });
     }
     // The ACCOUNT's ceiling is THIS DEPLOYMENT'S, not the product's (ADR-0041,
@@ -1419,10 +1464,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
-          `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
+        message: carriesApp('dropbox')
+          ? deploymentAppTokenRefusal('dropbox', 'Dropbox', missing)
+          : "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
+            `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
+            `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
       });
     }
     refuseHalfDropboxClientPair(ctx, body.sourceConfig);
@@ -1522,16 +1568,22 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         ? []
         : googleCredentialKeysRequired().filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
+      const googleApp = carriesApp('google');
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
         message:
-          "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
-          `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
-          `missing ${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md. ` +
-          'A PERSONAL Google account may send appPassword instead of all three — Google ' +
-          'recommends against it, it needs 2-step verification on the account, and it does ' +
-          'not exist on a Workspace account.',
+          (googleApp
+            ? deploymentAppTokenRefusal('gmail', 'Google', missing, 'https://mail.google.com/') +
+              ' '
+            : "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
+              `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
+              `missing ${missing.join(', ')}. Where each comes from is ` +
+              'docs/google-workspace-setup.md. ') +
+          `A PERSONAL Google account may send appPassword instead${
+            googleApp ? '' : ' of all three'
+          } — Google recommends against it, it needs 2-step verification on the account, and ` +
+          'it does not exist on a Workspace account.',
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -3585,6 +3637,14 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
         .set({ updatedAt: new Date() })
         .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
       if (mapping.status === 'active') await activateAddedPath(db, tenantId, mappingId, domain);
+      // Recorded, as every other door that changes what a migration carries
+      // (found building 0128 T4: this one wrote no record).
+      await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+        actor: req.userId ?? 'unknown',
+        action: PATH_ADDED_ACTION,
+        entity: 'path',
+        detail: { mappingId, domain },
+      });
 
       const now = new Set<string>([...current, domain]);
       return { kind: 'added', domains: DISCOVERY_DOMAINS.filter((d) => now.has(d)) } as const;
@@ -3603,5 +3663,55 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
     serverFault(res, 'add_kind_failed', 'adding a kind to this migration', error);
   }
 });
+
+/**
+ * POST /api/migrations/:mappingId/domains/:domain/stop and …/resume — STOP OR
+ * RESUME ONE DATA TYPE of a running migration (workplan 0128 T4, T5 slice 3b;
+ * the owner's D2 (c), D5, D6).
+ *
+ * Its copies stay, its record stays, it no longer follows the source, and a
+ * resume continues where it stopped. The ledger's own door
+ * (`stopOrResumePath`) checks, writes and records in this one transaction: only
+ * while the migration runs, only a data type it carries, never the last one
+ * still copying (D5: end the migration instead). A resume in the lane takes its
+ * slot back, and the month's peak rises with it.
+ *
+ * Nothing is enqueued: every pass reads each data type's stop afresh.
+ */
+/** One handler for both doors: `stop` true for …/stop, false for …/resume. */
+function stopOrResumeRoute(stop: boolean) {
+  const action = stop ? 'stop' : 'resume';
+  return async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { mappingId, domain: rawDomain } = req.params;
+      const tenantId = req.tenantId;
+      if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
+      if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+      const parsed = z.enum(DISCOVERY_DOMAINS).safeParse(rawDomain);
+      if (!parsed.success) {
+        const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+        return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
+      }
+      const domain = parsed.data;
+
+      const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        stopOrResumeDataType(db, tenantId, { mappingId, domain, stop, actor: req.userId ?? 'unknown' }),
+      );
+      if ('refused' in outcome) {
+        if (outcome.refused === 'not_found') {
+          return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        }
+        const reason = pathStopRefusalReason(outcome, domain);
+        return void res.status(409).json({ error: `${action}_refused`, refused: outcome.refused, message: reason, reason });
+      }
+      res.json({ id: mappingId, domain, stopped: stop, changed: outcome.changed });
+    } catch (error) {
+      serverFault(res, `${action}_domain_failed`, `${stop ? 'stopping' : 'resuming'} a data type`, error);
+    }
+  };
+}
+
+router.post('/:mappingId/domains/:domain/stop', authenticate, stopOrResumeRoute(true));
+router.post('/:mappingId/domains/:domain/resume', authenticate, stopOrResumeRoute(false));
 
 export default router;
