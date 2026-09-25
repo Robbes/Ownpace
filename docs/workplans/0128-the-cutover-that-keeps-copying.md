@@ -4,6 +4,46 @@
 
 ## Status — 2026-09-25 (update this block at the end of every session)
 
+**2026-09-25: T4, the last of three parts (T5 slice 3c): Stop and Resume on the migration's
+page, on both editions.** T4 is built.
+- **One answer for the page and the door**, as `kindChoices` is for adding a data type: the door
+  now decides from facts (`readPathStopFacts`) by one rule (`decidePathStop`), and the page is
+  offered what that rule accepts (`pathStopChoices`): `stopped`, the press the door accepts now
+  (`stop`, `resume` or none), and `held` where the page must say why there is none: the last data
+  type still copying (D5, only where the migration carries more than one), or a stopped one on a
+  migration that does not run. Managed serves it on the detail as `stopChoices`, the appliance on
+  `/status` as each mapping's `stops`.
+- **The panel of the data types a migration copies** gains a Stop or a Resume beside each, on
+  both editions (the appliance's lists its stops alone: it adds no data type), says what a stop
+  does before the press, and shows a refusal the page did not foresee in the door's own words.
+- **Whose stop it is** travels as `stoppedByOwner` on the strip's rows: the strip, the Finish
+  step that names a stopped data type, and the completion report say *stopped by you* (or *by
+  its owner*) with Resume as the way back, and *switched off* only for one the mapping file
+  turned off. It stays off a progress link: the state `stopped` crosses, but the way back is on a
+  page its reader cannot open.
+- **Words:** EN and NL (*stoppen*, *hervatten*, *door u gestopt*), with a glossary row that
+  keeps them apart from *pauzeren* and *uitschakelen*.
+
+Evidence:
+- the rule on its own and the choices against it (8), and the facts on PGlite as `app_user`: the
+  order a person ticks, a data type with no row, another organisation's migration, a stop the door
+  wrote, and whose stop a `stopped` row is (3);
+- the door's 3b tests (15 on PGlite, 1 on Postgres 16) unchanged and passing on the refactored door;
+- managed's detail and the appliance's `/status` end to end, each after a real stop (2), the
+  status builder (1), the completion report (1), the progress link leaving it out (1);
+- the page: the panel (9), the press on each edition and the detail schema keeping the fields
+  (4), the migration page on both editions (2), the Finish step (1);
+- 34 mutations, all killed:
+  - the rule's refusals and D5's two counts;
+  - the facts' order and scope;
+  - the door's locks, on Postgres, and the row it gives a data type with none;
+  - the choices' offers and when they say why;
+  - whose stop it is, on the store's rows, the report's and the status builder's;
+  - both editions' payloads;
+  - the panel's button, press, re-read, notes and visibility;
+  - the strip, the Finish step, the detail schema, the press's path and the appliance page's source;
+  - a progress link saying whose stop it was.
+
 **2026-09-25: T4, the second of three parts (T5 slice 3b): the doors to stop and resume a data
 type, on both editions.** The screens are 3c; until then the doors are the API's and the
 appliance's own.
@@ -487,7 +527,7 @@ cutover; once every one is past it, a new data type is a new migration, as today
 3. **T4**, stop and resume a data type, on that record (D2 (c), D4, D5, D6). In three parts:
    the stop kept and obeyed, with its slot rule (3a, *built 2026-09-24*); the doors on both
    editions, with the path audit record, D5's refusal and D6's verification (3b, *built
-   2026-09-25*); the screens (3c).
+   2026-09-25*); the screens (3c, *built 2026-09-25*).
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration.
 5. **The cutover per data type:** `--kind` on the CLI, the cutover and rollback transitions per

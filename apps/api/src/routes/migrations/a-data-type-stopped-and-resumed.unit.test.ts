@@ -9,7 +9,8 @@
  * test's business (`a-stop-per-data-type.unit.test.ts`); here it is what the
  * route adds. It answers in words, refuses the last data type still copying
  * with a pointer to ending the migration, and raises the month's peak when a
- * resume in the lane takes a slot back.
+ * resume in the lane takes a slot back. The detail payload offers the page
+ * what the door accepts next (slice 3c).
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
@@ -167,6 +168,20 @@ describe('POST /:mappingId/domains/:domain/stop and /resume', () => {
     expect(await sql(`SELECT peak_paths FROM occupancy_peak WHERE tenant_id = $1`, [TENANT])).toEqual([
       { peak_paths: 2 },
     ]);
+  });
+
+  it('offers the page, on the detail payload, what the door accepts next (slice 3c)', async () => {
+    await press('stop', 'email');
+    const detail = await request(app).get(`/api/migrations/${MAPPING}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.stopChoices).toEqual([
+      { domain: 'email', stopped: true, offer: 'resume' },
+      { domain: 'calendar', stopped: false, offer: null, held: 'last_one_copying' },
+    ]);
+    expect(detail.body.domainStatus.find((d: { domain: string }) => d.domain === 'email')).toMatchObject({
+      state: 'stopped',
+      stoppedByOwner: true,
+    });
   });
 
   it('raises nothing for a resume before the cutover: the stop kept its slot', async () => {

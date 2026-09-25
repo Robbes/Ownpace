@@ -9,7 +9,8 @@
  * stop lives in the appliance's database, not in its configuration file, so it
  * survives a restart, and the start-up that switches on every data type the
  * file names does not undo it. The next pass moves past it and says so, and
- * the check that everything arrived skips it, *stopped by you* (D6).
+ * the check that everything arrived skips it, *stopped by you* (D6). And its
+ * `/status` offers the page the press the door accepts next (slice 3c).
  *
  * The connectors point at port 1 and the schedule never fires: what is under
  * test is which data types a pass takes, not whether they succeed.
@@ -112,6 +113,25 @@ describe('a data type stopped on the appliance', () => {
       expect(((await last.json()) as { message: string }).message).toMatch(/end the migration instead/);
 
       expect((await press(booted.base, 'stop', 'photos')).status).toBe(400);
+
+      // The page's half (slice 3c): `/status` offers what the door just did,
+      // by the door's own rule, and says whose stop it is.
+      const status = (await (await fetch(`${booted.base}/status`)).json()) as {
+        mappings: Array<{
+          mappingId: string;
+          stops?: unknown[];
+          domains: Array<{ domain: string; state: string; stoppedByOwner?: boolean }>;
+        }>;
+      };
+      const mine = status.mappings.find((m) => m.mappingId === MAPPING)!;
+      expect(mine.stops).toEqual([
+        { domain: 'calendar', stopped: true, offer: 'resume' },
+        { domain: 'contact', stopped: false, offer: null, held: 'last_one_copying' },
+      ]);
+      expect(mine.domains.find((d) => d.domain === 'calendar')).toMatchObject({
+        state: 'stopped',
+        stoppedByOwner: true,
+      });
     } finally {
       await booted.handle.stop();
     }

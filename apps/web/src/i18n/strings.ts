@@ -560,6 +560,23 @@ const en = {
   'settings.kinds.consequence.why':
     'The new data type is copied in full on the next pass, the way every data type is copied the first time. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
   'settings.kinds.failed': 'That was not added:',
+  // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
+  // the stop door accepts the press; what a stop does is said before it.
+  'settings.kinds.stop': 'Stop {kind}',
+  'settings.kinds.resume': 'Resume {kind}',
+  'settings.kinds.stopping': 'Stopping…',
+  'settings.kinds.resuming': 'Resuming…',
+  'settings.kinds.stoppedByYou': 'stopped by you',
+  'settings.kinds.stopped': '{kind} is stopped. Its copies stay; resume it to continue where it stopped.',
+  'settings.kinds.resumed': '{kind} is resumed. The next pass continues where it stopped.',
+  'settings.kinds.stop.consequence':
+    'A stopped data type keeps what it copied, but no longer follows the source. Resuming it continues where it stopped.',
+  'settings.kinds.stop.consequence.why':
+    'For an account that closes before the others: stop the mail on the day the old mailbox closes, while calendars and contacts keep copying. Nothing is removed on either side. The last data type still copying cannot be stopped; to stop everything, end the migration.',
+  'settings.kinds.held.lastOne':
+    'The last data type still copying. To stop it, end the migration instead.',
+  'settings.kinds.held.notRunning': 'This can be resumed once the migration runs again.',
+  'settings.kinds.stop.failed': 'That did not change:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
   'wizard.connectionName': 'Connection name',
@@ -1521,6 +1538,10 @@ const en = {
   'confirm.progress.stopped': 'Switched off: these copies stay, but no longer follow the source.',
   'confirm.progress.stopped.why':
     'Nothing was removed. The copies and their record stay where they are, as they were when it stopped. Switching it back on continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
+  // One its owner stopped (0128 T4): the same state, and Resume is the way back.
+  'confirm.progress.stoppedByYou': 'Stopped by you: these copies stay, but no longer follow the source until resumed.',
+  'confirm.progress.stoppedByYou.why':
+    'Nothing was removed. The copies and their record stay as they were when you stopped it. Resuming it, on the migration\'s page, continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
   // One state, three reasons (see pause-reason.ts). The word is the same
   // wherever it appears; the sentence under it says which of the three.
   'pause.label': 'Paused',
@@ -1760,6 +1781,8 @@ const en = {
   'finish.step3.stopped.many': '{kind} is stopped and not in this pass: its {count} copies stay as they were.',
   'finish.step3.stopped.why':
     'It was switched off after copying. Its copies stay on the new system, but what changed on the old one since then has not reached them. If they must be current, switch it back on and let a pass run before you finish.',
+  'finish.step3.stoppedByYou.why':
+    'You stopped it. Its copies stay on the new system, but what changed on the old one since then has not reached them. If they must be current, resume it on the migration\'s page and let a pass run before you finish.',
   'finish.step3.stoppedUnread': 'Could not read whether a data type is stopped:',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
@@ -2794,6 +2817,21 @@ const nl: Record<keyof typeof en, string> = {
   'settings.kinds.consequence.why':
     'Het nieuwe gegevenstype wordt bij de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
   'settings.kinds.failed': 'Dat is niet toegevoegd:',
+  'settings.kinds.stop': '{kind} stoppen',
+  'settings.kinds.resume': '{kind} hervatten',
+  'settings.kinds.stopping': 'Stoppen…',
+  'settings.kinds.resuming': 'Hervatten…',
+  'settings.kinds.stoppedByYou': 'door u gestopt',
+  'settings.kinds.stopped': '{kind} is gestopt. De kopieën blijven; hervat het om verder te gaan waar het stopte.',
+  'settings.kinds.resumed': '{kind} is hervat. De volgende ronde gaat verder waar het stopte.',
+  'settings.kinds.stop.consequence':
+    'Een gestopt gegevenstype houdt wat het gekopieerd heeft, maar volgt de bron niet meer. Hervatten gaat verder waar het stopte.',
+  'settings.kinds.stop.consequence.why':
+    'Voor een account dat eerder sluit dan de andere: stop de e-mail op de dag dat het oude postvak sluit, terwijl agenda en contacten blijven kopiëren. Aan geen van beide kanten wordt iets verwijderd. Het laatste gegevenstype dat nog kopieert, kan niet worden gestopt; wilt u alles stoppen, beëindig dan de migratie.',
+  'settings.kinds.held.lastOne':
+    'Het laatste gegevenstype dat nog kopieert. Wilt u het stoppen, beëindig dan de migratie.',
+  'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer loopt.',
+  'settings.kinds.stop.failed': 'Dat is niet gewijzigd:',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
@@ -3425,6 +3463,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.stopped': 'Uitgeschakeld: deze kopieën blijven, maar volgen de bron niet meer.',
   'confirm.progress.stopped.why':
     'Er is niets verwijderd. De kopieën en hun administratie blijven waar ze zijn, zoals ze waren toen het stopte. Weer inschakelen gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
+  'confirm.progress.stoppedByYou': 'Door u gestopt: deze kopieën blijven, maar volgen de bron pas weer na hervatten.',
+  'confirm.progress.stoppedByYou.why':
+    'Er is niets verwijderd. De kopieën en hun administratie blijven zoals ze waren toen u het stopte. Hervatten, op de pagina van de migratie, gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
   'pause.label': 'Gepauzeerd',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder na {resets}.',
@@ -3635,6 +3676,8 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.stopped.many': '{kind} is gestopt en niet in deze ronde: de {count} kopieën blijven zoals ze waren.',
   'finish.step3.stopped.why':
     'Het is uitgeschakeld nadat er gekopieerd was. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft ze niet bereikt. Moeten ze actueel zijn, schakel het dan weer in en laat een ronde lopen voordat u afrondt.',
+  'finish.step3.stoppedByYou.why':
+    'U hebt het gestopt. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft ze niet bereikt. Moeten ze actueel zijn, hervat het dan op de pagina van de migratie en laat een ronde lopen voordat u afrondt.',
   'finish.step3.stoppedUnread': 'Kon niet lezen of een gegevenstype gestopt is:',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':

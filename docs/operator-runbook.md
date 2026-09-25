@@ -1146,6 +1146,12 @@ stopped. Three differences:
 - the last data type still copying cannot be stopped: end the migration instead;
 - the check that everything arrived skips it, *stopped by you*.
 
+The migration's page offers the same pair as a Stop or Resume button beside
+each data type, on both editions, exactly where the door accepts the press.
+`/status` carries what it offers, as each mapping's `stops`, and marks a data
+type stopped this way with `stoppedByOwner: true` beside `stopped`. One the
+file switched off has no such mark, and the page says *switched off* for it.
+
 Each stop and resume is in the audit log as `path.status`, with who pressed it.
 
 ## Health & troubleshooting

@@ -2642,6 +2642,12 @@ export interface MigrationStatus {
    * when nothing is.
    */
   readonly pausedReason?: PauseReason;
+  /**
+   * Its owner stopped it (workplan 0128 T4), so `state` is `stopped`. Absent
+   * for a data type the mapping file switched off (0125 T7): the same word,
+   * with a different way back — Resume on the page, not the file.
+   */
+  readonly stoppedByOwner?: true;
 }
 
 /**
