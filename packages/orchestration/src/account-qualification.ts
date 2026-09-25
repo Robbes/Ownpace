@@ -840,6 +840,28 @@ export const GOOGLE_SCOPES_ASKED_BY_DOMAIN: Readonly<Record<GoogleGrantDomain, s
     task: GOOGLE_DOMAIN_SCOPES.task.asked,
   });
 
+/**
+ * The scopes Google itself holds to READING (workplan 0144 T3), written out
+ * rather than derived from the table above: whether a scope can write is
+ * Google's fact about the scope, not this product's choice about a domain, so
+ * it keeps an opinion of its own.
+ *
+ * Read by the grant page's decision (`grantLinkAsk`): it says "read-only" only
+ * when every data scope a link asks is on this list. Mail's
+ * `https://mail.google.com/`, `auth/calendar` and `auth/carddav` are not: Google
+ * describes each as allowing changes and deletion, and there Ownpace's
+ * guarantee is the software's, not the permission's.
+ *
+ * `calendar.readonly` joins when the calendar asks for it (the owner test
+ * runbook's question zero), together with `GOOGLE_READ_ONLY_AT_GOOGLE` in
+ * shared, which the wizard reads; `domains-to-scopes.unit.test.ts` fails while
+ * the two disagree.
+ */
+export const GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE: ReadonlyArray<string> = Object.freeze([
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/tasks.readonly',
+]);
+
 /** Every scope that satisfies a domain: the one we ask for, then the broader
  *  ones we accept if they happen to be there. Ask-first, so the message that
  *  names `[0]` names the scope a person can actually go and grant. */

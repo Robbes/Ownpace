@@ -4,6 +4,86 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-25: T3 (a) and (c) decided by the owner, and built on a branch, not merged.** The
+owner was asked *"The rest of group R2 is still Proposed in the plans. Which should I build now,
+before the first invitation?"* and chose all three: this plan's T3 (a) and (c), 0140's
+consent-screen lines (T2 (b), T3 (a), T6 (b) and T7 (b)), and 0141 T10 (a). This is 0131 §6's
+group R2, step 6. It is built on `claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true`,
+which is stacked on #1177 (0148 T2 (a), (b) and (d)), because that pull request lays out the
+lines around the same button.
+
+- **(a) One line beside *Connect with Google*.** When the consent asks for mail, calendars or
+  contacts: in the wizard, for the Gmail, Google Calendar and Google Contacts cards and for a
+  Google account with any of the three ticked; in the Connections page's panel, both for adding
+  and for *Replace credentials*. Not for Drive or Tasks alone, and not beside Dropbox's or
+  Microsoft's button. EN *"Google says this permission also allows changes; Ownpace only reads
+  and changes nothing."* NL *"Volgens Google staat deze toestemming ook wijzigen toe; Ownpace
+  leest alleen en wijzigt niets."* Its fold names mail, calendars and contacts, and says that
+  for Google Drive and Google Tasks the permission itself is read-only. Whose app asks makes no
+  difference, because the scope Google describes is the same. The deployment's fact that
+  applies is which faces an account may tick, from `/api/provider-accounts`, and the line reads
+  the ticks.
+- **(c) The grant page says "read-only" only where Google enforces it.** `grantLinkAsk` returns
+  `readOnlyAtProvider`, true only when every data scope it asks is on
+  `GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE` (`drive.readonly`, `tasks.readonly`), a list beside
+  `GOOGLE_SCOPES_ASKED_BY_DOMAIN` in `account-qualification.ts`. The sign-in scopes are added
+  after the decision. `GET /api/grant/:link` answers it, the OpenAPI document lists it, and the
+  page's box shows `grant.readOnly` when it is true and `grant.readsOnly`, in §3's words, when it
+  is false. `docs/grant-links.md` says the same.
+
+Guards: `apps/web/src/a-permission-described-as-it-is.unit.test.tsx` (26 cases, 24 failed on the
+unchanged code), six new cases in `grant-link-readiness.unit.test.ts` (all failed), three in
+`domains-to-scopes.unit.test.ts` (all failed), one new case and two changed ones in
+`grant.unit.test.ts` (all failed), and `scripts/a-read-only-claim-with-its-scope.unit.test.ts`
+(10 cases, 1 failed: `docs/grant-links.md`). Each was then shown to fail by a mutation: the
+decision always read-only (6 cases fail), the sign-in scopes compared (3), `calendar` flipped to
+read-only in shared (2 on the server, 6 in the browser), mail's scope put on the read-only list
+(6), the line on every Google consent (10), no line (14), the box always *Read-only* (3), a
+pending surface fixed but still listed (1), and *"read-only"* put back in `grant-links.md` (1).
+
+Where the build departs from §3:
+
+- **Both doors, one place.** §3 puts the line in `ProviderConsentPanel`, but the wizard's source
+  step draws its own button. So the lines under either button are one component,
+  `ConsentLines` in `ProviderConsent.tsx`, which both render. It also carries the button's
+  existing hint, moved and not reworded. 0140 T3 (a)'s line about in-app browsers goes there
+  too.
+- **The line is shorter than §3's.** §3's drafts run to 24 words, over the copy budget of 15
+  (0118), and they are a proposal rather than the owner's words. So the visible line is 13
+  words in English and 14 in Dutch, and the rest folds under *Why?*.
+- **The grant page's sentence is §3's, whole.** `grant.readsOnly` joins `grant.readOnly` on the
+  copy budget's `ALLOWED_OVER` list, under the owner's rule of 2026-09-05 that consent sentences
+  stay verbatim.
+- **A second reading of the fact, for the browser.** The web app imports only `@openmig/shared`,
+  and the scope tables live in `packages/orchestration`. So the line reads
+  `GOOGLE_READ_ONLY_AT_GOOGLE`, one yes or no per data type, through `googleConsentAllowsChanges`
+  in shared. A `Record` over every data type, so a sixth does not compile without an answer.
+  `domains-to-scopes.unit.test.ts` holds it to the scope list at the table, and
+  `grant-link-readiness.unit.test.ts` through the ask a link really makes.
+- **The web schema requires the field.** A subject without `readOnlyAtProvider` is refused
+  rather than read as either answer.
+- **The scan reads what §3 names, with a list of what is not yet under the rule.** The site's
+  how-it-works pages (T3 (b), the owner's copy, T0) and the setup step's title (T3, after) are
+  on a `PENDING` list with whose they are. The list only shrinks: an entry whose text stops
+  breaking the rule fails until it is removed. So today the scan failed only on
+  `docs/grant-links.md`, where §3 expected four failures. 0148 §3 proposes that the scan also
+  read `docs/guides/`. That is not taken here: the Box and Dropbox guides call their apps
+  read-only, which is a provider's app setting and not a scope Google or Microsoft enforces,
+  and the rule has no answer for it yet.
+- **Line numbers.** §1 and §3 cite the 2026-09-24 lines (`strings.ts`:931 and :2078,
+  `grant-links.md`:72). The build found each by its key or its text: the grant-links bullet was
+  at :83.
+
+Expectations changed on purpose: `grant.unit.test.ts`'s list of what a link holder may learn
+gains `readOnlyAtProvider`. `Grant.unit.test.tsx`'s fixture carries Gmail's scope, so it gains
+`readOnlyAtProvider: false`, and its case *"says what will be read, and that nothing is deleted
+or changed"* now expects *"Ownpace only reads"* and no *"Read-only"*. `grant-service.unit.test.ts`'s
+fixtures gain the field, and one case refuses a subject without it.
+
+Still to do in T3: (b), the site copy, is the owner's (T0), in group R5. The setup step's title,
+the source password hint and terms §2's sentence for 0139 stay where §3 puts them: after the
+first invitation, and 0139's.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 read what the
 site and the product say to somebody who is about to try the service, and found it written for
 a finished product or for the owner. There is no tester guide and no list of known limitations
@@ -66,7 +146,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner** | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
 | T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
-| T3 "Read-only" replaced by what is true | 📋 **Proposed**; the site copy ⏳ **Owner** (T0) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
+| T3 "Read-only" replaced by what is true | 🟡 **(a) and (c) built** on `claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true`, not merged (2026-09-25). 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
 | T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings now reach the API on this plan's branch, not yet on `main` (§1). **Before the first invitation.** |

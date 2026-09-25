@@ -2308,7 +2308,8 @@ paths:
 
         Says who is asking (the organisation's name, and the sign-in address
         of the member who issued the link), what will be read in plain words,
-        the exact scope Google will record, when the link stops working, and
+        the exact scope Google will record and whether Google holds it to
+        reading, when the link stops working, and
         where the data comes from and goes to: the account the migration
         reads, and the kind of server it writes, its host and the account on
         it. It says nothing else: not the mapping id, not the tenant id, not
@@ -2341,6 +2342,13 @@ paths:
                     description: The organisation's phone number, when it gave one; never anything that is not a phone number.
                   reads: { type: string }
                   scope: { type: string }
+                  readOnlyAtProvider:
+                    type: boolean
+                    description: |
+                      Whether Google itself holds the grant to reading: true only
+                      when every data scope is one Google enforces as read-only
+                      (today `drive.readonly` and `tasks.readonly`). The page says
+                      "read-only" only then (workplan 0144 T3).
                   from:
                     type: string
                     description: |

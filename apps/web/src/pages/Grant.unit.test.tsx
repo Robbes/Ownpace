@@ -39,6 +39,9 @@ const SUBJECT = {
   organisationPhone: '+31 20 123 4567',
   reads: 'your email — messages, folders and labels',
   scope: SCOPE,
+  // Gmail's scope also sends and deletes, so Google does not hold it to
+  // reading (workplan 0144 T3 (c)), and the server says so.
+  readOnlyAtProvider: false,
   from: 'someone@example.invalid',
   to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest@example.org' },
   expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
@@ -76,7 +79,11 @@ describe('what a person sees before consenting', () => {
   it('says what will be read, and that nothing is deleted or changed', async () => {
     renderPage();
     expect(await screen.findByText(/your email — messages, folders and labels/)).toBeInTheDocument();
-    expect(screen.getByText(/Read-only/)).toBeInTheDocument();
+    // Not "Read-only" above Gmail's scope, which Google describes as sending
+    // and deleting too (0144 T3 (c)): what Ownpace does, and what Google says.
+    expect(screen.getByText(/Ownpace only reads/)).toBeInTheDocument();
+    expect(screen.getByText(/never deletes or changes anything in your account/)).toBeInTheDocument();
+    expect(screen.queryByText(/Read-only/)).not.toBeInTheDocument();
     expect(screen.getByText(/sees your password/)).toBeInTheDocument();
     expect(screen.getByText(/sign in to Google yourself/)).toBeInTheDocument();
   });

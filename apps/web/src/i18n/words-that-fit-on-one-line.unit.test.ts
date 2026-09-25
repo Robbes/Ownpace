@@ -58,6 +58,10 @@ const ALLOWED_OVER: Readonly<Record<string, string>> = {
   // granting. Consent sentences stay verbatim — owner, 2026-09-05.
   'grant.asking': 'consent sentence, verbatim by owner decision',
   'grant.readOnly': 'consent sentence, verbatim by owner decision',
+  // Its twin for a grant Google does not hold to reading (0144 T3 (c)): the
+  // same box, the same promises, and the one sentence that says Google's
+  // screen describes more than Ownpace uses. Under the same rule.
+  'grant.readsOnly': 'consent sentence, verbatim by owner decision',
   // Names the progress page since 0108 T8 (c) (owner, 2026-09-24: "yes").
   'grant.withdraw': 'consent sentence, verbatim by owner decision',
   // The alpha note's middle sentence (0131 T1): nothing charged, nothing backed

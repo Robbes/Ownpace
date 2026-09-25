@@ -354,6 +354,15 @@ describe('what the page may know before the button', () => {
     expect(Date.parse(res.body.expiresAt)).toBeGreaterThan(Date.now());
   });
 
+  it('says the Gmail scope is not read-only at Google, so the page does not call it that (0144 T3 (c))', async () => {
+    // `https://mail.google.com/` also sends and deletes, by Google's own
+    // description. The page says what Ownpace does and that Google describes
+    // the permission more broadly, instead of "Read-only".
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.body.readOnlyAtProvider).toBe(false);
+  });
+
   it('tells the link holder NOTHING else about the organisation', async () => {
     const { token } = await mintLink(MAPPING);
     const res = await request(app).get(`/api/grant/${token}`);
@@ -368,6 +377,7 @@ describe('what the page may know before the button', () => {
       'from',
       'organisation',
       'organisationPhone',
+      'readOnlyAtProvider',
       'reads',
       'scope',
       'to',
@@ -678,6 +688,9 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
       if (isRefusal(owners)) throw new Error(owners.reason);
       expect(page.body.scope).toBe(`${owners.scope} ${WHO}`);
       expect(page.body.reads).toBe('your calendars and their events and your tasks');
+      // Tasks alone would be read-only at Google; the calendar is not, and one
+      // scope that can write makes the grant one that can (0144 T3 (c)).
+      expect(page.body.readOnlyAtProvider).toBe(false);
       // Its own account, from the connection's config: an OAuth row stores no
       // username in its secret.
       expect(page.body.from).toBe('account@example.invalid');

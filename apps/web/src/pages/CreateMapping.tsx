@@ -58,6 +58,7 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
+import { ConsentLines, consentAsks } from '../components/ProviderConsent.tsx';
 import {
   ExperimentalTag,
   ExperimentalWhy,
@@ -2288,7 +2289,14 @@ const CreateMapping: React.FC = () => {
                   >
                     {ps('connect')}
                   </button>
-                  <Hint text={ps('connect.hint')} why={ps('connect.why')} />
+                  {/* The lines beside the button, laid out once for both
+                      doors (workplan 0144 T3 (a)): the button's hint, and
+                      for Google, what the permission allows and what
+                      Ownpace does. */}
+                  <ConsentLines
+                    provider={grantProvider}
+                    asked={consentAsks(formData.sourceType, formData.domains)}
+                  />
                   {consentNote && (
                     <p
                       className={`mt-1 text-sm ${

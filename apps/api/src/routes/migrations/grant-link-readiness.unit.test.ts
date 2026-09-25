@@ -16,6 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { GOOGLE_READ_ONLY_AT_GOOGLE } from '@openmig/shared';
 import {
   GOOGLE_CONSENT_KIND_TO_SOURCE,
   awaitingGrantRefusal,
@@ -25,7 +26,11 @@ import {
   type GrantLinkReadiness,
 } from './grant-link-readiness.ts';
 import { GOOGLE_SOURCE_SCOPES } from './google-consent.ts';
-import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
+import {
+  GOOGLE_ACCOUNT_CONSENT_DOMAINS,
+  googleAccountConsent,
+  isRefusal,
+} from './google-account-consent.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
 import router from './link-routes.ts';
 
@@ -285,6 +290,61 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
     const refusal = grantLinkRefusal({ ...ACCOUNT, includedDomains: [] });
     expect(refusal?.code).toBe('nothing_to_ask');
     expect(refusal?.reason).toMatch(/Include at least one/);
+  });
+});
+
+/**
+ * "Read-only" only where Google enforces it (workplan 0144 T3 (c)).
+ *
+ * The grant page opened a green box with *"Read-only."* above whatever scope
+ * the link asked, and for a Gmail link that is `https://mail.google.com/`,
+ * which Google describes as reading, sending and deleting all mail. The page
+ * now asks the decision which it is, and the decision reads the data scopes it
+ * is about to ask for: read-only at Google only when every one of them is a
+ * scope Google itself holds to reading.
+ */
+describe('whether Google itself holds the grant to reading (0144 T3 (c))', () => {
+  const readOnly = (r: GrantLinkReadiness) => askOf(grantLinkAsk(r)).readOnlyAtProvider;
+
+  it('says no for a Gmail link: its one scope also sends and deletes', () => {
+    expect(readOnly(READY)).toBe(false);
+  });
+
+  it('says no for calendars and contacts, on their own kinds and on an account', () => {
+    expect(readOnly({ ...READY, sourceKind: 'google_calendar' })).toBe(false);
+    expect(readOnly({ ...READY, sourceKind: 'google_contacts' })).toBe(false);
+    expect(readOnly({ ...READY, sourceKind: 'google', includedDomains: ['calendar', 'contact'] })).toBe(false);
+  });
+
+  it('says yes for Drive, and for an account that copies tasks only', () => {
+    expect(readOnly({ ...READY, sourceKind: 'google_drive' })).toBe(true);
+    expect(readOnly({ ...READY, sourceKind: 'google', includedDomains: ['task'] })).toBe(true);
+    expect(
+      readOnly({ ...READY, sourceKind: 'google', includedDomains: ['file', 'task'], scopeClass: 'restricted' }),
+    ).toBe(true);
+  });
+
+  it('says no once one data type is not: one scope that writes makes the whole grant one that can', () => {
+    expect(readOnly({ ...READY, sourceKind: 'google', includedDomains: ['task', 'calendar'] })).toBe(false);
+  });
+
+  it('leaves the sign-in scopes out: who signed in is not data, and it is asked of every link', () => {
+    const ask = askOf(grantLinkAsk({ ...READY, sourceKind: 'google', includedDomains: ['task'] }));
+    expect(ask.scope.split(' ')).toEqual(expect.arrayContaining([...SIGNED_IN_ACCOUNT_SCOPES]));
+    expect(ask.readOnlyAtProvider).toBe(true);
+  });
+
+  it("agrees, type by type, with what the wizard's line beside Connect with Google reads", () => {
+    // The browser cannot import the scope tables, so it reads one answer per
+    // data type from shared. This holds the two together through the real
+    // ask: the day a type's scope changes (the calendar's question zero,
+    // 0144 open question 6), one of them moves and this fails.
+    for (const domain of GOOGLE_ACCOUNT_CONSENT_DOMAINS) {
+      expect(
+        readOnly({ ...READY, sourceKind: 'google', includedDomains: [domain], scopeClass: 'restricted' }),
+        domain,
+      ).toBe(GOOGLE_READ_ONLY_AT_GOOGLE[domain]);
+    }
   });
 });
 

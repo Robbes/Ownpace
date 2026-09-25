@@ -29,11 +29,20 @@
  * nothing. Said before the button, together with why Google will also ask to
  * share their address, which is how the account is checked.
  *
- * **What will be read, and that it is read-only.** In plain words AND as the
- * scope Google itself will record (ADR-0041's operative rule: the scopes are
- * shown as scopes). The plain sentence is what a person understands; the scope
- * string is what they can check afterwards in their own account, and one
- * without the other is either vague or unreadable.
+ * **What will be read, and what the permission allows.** In plain words AND
+ * as the scope Google itself will record (ADR-0041's operative rule: the
+ * scopes are shown as scopes). The plain sentence is what a person
+ * understands; the scope string is what they can check afterwards in their own
+ * account, and one without the other is either vague or unreadable.
+ *
+ * "Read-only" only where Google enforces it (workplan 0144 T3 (c)). The box
+ * above the scope said *"Read-only."* for every link, and for a Gmail link the
+ * scope under it is `https://mail.google.com/`, which Google's screen, one
+ * click later, describes as reading, sending and deleting all mail. Ownpace
+ * only reads, whatever the permission allows; the permission is read-only only
+ * for Drive and Tasks. So the server says which (`readOnlyAtProvider`, decided
+ * from the scopes the link asks), and the box says "Read-only" only then, and
+ * otherwise that Ownpace only reads and that Google describes more.
  *
  * **Until when.** The link's own validity, in a date. An expiry that lands
  * mid-intention — after somebody has cleared ten minutes to do this — is a
@@ -197,7 +206,7 @@ const Grant: React.FC = () => {
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="flex items-start gap-2 text-sm text-green-900">
               <ShieldCheck className="w-5 h-5 flex-shrink-0" />
-              <span>{t('grant.readOnly')}</span>
+              <span>{t(subject.data.readOnlyAtProvider ? 'grant.readOnly' : 'grant.readsOnly')}</span>
             </p>
           </div>
 

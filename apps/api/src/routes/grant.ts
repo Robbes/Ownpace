@@ -14,7 +14,8 @@
  * `GET /api/grant/:link` answers with the smallest set of facts a person needs
  * in order to decide: **who is asking** (the organisation's name — consenting
  * to an anonymous request is not consenting), **what will be read**, **which
- * scope** in Google's own words, **until when** the link works, and — since
+ * scope** in Google's own words and whether Google holds it to reading (0144
+ * T3 (c)), **until when** the link works, and — since
  * 2026-09-23 (0108 T8a) — **who asked, from which account, and to which
  * destination**. Without those, a stranger who set up a migration from
  * somebody's account into a server of their own could send a link whose every
@@ -127,6 +128,8 @@ interface GrantSubject extends WhereFromAndTo {
   readonly organisationPhone: string | null;
   readonly reads: string;
   readonly scope: string;
+  /** Whether Google itself holds the grant to reading (0144 T3 (c)). */
+  readonly readOnlyAtProvider: boolean;
   readonly clientId: string;
   readonly clientSecret: string;
 }
@@ -200,6 +203,7 @@ async function loadSubject(
       organisationPhone: rows.organisationPhone,
       reads: listed(decided.ask.domains.map((d) => READS[d])),
       scope: decided.ask.scope,
+      readOnlyAtProvider: decided.ask.readOnlyAtProvider,
       from,
       to: where.to,
       clientId: client.clientId,
@@ -250,6 +254,11 @@ router.get(
         // than behind it: a person consenting is entitled to the exact string
         // their account will record (ADR-0041).
         scope: loaded.subject.scope,
+        // Whether that scope is read-only by Google's own rule (0144 T3 (c)).
+        // The page says "read-only" only then; otherwise it says Ownpace only
+        // reads, and that Google describes the permission more broadly, which
+        // Google's screen will do one click later.
+        readOnlyAtProvider: loaded.subject.readOnlyAtProvider,
         // Where from and where to (0108 T8a): the account this migration
         // reads, and the server and account it writes. What the person
         // needs in order to tell their own migration from somebody else's.

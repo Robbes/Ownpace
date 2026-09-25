@@ -80,8 +80,14 @@ Before any button, the page tells them:
   see is genuine either way — this page, and Google's own;
 - **what will be read** — their mail, calendars, contacts, tasks or files, in plain words; for a
   Google account, exactly the data types the migration copies;
-- **that it is read-only** — nothing is ever deleted or changed in their account, and nobody
-  sees their password, because they sign in on Google's own page;
+- **that Ownpace only reads** — nothing is ever deleted or changed in their account, and nobody
+  sees their password, because they sign in on Google's own page. For mail, calendars and
+  contacts it also says that Google may describe the permission more broadly, because the
+  permission Ownpace asks for there also allows changes, and Google's own screen says so;
+  Ownpace makes none;
+- **"read-only" only where Google enforces it**: for a link that asks only for Google Drive,
+  Google Tasks or both, whose permissions Google itself holds to reading, the box says
+  *Read-only* instead;
 - **the exact permission** Google will record, so they can find it again in their own account;
 - **how long the link works**;
 - **which account to sign in with**: the one the migration reads, and that any other is refused;
