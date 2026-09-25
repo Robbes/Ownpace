@@ -26,9 +26,10 @@
  *
  * Since workplan 0136 T5 the managed API refuses an archive whose path is on
  * its own disk, AFTER the shape check and before anything is probed or
- * stored (`a-path-on-the-server-a-managed-pass-cannot-read`). Until 0148 T9
- * teaches the doors `where`, that is every archive posted here — so the add
- * door's answer is now that refusal, and what this file still holds is that
+ * stored (`a-path-on-the-server-a-managed-pass-cannot-read`). The bodies
+ * here say no `where`, which means the disk — so the add door's answer is
+ * that refusal (0148 T9 taught the doors `where`, and an archive posted with
+ * `where: 'target'` passes it), and what this file still holds is that
  * the refusal it meets is the location one and never `invalid_values:
  * username`. The rotation door is driven on a row in the destination's files
  * (`where: 'target'`), the one location the managed API serves, so it still

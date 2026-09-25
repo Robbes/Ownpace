@@ -71,10 +71,14 @@ describe('the archive kind reaches the tables a source kind must reach', () => {
 });
 
 describe('a path is not a password', () => {
-  it('asks for two things and marks neither as secret', () => {
+  it('asks for three things and marks none as secret', () => {
+    // Which export and where it is, both required — and since 0148 T9 which
+    // STORE the path is in, a choice that is never empty because each edition
+    // has a default, so it is not marked required.
     const fields = credentialFieldsFor('source', 'archive');
-    expect(fields.map((f) => f.key)).toEqual(['provider', 'path']);
-    expect(fields.every((f) => f.required)).toBe(true);
+    expect(fields.map((f) => f.key)).toEqual(['provider', 'where', 'path']);
+    expect(fields.filter((f) => f.required).map((f) => f.key)).toEqual(['provider', 'path']);
+    expect(fields.find((f) => f.key === 'where')?.defaultValue).toBeDefined();
     expect(secretFieldKeys('source', 'archive')).toEqual([]);
   });
 

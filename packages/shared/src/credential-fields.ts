@@ -39,11 +39,22 @@ import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES, hasArchiveReader } from './a
  */
 export interface CredentialOption {
   readonly value: string;
-  readonly label: string;
-  /** A tag shown as TEXT inside the option's name, after the label. */
+  /** Verbatim in every language — a provider's own name for its product. */
+  readonly label?: string;
+  /** Ours, so a key (0148 T9): the archive's two places are our words. */
+  readonly labelKey?: string;
+  /** A tag shown as TEXT inside the option's name, after the label (0148 T3). */
   readonly tagKey?: string;
-  /** A line shown under the field while this option is the one chosen. */
+  /** A line shown under the field while this option is the one chosen (0148 T3). */
   readonly hintKey?: string;
+  /**
+   * Can only be answered where the pass runs on the person's own machine
+   * (0148 D11). A managed door SHOWS it, disabled, with `applianceOnlyKey`
+   * beside it — never hides it (D10: nothing is hidden on managed).
+   */
+  readonly applianceOnly?: boolean;
+  /** The line beside an `applianceOnly` answer on managed. */
+  readonly applianceOnlyKey?: string;
 }
 
 export interface CredentialField {
@@ -99,6 +110,33 @@ export interface CredentialField {
    */
   readonly options?: ReadonlyArray<CredentialOption>;
   /**
+   * THE VALUE A DOOR STARTS FROM, per edition (workplan 0148 T9).
+   *
+   * Only a choice has one, and only a choice whose answer differs by edition:
+   * the archive's `where`. On the appliance the export has always been on the
+   * machine's own disk, and a default that moved would change what every
+   * existing mapping means. On managed that disk is ours and cannot be read
+   * (0136 T5), so the destination's files come first. A field with a default
+   * is never empty, so a door renders it as a choice with one answer marked,
+   * not as a list with a blank at the top.
+   */
+  readonly defaultValue?: { readonly managed: string; readonly selfhost: string };
+  /**
+   * LABEL, HINT AND EXAMPLE THAT FOLLOW ANOTHER FIELD'S ANSWER (0148 T9).
+   *
+   * The archive's `path` names a folder on a disk or a folder of the
+   * destination's files, and the two are typed differently: `/srv/exports/…`
+   * against `Exports/…`, from the top of the person's own files. Keyed by the
+   * other field's value; a value with no entry keeps the field as declared.
+   * Read through {@link followedField}, so both doors resolve it alike.
+   */
+  readonly follows?: {
+    readonly key: string;
+    readonly byValue: Readonly<
+      Record<string, { readonly labelKey: string; readonly hintKey?: string; readonly placeholder?: string }>
+    >;
+  };
+  /**
    * The example value shown in the empty box, VERBATIM (workplan 0075).
    *
    * Not translated, and that is the point: `…apps.googleusercontent.com` and
@@ -138,6 +176,51 @@ export interface CredentialField {
    */
   readonly numeric?: boolean;
   readonly placeholderKey?: string;
+}
+
+/** One answer of a {@link CredentialField.options} choice. */
+/**
+ * The field as it reads given the other answers on the form: its label, hint
+ * and example after {@link CredentialField.follows}. A field that follows
+ * nothing comes back as it is.
+ */
+export function followedField(
+  field: CredentialField,
+  values: Readonly<Record<string, string | undefined>>,
+): CredentialField {
+  const answer = field.follows ? values[field.follows.key] : undefined;
+  const override = answer === undefined ? undefined : field.follows?.byValue[answer];
+  if (!override) return field;
+  return {
+    ...field,
+    labelKey: override.labelKey,
+    ...(override.hintKey ? { hintKey: override.hintKey } : {}),
+    ...(override.placeholder ? { placeholder: override.placeholder } : {}),
+  };
+}
+
+/**
+ * The answer a choice starts from on this edition, or `undefined` for a field
+ * with no default (every field but the archive's `where`).
+ */
+export function fieldDefault(field: CredentialField, selfHost: boolean): string | undefined {
+  return field.defaultValue?.[selfHost ? 'selfhost' : 'managed'];
+}
+
+/**
+ * Every default among `fields` on this edition, keyed by field — what a form
+ * holds before anybody has answered, and what it posts if nobody does.
+ */
+export function choiceDefaults(
+  fields: ReadonlyArray<CredentialField>,
+  selfHost: boolean,
+): Record<string, string> {
+  return Object.fromEntries(
+    fields.flatMap((field) => {
+      const value = fieldDefault(field, selfHost);
+      return value === undefined ? [] : [[field.key, value]];
+    }),
+  );
 }
 
 /** Fields for one wizard source type, in the order a person meets them. */
@@ -302,6 +385,15 @@ function appleAccountFields(): ReadonlyArray<CredentialField> {
  * The hint carries the address the person has to visit before any of this
  * exists, per provider, because the hard part of an archive import is the
  * twenty minutes on somebody else's site and not the form.
+ *
+ * AND WHERE THE EXPORT IS KEPT (workplan 0148 T9, D11): `where`, a choice of
+ * two, before the path it gives a meaning to. `target` is a folder of the
+ * files the migration writes to, read over WebDAV by byte range (0116 T4);
+ * `disk` is the machine running the pass, which is the appliance and only the
+ * appliance. Per-mapping like the path, because the next export in a series
+ * can be kept somewhere else. The disk answer is `applianceOnly`: a managed
+ * door shows it disabled, with its line, and defaults to the destination; an
+ * appliance defaults to the disk, which is what every existing mapping means.
  */
 function archiveFields(): ReadonlyArray<CredentialField> {
   return [
@@ -332,12 +424,37 @@ function archiveFields(): ReadonlyArray<CredentialField> {
       hintKey: 'wizard.archiveProvider.hint',
     },
     {
+      key: 'where',
+      labelKey: 'wizard.archiveWhere',
+      options: [
+        { value: 'target', labelKey: 'wizard.archiveWhere.target' },
+        {
+          value: 'disk',
+          labelKey: 'wizard.archiveWhere.disk',
+          applianceOnly: true,
+          applianceOnlyKey: 'wizard.archiveWhere.disk.onlyAppliance',
+        },
+      ],
+      defaultValue: { managed: 'target', selfhost: 'disk' },
+      perMapping: true,
+    },
+    {
       key: 'path',
       labelKey: 'wizard.archivePath',
       required: true,
       placeholder: '/srv/exports/takeout-20260904',
       hintKey: 'wizard.archivePath.hint',
       perMapping: true,
+      follows: {
+        key: 'where',
+        byValue: {
+          target: {
+            labelKey: 'wizard.archivePath.target',
+            hintKey: 'wizard.archivePath.target.hint',
+            placeholder: 'Exports/takeout-20260904',
+          },
+        },
+      },
     },
   ];
 }

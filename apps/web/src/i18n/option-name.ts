@@ -18,5 +18,8 @@ import type { CredentialOption } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
 
 export function optionName(t: (key: StringKey) => string, option: CredentialOption): string {
-  return option.tagKey ? `${option.label} — ${t(option.tagKey as StringKey)}` : option.label;
+  // A provider's own name is verbatim; our own words (0148 T9's two places)
+  // come through a key.
+  const name = option.labelKey ? t(option.labelKey as StringKey) : (option.label ?? option.value);
+  return option.tagKey ? `${name} — ${t(option.tagKey as StringKey)}` : name;
 }

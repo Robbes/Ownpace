@@ -158,9 +158,11 @@ async function qualifyAndRemember(
   // every table, and the tables that GATE are the ones whose absence is
   // invisible. `smoke-managed.sh` is what turned it into a failure, by
   // measuring a Takeout on the deployed image. Since 0136 T5 the managed API
-  // refuses the disk path that step used, so until 0148 T9 moves it to
-  // `where: "target"` only the unit tests and the appliance's archive E2E
-  // reach this dispatch, and the gate prints that gap beside its verdict.
+  // refuses the disk path that step used, and since 0148 T9 the gate reads
+  // its Takeout from the demo Nextcloud's files (`where: "target"`) through a
+  // migration's preflight instead. A connection in the destination's files
+  // reaches this dispatch too, and is answered unknown with the reason: it
+  // has no destination to read through until a migration names one.
   if (
     !isQualifiableKind(kind) &&
     !isGoogleGrantKind(kind) &&
