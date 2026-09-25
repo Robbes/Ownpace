@@ -31,6 +31,7 @@ import { providersWithSetup, providerDisplayName } from '@openmig/shared';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { GUIDE_SLUGS } from './Docs.tsx';
+import { cardGuideHref } from '../components/front-door-cards.ts';
 
 const StepRow: React.FC<{
   status: SetupStepStatusDto;
@@ -120,15 +121,15 @@ const StepRow: React.FC<{
 };
 
 /**
- * Which shipped guide covers this provider: one guide per family of cards
- * (workplan 0148 T4's table). The Google source types share `google`, exactly
- * as they share one setup profile, and the three Microsoft cards share
- * `microsoft`. T4's card table replaces this with a `guide` on each card.
+ * The card's own guide section, `/docs/<slug>#<section>`, read from the card
+ * for the side this checklist is for (workplan 0148 T4), and only when this
+ * build ships that guide. This was a `guideSlug` function mapping the Google
+ * and Microsoft families by hand, and it knew no target.
  */
-function guideSlug(provider: string): string {
-  if (provider.startsWith('google') || provider === 'gmail') return 'google';
-  if (provider === 'oauth2' || provider === 'graph' || provider === 'microsoft') return 'microsoft';
-  return provider;
+function guideHref(side: 'source' | 'target', provider: string): string | undefined {
+  const href = cardGuideHref(side, provider);
+  const slug = href?.slice('/docs/'.length).split('#')[0];
+  return slug !== undefined && GUIDE_SLUGS.has(slug) ? href : undefined;
 }
 
 /**
@@ -249,14 +250,17 @@ const Setup: React.FC = () => {
           {t(backTo.labelKey)}
         </Link>
         {/* The long-form guide, in the app rather than as a filename nobody
-            in a browser can open (workplan 0063) — and only when this build
-            ships one: the IMAP source and every target have none, and the
-            link opened "There is no guide by that name". */}
-        {GUIDE_SLUGS.has(guideSlug(data.provider)) && (
-          <Link to={`/docs/${guideSlug(data.provider)}`} className="text-sm text-blue-700 hover:underline">
-            {t('setup.fullGuide')}
-          </Link>
-        )}
+            in a browser can open (workplan 0063), opened at the card's own
+            section (0148 T4) — and only when this build ships it: a link to
+            a guide that is not there opened "There is no guide by that name". */}
+        {(() => {
+          const href = guideHref(data.side, data.provider);
+          return href ? (
+            <Link to={href} className="text-sm text-blue-700 hover:underline">
+              {t('setup.fullGuide')}
+            </Link>
+          ) : null;
+        })()}
       </div>
 
       <h2 className="mt-2 text-xl font-semibold text-gray-900">

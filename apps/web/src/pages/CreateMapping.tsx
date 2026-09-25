@@ -67,12 +67,29 @@ import {
   SOURCE_CARDS,
   TARGET_CARDS,
   migratableSourceCards,
+  cardGuideHref,
   type MigratableSourceCard,
 } from '../components/front-door-cards.ts';
 import { useMutation } from '@tanstack/react-query';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 type Step = 'source' | 'target' | 'migration' | 'review';
+
+/**
+ * *Read the full setup guide*, opened at the picked card's own section
+ * (workplan 0148 T4): the card's `guide` field, the same one the checklist
+ * reads. Nothing for an id that is no card on that side.
+ */
+const CardGuideLink: React.FC<{ role: 'source' | 'target'; id: string }> = ({ role, id }) => {
+  const t = useT();
+  const href = cardGuideHref(role, id);
+  if (!href) return null;
+  return (
+    <Link to={href} className="text-sm text-blue-700 hover:underline">
+      {t('setup.fullGuide')}
+    </Link>
+  );
+};
 
 
 interface FormData {
@@ -2155,7 +2172,7 @@ const CreateMapping: React.FC = () => {
                 The panels above say what to do; this is where it gets ticked
                 off, per tenant, so an interrupted setup can be resumed — and
                 so a colleague can finish what somebody else started. */}
-            <p className="mt-3">
+            <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
               <Link
                 to={`/setup/source/${formData.sourceType}`}
                 state={{ from: '/mappings/new' }}
@@ -2163,6 +2180,8 @@ const CreateMapping: React.FC = () => {
               >
                 {t('setup.openChecklist')}
               </Link>
+              {/* The picked card's own section of its guide (0148 T4). */}
+              <CardGuideLink role="source" id={formData.sourceType} />
             </p>
 
             {/* Reuse instead of re-typing (workplan 0064), offered HERE rather
@@ -2287,6 +2306,11 @@ const CreateMapping: React.FC = () => {
                 onPick={onPickTarget}
                 gridClass="sm:grid-cols-3"
               />
+              {/* The picked target's own section of its guide (0148 T4): the
+                  targets had none until then, and the step no link. */}
+              <p className="mt-3">
+                <CardGuideLink role="target" id={formData.targetType} />
+              </p>
               {targetProvenance && !formData.targetConnectionId && (
                 <p className="mt-2 text-xs text-gray-600">
                   {t('wizard.providerDefaults.note', targetProvenance)}

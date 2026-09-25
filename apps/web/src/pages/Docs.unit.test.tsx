@@ -44,8 +44,9 @@
  * provider's app, read through the wizard's own query key (T2 (c)). On the
  * appliance the index ends with one line pointing to the operator documents
  * (D9). The served-guides case runs over every guide in every language it is
- * written in; while `docs/guides/nl/` is empty that is English only, and a
- * Dutch reader meets the fallback, which the language case checks.
+ * written in; a guide still missing in Dutch (`TRANSLATION_PENDING`) is read
+ * in English only, and a Dutch reader meets the fallback, which the language
+ * case checks.
  */
 
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
@@ -55,7 +56,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GRANT_PROVIDERS } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS, type Locale } from '../i18n/strings.ts';
-import { SOURCE_CARDS } from '../components/front-door-cards.ts';
 import Docs, { GUIDE_SLUGS, GuideArticle, guideTitle, pickGuide } from './Docs.tsx';
 
 /**
@@ -682,49 +682,11 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
   });
 
   /**
-   * Each source card a served guide covers has a subsection of its own under
-   * `connect`, whose id is the card's id, so T4's per-card `guide` field and
-   * the checklist can link `google#google-contacts` rather than the family.
-   * The IMAP card's guide arrives with T4 and is listed here as pending.
+   * Each card's own subsection under `connect` is checked in
+   * `a-guide-for-every-card.unit.test.tsx`, for source AND target cards, from
+   * the card's `guide` field (0148 T4). This file held a copy of that map for
+   * source cards, with the IMAP card pending; the field replaced both.
    */
-  const CARD_GUIDE: Record<string, string> = {
-    microsoft: 'microsoft',
-    oauth2: 'microsoft',
-    graph: 'microsoft',
-    google: 'google',
-    'google-drive': 'google',
-    gmail: 'google',
-    'google-calendar': 'google',
-    'google-contacts': 'google',
-    dropbox: 'dropbox',
-    box: 'box',
-    apple: 'apple',
-    archive: 'archive',
-  };
-  const CARD_GUIDE_PENDING = ['imap'];
-
-  it('every source card is either given its guide or listed as pending', () => {
-    expect(SOURCE_CARDS.map((card) => card.id).filter((id) => !CARD_GUIDE_PENDING.includes(id)).sort()).toEqual(
-      Object.keys(CARD_GUIDE).sort(),
-    );
-  });
-
-  it.each(SERVED)('%s: each card it covers has its own subsection under connect', (key) => {
-    const slug = key.split('/')[1]!.replace(/\.md$/, '');
-    const lines = linesOutsideFences(SOURCES[key]!);
-    const start = lines.findIndex((line) => /^## .*\{#connect\}\s*$/.test(line));
-    const end = lines.findIndex((line, i) => i > start && /^## /.test(line));
-    const ids = lines
-      .slice(start, end === -1 ? undefined : end)
-      .map((line) => /^#{3,4} .*\{#([\w-]+)\}\s*$/.exec(line)?.[1])
-      .filter((id): id is string => id !== undefined);
-    const cards = Object.entries(CARD_GUIDE)
-      .filter(([, guide]) => guide === slug)
-      .map(([card]) => card);
-
-    expect(start, `${key} has a connect section`).toBeGreaterThanOrEqual(0);
-    for (const card of cards) expect(ids, `${key} has {#${card}} under connect`).toContain(card);
-  });
 
   /**
    * `docs/i18n-prose-boundary.md` class 5: a guide is written in both

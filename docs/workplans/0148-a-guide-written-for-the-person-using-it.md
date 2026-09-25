@@ -4,6 +4,62 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-25, T4 (b): the five new guides, in Dutch and English.** Built on branch
+`claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged. Every source and target card
+now has a served guide section.
+
+- **Ten files.** `docs/guides/nl/` and `docs/guides/en/` gain `imap`, `jmap`, `dav`, `nextcloud`
+  and `soverin`, written Dutch first, with T4's outline and ids in both languages. Each card has a
+  section of its own under `connect`: `imap-source` and `imap-target`, `jmap`, `caldav`, `carddav`
+  and `webdav`, `nextcloud` and `soverin`. Each field is named by the wizard's own label in that
+  language. Every claim was read from the code or the repository's documents: the fields and
+  labels from `credential-fields.ts` and `strings.ts`, the data types from `target-domains.ts`,
+  the Test's answers from `probe-connection.ts`, `account-qualification.ts` and `probe-text.ts`,
+  Soverin's pre-filled hosts and ports from `provider-directory.ts`, and the revocation lines from
+  `token-revocation.ts`. The JMAP guide says that a file over 8 MB does not reach a JMAP target yet
+  (`STREAM_FILES_LARGER_THAN_BYTES`; `JmapFileTarget` reads `content` only, 0143 §1), and that
+  such a file is listed as failed.
+- **One map.** Each card in `front-door-cards.ts` gains a required `guide`, `<slug>#<section>`,
+  and `cardGuideHref(side, id)` reads it. `Setup.tsx`'s *Read the full setup guide* opens the
+  card's section for the checklist's side. The wizard shows the same link beside *Open the setup
+  checklist* on the source step and under the cards on the target step. The lint reads the card
+  in place of its `guideSlugFor`. The `/docs` index lists the five guides because they are served.
+- **Guards**, all in the web project. `a-guide-for-every-card.unit.test.tsx` (new) checks that
+  every source and target card names a served guide and a section under `connect`, in every
+  language the guide is written in, English always, and that no two cards share a section. It
+  checks that both languages of a guide carry the same explicit ids, in order, and that the index
+  in both languages lists every guide a card names. It also checks that the checklist and the
+  wizard link each card's own section. In the lint, the credential case now covers every source
+  and target card, the IMAP source included, and skips none. A new case holds that each card's
+  section names every required field by the wizard's label, in each language its guide is written
+  in.
+- **Evidence.** Guards first: on the tree before the guides and the field, 128 cases failed
+  across `a-guide-for-every-card`, `end-user-docs` and `Setup`. All pass now: 297 in those four
+  files, and 347 in the i18n, wizard, Connections and card tests. Seventeen mutations each turned
+  a case red. They were: a section id dropped in Dutch, a card naming a missing section, two cards
+  sharing one, a guide missing in English, in Dutch or in both, either wizard link removed, the
+  checklist linking the family, the index leaving a guide out, a label dropped in each language, a
+  passing guide put on the pending list, the ids out of order between languages, a guide naming
+  the operator or carrying an ISO date, and a `#` link to no heading.
+
+**Deviations.** The IMAP card is one id on two sides, so its sections are `imap-source` and
+`imap-target`, not the card id. The wizard's link is not at the end of the about-line's fold, as
+T4 says. The targets have no about-line, and T2 (a)'s open PR rewrites the source about-lines. T4's
+guard names an `ENGLISH_PENDING` list. It is not built: D8 starts it empty, and the Dutch half is
+held by `TRANSLATION_PENDING`, which still lists the six source guides. T4's label check is built
+with a list that only shrinks, `LABELS_PENDING` (`box`, `dropbox`, `google`, `microsoft`). Those
+English guides, split by T1, name a field in the provider's word or not at all in the card's
+section; `apple` and `archive` pass. The English synonym case stays beside it. The card-subsection
+case and its `CARD_GUIDE` map moved from `Docs.unit.test.tsx` to the new file, now read from the
+field and covering targets. `Setup.unit.test.tsx`'s links now carry the section. Its *no link*
+case moved from a JMAP target, which has a guide now, to a Box target, which is no card; before,
+that page linked the Box guide. Soverin's guide was not read against Soverin's own pages. It gives
+the published values the wizard pre-fills. It says the Test measures whether one app password
+covers mail as well as calendars and contacts, as `docs/soverin-supervised-run.md` §A leaves
+open. The Nextcloud menu path is the checklist's string in each language, not read from
+Nextcloud's screens. Both are for T0 and 0141 T7. T4's link to 0144 T2's page is left out:
+that page does not exist on `main`.
+
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
 Nextcloud or other target files-kind supporting target."* So the archive form gains a second
@@ -223,7 +279,7 @@ the owner announced for *Via IMAP* (D5).
 | T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English** on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, not merged: six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
 | T2 No hint to create an app where the deployment carries one | 🔨 **(c) built** on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, not merged; (a), (b) and (d) not started. 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
-| T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
+| T4 A Dutch and an English guide for each source and target | 🔨 **(b) built** on branch `claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
