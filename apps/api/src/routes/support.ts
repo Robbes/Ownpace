@@ -129,16 +129,19 @@ type Row = Record<string, unknown>;
  * `currentTier` over a real database.
  *
  * Which states hold a slot is `holdsASlot`'s call, made here in code on the
- * raw counts rather than restated in the view's SQL — one authority. A state
- * this build does not know counts as holding nothing: the same
+ * raw counts rather than restated in the view's SQL — one authority. The view
+ * keys a stopped path as its state with ` (stopped)` after it (managed 0029),
+ * and the stop is asked of the same rule (0128 T4, D2 (c)). A key this build
+ * does not know counts as holding nothing: the same
  * read-back-through-the-guard rule the failure-category rendering follows,
  * and the direction that cannot overstate what a customer would pay.
  */
 function usageForScreen(row: Row | undefined) {
   const byState = (row?.paths_by_state ?? {}) as Record<string, unknown>;
-  const pathsNow = Object.entries(byState).reduce((n, [state, count]) => {
-    const known = (PATH_STATES as readonly string[]).includes(state);
-    return known && holdsASlot(state as PathState) ? n + Number(count) : n;
+  const pathsNow = Object.entries(byState).reduce((n, [key, count]) => {
+    const [, state, stopped] = /^([a-z]+)( \(stopped\))?$/.exec(key) ?? [];
+    const known = state !== undefined && (PATH_STATES as readonly string[]).includes(state);
+    return known && holdsASlot(state as PathState, stopped !== undefined) ? n + Number(count) : n;
   }, 0);
   const recordedPeak = row?.peak_paths == null ? 0 : Number(row.peak_paths);
   const gbMoved = Number(row?.bytes_moved ?? 0) / 1e9;

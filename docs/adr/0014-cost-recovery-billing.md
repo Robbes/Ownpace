@@ -1,6 +1,6 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) and **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
+- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment near the end) and **2026-09-24, later** (a data type its owner stops keeps its slot before its cutover and releases it in the continuous lane; only a data type the migration carries is a path — 0128 D2 (c); the amendment at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
   resources to five tiers on paths running at the same time, and "no profit" no longer
   describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20
@@ -939,4 +939,30 @@ operative rules above, amended in place, and the price guards parse it there; th
   with it"). §10's cap on liability, *"the amount you paid us in the twelve months before the
   claim"*, reads as zero for an organisation on Tiny; that sentence is the owner's to decide,
   and it is left as it stands until they have.
+
+## Amendment 2026-09-24, later — a stop per data type, and what it holds (0128 T4, D2 (c))
+
+Workplan 0128 T4 lets an owner **stop** one data type of a running migration and **resume** it
+later: its copies stay, its record stays, and it no longer follows the source. A stop is not a
+phase: the data type keeps its state (`active`, or `continuous` in the lane), and the stop is kept
+beside it (`path_lifecycle.stopped_at`, ledger migration 0066).
+
+**Decided by the owner, 2026-09-24:** *"D2 c (recommended)"*.
+
+1. **Before its cutover, a stopped data type keeps its slot.** A stop then is usually short, for
+   example a data type that keeps failing while the rest finishes. That is what a pause is for,
+   and a pause keeps its slot.
+2. **In the continuous lane, a stopped data type releases its slot.** A stop there is usually for
+   good: the mail of an account that no longer exists, while the contacts keep flowing. Billing
+   it for as long as the rest flows would charge for nothing. Its `ended_at` says when it stopped
+   costing anything, as for a path that ended.
+3. **The peak still rules.** The tier reads the month's peak, so a stop and a resume within one
+   month cannot lower a bill.
+4. **Only a data type the migration carries is a path.** A row left for a data type the
+   migration no longer carries (`scope_selection.included = false`) holds nothing. `slotsHeld`
+   and the operator's usage view count carried data types only.
+
+`holdsASlot(state, stopped)` in `@openmig/ledger` is the one rule, and the count, a move into
+the lane and the operator's screen all derive from it. The pricing page gains one sentence,
+beside the lane's, when the stop is offered on a screen (0128 T4's doors, slice 3b).
 

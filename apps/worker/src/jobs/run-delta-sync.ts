@@ -375,13 +375,17 @@ export const runDeltaSync = schemaTask({
         // migration back is a new grant, not the owner's Resume.
         //
         // AND THIS DATA TYPE MAY NO LONGER RUN while the others do (0128 T5):
-        // its own cutover past its grace period, or ended. Then the pass moves
+        // its own cutover past its grace period, ended, or stopped by its owner
+        // (0128 T4), each said as what it is. Then the pass moves
         // on to the next one rather than stopping, so files are not stopped
         // with mail. Until a data type can have a phase of its own, this never
         // happens: every data type's phase is the migration's.
         const step = await passStepBefore(pool, tenantId, mappingId, domain);
         if ('skip' in step) {
-          const line = `skipped ${domain}: this data type no longer runs passes (its own cutover is past its grace period, or it has ended) — nothing failed`;
+          const line =
+            step.skip === 'stopped_by_its_owner'
+              ? `skipped ${domain}: you stopped this data type — nothing failed, its copies stay, and resuming continues where it stopped`
+              : `skipped ${domain}: this data type no longer runs passes (its own cutover is past its grace period, or it has ended) — nothing failed`;
           log.info(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });

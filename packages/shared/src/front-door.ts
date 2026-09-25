@@ -20,6 +20,11 @@
  * and stored kinds do not move.
  */
 
+// Types only: this file has no runtime import, so a root-level guard can read
+// it by relative path (scripts/a-proof-that-was-written-down.unit.test.ts).
+import type { DiscoveryDomain } from './discovery.ts';
+import type { ProviderAccountKind } from './provider-accounts.ts';
+
 /** Which lane a connectable type is offered in. */
 export type FrontDoorGroup = 'provider' | 'protocol';
 
@@ -109,6 +114,156 @@ export const FAMILY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 /** The family an id belongs to, or undefined for standalone types. */
 export function frontDoorFamilyOf(id: string): string | undefined {
   return FRONT_DOOR_FAMILIES.find((f) => f.members.includes(id))?.id;
+}
+
+/**
+ * Whether a source has met a real account (workplan 0131 T2 (a); the owner's
+ * D6, *"Label"*).
+ *
+ * - **proven**: a complete pass has run against a real account of this kind,
+ *   and `recorded` says where that run is written down: the date of its row in
+ *   the "Live proofs" section of `docs/feature-matrix.md` (0141 T1), or
+ *   `PROVEN_BEFORE_THE_RECORD` for a row of that section's second table, the
+ *   runs that happened before the record existed and whose counts it does not
+ *   hold;
+ * - **experimental**: built, and not yet run against a real account.
+ *
+ * `scripts/a-proof-that-was-written-down.unit.test.ts` holds every proven
+ * verdict to a row with its kind and face, and every experimental one to none.
+ */
+export type SourceProof =
+  | { readonly verdict: 'proven'; readonly recorded: string }
+  | { readonly verdict: 'experimental' };
+
+/** A proven verdict whose row is in "Proven before this record". */
+export const PROVEN_BEFORE_THE_RECORD = 'before the record';
+
+/** The word a Live proofs row uses for Google's whole-domain delegation. */
+export const WHOLE_DOMAIN_PROOF_KIND = 'whole-domain';
+
+const PROVEN_EARLIER: SourceProof = { verdict: 'proven', recorded: PROVEN_BEFORE_THE_RECORD };
+const EXPERIMENTAL: SourceProof = { verdict: 'experimental' };
+
+/**
+ * Which sources have met a real account: one table, beside the families,
+ * because both doors and the wizard's data-type step read it and none of them
+ * may say something the others do not (0131 T2).
+ *
+ * The screen reads this; `docs/feature-matrix.md` stays the long-form record.
+ * A verdict flips to proven in the same pull request that records its run in
+ * the matrix's Live proofs table (0141 T1), and a face whose connector is
+ * rebuilt goes back to experimental in the pull request that rebuilds it.
+ *
+ * Its first content is 0131 §1's list, read against 0141 §1's table, which
+ * says what each verdict rests on. Where the two plans are silent:
+ *
+ * - `oauth2` and `graph` are experimental. The matrix marks them ✅, and no run
+ *   behind that mark is recorded anywhere (0141 §1; 0008 T7's acceptance was
+ *   never met). The owner has run *Via IMAP* once, unrecorded, and keeps the
+ *   card tagged until the next run is (0148 D5).
+ * - The Microsoft 365 account's mail face is experimental with its other four:
+ *   0114's Test measured it, and a measurement is not a pass (0141 §1).
+ * - The Google account's file face is proven: the owner's live migration reads
+ *   Drive through it, and its Sharing defect of 2026-09-17 was found there
+ *   (`apps/api/src/routes/permissions.ts`). Its mail face is experimental: no
+ *   run through the account is recorded, only through the `gmail` card.
+ * - `soverin` as a source is experimental. It is not offered at either door;
+ *   0105 T5 parked it. Its faces have verdicts because orchestration builds
+ *   them, and a face with no verdict is what
+ *   `packages/orchestration/src/a-face-that-arrives-without-a-verdict.unit.test.ts`
+ *   refuses.
+ * - The export archive is experimental, and offered at both doors on both
+ *   editions: CI imports a fixture Takeout, and no import of a real export is
+ *   recorded (0116). The owner chose to label it on managed rather than hide
+ *   it (0148 D10). That a managed pass cannot yet read the path its form asks
+ *   for is said by the refusal 0136 T5 adds, not by this table.
+ */
+export const SOURCE_PROOFS: {
+  /** One verdict for each source card that is not an account kind. */
+  readonly kinds: Readonly<Record<string, SourceProof>>;
+  /** For each account kind, one verdict for each face it can ever claim. */
+  readonly faces: Readonly<
+    Record<ProviderAccountKind, Readonly<Partial<Record<DiscoveryDomain, SourceProof>>>>
+  >;
+  /** Google's whole-domain delegation (ADR-0033), an option on every Google card. */
+  readonly wholeDomain: SourceProof;
+} = {
+  kinds: {
+    // Against the Stalwart the appliance nightly runs: "proven on a server we
+    // run", and the Live proofs row says so (0141 T1, point 2).
+    imap: PROVEN_EARLIER,
+    // Via IMAP: run once by the owner, unrecorded, and tagged until the next
+    // run is recorded (0148 D5).
+    oauth2: EXPERIMENTAL,
+    graph: EXPERIMENTAL,
+    // The owner's own Google account, routinely, for weeks (the matrix's note
+    // of 2026-09-22). One account: a second is 0141 T6.
+    gmail: PROVEN_EARLIER,
+    'google-calendar': PROVEN_EARLIER,
+    'google-contacts': PROVEN_EARLIER,
+    'google-drive': PROVEN_EARLIER,
+    dropbox: EXPERIMENTAL,
+    box: EXPERIMENTAL,
+    // Offered and labelled on both editions, managed included (0148 D10).
+    archive: EXPERIMENTAL,
+  },
+  faces: {
+    google: {
+      email: EXPERIMENTAL,
+      calendar: PROVEN_EARLIER,
+      contact: PROVEN_EARLIER,
+      file: PROVEN_EARLIER,
+      // 0126 T8, the owner's sitting, is 0141 T5.
+      task: EXPERIMENTAL,
+    },
+    soverin: { email: EXPERIMENTAL, calendar: EXPERIMENTAL, contact: EXPERIMENTAL, task: EXPERIMENTAL },
+    // All five in one sitting, calendar first: a "no" there is a rebuild (0141 T2).
+    microsoft: {
+      email: EXPERIMENTAL,
+      calendar: EXPERIMENTAL,
+      contact: EXPERIMENTAL,
+      file: EXPERIMENTAL,
+      task: EXPERIMENTAL,
+    },
+    // Part 1 of `docs/apple-supervised-run.md` and its first pass (0141 T4).
+    apple: { email: EXPERIMENTAL, calendar: EXPERIMENTAL, contact: EXPERIMENTAL, task: EXPERIMENTAL },
+  },
+  // Parked until a Workspace the owner administers, or a tester who asks (0141 T6).
+  wholeDomain: EXPERIMENTAL,
+};
+
+/** True when the id is an account kind, whose verdicts are per face. */
+function isAccountKindWithFaces(id: string): id is keyof typeof SOURCE_PROOFS.faces {
+  return Object.prototype.hasOwnProperty.call(SOURCE_PROOFS.faces, id);
+}
+
+/**
+ * Does this source card carry the tag?
+ *
+ * A single-purpose card answers with its own verdict. An account card is
+ * tagged only when EVERY face it has is experimental: the Google account's
+ * calendar and contacts have run, so its card is plain and its Tasks face is
+ * tagged in the data-type step instead. An id with no verdict (a target, or a
+ * kind that has none yet) is not tagged; that every source card has one is
+ * pinned by the web guard.
+ */
+export function sourceCardIsExperimental(id: string): boolean {
+  if (isAccountKindWithFaces(id)) {
+    const faces = Object.values(SOURCE_PROOFS.faces[id]);
+    return faces.length > 0 && faces.every((p) => p?.verdict === 'experimental');
+  }
+  return SOURCE_PROOFS.kinds[id]?.verdict === 'experimental';
+}
+
+/**
+ * Does this face of the chosen source carry the tag in the data-type step?
+ *
+ * An account kind answers per face. Any other source has one verdict for
+ * whatever it carries, so its faces answer with the card's.
+ */
+export function sourceFaceIsExperimental(id: string, face: DiscoveryDomain): boolean {
+  if (isAccountKindWithFaces(id)) return SOURCE_PROOFS.faces[id][face]?.verdict === 'experimental';
+  return SOURCE_PROOFS.kinds[id]?.verdict === 'experimental';
 }
 
 /**

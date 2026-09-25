@@ -32,14 +32,31 @@ export interface PathPhase {
    * the same SQL the managed tick schedules by. False in every other phase.
    */
   readonly stillCopies: boolean;
+  /**
+   * Whether its owner stopped it (0128 T4): it runs no pass, whatever its
+   * phase, and its copies stay. Absent while it runs. A stop is not a phase:
+   * it is kept beside one (`path_lifecycle.stopped_at`).
+   */
+  readonly stopped?: boolean;
+}
+
+/** One data type's own path row, as the reader reads it. */
+export interface PathRow {
+  /** Its phase, `path_lifecycle.state`. */
+  readonly state: string;
+  /** Whether its owner stopped it (`stopped_at` is set). */
+  readonly stopped?: boolean;
 }
 
 /** Each data type's phase, by data type. */
 export type PathPhaseOf = (domain: string) => PathPhase;
 
-/** Whether this data type's passes run now: `runsPassesNow`, asked of one data type. */
+/**
+ * Whether this data type's passes run now: `runsPassesNow`, asked of one data
+ * type, and never for one its owner stopped.
+ */
 export function pathRunsNow(path: PathPhase): boolean {
-  return runsPassesNow(path.phase, path.stillCopies);
+  return path.stopped !== true && runsPassesNow(path.phase, path.stillCopies);
 }
 
 /** Whether this data type's source still decides what exists: `sourceAuthorityFor`, of one data type. */
@@ -54,4 +71,61 @@ export function pathSourceAuthority(path: PathPhase): SourceAuthority {
 export function phasesOfTheMigration(status: string, stillCopies = false): PathPhaseOf {
   const path: PathPhase = { phase: status, stillCopies: status === 'cutover' && stillCopies };
   return () => path;
+}
+
+/**
+ * The migration's status its paths' phases add up to (0128 T5's roll-up), or
+ * undefined for a migration with no path rows.
+ *
+ * - **Before its cutover** while any path is (`active`, `paused`, or a `ready`
+ *   row): `active` when one of them runs, `paused` when every one is held.
+ * - **`cutover`** once every path is at or past its cutover and one is in it.
+ * - **`continuous`** once every path has ended or is kept, with one kept.
+ * - **`done`** when every path has ended.
+ *
+ * While every path moves with its migration, the roll-up of a migration's rows
+ * is its own status. When it is not, the rows were left behind by something
+ * that wrote the status alone (the appliance's operator, told to set it back
+ * by hand to resume), and the status is believed (`phasesOfThePaths`).
+ * The managed tick asks the one case of it the status cannot see in SQL
+ * (`A_PATH_KEPT_AFTER_A_CUTOVER_WHERE`, ledger); a test holds the two to one
+ * answer.
+ */
+export function rollUpPhases(phases: readonly string[]): string | undefined {
+  if (phases.length === 0) return undefined;
+  const beforeCutover = phases.filter((p) => p === 'active' || p === 'paused' || p === 'ready');
+  if (beforeCutover.length > 0) return beforeCutover.includes('active') ? 'active' : 'paused';
+  if (phases.includes('cutover')) return 'cutover';
+  if (phases.includes('continuous')) return 'continuous';
+  return 'done';
+}
+
+/**
+ * Each data type's phase from its own path row, where the rows agree with the
+ * migration's status (`rollUpPhases`); the migration's phase for a data type
+ * with no row, and for every data type when they do not agree.
+ *
+ * A stop is its owner's, and is kept whichever phase is believed (0128 T4): a
+ * status set by hand does not start a data type its owner stopped. A stop can
+ * only take passes away, never a deletion detector.
+ *
+ * `stillCopies` is the migration's cutover window, asked of a path in
+ * `cutover`: one window per migration until the cutover ledger is kept per
+ * data type (slice 4).
+ */
+export function phasesOfThePaths(
+  status: string,
+  stillCopies: boolean,
+  paths: Readonly<Record<string, PathRow>>,
+): PathPhaseOf {
+  const migration: PathPhase = { phase: status, stillCopies: status === 'cutover' && stillCopies };
+  const agreed = rollUpPhases(Object.values(paths).map((p) => p.state)) === status;
+  return (domain) => {
+    const own = paths[domain];
+    const phase: PathPhase =
+      own === undefined || !agreed
+        ? migration
+        : { phase: own.state, stillCopies: own.state === 'cutover' && stillCopies };
+    return own?.stopped === true ? { ...phase, stopped: true } : phase;
+  };
 }
