@@ -11,7 +11,7 @@ An export is a **snapshot**. It contains everything up to the day it was prepare
 Two things, and neither of them is a password:
 
 - **Which export**: Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves.
-- **Where the archive is**: the `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all.
+- **Where the archive is**: the `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. That folder can be in the Nextcloud or WebDAV files you are moving to: see [Your export in your own Nextcloud](#own-nextcloud).
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is no account to link and nothing to revoke afterwards.
 
@@ -78,12 +78,13 @@ In the contact and calendar information Apple exports, **email addresses are par
 
 ### Adding the connection {#archive}
 
-On the **Connections** page, add a connection and choose **Export archive**. It asks for two things:
+On the **Connections** page, add a connection and choose **Export archive**. It asks for three things:
 
 - **Which export**: Google Takeout or Apple Data & Privacy.
-- **Where the archive is**: the folder you extracted the download into, or the `.zip` itself, as a path on the computer that runs the migrations. The card reads the export where it lies and cannot take an upload yet, so the export has to be on that computer's own disk. If your migrations do not run on a computer you can put files on, this card cannot reach your export yet.
+- **Where the export is**: **In a folder of your destination's files (Nextcloud or WebDAV)**, or **On this appliance's disk**. The second is for migrations that run on a computer you can put files on; where that is not so, the form shows it greyed out with the line *Only on a self-hosted appliance*.
+- **The folder**: for your destination's files, the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). On a disk, the folder you extracted the download into, or the `.zip` itself.
 
-Then press **Add and test**. Testing does not move anything. It opens the archive and tells you what is in it:
+Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted at the preflight, because the destination is chosen with the migration and until then there is nowhere to look. Either way you learn:
 
 - how many items,
 - how many bytes,
@@ -91,6 +92,24 @@ Then press **Add and test**. Testing does not move anything. It opens the archiv
 - and **the range of dates the export covers**, so you can see at a glance whether it is the export you think it is.
 
 Once the test shows what the archive holds, create a migration from it the way you would from any account: choose **Export archive** as the source, pick the connection you added, choose where the files should go, and start it. Files and photos are the only kind of data an archive carries, so that is the only box to tick.
+
+### Your export in your own Nextcloud {#own-nextcloud}
+
+The export does not have to be on a disk. If the files you are moving to are in a Nextcloud, or on another server that offers your files over WebDAV, you can put the export there and we read it from that folder. Where the form does not let you choose a disk, this is the way to hand us an export.
+
+**There is no need to unpack it.** Upload the `.zip` files exactly as Google delivered them, every part into the same folder. We read them where they lie, a few megabytes at a time, and never change them. If you already unpacked the export into that folder, that works too.
+
+1. Upload the `.zip` parts into **one folder** of the files the migration will write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the way you always add files, such as the Nextcloud website or its desktop app.
+2. In the wizard, choose **Export archive** as the source. Under **Where the export is**, choose **In a folder of your destination's files (Nextcloud or WebDAV)**.
+3. Type the folder as it appears in your files, from the top, for example `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
+4. Press **Test and save connections**. It says the export is counted at the preflight. That is expected: the destination is chosen on the target step, and until then there is nowhere to look.
+5. On the target step, choose that same Nextcloud or WebDAV account. The preflight then counts what is in the export, before anything moves.
+
+**Your photos arrive as ordinary files and folders.** What we write into your files is never a `.zip`: every album becomes a folder, a photo in no album goes into a folder for its year, such as `Photos from 2019`, and one file at the top lists everything the export knew about each photo. See [Where things land](#where-things-land).
+
+This works with a Nextcloud or a WebDAV destination only. An account that holds no files, or a JMAP account, cannot hand us the export: JMAP does not let us read a file in pieces, and the target step says so.
+
+**The `.zip` files stay where you put them.** We only read them, so after the migration they are still in that folder, and they take up as much space in your account as the export itself. Once you have checked that everything arrived, delete them yourself.
 
 ## What moves {#what-moves}
 
@@ -132,7 +151,7 @@ If we cannot open the archive, we say so and why — most often because the down
 
 There is nothing to revoke: we never signed in anywhere on your behalf. We only ever read the archive — the files are never changed, moved or deleted, and we keep no copy of the archive itself.
 
-Which means it stays on the disk after the move, and it is worth remembering what it is: a complete, unencrypted copy of everything the company handed over. Keep it somewhere you would be happy keeping your photos, or delete it once you are satisfied the move is done.
+Which means it stays where you put it after the move, on a disk or in a folder of your files, and it is worth remembering what it is: a complete, unencrypted copy of everything the company handed over. Keep it somewhere you would be happy keeping your photos, or delete it once you are satisfied the move is done.
 
 ## Questions people ask {#questions}
 

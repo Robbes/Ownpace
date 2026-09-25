@@ -61,6 +61,17 @@ Where this differs from §3:
 - the JMAP sentence is unchanged. It still offers "a path on the machine running the pass",
   which managed refuses. That is left to the owner.
 
+**2026-09-25, T9's guide text moved to the served guide.** #1173 merged while T9 was open and moved
+the customer text to `docs/guides/en/archive.md`, which is what `/docs` serves;
+`docs/archive-setup.md` is the operator document now. So the new section, *Your export in your own
+Nextcloud* `{#own-nextcloud}`, is in the served guide too, under `connect`, with the owner's points:
+no need to unpack, the photos arrive as ordinary files and folders, the `.zip` files stay until
+deleted. Its *Adding the connection* list names the three fields the form now asks for, and its
+*Stopping* sentence no longer says the archive stays on a disk. The served text says *as Google
+delivered them*, not *Google or Apple*, since an Apple export cannot be read yet (D7). The guide
+addresses no edition, as the lint requires: the disk choice is described by what the form shows. The
+Dutch guide is T4's.
+
 **2026-09-25, T9 reviewed and fixed** on the same branch, one more commit. Not merged. Two
 reviewers found five things to fix and five nits:
 
@@ -328,7 +339,7 @@ the owner announced for *Via IMAP* (D5).
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
-| T8 The Microsoft app-registration recipe | 🔨 **(c) built** merged in #1173 (2026-09-25); the guide says the (a) and (b) recipe is being rewritten. 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
+| T8 The Microsoft app-registration recipe | 🔨 **(c) built**, merged in #1173 (2026-09-25); the guide says the (a) and (b) recipe is being rewritten. 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24**, review fixed 2026-09-25, on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today
