@@ -1,5 +1,7 @@
 # O365 Setup Documentation
 
+**Using the managed service? Read the [Microsoft guide](guides/en/microsoft.md) instead**, served in the app at `/docs/microsoft`; this document is the operator and self-host record of an own app registration.
+
 This guide walks you through setting up a Microsoft Entra (formerly Azure AD)
 application for Ownpace to access O365 resources (mail, calendar,
 contacts, OneDrive) — **in your own tenant, registered by you**.

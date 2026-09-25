@@ -60,6 +60,93 @@ drops the field, and T9 closes that (D11). On managed the disk option stays in t
 disabled, with the line *Only on a self-hosted appliance*; the owner confirmed that: *"'Only on a
 self-hosted appliance': ok"*. The card keeps its experimental tag until 0141 records a run.
 
+**2026-09-24, review fixes to the T1 build.** Same branch
+(`claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`), not merged.
+
+- **T2 (c)'s open half is now guarded.** The case read the fold before the answer arrived, when
+  it is open whatever the answer. It now waits for the query to succeed with `connection`. A
+  fold that closes on any answer turns three cases red.
+- **A subsection per card, now true and checked.** Google Calendar and Google Contacts had one
+  heading; each has its own id now (`google-calendar`, `google-contacts`). A case maps each source
+  card to its guide and holds that the card's id is a heading under `connect`; the IMAP card is
+  listed as pending until T4.
+- **The Microsoft registration for *Via the Graph API* and *Via IMAP*** moved out of the own-app
+  fold, to `{#application}` under `connect`. Those two cards always take the customer's own
+  registration, so a fold closed where the deployment carries Microsoft's app would hide it as
+  optional. This departs from T8's text, which puts both recipes in the `own-app` section: T8
+  (a) and (b) write them at `{#application}`.
+- **D2 in the Google guide.** The `invalid_grant` causes that only the app's owner can fix
+  (External and still in Testing, a deleted client) are now own-app causes; with this service's
+  app, a token that keeps dying is for whoever runs it.
+- **Smaller.** The Drive about-line names *the Test and save connections button* / *de knop
+  Verbindingen testen en bewaren*, and its guard now asks for that. The Apple guide no longer
+  says the password refusal names a page, and gives the export's download window as Apple's
+  "Available until" date, as the archive guide does. The glossary and the lint say a guide never
+  names the operator, and may say *whoever runs it*. Class 5's "the missing one listed" now has
+  its list: `TRANSLATION_PENDING` in `Docs.unit.test.tsx`, which names the six Dutch guides and
+  fails when one lands and is still listed.
+
+**2026-09-24, T1 in English, T2 (c) and T8 (c) built.** On branch
+`claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, stacked on T6 (a)'s
+branch (the next note), not merged. The owner's D10 was committed to `main` after this branch was
+cut, so it was read there, and the build follows it: the archive guide is served on both
+editions.
+
+- **Six customer guides** in `docs/guides/en/`: `google`, `microsoft`, `dropbox`, `box`, `apple`
+  and `archive`, the customer half of today's `docs/*-setup.md` per T1's table. Each has T4's
+  outline with its ids (`before`, `connect`, `what-moves`, `when-test-says`, `leaving`), a
+  subsection per card, and the wizard's own labels. Google, Dropbox and Microsoft end in
+  `{#own-app}`. They use no table, blockquote or continuation line, which T6 (b) has not built.
+- **Served in the reader's language.** `Docs.tsx` inlines `docs/guides/*/*.md` in place of
+  `docs/*-setup.md`. `/docs/<slug>` opens the reader's language, or else the other one under T4's
+  line (`docs.otherLanguage`), with `lang` on the article. `docs/guides/nl/` is empty, so a Dutch
+  reader gets the English under that line until the Dutch lands (T4, next).
+- **The operator documents.** The seven `docs/*-setup.md` keep their names and are not served.
+  Each opens with one line naming its customer guide. `o365-setup.md`'s line is 0140 T4's, and
+  it sends managed readers to the Microsoft guide (T8 (c)).
+- **The lint.** `end-user-docs.unit.test.tsx` reads `docs/guides/*/*.md` and adds T1's thirteen
+  patterns, each with what to write instead. It also fails a `*-setup.md` anywhere under
+  `docs/guides/`, and a guide outside a folder named for a language. Run against the seven files
+  served until now, the patterns fail six; the archive's was already customer text. The Microsoft
+  guide's own-app section says in one sentence that the *Via IMAP* and *Graph API* recipe is
+  being rewritten (T8 (a) and (b)). A case holds that no served guide names
+  `IMAP.AccessAsUser.All`, the permission only the wrong list used. The delegated-permission
+  case now reads the guide's bullet list, since the renderer has no tables.
+- **CI.** `ci.yml`'s change filter gains `docs/guides/**`.
+  `a-doc-a-test-reads-that-ci-skipped.unit.test.ts` now resolves a nested glob; before, it read
+  the glob's tail as a suffix of a file directly in `docs/`.
+- **D9.** On the appliance only, the `/docs` index ends with the pointer line, which links the
+  repository's `docs/`. `Docs.unit.test.tsx` checks both languages, on both editions.
+- **T2 (c).** The `{#own-app}` section is a `<details>`, with its heading kept outside so it can
+  still be linked. It reads `/api/provider-clients` under the wizard's query key
+  (`['provider-clients']`, same options). It is closed where the answer is `deployment` and open
+  otherwise, including while the answer is on its way and where none comes (the appliance). A
+  link to the section, or to a heading inside it, opens it. Box has none.
+- **Also.** `wizard.about.googleDrive.more` names *Test and save connections* / *Verbindingen
+  testen en bewaren* in place of the operator command. `Setup.tsx`'s full-guide link reads the
+  new slugs. `docs/i18n-prose-boundary.md` gains class 5, *Customer guides*. The glossary gains
+  three rows: guide, operator documents and own app. A link to `<slug>.md#<id>` keeps its
+  section.
+
+Guards first: on the code before this build, 34 cases failed (33 in the two web tests, one in
+the CI-filter guard). All pass now. Mutations each turned a case red: the fold never closing,
+the pointer line on managed, a link that does not open the fold, a `box-setup.md` dropped into
+`docs/guides/en/`, a guide missing `{#leaving}`, and a `.md#id` link losing its section.
+
+**Deviations.** English first, where T4 says Dutch first: the English is the split of the
+English files, and the Dutch is the next task. The operator documents keep their customer
+halves too. T1's table says what moves, and trimming them is left, since refusals, runbooks and
+guards cite their sections, so the two copies can drift until then. T4's Photos sentence was to
+differ by edition, on the ground that T3 hid the archive card on managed. D10 keeps the card, so
+the Google guide names the archive guide on both editions. The archive guide says where the
+export has to be (on the disk of the computer that runs the migrations; the card takes no upload
+yet), with no edition aside. The fold's summary is in the guide's language, not the reader's,
+since it sits inside the article. D9's line is the plan's wording less one word in each language
+(*Its* / *De*), for 0118's fifteen-word line. 0140 T4 names `docs/microsoft-setup.md` as the
+target of the o365 line. That file is now the operator document, so the line names the Microsoft
+guide. The lint's field-synonym case reads the English guides only, until T4's label guard
+replaces it.
+
 **2026-09-24, T6 (a) built.** The renderer's first half is built on branch
 `claude/ownpace-public-readiness-y7orc6-a-renderer-that-keeps-a-guides-shape`, merged in #1159.
 `Docs.tsx` is extended and no dependency is added (D6):
@@ -177,14 +264,14 @@ the owner announced for *Via IMAP* (D5).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
-| T1 A customer guide served, operator material left in `docs/` | 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
-| T2 No hint to create an app where the deployment carries one | 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
+| T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English** merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
+| T2 No hint to create an app where the deployment carries one | 🔨 **(c) built** merged in #1173 (2026-09-25); (a), (b) and (d) not started. 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) on branch `claude/ownpace-public-readiness-y7orc6-an-export-we-cannot-read-yet`; not merged — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
-| T8 The Microsoft app-registration recipe | 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
+| T8 The Microsoft app-registration recipe | 🔨 **(c) built** on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, not merged; the guide says the (a) and (b) recipe is being rewritten. 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today

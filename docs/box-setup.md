@@ -1,5 +1,7 @@
 # Box setup — the app, the authorization, the three values
 
+**Operator and self-host document.** The customer guide is [the Box guide](guides/en/box.md), served in the app at `/docs/box`.
+
 A Box migration authenticates with **your own Box platform app** using the
 **Client Credentials Grant** — client id + client secret, plus the numeric **user id** of
 the account being migrated (one subject per mapping).

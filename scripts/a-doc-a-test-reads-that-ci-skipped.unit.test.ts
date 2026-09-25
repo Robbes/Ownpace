@@ -13,10 +13,14 @@
  * that a test READS, which makes them code's business however much they look
  * like prose:
  *
- *   1. `docs/*-setup.md` — `end-user-docs.unit.test.tsx` reads them through the
- *      same `import.meta.glob` the customer-facing `/docs` page uses, and
+ *   1. The customer guides — `end-user-docs.unit.test.tsx` reads them through
+ *      the same `import.meta.glob` the customer-facing `/docs` page uses, and
  *      asserts they cite no workplan, no ADR and no edition aside, because a
- *      customer cannot open any of those.
+ *      customer cannot open any of those. They were `docs/*-setup.md` until
+ *      workplan 0148 T1 moved the customer half to `docs/guides/<locale>/`,
+ *      a folder below `docs/` that `docs/*.md` does not select: so the filter
+ *      names `docs/guides/**`, and the glob case below resolves a nested glob
+ *      instead of a suffix of a file directly in `docs/`.
  *   2. `docs/LESSONS.md` — `lessons.unit.test.ts` compares it against a fresh
  *      regeneration. It is build output; a stale copy is a red guard.
  *   3. `docs/adr/*.md` — `adr-operative.unit.test.ts` assembles `OPERATIVE.md`
@@ -99,8 +103,8 @@ function guideGlobsTheTestReads(): ReadonlyArray<string> {
     join(REPO_ROOT, 'apps/web/src/pages/end-user-docs.unit.test.tsx'),
     'utf8',
   );
-  // `import.meta.glob('../../../../docs/*-setup.md', …)` — captured from the
-  // call rather than restated, so a widened glob widens this test with it.
+  // `import.meta.glob('../../../../docs/guides/*/*.md', …)` — captured from
+  // the call rather than restated, so a widened glob widens this test with it.
   const globs = [...test.matchAll(/import\.meta\.glob\(\s*'([^']+)'/g)].map((m) => m[1]!);
   expect(
     globs.length,
@@ -124,6 +128,28 @@ function filterPatterns(): ReadonlyArray<string> {
   for (const line of lines) {
     if (!/^\s{12}\S/.test(line)) break;
     out.push(line.trim());
+  }
+  return out;
+}
+
+/**
+ * A Vite glob as a regular expression over repo-relative paths: `*` is one
+ * path segment's worth, `**` any number of folders. The two forms the web
+ * test's globs use, and nothing else a glob can say.
+ */
+function globRegExp(glob: string): RegExp {
+  const source = glob
+    .split('**/')
+    .map((part) => part.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*'))
+    .join('(?:[^/]+/)*');
+  return new RegExp(`^${source}$`);
+}
+
+/** Every file under a directory, by absolute path. */
+function filesUnder(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) filesUnder(join(dir, entry.name), out);
+    else out.push(join(dir, entry.name));
   }
   return out;
 }
@@ -382,6 +408,22 @@ describe('a document a test reads is not a docs-only change', () => {
     ).toEqual([]);
   });
 
+  it('resolves a glob the way the web test means it, folders included', () => {
+    // The control for the resolver below. It used to take the glob's tail as a
+    // SUFFIX of a file directly in docs/, which was right for `docs/*-setup.md`
+    // and matched nothing at all for `docs/guides/*/*.md` (workplan 0148 T1).
+    const re = globRegExp('docs/guides/*/*.md');
+    expect(re.test('docs/guides/en/box.md')).toBe(true);
+    expect(re.test('docs/guides/box.md')).toBe(false);
+    expect(re.test('docs/guides/en/sub/box.md')).toBe(false);
+    expect(re.test('docs/box-setup.md')).toBe(false);
+    const deep = globRegExp('docs/guides/**/*.md');
+    expect(deep.test('docs/guides/box.md')).toBe(true);
+    expect(deep.test('docs/guides/en/sub/box.md')).toBe(true);
+    expect(globRegExp('docs/*-setup.md').test('docs/box-setup.md')).toBe(true);
+    expect(globRegExp('docs/*-setup.md').test('docs/guides/en/box-setup.md')).toBe(false);
+  });
+
   it('every customer guide the web test globs is on a path CI runs tests for', () => {
     const patterns = filterPatterns();
     const globs = guideGlobsTheTestReads();
@@ -389,13 +431,12 @@ describe('a document a test reads is not a docs-only change', () => {
     // Resolve each glob to the documents that exist NOW: a rule about paths is
     // only worth as much as the files it currently selects, and a new guide
     // dropped into docs/ is exactly the case that must not slip through.
+    const docs = filesUnder(join(REPO_ROOT, 'docs')).map((f) => relative(REPO_ROOT, f));
     const guides = globs.flatMap((glob) => {
       const [, tail] = glob.split('docs/');
       expect(tail, `glob '${glob}' does not point into docs/ — this guard assumes it does`).toBeDefined();
-      const suffix = tail!.replace('*', '');
-      return readdirSync(join(REPO_ROOT, 'docs'))
-        .filter((f) => f.endsWith(suffix))
-        .map((f) => `docs/${f}`);
+      const re = globRegExp(`docs/${tail!}`);
+      return docs.filter((path) => re.test(path));
     });
 
     expect(guides.length, 'the glob matched no documents at all').toBeGreaterThan(0);

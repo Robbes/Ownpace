@@ -120,13 +120,15 @@ const StepRow: React.FC<{
 };
 
 /**
- * Which shipped guide covers this provider. The four Google source types share
- * one document, exactly as they share one setup profile.
+ * Which shipped guide covers this provider: one guide per family of cards
+ * (workplan 0148 T4's table). The Google source types share `google`, exactly
+ * as they share one setup profile, and the three Microsoft cards share
+ * `microsoft`. T4's card table replaces this with a `guide` on each card.
  */
 function guideSlug(provider: string): string {
-  if (provider.startsWith('google') || provider === 'gmail') return 'google-workspace-setup';
-  if (provider === 'oauth2' || provider === 'graph') return 'o365-setup';
-  return `${provider}-setup`;
+  if (provider.startsWith('google') || provider === 'gmail') return 'google';
+  if (provider === 'oauth2' || provider === 'graph' || provider === 'microsoft') return 'microsoft';
+  return provider;
 }
 
 /**
