@@ -39,6 +39,11 @@ export interface DropboxFileSourceConfig {
    * Where the migration is rooted. Unset or '' is the whole Dropbox; a path
    * ('/Administratie') scopes to that folder — the natural keys are RELATIVE
    * to it, so the same tree lands the same way whichever root carried it.
+   *
+   * 'Dropbox' (any case, with or without a leading slash) also means the
+   * whole account: the folder the web view and the desktop client call
+   * "Dropbox" IS the API root, not a folder inside it, so '/Dropbox' as a
+   * literal path 409s with path/not_found on every listing.
    */
   readonly rootPath?: string;
   /** RPC endpoint base. Overridable for a test; unset means Dropbox's. */
