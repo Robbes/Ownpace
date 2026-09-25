@@ -13,6 +13,22 @@
  * its connector is how a customer follows five correct steps and one that
  * stopped being true two releases ago.
  *
+ * WHICH DOCUMENTS (workplan 0148 T1, the owner's D1). What this page serves is
+ * the customer guide, `docs/guides/<locale>/<slug>.md`: written for the person
+ * who connects an account, in the language they read. The `docs/*-setup.md`
+ * files it served until then keep their names and are the operator and
+ * self-host documents, which are not served; on the appliance the index ends
+ * with one line pointing to them (D9). `/docs/<slug>` opens the reader's
+ * language, or the other one under a line saying so (T4's "Which language").
+ *
+ * THE OWN-APP SECTION (T2 (c)). The Google, Dropbox and Microsoft guides each
+ * have a section `{#own-app}` with the steps to create an app of one's own. It
+ * renders as a `<details>`: closed where `/api/provider-clients` says this
+ * deployment carries that provider's app, open otherwise, the way the wizard
+ * folds its client pair. It reads that fact under the wizard's own query key,
+ * and never the edition's name; the appliance serves no such route, so there
+ * the section stays open, as its steps are the appliance's to take.
+ *
  * The renderer below is deliberately small, and extended rather than replaced
  * by a library (workplan 0148 D6): the guides are ours and short. It takes
  * headings (an `<h2>`–`<h4>` each, with an id from a trailing `{#id}` or else
@@ -21,34 +37,79 @@
  * the tab and scrolls to its heading), code and bold spans with links inside
  * them, and paragraphs. Tables, blockquotes, a list item's continuation lines
  * and a fence indented inside a list are 0148 T6 (b), after the first
- * invitation. Today's guides still contain all four, and they render as plain
- * paragraphs; a new guide is written without them until then. Anything the
- * renderer does not understand renders as its own text rather than
- * disappearing, which is the right failure for a document.
+ * invitation; a guide is written without them until then, and
+ * `Docs.unit.test.tsx` fails when one is used. Anything the renderer does not
+ * understand renders as its own text rather than disappearing, which is the
+ * right failure for a document.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router';
-import { useT } from '../i18n/index.tsx';
+import { useQuery } from '@tanstack/react-query';
+import { GRANT_PROVIDERS, type GrantProvider } from '@openmig/shared';
+import { useLocale } from '../i18n/index.tsx';
+import { STRINGS, LOCALES, type Locale } from '../i18n/strings.ts';
+import { providerClientsApi } from '../services/mapping-service.ts';
+import { isSelfHost } from '../services/edition.ts';
 
-/** Every guide in the repo's docs/ directory, inlined at build time. */
-const GUIDES = import.meta.glob('../../../../docs/*-setup.md', {
+/** Every customer guide, `docs/guides/<locale>/<slug>.md`, inlined at build time. */
+const GUIDES = import.meta.glob('../../../../docs/guides/*/*.md', {
   query: '?raw',
   import: 'default',
   eager: true,
 }) as Record<string, string>;
 
-/** `…/docs/box-setup.md` → `box-setup`. */
+/** `…/docs/guides/en/box.md` → `box`; `box.md#connect` → `box`. */
 function slugOf(path: string): string {
-  return path.split('/').pop()!.replace(/\.md$/, '');
+  return path.split('#')[0]!.split('/').pop()!.replace(/\.md$/, '');
 }
 
-const BY_SLUG: Record<string, string> = Object.fromEntries(
-  Object.entries(GUIDES).map(([path, body]) => [slugOf(path), body]),
+/** The guides by language, then by slug. A `Map`, so no slug is an object's own property. */
+export type GuideLibrary = Record<Locale, ReadonlyMap<string, string>>;
+
+/** One language's guides: the files in `docs/guides/<locale>/`. */
+function guidesIn(locale: Locale): ReadonlyMap<string, string> {
+  return new Map(
+    Object.entries(GUIDES)
+      .filter(([path]) => path.split('/').slice(-2)[0] === locale)
+      .map(([path, body]) => [slugOf(path), body]),
+  );
+}
+
+const LIBRARY: GuideLibrary = { en: guidesIn('en'), nl: guidesIn('nl') };
+
+/** The guides this build ships, by slug, in any language — for links elsewhere that must not 404. */
+export const GUIDE_SLUGS: ReadonlySet<string> = new Set(
+  LOCALES.flatMap((locale) => [...LIBRARY[locale].keys()]),
 );
 
-/** The guides this build ships, by slug — for links elsewhere that must not 404. */
-export const GUIDE_SLUGS: ReadonlySet<string> = new Set(Object.keys(BY_SLUG));
+/** A guide as the page shows it: its text, the language it is in, and whether that is not the reader's. */
+export interface PickedGuide {
+  body: string;
+  lang: Locale;
+  otherLanguage: boolean;
+}
+
+/**
+ * The guide in the reader's language, or else in the other one, marked as
+ * such (0148 T4). Undefined when neither language has it.
+ */
+export function pickGuide(library: GuideLibrary, slug: string, locale: Locale): PickedGuide | undefined {
+  const own = library[locale].get(slug);
+  if (own !== undefined) return { body: own, lang: locale, otherLanguage: false };
+  for (const other of LOCALES) {
+    if (other === locale) continue;
+    const body = library[other].get(slug);
+    if (body !== undefined) return { body, lang: other, otherLanguage: true };
+  }
+  return undefined;
+}
+
+/**
+ * Where the operator and self-host documents are: the repository's `docs/`,
+ * public on GitHub. The appliance's index links it (0148 D9).
+ */
+const OPERATOR_DOCS_URL = 'https://github.com/Robbes/Ownpace/tree/main/docs';
 
 /** Inline spans: `code`, **bold**, [text](href). Escapes nothing else. */
 const Inline: React.FC<{ text: string }> = ({ text }) => {
@@ -83,9 +144,11 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
             {label}
           </Link>,
         );
-      } else if (href.startsWith('docs/') || href.endsWith('.md')) {
+      } else if (href.startsWith('docs/') || /\.md(#|$)/.test(href)) {
+        // Another guide, by its file name: `microsoft.md`, or `microsoft.md#own-app`.
+        const hash = href.includes('#') ? href.slice(href.indexOf('#')) : '';
         parts.push(
-          <Link key={key++} to={`/docs/${slugOf(href)}`} className="text-blue-700 hover:underline">
+          <Link key={key++} to={`/docs/${slugOf(href)}${hash}`} className="text-blue-700 hover:underline">
             {label}
           </Link>,
         );
@@ -108,14 +171,6 @@ const Inline: React.FC<{ text: string }> = ({ text }) => {
   if (last < text.length) parts.push(text.slice(last));
   return <>{parts}</>;
 };
-
-/**
- * The language the served guides are written in, set as `lang` on what shows
- * their text, so a Dutch page does not read an English guide under
- * `lang="nl"`. Every guide served today is English; workplan 0148 T4 serves
- * `docs/guides/<locale>/` and picks this per guide.
- */
-const GUIDE_LANG = 'en';
 
 /** Inline markdown reduced to the words a reader sees: for a title or a slug. */
 function plainText(markdown: string): string {
@@ -250,10 +305,6 @@ export function guideTitle(body: string, slug: string): string {
   return (first && plainText(first.text)) || slug;
 }
 
-const TITLES: Record<string, string> = Object.fromEntries(
-  Object.entries(BY_SLUG).map(([slug, body]) => [slug, guideTitle(body, slug)]),
-);
-
 /**
  * A guide's `#` is the page's `<h2>`: the layout's `<h1>` names the screen.
  * `###` and `####` both land on `<h4>`, the deepest level a guide has.
@@ -263,69 +314,145 @@ const TITLES: Record<string, string> = Object.fromEntries(
 const HEADING_TAG = { 1: 'h2', 2: 'h3', 3: 'h4', 4: 'h4' } as const;
 const HEADING_SIZE = { 1: 'text-xl', 2: 'text-lg', 3: 'text-base', 4: 'text-base' } as const;
 
-const Markdown: React.FC<{ body: string }> = ({ body }) => (
-  <>
-    {parseGuide(body).map((block, key) => {
-      switch (block.kind) {
-        case 'fence':
-          return (
-            <pre key={key} className="my-3 p-3 bg-gray-900 text-gray-100 rounded overflow-x-auto text-xs">
-              <code>{block.code}</code>
-            </pre>
-          );
-        case 'indented':
-          return (
-            <pre key={key} className="my-3 p-3 bg-gray-100 rounded overflow-x-auto text-xs">
-              <code>{block.code}</code>
-            </pre>
-          );
-        case 'heading': {
-          const depth = block.depth as keyof typeof HEADING_TAG;
-          const Tag = HEADING_TAG[depth];
-          return (
-            <Tag
-              key={key}
-              id={block.id}
-              className={`${HEADING_SIZE[depth]} font-semibold text-gray-900 mt-5 mb-2 scroll-mt-20`}
-            >
-              <Inline text={block.text} />
-            </Tag>
-          );
-        }
-        case 'bullets':
-          return (
-            <ul key={key} className="my-2 list-disc pl-6 space-y-1 text-gray-700">
-              {block.items.map((item, n) => (
-                <li key={n}>
-                  <Inline text={item} />
-                </li>
-              ))}
-            </ul>
-          );
-        case 'steps':
-          return (
-            <ol
-              key={key}
-              start={block.start === 1 ? undefined : block.start}
-              className="my-2 list-decimal pl-6 space-y-1 text-gray-700"
-            >
-              {block.items.map((item, n) => (
-                <li key={n}>
-                  <Inline text={item} />
-                </li>
-              ))}
-            </ol>
-          );
-        case 'paragraph':
-          return (
-            <p key={key} className="my-2 text-gray-700 leading-relaxed">
-              <Inline text={block.text} />
-            </p>
-          );
+/** The section id 0148 T2 (c) folds: the steps to create an app of one's own. */
+const OWN_APP_ID = 'own-app';
+
+/** One block, as the page shows it. */
+const BlockView: React.FC<{ block: Block }> = ({ block }) => {
+  switch (block.kind) {
+    case 'fence':
+      return (
+        <pre className="my-3 p-3 bg-gray-900 text-gray-100 rounded overflow-x-auto text-xs">
+          <code>{block.code}</code>
+        </pre>
+      );
+    case 'indented':
+      return (
+        <pre className="my-3 p-3 bg-gray-100 rounded overflow-x-auto text-xs">
+          <code>{block.code}</code>
+        </pre>
+      );
+    case 'heading': {
+      const depth = block.depth as keyof typeof HEADING_TAG;
+      const Tag = HEADING_TAG[depth];
+      return (
+        <Tag id={block.id} className={`${HEADING_SIZE[depth]} font-semibold text-gray-900 mt-5 mb-2 scroll-mt-20`}>
+          <Inline text={block.text} />
+        </Tag>
+      );
+    }
+    case 'bullets':
+      return (
+        <ul className="my-2 list-disc pl-6 space-y-1 text-gray-700">
+          {block.items.map((item, n) => (
+            <li key={n}>
+              <Inline text={item} />
+            </li>
+          ))}
+        </ul>
+      );
+    case 'steps':
+      return (
+        <ol
+          start={block.start === 1 ? undefined : block.start}
+          className="my-2 list-decimal pl-6 space-y-1 text-gray-700"
+        >
+          {block.items.map((item, n) => (
+            <li key={n}>
+              <Inline text={item} />
+            </li>
+          ))}
+        </ol>
+      );
+    case 'paragraph':
+      return (
+        <p className="my-2 text-gray-700 leading-relaxed">
+          <Inline text={block.text} />
+        </p>
+      );
+  }
+};
+
+/**
+ * The own-app section's body, folded (0148 T2 (c)). Closed where this
+ * deployment carries the provider's app, open otherwise, and opened whenever
+ * the address names the section or a heading inside it, so a link to the
+ * redirect-address step never lands on a closed fold. A reader's own toggle
+ * holds until one of those changes.
+ */
+const OwnAppFold: React.FC<{
+  folded: boolean;
+  /** The address names the section, or a heading inside it. */
+  named: boolean;
+  /** The location's key, so a second press of the same link opens it again. */
+  visit: string;
+  summary: string;
+  children: React.ReactNode;
+}> = ({ folded, named, visit, summary, children }) => {
+  const [open, setOpen] = useState(!folded || named);
+  // Adjusted during render rather than in an effect, so the fold is open in
+  // the same commit that `GuideArticle` scrolls to the heading inside it.
+  const [seen, setSeen] = useState({ folded, named, visit });
+  if (seen.folded !== folded || seen.named !== named || seen.visit !== visit) {
+    setSeen({ folded, named, visit });
+    if (named) setOpen(true);
+    else if (seen.folded !== folded) setOpen(!folded);
+  }
+  return (
+    <details
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      className="my-2 border-l-2 border-gray-200 pl-4"
+    >
+      <summary className="cursor-pointer text-sm text-blue-700 hover:underline">{summary}</summary>
+      {children}
+    </details>
+  );
+};
+
+const Markdown: React.FC<{
+  body: string;
+  lang: Locale;
+  ownAppFolded: boolean;
+  /** The id the address names, if any. */
+  target: string;
+  visit: string;
+}> = ({ body, lang, ownAppFolded, target, visit }) => {
+  const blocks = parseGuide(body);
+  const out: React.ReactNode[] = [];
+  for (let i = 0; i < blocks.length; i += 1) {
+    const block = blocks[i]!;
+    out.push(<BlockView key={i} block={block} />);
+    if (block.kind !== 'heading' || block.id !== OWN_APP_ID) continue;
+
+    // Everything under the own-app heading, to the next heading of its level
+    // or above, folds. The heading stays outside, so it can still be linked.
+    const inside: React.ReactNode[] = [];
+    const ids = new Set([block.id]);
+    let j = i + 1;
+    for (; j < blocks.length; j += 1) {
+      const next = blocks[j]!;
+      if (next.kind === 'heading') {
+        if (next.depth <= block.depth) break;
+        ids.add(next.id);
       }
-    })}
-  </>
-);
+      inside.push(<BlockView key={j} block={next} />);
+    }
+    out.push(
+      <OwnAppFold
+        key={`fold-${i}`}
+        folded={ownAppFolded}
+        named={ids.has(target)}
+        visit={visit}
+        summary={STRINGS[lang]['docs.ownAppFold']}
+      >
+        {inside}
+      </OwnAppFold>,
+    );
+    i = j - 1;
+  }
+  return <>{out}</>;
+};
 
 /** The id a location's hash names; a hash that is not valid percent-encoding is taken as written. */
 function idFromHash(hash: string): string {
@@ -344,8 +471,15 @@ function idFromHash(hash: string): string {
  * does not scroll by itself, and on a first load the browser looks for the id
  * before the guide has rendered. `key` is in the dependencies so a second
  * click on the same link scrolls again.
+ *
+ * `ownAppFolded` closes the `{#own-app}` section where this deployment
+ * carries the provider's app (0148 T2 (c)).
  */
-export const GuideArticle: React.FC<{ body: string }> = ({ body }) => {
+export const GuideArticle: React.FC<{ body: string; lang: Locale; ownAppFolded?: boolean }> = ({
+  body,
+  lang,
+  ownAppFolded = false,
+}) => {
   const { hash, key } = useLocation();
   useEffect(() => {
     if (!hash) return;
@@ -353,48 +487,87 @@ export const GuideArticle: React.FC<{ body: string }> = ({ body }) => {
   }, [hash, key, body]);
 
   return (
-    <article lang={GUIDE_LANG} className="mt-2">
-      <Markdown body={body} />
+    <article lang={lang} className="mt-2">
+      <Markdown
+        body={body}
+        lang={lang}
+        ownAppFolded={ownAppFolded}
+        target={hash ? idFromHash(hash) : ''}
+        visit={key}
+      />
     </article>
   );
 };
 
-/** Every served guide by its title, in a stable order: the index, and the not-found page. */
-const GuideList: React.FC<{ className: string }> = ({ className }) => (
+/**
+ * Every served guide by its title, in the reader's language or the one it
+ * falls back to, in a stable order: the index, and the not-found page.
+ */
+const GuideList: React.FC<{ className: string; locale: Locale }> = ({ className, locale }) => (
   <ul className={className}>
-    {Object.keys(BY_SLUG)
-      .sort()
-      .map((s) => (
+    {[...GUIDE_SLUGS].sort().map((s) => {
+      const picked = pickGuide(LIBRARY, s, locale)!;
+      return (
         <li key={s}>
-          <Link to={`/docs/${s}`} lang={GUIDE_LANG} className="text-blue-700 hover:underline">
-            {TITLES[s]}
+          <Link to={`/docs/${s}`} lang={picked.lang} className="text-blue-700 hover:underline">
+            {guideTitle(picked.body, s)}
           </Link>
         </li>
-      ))}
+      );
+    })}
   </ul>
 );
 
+/** The provider a guide's own-app section is about: its slug, where that names one. */
+function grantProviderOf(slug: string | undefined): GrantProvider | undefined {
+  return (GRANT_PROVIDERS as readonly string[]).includes(slug ?? '') ? (slug as GrantProvider) : undefined;
+}
+
 const Docs: React.FC = () => {
-  const t = useT();
+  const { locale, t } = useLocale();
   const { slug } = useParams<{ slug: string }>();
-  const body = slug ? BY_SLUG[slug] : undefined;
+  const picked = slug ? pickGuide(LIBRARY, slug, locale) : undefined;
+
+  // Does this deployment carry that provider's app? The fact the wizard and
+  // the consent panel read, under their query key, so the three screens share
+  // one answer. Until it arrives, and where it never does (the appliance
+  // serves no such route), the section stays open: the direction that cannot
+  // hide a step somebody needs.
+  const provider = picked ? grantProviderOf(slug) : undefined;
+  const { data: providerClients } = useQuery({
+    queryKey: ['provider-clients'],
+    queryFn: providerClientsApi.get,
+    retry: false,
+    staleTime: Infinity,
+    enabled: provider !== undefined,
+  });
+  const ownAppFolded = provider !== undefined && providerClients?.[provider] === 'deployment';
 
   if (!slug) {
     return (
       <div className="p-6 max-w-3xl">
         <h2 className="text-xl font-semibold text-gray-900">{t('docs.title')}</h2>
-        <GuideList className="mt-4 space-y-2" />
+        <GuideList className="mt-4 space-y-2" locale={locale} />
+        {isSelfHost() && (
+          // Only the appliance: its owner also runs it, and what this page
+          // stopped serving in 0148 T1 is theirs (D9).
+          <p className="mt-6 text-sm text-gray-600">
+            <a href={OPERATOR_DOCS_URL} target="_blank" rel="noreferrer noopener" className="text-blue-700 hover:underline">
+              {t('docs.operatorDocs')}
+            </a>
+          </p>
+        )}
       </div>
     );
   }
 
-  if (!body) {
+  if (!picked) {
     // Naming what DOES exist beats a bare 404 when somebody followed a stale
     // reference from a refusal message.
     return (
       <div className="p-6 max-w-3xl">
         <p className="text-gray-700">{t('docs.notFound')}</p>
-        <GuideList className="mt-3 space-y-2" />
+        <GuideList className="mt-3 space-y-2" locale={locale} />
       </div>
     );
   }
@@ -404,7 +577,13 @@ const Docs: React.FC = () => {
       <Link to="/docs" className="text-sm text-blue-700 hover:underline">
         {t('docs.all')}
       </Link>
-      <GuideArticle body={body} />
+      {picked.otherLanguage && (
+        // In the reader's language, about the guide below, which is not.
+        <p lang={locale} className="mt-3 p-3 rounded bg-amber-50 text-sm text-amber-900">
+          {t('docs.otherLanguage')}
+        </p>
+      )}
+      <GuideArticle body={picked.body} lang={picked.lang} ownAppFolded={ownAppFolded} />
     </div>
   );
 };
