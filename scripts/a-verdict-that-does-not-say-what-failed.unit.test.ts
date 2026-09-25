@@ -247,9 +247,40 @@ describe('what the gate could not prove is printed beside the verdict', () => {
     expect(out.indexOf('what failed:')).toBeGreaterThan(gapAt);
   });
 
-  it('the archive section records its gap through it, not with a bare echo', () => {
+  // REWRITTEN ON PURPOSE by 0148 T9. This asked that the archive section
+  // record its gap through `not_proven`; T9 closed the gap, so the section now
+  // proves the reader again instead — and a `not_proven` left there would be a
+  // gap reported beside a proof that was made.
+  it('the archive section no longer records a gap: it reads the export from the destination', () => {
     const section = smoke.slice(smoke.indexOf('note "the export archive"'));
     const next = section.indexOf('\nreport_json ');
-    expect(code(section.slice(0, next)).some((l) => /^\s*not_proven\s+"/.test(l))).toBe(true);
+    const lines = code(section.slice(0, next));
+    expect(lines.some((l) => /^\s*not_proven\s+"/.test(l)), 'a gap is still recorded').toBe(false);
+    expect(lines.some((l) => l.includes('where:"target"')), 'no archive posted with where "target"').toBe(true);
+    // And a gap closed is a failure again when it breaks, never a skip.
+    expect(lines.some((l) => /fail_at "the archive's preflight/.test(l))).toBe(true);
+  });
+
+  // THIS RUN'S ROWS, found through THIS RUN'S MIGRATION (0148 T9 review; the
+  // lesson of a-person-opened-in-the-wrong-organisation). A display name is
+  // shared by every run that left its row behind, so a lookup by it reads, or
+  // deletes, whichever row Postgres returns first. From the in-destination
+  // half on: the half before it COUNTS rows by name before and after a
+  // refusal, and a row left by another run is in both counts.
+  it('the archive section finds its source connection through its own migration, never by name', () => {
+    const start = smoke.indexOf('ARCHIVE_TAG="');
+    expect(start, 'the in-destination half of the archive section is gone').toBeGreaterThan(
+      smoke.indexOf('note "the export archive"'),
+    );
+    const section = smoke.slice(start);
+    const lines = code(section.slice(0, section.indexOf('\nreport_json ')));
+    expect(
+      lines.filter((l) => /display_name\s*=/.test(l)),
+      'a row of this section is looked up by its display name',
+    ).toEqual([]);
+    expect(
+      lines.some((l) => l.includes('source_mailbox_id') && l.includes('$archive_mapping_id')),
+      'the source connection is not read through the migration just created',
+    ).toBe(true);
   });
 });

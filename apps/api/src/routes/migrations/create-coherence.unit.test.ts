@@ -15,7 +15,7 @@
  * throws in the per-domain factories at build time, and an invalid cron
  * throws in croner at scheduler registration.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { CreateMappingSchema, sourceConfigOverride } from './index.ts';
 
 function body(over: Record<string, unknown> = {}) {
@@ -715,6 +715,80 @@ describe('a nextcloud target is reached at its base URL (2026-09-07)', () => {
       const message = parsed.error?.issues.map((i) => i.message).join(' ') ?? '';
       expect(message, targetType).toContain('targetConfig.host');
       expect(message, targetType).toContain('targetConfig.port');
+    }
+  });
+});
+
+/**
+ * NO "YOUR OWN" WHERE THE DEPLOYMENT CARRIES THE APP (workplan 0148 T2 (d),
+ * owner decision D2).
+ *
+ * With the deployment's Google client or Dropbox app configured, the door
+ * asks only for the refresh token — and its refusal still opened "authenticates
+ * with your own Google Cloud OAuth client", telling a tester on managed to go
+ * and create what the service already has. The refusal branches on the same
+ * fact now (`providerClientFacts()`), names the token and the button, and
+ * stays English, as a refusal is (i18n boundary, refusal class). The cases
+ * above are the other branch: no deployment app, today's sentences.
+ */
+describe("the refusals where this service carries the provider's app (0148 T2 (d))", () => {
+  const DEPLOYMENT = {
+    GOOGLE_OAUTH_CLIENT_ID: 'deployment.apps.googleusercontent.com',
+    GOOGLE_OAUTH_CLIENT_SECRET: 'deployment-google-secret',
+    DROPBOX_OAUTH_CLIENT_ID: 'deployment-app-key',
+    DROPBOX_OAUTH_CLIENT_SECRET: 'deployment-app-secret',
+  };
+  const WATCHED = Object.keys(DEPLOYMENT) as Array<keyof typeof DEPLOYMENT>;
+  const before = Object.fromEntries(WATCHED.map((k) => [k, process.env[k]]));
+  beforeEach(() => {
+    Object.assign(process.env, DEPLOYMENT);
+  });
+  afterEach(() => {
+    for (const k of WATCHED) {
+      if (before[k] === undefined) delete process.env[k];
+      else process.env[k] = before[k];
+    }
+  });
+
+  /** A create that is missing only the refresh token, the pair left to the deployment. */
+  const onlyTokenMissing = (sourceType: string, targetType: string, domains: string[]) =>
+    body({
+      sourceType,
+      targetType,
+      sourceConfig: { username: 'owner@example.nl' },
+      syncConfig: { domains },
+    });
+
+  const cases: ReadonlyArray<[string, string, string[], 'Google' | 'Dropbox']> = [
+    ['google-drive', 'webdav', ['file'], 'Google'],
+    ['gmail', 'jmap', ['email'], 'Google'],
+    ['google-calendar', 'caldav', ['calendar'], 'Google'],
+    ['google-contacts', 'carddav', ['contact'], 'Google'],
+    ['google', 'caldav', ['calendar'], 'Google'],
+    ['dropbox', 'webdav', ['file'], 'Dropbox'],
+  ];
+
+  for (const [sourceType, targetType, domains, provider] of cases) {
+    it(`a '${sourceType}' create missing only the refresh token is refused without "your own"`, () => {
+      const msg = refusalText(onlyTokenMissing(sourceType, targetType, domains));
+      expect(msg).toContain('refreshToken');
+      expect(msg).not.toMatch(/your own/i);
+      expect(msg).toContain(`this service has its own ${provider} app`);
+      expect(msg).toContain(`Connect with ${provider}`);
+      // Never a value from the environment.
+      expect(msg).not.toContain('deployment-');
+    });
+  }
+
+  it('asks for nothing else: the token alone completes the create', () => {
+    for (const [sourceType, targetType, domains] of cases) {
+      const ok = body({
+        sourceType,
+        targetType,
+        sourceConfig: { username: 'owner@example.nl', refreshToken: 'rt' },
+        syncConfig: { domains },
+      });
+      expect(CreateMappingSchema.safeParse(ok).success, sourceType).toBe(true);
     }
   });
 });

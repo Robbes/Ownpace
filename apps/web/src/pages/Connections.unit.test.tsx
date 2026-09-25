@@ -655,8 +655,11 @@ describe('adding a connection through the front door', () => {
     expect([...which.options].map((o) => o.textContent)).toContain('Google Takeout');
 
     fireEvent.change(which, { target: { value: 'google-takeout' } });
-    fireEvent.change(screen.getByLabelText(/^Where the archive is/), {
-      target: { value: '/srv/exports/takeout-20260904' },
+    // A managed build, where the export is in a folder of the destination's
+    // files unless somebody says otherwise (0148 T9) — so the path is asked for
+    // as that folder, and the store is posted with it.
+    fireEvent.change(screen.getByLabelText(/^Folder in your destination's files/), {
+      target: { value: 'Exports/takeout-20260904' },
     });
     fireEvent.change(screen.getByLabelText(/^Connection name/), { target: { value: 'my photos' } });
     add.mockResolvedValue({ ok: true });
@@ -666,7 +669,7 @@ describe('adding a connection through the front door', () => {
       role: 'source',
       type: 'archive',
       displayName: 'my photos',
-      values: { provider: 'google-takeout', path: '/srv/exports/takeout-20260904' },
+      values: { provider: 'google-takeout', path: 'Exports/takeout-20260904', where: 'target' },
     });
   });
 

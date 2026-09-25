@@ -35,7 +35,11 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { resolveMicrosoftClient, microsoftTenant } from '@openmig/shared';
+import {
+  microsoftDeploymentClient,
+  resolveMicrosoftClient,
+  microsoftTenant,
+} from '@openmig/shared';
 import {
   callbackPageHeaders,
   consentResultPage,
@@ -133,6 +137,18 @@ router.post('/microsoft/authorize', authenticate, (req: AuthenticatedRequest, re
   });
 });
 
+/**
+ * WHOSE registration a consent used (workplan 0148 T2 (d)). The start route
+ * decided it (`resolveMicrosoftClient`: a pair the caller sent wins, the
+ * deployment's answers otherwise) and the flow carried that client id here.
+ * An Entra refusal about the deployment's own registration is worded for a
+ * tester who can change none of its settings; one about a registration the
+ * person typed in tells them which setting to change.
+ */
+function whoseRegistration(clientId: string): 'deployment' | 'connection' {
+  return clientId === microsoftDeploymentClient()?.clientId ? 'deployment' : 'connection';
+}
+
 router.get('/microsoft/callback', async (req: Request, res: Response) => {
   const page = (status: number, html: string) =>
     void res
@@ -160,7 +176,7 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
     // does not allow user consent at all. Rendering the raw code alone would
     // send them searching for it (0114 T6's treatment, and #722's for
     // Google's accessNotConfigured).
-    const sentence = microsoftConsentRefusal(description);
+    const sentence = microsoftConsentRefusal(description, whoseRegistration(pending.clientId));
     return refuse(
       200,
       sentence ??
@@ -177,6 +193,7 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
     // The authority the authorize half used — see the header. Never recomputed.
     tenant: pending.tenant ?? microsoftTenant(),
     redirectUri: pending.redirectUri,
+    whose: whoseRegistration(pending.clientId),
   });
   page(
     outcome.ok ? 200 : 400,

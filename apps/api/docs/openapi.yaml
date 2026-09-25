@@ -1831,6 +1831,11 @@ paths:
             machine — for a new connection, or in a reused one's override —
             refused before anything is stored. That refusal also carries
             `fields: [path]` and `reason`, the same sentence as `message`.
+            An archive whose `sourceConfig.where` is `target` (workplan 0148
+            T9) is read from a folder of the destination's own files, so a
+            destination that cannot serve it is refused at `targetType`: JMAP,
+            which has no byte ranges, and every destination with no files.
+            Only `webdav` and `nextcloud` qualify.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

@@ -36,7 +36,12 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseArchiveSource, ConfigError, ARCHIVE_WHERE } from '@openmig/shared';
+import {
+  parseArchiveSource,
+  ConfigError,
+  ARCHIVE_WHERE,
+  archiveInJmapTargetSentence,
+} from '@openmig/shared';
 import { localStore, type ArchiveStore } from '@openmig/connectors';
 import { probeSourceConnection } from './probe-connection.ts';
 import { qualifyArchive } from './account-qualification.ts';
@@ -201,6 +206,9 @@ describe('a file target, whatever is behind it', () => {
     // Not the export's fault, and both ways forward named.
     expect(said).toContain('Nothing is wrong with the export');
     expect(said).toContain('WebDAV');
+    // And it is the sentence the create door refuses a JMAP destination with
+    // (0148 T9): one sentence, in shared, whichever of the two meets it first.
+    expect(said).toContain(archiveInJmapTargetSentence('fastmail'));
   });
 });
 
