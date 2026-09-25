@@ -4,6 +4,12 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build: T8 (a) and T9 (a), the labels, built with 0131 T2 (a) on branch
+`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.** The Box and Apple account cards carry *Experimental* / *Experimenteel* at
+both doors, with the why folded beside the card; so do the Dropbox card and every face of the
+Microsoft 365 account. The rest of T8, the hint's and `docs/box-setup.md`'s sentences, is not
+built.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
 every provider an alpha tester connects puts a consent screen or a password between the tester
 and the first pass, and that each one has a limit the alpha runs into. Google's client is in
@@ -69,8 +75,8 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 | T5 Microsoft publisher verification | ⏳ **Owner** (Partner Center), recommended to start now (D2) | §4. It has a lead time, and an organisation's consent policy may depend on it. |
 | T6 One foreign organisation and one personal account, before the first Microsoft tester | 📋 **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. |
 | T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 📋 **Proposed** (D3) | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
-| T8 Box: experimental, and for organisations with a Box administrator | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
-| T9 Apple: experimental, with the password's own steps | 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
+| T8 Box: experimental, and for organisations with a Box administrator | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
+| T9 Apple: experimental, with the password's own steps | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
 | T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |
 | T11 Live's own Google client, and live's addresses at Microsoft and Dropbox | ⏳ **Owner** (0132 D7, D5), before T0 | §3. A new Google client for live, with its own secret and live's consent address, `https://app.ownpace.eu/api/migrations/google/callback`. Live's sign-in address, `https://id.ownpace.eu/ui/login/login/externalidp/callback`, is added only if T10 keeps a Google sign-in, and then recorded in ADR-0041, whose decision gives production exactly one redirect URI (T10). The test client holds the OTA stack's two and no production address (D5; corrected 2026-09-24, §1). Its project: the test client's is enough while live stays in Testing; a project of its own if live leaves Testing (T1, open question 7). Microsoft and Dropbox get live's two callbacks. Whether they get registrations of their own is open question 8. |
 

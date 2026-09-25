@@ -31,6 +31,7 @@ import {
   PgPathLifecycleStore,
   SLOTLESS_STATES,
   SLOT_HOLDING_STATES,
+  STATES_A_STOP_RELEASES,
   holdsASlot,
 } from './path-lifecycle-store.ts';
 import type { MappingId, TenantId } from '@openmig/shared';
@@ -133,16 +134,29 @@ describe('what holds a slot', () => {
     // ADR-0014's rule, and `paused` is the one that surprises people: pausing
     // does not reduce a bill, finishing does. A calculator that "helpfully"
     // freed a paused slot would undercharge silently, forever.
-    expect(holdsASlot('active')).toBe(true);
-    expect(holdsASlot('paused')).toBe(true);
-    expect(holdsASlot('ready')).toBe(false);
-    expect(holdsASlot('cutover')).toBe(false);
-    expect(holdsASlot('done')).toBe(false);
+    expect(holdsASlot('active', false)).toBe(true);
+    expect(holdsASlot('paused', false)).toBe(true);
+    expect(holdsASlot('ready', false)).toBe(false);
+    expect(holdsASlot('cutover', false)).toBe(false);
+    expect(holdsASlot('done', false)).toBe(false);
+  });
+
+  it('a stop keeps its slot before the cutover, and releases it in the lane (D2 (c))', () => {
+    // The owner's call, 2026-09-24. Before cutover a stop is usually short,
+    // like a pause, and keeps its slot. In the lane it is usually for good,
+    // and billing it for as long as the rest flows would charge for nothing.
+    expect(holdsASlot('active', true)).toBe(true);
+    expect(holdsASlot('paused', true)).toBe(true);
+    expect(holdsASlot('continuous', false)).toBe(true);
+    expect(holdsASlot('continuous', true)).toBe(false);
+    // A stop never takes a slot a state does not hold.
+    for (const state of SLOTLESS_STATES) expect(holdsASlot(state, true)).toBe(false);
+    expect([...STATES_A_STOP_RELEASES]).toEqual(['continuous']);
   });
 
   it('the slotless list is derived, so the two cannot disagree', () => {
-    expect([...SLOTLESS_STATES]).toEqual(PATH_STATES.filter((s) => !holdsASlot(s)));
-    expect([...SLOT_HOLDING_STATES]).toEqual(PATH_STATES.filter(holdsASlot));
+    expect([...SLOTLESS_STATES]).toEqual(PATH_STATES.filter((s) => !holdsASlot(s, false)));
+    expect([...SLOT_HOLDING_STATES]).toEqual(PATH_STATES.filter((s) => holdsASlot(s, false)));
     // Exhaustive and disjoint: every state is on exactly one side, so a sixth
     // cannot be silently slotless.
     expect([...SLOT_HOLDING_STATES, ...SLOTLESS_STATES].sort()).toEqual([...PATH_STATES].sort());
@@ -178,6 +192,85 @@ describe('what holds a slot', () => {
       // One ended, one still reserved.
       expect(await s.slotsHeld(TENANT)).toBe(1);
     });
+  });
+});
+
+describe('the count, over every state a path can be in, stopped or not (0128 T4)', () => {
+  /** Stop, or resume, one path by hand: nothing else writes `stopped_at` yet. */
+  const stop = (domain: string, stopped: boolean) =>
+    withTenant(driver, TENANT, (db) =>
+      db.execute(
+        sql`UPDATE path_lifecycle SET stopped_at = ${stopped ? sql`now()` : sql`NULL`}
+             WHERE mapping_id = ${MAPPING} AND domain = ${domain}`,
+      ),
+    );
+
+  it('is holdsASlot, path by path, for every state and both answers of a stop', async () => {
+    for (const state of PATH_STATES) {
+      for (const stopped of [false, true]) {
+        await withTenant(driver, TENANT, async (db) => {
+          const s = store(db);
+          await s.activate(TENANT, MAPPING, 'email');
+          if (state !== 'active') await s.moveTo(TENANT, MAPPING, 'email', state);
+        });
+        await stop('email', stopped);
+        const held = await withTenant(driver, TENANT, (db) => store(db).slotsHeld(TENANT));
+        expect(held, `${state}, stopped ${stopped}`).toBe(holdsASlot(state, stopped) ? 1 : 0);
+      }
+    }
+  });
+
+  it('counts only the data types a migration carries', async () => {
+    // `file` is deselected. A row left for it holds nothing: it is not a path.
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.activate(TENANT, MAPPING, 'email');
+      await s.activate(TENANT, MAPPING, 'file');
+      expect(await s.slotsHeld(TENANT)).toBe(1);
+    });
+  });
+
+  it('a stop survives a move, and a stopped path moved into the lane releases its slot', async () => {
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.activate(TENANT, MAPPING, 'email');
+      await s.activate(TENANT, MAPPING, 'calendar');
+    });
+    await stop('email', true);
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.moveTo(TENANT, MAPPING, 'email', 'cutover');
+      await s.moveTo(TENANT, MAPPING, 'calendar', 'cutover');
+      await s.moveTo(TENANT, MAPPING, 'email', 'continuous');
+      await s.moveTo(TENANT, MAPPING, 'calendar', 'continuous');
+      expect(await s.slotsHeld(TENANT)).toBe(1);
+      // A rollback to `active`: the stop stays, and now keeps its slot.
+      await s.activate(TENANT, MAPPING, 'email');
+      expect(await s.slotsHeld(TENANT)).toBe(2);
+    });
+    const rows = await withTenant(driver, TENANT, (db) =>
+      db.execute(
+        sql`SELECT domain, stopped_at IS NOT NULL AS stopped, ended_at IS NOT NULL AS ended
+              FROM path_lifecycle WHERE mapping_id = ${MAPPING} ORDER BY domain`,
+      ),
+    );
+    expect(rows.rows).toEqual([
+      { domain: 'calendar', stopped: false, ended: false },
+      { domain: 'email', stopped: true, ended: false },
+    ]);
+  });
+
+  it('stamps when a stopped path in the lane stopped costing anything', async () => {
+    await withTenant(driver, TENANT, async (db) => {
+      const s = store(db);
+      await s.activate(TENANT, MAPPING, 'email');
+      await s.moveTo(TENANT, MAPPING, 'email', 'cutover');
+    });
+    await stop('email', true);
+    await withTenant(driver, TENANT, (db) => store(db).moveTo(TENANT, MAPPING, 'email', 'continuous'));
+    const [row] = (await lifecycles()).filter((r) => r.domain === 'email');
+    expect(row?.state).toBe('continuous');
+    expect(row?.endedAt).toBeDefined();
   });
 });
 

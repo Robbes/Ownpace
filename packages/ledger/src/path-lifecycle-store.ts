@@ -32,6 +32,17 @@
  * Somebody who believes the price ends when the migration ends and finds a
  * tier still charging has a fair complaint. That sentence belongs to 0117 T5.
  *
+ * ## A stop, and D2 (c)
+ *
+ * A data type its owner stopped (0128 T4, `stopped_at`) keeps its phase, and
+ * keeps its slot while the migration is before its cutover: a stop then is
+ * usually short, and a pause keeps its slot too. In the continuous lane it
+ * releases its slot: a stop there is usually for good (the mail of an account
+ * that no longer exists), and billing it for as long as the contacts flow
+ * would charge for nothing. The owner's call, 2026-09-24: *"D2 c
+ * (recommended)"*. The tier reads the month's peak, so a stop and a resume in
+ * one month cannot lower a bill.
+ *
  * `holdsASlot` is exported because it is the one rule the tier calculator, the
  * honesty surface and any future invoice all have to agree on, and three
  * copies of it would eventually disagree about `paused`.
@@ -45,7 +56,7 @@
  * change is a wiring diff rather than a wiring-plus-semantics one.
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import type { PgDatabase } from './db.ts';
 import * as schemaPg from './schema-pg.ts';
 import type { MappingId, TenantId } from '@openmig/shared';
@@ -73,18 +84,21 @@ export interface PathLifecycle {
 }
 
 /**
- * Does a path in this state hold one of the tier's slots?
+ * Does a path in this state hold one of the tier's slots, stopped by its owner
+ * or not?
  *
  * The single authority. `paused` is the entry that surprises people and it is
- * deliberate — see the module comment.
+ * deliberate, and so is a stop that keeps its slot before the cutover and
+ * releases it in the lane (D2 (c)) — see the module comment.
  */
-export function holdsASlot(state: PathState): boolean {
-  return state === 'active' || state === 'paused' || state === 'continuous';
+export function holdsASlot(state: PathState, stopped: boolean): boolean {
+  if (state === 'continuous') return !stopped;
+  return state === 'active' || state === 'paused';
 }
 
 /** The states a path can be in without holding a slot — the complement, kept
  *  derived rather than listed, so the two can never disagree. */
-export const SLOTLESS_STATES: ReadonlyArray<PathState> = PATH_STATES.filter((s) => !holdsASlot(s));
+export const SLOTLESS_STATES: ReadonlyArray<PathState> = PATH_STATES.filter((s) => !holdsASlot(s, false));
 
 /**
  * The slot-holding states, derived — for the WHERE clause that counts them.
@@ -95,7 +109,12 @@ export const SLOTLESS_STATES: ReadonlyArray<PathState> = PATH_STATES.filter((s) 
  * That is the same drift this codebase removed from the Google scope tables and
  * from the wizard's domain list; one authority, derived twice, is the fix.
  */
-export const SLOT_HOLDING_STATES: ReadonlyArray<PathState> = PATH_STATES.filter(holdsASlot);
+export const SLOT_HOLDING_STATES: ReadonlyArray<PathState> = PATH_STATES.filter((s) => holdsASlot(s, false));
+
+/** The slot-holding states a stop releases (D2 (c)): derived from the same rule. */
+export const STATES_A_STOP_RELEASES: ReadonlyArray<PathState> = SLOT_HOLDING_STATES.filter(
+  (s) => !holdsASlot(s, true),
+);
 
 export class PgPathLifecycleStore {
   private readonly db: PgDatabase;
@@ -161,19 +180,32 @@ export class PgPathLifecycleStore {
   /**
    * How many of this tenant's paths hold a slot right now.
    *
-   * The number a tier is read off. Counts rows only — a path with no row is
-   * `ready` and holds nothing, so it cannot contribute, which is why this can
-   * be one indexed scan rather than a join against `scope_selection`.
+   * The number a tier is read off. A path with no row is `ready` and holds
+   * nothing, so it cannot contribute. Only the data types a migration carries
+   * are paths (`scope_selection.included`), and a stop in the lane releases its
+   * slot (D2 (c)): both read here, both derived from `holdsASlot`.
    */
   async slotsHeld(tenantId: TenantId): Promise<number> {
     const rows = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(schemaPg.pathLifecycle)
+      .innerJoin(
+        schemaPg.scopeSelection,
+        and(
+          eq(schemaPg.scopeSelection.mappingId, schemaPg.pathLifecycle.mappingId),
+          eq(schemaPg.scopeSelection.domain, schemaPg.pathLifecycle.domain),
+          eq(schemaPg.scopeSelection.included, true),
+        ),
+      )
       .where(
         and(
           eq(schemaPg.pathLifecycle.tenantId, tenantId),
           // Derived from `holdsASlot`, never restated: see SLOT_HOLDING_STATES.
           inArray(schemaPg.pathLifecycle.state, [...SLOT_HOLDING_STATES]),
+          or(
+            isNull(schemaPg.pathLifecycle.stoppedAt),
+            notInArray(schemaPg.pathLifecycle.state, [...STATES_A_STOP_RELEASES]),
+          ),
         ),
       );
     return rows[0]?.n ?? 0;
@@ -220,7 +252,10 @@ export class PgPathLifecycleStore {
     domain: DiscoveryDomain,
     state: Exclude<PathState, 'active'>,
   ): Promise<void> {
-    const releases = !holdsASlot(state);
+    const releases = !holdsASlot(state, false);
+    // A stopped path keeps its stop through a move, and releases its slot where
+    // a stop does (D2 (c)): moved into the lane, it holds none.
+    const releasesStopped = !holdsASlot(state, true);
     await this.db.execute(
       sql`INSERT INTO path_lifecycle
             (tenant_id, mapping_id, domain, state, ended_at, updated_at)
@@ -230,7 +265,9 @@ export class PgPathLifecycleStore {
           )
           ON CONFLICT (mapping_id, domain) DO UPDATE SET
             state = ${state},
-            ended_at = ${releases ? sql`now()` : sql`NULL`},
+            ended_at = CASE WHEN path_lifecycle.stopped_at IS NULL
+                            THEN ${releases ? sql`now()` : sql`NULL::timestamptz`}
+                            ELSE ${releasesStopped ? sql`now()` : sql`NULL::timestamptz`} END,
             updated_at = now()`,
     );
   }

@@ -47,6 +47,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | An app a person creates at Google, Dropbox or Microsoft instead of this service's (workplan 0148 T2) | your own app | **eigen app** | The service's is *de eigen app van deze dienst*; the guide's fold reads *Alleen als u een eigen app wilt gebruiken*. |
 | The test phase the managed service is in (workplan 0131 D1, D4) | alpha | **alfa** | Not *bèta*, *test* or *proef*: the owner named it *"Alpha"*. Lower case in running text (*de alfa kan stoppen*), capitalised only where it opens the note (*Alfa: …*). The note, the grant mail, 0131 T3's Billing line and 0144's tester guide use this word. |
 | The MX/DNS switch (Finish step 4) | delivery | **e-mailbezorging**, verb **omzetten** | Not *verplaatsen*/*verhuizen* (same owner correction — bare *bezorging* + *verhuist* read as a house move). And not *migratie*: the migration is the copying that is already running; step 4 is the delivery cutover, a different event on the timeline. |
+| A source not yet run against a real account (workplan 0131 T2) | experimental | **experimenteel** | The tag on a source card at both doors, on a face in the wizard's data-type step and on Google's whole-domain option, read from `SOURCE_PROOFS` in shared. Not *bèta*, *proef* or *test*: it says that one connector has not yet met a real account, not that the service is a trial. Its opposite is never shown; a card without the tag is the plain case. |
 
 ## States (the StateChip table — full list in `StateChip.tsx`)
 

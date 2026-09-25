@@ -81,10 +81,11 @@ describe('the lane runs, in both editions and by one authority', () => {
     //
     // Since 0128 T2 the predicate is `runsPassesNow`, because a cutover copies
     // until its grace period ends and the status alone cannot say when that
-    // is. The appliance asks it through ONE wrapper, `passesRunNow`, which
-    // reads the cutover's window by the SQL the managed tick schedules by.
+    // is. Since 0128 T5 slice 2b it is asked of each data type: the reader's
+    // `anyRuns`, which a pass also stops by. The appliance asks it through ONE
+    // wrapper, `passesRunNow`, and the wrapper asks the one reader.
     const tick = source('apps/selfhost/src/index.ts');
-    const asks = [...tick.matchAll(/passesRunNow\(m, /g)].length;
+    const asks = [...tick.matchAll(/passesRunNow\(m\)/g)].length;
     expect(
       asks,
       'the appliance no longer asks `passesRunNow` three times (startup, per-pass ' +
@@ -96,8 +97,9 @@ describe('the lane runs, in both editions and by one authority', () => {
     expect(tick, 'a gate reads `runsPasses` again, without the cutover window').not.toMatch(/\brunsPasses\(/);
     const wrapper = tick.slice(tick.indexOf('const passesRunNow = '));
     const body = wrapper.slice(0, wrapper.indexOf('\n\n'));
-    expect(body).toContain('runsPassesNow(');
-    expect(body, 'the wrapper no longer asks the one SQL rule the tick asks').toContain('CUTOVER_STILL_COPIES_WHERE');
+    expect(body, 'the wrapper no longer asks the reader a pass stops by').toContain('readPathPhases(');
+    expect(body).toContain('anyRuns === true');
+    expect(body, 'the wrapper has an opinion of its own again').not.toMatch(/runsPassesNow\(|cutover_state/);
     // And none of them kept a literal beside it.
     expect(
       /(currentStatus|status) [!=]== 'active'/.test(tick),
@@ -122,6 +124,11 @@ describe('the lane runs, in both editions and by one authority', () => {
     // The one state named in it runs for a while (0128 T2), and only by the
     // rule the appliance's gates ask too.
     expect(sql).toMatch(/OR \(m\.status = 'cutover'\s+AND EXISTS \(SELECT 1 FROM cutover_state c[\s\S]*?\$\{CUTOVER_STILL_COPIES_WHERE\}/);
+    // And the one case that status cannot see (0128 T5, slice 2b): a data type
+    // kept in the lane while another is past its cutover's grace period. The
+    // reader's `anyRuns` answers it for the appliance and the pass; the tick
+    // asks the ledger's SQL for it, and a test runs both on the same rows.
+    expect(sql).toMatch(/OR \(\$\{A_PATH_KEPT_AFTER_A_CUTOVER_WHERE\}\)\)/);
   });
 
   it("both editions read each data type's own phase, and neither hard-codes it", () => {
