@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, CUTOVER_STILL_COPIES_WHERE } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -31,6 +31,7 @@ import { InProcessScheduler } from '@openmig/scheduler/in-process';
 import {
   runAllDomains,
   recordSwitchedOff,
+  domainsFromConfig,
   discoverAllDomains,
   verifyMapping,
   applyMappingDeletion,
@@ -42,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -51,7 +52,6 @@ import {
   DECISION_EFFECTS,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
-  runsPassesNow,
   REPORTING_CLOSED,
   FAILURE_GUIDANCE,
   MOVES_MEANING,
@@ -792,26 +792,23 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     });
 
   /**
-   * Whether this migration's passes run now (0128 T2): `runsPassesNow`, with
-   * the cutover's own window asked only of a migration in `cutover`, by the
-   * same SQL the managed tick schedules by. Every gate below asks this rather
-   * than the status alone, so a cutover copies from execute until its grace
-   * period ends on both editions.
+   * Whether any of this migration's data types runs passes now: the reader's
+   * `anyRuns` (`readPathPhases`, the one every gate asks; 0128 T5, slice 2b).
+   * That is `runsPassesNow` of the migration, with its cutover's own window by
+   * the same SQL the managed tick schedules by, or of a data type kept in the
+   * lane while another is past its cutover's grace period, when its rows add up
+   * to the migration's status. Every gate below asks this rather than the status
+   * alone, so a cutover copies from execute until its grace period ends, and a
+   * kept data type after it, on both editions. A migration gone since its
+   * status was read runs nothing.
    */
-  const passesRunNow = async (m: LoadedMapping, status: MappingLifecycle): Promise<boolean> =>
-    runsPassesNow(
-      status,
-      status === 'cutover' &&
-        (await withTenantContext(m.config.tenantId as string, async (client) => {
-          const { rows } = await client.query(
-            `SELECT EXISTS (SELECT 1 FROM cutover_state c
-                             WHERE c.tenant_id = $1 AND c.mapping_id = $2
-                               AND ${CUTOVER_STILL_COPIES_WHERE}) AS copies`,
-            [m.config.tenantId, m.mailboxMappingId],
-          );
-          return (rows[0] as { copies?: boolean } | undefined)?.copies === true;
-        })),
+  const passesRunNow = async (m: LoadedMapping): Promise<boolean> => {
+    const tenantId = m.config.tenantId as string;
+    const phases = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+      readPathPhases(tdb, tenantId, m.mailboxMappingId),
     );
+    return phases?.anyRuns === true;
+  };
 
   /** Stop scheduling a mapping, so a finished migration stops syncing at once. */
   const unscheduleMapping = (m: LoadedMapping) => {
@@ -834,7 +831,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // mapping marked done went on syncing until the next restart, which makes
       // "finished" mean nothing until someone reboots the appliance.
       const currentStatus = await mappingStatus(m);
-      if (!(await passesRunNow(m, currentStatus))) {
+      if (!(await passesRunNow(m))) {
         log.info(
           `[selfhost] ${m.config.mappingId} is '${currentStatus}', which does not run passes ` +
             `(${PASS_RUNNING_STATES.join(' and ')} do, and a cutover until its grace period ends) ` +
@@ -870,15 +867,27 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         log.error(`[selfhost] ${m.config.mappingId}: failed to open run row:`, err instanceof Error ? err.message : err);
       }
 
-      // The phase this pass runs in, from the status re-read at the top of
-      // this function rather than the one taken at startup — a mapping can
-      // reach cutover between two firings, and every domain of ONE pass has
-      // to agree about which side of it they are on (0117 D4).
+      // Each data type's phase for this pass, from the one reader every gate
+      // asks (0128 T5), read now rather than at startup — a mapping can reach
+      // cutover between two firings, and each data type of ONE pass has to
+      // know which side of its own cutover it is on (0117 D4). Until a data
+      // type can have a phase of its own, every one has the migration's; a
+      // migration deleted since the gate above keeps the status it read.
+      //
+      // Read ONCE for the pass, and asked twice: whether each data type still
+      // runs, so the pass moves on past one that no longer does while the
+      // others do, as the managed pass does; and whether its source still
+      // decides what exists. One reading, so the two answers cannot disagree.
+      const phases = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+        readPathPhases(tdb, tenantId, mappingId),
+      );
+      const phaseOf = phases?.phaseOf ?? phasesOfTheMigration(currentStatus);
       const results = await runAllDomains(
         configWithCorrectMappingId,
         statusStore,
-        currentStatus,
+        phaseOf,
         ledgerOptions,
+        (domain) => pathRunsNow(phaseOf(domain)),
       );
       const created = results.reduce((n, r) => n + r.created, 0);
       // Disabled domains report placeholder zeros so status pollers see every
@@ -975,6 +984,45 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     }
   };
 
+  /**
+   * THIS MIGRATION'S DATA TYPES, AS ROWS (workplan 0128 T5, slice 2a).
+   *
+   * The appliance's data types lived only in its configuration file, so it had
+   * no scope rows, and so no path rows either: nothing for a data type's own
+   * phase to be kept in once a cutover is per data type. At every start-up it
+   * now writes a scope row for every data type the file names, `included` as
+   * the file has it (a switched-off one names itself but is not a path), and
+   * gives every path of a migration that has started its lifecycle row, from
+   * the migration's status, by the rule ledger migration 0065 applied to
+   * managed (`pathsFromTheMapping`). A row that exists is left alone: the doors
+   * move rows.
+   *
+   * Never worth taking the appliance down for, and never swallowed (rule 9):
+   * until something reads these rows for a gate, a data type without one reads
+   * as the migration, which is what every gate asked before.
+   */
+  const recordPathsFor = async (m: LoadedMapping) => {
+    const tenantId = m.config.tenantId as string;
+    try {
+      const scope = domainsFromConfig({ ...m.config, mappingId: m.mailboxMappingId }).map((d) => ({
+        domain: d.name,
+        included: d.enabled,
+      }));
+      const written = await withTenant(persistenceBackend.driver, tenantId, async (tdb) => {
+        await recordScope(tdb, tenantId, m.mailboxMappingId, scope);
+        return pathsFromTheMapping(tdb, tenantId, m.mailboxMappingId);
+      });
+      if (written.length > 0) {
+        log.info(`[selfhost] ${m.config.mappingId}: recorded the phase of ${written.join(', ')}`);
+      }
+    } catch (err) {
+      log.warn(
+        `[selfhost] ${m.config.mappingId}: could not record its data types: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  };
+
   // Schedule a mapping's recurring sync (idempotent — guards the `scheduled` set so an
   // operator confirming twice never double-schedules).
   const scheduleMapping = (m: LoadedMapping) => {
@@ -995,6 +1043,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
     // exist first (this writes to it), and a mapping whose scope or provider
     // changed under a ledger full of items must not reach a pass at all.
     await assertMappingRevision(m);
+    await recordPathsFor(m);
 
     const configWithCorrectMappingId = { ...m.config, mappingId: m.mailboxMappingId };
     // Best-effort, non-blocking: discovery counts populate as the source is scanned.
@@ -1038,7 +1087,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       }
     }
 
-    if (await passesRunNow(m, status)) {
+    if (await passesRunNow(m)) {
       scheduleMapping(m);
       // ADR-0020's on-startup half (0026 T1 item 5): an ACTIVE mapping whose
       // ledger holds zero rows is the lost-ledger shape — active means the
@@ -3216,8 +3265,17 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 409, { error: transition.conflict });
         }
         if (transition.activate) {
-          await withTenantContext(m.config.tenantId as string, async (client) => {
-            await client.query(`UPDATE mailbox_mapping SET status = 'active' WHERE id = $1`, [m.mailboxMappingId]);
+          // Through the ledger's own door (0128 T5, slice 2a): the status, its
+          // paths and the audit record in one transaction, as managed's Start
+          // writes them. A raw UPDATE left the paths behind and no record.
+          // No `onSlotsTaken`: the appliance bills nothing, and its database
+          // keeps no month's peak (only the managed chain makes one).
+          await applyMappingStatusChange(persistenceBackend.driver, m.config.tenantId as string, {
+            mappingId: m.mailboxMappingId,
+            from: status,
+            to: 'active',
+            actor: 'operator',
+            via: 'start',
           });
           log.info(`[selfhost] ${m.config.mappingId}: activated by operator`);
         }
@@ -3305,10 +3363,15 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           return sendJson(res, 200, already);
         }
 
-        await withTenantContext(m.config.tenantId as string, async (client) => {
-          await client.query(`UPDATE mailbox_mapping SET status = 'done' WHERE id = $1`, [
-            m.mailboxMappingId,
-          ]);
+        // Through the ledger's own door, as Start is: the paths end with the
+        // migration, and the record says whether it was forced.
+        await applyMappingStatusChange(persistenceBackend.driver, m.config.tenantId as string, {
+          mappingId: m.mailboxMappingId,
+          from: status,
+          to: 'done',
+          actor: 'operator',
+          via: 'finish',
+          ...(unresolved > 0 ? { forced: true } : {}),
         });
         unscheduleMapping(m);
         log.warn(
@@ -3369,7 +3432,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         // data moves: a paused mapping is awaiting the operator's green light,
         // and a finished one is finished.
         const status = await mappingStatus(m);
-        if (!(await passesRunNow(m, status))) {
+        if (!(await passesRunNow(m))) {
           return sendJson(res, 409, {
             error: `mapping is '${status}', which does not run passes`,
             hint:

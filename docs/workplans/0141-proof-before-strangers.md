@@ -4,6 +4,35 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, build review: T1 fixes on the same branch
+(`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`), not merged.** One
+correction to the build note below: its eight rows are not all ones 0131 §1 and this plan's §1
+call proven. §1 here gives the Google account calendar and contacts only. The eighth row, the
+Google account's **file** face, is the builder's addition. Its evidence is the owner's live Google
+to Nextcloud migration: the Sharing page's defect of 2026-09-17 was found on its Drive files
+(`apps/api/src/routes/permissions.ts`, 0042 T8 and T10), and the `google-drive` row rests on the
+same run. Whether that face stays proven, or turns experimental and leaves the frozen table and
+the guard's list, is for the owner, beside whether the frozen table is an acceptable reading of T1
+at all. Until the owner answers, both stand as built.
+
+**2026-09-24, build: T1, the live-proof record, built with 0131 T2 (a) on branch
+`claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.** `docs/feature-matrix.md` gains a "Live proofs" section: what counts (the
+seven points of §3 T1) and two tables. *Recorded proofs* has T1's fields and no row yet.
+*Proven before this record* is a deviation from T1, and names why: 0131 §1 and T6 here call the
+Google product cards, the Google account's calendar and contacts, and IMAP proven, and the
+repository holds what ran and where, not the counts T1 asks for. Labelling them experimental would
+be false, and inventing counts worse. So each of its eight rows says what ran, where the repository
+says so, and "not recorded" where the counts were not; the table is frozen at those rows and only
+shrinks, and a new proof goes in the first table. 0131 T2's verdicts, `SOURCE_PROOFS` in
+`packages/shared/src/front-door.ts`, name their row: a date for the first table, `before the
+record` for the second. The open-gaps rows for Microsoft To Do and Google Tasks now carry ⏳, as the
+legend asks. The guard, `scripts/a-proof-that-was-written-down.unit.test.ts`, failed 6 of its 17
+cases on the unchanged code (the section, both tables, the two ✅ rows, and both verdict rules) and
+passes 17 of 17. Eight of its cases feed the row check rows the empty table cannot hold yet, so
+the check is not vacuous while nothing is recorded. Each of five mutations fails it: Dropbox
+proven with no row, Gmail experimental with its row still there, the Google Tasks gap row back to
+✅, a row added to the frozen table, and a recorded row whose second pass created 3.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
 most of the sources a tester can pick on the managed edition have never completed a pass against a
 real account. It also found that the places that could say so automatically have not said it
@@ -74,7 +103,7 @@ for the card says so.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 The live-proof record: where a proof is written, and what counts | 📋 **Proposed** (D1) | §3. A "Live proofs" table in the feature matrix. 0131 T2's verdicts point at its rows. **Before the first invitation.** |
+| T1 The live-proof record: where a proof is written, and what counts | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24), with 0131 T2 (a); *Proven before this record* is a named deviation (Status). 📋 **Proposed** (D1) | §3. A "Live proofs" table in the feature matrix. 0131 T2's verdicts point at its rows. **Before the first invitation.** |
 | T2 The Microsoft 365 account: all five faces, one pass on the owner's own account | ⏳ **Owner** (D1, D4) | §3. It starts with the calendar, because a "no" there means a rebuild (0059 T5). **Before a tester who uses it.** |
 | T3 Dropbox and Box | ⏳ **Owner** (D1, D3) | §3. Dropbox on the owner's own account, **before a tester who uses it**. Box with the first Box tester, supervised (0140 T8), **after**. |
 | T4 The Apple account (iCloud) | ⏳ **Owner** | §3. Part 1 of `apple-supervised-run.md`, then the separate first pass it asks for. **Before a tester who uses it.** |

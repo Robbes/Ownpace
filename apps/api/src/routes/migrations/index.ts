@@ -1121,7 +1121,31 @@ export const CreateMappingBase = z.object({
  *    garbage here, in front of whoever typed it, and say what the fallback
  *    would have done.
  */
+/**
+ * The statuses a migration can BEGIN in: a draft (`paused`, the default), or
+ * running from its first minute (`active`).
+ *
+ * The base schema carries all five because the update door takes them, and
+ * there `updateTransition` decides each move by what that move needs. Creation
+ * asked nothing, so a migration posted as `continuous` was scheduled by the
+ * tick without ever passing the lane's telling (0117 T5), with no audit record
+ * and no slot, and one posted as `cutover` or `done` had a cutover nobody ran.
+ * No screen sends any of the three. Once the migration exists, each is reached
+ * through its own door (2026-09-24).
+ */
+export const CREATABLE_STATUSES: ReadonlyArray<string> = ['paused', 'active'];
+
 export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => {
+  if (body.status !== undefined && !CREATABLE_STATUSES.includes(body.status)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['status'],
+      message:
+        `A migration begins paused, as a draft, or active, not '${body.status}'. It reaches ` +
+        'cutover, done and the continuous lane from there, through the cutover, Finish and ' +
+        'Keep copying, which each check what they need.',
+    });
+  }
   // Reusing a stored connection means the credentials are already on it and
   // already proved: demanding them again would make "pick the Box connection
   // you added last week" impossible without re-pasting its secret, which is

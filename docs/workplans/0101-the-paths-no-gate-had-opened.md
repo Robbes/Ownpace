@@ -2,7 +2,16 @@
 
 > **In one line:** Brings unrequested API routes (readiness, shared addresses, permissions, billing, offboarding) into `smoke-managed.sh` with `gate-coverage.unit.test.ts`, and puts rollback, CLI cutover and `PUT /api/migrations/:id` on shared `mailbox_mapping` transitions.
 
-## Status — 2026-09-20 (update this block at the end of every session)
+## Status — 2026-09-24 (update this block at the end of every session)
+
+**2026-09-24: T7's sibling, the create door.** `POST /api/migrations` took the same `status` field
+as the update and wrote any of the five, so a migration could be born `continuous` (scheduled,
+with no slot, no audit record and no lane telling), `cutover` or `done`. No screen sends those.
+Creation now admits `paused` (the default) and `active` only, and refuses the other three with a
+400 on `status` that names their doors, with nothing written ([ADR-0049](../adr/0049-a-door-that-asked-nobody.md)
+amended). **Gate:** the real route on PGlite as `app_user`: each of the three refused with no
+migration written; a draft by default with no path rows; `paused` and `active` on request, the
+second with its path rows.
 
 | Task | Status | Evidence |
 |---|---|---|
