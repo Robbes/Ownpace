@@ -846,8 +846,11 @@ export const GOOGLE_SCOPES_ASKED_BY_DOMAIN: Readonly<Record<GoogleGrantDomain, s
  * Google's fact about the scope, not this product's choice about a domain, so
  * it keeps an opinion of its own.
  *
- * Read by the grant page's decision (`grantLinkAsk`): it says "read-only" only
- * when every data scope a link asks is on this list. Mail's
+ * Read through `heldToReadingByGoogle` in the API, twice: by the grant page's
+ * decision (`grantLinkAsk`), which says "read-only" only when every data scope
+ * a link ASKS is on this list, and by the link's ending
+ * (`recordedPermission`), which says it only when every data scope Google
+ * RECORDED is, since `include_granted_scopes` can hand back more. Mail's
  * `https://mail.google.com/`, `auth/calendar` and `auth/carddav` are not: Google
  * describes each as allowing changes and deletion, and there Ownpace's
  * guarantee is the software's, not the permission's.

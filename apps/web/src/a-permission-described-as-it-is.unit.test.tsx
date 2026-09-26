@@ -25,7 +25,11 @@
  *     consent panel both doors share, when the consent asks for mail,
  *     calendars or contacts, and not for Drive or Tasks alone, nor beside
  *     another provider's button. The deployment's app or the person's own
- *     makes no difference: the scope Google shows is the same.
+ *     makes no difference: the scope Google shows is the same. What the
+ *     deployment does decide is which faces a consent may ask for at all, and
+ *     a tick outside that answer asks Google for nothing, so it brings no line.
+ *     The line is §3's two sentences, whole: which three, and that Ownpace
+ *     only reads and changes and deletes nothing.
  */
 
 import React from 'react';
@@ -86,6 +90,16 @@ const READ_ONLY_OPENING: Readonly<Record<Locale, RegExp>> = { en: /^Read-only\./
 const THE_THREE: Readonly<Record<Locale, RegExp>> = {
   en: /mail, calendars and contacts/,
   nl: /e-mail, agenda’s en contacten/,
+};
+/**
+ * What the line beside the button promises, in §3's words: Ownpace only reads,
+ * and changes AND deletes nothing. Deletion is the word Google's screen uses
+ * ("permanently delete"), so it is the one a tester is most likely to worry
+ * about, and a line that dropped it would answer the smaller fear.
+ */
+const THE_PROMISE: Readonly<Record<Locale, RegExp>> = {
+  en: /Ownpace only reads; it changes and deletes nothing/,
+  nl: /Ownpace leest alleen; het wijzigt en verwijdert niets/,
 };
 
 function wrap(locale: Locale, node: React.ReactNode, path: string, route: string) {
@@ -199,7 +213,11 @@ describe('one line beside Connect with Google, in the consent panel (0144 T3 (a)
     it(`${locale}: a Google account with calendars ticked shows it`, async () => {
       renderPanel(locale, 'google');
       fireEvent.click(await screen.findByLabelText(words(locale, 'domain.calendar')));
-      expect(lineBeside(locale, connect())).not.toBeNull();
+      const line = lineBeside(locale, connect());
+      expect(line).not.toBeNull();
+      // Which three, and the whole promise: reads only, changes and deletes nothing.
+      expect(line!.textContent).toMatch(THE_THREE[locale]);
+      expect(line!.textContent).toMatch(THE_PROMISE[locale]);
     });
 
     it(`${locale}: a Google account with tasks alone does not`, async () => {
@@ -273,6 +291,26 @@ describe('the same line beside the wizard’s Connect with Google (0144 T3 (a))'
       expect(lineBeside(locale, connect())).not.toBeNull();
 
       fireEvent.click(within(faces).getByLabelText(words(locale, 'domain.calendar')));
+      expect(lineBeside(locale, connect())).toBeNull();
+    });
+
+    it(`${locale}: a tick this deployment does not serve is not what the consent asks, so it brings no line`, async () => {
+      // The source step's faces are all five, while `/api/provider-accounts`
+      // serves calendars, contacts and tasks here (nothing declared). E-mail
+      // ticked on such a deployment is refused before Google is asked, so
+      // there is no permission for the line to describe (the ceiling guard's
+      // rule: the deployment answers once, and the screen asks).
+      renderWizard(locale);
+      fireEvent.click(screen.getByRole('button', { name: /^Google account/ }));
+      const connect = () =>
+        screen.getByRole('button', { name: words(locale, 'wizard.google.connect') });
+      await waitFor(() => expect(connect()).toBeTruthy());
+      const faces = connect().parentElement as HTMLElement;
+      for (const key of ['domain.email', 'domain.calendar', 'domain.contact', 'domain.task']) {
+        const box = within(faces).getByLabelText(words(locale, key)) as HTMLInputElement;
+        const want = key === 'domain.email' || key === 'domain.task';
+        if (box.checked !== want) fireEvent.click(box);
+      }
       expect(lineBeside(locale, connect())).toBeNull();
     });
   }

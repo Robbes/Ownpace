@@ -301,9 +301,11 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
  * which Google describes as reading, sending and deleting all mail. The page
  * now asks the decision which it is, and the decision reads the data scopes it
  * is about to ask for: read-only at Google only when every one of them is a
- * scope Google itself holds to reading.
+ * scope Google itself holds to reading. That is a claim about the ASK: what
+ * Google finally records can be broader (`include_granted_scopes`), and the
+ * ending judges that (`recordedPermission`, `google-consent.unit.test.ts`).
  */
-describe('whether Google itself holds the grant to reading (0144 T3 (c))', () => {
+describe('whether Google holds every data scope a link asks for to reading (0144 T3 (c))', () => {
   const readOnly = (r: GrantLinkReadiness) => askOf(grantLinkAsk(r)).readOnlyAtProvider;
 
   it('says no for a Gmail link: its one scope also sends and deletes', () => {

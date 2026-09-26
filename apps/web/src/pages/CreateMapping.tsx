@@ -2428,10 +2428,12 @@ const CreateMapping: React.FC = () => {
                   {/* The lines beside the button, laid out once for both
                       doors (workplan 0144 T3 (a)): the button's hint, and
                       for Google, what the permission allows and what
-                      Ownpace does. */}
+                      Ownpace does. The faces above are all five, so the ask
+                      is bounded here by what this deployment serves
+                      (`sourceAllowed`, from /api/provider-accounts). */}
                   <ConsentLines
                     provider={grantProvider}
-                    asked={consentAsks(formData.sourceType, formData.domains)}
+                    asked={consentAsks(formData.sourceType, formData.domains, sourceAllowed)}
                   />
                   {consentNote && (
                     <p

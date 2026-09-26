@@ -19,8 +19,9 @@
  *   allows              Drive (`drive.readonly`), Google Tasks
  *                       (`tasks.readonly`) and Microsoft through *Connect with
  *                       Microsoft* (`*.Read`). For Gmail, Google Calendar and
- *                       Google Contacts the permission also allows changes,
- *                       and the guarantee is the software's.
+ *                       Google Contacts, and for Microsoft 365 through IMAP
+ *                       (`IMAP.AccessAsUser.All`), the permission also allows
+ *                       changes, and the guarantee is the software's.
  *
  * A person reads "read-only" as the second, because that is what the word
  * means on a consent screen. So the rule this file holds: on the surfaces the
@@ -60,8 +61,15 @@ const CLAIM = /read-only|alleen-lezen|alleen lezen/i;
  * permission the provider itself holds to reading. Dropbox and Box are left out
  * on purpose: their read-only is the app's configuration, which this rule does
  * not read (0140 T7 narrows Dropbox's).
+ *
+ * Microsoft only by its button, *Connect with Microsoft* / *Verbinden met
+ * Microsoft*, whose permissions are the `*.Read` ones. The brand alone is not
+ * enough: Microsoft 365 through the IMAP card asks `IMAP.AccessAsUser.All`,
+ * which can write (0144 §1), and a sentence naming only "Microsoft 365" would
+ * lend that card a read-only it does not have. §3 says "names Drive, Tasks or
+ * Microsoft"; this is the narrower reading §1's table supports.
  */
-const SCOPED = /\b(?:Drive|Tasks|Taken|Microsoft)\b/;
+const SCOPED = /\b(?:Drive|Tasks|Taken)\b|\bConnect with Microsoft\b|\bVerbinden met Microsoft\b/;
 
 const STRINGS = 'apps/web/src/i18n/strings.ts';
 
@@ -159,6 +167,15 @@ describe('the judge itself', () => {
     expect(unscopedClaims(['Ownpace only reads; it changes nothing.'])).toEqual([]);
   });
 
+  it('takes Microsoft only as Connect with Microsoft, whose permissions are the read-only ones', () => {
+    // Microsoft 365 through the IMAP card asks `IMAP.AccessAsUser.All`, which
+    // can write (0144 §1). The brand alone would lend its read-only to that.
+    expect(unscopedClaims(['Microsoft 365 through IMAP is read-only.'])).toHaveLength(1);
+    expect(unscopedClaims(['Microsoft 365 via IMAP is alleen-lezen.'])).toHaveLength(1);
+    expect(unscopedClaims(['Microsoft 365 through Connect with Microsoft is read-only.'])).toEqual([]);
+    expect(unscopedClaims(['Via Verbinden met Microsoft is de toestemming alleen-lezen.'])).toEqual([]);
+  });
+
   it('reads a list item as its own sentence, so a neighbour cannot lend it a scope', () => {
     const md = ['- **that it is read-only** — nothing is ever changed;', '- **what will be read** — files in Google Drive;'].join(
       '\n',
@@ -181,7 +198,7 @@ describe('"read-only" is said only where the provider enforces it (0144 T3)', ()
   });
 
   for (const s of SURFACES.filter((x) => !(nameOf(x) in PENDING))) {
-    it(`${nameOf(s)}: says "read-only" only beside Drive, Tasks or Microsoft`, () => {
+    it(`${nameOf(s)}: says "read-only" only beside Drive, Tasks or Connect with Microsoft`, () => {
       expect(
         unscopedClaims(sentencesOf(s)),
         `${nameOf(s)} calls something read-only without naming a permission the provider holds to ` +

@@ -4,6 +4,68 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-26: T3 (a) and (c) after review, on the same branch, still not merged.** `main` was
+merged into `claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true` first, with
+#1177, #1178 and #1180 among others, so the branch is no longer stacked on #1177. Then every
+review finding was checked against the merged code. What changed:
+
+- **The ending judges what Google recorded.** `readOnlyAtProvider` is a claim about the ASK:
+  every data scope the link asks for is one Google holds to reading. But `consentUrl` asks with
+  `include_granted_scopes`, so Google's answer also carries every permission the same account
+  already gave the same app. On the managed edition every organisation's links use that one
+  app. And the link's ending (`grantResultPage`) said *"Access is read-only"* after every
+  grant, Gmail's included. Now `recordedPermission` judges the scopes Google recorded, through
+  `heldToReadingByGoogle`, the same judge the ask uses. The ending says *read-only* only when
+  every recorded data scope is read-only. Otherwise it says *Ownpace only reads* and that the
+  permission also allows changes. When the link asked for Drive or Tasks only and the answer
+  carries more, it says that Google added a permission this account had already given the same
+  app. The grant is stored either way: over-receiving is reported, never refused
+  (`unsatisfiedScopes`). The field's comments, the OpenAPI text and `docs/grant-links.md` now
+  say "asks for", and the guide describes the ending. The ending stays English until 0145 T6.
+- **The Connect line is §3's two sentences, whole.** Since #1180 no line outside a hint, an
+  intro, a placeholder or a title has a word budget, and 0118 §2 keeps consent sentences
+  verbatim. So the line is §3's English and Dutch, deletion included, and it has no fold:
+  `wizard.google.readsOnly.why` is gone. Its key is not a `.hint`, and `ALLOWED_OVER` stays
+  empty.
+- **The wizard's line reads what the deployment serves.** The wizard's source step offers all
+  five faces, and a face outside `/api/provider-accounts`' answer is refused before Google is
+  asked. `consentAsks` now takes the served faces, and the wizard passes `sourceAllowed`, so
+  such a tick brings no line. `ConsentLines`' comment no longer says both doors offer only
+  served faces.
+- **The scan takes Microsoft only as *Connect with Microsoft*** or *Verbinden met Microsoft*.
+  Microsoft 365 through the IMAP card asks `IMAP.AccessAsUser.All`, which can write (§1). That
+  is narrower than §3's *"names Drive, Tasks or Microsoft"*.
+- **The glossary row says where it holds.** Today: the grant page's box and its ending, the
+  Connect line and `docs/grant-links.md`. Still to follow, with whose they are: how-it-works
+  (T3 (b)) and the setup title (T3, after). Not yet decided, and left as they are: the
+  software-sense uses (`discovery.scanning`, `wizard.testConnections.hint`, `verify.intro`,
+  `connections.intro`), and the Dropbox and Box uses, where read-only is how the person's own
+  app is set up.
+- **Dutch.** `grant.readsOnly` now ends *"Ownpace brengt er geen aan."*, not §3's *"Ownpace
+  doet er geen."*: changes are *aangebracht*, not *gedaan*. T0's Dutch read covers both
+  sentences.
+- **A route case for `true`.** A Google Drive link answers `readOnlyAtProvider: true` through
+  `GET /api/grant/:link`, so a route that sent a constant `false` fails.
+
+Two bullets of the 2026-09-25 note below no longer hold. The Connect line is no longer shorter
+than §3's, and the budget it was cut for is gone. `grant.readsOnly` is on no `ALLOWED_OVER`
+list, because the list is empty on `main`.
+
+Guards shown failing on the unchanged branch: `a-permission-described-as-it-is` (4 of 28
+failed: the line names the three and the whole promise, and an unserved tick brings no line, in
+both languages). `grant.unit.test.ts`, `google-consent.unit.test.ts` and the scan (7 of 123
+failed: the ending for Gmail and for a widened Drive grant, `recordedPermission` twice, two of
+the three ending texts, and Microsoft over IMAP). The route case for `true` and the Drive-alone
+ending passed there, as they should, and fail under a mutation. Mutations, each restored: the
+route answering a constant `false` (1 fails), the ending always *read-only* (2), the ending
+judging the ask instead of the grant (2), the ending never *read-only* (2), and the wizard
+ignoring the served faces (2).
+
+Expectations changed on purpose: the Gmail ending in `grant.unit.test.ts` expected
+*read-only* and now expects *Ownpace only reads* and *also allows changes*, and no
+*read-only*. `grantResultPage`'s success now requires `permission`, so its two existing calls
+in `google-consent.unit.test.ts` pass `'read-only'`.
+
 **2026-09-25: T3 (a) and (c) decided by the owner, and built on a branch, not merged.** The
 owner was asked *"The rest of group R2 is still Proposed in the plans. Which should I build now,
 before the first invitation?"* and chose all three: this plan's T3 (a) and (c), 0140's
@@ -146,7 +208,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner** | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
 | T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
-| T3 "Read-only" replaced by what is true | 🟡 **(a) and (c) built** on `claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true`, not merged (2026-09-25). 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
+| T3 "Read-only" replaced by what is true | 🟡 **(a) and (c) built** on `claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true`, not merged (2026-09-25; review fixes and the ending 2026-09-26). 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
 | T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings now reach the API on this plan's branch, not yet on `main` (§1). **Before the first invitation.** |

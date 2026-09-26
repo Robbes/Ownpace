@@ -2438,8 +2438,8 @@ paths:
 
         Says who is asking (the organisation's name, and the sign-in address
         of the member who issued the link), what will be read in plain words,
-        the exact scope Google will record and whether Google holds it to
-        reading, when the link stops working, and
+        the exact scope the link asks Google for and whether Google holds
+        every data scope in it to reading, when the link stops working, and
         where the data comes from and goes to: the account the migration
         reads, and the kind of server it writes, its host and the account on
         it. It says nothing else: not the mapping id, not the tenant id, not
@@ -2475,10 +2475,14 @@ paths:
                   readOnlyAtProvider:
                     type: boolean
                     description: |
-                      Whether Google itself holds the grant to reading: true only
-                      when every data scope is one Google enforces as read-only
-                      (today `drive.readonly` and `tasks.readonly`). The page says
-                      "read-only" only then (workplan 0144 T3).
+                      Whether every data scope this link asks for is one Google
+                      enforces as read-only (today `drive.readonly` and
+                      `tasks.readonly`). The page says "read-only" only then
+                      (workplan 0144 T3). A statement about the ask, not the
+                      grant: the consent asks with `include_granted_scopes`, so
+                      Google also hands back any permission this account already
+                      gave the same app, and the ending page judges what Google
+                      recorded.
                   from:
                     type: string
                     description: |

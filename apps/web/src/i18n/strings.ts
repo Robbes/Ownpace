@@ -338,10 +338,10 @@ const en = {
   // contacts (workplan 0144 T3 (a)): Google's screen describes those scopes
   // as allowing changes and deletion, and a tester should hear it here first,
   // with what Ownpace does. Drive and Tasks are read-only at Google and get no
-  // line; `googleConsentAllowsChanges` in shared decides.
-  'wizard.google.readsOnly': 'Google says this permission also allows changes; Ownpace only reads and changes nothing.',
-  'wizard.google.readsOnly.why':
-    'For mail, calendars and contacts, the permission Ownpace asks for also lets an app change and delete, and Google’s screen says so. Ownpace never does: it only reads, and nothing in this account is changed or deleted. For Google Drive and Google Tasks the permission itself is read-only, and Google enforces it.',
+  // line; `googleConsentAllowsChanges` in shared decides. §3's two sentences,
+  // whole: a consent sentence, which 0118 §2 keeps verbatim, not a `.hint`.
+  'wizard.google.readsOnly':
+    'For mail, calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only reads; it changes and deletes nothing in this account.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'wizard.dropbox.connect': 'Connect with Dropbox',
   'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
@@ -2732,9 +2732,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.google.redirectUri':
     'Registreer dit exacte adres in uw Google-client onder Geautoriseerde omleidings-URI’s:',
   'wizard.google.readsOnly':
-    'Volgens Google staat deze toestemming ook wijzigen toe; Ownpace leest alleen en wijzigt niets.',
-  'wizard.google.readsOnly.why':
-    'Voor e-mail, agenda’s en contacten staat de toestemming die Ownpace vraagt een app ook toe om te wijzigen en te verwijderen, en het scherm van Google zegt dat. Ownpace doet dat nooit: het leest alleen, en in dit account wordt niets gewijzigd of verwijderd. Voor Google Drive en Google Taken is de toestemming zelf alleen-lezen, en dat dwingt Google af.',
+    'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
   'wizard.dropbox.connect': 'Verbinden met Dropbox',
   'wizard.dropbox.connect.hint':
     'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken in.',
@@ -3252,7 +3250,7 @@ const nl: Record<keyof typeof en, string> = {
   'grant.readOnly':
     'Alleen lezen. Er wordt nooit iets verwijderd of gewijzigd in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf.',
   'grant.readsOnly':
-    'Ownpace leest alleen. Ownpace verwijdert of wijzigt nooit iets in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf. Google kan de toestemming ruimer omschrijven: voor e-mail, agenda’s en contacten staat de toestemming die Ownpace vraagt ook wijzigingen toe. Ownpace doet er geen.',
+    'Ownpace leest alleen. Ownpace verwijdert of wijzigt nooit iets in uw account, en niemand — niet de organisatie, niet Ownpace — ziet ooit uw wachtwoord. U logt zelf in bij Google, op de pagina van Google zelf. Google kan de toestemming ruimer omschrijven: voor e-mail, agenda’s en contacten staat de toestemming die Ownpace vraagt ook wijzigingen toe. Ownpace brengt er geen aan.',
   'grant.scopeIntro': 'Google legt deze toestemming vast als:',
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
