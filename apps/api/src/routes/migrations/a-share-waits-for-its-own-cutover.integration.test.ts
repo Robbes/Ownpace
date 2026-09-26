@@ -7,9 +7,8 @@
  * A migration whose calendars were cut over on their own while its files keep
  * running: a calendar share passes the gate and a file share does not, one row
  * at a time and in the one-go press, which leaves the file share open for the
- * files' own cutover. The announcement of the shares carried by hand waits for
- * the whole migration, and is let through at its cutover, not only once it is
- * done.
+ * files' own cutover. (The announcement of the shares carried by hand, one wave
+ * per data type, is `each-data-type-announced-once.integration.test.ts`'s.)
  *
  * The migration has no target mailbox, so a share that passes the gate is
  * refused next for want of a share API (`no_share_api`): what is under test is
@@ -26,7 +25,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import supertest from 'supertest';
 import jwt from 'jsonwebtoken';
-import { NOT_CUT_OVER_REASON, notCutOverReason } from '@openmig/core';
+import { notCutOverReason } from '@openmig/core';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -176,18 +175,8 @@ describe('a share waits for its own data type’s cutover (managed)', () => {
     );
   });
 
-  it('the announcement of the shares carried by hand waits for the whole migration, and opens at its cutover', async () => {
-    await phases('active', 'cutover', 'active');
-    const early = await post('announce', { note: 'Everything lives on the new server now.' });
-    expect(early.status).toBe(409);
-    expect(early.body).toEqual({ error: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
-
+  it('at the files’ own cutover, the file share and the folder press pass the gate', async () => {
     await phases('cutover', 'cutover', 'cutover');
-    // Past the gate, and stopped by the next thing it asks: a mail channel.
-    const late = await post('announce', { note: 'Everything lives on the new server now.' });
-    expect(late.status).toBe(409);
-    expect(late.body.error).toBe('notifications_off');
-
     const file = await post(`${FILE_SHARE}/decision`, { action: 'apply' });
     expect(file.body.error).toBe('no_share_api');
     const folder = await post('apply-folder', { parentKey: 'F', confirmed: TO_ANNA });

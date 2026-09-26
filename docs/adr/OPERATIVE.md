@@ -327,7 +327,7 @@ live in [README.md](./README.md), the register.
 
 - Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
 - **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
-- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the share's **own data type** is at or past its cutover (`cutover`, `done` or `continuous`; 0128 T5, slice 6); the announcement of shares carried by hand waits for the whole migration's.
+- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the share's **own data type** is at or past its cutover (`cutover`, `done` or `continuous`; 0128 T5, slice 6); the shares carried by hand are announced once per data type, at its own cutover.
 - Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
 
 ## [ADR-0033: Whole-tenant Google migration — domain-wide delegation, opt-in and stated](./0033-domain-wide-delegation.md)
