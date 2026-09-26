@@ -23,12 +23,12 @@ import {
   PgPathLifecycleStore,
   movePathsWithMapping as movePaths,
   stopOrResumePath,
+  type PathsChange,
   type PathStopChange,
   type PathStopOutcome,
 } from '@openmig/ledger';
 import { PgOccupancyPeakStore } from '@openmig/managed';
 import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
-import type { MappingStatus } from './mapping-status-audit.ts';
 
 /**
  * Move every included path of one mapping to follow a mapping-status change,
@@ -44,9 +44,9 @@ export async function movePathsWithMapping(
   db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
   tenantId: string,
   mappingId: string,
-  to: MappingStatus,
+  change: PathsChange,
 ): Promise<void> {
-  const { slotsTaken } = await movePaths(db, tenantId, mappingId, to);
+  const { slotsTaken } = await movePaths(db, tenantId, mappingId, change);
   // The month's high-water mark rises with the slots just taken (0109 T2) —
   // same transaction, so a committed activation cannot miss its peak. This
   // file is the managed API's; the appliance never imports these routes,
