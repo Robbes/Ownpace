@@ -83,7 +83,7 @@ import type {
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
-import { startTransition, finishTransition } from './lifecycle.ts';
+import { startTransition, finishTransition, updateTransition } from './lifecycle.ts';
 import { serveUi, UI_MOUNT } from './static-ui.ts';
 import { createVerifyRunner } from './verify-run.ts';
 import { applianceOpener } from '@openmig/orchestration';
@@ -3305,6 +3305,63 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${stop ? 'stopped' : 'resumed'} by operator`);
         }
         return sendJson(res, 200, { id, domain, stopped: stop, changed: outcome.changed });
+      }
+
+      // PUT /mappings/:id {status: 'continuous'} — the continuous lane's door
+      // (workplan 0128 D4 (a): the appliance gets the same choice). The Finish
+      // page's *Keep copying* sends the same request to both editions; this
+      // edition answered it 404 until now, so the lane could be chosen only on
+      // managed. Decided by the rule managed's update door asks
+      // (`updateTransition`), and written through the ledger's own door with
+      // its paths and audit record. Only the lane is entered here: every other
+      // move has its own door on this edition (Start, Finish, and the operator
+      // CLI's cutover), and a status update must not become a second one.
+      const laneMatch = req.method === 'PUT' && req.url ? /^\/mappings\/([^/]+)$/.exec(req.url) : null;
+      if (laneMatch) {
+        const body = (await readJson(req).catch(() => undefined)) as Record<string, unknown> | undefined;
+        const id = decodeURIComponent(laneMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const to = body?.status;
+        if (typeof to !== 'string' || Object.keys(body ?? {}).some((k) => k !== 'status')) {
+          const reason =
+            "This door takes a status and nothing else: send {\"status\": \"continuous\"} to keep " +
+            'copying after the cutover. The rest of a mapping is its file. Nothing was changed.';
+          return sendJson(res, 400, { error: 'invalid_request', message: reason, reason });
+        }
+        const from = await mappingStatus(m);
+        const transition = updateTransition(from, to);
+        if ('refuse' in transition) {
+          return sendJson(res, 409, {
+            error: 'lifecycle_refused',
+            message: transition.refuse,
+            hint: transition.hint,
+            code: transition.code,
+          });
+        }
+        if (!transition.apply) {
+          return sendJson(res, 200, { id, status: from, changed: false });
+        }
+        if (to !== 'continuous') {
+          const reason =
+            `On this appliance '${to}' has its own door: Start (POST /mappings/{id}/start), Finish ` +
+            "(POST /mappings/{id}/finish), or the operator CLI's cutover. This one enters the " +
+            'continuous lane only. Nothing was changed.';
+          return sendJson(res, 409, { error: 'lifecycle_refused', message: reason, code: 'own_door' });
+        }
+        // No `onSlotsTaken`: the appliance bills nothing, and keeps no peak.
+        await applyMappingStatusChange(persistenceBackend.driver, m.config.tenantId as string, {
+          mappingId: m.mailboxMappingId,
+          from,
+          to,
+          actor: 'operator',
+          via: 'update',
+        });
+        // Scheduled as Start schedules: the lane runs passes by definition, and
+        // every firing still asks `passesRunNow` before it copies anything.
+        scheduleMapping(m);
+        log.info(`[selfhost] ${m.config.mappingId}: keeps copying after its cutover (continuous lane)`);
+        return sendJson(res, 200, { id, status: to, changed: true });
       }
 
       const startMatch = req.method === 'POST' && req.url ? /^\/mappings\/([^/]+)\/start$/.exec(req.url) : null;

@@ -259,6 +259,23 @@ describe('the export-policy panel', () => {
   });
 });
 
+describe('Pause, where a pause is possible (0128)', () => {
+  it('is offered on an active migration', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ status: 'active' }));
+    renderHub();
+    expect(await screen.findByRole('button', { name: /^Pause/ })).toBeInTheDocument();
+  });
+
+  it('is not offered in the continuous lane, where no update brings a migration back before its cutover', async () => {
+    mappingApiGet.mockResolvedValue(aMapping({ status: 'continuous' }));
+    renderHub();
+    // The page has read the migration: its state chip is there.
+    expect(await screen.findByText(/cutover order/i)).toBeInTheDocument();
+    await screen.findByText('Acme mail');
+    expect(screen.queryByRole('button', { name: /^Pause/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('the live progress strip', () => {
   const emailDomain = {
     domain: 'email',

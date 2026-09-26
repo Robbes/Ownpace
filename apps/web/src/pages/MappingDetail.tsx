@@ -191,7 +191,11 @@ const MappingDetail: React.FC = () => {
           {detail.data?.name ?? t('hub.fallbackTitle')}
         </h2>
         <div className="flex items-center gap-3">
-          {(detail.data?.status === 'active' || detail.data?.status === 'continuous') && (
+          {/* Active only (0128). A migration in the continuous lane is
+              after its cutover, and no update brings it back before one: the
+              pause it offered was refused every time it was pressed. The lane
+              is ended on the Finish page. */}
+          {detail.data?.status === 'active' && (
             <button
               onClick={() => void pause()}
               disabled={pausing}

@@ -2,7 +2,177 @@
 
 > **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26, T4 (b) merged with T4 (a).** #1189 (the Dutch guides, T4 (a), and the Microsoft
+recipes, T8) merged first, so `main` was merged into `claude/ownpace-public-readiness-y7orc6-five-new-guides`.
+Both label guards stay: T4 (b)'s, which reads each card's own section and every label a field that
+follows another answer can show, and T4 (a)'s, which wants each label quoted in bold, rejects a label
+from the other language and wants a label's twin in the other guide. T4 (a)'s now reads its cases from
+each card's `guide` field, since this branch removed `guideSlugFor`. `LABELS_PENDING` loses Box and
+Dropbox, whose sections #1189 quoted in full. The Dutch archive guide gains what this branch's review fix
+gave the English one: both labels the folder's box can carry, *Map in de bestanden van uw
+bestemming* and *Waar het archief staat*, which the section-level guard asked for. Not merged.
+
+**2026-09-26: T4 (a) and T8 (a) and (b) reviewed and fixed, after main moved.** On branch
+`claude/ownpace-public-readiness-y7orc6-the-guides-in-dutch`, one more commit; not merged. Main was
+merged in first, up to #1183. #1180 dropped the copy budget's fifteen-word cap; this branch adds
+no `ALLOWED_OVER` entry, so there was none to remove. Three reviews (the plan, the Dutch, the
+Microsoft recipes) found sixteen things. All are fixed except where a bullet says otherwise.
+
+- **The Dutch archive guide caught up with #1178.** #1178 added *Your export in your own
+  Nextcloud* `{#own-nextcloud}` to the English guide, and this branch merged second, so it writes
+  the Dutch twin, as the note below said it would: *Uw export in uw eigen Nextcloud*, the three
+  fields under *De verbinding toevoegen*, the line in *Wat u nodig hebt* and the *Stoppen*
+  sentence, in the form's Dutch (*Waar de export staat*, *Op de schijf van deze appliance*,
+  *Verbindingen testen en bewaren*). On the merged branch without it, 2 of 239 cases failed:
+  the outline case and the label-twin case.
+- **Read-only is scoped to the card that has it.** The Microsoft guide opened with "read-only
+  by construction … an enforced guarantee" for every Microsoft 365 migration. That sentence
+  now names the Microsoft 365 account card. *Via IMAP*'s recipe now says FullAccess would let an
+  application change the mailbox, so for that card read-only is a property of this service and
+  not something Microsoft enforces. *Via the Graph API*'s `Mail.Read` can only read.
+- **The narrowing sentence was wrong, and is corrected.** The 2026-09-25 note below says Exchange
+  Online "can narrow" `Mail.Read`. It cannot narrow a grant consented in Entra. Microsoft's page
+  *Role Based Access Control for Applications in Exchange Online* says an application holds the
+  union of the two, and that a scoped `Mail.Read` in Exchange needs the Entra assignment removed.
+  Both guides now say the Exchange route replaces the Entra step rather than narrowing it, and
+  `o365-setup.md` records the same. The page was read through a search of learn.microsoft.com,
+  because fetching it is blocked from the session. It has not been walked.
+- **`Connect-ExchangeOnline -UserPrincipalName <administrator>`** replaces `-Organization <tenant
+  ID>` in both guides and `o365-setup.md`. The IMAP page shows `-Organization`, but the cmdlet's
+  own page says that parameter is for certificate or managed-identity sign-in and takes the
+  `.onmicrosoft.com` domain. Its first example is the `-UserPrincipalName` form, for an
+  administrator who signs in.
+- **`o365-setup.md`.** Three lines still said an Application Access Policy narrows the
+  registration. They now name the fence as it is built today: `Add-MailboxPermission` for IMAP,
+  and a scoped RBAC for Applications role for Graph. The `iss` claim of the two app-only tokens
+  is `https://sts.windows.net/{tenant}/`, because Graph and Exchange Online take v1.0 tokens. The
+  document said the v2.0 issuer.
+- **The Dutch.** *Sharing state* read as "what is shared stays behind" and is now *De
+  deelinstellingen (met wie iets gedeeld is)* in the Dropbox and Box guides. Also fixed: the
+  sentence on who needs application permissions, which read the other way round; the
+  impersonation *subject*, which was *het onderwerp* and is now the account under
+  *Gebruikersnaam*; the rare singular *inloggegeven*, in ten places; and sixteen sentences that
+  read as translated. Apple's own Dutch names are used: *twee-factor-authenticatie* and *Log in
+  met Apple*. Where `strings.ts` already has a provider's Dutch word, the Google guide uses it:
+  *domeinbrede delegatie*, *Admin-console*, *Geautoriseerde omleidings-URI’s*. The Microsoft
+  placeholder names *Enterprise applications*, as its step does. Class 5 of
+  `i18n-prose-boundary.md` gains the line the Dutch guides were already following: provider
+  screens may keep their English names, with the guide's notice, until T0.
+- **Guards.** The label case now wants each required field quoted in bold, exactly as the wizard
+  shows it. The review showed that `**Refresh-token**` → `**Vernieuwingstoken**` passed, because
+  the word stood in plain prose elsewhere; that mutation now fails. The one real miss it found
+  was the English Microsoft guide, whose **Refresh token** was not quoted. In the Dutch guide,
+  the T8 guard accepts either Entra's English words or Microsoft's Dutch ones for the permission
+  kind and the consent button, so T0's correct change does not turn it red. The permission, API
+  and cmdlet names are still held exactly. D7's line is read from the form's strings now that
+  #1176 has merged them.
+- **Found beside the recipe and left open; proposed for T5, or a row of its own.** (1) The setup
+  checklist gives *Via IMAP* and *Via the Graph API* one Graph profile (`provider-setup.ts`,
+  `oauth2: GRAPH`, `graph: GRAPH`). Its text says to add Graph permissions "for mail, calendar,
+  contacts or files" (`setup.graph.api_permissions.detail`, in both languages), which contradicts
+  the IMAP recipe and the guide's "both cards read mail". It should be corrected before the first
+  invitation. (2) The wizard lets a person tick calendars, contacts, files or tasks on those two
+  cards, and a stored `o365` connection cannot build them: `source-face-builders.ts` resolves them
+  to `dav`. (3) *Via IMAP*'s Graph fallback (`withGraphFallback`, `mail-source-factory.ts`) builds
+  a Graph mail source with no mailbox. It would read `/me` with an app-only token, which Graph
+  refuses. (2) and (3) belong to the Microsoft cards' own work (0141's O365 lane). This branch
+  changes none of them.
+
+**2026-09-25: T4 (a), the six guides in Dutch, and T8 (a) and (b), the two Microsoft recipes.**
+On branch `claude/ownpace-public-readiness-y7orc6-the-guides-in-dutch`, not merged.
+
+- **Six Dutch guides** in `docs/guides/nl/`: `google`, `microsoft`, `dropbox`, `box`, `apple` and
+  `archive`. Each has the English guide's outline: the same headings, levels and `{#id}`s, in the
+  same order. The wizard's fields and buttons are quoted as `strings.ts` shows them in Dutch
+  (*Gebruikersnaam*, *Refresh-token*, *Verbinden met Google*, *Verbindingen testen en bewaren*,
+  *Clientgeheim*, *Toegangslink maken*), and the prose uses the glossary's words (*ronde*,
+  *Verwijderingen*, *Verplaatsingen*, *deze dienst*, *wie deze dienst beheert*, *postvak*). The
+  Apple and archive guides carry D7's tag and line, *Nog te testen* and *"Een Apple-export kunnen
+  we nog niet lezen. Vraag die alleen aan voor uw eigen archief."*, as #1176 words the form. A Dutch
+  reader now gets each guide in Dutch under `lang="nl"`, with no fallback notice, and
+  `TRANSLATION_PENDING` is empty.
+- **T8 (a), *Via the Graph API*** (`{#application-graph}`): **Microsoft Graph → Application
+  permissions → `Mail.Read`**, and an administrator's consent. The card mints for
+  `https://graph.microsoft.com/.default` and reads `/users/{mailbox}/…` (`mail-source-factory.ts`),
+  which is that permission. A sentence says how far it reaches (every mailbox in the organisation)
+  and that Exchange Online can narrow it.
+- **T8 (b), *Via IMAP*** (`{#application-imap}`): **Office 365 Exchange Online → Application
+  permissions → `IMAP.AccessAsApp`**, an administrator's consent, `New-ServicePrincipal` with the
+  enterprise application's Object ID, and `Add-MailboxPermission … -AccessRights FullAccess` for
+  each mailbox. *Stoppen* / *Stopping* gains `Remove-MailboxPermission` and `Remove-ServicePrincipal`.
+  The card's subsections under `connect` link their recipe.
+- **Checked against Microsoft's pages, not walked.** WebFetch to `learn.microsoft.com` was
+  blocked by this session's egress proxy, so the pages were read from the sources Microsoft
+  publishes them from, on GitHub, on 2026-09-25: *Authenticate an IMAP, POP or SMTP connection
+  using OAuth* (`MicrosoftDocs/office-developer-exchange-docs`, section *Use client credentials
+  grant flow…*); the Microsoft Graph permissions reference (`microsoftgraph/microsoft-graph-docs-contrib`:
+  `Mail.Read` has an application form, *"Read mail in all mailboxes"*, admin consent required;
+  `IMAP.AccessAsUser.All` and `offline_access` have none); and the `New-ServicePrincipal`,
+  `Add-MailboxPermission` and `New-ApplicationAccessPolicy` cmdlet pages
+  (`MicrosoftDocs/office-docs-powershell`). Both recipes match them. No tenant was signed in to:
+  the walks stay the owner's (D5).
+- **`o365-setup.md`** no longer lists `IMAP.AccessAsUser.All` or `offline_access` as application
+  permissions. Its permission sets, Step 3 (now 3a, Graph, and 3b, Exchange Online), Test 3's scope
+  (`scope=imap` became `https://outlook.office365.com/.default`), the token claims and the Quick
+  Reference match the guide. The delegated list follows the code (`Files.Read`, not
+  `Files.Read.All`; `Mail.Read` and `Tasks.Read` added).
+- **English guides.** Box and Dropbox name their required fields by the wizard's labels
+  (*Username*, *Box user ID (numeric)*, *Client ID (application ID)*, *Client secret*), and the
+  Google guide quotes *Browse shared drives & folders…* with its ellipsis, as the new label case
+  requires. The Microsoft guide's `{#application}` placeholder is the recipes.
+
+Guards first: on the guides before this build the two test files ran 161 cases, and 22 failed.
+All 239 pass now. `Docs.unit.test.tsx`: `TRANSLATION_PENDING`'s Dutch list is emptied (an
+expectation changed on purpose), and a case per guide holds that both languages carry the same
+headings, levels and ids, in order, every heading below the title with its `{#id}`.
+`end-user-docs.unit.test.tsx`: T8's guard, in both languages (the Graph list names `Mail.Read`;
+neither delegated-only permission appears anywhere in `{#application}`; the IMAP recipe names
+`IMAP.AccessAsApp` under Office 365 Exchange Online, with both cmdlets); the per-language label
+guard T4 names (each required field named by the wizard's label in the guide's own language; no
+bold label from the other language; a label quoted in one language named in the other); the
+consent's delegated list and D7's line in both languages; Dutch edition asides and Dutch step
+names. Mutations each turned a case red: an English label in a Dutch guide, `Mail.Read` dropped,
+`offline_access` or `IMAP.AccessAsUser.All` in an application list, `IMAP.AccessAsApp` or
+`New-ServicePrincipal` dropped, a Dutch id, level or missing id, a deleted Dutch guide, *op de
+appliance*, an unknown Dutch step, D7's line cut, a label twin or a required label removed.
+
+**Deviations.**
+
+- **Mail only, where T8 (a) says "plus the ones the card's other data types need".** On this
+  service the two cards build mail and nothing else: a stored `o365` connection's calendar,
+  contact, file and task faces resolve to the DAV builder (`sourceFaceBuilder('o365', 'calendar')`
+  answers `dav`), which refuses a connection without a password. So each guide says both cards
+  read one mailbox's mail and sends calendars, contacts, OneDrive and To Do to the Microsoft 365
+  account card, and lists `Mail.Read` alone. The other application permissions stay in the
+  operator document, for appliance mappings that read a named mailbox's other faces.
+  `o365-application-access.md` §2's `Group.Read.All`, `User.Read.All` and `Calendars.Read` serve
+  discovery, the new-mailbox detector and the permission inventory, which run on the
+  deployment's own registration, not the card's, so the customer recipe does not ask for them.
+- **Provider screens in English.** Where the Dutch screen could not be read (Entra, Google Cloud
+  Console and the Admin console, Takeout, Apple's privacy page, Dropbox's App Console, Box), the
+  Dutch guides name the controls with the English names Microsoft, Google, Apple, Dropbox and Box
+  use in their documentation, and say that the provider shows them in the reader's language.
+  Apple's account page uses the product's own Dutch (*Aanmelden en beveiliging → App-specifieke
+  wachtwoorden*, from `wizard.appleAppPassword.why`). T0's reading against live's screens is where
+  the provider's Dutch words come in.
+- **No steps for narrowing `Mail.Read`.** Microsoft's `New-ApplicationAccessPolicy` page now says
+  App Access Policies are replaced by Role Based Access Control for Applications and that new
+  ones should not be created. The guide names the Exchange route in one sentence and gives no
+  steps; `o365-setup.md` records the change. `o365-application-access.md` §4 still creates a
+  policy and is not rewritten here.
+- **English guides edited** for the label guard (above), and the Microsoft guide's *What you
+  need* links the registration section instead of the Graph card.
+- **The label case reads the whole guide**, where T4's guard says the card's section: *Via IMAP*
+  shares its four fields with *Via the Graph API*, and the guide names them once. It is added
+  beside the English synonym case, which stays; T4's `a-guide-for-every-card.unit.test.tsx` and
+  the card table's `guide` field are the five-new-guides build's, not this one's.
+
+**For the open pull requests beside this one.** #1178 adds `{#own-nextcloud}` to the English
+archive guide; whichever of the two merges second writes its Dutch twin, or the outline case
+fails. When #1176 merges, D7's line in the guard can be read from its strings rather than
+written out.
 
 **2026-09-26, T4 (b) reviewed and fixed** on branch
 `claude/ownpace-public-readiness-y7orc6-five-new-guides`, one more commit, after `main` (#1175 to
@@ -549,11 +719,11 @@ the owner announced for *Via IMAP* (D5).
 | T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English**, merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
 | T2 No hint to create an app where the deployment carries one | 🟡 **(a), (b) and (d) built** merged in #1177 (2026-09-25); (c) is merged in #1173 (2026-09-25). 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) merged in #1176 (2026-09-25) — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
-| T4 A Dutch and an English guide for each source and target | 🔨 **(b) built** on branch `claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
+| T4 A Dutch and an English guide for each source and target | 🔨 **(a) built**, merged in #1189 (2026-09-26): the six served guides in Dutch, the same outline and ids as the English, the per-language label guard. 🔨 **(b) built** on branch `claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
-| T8 The Microsoft app-registration recipe | 🔨 **(c) built**, merged in #1173 (2026-09-25); the guide says the (a) and (b) recipe is being rewritten. 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
+| T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written**, merged in #1189 (2026-09-26), in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24**, review fixed 2026-09-25, on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today

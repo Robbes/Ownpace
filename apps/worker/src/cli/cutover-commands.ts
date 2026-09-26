@@ -196,9 +196,10 @@ const NEXT_STEP: Record<string, string> = {
 /**
  * Start a cutover — or say, truthfully, what already exists.
  *
- * There is ONE cutover ledger per mapping (`cutover_state` is unique on
- * tenant + mapping) and `initializeCutover` returns the existing row rather
- * than resetting it. This used to print "Cutover initialized: ROLLED_BACK"
+ * There is ONE whole-migration cutover ledger per mapping (`cutover_state` is
+ * unique on tenant, mapping and data type, and this command names no data
+ * type; 0128 T5 slice 4) and `initializeCutover` returns the existing row
+ * rather than resetting it. This used to print "Cutover initialized: ROLLED_BACK"
  * for a row it had merely read back, after which `verify` — which only
  * advances PREPARING — silently did nothing, and the runbook's "a FAILED
  * cutover transitions back to PREPARING — re-run" named a transition no

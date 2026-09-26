@@ -88,6 +88,10 @@ const EDITION_ASIDE = [
   { label: 'a self-host aside', re: /\bself-host(ed)?\s+(edition|only|users?|operators?)\b/i },
   { label: 'a managed-edition aside', re: /\bmanaged\s+edition\b/i },
   { label: 'an appliance aside', re: /\bthe appliance\b/i },
+  // The same asides in Dutch (0148 T4): the three above are English, and a
+  // Dutch guide that says "op de appliance" addresses one edition just as much.
+  { label: 'an appliance aside, in Dutch', re: /\bde appliance\b/i },
+  { label: 'an edition aside, in Dutch', re: /\b(beheerde|managed|zelf-?gehoste)\s+(editie|versie)\b/i },
 ];
 
 /**
@@ -267,8 +271,9 @@ function guideOf(card: FrontDoorCard): { slug: string; section: string } {
 
 describe('the guides mention what the connector actually needs', () => {
   // The synonyms below are English, so this reads the English guides. The
-  // wizard's own labels, in each language, are the case after this one (0148
-  // T4); this one stays, since it also accepts the provider's own word.
+  // wizard's own labels, in each language, are read by the label cases after
+  // this one (0148 T4), which cover the Dutch guides as well; this one stays,
+  // since it also accepts the provider's own word.
   const bySlug = new Map(
     Object.entries(GUIDES)
       .filter(([p]) => langOf(p) === 'en')
@@ -348,6 +353,7 @@ describe('the guides mention what the connector actually needs', () => {
  * provider's words or not at all (the Dropbox section never says Username).
  * They are quoted when those guides are next written; a listed guide that
  * passes in every language it is written in fails, so the list only shrinks.
+ * Box and Dropbox came off it when #1189 quoted their fields in both languages.
  *
  * A LABEL THAT FOLLOWS ANOTHER ANSWER is every label it can be (2026-09-26).
  * The archive's path is *Where the archive is* on a disk and *Folder in your
@@ -359,7 +365,7 @@ describe('the guides mention what the connector actually needs', () => {
  * resolved through `followedField`, the function both doors draw the label
  * with, and the section must name the label of every answer.
  */
-const LABELS_PENDING: readonly string[] = ['box', 'dropbox', 'google', 'microsoft'];
+const LABELS_PENDING: readonly string[] = ['google', 'microsoft'];
 
 /** Every label a field is shown under: its own, or one per answer of the field it follows. */
 function labelKeysOf(fields: ReadonlyArray<CredentialField>, field: CredentialField): string[] {
@@ -442,6 +448,166 @@ describe('each card\'s section names its fields as the wizard labels them, in th
 });
 
 /**
+ * THE WIZARD'S OWN LABELS, IN THE GUIDE'S OWN LANGUAGE (workplan 0148 T4).
+ *
+ * The synonym list above is English, so it read the English guides only, and
+ * it accepts any word for a field ("App key" for `clientId`) because it was
+ * written to catch a field nobody mentions. A Dutch guide needs the other
+ * half: a reader following it holds a screen that says "Gebruikersnaam" and
+ * "Clientgeheim", and a guide that says "Username", or a Dutch word the
+ * screen does not use, sends them hunting for a box that is not there.
+ *
+ * Two cases, each per language, both read from `strings.ts`:
+ *
+ *  1. every field the wizard REQUIRES for a card is named in that card's
+ *     guide by the label the wizard shows in the guide's language
+ *     (`STRINGS[locale][field.labelKey]`), not by a synonym;
+ *  2. a label the guide quotes in bold is the label of ITS language: a bold
+ *     span that is one of the wizard's labels in the other language, and not
+ *     in this one, is a label left untranslated; and a label quoted in one
+ *     language's guide is named in the other's too, so the two guides send
+ *     their readers to the same controls.
+ *
+ * "One of the wizard's labels" is a string under the keys a guide quotes
+ * from — the wizard's, the Connections page's, the grant links' and the
+ * navigation's — short enough to be a label rather than a sentence.
+ */
+describe('each guide quotes the wizard\'s labels in its own language (0148 T4)', () => {
+  const LABEL_KEYS = /^(wizard|connections|grantLink|nav|hub)\./;
+  /** label → the keys that carry it, per language. */
+  const labels = (locale: Locale) => {
+    const out = new Map<string, string[]>();
+    for (const [key, value] of Object.entries(STRINGS[locale])) {
+      if (!LABEL_KEYS.test(key) || value.length > 50 || value.includes('{')) continue;
+      out.set(value, [...(out.get(value) ?? []), key]);
+    }
+    return out;
+  };
+  const LABELS = Object.fromEntries(LOCALES.map((locale) => [locale, labels(locale)])) as Record<
+    Locale,
+    Map<string, string[]>
+  >;
+  /** A bold span's text, as a label would be compared: a trailing full stop or colon dropped. */
+  const boldIn = (text: string) =>
+    [...text.matchAll(/\*\*([^*\n]+)\*\*/g)].map((m) => m[1]!.trim().replace(/[.:]$/, ''));
+  const guideAt = (locale: string, slug: string) =>
+    Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
+
+  const fieldCases = LOCALES.flatMap((locale) =>
+    SOURCE_CARDS.map((card) => ({ locale, type: card.id, slug: guideOf(card).slug }))
+      .filter(({ locale: l, slug }) => guideAt(l, slug) !== undefined),
+  );
+
+  it('reads a guide in every language the app speaks', () => {
+    for (const locale of LOCALES) {
+      expect(fieldCases.filter((c) => c.locale === locale).length, `no ${locale} guide to read`).toBeGreaterThan(0);
+    }
+  });
+
+  // The label is QUOTED: a bold span that is the label exactly, as the guides
+  // quote every control. Until 2026-09-26 this was a case-insensitive search
+  // of the whole text, and a review showed what that let through: change
+  // nl/microsoft's **Refresh-token** to **Vernieuwingstoken** and the case
+  // still passed, because "een refresh-token" stood in plain prose two lines
+  // up. A word in a sentence is not the reader's way to the box.
+  it.each(fieldCases)('$locale/$slug quotes every required field of $type by the wizard\'s label', ({ locale, type, slug }) => {
+    const quoted = new Set(boldIn(guideAt(locale, slug)!));
+    const missing = credentialFieldsFor('source', type)
+      .filter((f) => f.required)
+      .map((f) => STRINGS[locale][f.labelKey as keyof (typeof STRINGS)['en']])
+      .filter((label) => !quoted.has(label));
+
+    expect(
+      missing,
+      `${locale}/${slug}.md never quotes ${missing.map((l) => `“**${l}**”`).join(', ')}, which is how the ` +
+        `wizard labels a field it REQUIRES for a '${type}' source in this language. Quote the label in ` +
+        'bold, exactly as the screen shows it, so the reader can find the box.',
+    ).toEqual([]);
+  });
+
+  const guidePaths = Object.keys(GUIDES);
+
+  it.each(guidePaths)('%s quotes no label in the other language', (path) => {
+    const locale = langOf(path) as Locale;
+    const untranslated = boldIn(GUIDES[path]!).filter(
+      (span) =>
+        !LABELS[locale].has(span) &&
+        LOCALES.some(
+          (other) =>
+            other !== locale &&
+            (LABELS[other].get(span) ?? []).some(
+              (key) => STRINGS[locale][key as keyof (typeof STRINGS)['en']] !== span,
+            ),
+        ),
+    );
+    expect(
+      untranslated,
+      `${nameOf(path)} quotes ${untranslated.map((s) => `“${s}”`).join(', ')} in bold, which is the ` +
+        'wizard’s label in another language. Quote the label this language’s screen shows ' +
+        '(strings.ts has it under the same key).',
+    ).toEqual([]);
+  });
+
+  it.each(guidePaths)('%s: a label it quotes is named in the guide’s other language too', (path) => {
+    const locale = langOf(path) as Locale;
+    const slug = slugOf(path);
+    for (const other of LOCALES.filter((l) => l !== locale)) {
+      const twin = guideAt(other, slug);
+      if (twin === undefined) continue;
+      const lower = twin.toLowerCase();
+      const unmatched = boldIn(GUIDES[path]!).filter((span) => {
+        const keys = LABELS[locale].get(span);
+        if (keys === undefined) return false;
+        return !keys.some((key) => lower.includes(STRINGS[other][key as keyof (typeof STRINGS)['en']].toLowerCase()));
+      });
+      expect(
+        unmatched,
+        `${nameOf(path)} quotes ${unmatched.map((s) => `“${s}”`).join(', ')}, and ${other}/${slug}.md ` +
+          'names no twin of it. The two languages of a guide send their readers to the same controls.',
+      ).toEqual([]);
+    }
+  });
+});
+
+/**
+ * THE APPLE EXPORT'S TAG AND ITS LINE (workplan 0148 D7), in every guide that
+ * sends a reader to Apple's export, in each language, in the words the
+ * archive form's option uses. The owner: *"Leave the Apple-export option in
+ * but be clear about it ('to be tested'-label)."* The tag alone would read as
+ * an export that only needs trying; the line says it cannot be read yet.
+ */
+describe('the Apple export carries its to-be-tested tag and line (0148 D7)', () => {
+  // Read from the form's own strings since #1176 merged them, so the guide
+  // and the option cannot drift apart: the tag in bold, then the line.
+  const LINE = Object.fromEntries(
+    (Object.keys(STRINGS) as Locale[]).map((locale) => [
+      locale,
+      `**${STRINGS[locale]['wizard.archiveProvider.untested']}.** ` +
+        STRINGS[locale]['wizard.archiveProvider.noReader.apple-privacy'],
+    ]),
+  ) as Record<Locale, string>;
+
+  it('reads the words the form shows', () => {
+    expect(LINE.en).toBe(
+      '**To be tested.** We cannot read an Apple export yet. Request one only for your own records.',
+    );
+    expect(LINE.nl).toBe(
+      '**Nog te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
+    );
+  });
+
+  const cases = (Object.keys(LINE) as Locale[]).flatMap((locale) =>
+    ['apple', 'archive'].map((slug) => ({ locale, slug })),
+  );
+
+  it.each(cases)('$locale/$slug', ({ locale, slug }) => {
+    const guide = Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
+    expect(guide, `docs/guides/${locale}/${slug}.md is not served`).toBeDefined();
+    expect(guide).toContain(LINE[locale]);
+  });
+});
+
+/**
  * The wizard has had four steps since it stopped being six — source, target,
  * migration, review — and each side's credentials sit on that side's own step.
  * The Box, Dropbox and Google guides, and three of the wizard's own about-lines
@@ -464,6 +630,29 @@ describe('the guides and the wizard name only the steps the wizard has', () => {
     expect(stepsNamedIn(GUIDES[path]!)).toEqual([]);
   });
 
+  /**
+   * The Dutch guides name a step by its Dutch name, as the wizard's step bar
+   * shows it ("in de stap Bron"), so the English pattern above cannot see
+   * them. A step named in a Dutch guide is one of the four the bar carries.
+   */
+  const DUTCH_STEPS = new Set(
+    (['source', 'target', 'migration', 'review'] as const).map((step) => STRINGS.nl[`wizard.step.${step}`]),
+  );
+  const NAMED_STEP_NL = /\b(?:in|bij|op|naar) de stap ([A-Z][\p{L}&-]*)/gu;
+  const dutchStepsNamedIn = (text: string) =>
+    [...text.matchAll(NAMED_STEP_NL)].map((m) => m[1]!).filter((s) => !DUTCH_STEPS.has(s));
+
+  it('reads a Dutch step name where one is written', () => {
+    expect(DUTCH_STEPS).toEqual(new Set(['Bron', 'Doel', 'Migratie', 'Controleren']));
+    expect(dutchStepsNamedIn('het geheim komt in de stap Inloggegevens; het id in de stap Bron')).toEqual([
+      'Inloggegevens',
+    ]);
+  });
+
+  it.each(Object.keys(GUIDES).filter((path) => langOf(path) === 'nl'))('%s, by its Dutch names', (path) => {
+    expect(dutchStepsNamedIn(GUIDES[path]!)).toEqual([]);
+  });
+
   it('the wizard\'s own words, in both languages', () => {
     expect(Object.values(STRINGS.en).flatMap(stepsNamedIn)).toEqual([]);
     expect(Object.values(STRINGS.nl).filter((v) => /stap met inloggegevens/i.test(v))).toEqual([]);
@@ -481,33 +670,144 @@ describe('the guides and the wizard name only the steps the wizard has', () => {
  * because the renderer has no tables yet (0148 T6 (b)).
  */
 describe('the Microsoft guide lists every permission the consent asks for', () => {
-  const guide = Object.entries(GUIDES).find(([p]) => nameOf(p) === 'en/microsoft')?.[1];
+  // In both languages since 0148 T4: the Dutch administrator copies the same list.
+  const cases = (['en', 'nl'] as const).flatMap((locale) =>
+    [...Object.values(MICROSOFT_DOMAIN_SCOPES), MICROSOFT_OFFLINE_SCOPE].map((scope) => ({ locale, scope })),
+  );
 
-  it.each([...Object.values(MICROSOFT_DOMAIN_SCOPES), MICROSOFT_OFFLINE_SCOPE])('%s', (scope) => {
-    expect(guide, 'docs/guides/en/microsoft.md is not served').toBeDefined();
+  it.each(cases)('$locale: $scope', ({ locale, scope }) => {
+    const guide = Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/microsoft`)?.[1];
+    expect(guide, `docs/guides/${locale}/microsoft.md is not served`).toBeDefined();
     expect(guide).toMatch(new RegExp(`^- \`${scope.replace(/\./g, '\\.')}\` `, 'm'));
   });
 });
 
 /**
- * THE RECIPE THAT IS BEING REWRITTEN (workplan 0148 T8). `o365-setup.md`'s
- * application-permission list for the *Via IMAP* and *Graph API* cards names
+ * THE LIST THAT WAS WRONG (workplan 0148 T8). `o365-setup.md`'s
+ * application-permission list for the *Via IMAP* and *Graph API* cards named
  * `IMAP.AccessAsUser.All` and `offline_access` under Microsoft Graph's
- * APPLICATION permissions. As Microsoft documents them, both are delegated
- * only, and an app-only token for Exchange Online carries neither. When the
- * customer half moved into `docs/guides/`, that list stayed behind on purpose:
- * the served guide says the recipe is being rewritten, and T8 writes it. This
- * holds the half that can be held today: no served guide names the permission
- * that exists only in the wrong list.
+ * APPLICATION permissions. Microsoft's permissions reference lists both as
+ * delegated only (no application identifier), and an app-only token carries
+ * neither. When the customer half moved into `docs/guides/`, that list stayed
+ * behind, and T8 wrote the recipes afresh (below). This holds that no served
+ * guide names the permission that existed only in the wrong list.
  */
-describe('no served guide carries the application-permission list being rewritten', () => {
+describe('no served guide names the delegated IMAP permission the wrong list used', () => {
   it.each(Object.keys(GUIDES))('%s', (path) => {
     expect(
       GUIDES[path]!.includes('IMAP.AccessAsUser.All'),
-      `${nameOf(path)} names IMAP.AccessAsUser.All, which only o365-setup.md's application ` +
-        'list used, and that list is wrong (0148 T8). Leave the card\u2019s recipe to the rewrite.',
+      `${nameOf(path)} names IMAP.AccessAsUser.All, a DELEGATED permission that o365-setup.md ` +
+        'listed as an application one. The Via IMAP card takes IMAP.AccessAsApp, under Office 365 ' +
+        'Exchange Online (0148 T8).',
     ).toBe(false);
   });
+});
+
+/**
+ * THE TWO RECIPES (workplan 0148 T8 (a) and (b)), in both languages.
+ *
+ * *Via the Graph API* and *Via IMAP* take a registration of the customer's
+ * own, with APPLICATION permissions and an administrator's consent: their
+ * fields are a mailbox, a tenant, a client id and a secret, and no refresh
+ * token (`o365Fields()`), so the pass always mints an app-only token.
+ *
+ *  - (a) *Via the Graph API* mints for `https://graph.microsoft.com/.default`
+ *    (`mail-source-factory.ts`) and reads `/users/{mailbox}/\u2026`, which is
+ *    Microsoft Graph's application `Mail.Read`. The list names it, and names
+ *    neither `IMAP.AccessAsUser.All` nor `offline_access`, which have no
+ *    application form at all.
+ *  - (b) *Via IMAP* mints for `https://outlook.office365.com/.default`
+ *    (`buildImapSourceFromCredentials`). That token carries only permissions
+ *    configured on Office 365 Exchange Online, so the recipe names
+ *    `IMAP.AccessAsApp` under that API, and the two Exchange Online steps
+ *    Microsoft documents for app-only IMAP: registering the application's
+ *    service principal (`New-ServicePrincipal`) and giving it the mailbox
+ *    (`Add-MailboxPermission`).
+ *
+ * The recipes sit in `{#application}`, with a subsection per card, because
+ * those two cards always take the customer's own registration: a fold that
+ * closes where the deployment carries Microsoft's app would hide them.
+ */
+describe('the Microsoft guide carries both registration recipes (0148 T8)', () => {
+  /** A section's lines, from its `{#id}` heading to the next heading of its level or above, fences skipped. */
+  function sectionOf(text: string, id: string): string | undefined {
+    const lines: string[] = [];
+    let inFence = false;
+    for (const line of text.split('\n')) {
+      if (line.startsWith('```')) inFence = !inFence;
+      lines.push(inFence || line.startsWith('```') ? '' : line);
+    }
+    const raw = text.split('\n');
+    const heading = new RegExp(`^(#{1,4}) .*\\{#${id}\\}\\s*$`);
+    const start = lines.findIndex((line) => heading.test(line));
+    if (start === -1) return undefined;
+    const level = heading.exec(lines[start]!)![1]!.length;
+    const end = lines.findIndex((line, i) => i > start && /^#{1,4} /.test(line) && /^#+/.exec(line)![0].length <= level);
+    return raw.slice(start, end === -1 ? undefined : end).join('\n');
+  }
+  /** The permissions a list names: one per bullet, in backticks at its start. */
+  const listed = (section: string) => [...section.matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]!);
+  const DELEGATED_ONLY = ['IMAP.AccessAsUser.All', 'offline_access'];
+  /**
+   * Entra's words for the kind of permission and for the consent button, as
+   * its screen shows them. The Dutch guide names Entra's screens by their
+   * English names until 0148 T0 reads Microsoft's Dutch screens against it,
+   * and class 5 of `docs/i18n-prose-boundary.md` then wants Microsoft's own
+   * Dutch, so a Dutch guide may carry either and the correct change does not
+   * turn this red. The permission names, the API names and the cmdlets are
+   * the same in every language and are held exactly.
+   */
+  const ENTRA_WORDS = {
+    en: { application: /Application permissions/, consent: /Grant admin consent/ },
+    nl: {
+      application: /Application permissions|Toepassingsmachtigingen/,
+      consent: /Grant admin consent|Beheerderstoestemming verlenen/,
+    },
+  } as const;
+
+  it('reads a section to the next heading of its level, and not past it', () => {
+    const doc = '### A {#a}\n- `One`\n#### B {#b}\n- `Two`\n```\n# not a heading\n```\n### C {#c}\n- `Three`\n';
+    expect(listed(sectionOf(doc, 'a')!)).toEqual(['One', 'Two']);
+    expect(listed(sectionOf(doc, 'b')!)).toEqual(['Two']);
+    expect(sectionOf(doc, 'b')).toContain('# not a heading');
+    expect(sectionOf(doc, 'missing')).toBeUndefined();
+  });
+
+  for (const locale of ['en', 'nl'] as const) {
+    const guide = () => {
+      const text = Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/microsoft`)?.[1];
+      expect(text, `docs/guides/${locale}/microsoft.md is not served`).toBeDefined();
+      return text!;
+    };
+
+    it(`${locale}: Via the Graph API's application permissions name Mail.Read, and no delegated-only one`, () => {
+      const graph = sectionOf(guide(), 'application-graph');
+      expect(graph, `${locale}/microsoft.md has no {#application-graph} section`).toBeDefined();
+      expect(graph).toContain('Microsoft Graph');
+      expect(graph).toMatch(ENTRA_WORDS[locale].application);
+      expect(listed(graph!)).toContain('Mail.Read');
+      for (const permission of DELEGATED_ONLY) {
+        expect(listed(graph!), `${permission} is delegated only`).not.toContain(permission);
+      }
+      // Nowhere in the registration these cards need, not even in passing.
+      const application = sectionOf(guide(), 'application')!;
+      for (const permission of DELEGATED_ONLY) expect(application).not.toContain(permission);
+      expect(application).toMatch(ENTRA_WORDS[locale].consent);
+    });
+
+    it(`${locale}: Via IMAP's recipe names IMAP.AccessAsApp under Office 365 Exchange Online, and the two Exchange steps`, () => {
+      const imap = sectionOf(guide(), 'application-imap');
+      expect(imap, `${locale}/microsoft.md has no {#application-imap} section`).toBeDefined();
+      expect(imap).toContain('Office 365 Exchange Online');
+      expect(listed(imap!)).toContain('IMAP.AccessAsApp');
+      expect(imap).toMatch(ENTRA_WORDS[locale].consent);
+      expect(imap).toMatch(/\bNew-ServicePrincipal\b/);
+      expect(imap).toMatch(/\bAdd-MailboxPermission\b/);
+      // The Via IMAP card's own subsection points at its recipe.
+      expect(sectionOf(guide(), 'oauth2')).toContain('](#application-imap)');
+      expect(sectionOf(guide(), 'graph')).toContain('](#application-graph)');
+    });
+  }
 });
 
 /**
