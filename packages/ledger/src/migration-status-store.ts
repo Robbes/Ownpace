@@ -327,8 +327,33 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
           // Only what a switch-off wrote. A data type that completed, failed or
           // is mid-pass keeps the state its last pass gave it.
           eq(schemaPg.migrationStatus.state, 'stopped'),
+          // And never one its owner stopped (0128 T4): the appliance switches
+          // on every data type its file names at each start-up, and that is
+          // not a resume. Only the resume door clears the stop, first.
+          sql`NOT EXISTS (SELECT 1 FROM path_lifecycle p
+                           WHERE p.mapping_id = ${mappingId}::uuid AND p.domain = ${domain}
+                             AND p.stopped_at IS NOT NULL)`,
         ),
       );
+  }
+
+  /**
+   * A data type its owner stopped (0128 T4): `stopped`, even with nothing
+   * copied yet, where a switch-off says `skipped` for none. An upsert, as
+   * `markSwitchedOff` is, and `paused_reason` cleared for the same reason.
+   */
+  async markStoppedByOwner(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    domain: DiscoveryDomain,
+  ): Promise<void> {
+    await this.db.execute(sql`
+      INSERT INTO migration_status (id, tenant_id, mapping_id, domain, state, started_at, updated_at)
+      VALUES (gen_random_uuid(), ${tenantId}::uuid, ${mappingId}::uuid, ${domain}, 'stopped', now(), now())
+      ON CONFLICT (tenant_id, mapping_id, domain) DO UPDATE
+         SET state = 'stopped',
+             paused_reason = NULL,
+             updated_at = now()`);
   }
 
   async getStatus(
@@ -342,6 +367,16 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         itemsSynced: sql<number>`COUNT(CASE WHEN ${inArray(schemaPg.item.status, [...SYNCED_STATUSES])} THEN 1 END)`,
         itemsFailed: sql<number>`COUNT(CASE WHEN ${schemaPg.item.status} = 'failed' THEN 1 END)`,
         bytesTransferred: sql<number | null>`COALESCE(SUM(CASE WHEN ${inArray(schemaPg.item.status, [...SYNCED_STATUSES])} THEN ${schemaPg.item.sizeBytes} ELSE 0 END), 0)`,
+        // Its owner stopped it (0128 T4): the stop on its path, not the word a
+        // pass wrote. A pass already copying this data type when it was
+        // stopped finishes it and writes `completed`; the strip must still say
+        // `stopped` (D6: a stop is kept beside the phase, not in pass state).
+        stoppedByOwner: sql<boolean>`EXISTS (
+          SELECT 1 FROM path_lifecycle p
+            JOIN scope_selection s ON s.mapping_id = p.mapping_id AND s.domain = p.domain AND s.included
+           WHERE p.mapping_id = ${schemaPg.migrationStatus.mappingId}
+             AND p.domain = ${schemaPg.migrationStatus.domain}
+             AND p.stopped_at IS NOT NULL)`,
       })
       .from(schemaPg.migrationStatus)
       .leftJoin(
@@ -381,7 +416,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       tenantId: row.status.tenantId as TenantId,
       mappingId: row.status.mappingId as MappingId,
       domain: row.status.domain as DiscoveryDomain,
-      state: row.status.state as DomainState,
+      state: (row.stoppedByOwner === true ? 'stopped' : row.status.state) as DomainState,
       itemsSynced: Number(row.itemsSynced),
       itemsFailed: Number(row.itemsFailed),
       bytesTransferred: Number(row.bytesTransferred ?? 0),
@@ -419,6 +454,9 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
       ...(isPauseReason(row.status.pausedReason)
         ? { pausedReason: row.status.pausedReason }
         : {}),
+      // Whose stop it is (0128 T4, slice 3c): the screens say *stopped by you*
+      // for this one, and *switched off* for one the mapping file turned off.
+      ...(row.stoppedByOwner === true ? { stoppedByOwner: true as const } : {}),
     }));
   }
 }

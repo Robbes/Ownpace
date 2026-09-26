@@ -83,6 +83,11 @@ export interface LiveProgressRow {
    * field existed will not carry it.
    */
   readonly lastActiveAt?: string;
+  /**
+   * Its owner stopped it (0128 T4, slice 3c), rather than the mapping file
+   * switching it off: the same `stopped`, a different way back.
+   */
+  readonly stoppedByOwner?: true;
 }
 
 const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domains }) => {
@@ -155,13 +160,18 @@ const LiveProgress: React.FC<{ domains: readonly LiveProgressRow[] }> = ({ domai
               </span>
             )}
             {d.state === 'stopped' && (
-              // Switched off after copying: the count beside the chip is how
-              // many copies stay, and this says they no longer follow.
+              // Stopped after copying: the count beside the chip is how many
+              // copies stay, and this says they no longer follow. Whose stop
+              // it is decides the way back: Resume on the migration's page for
+              // one its owner stopped (0128 T4), the file for one it switched
+              // off (0125 T7).
               <Hint
                 className="basis-full"
                 tone="note"
-                text={t('confirm.progress.stopped')}
-                why={t('confirm.progress.stopped.why')}
+                text={t(d.stoppedByOwner ? 'confirm.progress.stoppedByYou' : 'confirm.progress.stopped')}
+                why={t(
+                  d.stoppedByOwner ? 'confirm.progress.stoppedByYou.why' : 'confirm.progress.stopped.why',
+                )}
               />
             )}
             {d.pausedReason && (

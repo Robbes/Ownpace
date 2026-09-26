@@ -4,6 +4,118 @@
 
 ## Status — 2026-09-24 (update this block at the end of every session)
 
+**2026-09-24, T9 built.** The export read from a folder in the migration's own files is built
+on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on
+0136 T5's branch (`…-no-archive-disk-path-on-managed`). Not merged. What it does:
+
+- **The form.** The archive's descriptor gains `where`, a choice of two, before the path. Both
+  doors draw it with one component (`ChoiceField.tsx`), as radio buttons. On managed the
+  destination's files are the default, and the disk is shown disabled with *Only on a self-hosted
+  appliance* / *Alleen op een eigen appliance* (D10, D11). On the appliance the disk stays the
+  default. The path's label, hint and example follow the choice. The descriptor gained
+  `defaultValue`, `follows` and translated options for this, read through `followedField` and
+  `choiceDefaults` in shared.
+- **The doors.** `POST /api/migrations` and `POST /api/connections` accept `where` and store it.
+  An unknown value is refused by name. The builder passes it to `parseArchiveSource`, and a
+  reused connection's override keeps it beside the path. With `where: 'target'` the create door
+  asks `archiveInTargetRefusal(targetType)`, a new shared function that the wizard's target step
+  reads too. WebDAV and Nextcloud pass. JMAP is refused with the sentence `archiveStoreInTarget`
+  throws, which moved to shared word for word. A destination with no files is refused with a
+  sentence that names the two that have them. 0136 T5's refusal lets `where: 'target'` through
+  and still refuses an absent or `disk` location.
+- **The wizard.** The Test of an export in the destination answers `probe.countedAtPreflight`,
+  and the wizard keeps and uses the saved connection on that answer. The target step shows the
+  refusal and holds Next while the destination cannot serve the export.
+- **The guide.** `docs/archive-setup.md` gains *Your export in your own Nextcloud*, written so it
+  can move to `docs/guides/` as it is.
+- **The gate.** `smoke-managed.sh` writes the four-file fixture Takeout into tenant B's files on
+  the demo Nextcloud. It creates a migration from it with `where: "target"`, reusing tenant B's
+  stored Nextcloud connection as the destination, and asks for its preflight. The preflight must
+  count 3 items and 44 bytes in `Photos from 2024`: the two photos and the edited version. The
+  gate checks that `where` and no credential were stored, then takes the migration, its source
+  connection and the folder back. T5's gap line is gone.
+
+Guards: 31 cases in three files named `an-export-in-the-destinations-files`, in shared, the API
+and the web app. 30 failed on the code this branch started from. The shared vacuity floor passed.
+Two mutations were also tried: managed's default set to the disk, and the create door's target
+check switched off. They failed 5 cases in shared and the API, and 7 in the web app. Four
+existing expectations were rewritten on purpose:
+`an-archive-is-a-location-not-an-account` (three fields now), the Connections archive add body
+and the wizard reachability row (a managed build asks for the destination's folder), and
+`a-verdict-that-does-not-say-what-failed`'s archive case (no gap recorded now). The JMAP test in
+`the-store-the-pass-picks` gained an assertion that the pass throws the shared sentence.
+
+Where this differs from §3:
+
+- the gate reads the count from the preflight's row for the year folder. The preflight has no
+  per-kind breakdown, so the edit is shown by the bytes (44 = 14 + 14 + 16). The domain total is
+  4 because it includes the manifest;
+- the gate reuses tenant B's stored Nextcloud connection. The address the script reaches
+  Nextcloud at from outside the stack is not one the run containers can reach;
+- the wizard's Test posted no `provider` or `path` for an archive at all, so its Test was refused
+  for missing fields. It posts all three now;
+- the path's hint fits the twelve-word budget. The example and the note that the parts stay and
+  take space are under its *Why?*;
+- the guide section is in English only, like the served archive guide. The Dutch text comes with
+  T4's Dutch guide;
+- the JMAP sentence is unchanged. It still offers "a path on the machine running the pass",
+  which managed refuses. That is left to the owner.
+
+**2026-09-25, T9's guide text moved to the served guide.** #1173 merged while T9 was open and moved
+the customer text to `docs/guides/en/archive.md`, which is what `/docs` serves;
+`docs/archive-setup.md` is the operator document now. So the new section, *Your export in your own
+Nextcloud* `{#own-nextcloud}`, is in the served guide too, under `connect`, with the owner's points:
+no need to unpack, the photos arrive as ordinary files and folders, the `.zip` files stay until
+deleted. Its *Adding the connection* list names the three fields the form now asks for, and its
+*Stopping* sentence no longer says the archive stays on a disk. The served text says *as Google
+delivered them*, not *Google or Apple*, since an Apple export cannot be read yet (D7). The guide
+addresses no edition, as the lint requires: the disk choice is described by what the form shows. The
+Dutch guide is T4's.
+
+**2026-09-25, T9 reviewed and fixed** on the same branch, one more commit. Not merged. Two
+reviewers found five things to fix and five nits:
+
+- **A reused export connection keeps its own store.** The wizard posted this edition's default
+  `where` on every reuse, and the pass lays the override over the stored row, so on the
+  appliance a row in the destination's files was read from the disk. The wizard now starts the
+  choice from the row's own `where` (none means the disk), which the connection list returns
+  (`knownConnectionValues`). The create door reads the stored row's config and judges 0136 T5's
+  refusal and `archiveInTargetRefusal` on the row with the override laid over it, as the pass
+  reads it. The override keeps `where` only beside a path. On a reuse the source step still asks
+  for this migration's folder, as the door does, and on managed a row on the disk holds Next
+  and names *Where the export is*. The wizard's picker never offered a stored archive at all:
+  `sourceKindOf` mapped `archive` to `o365`. It maps it to `archive` now. Found and left for
+  their own tasks: that table also sends `microsoft` and `apple` to `o365`, so their stored
+  connections are not offered either, and a reused Box connection passes the source step
+  without the subject the create door demands on a reuse.
+- **The Test's kept connection has a guard.** After `countedAtPreflight` the wizard continues on
+  the row it saved: *Which export* is hidden, the folder and the choice stay, and the row is
+  added once.
+- **The gate finds its source connection through its own migration**, as it finds the
+  destination, and never by display name. The name carries the run's tag.
+- **The sentences.** The JMAP refusal names the destination *JMAP*, not `jmap`, and is true on
+  both editions: a WebDAV or Nextcloud destination, or, on a self-hosted appliance, the disk.
+  This replaces the last bullet above. The no-files refusal is plural (*IMAP destinations have
+  no files*), so no article has to agree with the name.
+- **The guide** names the wizard's button, **Test and save connections**, and *Pointing us at
+  it* says that an export in the destination's files is counted at the preflight, not by Test.
+- **Two nits applied.** The Dutch path hint reads *De map zoals u die in uw bestanden ziet,
+  vanaf de hoofdmap.* The wizard draws *counted at the preflight* with a grey question mark,
+  not the red error mark.
+
+The owner asked about this feature the same day: *"yes, but how can we work with what was
+uploaded? Will it be added unpacked in that target? Then: yes."* (D11, added 2026-09-25). The
+guide's section now says it plainly: there is no need to unpack, the photos arrive as ordinary
+files and folders, and the `.zip` files stay and take their space until the person deletes them.
+
+Guards: 11 cases in the unit project and 3 in the browser project failed on the first T9 commit.
+Mutations failed them again: dropping the `countedAtPreflight` clause (1 case), the row's `where`
+(2), the managed disk row's hold on Next (1), and the door's read of the stored row together
+with the path-less override (5, T5's reuse case among them). One existing
+expectation was rewritten on purpose: T5's reuse case in
+`a-path-on-the-server-a-managed-pass-cannot-read` expected no database call at all, and now
+expects one read of the stored row's config, proved read-only.
+
 **2026-09-24, T2 (a), (b) and (d) built, not merged.** On branch
 `claude/ownpace-public-readiness-y7orc6-a-hint-that-knows-the-service-has-an-app`. Each part reads
 one fact, `providerClientFacts()` on the server and `/api/provider-clients` in the browser, and
@@ -56,6 +168,50 @@ Where the build departs from §3:
 - §3 names only AADSTS700016. AADSTS900023 (an invalid directory) gets the same treatment: with
   the deployment's registration the directory is the deployment's own setting, since
   `resolveMicrosoftClient` takes the tenant from the environment when no pair was typed in.
+
+**2026-09-24, T3's Apple tag built (D7).** On branch
+`claude/ownpace-public-readiness-y7orc6-an-export-we-cannot-read-yet`, not merged. The archive
+form keeps the Apple export and says it cannot be read yet, on both editions:
+
+- the exports a reader exists for are listed in `archive-providers.ts`
+  (`ARCHIVE_PROVIDERS_WITH_READERS`), and a test in orchestration,
+  `the-form-and-the-readers-agree.unit.test.ts`, holds that list equal to `READERS`.
+  `archiveProvidersWithReaders()` stays and still reads `READERS`;
+- at both doors, the wizard and the Connections page, an option whose export has no reader shows
+  *To be tested* / *Nog te testen* in its name. While it is chosen, a line under the field says
+  *"We cannot read an Apple export yet. Request one only for your own records."* Both come from
+  the list, so when a reader lands they go and nothing else changes;
+- the card's hint carries the tag after Apple, and `archive-setup.md`'s Apple part opens with
+  the tag and the line, before the request.
+
+The guard, `apps/web/src/components/an-export-we-cannot-read-yet.unit.test.tsx`, has 26 cases,
+and all 26 failed before the build: a managed and an appliance build, both doors, both
+languages. The orchestration test's 2 cases failed too. Where the build differs from §3:
+
+- **The guard's name.** §3's `a-card-that-cannot-work-is-not-offered` named the hiding that D10
+  dropped.
+- **The Dutch line changes one word.** D7's *"Vraag er alleen een aan voor uw eigen archief"*
+  makes the line 16 words, and a line on screen may have 15 (`words-that-fit-on-one-line`). It
+  reads *"Vraag die alleen aan voor uw eigen archief."*
+- **The card's hint is reworded** so it stays within the 12 words a hint may have: *"A Google
+  Takeout or Apple (to be tested) download: photos and files."* and *"Een gedownloade Google
+  Takeout- of Apple-export (nog te testen): foto’s en bestanden."* In Dutch the tag follows
+  *Apple-export*, which is one word. The hint is a sentence, so it is the one place a landed
+  reader has to be answered by hand; the guard fails until it is.
+- **The line is shown below the field's own hint**, not instead of it. The Connections form
+  shows no field hints, so there the line is the only one. The line is keyed per export
+  (`wizard.archiveProvider.noReader.apple-privacy`), because it names the company, and
+  `descriptor-labels-resolve.unit.test.ts` now checks a choice's keys in both languages.
+- **One existing test changed on purpose.** `CreateMapping.reachability.unit.test.tsx` found the
+  Test button by `/Test/i`, which now also matches the archive card's hint. Its nine queries
+  are anchored, `/^Test/i`, as its Next button already was.
+
+After review, on the same branch: the rest of `archive-setup.md`'s Apple part no longer says we
+read an Apple export today. Step 3, *Getting it ready for us*, *One thing Apple removes* and the
+*Which export* row now say *will read* or *to be tested*. T1/T4 carry this wording into
+`docs/guides/`. The line under the field is now a status, and the select points at it
+(`aria-describedby`), so a screen reader hears it. The guard gained one case per door, edition
+and language: 34 cases, and the 8 new ones failed on the pages before this fix.
 
 **2026-09-24, night: the export read from the tester's own files (D11).** The owner answered open
 question 6: *"the wizard should be able to read a Takeout export from a folder in the tester's
@@ -273,15 +429,15 @@ the owner announced for *Via IMAP* (D5).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner reads the Dutch guides against live's screens | ⏳ **Owner** | §3. In the same sitting as 0144 T0's reading of the tester guide. Open questions 1 to 5 were answered on 2026-09-24 (D5 to D9). **Before the first invitation.** |
-| T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English** merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
-| T2 No hint to create an app where the deployment carries one | 🟡 **(a), (b) and (d) built** on `claude/ownpace-public-readiness-y7orc6-a-hint-that-knows-the-service-has-an-app`, not merged (2026-09-24); (c) is merged in #1173 (2026-09-25). 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
-| T3 Cards that cannot work on managed are hidden there | 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
+| T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English**, merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
+| T2 No hint to create an app where the deployment carries one | 🟡 **(a), (b) and (d) built** merged in #1177 (2026-09-25); (c) is merged in #1173 (2026-09-25). 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
+| T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) merged in #1176 (2026-09-25) — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
-| T8 The Microsoft app-registration recipe | 🔨 **(c) built** on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-person-using-it`, not merged; the guide says the (a) and (b) recipe is being rewritten. 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
-| T9 The export read from a folder in the migration's own files | 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
+| T8 The Microsoft app-registration recipe | 🔨 **(c) built**, merged in #1173 (2026-09-25); the guide says the (a) and (b) recipe is being rewritten. 📋 **Proposed** (the recipes); the tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
+| T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24**, review fixed 2026-09-25, on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today
 
@@ -668,6 +824,18 @@ invitation. What that means:
   managed stack. 0141 records that run, and 0131 T2's tag stays until it is recorded.
 - **Not the relay.** The relay, which fetches a download for the person and puts it in the
   target, stays 0116 T4's. Here the person puts the export there.
+
+**Added 2026-09-25: is the upload unpacked?** Asked whether the tester puts the Takeout export in
+a Nextcloud folder, the owner wrote: *"yes, but how can we work with what was uploaded? Will it be
+added unpacked in that target? Then: yes."* The answer, from `webdav-archive-store.ts` and
+`selfhost-archive-in-target-import.e2e.test.ts`: the uploaded `.zip` parts are read where they
+lie, by PROPFIND and HTTP `Range`, a few MB at a time. Nothing is unpacked on a server, and the
+parts are left byte-identical. An export the person already extracted into the folder works too.
+What the migration writes into the destination is unpacked: albums as folders, photos in no album
+in a folder per year, and the manifest. So the archive guide's section says three things plainly:
+there is no need to unpack (upload the `.zip` files as delivered, all parts in one folder); the
+photos arrive as ordinary files and folders; and the `.zip` files stay in that folder, taking
+their space, until the person deletes them after checking the result.
 
 ## 3. What each task does
 

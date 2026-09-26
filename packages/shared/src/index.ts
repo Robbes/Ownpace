@@ -43,6 +43,9 @@ export * from './cursor.ts';
 export * from './concurrency.ts';
 export * from './config.ts';
 export * from './target-domains.ts';
+// Workplan 0148 T9 — which destinations an export can be read from, beside
+// the table it derives from.
+export * from './archive-in-target.ts';
 export * from './provider-setup.ts';
 export * from './credential-fields.ts';
 export * from './front-door.ts';

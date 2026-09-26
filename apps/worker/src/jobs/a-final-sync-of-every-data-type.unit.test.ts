@@ -228,6 +228,22 @@ describe('the gate verifies the data types the migration has', () => {
     });
   });
 
+  it("skips the data types their owner stopped, by the gate's own names (0128 T4, D6)", () => {
+    const config = verificationConfigFor(new Set(['email', 'calendar', 'file']), new Set(['email', 'file']));
+    expect(config.verifyMail).toBe(true);
+    expect(config.stoppedByOwner).toEqual(['mail', 'files']);
+    expect(verificationConfigFor(new Set(['email'])).stoppedByOwner).toEqual([]);
+  });
+
+  it("the managed Finish check asks the gate's own question, stops included (0128 T4, D6)", () => {
+    const job = readFileSync(join(HERE, 'run-verification.ts'), 'utf8');
+    expect(job).toMatch(/const stopped = await stoppedDomains\(pool, tenantId, mappingId\)/);
+    expect(job).toContain('config: verificationConfigFor(enabled, stopped)');
+    const gate = readFileSync(join(HERE, 'cutover-gate.ts'), 'utf8');
+    expect(gate).toMatch(/const stopped = await stoppedDomains\(pool, tenantId, mappingId\)/);
+    expect(gate).toContain('config: verificationConfigFor(selected, stopped)');
+  });
+
   it('a mail-only migration is asked about mail alone', () => {
     expect(verificationConfigFor(new Set(['email']))).toMatchObject({
       verifyMail: true,

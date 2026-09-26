@@ -66,6 +66,27 @@ describe('descriptor labels', () => {
     expect(offenders, 'labels that state requiredness the marker already states').toEqual([]);
   });
 
+  /**
+   * A choice's tag and its line (0148 T3, D7) are keys too, and the line is
+   * keyed per export: a third export offered with no reader must bring its
+   * own sentence in both languages, or the form shows a bare key under it.
+   */
+  it('resolve the tag and the line a choice carries, in both languages', () => {
+    const missing = everyField.flatMap(({ role, type, field }) =>
+      (field.options ?? []).flatMap((option) =>
+        [option.tagKey, option.hintKey]
+          .filter((key): key is string => key !== undefined)
+          .flatMap((key) =>
+            (['en', 'nl'] as const)
+              .filter((locale) => !(key in STRINGS[locale]))
+              .map((locale) => `${role}/${type}.${field.key}=${option.value} [${locale}] → ${key}`),
+          ),
+      ),
+    );
+
+    expect(missing, 'option keys with no string').toEqual([]);
+  });
+
   it('resolve their placeholders as well, where one is named', () => {
     const missing = everyField
       .filter(({ field }) => field.placeholderKey && !(field.placeholderKey in STRINGS.en))

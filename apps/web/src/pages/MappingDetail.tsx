@@ -305,12 +305,22 @@ const MappingDetail: React.FC = () => {
         />
       )}
 
-      {/* WHAT THIS MIGRATION COPIES, and what it may still gain (0125 T6).
-          Beside the export format because both are settings of a migration
-          that is already running; renders nothing when there is nothing to
-          add, and nothing until the detail read lands. */}
-      {detail.data && (
-        <MigrationKindsPanel mappingId={id} choices={detail.data.kindChoices} />
+      {/* WHAT THIS MIGRATION COPIES, what it may still gain (0125 T6), and
+          each data type's Stop and Resume (0128 T4, slice 3c). Beside the
+          export format because all three are settings of a migration that is
+          already running; renders nothing when there is nothing to add and
+          nothing to stop, and nothing until its read lands. Both editions:
+          the appliance's stops come off `/status`, as its strip does. */}
+      {(detail.data || (isSelfHost() && status.data)) && (
+        <MigrationKindsPanel
+          mappingId={id}
+          choices={detail.data?.kindChoices}
+          stops={
+            isSelfHost()
+              ? status.data?.mappings.find((m) => m.mappingId === id)?.stops
+              : detail.data?.stopChoices
+          }
+        />
       )}
 
       {/* Grant links (0108 T3) — how the person being migrated gives access to

@@ -37,6 +37,8 @@ export interface CompletionDomainLine {
   readonly bytesTransferred: number;
   readonly lastSyncedAt?: string;
   readonly lastError?: string;
+  /** Its owner stopped it (0128 T4), rather than the mapping file switching it off. */
+  readonly stoppedByOwner?: true;
 }
 
 /** The queues, summarised — open items are the reasons a migration is not done. */
@@ -181,6 +183,7 @@ export function buildCompletionReport(inputs: CompletionReportInputs): Completio
       bytesTransferred: d.bytesTransferred,
       ...(d.lastSyncedAt ? { lastSyncedAt: d.lastSyncedAt } : {}),
       ...(d.lastError ? { lastError: d.lastError } : {}),
+      ...(d.stoppedByOwner === true ? { stoppedByOwner: true as const } : {}),
     })),
     queues,
     ...(inputs.applied ? { applied: inputs.applied } : {}),
@@ -234,15 +237,28 @@ export function renderCompletionReportMarkdown(report: CompletionReport): string
         'not synced, not checked (an owner scoping decision, not unfinished work).',
     );
   }
-  // Switched off AFTER copying (0125 T7), and not the sentence above: those
-  // copies are on the target, and the reader must not take them for current.
-  const stopped = report.domains.filter((d) => d.state === 'stopped');
-  if (stopped.length > 0) {
+  // Stopped AFTER copying, and not the sentence above: those copies are on
+  // the target, and the reader must not take them for current. Two ways in,
+  // each said with its own way back: switched off in the mapping file (0125
+  // T7), or stopped by the owner on the migration's page (0128 T4).
+  const copies = (d: CompletionDomainLine) =>
+    `${d.domain} (${d.itemsSynced} ${d.itemsSynced === 1 ? 'copy' : 'copies'})`;
+  const switchedOff = report.domains.filter((d) => d.state === 'stopped' && d.stoppedByOwner !== true);
+  if (switchedOff.length > 0) {
     lines.push('');
     lines.push(
-      `${stopped.map((d) => `${d.domain} (${d.itemsSynced} ${d.itemsSynced === 1 ? 'copy' : 'copies'})`).join(', ')}: ` +
+      `${switchedOff.map(copies).join(', ')}: ` +
         'stopped — switched off after copying. The copies stay on the target as they were when ' +
         'it stopped and no longer follow the source; switching it back on continues where it stopped.',
+    );
+  }
+  const stoppedByOwner = report.domains.filter((d) => d.state === 'stopped' && d.stoppedByOwner === true);
+  if (stoppedByOwner.length > 0) {
+    lines.push('');
+    lines.push(
+      `${stoppedByOwner.map(copies).join(', ')}: ` +
+        'stopped by its owner. The copies stay on the target as they were when it stopped and ' +
+        'no longer follow the source; resuming it continues where it stopped.',
     );
   }
   lines.push('');
