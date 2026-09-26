@@ -44,8 +44,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   credentialFieldsFor,
+  followedField,
   MICROSOFT_DOMAIN_SCOPES,
   MICROSOFT_OFFLINE_SCOPE,
+  type CredentialField,
 } from '@openmig/shared';
 import { STRINGS, LOCALES, type Locale, type StringKey } from '../i18n/strings.ts';
 import { SOURCE_CARDS, TARGET_CARDS, type FrontDoorCard } from '../components/front-door-cards.ts';
@@ -346,8 +348,27 @@ describe('the guides mention what the connector actually needs', () => {
  * provider's words or not at all (the Dropbox section never says Username).
  * They are quoted when those guides are next written; a listed guide that
  * passes in every language it is written in fails, so the list only shrinks.
+ *
+ * A LABEL THAT FOLLOWS ANOTHER ANSWER is every label it can be (2026-09-26).
+ * The archive's path is *Where the archive is* on a disk and *Folder in your
+ * destination's files* in the destination's files (0148 T9, the descriptor's
+ * `follows`), and which one a tester sees depends on the choice above it.
+ * This case read the declared label only, so it asked the guide for the disk's
+ * label and never for the one managed shows by default; after #1178 the guide
+ * named neither and wrote *The folder*. Each answer of the followed field is
+ * resolved through `followedField`, the function both doors draw the label
+ * with, and the section must name the label of every answer.
  */
 const LABELS_PENDING: readonly string[] = ['box', 'dropbox', 'google', 'microsoft'];
+
+/** Every label a field is shown under: its own, or one per answer of the field it follows. */
+function labelKeysOf(fields: ReadonlyArray<CredentialField>, field: CredentialField): string[] {
+  const follows = field.follows;
+  if (!follows) return [field.labelKey];
+  const answers = fields.find((f) => f.key === follows.key)?.options?.map((o) => o.value) ?? [];
+  if (answers.length === 0) return [field.labelKey];
+  return [...new Set(answers.map((answer) => followedField(field, { [follows.key]: answer }).labelKey))];
+}
 
 /** A card's own section: its `{#section}` heading, to the next heading at its depth or above. */
 function sectionOf(body: string, section: string): string | undefined {
@@ -371,9 +392,11 @@ describe('each card\'s section names its fields as the wizard labels them, in th
       const body = guideText(locale, slug);
       if (body === undefined) continue;
       const text = sectionOf(body, section) ?? '';
-      const labels = credentialFieldsFor(role, card.id)
+      const fields = credentialFieldsFor(role, card.id);
+      const labels = fields
         .filter((f) => f.required)
-        .map((f) => STRINGS[locale][f.labelKey as StringKey]);
+        .flatMap((f) => labelKeysOf(fields, f))
+        .map((key) => STRINGS[locale][key as StringKey]);
       out.push({ locale, missing: labels.filter((label) => !text.includes(label)) });
     }
     return out;
@@ -384,6 +407,16 @@ describe('each card\'s section names its fields as the wizard labels them, in th
   it('judges the cards of every guide not pending, targets included', () => {
     expect(judged.filter(({ role }) => role === 'target').length).toBe(TARGET_CARDS.length);
     expect(judged.some(({ role, card }) => role === 'source' && card.id === 'imap')).toBe(true);
+  });
+
+  it('judges a field whose label follows another answer by more than one label', () => {
+    // Guards the resolution above: with no such field judged, it would pass on nothing.
+    const following = judged.flatMap(({ role, card }) => {
+      const fields = credentialFieldsFor(role, card.id);
+      return fields.filter((f) => f.required && f.follows).map((f) => labelKeysOf(fields, f));
+    });
+    expect(following.length).toBeGreaterThan(0);
+    expect(following.every((keys) => keys.length > 1)).toBe(true);
   });
 
   it.each(judged.map(({ role, card }) => ({ role, id: card.id, card })))('$role $id', ({ role, id, card }) => {

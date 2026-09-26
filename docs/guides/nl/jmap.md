@@ -1,6 +1,6 @@
 # JMAP — een postvak op een JMAP-server
 
-JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het web aanbiedt. Deze dienst schrijft naar een JMAP-doel mail, contacten en bestanden. Het meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
+JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het web aanbiedt. Deze dienst schrijft naar een JMAP-doel mail, contacten en bestanden, en meldt zich aan met een gebruikersnaam en een wachtwoord; er is geen knop om toestemming te geven.
 
 ## Wat u nodig hebt {#before}
 
@@ -14,8 +14,8 @@ JMAP is een nieuwer protocol voor mail en contacten, dat een mailserver via het 
 
 1. Kies bij de stap Doel de kaart **JMAP**.
 2. Vul bij **Host** de naam van de server in, zoals `jmap.example.com`: alleen de naam, zonder `https://` ervoor.
-3. Vul bij **Poort** de poort in; het voorbeeld in het vak is `443`.
-4. Laat **SSL/TLS gebruiken** aangevinkt: dan spreekt deze dienst de server aan via `https://`.
+3. Bij **Poort** staat al `443`. Wijzig dat alleen als de server een andere poort gebruikt.
+4. Laat **SSL/TLS gebruiken** aangevinkt: deze dienst spreekt de server aan via `https://`, en de test en de bewaarde verbinding doen dat wat het vakje ook zegt.
 5. Vul bij **Gebruikersnaam** en **Wachtwoord** de gegevens van het postvak in.
 6. Druk op **Verbindingen testen en bewaren**.
 
@@ -36,8 +36,9 @@ U kunt een JMAP-verbinding ook vooraf toevoegen, onder **Verbindingen** → **Ve
 ## Als de test iets meldt {#when-test-says}
 
 - **De server op … antwoordde 401. Hij is bereikbaar en weigerde de inloggegevens.** De gebruikersnaam of het wachtwoord klopt niet. Controleer beide, of maak een nieuw app-wachtwoord.
-- **De server op … antwoordde** met een ander getal, gevolgd door **Controleer de host en poort van het doel.** Op dat adres antwoordt geen JMAP-server. Controleer **Host**, **Poort** en **SSL/TLS gebruiken**.
+- **De server op … antwoordde** met een ander getal, gevolgd door **Controleer de host en poort van het doel.** Op dat adres antwoordt geen JMAP-server. Controleer **Host** en **Poort**.
 - **Geen antwoord binnen 20 seconden.** De test zegt dat en bewaart de verbinding toch, zodat u later opnieuw kunt testen.
+- **Een tweede test probeert hetzelfde adres.** Na een mislukte test bewaart de wizard de verbinding met de **Host** en **Poort** die hij eerst kreeg; drukt u nog eens op de knop, dan worden alleen de gebruikersnaam en het wachtwoord opnieuw geprobeerd. Wilt u verbeterde gegevens testen, verwijder die verbinding dan onder **Verbindingen**, open de wizard weer, vul het wachtwoord opnieuw in en druk op **Verbindingen testen en bewaren**.
 
 Wat de server zelf antwoordt, toont deze dienst woordelijk, in de taal van de server; meestal is dat Engels.
 

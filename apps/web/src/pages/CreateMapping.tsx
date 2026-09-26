@@ -85,13 +85,19 @@ type Step = 'source' | 'target' | 'migration' | 'review';
  * *Read the full setup guide*, opened at the picked card's own section
  * (workplan 0148 T4): the card's `guide` field, the same one the checklist
  * reads. Nothing for an id that is no card on that side.
+ *
+ * In a NEW TAB (2026-09-26): the wizard keeps neither its step nor a typed
+ * password across a navigation (`DRAFT_FIELDS` holds no secret, and the step
+ * starts at the source), so a guide opened in this tab cost the person both.
+ * A guide is read with the form open beside it, and `/docs` scrolls to the
+ * section named in the address when it loads.
  */
 const CardGuideLink: React.FC<{ role: 'source' | 'target'; id: string }> = ({ role, id }) => {
   const t = useT();
   const href = cardGuideHref(role, id);
   if (!href) return null;
   return (
-    <Link to={href} className="text-sm text-blue-700 hover:underline">
+    <Link to={href} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:underline">
       {t('setup.fullGuide')}
     </Link>
   );

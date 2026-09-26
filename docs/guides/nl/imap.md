@@ -4,7 +4,7 @@ IMAP is de standaardmanier waarop een mailprogramma een postvak leest. Deze dien
 
 ## Wat u nodig hebt {#before}
 
-- De naam van de IMAP-server, de poort en of de server SSL gebruikt. Uw mailaanbieder publiceert ze voor IMAP; meestal is het poort 993 met SSL.
+- De naam van de IMAP-server en de poort voor IMAP met SSL, die uw mailaanbieder publiceert; meestal is dat poort 993.
 - De gebruikersnaam van het postvak, zoals uw aanbieder die opgeeft.
 - Een wachtwoord. De meeste aanbieders weigeren een gewoon accountwachtwoord voor IMAP zodra tweestapsverificatie aanstaat, en willen een app-specifiek wachtwoord. Maak er één aan bij de aanbieder, voor dit ene postvak.
 - Voor een doel: het postvak bestaat al, met genoeg ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.
@@ -17,8 +17,8 @@ Aan beide kanten vraagt de kaart **IMAP** dezelfde velden. U vindt de kaart bij 
 
 1. Kies bij de stap Bron de kaart **IMAP**.
 2. Vul bij **Host** de naam van de IMAP-server in, zoals `imap.example.com`: alleen de naam, zonder `https://` of een pad erachter.
-3. Vul bij **Poort** de poort in die uw aanbieder opgeeft; het voorbeeld in het vak is `993`.
-4. Laat **SSL/TLS gebruiken** aangevinkt, zoals het standaard staat, wanneer uw aanbieder SSL opgeeft.
+3. Bij **Poort** staat al `993`, de gebruikelijke poort voor IMAP met SSL. Wijzig dat alleen als uw aanbieder een andere opgeeft.
+4. Laat **SSL/TLS gebruiken** aangevinkt. **Verbindingen testen en bewaren** test en bewaart de verbinding met SSL/TLS, wat het vakje ook zegt.
 5. Vul bij **Gebruikersnaam** de gebruikersnaam van het postvak in.
 6. Vul bij **Wachtwoord** het app-wachtwoord in, of het wachtwoord van het postvak als de aanbieder dat voor IMAP toelaat.
 7. Druk op **Verbindingen testen en bewaren**.
@@ -29,8 +29,8 @@ De test meldt zich alleen-lezen aan en schrijft niets. Werkt het, dan staat er *
 
 1. Kies bij de stap Doel de kaart **IMAP**.
 2. Vul bij **Host** de naam van de IMAP-server in waar de mail naartoe gaat, zoals `imap.example.com`.
-3. Vul bij **Poort** de poort in; het voorbeeld in het vak is `993`.
-4. Laat **SSL/TLS gebruiken** aangevinkt wanneer de aanbieder SSL opgeeft.
+3. Bij **Poort** staat al `443`, en dat is geen IMAP-poort. Vervang dat door de IMAP-poort die uw aanbieder opgeeft, meestal `993`.
+4. Laat **SSL/TLS gebruiken** aangevinkt; ook hier gebruiken de test en de bewaarde verbinding SSL/TLS.
 5. Vul bij **Gebruikersnaam** en **Wachtwoord** de gegevens van het doelpostvak in.
 6. Druk op **Verbindingen testen en bewaren**.
 
@@ -52,8 +52,9 @@ U kunt een IMAP-verbinding ook vooraf toevoegen, onder **Verbindingen** → **Ve
 Wat een mailserver zelf antwoordt, toont deze dienst woordelijk, in de taal van de server; meestal is dat Engels.
 
 - **Het wachtwoord wordt geweigerd**, bijvoorbeeld met `AUTHENTICATIONFAILED` of een regel met `LOGIN failed`. Controleer de gebruikersnaam. Staat tweestapsverificatie aan, dan willen de meeste aanbieders een app-specifiek wachtwoord in plaats van het accountwachtwoord.
-- **De server is niet bereikbaar** of weigert de verbinding. Controleer **Host**, **Poort** en **SSL/TLS gebruiken** tegen wat uw aanbieder voor IMAP opgeeft.
+- **De server is niet bereikbaar** of weigert de verbinding. Controleer **Host** en **Poort** tegen wat uw aanbieder voor IMAP met SSL opgeeft.
 - **Geen antwoord binnen 20 seconden.** De test zegt dat en bewaart de verbinding toch, zodat u later opnieuw kunt testen.
+- **Een tweede test probeert dezelfde server.** Na een mislukte test bewaart de wizard de verbinding met de **Host**, **Poort** en **Gebruikersnaam** die hij eerst kreeg; drukt u nog eens op de knop, dan wordt alleen het wachtwoord opnieuw geprobeerd. Wilt u verbeterde gegevens testen, verwijder die verbinding dan onder **Verbindingen**, open de wizard weer, vul het wachtwoord opnieuw in en druk op **Verbindingen testen en bewaren**.
 
 ## Stoppen {#leaving}
 

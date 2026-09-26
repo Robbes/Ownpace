@@ -3,8 +3,8 @@
 /**
  * A GUIDE FOR EVERY CARD (workplan 0148 T4).
  *
- * Seven of the twenty cards the two doors offer had no guide: the IMAP source
- * and every target. The checklist's *Read the full setup guide* link was
+ * Eight of the twenty cards the two doors offer had no guide: the IMAP source
+ * and the seven targets. The checklist's *Read the full setup guide* link was
  * hidden for them (it had opened *"There is no guide by that name"*), the
  * wizard had no link at all, and nothing said which guide a card belonged to
  * except two copies of a `guideSlug` function, one in `Setup.tsx` and one in
@@ -24,7 +24,9 @@
  *    so a link to `dav#webdav` lands in either;
  *  - the `/docs` index lists every guide a card names, in both languages;
  *  - the checklist links the card's own section, and so does the wizard, on
- *    the source step and on the target step.
+ *    the source step and on the target step. The wizard's link opens a new
+ *    tab (2026-09-26): the wizard keeps neither its step nor a typed password
+ *    across a navigation, and a guide is read with the form open beside it.
  *
  * Before this, the IMAP source was listed as pending in `Docs.unit.test.tsx`'s
  * card table (`CARD_GUIDE_PENDING`), and that table covered source cards only.
@@ -244,11 +246,17 @@ describe('the wizard links the picked card’s section (0148 T4)', () => {
     const guide = guideOf(card);
     return `/docs/${guide?.slug}#${guide?.section}`;
   };
+  /** Beside the form, not instead of it: the step and a typed password survive. */
+  const expectNewTab = (link: HTMLElement, id: string) => {
+    expect(link.getAttribute('target'), `${id}: the guide opens in a new tab`).toBe('_blank');
+    expect(link.getAttribute('rel') ?? '', id).toMatch(/\bnoopener\b/);
+  };
 
   it.each(migratableSourceCards().map((card) => ({ id: card.id, card })))('source $id', ({ card }) => {
     wizard();
     pick(card);
     expect(guideLink().getAttribute('href')).toBe(hrefFor(card));
+    expectNewTab(guideLink(), card.id);
   });
 
   it('target: every card, on the target step', async () => {
@@ -266,9 +274,9 @@ describe('the wizard links the picked card’s section (0148 T4)', () => {
 
     for (const card of TARGET_CARDS) {
       pick(card);
-      expect(within(document.body).getByText(STRINGS.en['setup.fullGuide']).getAttribute('href'), card.id).toBe(
-        hrefFor(card),
-      );
+      const link = within(document.body).getByText(STRINGS.en['setup.fullGuide']);
+      expect(link.getAttribute('href'), card.id).toBe(hrefFor(card));
+      expectNewTab(link, card.id);
     }
   });
 });

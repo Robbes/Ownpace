@@ -14,8 +14,8 @@ JMAP is a newer protocol for mail and contacts, which a mail server offers over 
 
 1. On the target step, pick the **JMAP** card.
 2. In **Host**, type the server's name, such as `jmap.example.com`: the name alone, with no `https://` in front.
-3. In **Port**, type the port; the example in the box is `443`.
-4. Leave **Use SSL/TLS** ticked: this service then talks to the server over `https://`.
+3. **Port** already holds `443`. Change it only if the server uses another port.
+4. Leave **Use SSL/TLS** ticked: this service talks to the server over `https://`, and the test and the saved connection do so whatever the box says.
 5. In **Username** and **Password**, type the mailbox's details.
 6. Press **Test and save connections**.
 
@@ -36,8 +36,9 @@ You can also add a JMAP connection in advance, under **Connections** → **Add a
 ## When the test reports a problem {#when-test-says}
 
 - **The server at … answered 401. It is reachable and refused the credentials.** The user name or the password is wrong. Check both, or create a new app password.
-- **The server at … answered** with another number, then **Check the target host and port.** No JMAP server answers at that address. Check **Host**, **Port** and **Use SSL/TLS**.
+- **The server at … answered** with another number, then **Check the target host and port.** No JMAP server answers at that address. Check **Host** and **Port**.
 - **No answer within 20 seconds.** The test says so and keeps the connection anyway, so it can be tested again later.
+- **A second test tries the same address.** After a failed test the wizard keeps the connection with the **Host** and **Port** it was first given, and pressing the button again retries only the user name and password. To test corrected details, delete that connection under **Connections**, then open the wizard again, retype the password and press **Test and save connections**.
 
 What the server itself answers, this service shows word for word, in the server's language; usually that is English.
 

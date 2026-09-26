@@ -16,7 +16,8 @@ Gebruik een app-wachtwoord in plaats van het accountwachtwoord zelf: dat kan ing
 
 1. Open uw Nextcloud in de browser.
 2. Ga naar **Instellingen** → **Beveiliging** → **Apparaten & sessies**.
-3. Kies **Nieuw app-wachtwoord** en kopieer het wachtwoord dat Nextcloud toont.
+3. Typ bij **App naam** een naam die u later herkent, zoals `Migratie`: de knop blijft grijs tot het vak een naam heeft.
+4. Druk op **Creëer een nieuw app wachtwoord** en kopieer het wachtwoord dat Nextcloud toont.
 
 ### Nextcloud {#nextcloud}
 
@@ -39,7 +40,7 @@ U kunt de verbinding ook vooraf toevoegen, onder **Verbindingen** → **Verbindi
 - **Agenda**, **Contacten**, **Bestanden** en **Taken**, voor zover u ze op de stap Migratie aanvinkt.
 - Een takenlijst is in een Nextcloud een agenda die taken bevat. Takenlijsten gaan mee wanneer **Taken** aangevinkt is.
 - **Bestanden** komen in uw eigen bestanden, met de mappen waarin ze staan.
-- Een agenda schrijven stuurt niemand een uitnodiging. Deelnemers en organisator blijven in uw kopie van elke afspraak staan, en elke afspraak wordt zo geschreven dat de server er geen uitnodigingen voor verstuurt.
+- Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen.
 - **E-mail** gaat niet naar een Nextcloud. Op de stap Migratie staat dat vinkje uit, met de regel **Niet beschikbaar via het gekozen doelprotocol.**
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
 
@@ -50,6 +51,7 @@ Wat Nextcloud zelf antwoordt, toont deze dienst woordelijk, in de taal van de se
 - **`PROPFIND failed with status 401`**: Nextcloud weigert de gebruikersnaam of het wachtwoord. Controleer beide. Is het app-wachtwoord ingetrokken, maak dan een nieuw.
 - **`PROPFIND failed with status`** met een ander getal: het adres leidt niet naar de DAV-root van uw Nextcloud. Controleer of **DAV-basis-URL** eindigt op `/remote.php/dav`.
 - **Geen antwoord binnen 20 seconden.** De test zegt dat en bewaart de verbinding toch, zodat u later opnieuw kunt testen.
+- **Een tweede test probeert hetzelfde adres.** Na een mislukte test bewaart de wizard de verbinding met de **DAV-basis-URL** die hij eerst kreeg; drukt u nog eens op de knop, dan worden alleen de gebruikersnaam en het wachtwoord opnieuw geprobeerd. Wilt u verbeterde gegevens testen, verwijder die verbinding dan onder **Verbindingen**, open de wizard weer, vul het app-wachtwoord opnieuw in en druk op **Verbindingen testen en bewaren**.
 
 ## Stoppen {#leaving}
 

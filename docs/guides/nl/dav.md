@@ -14,21 +14,21 @@ Kies bij de stap Doel de kaart voor wat deze migratie meeneemt. De drie kaarten 
 
 ### CalDAV {#caldav}
 
-Voor agenda's en takenlijsten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. Deze dienst zoekt de agenda's van het account zelf op, vanaf de server; **DAV-basis-URL** is alleen nodig als de DAV-root van de server niet op de hostroot staat.
+Voor agenda's en takenlijsten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. De test zoekt de agenda's van het account op vanaf de server. De migratie schrijft nieuwe agenda's onder het adres van de server, of onder **DAV-basis-URL** als die is ingevuld, in `calendars/` met de gebruikersnaam erachter: de indeling die Nextcloud gebruikt. Op een server die zijn agenda's elders bewaart, kan de test slagen en het schrijven van de migratie toch mislukken.
 
 ### CardDAV {#carddav}
 
-Voor contacten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. Deze dienst zoekt de adresboeken van het account zelf op, vanaf de server; ook hier is **DAV-basis-URL** alleen nodig als de DAV-root niet op de hostroot staat.
+Voor contacten. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. De test zoekt de adresboeken van het account op vanaf de server. De migratie schrijft nieuwe adresboeken onder het adres van de server, of onder **DAV-basis-URL** als die is ingevuld, in `addressbooks/users/` met de gebruikersnaam erachter: de indeling die Nextcloud gebruikt. Op een server die zijn adresboeken elders bewaart, kan de test slagen en het schrijven van de migratie toch mislukken.
 
 ### WebDAV {#webdav}
 
-Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. Anders dan bij CalDAV en CardDAV zoekt WebDAV niets op: de bestanden komen in de map waar het adres naartoe leidt. Met alleen een host en een poort is dat de hoofdmap van de server. Horen ze in de bestanden van uw eigen account, vul dan het volledige WebDAV-adres van die map in bij **DAV-basis-URL**. Een Nextcloud toont dat adres onderaan de pagina met bestandsinstellingen; voor een Nextcloud is [de kaart Nextcloud](nextcloud.md) eenvoudiger.
+Voor bestanden. Vul **Host**, **Poort**, **Gebruikersnaam** en **Wachtwoord** in zoals onder [De velden](#fields) staat. WebDAV kent geen vaste indeling: de bestanden komen in de map waar het adres naartoe leidt. Met alleen een host en een poort is dat de hoofdmap van de server. Horen ze in de bestanden van uw eigen account, vul dan het volledige WebDAV-adres van die map in bij **DAV-basis-URL**. Een Nextcloud toont dat adres onderaan de pagina met bestandsinstellingen; voor een Nextcloud is [de kaart Nextcloud](nextcloud.md) eenvoudiger.
 
 ### De velden {#fields}
 
 - **Host**: de naam van de server, zoals `dav.example.com`: alleen de naam, zonder `https://` ervoor.
-- **Poort**: het voorbeeld in het vak is `443`.
-- **SSL/TLS gebruiken**: laat het aangevinkt; dan spreekt deze dienst de server aan via `https://`.
+- **Poort**: in het vak staat al `443`; wijzig dat alleen als de server een andere poort gebruikt.
+- **SSL/TLS gebruiken**: laat het aangevinkt. Deze dienst spreekt de server aan via `https://`, en de test en de bewaarde verbinding doen dat wat het vakje ook zegt.
 - **DAV-basis-URL**: alleen wanneer de DAV-root van de server niet op de hostroot staat. Indien ingevuld wordt deze volledige URL gebruikt en worden host en poort genegeerd.
 - **Gebruikersnaam** en **Wachtwoord**: die van het account op de server, met een app-wachtwoord waar de server dat aanbiedt.
 
@@ -36,10 +36,10 @@ U kunt een verbinding ook vooraf toevoegen, onder **Verbindingen** → **Verbind
 
 ## Wat er meegaat {#what-moves}
 
-- **CalDAV**: agenda's met hun afspraken, en takenlijsten wanneer u op de stap Migratie **Taken** aanvinkt. Of de server takenlijsten draagt, meet de test. Heeft hij gemeten dat dit account ze niet draagt, dan staat **Taken** vast met de regel **Dit account kan dit niet dragen; test het opnieuw als dat veranderd is.**
+- **CalDAV**: agenda's met hun afspraken, en takenlijsten wanneer u op de stap Migratie **Taken** aanvinkt. De test telt de takenlijsten die het account al heeft, achter **Gevonden:**.
 - **CardDAV**: adresboeken en de contacten daarin.
 - **WebDAV**: bestanden en de mappen waarin ze staan.
-- Een agenda schrijven stuurt niemand een uitnodiging. Deelnemers en organisator blijven in uw kopie van elke afspraak staan, en elke afspraak wordt zo geschreven dat de server er geen uitnodigingen voor verstuurt.
+- Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen.
 - Wat een kaart niet draagt, staat op de stap Migratie uit, met de regel **Niet beschikbaar via het gekozen doelprotocol.** E-mail gaat nooit naar een DAV-doel: daarvoor is er het IMAP- of JMAP-doel ([de IMAP-handleiding](imap.md), [de JMAP-handleiding](jmap.md)).
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gekopieerd.
 
@@ -50,6 +50,7 @@ Wat de server zelf antwoordt, toont deze dienst woordelijk, in de taal van de se
 - **`PROPFIND failed with status 401`**: de server weigert de gebruikersnaam of het wachtwoord. Controleer beide, en gebruik een app-wachtwoord als de server dat vraagt.
 - **`PROPFIND failed with status`** met een ander getal, of **`Failed to discover calendar home set`** of **`Failed to discover address book home set`**: het adres leidt niet naar de agenda's, contacten of bestanden van dit account. Controleer **Host** en **Poort**, of vul bij **DAV-basis-URL** het volledige adres in.
 - **Geen antwoord binnen 20 seconden.** De test zegt dat en bewaart de verbinding toch, zodat u later opnieuw kunt testen.
+- **Een tweede test probeert hetzelfde adres.** Na een mislukte test bewaart de wizard de verbinding met de **Host**, **Poort** en **DAV-basis-URL** die hij eerst kreeg; drukt u nog eens op de knop, dan worden alleen de gebruikersnaam en het wachtwoord opnieuw geprobeerd. Wilt u verbeterde gegevens testen, verwijder die verbinding dan onder **Verbindingen**, open de wizard weer, vul het wachtwoord opnieuw in en druk op **Verbindingen testen en bewaren**.
 
 ## Stoppen {#leaving}
 

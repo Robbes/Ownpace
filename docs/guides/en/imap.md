@@ -4,7 +4,7 @@ IMAP is the standard way a mail program reads a mailbox. This service uses it on
 
 ## What you need {#before}
 
-- The IMAP server's name, its port and whether it uses SSL. Your mail provider publishes them for IMAP; usually it is port 993 with SSL.
+- The IMAP server's name and its port for IMAP with SSL, which your mail provider publishes; usually that is port 993.
 - The mailbox's user name, as your provider gives it.
 - A password. Most providers refuse a normal account password for IMAP when two-factor authentication is on, and want an app-specific password instead. Create one at the provider, for this one mailbox.
 - For a target: the mailbox exists already, with enough room for what is coming. This service creates no accounts.
@@ -17,8 +17,8 @@ The **IMAP** card asks for the same fields on both sides. You find it on the wiz
 
 1. On the source step, pick the **IMAP** card.
 2. In **Host**, type the IMAP server's name, such as `imap.example.com`: the name alone, with no `https://` or path.
-3. In **Port**, type the port your provider gives; the example in the box is `993`.
-4. Leave **Use SSL/TLS** ticked, as it is by default, when your provider says SSL.
+3. **Port** already holds `993`, the usual port for IMAP with SSL. Change it only if your provider gives another.
+4. Leave **Use SSL/TLS** ticked. **Test and save connections** tests and saves the connection with SSL/TLS, whatever the box says.
 5. In **Username**, type the mailbox's user name.
 6. In **Password**, type the app password, or the mailbox's password if the provider allows it for IMAP.
 7. Press **Test and save connections**.
@@ -29,8 +29,8 @@ The test signs in read-only and writes nothing. When it works it says **Connecte
 
 1. On the target step, pick the **IMAP** card.
 2. In **Host**, type the name of the IMAP server the mail goes to, such as `imap.example.com`.
-3. In **Port**, type the port; the example in the box is `993`.
-4. Leave **Use SSL/TLS** ticked when the provider says SSL.
+3. **Port** already holds `443`, which is not an IMAP port. Replace it with the IMAP port your provider gives, usually `993`.
+4. Leave **Use SSL/TLS** ticked; here too the test and the saved connection use SSL/TLS.
 5. In **Username** and **Password**, type the target mailbox's details.
 6. Press **Test and save connections**.
 
@@ -52,8 +52,9 @@ You can also add an IMAP connection in advance, under **Connections** → **Add 
 What a mail server itself answers, this service shows word for word, in the server's language; usually that is English.
 
 - **The password is refused**, for example with `AUTHENTICATIONFAILED` or a line with `LOGIN failed`. Check the user name. With two-factor authentication on, most providers want an app-specific password instead of the account password.
-- **The server cannot be reached**, or refuses the connection. Check **Host**, **Port** and **Use SSL/TLS** against what your provider gives for IMAP.
+- **The server cannot be reached**, or refuses the connection. Check **Host** and **Port** against what your provider gives for IMAP with SSL.
 - **No answer within 20 seconds.** The test says so and keeps the connection anyway, so it can be tested again later.
+- **A second test tries the same server.** After a failed test the wizard keeps the connection with the **Host**, **Port** and **Username** it was first given, and pressing the button again retries only the password. To test corrected details, delete that connection under **Connections**, then open the wizard again, retype the password and press **Test and save connections**.
 
 ## Stopping {#leaving}
 
