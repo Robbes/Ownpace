@@ -14,8 +14,10 @@ invitation?"* and chose all three: 0144 T3 (a) and (c), this plan's consent-scre
 sit beside that branch's line in its `ConsentLines` component. That branch merged into `main` as
 #1188 on 2026-09-26, and `main` is merged into this one.
 
-The branch carries two commits, in this order, so that T7 (b) can go as its own PR, as §5 item 6
-asks:
+The work is two commits, in this order, so that T7 (b) goes as its own PR, as §5 item 6 asks.
+The first is on its own branch,
+`claude/ownpace-public-readiness-y7orc6-a-dropbox-consent-that-asks-only-to-read`; this branch
+carries both, and its PR is stacked on that one:
 
 1. `feat(api): a Dropbox consent that asks only to read (workplan 0140 T7 (b))`: T7 (b) alone,
    with the docs and comments it made false. It touches nothing the web lines touch, and applies
@@ -210,7 +212,7 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 | T4 An ADR for the deployment's Microsoft registration | 📋 **Proposed**, recommended now (D2) | §4. ADR-0006's operative rule says the multi-tenant app is retired; the code carries a deployment registration whose authority defaults to `common`. |
 | T5 Microsoft publisher verification | ⏳ **Owner** (Partner Center), recommended to start now (D2) | §4. It has a lead time, and an organisation's consent policy may depend on it. |
 | T6 One foreign organisation and one personal account, before the first Microsoft tester | 🔨 **(b) the sentence built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. (a), the two consents, is not done. |
-| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 🔨 **(b) the read-only consent built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D3), the owner's | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
+| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 🔨 **(b) the read-only consent built on branch `claude/ownpace-public-readiness-y7orc6-a-dropbox-consent-that-asks-only-to-read`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D3), the owner's | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
 | T8 Box: experimental, and for organisations with a Box administrator | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
 | T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |
