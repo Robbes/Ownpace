@@ -44,11 +44,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   credentialFieldsFor,
-  connectableTypes,
+  followedField,
   MICROSOFT_DOMAIN_SCOPES,
   MICROSOFT_OFFLINE_SCOPE,
+  type CredentialField,
 } from '@openmig/shared';
-import { STRINGS, type Locale } from '../i18n/strings.ts';
+import { STRINGS, LOCALES, type Locale, type StringKey } from '../i18n/strings.ts';
+import { SOURCE_CARDS, TARGET_CARDS, type FrontDoorCard } from '../components/front-door-cards.ts';
 
 /** Every served guide, `docs/guides/<locale>/<slug>.md`, as `Docs.tsx` inlines them. */
 const GUIDES = import.meta.glob('../../../../docs/guides/*/*.md', {
@@ -251,21 +253,27 @@ describe('the guides the app serves are written for customers', () => {
 });
 
 /**
- * Which guide covers which wizard type — the same mapping `Setup.tsx`'s
- * `guideSlug` uses, restated as data so the coverage check below can invert it.
- * One guide per family of cards (workplan 0148 T4's table): the five Google
- * cards share `google`, the three Microsoft cards share `microsoft`.
+ * Which guide covers which card: the card's own `guide`, `<slug>#<section>`,
+ * in `front-door-cards.ts` (workplan 0148 T4). This file restated the map as a
+ * `guideSlugFor` function, a second copy of `Setup.tsx`'s, and read source
+ * types only; both pages now read the card, and so does this.
  */
-function guideSlugFor(provider: string): string {
-  if (provider.startsWith('google') || provider === 'gmail') return 'google';
-  if (provider === 'oauth2' || provider === 'graph' || provider === 'microsoft') return 'microsoft';
-  return provider;
+const EVERY_CARD: ReadonlyArray<{ role: 'source' | 'target'; card: FrontDoorCard }> = [
+  ...SOURCE_CARDS.map((card) => ({ role: 'source' as const, card })),
+  ...TARGET_CARDS.map((card) => ({ role: 'target' as const, card })),
+];
+
+/** A card's guide, split at the `#`. The field is required, so a card always names one. */
+function guideOf(card: FrontDoorCard): { slug: string; section: string } {
+  const [slug = '', section = ''] = String((card as { guide?: string }).guide ?? '').split('#');
+  return { slug, section };
 }
 
 describe('the guides mention what the connector actually needs', () => {
   // The synonyms below are English, so this reads the English guides. The
-  // wizard's own labels, in each language, are read by the case after this
-  // one (0148 T4), which covers the Dutch guides as well.
+  // wizard's own labels, in each language, are read by the label cases after
+  // this one (0148 T4), which cover the Dutch guides as well; this one stays,
+  // since it also accepts the provider's own word.
   const bySlug = new Map(
     Object.entries(GUIDES)
       .filter(([p]) => langOf(p) === 'en')
@@ -296,32 +304,146 @@ describe('the guides mention what the connector actually needs', () => {
     path: /folder|extracted/i,
   };
 
-  const cases = connectableTypes('source')
-    .map((type) => ({ type, slug: guideSlugFor(type) }))
-    .filter(({ slug }) => bySlug.has(slug));
+  // EVERY CARD, BOTH SIDES, AND NO SKIP (workplan 0148 T4). This read source
+  // types only and dropped a type whose guide did not ship, so the IMAP source
+  // and all seven targets were never judged: a card with no guide passed by
+  // not being asked. A card now names its guide, and a guide that is not
+  // served fails here by name.
+  const cases = EVERY_CARD.map(({ role, card }) => ({ role, type: card.id, slug: guideOf(card).slug }));
 
-  it('covers a source type whose guide ships', () => {
-    expect(cases.length).toBeGreaterThan(0);
+  it('covers every source and target card', () => {
+    expect(cases.length).toBe(SOURCE_CARDS.length + TARGET_CARDS.length);
+    expect(cases.filter(({ role }) => role === 'target').length).toBeGreaterThan(0);
   });
 
-  it.each(cases)('$type — $slug names every required credential', ({ type, slug }) => {
-    const text = bySlug.get(slug)!;
-    const missing = credentialFieldsFor('source', type)
+  it.each(cases)('$role $type — $slug names every required credential', ({ role, type, slug }) => {
+    const text = bySlug.get(slug);
+    expect(text, `the ${role} card '${type}' names the guide '${slug}', and en/${slug}.md is not served`).toBeDefined();
+    const missing = credentialFieldsFor(role, type)
       .filter((f) => f.required)
       .map((f) => f.key)
       .filter((key) => {
         const re = SYNONYMS[key];
         // A field with no known synonym is not something this test can judge;
         // saying nothing is better than failing on a pattern it invented.
-        return re ? !re.test(text) : false;
+        return re ? !re.test(text!) : false;
       });
 
     expect(
       missing,
       `en/${slug}.md never mentions ${missing.join(', ')}, which the wizard REQUIRES for a ` +
-        `'${type}' source. Somebody following this guide reaches the form without the ` +
+        `'${type}' ${role}. Somebody following this guide reaches the form without the ` +
         `value it demands. Either the guide is out of date or the field is.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * THE WIZARD'S OWN LABELS, IN EACH LANGUAGE (workplan 0148 T4).
+ *
+ * The case above reads English synonyms, so it could not read a Dutch guide,
+ * and it accepts a provider's word for a field ("App key") where the wizard
+ * shows another. A guide is followed with the form open beside it, so in the
+ * card's own section every field the wizard REQUIRES is named as the wizard
+ * labels it, in that guide's language: `STRINGS[locale][field.labelKey]` for
+ * `credentialFieldsFor(side, card)`.
+ *
+ * `LABELS_PENDING` names the guides split out of the operator documents
+ * before this case existed, whose card sections name a field in the
+ * provider's words or not at all (the Dropbox section never says Username).
+ * They are quoted when those guides are next written; a listed guide that
+ * passes in every language it is written in fails, so the list only shrinks.
+ * Box and Dropbox came off it when #1189 quoted their fields in both languages.
+ *
+ * A LABEL THAT FOLLOWS ANOTHER ANSWER is every label it can be (2026-09-26).
+ * The archive's path is *Where the archive is* on a disk and *Folder in your
+ * destination's files* in the destination's files (0148 T9, the descriptor's
+ * `follows`), and which one a tester sees depends on the choice above it.
+ * This case read the declared label only, so it asked the guide for the disk's
+ * label and never for the one managed shows by default; after #1178 the guide
+ * named neither and wrote *The folder*. Each answer of the followed field is
+ * resolved through `followedField`, the function both doors draw the label
+ * with, and the section must name the label of every answer.
+ */
+const LABELS_PENDING: readonly string[] = ['google', 'microsoft'];
+
+/** Every label a field is shown under: its own, or one per answer of the field it follows. */
+function labelKeysOf(fields: ReadonlyArray<CredentialField>, field: CredentialField): string[] {
+  const follows = field.follows;
+  if (!follows) return [field.labelKey];
+  const answers = fields.find((f) => f.key === follows.key)?.options?.map((o) => o.value) ?? [];
+  if (answers.length === 0) return [field.labelKey];
+  return [...new Set(answers.map((answer) => followedField(field, { [follows.key]: answer }).labelKey))];
+}
+
+/** A card's own section: its `{#section}` heading, to the next heading at its depth or above. */
+function sectionOf(body: string, section: string): string | undefined {
+  const lines = body.split('\n');
+  const start = lines.findIndex((line) => new RegExp(`^#{1,4} .*\\{#${section}\\}\\s*$`).test(line));
+  if (start === -1) return undefined;
+  const depth = /^#+/.exec(lines[start]!)![0].length;
+  const end = lines.findIndex((line, i) => i > start && /^#{1,4} /.test(line) && /^#+/.exec(line)![0].length <= depth);
+  return lines.slice(start, end === -1 ? undefined : end).join('\n');
+}
+
+describe('each card\'s section names its fields as the wizard labels them, in the guide\'s language', () => {
+  const guideText = (locale: Locale, slug: string) =>
+    Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
+
+  /** The required labels the card's section does not name, per language its guide is written in. */
+  const unnamed = (role: 'source' | 'target', card: FrontDoorCard) => {
+    const { slug, section } = guideOf(card);
+    const out: Array<{ locale: Locale; missing: string[] }> = [];
+    for (const locale of LOCALES) {
+      const body = guideText(locale, slug);
+      if (body === undefined) continue;
+      const text = sectionOf(body, section) ?? '';
+      const fields = credentialFieldsFor(role, card.id);
+      const labels = fields
+        .filter((f) => f.required)
+        .flatMap((f) => labelKeysOf(fields, f))
+        .map((key) => STRINGS[locale][key as StringKey]);
+      out.push({ locale, missing: labels.filter((label) => !text.includes(label)) });
+    }
+    return out;
+  };
+
+  const judged = EVERY_CARD.filter(({ card }) => !LABELS_PENDING.includes(guideOf(card).slug));
+
+  it('judges the cards of every guide not pending, targets included', () => {
+    expect(judged.filter(({ role }) => role === 'target').length).toBe(TARGET_CARDS.length);
+    expect(judged.some(({ role, card }) => role === 'source' && card.id === 'imap')).toBe(true);
+  });
+
+  it('judges a field whose label follows another answer by more than one label', () => {
+    // Guards the resolution above: with no such field judged, it would pass on nothing.
+    const following = judged.flatMap(({ role, card }) => {
+      const fields = credentialFieldsFor(role, card.id);
+      return fields.filter((f) => f.required && f.follows).map((f) => labelKeysOf(fields, f));
+    });
+    expect(following.length).toBeGreaterThan(0);
+    expect(following.every((keys) => keys.length > 1)).toBe(true);
+  });
+
+  it.each(judged.map(({ role, card }) => ({ role, id: card.id, card })))('$role $id', ({ role, id, card }) => {
+    const { slug, section } = guideOf(card);
+    const results = unnamed(role, card);
+    expect(results.length, `${slug} is written in no language`).toBeGreaterThan(0);
+    for (const { locale, missing } of results) {
+      expect(
+        missing,
+        `${locale}/${slug}.md's section {#${section}} does not name ${missing.join(', ')}, which the ` +
+          `wizard asks for on the ${role} card '${id}' under exactly that label. Quote it as the ` +
+          `form shows it, so the reader can find the box.`,
+      ).toEqual([]);
+    }
+  });
+
+  it.each(LABELS_PENDING)('%s is still pending: some card section of it misses a label', (slug) => {
+    const cards = EVERY_CARD.filter(({ card }) => guideOf(card).slug === slug);
+    expect(cards.length, `no card names ${slug}; drop it from LABELS_PENDING`).toBeGreaterThan(0);
+    const stillMissing = cards.some(({ role, card }) => unnamed(role, card).some(({ missing }) => missing.length > 0));
+    expect(stillMissing, `${slug} now names every label: take it off LABELS_PENDING`).toBe(true);
   });
 });
 
@@ -351,7 +473,6 @@ describe('the guides mention what the connector actually needs', () => {
  * navigation's — short enough to be a label rather than a sentence.
  */
 describe('each guide quotes the wizard\'s labels in its own language (0148 T4)', () => {
-  const LOCALES = Object.keys(STRINGS) as Locale[];
   const LABEL_KEYS = /^(wizard|connections|grantLink|nav|hub)\./;
   /** label → the keys that carry it, per language. */
   const labels = (locale: Locale) => {
@@ -373,8 +494,7 @@ describe('each guide quotes the wizard\'s labels in its own language (0148 T4)',
     Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
 
   const fieldCases = LOCALES.flatMap((locale) =>
-    connectableTypes('source')
-      .map((type) => ({ locale, type, slug: guideSlugFor(type) }))
+    SOURCE_CARDS.map((card) => ({ locale, type: card.id, slug: guideOf(card).slug }))
       .filter(({ locale: l, slug }) => guideAt(l, slug) !== undefined),
   );
 
