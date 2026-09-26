@@ -368,7 +368,8 @@ const CONSENT_DOORS: ReadonlyArray<ConsentDoor> = [
     passedOn: { client: '../../packages/shared/src/microsoft-deployment-client.ts' },
   },
   {
-    // Files only, so no `domains`: the App's own permissions are the ask.
+    // Files only, so no `domains`: the server puts the read scopes on the URL
+    // itself, the same for every ask (workplan 0140 T7 (b)).
     path: '/api/migrations/dropbox/authorize',
     provider: 'dropbox',
     handler: 'src/routes/migrations/dropbox-oauth-routes.ts',

@@ -1149,8 +1149,9 @@ const CreateMapping: React.FC = () => {
       // domain set is sent rather than a source type, so the consent screen
       // and the ticks cannot disagree — and the server refuses an empty set
       // rather than substituting a default, which is why the button is
-      // disabled until something is ticked. Dropbox asks for no scope at
-      // all: its app's permissions decide (2026-09-02: Connect with Dropbox).
+      // disabled until something is ticked. Dropbox's ask sends no scope from
+      // here: the server puts the read scopes on the URL, whatever the app
+      // carries (workplan 0140 T7 (b); 2026-09-02: Connect with Dropbox).
       // ONE ASK PER PROVIDER, off a table (workplan 0114). The chain here was
       // `dropbox ? … : google…`, whose else branch ran GOOGLE's authorize for
       // anything that was not Dropbox — so a third provider would not have

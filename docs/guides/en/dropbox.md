@@ -28,7 +28,7 @@ File bytes and the folder tree. Sharing state, file requests, Paper docs and ver
 ## When the test reports a problem {#when-test-says}
 
 - A test that does not answer within 20 seconds says so and keeps the connection, so it can be tested again.
-- The shared-folder browse refuses with Dropbox's own words, naming the `sharing.read` scope, when the app was created without it. Migrations work unchanged; only the browse needs it.
+- The shared-folder browse refuses with Dropbox's own words, naming the `sharing.read` scope, when the app was created without it, or when the token came from **Connect with Dropbox**, which does not ask for it. Migrations work unchanged; only the browse needs it.
 
 ## Stopping {#leaving}
 
@@ -42,7 +42,7 @@ A consent is withdrawn at Dropbox, in the account's settings under **Connected a
 
 - `files.metadata.read`
 - `files.content.read`
-- `sharing.read` — optional, read-only too: it powers the wizard's **Browse shared folders…** button. Without it migrations work unchanged; the browse gets Dropbox's own refusal, naming the scope.
+- `sharing.read` — optional, read-only too: it powers the wizard's **Browse shared folders…** button. Without it migrations work unchanged; the browse gets Dropbox's own refusal, naming the scope. **Connect with Dropbox** asks only for the two scopes above and `account_info.read`, which Dropbox keeps on every app, so a token it fetches cannot browse, even where the app has `sharing.read`.
 
 Nothing else. The **App key** and **App secret** on the Settings tab go in the wizard's **Use your own Dropbox app** fold, as a pair: the App key under **App key**, the App secret under **Client secret**.
 

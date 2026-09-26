@@ -797,9 +797,10 @@ export const mappingApi = {
 
   /**
    * Dropbox's turn at the same round trip (2026-09-02: Connect with Dropbox).
-   * One ask and no scopes — the app's own permissions decide what the token
-   * can do, and `token_access_type=offline` is pinned server-side so a
-   * refresh token comes back. The pair is both or neither (ADR-0041): absent,
+   * One ask, and no scopes sent from here: the server puts the read scopes on
+   * the URL and refuses a grant that carries more (workplan 0140 T7 (b)), and
+   * `token_access_type=offline` is pinned server-side so a refresh token comes
+   * back. The pair is both or neither (ADR-0041): absent,
    * the server uses the deployment's own Dropbox app. `redirectUri` is the
    * exact string that must be registered under the app's OAuth 2 Redirect
    * URIs before the first consent can work.
