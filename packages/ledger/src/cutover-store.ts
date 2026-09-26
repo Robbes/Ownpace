@@ -24,11 +24,14 @@ import type {
   CutoverPhase,
   CutoverStatus,
   CutoverEvent,
+  CutoverLedgerRow,
 } from '@openmig/core/cutover-state';
 // A value import of a leaf module with no runtime imports of its own — it
 // cannot cycle back here. `rollbackAvailable` on a read is the state
-// machine's answer, never a constant (ADR-0047).
-import { canRollback } from '@openmig/core/cutover-state';
+// machine's answer, never a constant (ADR-0047); and whether a cutover may
+// begin, or a data type leave the whole migration's ledger, is its rule too
+// (0128 T5, slice 5b).
+import { canRollback, cutoverBeginRefusal, leavingTheWholeLedgerRefusal } from '@openmig/core/cutover-state';
 
 /**
  * Port interface for cutover state persistence.
@@ -88,6 +91,29 @@ export interface CutoverStateStore {
     metadataOrReason?: string | Record<string, unknown>,
     domain?: DiscoveryDomain
   ): Promise<CutoverStatus>;
+
+  /** Every cutover ledger of the migration: the whole migration's and each data type's own (slice 5b). */
+  loadLedgers(tenantId: TenantId, mappingId: MappingId): Promise<CutoverLedgerRow[]>;
+}
+
+/**
+ * One data type's cutover ledger, as the core's steps ask for a migration's
+ * (0128 T5, slice 5b): the same store, with the data type passed to every
+ * call. `enterCutover`, `closeCutover` and `performRollback` move it exactly as
+ * they move the whole migration's, beside the data type's own path
+ * (`pathLifecyclePort`).
+ */
+export function bindCutoverLedger(store: CutoverStateStore, domain: DiscoveryDomain): CutoverStateStore {
+  return {
+    initializeCutover: (params) => store.initializeCutover({ ...params, domain }),
+    saveCutoverState: (status) => store.saveCutoverState({ ...status, domain }),
+    loadCutoverState: (t, mappingId) => store.loadCutoverState(t, mappingId, domain),
+    loadEvents: (t, mappingId, limit) => store.loadEvents(t, mappingId, limit, domain),
+    getEventHistory: (t, mappingId, limit) => store.getEventHistory(t, mappingId, limit, domain),
+    transitionState: (t, mappingId, toState, metadataOrReason) =>
+      store.transitionState(t, mappingId, toState, metadataOrReason, domain),
+    loadLedgers: (t, mappingId) => store.loadLedgers(t, mappingId),
+  };
 }
 
 /**
@@ -146,6 +172,10 @@ export function tenantCutoverStore(source: LedgerDriver | Pool, tenantId: Tenant
       same(t);
       return inTenant((store) => store.transitionState(t, mappingId, toState, metadataOrReason, domain));
     },
+    loadLedgers: async (t, mappingId) => {
+      same(t);
+      return inTenant((store) => store.loadLedgers(t, mappingId));
+    },
   };
 }
 
@@ -191,6 +221,10 @@ export class CutoverStore implements CutoverStateStore {
   }): Promise<CutoverStatus> {
     const existing = await this.loadCutoverState(params.tenantId, params.mappingId, params.domain);
     if (existing) return existing;
+    // A new ledger begins a cutover: not the whole migration's once a data
+    // type has its own (0128 T5, slice 5b). The doors say so first, in words.
+    const refused = cutoverBeginRefusal(await this.loadLedgers(params.tenantId, params.mappingId), params.domain);
+    if (refused) throw new Error(`${refused.refuse} ${refused.hint}`);
 
     const now = new Date().toISOString();
     const status: CutoverStatus = {
@@ -413,6 +447,19 @@ export class CutoverStore implements CutoverStateStore {
       throw new Error(`No cutover state found for mapping ${mappingId}`);
     }
 
+    // Whose ledger may move (0128 T5, slice 5b). A data type leaves the whole
+    // migration's it read only by beginning its own, and not while the whole
+    // migration's is under way; the whole migration's begins again only while
+    // no data type has its own. The doors refuse first, in words; this is the
+    // floor under them.
+    if (domain !== undefined && current.domain === undefined) {
+      const refused = leavingTheWholeLedgerRefusal(current.state, toState);
+      if (refused) throw new Error(refused);
+    } else if (domain === undefined && toState === 'PREPARING') {
+      const refused = cutoverBeginRefusal(await this.loadLedgers(tenantId, mappingId));
+      if (refused) throw new Error(`${refused.refuse} ${refused.hint}`);
+    }
+
     // Validate transition (import from cutover-state)
     const { isValidTransition } = await import('@openmig/core/cutover-state');
     if (!isValidTransition(current.state, toState)) {
@@ -468,6 +515,15 @@ export class CutoverStore implements CutoverStateStore {
     await this.saveCutoverState(updated);
 
     return updated;
+  }
+
+  /** Every cutover ledger of the migration: the whole migration's and each data type's own (slice 5b). */
+  async loadLedgers(tenantId: TenantId, mappingId: MappingId): Promise<CutoverLedgerRow[]> {
+    const rows = await this.getDb()
+      .select({ domain: schema.cutoverState.domain, state: schema.cutoverState.state })
+      .from(schema.cutoverState)
+      .where(and(eq(schema.cutoverState.tenantId, tenantId), eq(schema.cutoverState.mappingId, mappingId)));
+    return rows.map((r) => (r.domain === null ? { state: r.state } : { domain: r.domain, state: r.state }));
   }
 
   // Helper methods

@@ -4,8 +4,9 @@
   ("Go ahead with the CLI cutover row"); **built 2026-09-20** as `enterCutover` and `closeCutover`
   in `@openmig/core`, the CLI over them, gated against a real ledger. **Amended 2026-09-24**: the
   grace period copies (workplan 0128 T2, the owner's D1 (a)); **2026-09-26**: a window per data
-  type (0128 T5 slice 4, the owner's D8), and only the paths in the phase the mapping leaves move
-  with it (slice 5a); see the amendments at the end.
+  type (0128 T5 slice 4, the owner's D8), only the paths in the phase the mapping leaves move
+  with it (slice 5a), and a data type is cut over on its own (slice 5b); see the amendments at the
+  end.
 - **Date:** 2026-09-19 (decided); 2026-09-20 (built)
 - **Deciders:** owner
 - **Relates to:** [ADR-0047](./0047-a-rollback-is-a-setback.md) (the rollback is the other half of
@@ -28,7 +29,10 @@
   (GRACE_PERIOD → COMPLETED) write `mailbox_mapping.status` as well as the ledger. A mapping that
   is `active` or `paused` becomes **`cutover`**, and the source is no longer the authority on what
   exists. `cutover`, `continuous` and `done` are left where they are — `done` with a warning that
-  a rollback will be refused for it.
+  a rollback will be refused for it. **For one data type** (`--kind`, amended 2026-09-26, 0128 T5
+  slice 5b) the same two steps move its own ledger and its own path, by the same rule asked of the
+  path's phase, and the migration's status becomes its paths' roll-up; only mail waits for an MX
+  record.
 - **A migration that was `active` at `execute` keeps being copied until the grace period ends**
   (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
   slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is
@@ -259,3 +263,23 @@ paths it moved.
 Gates: `packages/ledger/src/a-door-moves-only-its-own-paths.unit.test.ts` (the rule), and
 `apps/api/src/routes/migrations/path-lifecycle-wiring.unit.test.ts`, which presses managed's
 doors and the ledger's own on a migration whose mail was cut over on its own.
+
+## Amendment, 2026-09-26: one data type cut over on its own (workplan 0128 T5, slice 5b)
+
+The owner's D8 made the cutover a data type's own. From the operator's CLI, `--kind <data type>`
+now runs this decision's two steps, `enterCutover` and `closeCutover`, unchanged, over one data
+type: its own cutover ledger (`bindCutoverLedger`, slice 4) and its own path
+(`pathLifecyclePort`, in the ledger). The path is decided by `cutoverTransition` asked of its own
+phase, moved alone, and recorded as `path.phase`; the migration's status is then its paths'
+roll-up, recorded as `mapping.status` when it moves. Mail cut over beside running calendars is an
+`active` migration with mail's path in `cutover`, copying through its own grace window; with
+every data type cut over, the migration is in `cutover`.
+
+Only mail has DNS: `execute` for any other data type enters the grace period at once. A data
+type's own cutover does not begin while the whole migration's is under way, and the whole
+migration's does not begin once a data type has its own (`cutoverBeginRefusal`, core), in the
+CLI, in the managed preparation and at its door, and in the store under them.
+
+Gates: `packages/ledger/src/a-cutover-of-one-data-type.unit.test.ts` (the steps over mail's
+ledger and path, beside running calendars), `packages/core/src/who-may-begin-a-cutover.unit.test.ts`
+and `apps/worker/src/cli/cutover-commands.unit.test.ts`.

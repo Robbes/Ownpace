@@ -2215,8 +2215,11 @@ paths:
             enqueued. `code` is the stable part: `under_way` (the cutover is
             in `CUTOVER_IN_PROGRESS` or `GRACE_PERIOD` — let it finish, or roll
             it back), `closed` (the ledger is `COMPLETED`; one cutover ledger
-            per mapping, and this one is finished). `state` names the ledger
-            state that refused.
+            per mapping, and this one is finished), `cut_over_by_data_type`
+            (a data type of this migration has a cutover of its own, workplan
+            0128 T5: the whole migration's is not prepared, and the operator
+            cuts over the rest one at a time, with the CLI's `--kind`). `state`
+            names the ledger state that refused, where one did.
           content:
             application/json:
               schema:
@@ -2225,7 +2228,7 @@ paths:
                   error: { type: string, enum: [cutover_refused] }
                   message: { type: string }
                   hint: { type: string }
-                  code: { type: string, enum: [under_way, closed] }
+                  code: { type: string, enum: [under_way, closed, cut_over_by_data_type] }
                   state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
 
   /api/migrations/{mappingId}/runs:

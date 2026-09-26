@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26: T5's fifth slice, second part (5b): a data type cut over on its own, from the
+operator's CLI.** `--kind` on every cutover command. The managed preparation and its door taking
+a data type are 5c.
+- **The same steps, over one data type.** `enterCutover`, `closeCutover` and `performRollback`
+  run unchanged over the data type's own ledger (`bindCutoverLedger`) and its own path
+  (`pathLifecyclePort`, ledger). That port moves the path alone, writes the migration's status as
+  its paths' roll-up, and records both (`path.phase`, and `mapping.status` when the roll-up
+  moved). Mail cut over beside running calendars is an `active` migration with mail's path in
+  `cutover`, copying through its own grace window (slice 4); with every data type cut over, the
+  migration is in `cutover`.
+- **Only mail has DNS.** A cutover of any other data type checks no record, enters its grace
+  period at execute, and says nothing of an MX record when rolled back. `--domain` is needed for
+  mail and for the whole migration only.
+- **Kept apart** (`cutoverBeginRefusal`, core): a data type's own cutover does not begin while
+  the whole migration's is under way, and the whole migration's does not begin once a data type
+  has its own. Refused in words in the CLI, in the managed preparation (a refusal, not a failed
+  cutover) and at its door (409 `cut_over_by_data_type`), and in the store under them, where a
+  data type leaves the whole migration's ledger only by beginning its own.
+- **The gate** verifies the one data type a `--kind` cutover is of (`gateScope`), and only one
+  the migration carries.
+- ADR-0048, ADR-0047 and ADR-0014's consequence 4 amended; the cutover runbook documents `--kind`.
+
+Evidence:
+- the two rules on their own (6);
+- on PGlite as `app_user`, the core's own steps over mail's ledger and path: mail cut over alone,
+  copying through its own window while calendars run, and closed; calendars after it, and the
+  migration with them; a rollback of mail alone; and the store's refusals both ways (6);
+- the CLI with `--kind` (6): the two refusals in words before any ledger is read, no DNS checked
+  for calendars with the data check still run, calendars entering their grace period at once,
+  mail still waiting for its MX record, and a rollback of calendars without a word of mail;
+- managed: the preparation refusing the whole migration and recording no failure (1); its door on
+  Postgres 16, 409 before anything is enqueued (1), and pinned in the route's source (1); the
+  gate's scope (1); and the CLI's wiring, read as text (1);
+- slice 4's two fork tests moved onto the begin rule;
+- 25 mutations, all killed (the door's own on Postgres 16, where its 409 is asked):
+  - the two rules: a data type never refused, the whole migration never refused, a data type's
+    own ledger not exempt, FAILED counted as under way, and leaving the whole migration's ledger
+    by any move or while it is under way;
+  - the store's floor under each rule, and the bound ledger dropping the data type on a start
+    or a move;
+  - the path port: no roll-up, no record, and the status read instead of the path's phase;
+  - the CLI: DNS checked, or the MX record waited for, for every data type; no begin check; mail
+    not counted as mail; the MX and target-mail lines said for every data type;
+  - the preparation's and the door's begin checks, the gate's scope, and the CLI's wiring.
+
 **2026-09-26: T5's fifth slice, first half (5a): a press on the whole migration moves only the
 paths in the phase it leaves.** Nothing can give a data type a phase of its own yet (5b); the doors
 are ready for it first, and every answer they give today is the one they gave.
@@ -410,7 +455,7 @@ its test.
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
 | T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | ✅ **Built 2026-09-25** (D2 (c), D4, D5, D6; T5 slice 3) | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 4, and 5's first half, built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 4, and 5's first two parts, built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -626,13 +671,14 @@ cutover; once every one is past it, a new data type is a new migration, as today
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration. *Built
    2026-09-26.*
-5. **The cutover per data type**, in two halves. First (5a) a press on the whole migration moves
+5. **The cutover per data type**, in three parts. First (5a) a press on the whole migration moves
    only the paths in the phase it leaves, so a data type cut over on its own is never moved back
-   with the rest (*built 2026-09-26*). Then (5b) `--kind` on the CLI, the cutover and rollback
-   transitions per path, and `POST /api/migrations/:id/cutover` taking the data type; its final
-   sync and its gate cover that data type only; DNS and MX for mail only. A data type's own
+   with the rest (*built 2026-09-26*). Then (5b) `--kind` on the CLI: the cutover and rollback
+   transitions per path, its gate covering that data type only, and DNS and MX for mail only
+   (*built 2026-09-26*). Then (5c) `POST /api/migrations/:id/cutover` taking the data type, with
+   the managed preparation's final sync and gate covering that data type only. A data type's own
    cutover is refused while the whole migration's is under way, and a cutover of the whole
-   migration once a data type has its own. The first keeps the tick's question (does any ledger
+   migration once a data type has its own (both built with 5b). The first keeps the tick's question (does any ledger
    row still copy) the same as each data type's (slice 4); the second keeps a rollback of the
    whole migration from moving back a data type cut over on its own (5a).
 6. **Shares per data type**, announced once at each data type's cutover.

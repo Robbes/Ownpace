@@ -28,9 +28,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { VerificationResult } from '@openmig/core';
+import { CutoverRefused, type VerificationResult } from '@openmig/core';
 import { finalSyncReport } from './final-sync.ts';
-import { verificationConfigFor } from './cutover-gate.ts';
+import { gateScope, verificationConfigFor } from './cutover-gate.ts';
 import {
   CutoverGateFailed,
   FinalSyncNotFinished,
@@ -44,11 +44,13 @@ const MAPPING = '0e128000-e29b-41d4-a716-446655440002';
 
 const counts = (created: number, updated: number, skipped: number) => ({ created, updated, adopted: 0, skipped });
 
-/** A cutover ledger in memory: the four calls the preparation makes. */
+/** A cutover ledger in memory: the five calls the preparation makes. */
 function memoryLedger() {
   let state: string | undefined;
   const events: { toState: string }[] = [];
   const store = {
+    // The whole migration's ledger only: no data type has its own (0128 T5, slice 5b).
+    loadLedgers: async () => (state ? [{ state }] : []),
     initializeCutover: async () => {
       state = 'PREPARING';
       events.push({ toState: state });
@@ -206,6 +208,25 @@ describe('the preparation, with the final sync reporting per data type', () => {
     expect(preparationFailurePolicy(new FinalSyncNotFinished('behind'))).toEqual({ recordFailed: true, retry: false });
   });
 
+  it("does not prepare the whole migration once a data type has its own cutover, and records no failure (0128 T5, slice 5b)", async () => {
+    const ledger = memoryLedger();
+    const store = { ...ledger.store, loadLedgers: async () => [{ domain: 'email', state: 'GRACE_PERIOD' }] };
+    const runFinalSync = vi.fn();
+    const failure = await prepareCutover({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      cutoverStore: store as unknown as Parameters<typeof prepareCutover>[0]['cutoverStore'],
+      log: () => {},
+      runFinalSync,
+    }).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(CutoverRefused);
+    expect((failure as Error).message).toContain('one at a time: email');
+    expect(preparationFailurePolicy(failure)).toEqual({ recordFailed: false, retry: false });
+    expect(runFinalSync).not.toHaveBeenCalled();
+    expect(ledger.state()).toBeUndefined();
+  });
+
   it('says so when the migration has no data type selected, rather than printing nothing', async () => {
     const { done, logs } = prepare(async () => finalSyncReport({ asked: [], domains: {} }));
 
@@ -216,6 +237,19 @@ describe('the preparation, with the final sync reporting per data type', () => {
 });
 
 describe('the gate verifies the data types the migration has', () => {
+  it('and for the cutover of one data type, that one alone (0128 T5, slice 5b)', () => {
+    const carried = new Set(['email', 'calendar', 'file'] as const);
+    expect([...gateScope(carried)]).toEqual(['email', 'calendar', 'file']);
+    expect([...gateScope(carried, 'calendar')]).toEqual(['calendar']);
+    expect(verificationConfigFor(gateScope(carried, 'calendar'))).toMatchObject({
+      verifyMail: false,
+      verifyCalendar: true,
+      verifyFiles: false,
+    });
+    // Never one the migration does not carry.
+    expect([...gateScope(carried, 'task')]).toEqual([]);
+  });
+
   it('a migration of calendars, contacts and files is not asked about mail or tasks', () => {
     const config = verificationConfigFor(new Set(['calendar', 'contact', 'file']));
 
@@ -291,9 +325,18 @@ describe('the doors, read as text', () => {
     expect(failed).not.toContain('throw new Error(');
   });
 
-  it("the operator's verify runs the same gate", () => {
+  it('a --kind cutover moves that data type alone: its own ledger and its own path (0128 T5, slice 5b)', () => {
+    const cli = code('../cli/index.ts');
+
+    expect(cli).toContain('kind === undefined ? wholeLedger : bindCutoverLedger(wholeLedger, kind)');
+    expect(cli).toContain('pathLifecyclePort(pool, tenantId, mappingId, kind, ');
+    // And only a data type the migration carries.
+    expect(cli).toContain('facts.carried.some((c) => c.domain === kind)');
+  });
+
+  it("the operator's verify runs the same gate, of the one data type a --kind cutover is of (0128 T5, slice 5b)", () => {
     expect(code('../cli/index.ts')).toContain(
-      'runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId)',
+      'runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId, kind)',
     );
   });
 

@@ -19,8 +19,15 @@
  *   check-access   Prove the O365 consent runbook actually worked
  */
 
-import { tenantCutoverStore, mappingLifecyclePort } from '@openmig/ledger';
-import { asTenantId, asMappingId, type TenantId, type MappingId } from '@openmig/shared';
+import {
+  tenantCutoverStore,
+  mappingLifecyclePort,
+  bindCutoverLedger,
+  pathLifecyclePort,
+  readPathStopFacts,
+  withTenant,
+} from '@openmig/ledger';
+import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type TenantId, type MappingId, type DiscoveryDomain } from '@openmig/shared';
 import { reindexFromTarget } from '@openmig/core';
 import { buildDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
@@ -47,6 +54,7 @@ function parseArgs(): {
   mailbox?: string;
   assumeYes: boolean;
   reason?: string;
+  kind?: DiscoveryDomain;
 } {
   const args = process.argv.slice(2);
   let command: string | undefined;
@@ -59,6 +67,7 @@ function parseArgs(): {
   let mailbox: string | undefined;
   let assumeYes = false;
   let reason: string | undefined;
+  let kind: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -82,6 +91,8 @@ function parseArgs(): {
       assumeYes = true;
     } else if (arg === '--reason') {
       reason = args[++i];
+    } else if (arg === '--kind') {
+      kind = args[++i];
     } else if (arg === '--help' || arg === '-h') {
       log.info(`
 Cutover CLI - Manage migration cutover lifecycle
@@ -125,6 +136,14 @@ Options:
                             tested, which is not the same as passing.
   --reason <text>           For rollback: why, recorded in the cutover's event
                             trail and the audit log (default: a fixed sentence).
+  --kind <data type>        Cut over ONE data type of the migration, on its own
+                            ledger: email, calendar, contact, file or task
+                            (workplan 0128 T5). Without it, the whole migration.
+                            Only email has DNS, so --domain is needed for it
+                            and for the whole migration only. A data type
+                            cannot begin while the whole migration's cutover
+                            is under way, nor the whole migration once a data
+                            type has its own.
   --yes, -y                 Confirm a state-changing command. REQUIRED by
                             approve, execute, complete and rollback — without
                             it they print what they would do and exit non-zero.
@@ -160,6 +179,10 @@ Examples:
   pnpm exec tsx apps/worker/src/cli/index.ts status \\
     --tenant tenant123 --mapping mapping456 --domain example.com
 
+  # Cut over calendars alone, while the rest keeps copying (no DNS)
+  pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \\
+    --tenant tenant123 --mapping mapping456 --kind calendar
+
   # Generate the DNS runbook (no DB connection needed)
   pnpm exec tsx apps/worker/src/cli/index.ts runbook \\
     --domain example.com --target mail.example.com > dns-runbook.md
@@ -180,8 +203,16 @@ Environment Variables:
     process.exit(1);
   }
 
+  if (kind !== undefined && !(DISCOVERY_DOMAINS as readonly string[]).includes(kind)) {
+    log.error(`Error: --kind must be one of ${DISCOVERY_DOMAINS.join(', ')}; '${kind}' is not a data type`);
+    process.exit(1);
+  }
+  // Only mail has DNS (0128 T5, slice 5b): a cutover of any other data type
+  // needs no --domain.
+  const withoutMail = kind !== undefined && kind !== 'email' && command !== 'runbook';
+
   // Neither reindex nor check-access has anything to do with DNS.
-  if (!domain && command !== 'reindex' && command !== 'check-access') {
+  if (!domain && command !== 'reindex' && command !== 'check-access' && !withoutMail) {
     log.error('Error: --domain <name> is required');
     process.exit(1);
   }
@@ -202,12 +233,25 @@ Environment Variables:
   }
 
   // domain is '' only for reindex, which never touches DNS.
-  return { command, tenantId: tenantId ?? '', mappingId: mappingId ?? '', domain: domain ?? '', targetMailServer, dkimSelector, targetIp, mailbox, assumeYes, reason };
+  return {
+    command,
+    tenantId: tenantId ?? '',
+    mappingId: mappingId ?? '',
+    domain: domain ?? '',
+    targetMailServer,
+    dkimSelector,
+    targetIp,
+    mailbox,
+    assumeYes,
+    reason,
+    ...(kind !== undefined ? { kind: kind as DiscoveryDomain } : {}),
+  };
 }
 
 /** Main entry point. */
 async function main() {
-  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, mailbox, assumeYes, reason } = parseArgs();
+  const { command, tenantId, mappingId, domain, targetMailServer, dkimSelector, targetIp, mailbox, assumeYes, reason, kind } =
+    parseArgs();
 
   // "runbook" is a pure local computation — generate and print without touching the DB.
   if (command === 'runbook') {
@@ -277,7 +321,25 @@ async function main() {
   // tenant context set. This is the self-host door — hard rule 5's operator
   // on their own Postgres with an ordinary owner — so every ledger call goes
   // inside `withTenant`, bound to the tenant this command was given.
-  const cutoverPersistence = tenantCutoverStore(pool, tenantId as TenantId);
+  const wholeLedger = tenantCutoverStore(pool, tenantId as TenantId);
+
+  // One data type (0128 T5, slice 5b): its own ledger and its own path, and
+  // only a data type the migration carries.
+  if (kind !== undefined && command !== 'reindex') {
+    const facts = await withTenant(pool, tenantId, (db) => readPathStopFacts(db, tenantId, mappingId));
+    if (facts === undefined) {
+      log.error(`Error: migration ${mappingId} was not found for tenant ${tenantId}`);
+      process.exit(1);
+    }
+    if (!facts.carried.some((c) => c.domain === kind)) {
+      log.error(
+        `Error: this migration does not carry ${kind}; it carries ${facts.carried.map((c) => c.domain).join(', ') || 'no data type'}`,
+      );
+      process.exit(1);
+    }
+  }
+  const cutoverPersistence = kind === undefined ? wholeLedger : bindCutoverLedger(wholeLedger, kind);
+  const onSlotsTaken = raiseThePeakWhereThereIsOne(tenantId as TenantId);
 
   const deps: cutoverCli.CutoverCliDeps = {
     tenantId: tenantId as TenantId,
@@ -290,15 +352,19 @@ async function main() {
     assumeYes,
     // The mapping half of a rollback (ADR-0047): the row and its audit record.
     // The month's peak rises with the slots a rollback takes back, on a
-    // database that keeps one (0109 T2); a self-hosted one keeps none.
-    mappingLifecycle: mappingLifecyclePort(pool, tenantId, mappingId, 'cli', {
-      onSlotsTaken: raiseThePeakWhereThereIsOne(tenantId as TenantId),
-    }),
+    // database that keeps one (0109 T2); a self-hosted one keeps none. For
+    // one data type, its path, with the migration's status as the roll-up.
+    mappingLifecycle:
+      kind === undefined
+        ? mappingLifecyclePort(pool, tenantId, mappingId, 'cli', { onSlotsTaken })
+        : pathLifecyclePort(pool, tenantId, mappingId, kind, 'cli', { onSlotsTaken }),
     ...(reason ? { rollbackReason: reason } : {}),
+    ...(kind !== undefined ? { kind } : {}),
     // The real §20 gate, the one the preparation task runs (cutover-gate.ts):
-    // the data types the migration has, each against its own target. A
-    // closure so nothing connects to a target unless `verify` asks for it.
-    runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId),
+    // the data types the migration has, each against its own target, or the
+    // one this cutover is of. A closure so nothing connects to a target unless
+    // `verify` asks for it.
+    runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId, kind),
   };
 
   switch (command) {

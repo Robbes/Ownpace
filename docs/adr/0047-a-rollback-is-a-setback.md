@@ -28,7 +28,9 @@
   to `active` when it was `cutover` or `continuous`. That is the whole of it. It never swaps
   source and target, never writes to the source, never removes or copies anything on the target,
   and never writes DNS (verify-only, owner 2026-07-16 — reverting the MX record is the operator's
-  hand).
+  hand). **A rollback of one data type** (`--kind`, amended 2026-09-26, workplan 0128 T5 slice
+  5b) sets back its own ledger and its own path alone; the migration's status is then its paths'
+  roll-up, and only mail has an MX record to point back.
 - **One implementation**: `performRollback` in `@openmig/core` (`cutover-rollback.ts`). The
   operator CLI (`rollback --yes`) and the `run-rollback` Trigger.dev job are callers that gate,
   print and notify; neither decides anything. Guards: `cutover-rollback.unit.test.ts`,

@@ -46,6 +46,7 @@ import { AbortTaskRunError, configure, schemaTask, logger } from '@trigger.dev/s
 import { tenantCutoverStore, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
+  cutoverBeginRefusal,
   prepareTransition,
   passCounts,
   type CutoverState,
@@ -102,7 +103,7 @@ export interface CutoverPreparationDeps {
   mappingId: string;
   cutoverStore: Pick<
     CutoverStateStore,
-    'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory'
+    'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory' | 'loadLedgers'
   >;
   /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
   log: (message: string) => void;
@@ -179,6 +180,15 @@ export async function prepareCutover(
 ): Promise<CutoverPreparationResult> {
   const tenantId = asTenantId(deps.tenantId);
   const mappingId = asMappingId(deps.mappingId);
+
+  // The whole migration's preparation does not begin once a data type has a
+  // cutover of its own (0128 T5, slice 5b): the rest are cut over one at a
+  // time too. A refusal, not a failed cutover.
+  const refused = cutoverBeginRefusal(await deps.cutoverStore.loadLedgers(tenantId, mappingId));
+  if (refused) {
+    deps.log(`${refused.refuse} ${refused.hint}`);
+    throw new CutoverRefused(refused.refuse, refused.hint);
+  }
 
   // Read before anything is written, and decide from what is there.
   const existing = await deps.cutoverStore.loadCutoverState(tenantId, mappingId);
