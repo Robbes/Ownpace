@@ -2,7 +2,7 @@
 
 > **In one line:** Revising a live migration's config (`config-revision.ts`): managed's `nativeFilePolicy` edit form, the appliance's boot-time `revision_state` check, the `policy_refused` failure category, adding a data type, and a switched-off data type shown as `stopped`.
 
-## Status — 2026-09-23 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
 
 **2026-09-26: the export-format key will carry Dropbox Paper docs too (0150 D7).** Workplan 0150
 reuses `nativeFilePolicies` with a `paper` kind rather than adding a Dropbox key. So when 0150 T3
