@@ -787,7 +787,7 @@ describe('adding a connection through the front door', () => {
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
       // The deployment's client: no pair sent, not even empty strings.
-      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ sourceType: 'gmail' });
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ sourceType: 'gmail', locale: 'en' });
       expect(opened).toHaveBeenCalled();
 
       // The popup hands the token back; same origin, the flow's own shape.
@@ -833,7 +833,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
-      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'] });
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'], locale: 'en' });
     } finally {
       opened.mockRestore();
     }
@@ -864,7 +864,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
       await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
-      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar', 'task'] });
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar', 'task'], locale: 'en' });
     } finally {
       opened.mockRestore();
     }
@@ -909,7 +909,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
-      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['task'] });
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['task'], locale: 'en' });
     } finally {
       opened.mockRestore();
     }
@@ -945,6 +945,7 @@ describe('adding a connection through the front door', () => {
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
       expect(googleAuthorize.mock.calls[0]![0]).toEqual({
+        locale: 'en',
         sourceType: 'gmail',
         clientId: 'cid.apps.googleusercontent.com',
         clientSecret: 'shh',
@@ -1004,7 +1005,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
       // The deployment's registration: no pair sent, not even empty strings —
       // and the ticked face, not a default somebody never chose.
-      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'] });
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'], locale: 'en' });
       expect(googleAuthorize).not.toHaveBeenCalled();
       expect(dropboxAuthorize).not.toHaveBeenCalled();
       expect(opened.mock.calls[0]?.[1]).toBe('ownpace-microsoft-consent');
@@ -1048,7 +1049,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       // The deployment's app: no pair sent, not even empty strings — and
       // Dropbox's route, never Google's.
-      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({});
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({ locale: 'en' });
       expect(googleAuthorize).not.toHaveBeenCalled();
       expect(opened.mock.calls[0]?.[1]).toBe('ownpace-dropbox-consent');
 
@@ -1156,6 +1157,7 @@ describe('adding a connection through the front door', () => {
       fireEvent.click(button);
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({
+        locale: 'en',
         clientId: 'dbx-app-key',
         clientSecret: 'dbx-app-secret',
       });

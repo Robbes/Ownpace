@@ -33,7 +33,11 @@
  * as the scope Google itself will record (ADR-0041's operative rule: the
  * scopes are shown as scopes). The plain sentence is what a person
  * understands; the scope string is what they can check afterwards in their own
- * account, and one without the other is either vague or unreadable.
+ * account, and one without the other is either vague or unreadable. The plain
+ * words are this page's, from the dictionary (workplan 0145 T6): the server
+ * names the data types, and the page says them in the reader's language and
+ * joins them as that language joins a list. Until then the server sent an
+ * English phrase, and a Dutch reader met it inside a Dutch sentence.
  *
  * "Read-only" only where Google enforces it (workplan 0144 T3 (c)). The box
  * above the scope said *"Read-only."* for every link, and for a Gmail link the
@@ -54,6 +58,13 @@
  * Chrome instead, and that the link still works, which it does: opening it
  * spends nothing.
  *
+ * **In one language, which the reader chooses** (workplan 0145 T6). The page
+ * is outside `Layout`, so it carries its own switch, the same two buttons.
+ * A refusal shows the half the server sent in the page's language, and the
+ * button tells the server which language the ending after Google should be
+ * in. A refusal is announced (`role="alert"`) and the waiting line is a
+ * status, which 0145 T4 left to this change.
+ *
  * **The privacy policy and terms, before any redirect.** This is the in-product
  * disclosure Google's verification requires, and it belongs where a person can
  * still walk away.
@@ -70,11 +81,13 @@ import React from 'react';
 import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
+import type { DiscoveryDomain } from '@openmig/shared';
 import { grantApi } from '../services/grant-service.ts';
-import { serverMessage } from '../services/api.ts';
+import { linkRefusal } from '../services/link-refusal.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
-import type { Locale } from '../i18n/strings.ts';
+import type { Locale, StringKey } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
+import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
 
@@ -94,6 +107,19 @@ const LEGAL: Readonly<Record<Locale, { readonly privacy: string; readonly terms:
   },
 };
 
+/**
+ * What each data type reads, as the dictionary says it (workplan 0145 T6). A
+ * total record, so a sixth data type is a compile error here rather than a
+ * gap in what a person is told they are giving access to.
+ */
+const READS_KEY: Readonly<Record<DiscoveryDomain, StringKey>> = {
+  email: 'grant.reads.email',
+  calendar: 'grant.reads.calendar',
+  contact: 'grant.reads.contact',
+  file: 'grant.reads.file',
+  task: 'grant.reads.task',
+};
+
 /** A destination's kind, by the name its card carries; the kind itself otherwise. */
 function providerName(kind: string): string {
   return TARGET_CARDS.find((c) => c.id === kind)?.name ?? kind;
@@ -103,9 +129,11 @@ const Grant: React.FC = () => {
   const { link } = useParams<{ link: string }>();
   const t = useT();
   const { locale } = useLocale();
-  const { dateTime } = useFormatters();
+  const { dateTime, list } = useFormatters();
   const [starting, setStarting] = React.useState(false);
-  const [failure, setFailure] = React.useState('');
+  // The refusal itself rather than its sentence, so switching language after
+  // it arrived shows the other half.
+  const [failure, setFailure] = React.useState<unknown>(null);
 
   const subject = useQuery({
     queryKey: ['grant', link],
@@ -117,30 +145,39 @@ const Grant: React.FC = () => {
   const connect = async () => {
     if (!link) return;
     setStarting(true);
-    setFailure('');
+    setFailure(null);
     try {
-      const { url } = await grantApi.authorize(link);
+      // The page's language, so the ending after Google is in it too.
+      const { url } = await grantApi.authorize(link, locale);
       // A full navigation, not a popup: there is no wizard window behind this
       // page to hand anything back to, and a popup blocked by the browser
       // would look exactly like a button that does nothing.
       globalThis.location.assign(url);
     } catch (err) {
-      setFailure(serverMessage(err));
+      setFailure(err);
       setStarting(false);
     }
   };
 
   return (
     <main className="max-w-xl mx-auto px-6 py-12">
+      <LanguageSwitch className="justify-end mb-4" />
       <h1 className="text-xl font-semibold text-gray-900">{t('grant.title')}</h1>
 
-      {subject.isPending && <p className="mt-4 text-sm text-gray-600">{t('grant.loading')}</p>}
+      {subject.isPending && (
+        <p role="status" className="mt-4 text-sm text-gray-600">
+          {t('grant.loading')}
+        </p>
+      )}
 
       {subject.error != null && (
-        // The server's own sentence, verbatim: every refusal here is written to
-        // be forwarded to the person who sent the link, and rewording it would
-        // lose the half that says what to tell them.
-        <p className="mt-4 text-sm text-amber-800">{serverMessage(subject.error)}</p>
+        // The server's own sentence, verbatim, in the half the page is in:
+        // every refusal here is written to be forwarded to the person who sent
+        // the link, and rewording it would lose the half that says what to
+        // tell them. An alert, because it replaces the whole page.
+        <p role="alert" className="mt-4 text-sm text-amber-800">
+          {linkRefusal(subject.error, locale)}
+        </p>
       )}
 
       {subject.data && (
@@ -207,7 +244,9 @@ const Grant: React.FC = () => {
               next="linkReport.next.grant"
             />
           )}
-          <p className="mt-3 text-gray-900">{t('grant.reads', { reads: subject.data.reads })}</p>
+          <p className="mt-3 text-gray-900">
+            {t('grant.reads', { reads: list(subject.data.domains.map((d) => t(READS_KEY[d]))) })}
+          </p>
 
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="flex items-start gap-2 text-sm text-green-900">
@@ -247,7 +286,11 @@ const Grant: React.FC = () => {
             {starting ? t('grant.connecting') : t('grant.connect')}
           </button>
 
-          {failure && <p className="mt-3 text-sm text-amber-800">{failure}</p>}
+          {failure != null && (
+            <p role="alert" className="mt-3 text-sm text-amber-800">
+              {linkRefusal(failure, locale)}
+            </p>
+          )}
 
           <p className="mt-6 text-sm text-gray-500">
             {t('grant.disclosure')}{' '}

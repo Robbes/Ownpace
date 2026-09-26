@@ -1487,7 +1487,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       await waitFor(() => expect(connectButton()).toBeEnabled());
       fireEvent.click(connectButton());
       await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
-      expect(authorizeMock.mock.calls[authorizeMock.mock.calls.length - 1]![0]).toEqual({ domains: ['calendar'] });
+      expect(authorizeMock.mock.calls[authorizeMock.mock.calls.length - 1]![0]).toEqual({ domains: ['calendar'], locale: 'en' });
 
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -1626,7 +1626,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       // ABSENT, not empty strings — the route's schema refuses an empty one —
       // and Dropbox's route, never Google's.
-      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({});
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({ locale: 'en' });
       expect(authorizeMock).not.toHaveBeenCalled();
       expect(open.mock.calls[0]?.[1]).toBe('ownpace-dropbox-consent');
 
@@ -1675,6 +1675,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     fireEvent.click(connectButton());
     await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
     expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({
+      locale: 'en',
       clientId: 'dbx-app-key',
       clientSecret: 'dbx-app-secret',
     });

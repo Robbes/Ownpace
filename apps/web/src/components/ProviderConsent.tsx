@@ -45,7 +45,7 @@ import {
   providerAccountsApi,
   providerClientsApi,
 } from '../services/mapping-service.ts';
-import { useT, type StringKey } from '../i18n/index.tsx';
+import { useLocale, useT, type StringKey } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 
 export interface ProviderConsent {
@@ -100,7 +100,7 @@ export function useProviderConsent(opts: {
   readonly refusalText: (err: unknown) => string;
 }): ProviderConsent {
   const { role, type, fields, values, onToken, refusalText } = opts;
-  const t = useT();
+  const { t, locale } = useLocale();
 
   const provider = role === 'source' ? fields.find((f) => f.key === 'refreshToken')?.consent : undefined;
   const isGrantKind = provider !== undefined;
@@ -187,16 +187,18 @@ export function useProviderConsent(opts: {
       // was not Dropbox — so a third provider would not have failed to
       // compile, it would have asked the wrong company for a consent and
       // reported success.
+      // Each ask names the page's language, so the ending the provider sends
+      // the person back to is in it too (workplan 0145 T6).
       const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
-        dropbox: () => mappingApi.dropboxAuthorize(ownPair),
+        dropbox: () => mappingApi.dropboxAuthorize({ ...ownPair, locale }),
         // The ACCOUNT asks for exactly the faces ticked, so the consent screen
         // and the ticks cannot disagree; the single-purpose kinds ask for
         // their own one scope.
-        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair }),
+        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair, locale }),
         google: () =>
           mappingApi.googleAuthorize(
             isAccountKind
-              ? { domains, ...ownPair }
+              ? { domains, ...ownPair, locale }
               : {
                   sourceType: type as
                     | 'gmail'
@@ -204,6 +206,7 @@ export function useProviderConsent(opts: {
                     | 'google-contacts'
                     | 'google-drive',
                   ...ownPair,
+                  locale,
                 },
           ),
       };

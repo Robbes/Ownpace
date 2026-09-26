@@ -179,7 +179,7 @@ describe('the redirect line under the button (0148 T2 (a))', () => {
       await waitFor(() => expect(connect()).toBeEnabled());
       fireEvent.click(connect());
       await waitFor(() => expect(open).toHaveBeenCalled());
-      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({});
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({ locale: 'en' });
       expect(screen.queryByText(/Register this exact address/)).toBeNull();
       expect(screen.queryByText(ADDRESS)).toBeNull();
     } finally {

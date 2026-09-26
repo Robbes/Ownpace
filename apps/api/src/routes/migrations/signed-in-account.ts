@@ -37,6 +37,8 @@
  * address, and names that instead. A refusal, never a wrong match.
  */
 
+import { NO_NAMED_ACCOUNT, anotherAccount, reasonPair, unconfirmedAccount } from '@openmig/shared';
+
 /**
  * What the link's consent asks beside the data: who signed in. Asked in the
  * long form, which is how Google enumerates it back.
@@ -120,6 +122,8 @@ export interface SignedInAccountRefusal {
   readonly code: SignedInAccountRefusalCode;
   /** The sentence for the person who just signed in. */
   readonly reason: string;
+  /** The same sentence in Dutch (workplan 0145 T6), from the pairs in `@openmig/shared`. */
+  readonly reasonNl: string;
 }
 
 /**
@@ -136,28 +140,13 @@ export function signedInAccountRefusal(
   signedInAs: string | null,
 ): SignedInAccountRefusal | null {
   if (!named || !namesAGoogleAccount(named)) {
-    return {
-      code: 'no_named_account',
-      reason:
-        'This migration no longer names the Google account it reads, so your permission ' +
-        'could not be checked against it. Please tell the person who sent you the link.',
-    };
+    return { code: 'no_named_account', ...reasonPair(NO_NAMED_ACCOUNT) };
   }
   if (signedInAs === null) {
-    return {
-      code: 'unconfirmed',
-      reason:
-        `Google did not confirm which account you signed in with, so it could not be checked ` +
-        `against ${named}. Open your link again and sign in as ${named}.`,
-    };
+    return { code: 'unconfirmed', ...reasonPair(unconfirmedAccount(named)) };
   }
   if (!sameGoogleAccount(named, signedInAs)) {
-    return {
-      code: 'another_account',
-      reason:
-        `You signed in to Google as ${signedInAs}, but this migration reads ${named}. Open ` +
-        `your link again and choose ${named} at Google.`,
-    };
+    return { code: 'another_account', ...reasonPair(anotherAccount(signedInAs, named)) };
   }
   return null;
 }

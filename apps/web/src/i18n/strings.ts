@@ -994,6 +994,14 @@ const en = {
   'grant.loading': 'One moment…',
   'grant.asking': '{organisation} is moving your account to a new provider, and needs your permission to read what is in it.',
   'grant.reads': 'You are about to give access to {reads}.',
+  // What each data type reads, in the words a person would use about their
+  // own account, joined into `grant.reads` as the page's language joins a list
+  // (workplan 0145 T6). The server names the data types; the words are ours.
+  'grant.reads.email': 'your email — messages, folders and labels',
+  'grant.reads.calendar': 'your calendars and their events',
+  'grant.reads.contact': 'your contacts',
+  'grant.reads.file': 'your files in Google Drive',
+  'grant.reads.task': 'your tasks',
   // Where from and where to (workplan 0108 T8a): what lets a person tell their
   // own migration from a stranger's, whose every other screen is genuine.
   'grant.company': 'Company',
@@ -3282,6 +3290,11 @@ const nl: Record<keyof typeof en, string> = {
   'grant.loading': 'Een moment…',
   'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
+  'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
+  'grant.reads.calendar': 'uw agenda’s en de afspraken erin',
+  'grant.reads.contact': 'uw contactpersonen',
+  'grant.reads.file': 'uw bestanden in Google Drive',
+  'grant.reads.task': 'uw taken',
   'grant.company': 'Bedrijf',
   'grant.companyChecked': 'Gecontroleerd in het EU-btw-register (VIES).',
   'grant.askedBy': 'Gevraagd door',

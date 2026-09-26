@@ -20,7 +20,17 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { log, resolveGoogleClient } from '@openmig/shared';
+import {
+  EXCHANGE_FOR_THE_LINK_HOLDER,
+  NOTHING_CAME_BACK,
+  NOT_KEPT,
+  inLocale,
+  localeOf,
+  log,
+  resolveGoogleClient,
+  stoppedAtGoogle,
+  type Bilingual,
+} from '@openmig/shared';
 import {
   GOOGLE_SOURCE_SCOPES,
   callbackPageHeaders,
@@ -28,6 +38,8 @@ import {
   consentUrl,
   exchangeCode,
   grantResultPage,
+  noCodeFrom,
+  providerReported,
   rawIpCallbackRefusal,
   recordedPermission,
   unreachableCallbackRefusal,
@@ -169,7 +181,10 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
   if (unreachable) {
     return void res.status(400).json({ error: 'unreachable_callback', reason: unreachable });
   }
-  const state = flows.begin({ clientId, clientSecret, scope, redirectUri });
+  // The language the page was in, so the ending is in it too (workplan 0145
+  // T6): recorded on the pending consent, never sent through the redirect.
+  const locale = localeOf((req.body as { locale?: unknown } | undefined)?.locale);
+  const state = flows.begin({ clientId, clientSecret, scope, redirectUri, locale });
   res.json({
     url: consentUrl({ clientId, scope, redirectUri, state }),
     redirectUri,
@@ -191,33 +206,14 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
  * tell (the rule `FOR_THE_LINK_HOLDER` in `grant.ts` follows). None of these
  * reached the link, and the page says so: until 2026-09-23 every one of them
  * told the person to ask for a fresh link, for a link that still worked.
+ *
+ * In both languages, beside each other in `@openmig/shared` (workplan 0145
+ * T6); typed here by the exchange's codes, so a new code is a compile error
+ * until it has both halves. Google's own word for a cancel or a stop is
+ * `stoppedAtGoogle`, from the same file.
  */
-const EXCHANGE_FOR_THE_LINK_HOLDER: Readonly<Record<ExchangeRefusalCode, string>> = {
-  unreachable: 'Google could not be reached just now, so your permission did not arrive.',
-  refused:
-    "Google turned down this migration's own application, so your permission did not arrive. " +
-    'Nothing you can do from here will fix that; please tell the person who sent you the link.',
-  code_rejected:
-    'Google did not accept the sign-in when it came back, which happens when it took too long ' +
-    'or was sent twice.',
-  scope_missing:
-    'Some of the permissions this migration asks for were left unticked at Google. Open your ' +
-    'link again and leave every one of them ticked.',
-  no_refresh_token:
-    'Google would not give lasting access to this account, which usually means its ' +
-    'administrator does not allow it. Please tell the person who sent you the link.',
-};
-
-/** Google's own `error` on the way back, for the person on a grant link. */
-function atGoogleForTheLinkHolder(said: string): string {
-  // Cancel, or closing the consent without allowing: their choice, and the
-  // one answer here that needs nobody else.
-  if (said === 'access_denied') return 'Permission was not given at Google.';
-  return (
-    `Google stopped before permission was given, and said "${said}". Please tell the person ` +
-    'who sent you the link.'
-  );
-}
+const FOR_THE_LINK_HOLDER_AFTER_GOOGLE: Readonly<Record<ExchangeRefusalCode, Bilingual>> =
+  EXCHANGE_FOR_THE_LINK_HOLDER;
 
 /**
  * ONE callback address for two flows, because Google is told one redirect URI
@@ -264,37 +260,32 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     );
   }
   // From here the flow is known, so every remaining answer is rendered in the
-  // voice of whoever is actually looking at it.
+  // voice of whoever is actually looking at it, and in the language the page
+  // that began it was in (workplan 0145 T6): the pending state's, never the
+  // query string's.
   const link = pending.link;
+  const locale = localeOf(pending.locale);
   // `linkAfter` is what is true of a grant link after this refusal, when it
   // is not used up (see `grantResultPage`); the owner's ending has no link.
-  const refuse = (status: number, reason: string, linkAfter?: 'works' | 'unused') =>
+  // `reason` is a pair where we wrote both halves; a code exchange's refusal
+  // to the owner quotes Google and names the client, and stays as written.
+  const refuse = (status: number, reason: Bilingual | string, linkAfter?: 'works' | 'unused') => {
+    const said = typeof reason === 'string' ? reason : inLocale(reason, locale);
     page(
       status,
       link
-        ? grantResultPage({ ok: false, reason, ...(linkAfter ? { link: linkAfter } : {}) })
-        : consentResultPage({ outcome: { ok: false, reason } }),
+        ? grantResultPage({ ok: false, reason: said, ...(linkAfter ? { link: linkAfter } : {}) }, locale)
+        : consentResultPage({ outcome: { ok: false, reason: said }, locale }),
     );
+  };
 
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const said = req.query.error;
-    return refuse(
-      200,
-      link
-        ? atGoogleForTheLinkHolder(said)
-        : `Google reported: ${said}. Nothing was granted and nothing was stored.`,
-      'unused',
-    );
+    return refuse(200, link ? stoppedAtGoogle(said) : providerReported('google', said), 'unused');
   }
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   if (!code) {
-    return refuse(
-      400,
-      link
-        ? 'Google sent nothing back, so your permission did not arrive.'
-        : 'Google sent no authorization code back.',
-      'unused',
-    );
+    return refuse(400, link ? NOTHING_CAME_BACK : noCodeFrom('google'), 'unused');
   }
   const outcome = await exchangeCode({
     code,
@@ -306,7 +297,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
 
   if (!link) {
     // The owner's ending, exactly as it shipped in 0089 T1.
-    return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome }));
+    return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome, locale }));
   }
 
   if (!outcome.ok) {
@@ -316,7 +307,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       `[api] a grant link's code exchange failed (${outcome.code}) for mapping ` +
         `${link.mappingId}: ${outcome.reason}`,
     );
-    return refuse(400, EXCHANGE_FOR_THE_LINK_HOLDER[outcome.code], 'unused');
+    return refuse(400, FOR_THE_LINK_HOLDER_AFTER_GOOGLE[outcome.code], 'unused');
   }
 
   // The migrator's ending. Note what is NOT passed on from here: `outcome`
@@ -334,20 +325,13 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     log.error('[api] storing a granted credential failed:', error);
     // The claim and the write are one transaction, so a throw here rolled the
     // claim back with it: the link was not used up.
-    return refuse(
-      500,
-      'Your permission was given, but something on our side went wrong storing it, so it ' +
-        'was not kept. Nothing is connected yet. Please tell the person who sent you the ' +
-        'link — this one is ours to fix, not yours.',
-      'unused',
-    );
+    return refuse(500, NOT_KEPT, 'unused');
   }
   if (!stored.ok) {
     // 403 for the wrong account: the link is good, the person is not the one
     // it was for. 409 for a link that can no longer be used.
-    return stored.linkStillWorks
-      ? refuse(403, stored.reason, 'works')
-      : refuse(409, stored.reason);
+    const reason = { en: stored.reason, nl: stored.reasonNl };
+    return stored.linkStillWorks ? refuse(403, reason, 'works') : refuse(409, reason);
   }
 
   // ADR-0035's second lifetime, handed over at the one moment this person is
@@ -366,7 +350,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   const permission = recordedPermission(pending.scope, outcome.grantedScopes);
   page(
     200,
-    grantResultPage(progressUrl ? { ok: true, progressUrl, permission } : { ok: true, permission }),
+    grantResultPage(progressUrl ? { ok: true, progressUrl, permission } : { ok: true, permission }, locale),
   );
 });
 
