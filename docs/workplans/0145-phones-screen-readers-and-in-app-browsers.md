@@ -2,7 +2,57 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26, build: T3 (a) built on branch
+`claude/ownpace-public-readiness-y7orc6-each-step-starts-at-the-top`, not merged. T1 is merged, in
+#1169 on 2026-09-25.** In `apps/web/src/pages/CreateMapping.tsx`, every step card now opens with
+the same heading, an `h2`: *"Step 2 of 4: Target"* / *"Stap 2 van 4: Doel"*. The key is
+`wizard.stepHeading`, and the step names are the existing ones. Next and Back scroll the page to
+the top and put focus on that heading, which has `tabIndex={-1}`. The first render moves nothing.
+The scroll is smooth only when the browser says the reader has no preference about motion. In
+`apps/web/src/components/Layout.tsx`, a new path scrolls to the top at once, except on Back and
+Forward (`POP`). Focus on a new page is still T3 (b). The phone menu's focus (T1) is unchanged. A
+step changes only from the page, and the page is `inert` while the drawer is open. Neither new
+effect runs when the drawer opens or closes.
+
+The guard is `apps/web/src/pages/a-step-that-starts-at-the-top.unit.test.tsx`. Of its 14 cases, 12
+failed on the unchanged code. The two that passed say what must not happen, and it did not happen
+before either: a new query on the same page and an address that names a section do not scroll.
+Each mutation made the guard fail: no focus on the heading (6 cases), no scroll on a step change
+(7), the effect on the first render too (6), always smooth (2), asking for `reduce` with smooth as
+the default (1), focus without `preventScroll` (1), a heading without `tabIndex` (5), an `h3` for
+the heading (5), the layout scrolling on Back and Forward (6), the layout's scroll keyed on the
+query too (1), scrolling over a section (1), no scroll on a new page (4), a smooth scroll on a new
+page (1), the heading focused after every render (1), the Dutch heading half English (1), and the
+layout's scroll keyed on the drawer too (1). Where the build differs from §3:
+
+- **The scroll is smooth only when the browser says `no-preference`.** §3 asks for an instant
+  scroll when the reader prefers reduced motion. Asking for `no-preference` also gives the instant
+  scroll to a browser that cannot say.
+- **The heading is focused with `preventScroll`.** Without it the browser jumps the heading into
+  view first, and the page then glides the rest of the way.
+- **Two more cases keep their scroll on a new page.** A new query on the same path is not a new
+  page, as T1's `followLink` treats it, so the effect is keyed on the path. An address that names a
+  section, such as `/docs/<guide>#<section>` from the wizard or the checklist, is scrolled by
+  `GuideArticle`, and the top would undo that.
+- **A new page's scroll is instant and runs before paint** (`useLayoutEffect`), so the new page is
+  not drawn once at the old offset.
+- **The walk lives in `apps/web/src/pages/wizard-walk.tsx`.** It is a `.tsx` with no JSX, because
+  a `.ts` in an app's `src` is also in the root program, which has no DOM lib. It finds Next by the
+  dictionary's words, so it walks in Dutch too, and `passSourceStep` is its first step on its own.
+  The copies of `nextButton` in `CreateMapping.reachability.unit.test.tsx` and
+  `a-card-that-says-it-is-unproven.unit.test.tsx` are left as they are.
+- **`apps/web/src/test-setup.ts` makes `window.scrollTo` do nothing.** jsdom only prints "Not
+  implemented" for it, 83 times for the wizard's three test files. The guard spies on it.
+- **The guard has 14 cases, not §3's four.** The additions are the first render, the wizard's
+  Back, the walk to the review step, two cases on motion, `preventScroll`, the query and the
+  section, and two cases with the phone menu (T1).
+
+Still open: T3 (b). The routes outside `Layout` (`/login`, `/auth/callback`, `/request-access`,
+`/grant/:link`, `/view/:link` and `/invitations`) are not sent to the top. They are opened by a
+full load, and the links between them lead to short pages. Whether the page really lands at the
+top on a phone is T8 (a) and T10.
 
 **2026-09-24, build: T1 built on branch
 `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged, except the skip
@@ -102,9 +152,9 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | Task | Status | Notes |
 |---|---|---|
 | T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 is built. |
-| T1 The phone menu takes focus and gives it back | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
+| T1 The phone menu takes focus and gives it back | 🔨 **Built**, merged in #1169 (2026-09-25), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
-| T3 A new step or page starts at the top and says where you are | 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
+| T3 A new step or page starts at the top and says where you are | (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-each-step-starts-at-the-top`, not merged** (2026-09-26); (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
 | T4 Errors are announced | 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
 | T5 The consent window opens on the press itself | 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. |
