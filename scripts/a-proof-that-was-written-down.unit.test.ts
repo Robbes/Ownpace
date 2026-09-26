@@ -35,6 +35,13 @@
  *    for an account's face, the same face), and no experimental verdict has
  *    one.
  * 4. *Proven before this record* (below) only shrinks.
+ * 5. Shared mailboxes (0141 T10): their verdict is one of the verdicts above,
+ *    recorded as the kind `shared-mailbox` and the face `email`, and until it
+ *    is proven the matrix marks no shared mailbox ✅ and its open gaps list
+ *    one. Its companion in `packages/shared`,
+ *    `a-shared-mailbox-promise-with-its-proof`, holds the scope manifest's row
+ *    to the same verdict, so the manifest's *Migrates* follows a Live proofs
+ *    row and nothing else.
  *
  * ## Proven before this record: a deviation, named
  *
@@ -62,6 +69,7 @@ import { fileURLToPath } from 'node:url';
 import {
   SOURCE_PROOFS,
   PROVEN_BEFORE_THE_RECORD,
+  SHARED_MAILBOX_PROOF_KIND,
   WHOLE_DOMAIN_PROOF_KIND,
   type SourceProof,
 } from '../packages/shared/src/front-door.ts';
@@ -202,7 +210,40 @@ function everyVerdict(): Array<{ kind: string; face?: string; proof: SourceProof
     for (const [face, proof] of Object.entries(faces)) if (proof) out.push({ kind, face, proof });
   }
   out.push({ kind: WHOLE_DOMAIN_PROOF_KIND, proof: SOURCE_PROOFS.wholeDomain });
+  // A shared mailbox is read over mail, so its row carries the email face.
+  out.push({ kind: SHARED_MAILBOX_PROOF_KIND, face: 'email', proof: SOURCE_PROOFS.sharedMailbox });
   return out;
+}
+
+/** Words that name a shared mailbox, in the matrix's prose or a table cell. */
+const SHARED_MAILBOX = /shared mailbox|Pattern S\b/i;
+
+/**
+ * The places in a markdown text that call a shared mailbox done: a table row
+ * whose first cell names one, a cell of any other row, a bullet with its
+ * continuation lines, or any other line, that names one and carries ✅. A row
+ * is read by its cells when its subject is something else, because one row
+ * can hold a ✅ for another provider beside a ⏳ for this.
+ */
+function sharedMailboxCalledDone(text: string): string[] {
+  const units: string[] = [];
+  let bullet: string | undefined;
+  for (const line of text.split('\n')) {
+    if (bullet !== undefined && /^\s+\S/.test(line) && !/^\s*[-*] /.test(line)) {
+      bullet += ` ${line.trim()}`;
+      continue;
+    }
+    if (bullet !== undefined) units.push(bullet);
+    bullet = undefined;
+    if (line.trim().startsWith('|')) {
+      const cells = cellsOf(line);
+      if (SHARED_MAILBOX.test(cells[0] ?? '')) units.push(cells.join(' | '));
+      else units.push(...cells);
+    } else if (/^\s*[-*] /.test(line)) bullet = line.trim();
+    else units.push(line);
+  }
+  if (bullet !== undefined) units.push(bullet);
+  return units.filter((u) => u.includes('✅') && SHARED_MAILBOX.test(u));
 }
 
 describe('the matrix has a Live proofs section, in two tables', () => {
@@ -314,5 +355,35 @@ describe('a verdict says proven only where the record says so', () => {
       const row = ROWS.find((r) => r.kind === kind && (face === undefined || r.face === face));
       expect(row, `${face ? `${kind} ${face}` : kind} has a Live proofs row and is still experimental`).toBeUndefined();
     }
+  });
+});
+
+describe('a shared mailbox is not called done before one is copied (0141 T10)', () => {
+  it('has a verdict of its own, recorded as the kind shared-mailbox', () => {
+    expect(SOURCE_PROOFS.sharedMailbox, 'SOURCE_PROOFS has no verdict for shared mailboxes').toBeDefined();
+    expect(SHARED_MAILBOX_PROOF_KIND).toBe('shared-mailbox');
+  });
+
+  it('until it is proven, no line, bullet or cell of the matrix marks a shared mailbox ✅', () => {
+    if (SOURCE_PROOFS.sharedMailbox?.verdict === 'proven') return;
+    expect(sharedMailboxCalledDone(MATRIX)).toEqual([]);
+  });
+
+  it.each([
+    ['a ✅ bullet', '- ✅ **A shared mailbox (M365)** is an ordinary mapping via\n  `source.mailbox`.', 1],
+    ['a ✅ continuation line', '- ✅ **Something (M365)** is an ordinary mapping,\n  and so is a shared mailbox.', 1],
+    ['a ✅ row whose subject is one', '| Shared mailbox (Pattern S) | ✅ copied |', 1],
+    ['a ⏳ bullet', '- ⏳ **A shared mailbox (M365)** is built, not yet copied.', 0],
+    ['a ✅ beside a ⏳ in one row', '| Source | ✅ (`caldav`) | ⏳ Graph; shared mailbox via `source.mailbox` |', 0],
+  ])('finds %s', (_what, text, found) => {
+    expect(sharedMailboxCalledDone(text)).toHaveLength(found);
+  });
+
+  it('until it is proven, the open gaps list it as not yet copied', () => {
+    if (SOURCE_PROOFS.sharedMailbox?.verdict === 'proven') return;
+    const gaps = table(section(MATRIX, 'The open gaps, in one place'));
+    const row = gaps.rows.find(([gap]) => SHARED_MAILBOX.test(gap ?? ''));
+    expect(row, 'the open-gaps table has no row for shared mailboxes').toBeDefined();
+    expect(row?.[1] ?? '').toContain('⏳');
   });
 });

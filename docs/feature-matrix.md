@@ -319,8 +319,10 @@ rather than as one row:
   (browsable since workplan 0049), and the connector always sends the two query parameters
   without which the Drive API *pretends a shared drive is empty* — the silent-empty-pass
   failure that guard exists for is documented on the connector itself.
-- ✅ **A shared mailbox or a shared mailbox's calendar (M365)** is an ordinary mapping via
-  `source.mailbox` — see the Email and Calendars sections.
+- ⏳ **A shared mailbox or a shared mailbox's calendar (M365)** is an ordinary mapping via
+  `source.mailbox` — see the Email and Calendars sections. Built, and not yet copied from a
+  real shared mailbox, so the scope manifest shows it under *Partial* (workplan 0141 T10). It
+  needs application permissions; the Microsoft 365 account's delegated grant cannot read one.
 - ✅ **Received shares over WebDAV (Nextcloud and friends)** need no feature at all: the
   server mounts them into the account's tree, and the connector migrates whatever the tree
   presents. They arrive as ordinary content.
@@ -397,6 +399,7 @@ These hold across all object types, and are features rather than gaps:
 | Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
 | M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable in the managed wizard as the Microsoft 365 account's faces since workplan 0114 (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
+| A shared mailbox (Pattern S) copied from a real tenant — `source.mailbox` over Graph, with application permissions and an administrator's consent; the Microsoft 365 account's delegated grant reads the signed-in person's own mailbox only | ⏳ built, not yet copied from a real shared mailbox; the scope manifest shows it under *Partial* | workplan 0027 T0; workplan 0141 T10 |
 | Dropbox against a real account | ⏳ built, unproven | workplan 0055 T3(a) |
 | Box against a real account | ⏳ built, unproven | workplan 0056 T3(a) |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
@@ -417,7 +420,10 @@ source card, a face in the wizard's data-type step and Google's whole-domain opt
 same pull request as the change to the other, and a face whose connector is rebuilt goes back to
 experimental in the pull request that rebuilds it. The Email table's ✅ for `oauth2` and `graph`
 says the reader is built; no run behind it is recorded (0141 §1), so both cards carry the tag
-until one is (0148 D5).
+until one is (0148 D5). A shared mailbox (Pattern S) has a verdict of its own,
+`SOURCE_PROOFS.sharedMailbox`, and no tag: the scope manifest shows *Shared mailboxes* under
+*Partial* until a row here with the kind `shared-mailbox` and the face `email` records one copied
+(0141 T10).
 
 **What counts as a live proof.** All seven:
 

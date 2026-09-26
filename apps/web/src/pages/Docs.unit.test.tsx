@@ -44,8 +44,13 @@
  * provider's app, read through the wizard's own query key (T2 (c)). On the
  * appliance the index ends with one line pointing to the operator documents
  * (D9). The served-guides case runs over every guide in every language it is
- * written in; while `docs/guides/nl/` is empty that is English only, and a
- * Dutch reader meets the fallback, which the language case checks.
+ * written in.
+ *
+ * WHAT 0148 T4 ADDED. The six guides in Dutch, so a Dutch reader gets each
+ * one in Dutch under `lang="nl"` with no fallback notice (the language case),
+ * `TRANSLATION_PENDING` is empty, and a case holds that the two languages of
+ * a guide are the same outline: the same headings, levels and `{#id}`s, in
+ * the same order.
  */
 
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
@@ -734,13 +739,48 @@ describe('every served guide keeps its shape (0148 T6 (a))', () => {
    * so the list cannot outlive the gap it names.
    */
   const TRANSLATION_PENDING: Record<Locale, readonly string[]> = {
-    nl: ['apple', 'archive', 'box', 'dropbox', 'google', 'microsoft'],
+    // Emptied by 0148 T4, which wrote the six Dutch guides (D4, D8). A guide
+    // added later in one language first is listed here until its twin lands.
+    nl: [],
     en: [],
   };
 
   it.each(['en', 'nl'] as const)('every guide is written in %s, or listed as pending', (locale) => {
     const missing = [...GUIDE_SLUGS].filter((slug) => SOURCES[`${locale}/${slug}`] === undefined).sort();
     expect(missing).toEqual([...TRANSLATION_PENDING[locale]].sort());
+  });
+
+  /**
+   * T4's "both languages of a guide carry the same section ids", at every
+   * level and in order. The ids stay English in both, so a link from the
+   * checklist, a refusal or another guide (`archive.md#apple-privacy`)
+   * resolves whichever language the reader has; and in order, with each
+   * heading's level, so the Dutch and the English are the same outline and a
+   * section cannot quietly move or vanish in one of them. Every heading below
+   * the title carries its `{#id}`: a slug made from the heading's text would
+   * differ between the languages. A guide listed as pending above has one
+   * language only, and is skipped until its twin lands.
+   */
+  it.each([...GUIDE_SLUGS].sort())('%s: both languages carry the same headings, ids and levels, in order', (slug) => {
+    const outline = (locale: Locale) => {
+      const body = SOURCES[`${locale}/${slug}`];
+      if (body === undefined) return undefined;
+      const headings = linesOutsideFences(body).filter((line) => /^#{1,4}\s+/.test(line));
+      expect(headings[0], `${locale}/${slug} opens with its title`).toMatch(/^# /);
+      return headings.slice(1).map((line) => {
+        const id = /\{#([\w-]+)\}\s*$/.exec(line)?.[1];
+        expect(id, `${locale}/${slug}: "${line}" carries its {#id}`).toBeDefined();
+        return `${/^#+/.exec(line)![0]} ${id}`;
+      });
+    };
+    const pending = (['en', 'nl'] as const).filter((locale) => TRANSLATION_PENDING[locale].includes(slug));
+    if (pending.length > 0) return;
+
+    const en = outline('en');
+    const nl = outline('nl');
+    expect(en, `en/${slug} exists`).toBeDefined();
+    expect(nl, `nl/${slug} exists`).toBeDefined();
+    expect(nl).toEqual(en);
   });
 
   it('the served guides use each feature at least once, so the cases above are not passing on nothing', () => {

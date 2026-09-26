@@ -60,7 +60,14 @@ of* it.
      guide missing in the reader's language is shown in the other one, under
      one line in the reader's own (`docs.otherLanguage`), with `lang` on the
      article;
-   - a provider's screen words in the provider's own words in that language;
+   - a provider's screen words in the provider's own words in that language.
+     Until 0148 T0 reads the Dutch guides against live's screens, a Dutch
+     guide may name a provider's screens by the English names the provider's
+     documentation uses, under a line saying the provider shows them in the
+     reader's language. Where `strings.ts` already carries the provider's
+     Dutch word (*Geautoriseerde omleidings-URI’s*, *Domeinbrede delegatie*,
+     *Admin-console*), the guide uses that word, so the wizard and the guide
+     do not give one control two names;
    - the wizard's labels as `strings.ts` has them in that language;
    - a server finding or refusal quoted verbatim, in English, as it is shown.
 

@@ -102,6 +102,17 @@ The convention, per §14.1:
 
 ## Limits worth knowing before you start
 
+- **Nobody has copied a real shared mailbox with this yet.** The mail path it
+  rides is the ordinary one, and the reads above are built and tested; the
+  one live run, on a real tenant after the consent steps in
+  [`o365-application-access.md`](./o365-application-access.md), has not
+  happened (workplan 0027 T0). Until it is recorded in the feature matrix's
+  *Live proofs*, the scope manifest shows shared mailboxes under **Partial**,
+  not *Migrates* (workplan 0141 T10).
+- **The *Microsoft 365 account* button cannot read one.** Its grant is
+  delegated: it reads the mailbox of the person who signs in, and nothing
+  else. A shared mailbox needs your own app registration with application
+  permissions, as above.
 - **Discovery cannot see shared addresses over IMAP at all.** IMAP has no
   directory; it addresses one account's folders and messages. An IMAP source
   reports that it could not look rather than reporting nothing found, and

@@ -11,7 +11,9 @@ A Dropbox migration authenticates with a Dropbox app — this service's, where i
 
 ### Dropbox {#dropbox}
 
-**The short way: press Connect with Dropbox.** Where this service carries its own Dropbox app, the wizard and the Connections page show a **Connect with Dropbox** button beside the token field. It opens Dropbox's consent screen for the account being migrated, and when that account approves, the refresh token lands in the field by itself and the connection is saved and tested in one go. Nothing is typed, and the App secret never leaves the server. You can still use your own app instead: open **Use your own Dropbox app** and enter the App key and App secret as a pair. [With your own app](#own-app) has the steps.
+The wizard asks for the account's address, under **Username**, and for a **Refresh token**, which the button fills in.
+
+**The short way: press Connect with Dropbox.** Where this service carries its own Dropbox app, the wizard and the Connections page show a **Connect with Dropbox** button beside the token field. It opens Dropbox's consent screen for the account being migrated, and when that account approves, the refresh token lands in the field by itself and the connection is saved and tested in one go. Nothing is typed, and the App secret never leaves the server. You can still use your own app instead: open **Use your own Dropbox app** and enter the **App key** and the **Client secret** as a pair. [With your own app](#own-app) has the steps.
 
 The **Root folder path** field left empty migrates the whole Dropbox; a path scopes the migration to that folder, and the same tree lands the same way either way.
 
@@ -42,7 +44,7 @@ A consent is withdrawn at Dropbox, in the account's settings under **Connected a
 - `files.content.read`
 - `sharing.read` — optional, read-only too: it powers the wizard's **Browse shared folders…** button. Without it migrations work unchanged; the browse gets Dropbox's own refusal, naming the scope.
 
-Nothing else. The **App key** and **App secret** on the Settings tab go in the wizard's **Use your own Dropbox app** fold, as a pair.
+Nothing else. The **App key** and **App secret** on the Settings tab go in the wizard's **Use your own Dropbox app** fold, as a pair: the App key under **App key**, the App secret under **Client secret**.
 
 ### 2. The redirect address {#own-app-redirect}
 

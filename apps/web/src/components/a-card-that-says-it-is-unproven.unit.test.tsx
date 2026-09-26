@@ -142,6 +142,8 @@ function everyVerdict(): Array<{ where: string; proof: SourceProof }> {
     }
   }
   out.push({ where: 'whole-domain delegation', proof: SOURCE_PROOFS.wholeDomain });
+  // Not a card: the scope manifest's "Shared mailboxes" row follows it (0141 T10).
+  out.push({ where: 'shared mailboxes', proof: SOURCE_PROOFS.sharedMailbox });
   return out;
 }
 
