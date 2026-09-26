@@ -47,13 +47,13 @@
  * honesty surface and any future invoice all have to agree on, and three
  * copies of it would eventually disagree about `paused`.
  *
- * ## Nothing calls this yet
+ * ## Before a path can end on its own
  *
- * The routes still read and write `mailbox_mapping.status`. Making cutover and
- * start per-path is the next task — `cutover_state`'s unique index is per
- * mapping and the start route refuses at the mapping grain, and both have to
- * move before a path can end on its own. This store exists first so that
- * change is a wiring diff rather than a wiring-plus-semantics one.
+ * Its row moves with its migration's status at every door
+ * (`movePathsWithMapping`), and its cutover ledger can be its own since 0128
+ * T5 slice 4 (`cutover_state.domain`, ledger migration 0067). What is left is
+ * the cutover of one data type (slice 5): until then every path still ends
+ * with its migration.
  */
 
 import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';

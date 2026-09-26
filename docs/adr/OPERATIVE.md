@@ -845,6 +845,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
   managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the
   pass and the appliance ask it through the one reader's `anyRuns`, which also asks it of each
   data type's own row, so a data type kept in the lane runs after the migration's window closes.
+  **Since slice 4 each data type has its own window** (amended 2026-09-26): its own cutover
+  ledger row's (`cutover_state.domain`, ledger migration 0067), or the whole migration's where it
+  has none. The tick schedules a migration while any of its windows is open, and its pass moves
+  past each data type whose own window is closed.
 - The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
   the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
 - **The mapping first, the ledger second**, and every refusal before either write — the order

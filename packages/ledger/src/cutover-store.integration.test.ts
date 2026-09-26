@@ -167,4 +167,25 @@ describe('CutoverStore (integration)', () => {
     expect(transitions).toContain('PREPARING->READY_FOR_CUTOVER');
     expect(transitions).toContain('READY_FOR_CUTOVER->APPROVED');
   });
+
+  it('keeps a data type’s ledger beside the whole migration’s (0128 T5, slice 4, migration 0067)', async () => {
+    await store.initializeCutover({ tenantId: TENANT, mappingId: MAPPING_A, startedBy: 'test' });
+    await store.transitionState(TENANT, MAPPING_A, 'READY_FOR_CUTOVER', { readyAt: 'now' });
+    // Mail moves on a row of its own; the whole migration's stays where it was.
+    await store.transitionState(TENANT, MAPPING_A, 'APPROVED', { approvedBy: 'operator' }, 'email');
+    // Saved again, the whole migration's row is updated in place: on a real
+    // server too, the key's NULLs are equal and the upsert finds it.
+    await store.saveCutoverState((await store.loadCutoverState(TENANT, MAPPING_A))!);
+
+    const rows = await db.execute(
+      sql`SELECT domain, state FROM cutover_state WHERE mapping_id = ${MAPPING_A} ORDER BY domain NULLS FIRST`,
+    );
+    expect(rows.rows).toEqual([
+      { domain: null, state: 'READY_FOR_CUTOVER' },
+      { domain: 'email', state: 'APPROVED' },
+    ]);
+    expect((await store.loadCutoverState(TENANT, MAPPING_A, 'email'))?.currentState).toBe('APPROVED');
+    expect((await store.loadCutoverState(TENANT, MAPPING_A, 'file'))?.currentState).toBe('READY_FOR_CUTOVER');
+    expect((await store.loadCutoverState(TENANT, MAPPING_A))?.currentState).toBe('READY_FOR_CUTOVER');
+  });
 });

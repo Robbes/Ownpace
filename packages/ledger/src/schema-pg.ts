@@ -26,6 +26,7 @@ import {
   bigint,
   integer,
   uniqueIndex,
+  unique,
   index,
   doublePrecision,
   primaryKey,
@@ -1114,9 +1115,18 @@ export const cutoverState = pgTable(
     metadata: jsonb('metadata').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * The data type whose ledger this is, or null for the whole migration's
+     * (0128 T5, slice 4, migration 0067): every row written before it, and the
+     * ledger of each data type that has none of its own.
+     */
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }),
   },
   (t) => [
-    uniqueIndex('uk_cutover_state_mapping').on(t.tenantId, t.mappingId),
+    // Its real name (the baseline's `cutover_state_tenant_id_mapping_id_key`
+    // was called `uk_cutover_state_mapping` here). NULLs are equal, so a
+    // migration keeps one whole-migration row.
+    unique('cutover_state_tenant_id_mapping_id_domain_key').on(t.tenantId, t.mappingId, t.domain).nullsNotDistinct(),
     index('ix_cutover_state_tenant').on(t.tenantId),
     index('ix_cutover_state_mapping').on(t.mappingId),
   ],
@@ -1159,6 +1169,8 @@ export const cutoverEvent = pgTable(
     reason: text('reason'),
     eventType: text('event_type', { enum: ['CUTOVER_INITIALIZED', 'STATE_TRANSITION'] }).notNull().default('STATE_TRANSITION'),
     metadata: jsonb('metadata').notNull().default({}),
+    /** The data type whose ledger this event moved, or null for the whole migration's (migration 0067). */
+    domain: text('domain', { enum: DISCOVERY_DOMAINS }),
   },
   (t) => [
     index('ix_cutover_event_mapping').on(t.mappingId, t.timestamp),

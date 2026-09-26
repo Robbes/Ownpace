@@ -143,8 +143,11 @@ const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;
  * Beside it, the one state that runs for a while (0128 T2; the owner,
  * 2026-09-24, D1 (a)): a mapping in `cutover`, from execute until its
  * cutover's grace period ends, by `CUTOVER_STILL_COPIES_WHERE`, the SQL twin
- * of `runsPassesNow`. When the window closes the mapping drops out of this
- * query by itself, and nothing has to remember to unschedule it.
+ * of `runsPassesNow`. Any of its cutover ledger rows will do: the whole
+ * migration's, or a data type's own (0128 T5, slice 4), since the pass moves
+ * past each data type whose own window is closed. When the last window closes
+ * the mapping drops out of this query by itself, and nothing has to remember
+ * to unschedule it.
  */
 export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT max(r.started_at) FROM run r
@@ -200,7 +203,8 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
          FROM mailbox_mapping m
         WHERE (m.status = ANY($5::text[])
                -- A cutover copies from execute until its grace period ends
-               -- (0128 T2, D1 (a)): runsPassesNow, in SQL.
+               -- (0128 T2, D1 (a)): runsPassesNow, in SQL, while any of its
+               -- ledger rows still copies (one per data type, slice 4).
                OR (m.status = 'cutover'
                    AND EXISTS (SELECT 1 FROM cutover_state c
                                 WHERE c.tenant_id = m.tenant_id AND c.mapping_id = m.id
