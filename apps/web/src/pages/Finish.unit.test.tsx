@@ -16,6 +16,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { StatusReport } from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
 
 const {
   fetchStatus,
@@ -533,6 +534,18 @@ describe('a stopped data type is named where the final pass is', () => {
       await screen.findByText('Calendar is stopped and not in this pass: its 7 copies stay as they were.'),
     ).toBeInTheDocument();
     expect(fetchMappingDomains).toHaveBeenCalledWith('acme-mail');
+  });
+
+  // One its owner stopped (0128 T4, slice 3c) is the same exception with a
+  // different way back: Resume on the migration's page, not the mapping file.
+  it('points one its owner stopped at Resume, and one switched off at switching it back on', async () => {
+    fetchMappingDomains.mockResolvedValue([
+      { ...calendar('stopped', 7), stoppedByOwner: true as const },
+      { ...calendar('stopped', 3), domain: 'contact' as const },
+    ]);
+    renderPerMapping();
+    expect(await screen.findByText(STRINGS.en['finish.step3.stoppedByYou.why'])).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['finish.step3.stopped.why'])).toBeInTheDocument();
   });
 
   it('says it could not read them, rather than implying none is stopped', async () => {

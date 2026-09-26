@@ -89,11 +89,19 @@ export class DropboxFileSource implements FileSource {
     this.contentBase = (config.contentBaseUrl ?? DEFAULT_CONTENT_BASE).replace(/\/$/, '');
     // Dropbox's API spells the root '' and everything else '/x/y' — normalise
     // once here so a config saying 'Team' or '/Team/' means the same folder.
+    //
+    // The account's own folder — the one the web UI and the desktop client
+    // both call "Dropbox" — IS that root. It is not a folder inside it, so
+    // typing 'Dropbox' (or '/Dropbox') as the root asks the API for a
+    // subfolder that does not exist, and every listing 409s with
+    // path/not_found while a connection test rooted at '' sails past it.
+    // The alias therefore means the whole account, exactly like ''.
     const raw = (config.rootPath ?? '').trim().replace(/\/+$/, '');
-    this.rootPath = raw === '' || raw === '/' ? '' : raw.startsWith('/') ? raw : `/${raw}`;
+    const rootIsTheAccountItself = raw === '' || raw === '/' || /^\/?dropbox$/i.test(raw);
+    this.rootPath = rootIsTheAccountItself ? '' : raw.startsWith('/') ? raw : `/${raw}`;
   }
 
-  private async rpc(path: string, arg: unknown): Promise<unknown> {
+  private async rpc(path: string, arg: unknown, context?: string): Promise<unknown> {
     const response = await this.transport(`${this.apiBase}/${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -103,7 +111,25 @@ export class DropboxFileSource implements FileSource {
       // Dropbox's own words, verbatim and truncated — its error bodies name
       // the exact `.tag` path that failed, which is the actionable part.
       const text = await response.text().catch(() => '(no body)');
-      throw new Error(`Dropbox answered ${response.status} on ${path}: ${text.slice(0, 300)}`);
+      // A 409 naming `path` is Dropbox for "that folder is not there". When
+      // it is the ROOT that is missing, say so in the operator's terms — the
+      // stored rootPath is the only addressable thing they can fix, and the
+      // bare `.tag` body does not mention it (the bug report of 2026-09-25:
+      // a mapping rooted at '/Dropbox' 409s on every pass while the Test
+      // button, rooted at '', passes — the sentence here is what tells the
+      // two apart).
+      const rootMissing =
+        context !== undefined &&
+        response.status === 409 &&
+        /"path"|"not_found"/.test(text);
+      throw new Error(
+        `Dropbox answered ${response.status} on ${path}: ${text.slice(0, 300)}` +
+          (rootMissing
+            ? ` — the root folder configured for this connection ("${context}") does not exist ` +
+              'in this Dropbox. Leave the root path empty for the whole account; the folder ' +
+              'named "Dropbox" in the web view IS the account root and needs no path.'
+            : ''),
+      );
     }
     return response.json();
   }
@@ -114,13 +140,21 @@ export class DropboxFileSource implements FileSource {
     recursive: boolean,
     includeDeleted = false,
   ): Promise<DropboxEntry[]> {
+    // The hint applies only when the listing targets a NON-EMPTY configured
+    // ROOT — an empty root is the API's own spelling and cannot mis-root; a
+    // 409 on a subfolder is a genuinely deleted folder, not a mis-rooting.
+    const context = path === this.rootPath && this.rootPath !== '' ? this.rootPath : undefined;
     const entries: DropboxEntry[] = [];
-    let page = (await this.rpc('files/list_folder', {
-      path,
-      recursive,
-      limit: 1000,
-      ...(includeDeleted ? { include_deleted: true } : {}),
-    })) as DropboxListFolderResponse;
+    let page = (await this.rpc(
+      'files/list_folder',
+      {
+        path,
+        recursive,
+        limit: 1000,
+        ...(includeDeleted ? { include_deleted: true } : {}),
+      },
+      context,
+    )) as DropboxListFolderResponse;
     entries.push(...page.entries);
     let hops = 0;
     while (page.has_more) {
@@ -189,11 +223,15 @@ export class DropboxFileSource implements FileSource {
     maxPages = 5,
   ): Promise<{ folders: ReadonlyArray<FileFolder>; truncated: boolean }> {
     const folders: FileFolder[] = [{ path: '' }];
-    let page = (await this.rpc('files/list_folder', {
-      path: this.rootPath,
-      recursive: false,
-      limit: 1000,
-    })) as DropboxListFolderResponse;
+    let page = (await this.rpc(
+      'files/list_folder',
+      {
+        path: this.rootPath,
+        recursive: false,
+        limit: 1000,
+      },
+      this.rootPath || undefined,
+    )) as DropboxListFolderResponse;
     let pages = 1;
     for (;;) {
       for (const entry of page.entries) {

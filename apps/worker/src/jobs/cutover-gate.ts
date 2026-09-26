@@ -31,7 +31,8 @@ import {
   type VerificationResult,
 } from '@openmig/core';
 import { createLedgerVerificationReader } from '@openmig/ledger';
-import { enabledDomains } from '@openmig/orchestration/enabled-domains';
+import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
+import { GATE_NAME } from '@openmig/orchestration/target-fan-out';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 
 /** What the cutover gate asks of a migration's data, whichever door it is run from. */
@@ -43,8 +44,15 @@ const CUTOVER_THRESHOLDS = {
   maxDiscrepancyPercentage: 0.01,
 } as const;
 
-/** The gate's configuration for a migration with this selection: its data types, and no others. */
-export function verificationConfigFor(selected: ReadonlySet<DiscoveryDomain>): VerificationConfig {
+/**
+ * The gate's configuration for a migration with this selection: its data
+ * types, and no others. Those its owner stopped are skipped, *stopped by you*
+ * (0128 T4, D6): they no longer follow the source.
+ */
+export function verificationConfigFor(
+  selected: ReadonlySet<DiscoveryDomain>,
+  stopped: ReadonlySet<DiscoveryDomain> = new Set(),
+): VerificationConfig {
   return {
     ...CUTOVER_THRESHOLDS,
     verifyMail: selected.has('email'),
@@ -52,6 +60,7 @@ export function verificationConfigFor(selected: ReadonlySet<DiscoveryDomain>): V
     verifyContacts: selected.has('contact'),
     verifyFiles: selected.has('file'),
     verifyTasks: selected.has('task'),
+    stoppedByOwner: [...stopped].map((domain) => GATE_NAME[domain]),
   };
 }
 
@@ -63,6 +72,7 @@ export async function runCutoverGate(
   mappingId: string,
 ): Promise<VerificationResult> {
   const selected = await enabledDomains(pool, tenantId, mappingId);
+  const stopped = await stoppedDomains(pool, tenantId, mappingId);
   const targets = await buildTargetReindexers(pool, tenantId, mappingId);
   // It opens a pool of its own, closed below.
   const verificationReader = createLedgerVerificationReader({ connectionString });
@@ -71,7 +81,7 @@ export async function runCutoverGate(
       createRealVerificationDeps({
         tenantId: asTenantId(tenantId),
         mappingId: asMappingId(mappingId),
-        config: verificationConfigFor(selected),
+        config: verificationConfigFor(selected, stopped),
         verificationReader,
         // One reindexer per data type, each reading its own target. A data
         // type with none is reported NOT_VERIFIABLE rather than measured

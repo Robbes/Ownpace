@@ -17,8 +17,9 @@
  *
  * The words are the access-granted mail's, sentence for sentence
  * (`grantedAlpha` in @openmig/shared's notifications.ts), and must match 0139's
- * alpha conditions once those exist. They are three dictionary keys only so
- * that each fits the copy budget; they read as one paragraph.
+ * alpha conditions once those exist. They are three dictionary keys because
+ * each had to fit the copy budget's generic fifteen words, which the owner
+ * dropped on 2026-09-25; they read as one paragraph.
  */
 
 import React from 'react';

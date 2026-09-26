@@ -387,15 +387,39 @@ const en = {
   // card name cannot: this is a SNAPSHOT with a date on it, not a live
   // account — and because it is, a later export only ever ADDS: nothing is
   // removed from the target because an export no longer mentions it (§5).
-  'wizard.proto.archive.hint': 'A Google Takeout or Apple export you downloaded: photos and files.',
+  //
+  // APPLE IS TAGGED WHILE NO READER OPENS IT (0148 T3, owner decision D7), in
+  // the hint as in the form's option. The hint is a sentence, so it is the one
+  // place a landed reader is answered by hand; `an-export-we-cannot-read-yet`
+  // fails until it is. "download" rather than "export you downloaded" keeps
+  // it inside the twelve words a hint may spend.
+  'wizard.proto.archive.hint': 'A Google Takeout or Apple (to be tested) download: photos and files.',
   'wizard.archiveProvider': 'Which export',
   'wizard.archiveProvider.hint': 'Which company made the archive; the wrong choice finds nothing.',
   'wizard.archiveProvider.why':
     'It decides how we read the export, and the files themselves do not say. Google exports are requested at takeout.google.com, Apple exports at privacy.apple.com.',
+  // An export no reader opens yet (0148 T3, D7): the tag inside the option's
+  // name, and the line under the field while it is chosen, keyed per export
+  // because it names the company. Both leave the form when a reader lands.
+  'wizard.archiveProvider.untested': 'To be tested',
+  'wizard.archiveProvider.noReader.apple-privacy':
+    'We cannot read an Apple export yet. Request one only for your own records.',
   'wizard.archivePath': 'Where the archive is',
   'wizard.archivePath.hint': 'The folder you extracted the download into, or the .zip itself.',
   'wizard.archivePath.why':
     'If the export arrived in several parts, keep them in one folder and name any one of them: we read them all, and we say so if one is missing. Or extract them all into the same folder first. Nothing is written there: we only read.',
+  // WHERE THE EXPORT IS KEPT (workplan 0148 T9, D11): in a folder of the
+  // destination's own files, or on the appliance's disk. On managed the disk
+  // is shown, disabled, with the line under it (the owner: "'Only on a
+  // self-hosted appliance': ok").
+  'wizard.archiveWhere': 'Where the export is',
+  'wizard.archiveWhere.target': "In a folder of your destination's files (Nextcloud or WebDAV)",
+  'wizard.archiveWhere.disk': "On this appliance's disk",
+  'wizard.archiveWhere.disk.onlyAppliance': 'Only on a self-hosted appliance',
+  'wizard.archivePath.target': "Folder in your destination's files",
+  'wizard.archivePath.target.hint': 'The folder as your files show it, from the top.',
+  'wizard.archivePath.target.why':
+    'For example Exports/takeout-20260904, or one .zip in that folder: we read the other parts beside it too. Upload the .zip parts of the export into one folder of the files this migration writes to, and name that folder here. The parts stay there after the migration and take up space; delete them once you have checked the result.',
   // The ACCOUNT card. Four faces, and the sentence says why that is more than
   // Google offers rather than leaving it looking like an oversight there.
   'wizard.proto.microsoft.hint':
@@ -548,6 +572,23 @@ const en = {
   'settings.kinds.consequence.why':
     'The new data type is copied in full on the next pass, the way every data type is copied the first time. The ones this migration already copies carry on where they were. A data type cannot be taken off again here: what it had copied would stay on the new system with nothing keeping it up to date.',
   'settings.kinds.failed': 'That was not added:',
+  // STOP AND RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c). Offered where
+  // the stop door accepts the press; what a stop does is said before it.
+  'settings.kinds.stop': 'Stop {kind}',
+  'settings.kinds.resume': 'Resume {kind}',
+  'settings.kinds.stopping': 'Stopping…',
+  'settings.kinds.resuming': 'Resuming…',
+  'settings.kinds.stoppedByYou': 'stopped by you',
+  'settings.kinds.stopped': '{kind} is stopped. Its copies stay; resume it to continue where it stopped.',
+  'settings.kinds.resumed': '{kind} is resumed. The next pass continues where it stopped.',
+  'settings.kinds.stop.consequence':
+    'A stopped data type keeps what it copied, but no longer follows the source. Resuming it continues where it stopped.',
+  'settings.kinds.stop.consequence.why':
+    'For an account that closes before the others: stop the mail on the day the old mailbox closes, while calendars and contacts keep copying. Nothing is removed on either side. The last data type still copying cannot be stopped; to stop everything, end the migration.',
+  'settings.kinds.held.lastOne':
+    'The last data type still copying. To stop it, end the migration instead.',
+  'settings.kinds.held.notRunning': 'This can be resumed once the migration runs again.',
+  'settings.kinds.stop.failed': 'That did not change:',
   'wizard.step.migration': 'Migration',
   'wizard.testConnections.reused': 'Already saved; this only checks it still works.',
   'wizard.connectionName': 'Connection name',
@@ -1509,6 +1550,10 @@ const en = {
   'confirm.progress.stopped': 'Switched off: these copies stay, but no longer follow the source.',
   'confirm.progress.stopped.why':
     'Nothing was removed. The copies and their record stay where they are, as they were when it stopped. Switching it back on continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
+  // One its owner stopped (0128 T4): the same state, and Resume is the way back.
+  'confirm.progress.stoppedByYou': 'Stopped by you: these copies stay, but no longer follow the source until resumed.',
+  'confirm.progress.stoppedByYou.why':
+    'Nothing was removed. The copies and their record stay as they were when you stopped it. Resuming it, on the migration\'s page, continues where it stopped: new items are copied, edits are picked up, and deletions at the source are reported.',
   // One state, three reasons (see pause-reason.ts). The word is the same
   // wherever it appears; the sentence under it says which of the three.
   'pause.label': 'Paused',
@@ -1748,6 +1793,8 @@ const en = {
   'finish.step3.stopped.many': '{kind} is stopped and not in this pass: its {count} copies stay as they were.',
   'finish.step3.stopped.why':
     'It was switched off after copying. Its copies stay on the new system, but what changed on the old one since then has not reached them. If they must be current, switch it back on and let a pass run before you finish.',
+  'finish.step3.stoppedByYou.why':
+    'You stopped it. Its copies stay on the new system, but what changed on the old one since then has not reached them. If they must be current, resume it on the migration\'s page and let a pass run before you finish.',
   'finish.step3.stoppedUnread': 'Could not read whether a data type is stopped:',
   'finish.step4.title': 'Move delivery to the new system',
   'finish.step4.body':
@@ -1929,6 +1976,14 @@ const en = {
   'wizard.about.googleDrive': 'Uses your own Google OAuth client and a read-only token.',
   'wizard.about.googleDrive.more':
     'The token cannot write to the Drive. Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason. The setup guide walks through all three values, and the Test and save connections button checks them against Google before anything is copied.',
+  // Where the deployment carries the provider's app (0148 T2 (a)): one line per
+  // provider, and the fold keeps only what is particular to the card.
+  'wizard.about.deploymentApp.google':
+    'Uses this service’s own Google app: press Connect with Google and approve at Google.',
+  'wizard.about.deploymentApp.dropbox':
+    'Uses this service’s own Dropbox app: press Connect with Dropbox and approve at Dropbox.',
+  'wizard.about.deploymentApp.googleDrive.more':
+    'Google Docs, Sheets, Slides and Drawings have no file to copy until you choose a format for each kind; until then each one is reported by name, with the reason.',
   'wizard.about.dropbox': 'Uses your own read-only Dropbox app.',
   'wizard.about.dropbox.more':
     'Create it read-only: files.metadata.read and files.content.read, plus sharing.read if you want the shared-folder browse. The App key goes here; below it, the App secret goes in the client-secret field and the refresh token beside it.',
@@ -2096,6 +2151,9 @@ const en = {
   'setup.waitingOnOthers': 'waiting on an administrator',
   'setup.allDone': 'Everything is settled; complete the wizard.',
   'setup.nothingToDo': 'Nothing to set up in advance; go straight to the wizard.',
+  // Every step was about one's own app, and this service has its own (0148 T2 (b)).
+  'setup.deploymentApp':
+    'Nothing to create: this service has its own {provider} app. Press Connect with {provider}.',
   // ---- Choosing a provider, and narrowing by who you are (workplan 0068) ----
   'setup.choose.title': 'What are you setting up?',
   'setup.choose.intro':
@@ -2143,9 +2201,15 @@ const en = {
   'setup.dropbox.scopes.title': 'Give it read-only permissions',
   'setup.dropbox.scopes.detail':
     'On the Permissions tab enable files.metadata.read and files.content.read, and nothing that writes. Add sharing.read as well if you want to browse shared folders here.',
+  // Connect with Dropbox consents and exchanges the code (2026-09-02) where the
+  // deployment serves it; the appliance does not, so both manual steps stay and
+  // each line is true with or without the button (0148 T2 (b)).
+  'setup.dropbox.redirect_uri.title': 'Using the button? Register its redirect address',
+  'setup.dropbox.redirect_uri.detail':
+    'Only for Connect with Dropbox in the wizard: under the button it shows an address. Add that exact address in the Dropbox App Console under OAuth 2 → Redirect URIs, then press the button again. Without the button, skip this step.',
   'setup.dropbox.consent.title': 'Have the account owner consent once',
   'setup.dropbox.consent.detail':
-    'Send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
+    'Connect with Dropbox does this step and the next when the account owner presses it. Without the button, send the person whose Dropbox is being migrated through the authorisation URL for this app, with token_access_type=offline so Dropbox returns a refresh token.',
   'setup.dropbox.exchange_code.title': 'Exchange the code for a refresh token',
   'setup.dropbox.exchange_code.detail':
     'Swap the code from the previous step at Dropbox\u2019s token endpoint, once. Access tokens are minted from the result per run; nothing else long-lived is stored.',
@@ -2690,17 +2754,28 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.appleAppPassword.why':
     'Apple weigert het accountwachtwoord hier met opzet. Maak er een aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en plak het hier. Het bereikt uw e-mail, agenda’s, contacten en herinneringen, en u kunt het daar altijd weer intrekken.',
   'wizard.proto.archive.hint':
-    'Een Google Takeout- of Apple-export die u hebt gedownload: foto’s en bestanden.',
+    'Een gedownloade Google Takeout- of Apple-export (nog te testen): foto’s en bestanden.',
   'wizard.archiveProvider': 'Welke export',
   'wizard.archiveProvider.hint':
     'Welk bedrijf het archief maakte; bij de verkeerde keuze vinden we niets.',
   'wizard.archiveProvider.why':
     'Dat bepaalt hoe wij de export lezen, en aan de bestanden zelf is het niet te zien. Google-exports vraagt u aan op takeout.google.com, Apple-exports op privacy.apple.com.',
+  'wizard.archiveProvider.untested': 'Nog te testen',
+  'wizard.archiveProvider.noReader.apple-privacy':
+    'Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
   'wizard.archivePath': 'Waar het archief staat',
   'wizard.archivePath.hint':
     'De map waarin u de download hebt uitgepakt, of het .zip-bestand zelf.',
   'wizard.archivePath.why':
     'Bestaat de export uit meerdere delen, zet die dan in één map en wijs er een willekeurig deel van aan: wij lezen ze allemaal, en zeggen het als er een ontbreekt. Of pak ze eerst allemaal uit in dezelfde map. Er wordt niets naar geschreven: wij lezen alleen.',
+  'wizard.archiveWhere': 'Waar de export staat',
+  'wizard.archiveWhere.target': 'In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)',
+  'wizard.archiveWhere.disk': 'Op de schijf van deze appliance',
+  'wizard.archiveWhere.disk.onlyAppliance': 'Alleen op een eigen appliance',
+  'wizard.archivePath.target': 'Map in de bestanden van uw bestemming',
+  'wizard.archivePath.target.hint': 'De map zoals u die in uw bestanden ziet, vanaf de hoofdmap.',
+  'wizard.archivePath.target.why':
+    'Bijvoorbeeld Exports/takeout-20260904, of één .zip in die map: de andere delen ernaast lezen wij ook. Zet de .zip-delen van de export in één map in de bestanden waar deze migratie naartoe schrijft, en vul die map hier in. De delen blijven daar na de migratie staan en nemen ruimte in; verwijder ze zodra u het resultaat hebt gecontroleerd.',
   'wizard.proto.microsoft.hint':
     'Eén Microsoft 365-account, één aanmelding: e-mail, agenda’s, contacten en OneDrive.',
   'wizard.group.provider': 'Uw aanbieder',
@@ -2779,6 +2854,21 @@ const nl: Record<keyof typeof en, string> = {
   'settings.kinds.consequence.why':
     'Het nieuwe gegevenstype wordt bij de volgende ronde volledig gekopieerd, zoals elk gegevenstype de eerste keer. De gegevenstypen die deze migratie al kopieert, gaan verder waar ze waren. Een gegevenstype kan hier niet meer worden weggehaald: wat het al had gekopieerd, zou op het nieuwe systeem blijven staan zonder dat iets het nog bijwerkt.',
   'settings.kinds.failed': 'Dat is niet toegevoegd:',
+  'settings.kinds.stop': '{kind} stoppen',
+  'settings.kinds.resume': '{kind} hervatten',
+  'settings.kinds.stopping': 'Stoppen…',
+  'settings.kinds.resuming': 'Hervatten…',
+  'settings.kinds.stoppedByYou': 'door u gestopt',
+  'settings.kinds.stopped': '{kind} is gestopt. De kopieën blijven; hervat het om verder te gaan waar het stopte.',
+  'settings.kinds.resumed': '{kind} is hervat. De volgende ronde gaat verder waar het stopte.',
+  'settings.kinds.stop.consequence':
+    'Een gestopt gegevenstype houdt wat het gekopieerd heeft, maar volgt de bron niet meer. Hervatten gaat verder waar het stopte.',
+  'settings.kinds.stop.consequence.why':
+    'Voor een account dat eerder sluit dan de andere: stop de e-mail op de dag dat het oude postvak sluit, terwijl agenda en contacten blijven kopiëren. Aan geen van beide kanten wordt iets verwijderd. Het laatste gegevenstype dat nog kopieert, kan niet worden gestopt; wilt u alles stoppen, beëindig dan de migratie.',
+  'settings.kinds.held.lastOne':
+    'Het laatste gegevenstype dat nog kopieert. Wilt u het stoppen, beëindig dan de migratie.',
+  'settings.kinds.held.notRunning': 'Dit kan worden hervat zodra de migratie weer loopt.',
+  'settings.kinds.stop.failed': 'Dat is niet gewijzigd:',
   'hub.completionReport': 'Download het opleveringsrapport (Markdown)',
   'wizard.serviceAccountKey': 'Serviceaccount-sleutel',
   'wizard.serviceAccountKey.placeholder': 'Plak het volledige JSON-sleutelbestand',
@@ -3410,6 +3500,9 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.stopped': 'Uitgeschakeld: deze kopieën blijven, maar volgen de bron niet meer.',
   'confirm.progress.stopped.why':
     'Er is niets verwijderd. De kopieën en hun administratie blijven waar ze zijn, zoals ze waren toen het stopte. Weer inschakelen gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
+  'confirm.progress.stoppedByYou': 'Door u gestopt: deze kopieën blijven, maar volgen de bron pas weer na hervatten.',
+  'confirm.progress.stoppedByYou.why':
+    'Er is niets verwijderd. De kopieën en hun administratie blijven zoals ze waren toen u het stopte. Hervatten, op de pagina van de migratie, gaat verder waar het stopte: nieuwe items worden gekopieerd, wijzigingen worden opgepakt en verwijderingen in de bron worden gemeld.',
   'pause.label': 'Gepauzeerd',
   'pause.ceiling':
     '{provider} heeft de daglimiet voor downloaden bereikt. Kopiëren gaat verder na {resets}.',
@@ -3422,9 +3515,8 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond; nieuw kopiëren start vanzelf weer zodra de update klaar is, en gaat verder waar het stopte.',
-  // 0131 T1's words. `alpha.note.terms` is sixteen words here, one over the
-  // copy budget, and stays so: a safety sentence is not shortened (0118), and
-  // it is named in the budget's ALLOWED_OVER.
+  // 0131 T1's words. `alpha.note.terms` is sixteen words here, and stays so: a
+  // safety sentence is not shortened (0118).
   'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
   'alpha.note.terms':
     'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
@@ -3621,6 +3713,8 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step3.stopped.many': '{kind} is gestopt en niet in deze ronde: de {count} kopieën blijven zoals ze waren.',
   'finish.step3.stopped.why':
     'Het is uitgeschakeld nadat er gekopieerd was. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft ze niet bereikt. Moeten ze actueel zijn, schakel het dan weer in en laat een ronde lopen voordat u afrondt.',
+  'finish.step3.stoppedByYou.why':
+    'U hebt het gestopt. De kopieën blijven op het nieuwe systeem, maar wat sindsdien op het oude veranderde, heeft ze niet bereikt. Moeten ze actueel zijn, hervat het dan op de pagina van de migratie en laat een ronde lopen voordat u afrondt.',
   'finish.step3.stoppedUnread': 'Kon niet lezen of een gegevenstype gestopt is:',
   'finish.step4.title': 'Zet de e-mailbezorging om naar het nieuwe systeem',
   'finish.step4.body':
@@ -3793,6 +3887,12 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.about.googleDrive': 'Gebruikt uw eigen Google OAuth-client en een alleen-lezen token.',
   'wizard.about.googleDrive.more':
     'Het token kan niet naar de Drive schrijven. Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden. De handleiding behandelt alle drie de waarden, en de knop Verbindingen testen en bewaren controleert ze bij Google voordat er iets wordt gekopieerd.',
+  'wizard.about.deploymentApp.google':
+    'Gebruikt de eigen Google-app van deze dienst: druk op Verbinden met Google en geef toestemming.',
+  'wizard.about.deploymentApp.dropbox':
+    'Gebruikt de eigen Dropbox-app van deze dienst: druk op Verbinden met Dropbox en geef toestemming.',
+  'wizard.about.deploymentApp.googleDrive.more':
+    'Google Documenten, Spreadsheets, Presentaties en Tekeningen hebben geen bestand om te kopiëren totdat u per soort een formaat kiest; tot dan wordt elk bestand met naam gemeld, met de reden.',
   'wizard.about.dropbox': 'Gebruikt uw eigen alleen-lezen Dropbox-app.',
   'wizard.about.dropbox.more':
     'Maak deze alleen-lezen aan: files.metadata.read en files.content.read, plus sharing.read als u gedeelde mappen wilt bekijken. De App-sleutel komt hier; daaronder komt het App-geheim in het clientgeheim-veld en het refresh-token ernaast.',
@@ -3912,6 +4012,8 @@ const nl: Record<keyof typeof en, string> = {
   'setup.waitingOnOthers': 'wacht op een beheerder',
   'setup.allDone': 'Alles is afgehandeld; rond de wizard af.',
   'setup.nothingToDo': 'Vooraf niets in te stellen; ga direct naar de wizard.',
+  'setup.deploymentApp':
+    'Niets aan te maken: deze dienst heeft een eigen {provider}-app. Druk op Verbinden met {provider}.',
   // ---- Aanbieder kiezen en de lijst afstemmen op wie u bent (workplan 0068) ----
   'setup.choose.title': 'Wat wilt u instellen?',
   'setup.choose.intro':
@@ -3958,9 +4060,12 @@ const nl: Record<keyof typeof en, string> = {
   'setup.dropbox.scopes.title': 'Geef de app alleen-leesrechten',
   'setup.dropbox.scopes.detail':
     'Zet op het tabblad Permissions files.metadata.read en files.content.read aan, en niets dat schrijft. Voeg sharing.read toe als u hier gedeelde mappen wilt kunnen bekijken.',
+  'setup.dropbox.redirect_uri.title': 'Gebruikt u de knop? Registreer dan het redirect-adres',
+  'setup.dropbox.redirect_uri.detail':
+    'Alleen voor Verbinden met Dropbox in de wizard: onder de knop verschijnt een adres. Voeg precies dat adres toe in de Dropbox App Console onder OAuth 2 → Redirect URIs en druk daarna opnieuw op de knop. Zonder de knop slaat u deze stap over.',
   'setup.dropbox.consent.title': 'Laat de accounthouder eenmalig toestemming geven',
   'setup.dropbox.consent.detail':
-    'Stuur de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
+    'Verbinden met Dropbox doet deze stap en de volgende als de accounthouder erop drukt. Zonder de knop stuurt u de persoon van wie de Dropbox gemigreerd wordt door de autorisatie-URL van deze app, met token_access_type=offline zodat Dropbox een refresh-token teruggeeft.',
   'setup.dropbox.exchange_code.title': 'Wissel de code in voor een refresh-token',
   'setup.dropbox.exchange_code.detail':
     'Wissel de code uit de vorige stap eenmalig in bij het token-eindpunt van Dropbox. Toegangstokens worden per run aangemaakt; verder wordt niets langlevends bewaard.',

@@ -191,6 +191,27 @@ describe('the Markdown document', () => {
     expect(md).not.toContain('not selected for this migration');
   });
 
+  it('says one its owner stopped as stopped by its owner, with Resume as the way back (0128 T4)', () => {
+    const md = renderCompletionReportMarkdown(
+      buildCompletionReport(
+        inputs({
+          domains: [
+            domain(),
+            domain({ domain: 'calendar', state: 'stopped', itemsSynced: 412, stoppedByOwner: true }),
+            domain({ domain: 'task', state: 'stopped', itemsSynced: 1 }),
+          ],
+        }),
+      ),
+    );
+    expect(md).toContain(
+      'calendar (412 copies): stopped by its owner. The copies stay on the target as they were ' +
+        'when it stopped and no longer follow the source; resuming it continues where it stopped.',
+    );
+    // The one the mapping file switched off keeps its own sentence, alone.
+    expect(md).toContain('task (1 copy): stopped — switched off after copying.');
+    expect(md).not.toContain('calendar (412 copies), task');
+  });
+
   it('an edition without receipts SAYS so — zeros would read as "nothing was ever removed"', () => {
     const withoutReceipts = renderCompletionReportMarkdown(buildCompletionReport(inputs()));
     expect(withoutReceipts).toContain('run log');

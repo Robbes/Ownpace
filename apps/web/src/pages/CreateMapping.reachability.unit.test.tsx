@@ -77,6 +77,8 @@ const renderWizard = () => {
 // Next button the moment that card existed, and every step-through test began
 // failing with "found multiple elements" — a selector fault reading as a
 // product fault. Anchored, the query means the button it always meant.
+// The Test button's `/^Test/i` is anchored for the same reason (0148 T3): the
+// export archive card's hint now says "(to be tested)".
 const nextButton = () => screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
 
 /** The amber line beside a disabled Next, or null when nothing blocks it. */
@@ -209,12 +211,15 @@ const SOURCE_TYPES: { name: string; required: [RegExp, string][] }[] = [
   },
   // The export archive (workplan 0116 T5/T6): no username, no secret. Which
   // export is a CHOICE — the `<select>` takes a change event like any input —
-  // and where it is, is a path.
+  // and where it is, is a path. This harness is a managed build, where the
+  // export is in a folder of the destination's files by default (0148 T9), so
+  // the path is asked for under that label; the appliance's disk label is
+  // walked in `an-export-in-the-destinations-files.unit.test.tsx`.
   {
     name: 'Export archive',
     required: [
       [/^Which export/, 'google-takeout'],
-      [/^Where the archive is/, '/srv/exports/takeout-20260904'],
+      [/^Folder in your destination's files/, 'Exports/takeout-20260904'],
     ],
   },
 ];
@@ -233,6 +238,7 @@ const GATE_LABELS = [
   'Refresh token',
   'Which export',
   'Where the archive is',
+  "Folder in your destination's files",
 ];
 
 describe('every source type gets past its own first step', () => {
@@ -500,7 +506,7 @@ describe('reusing a stored connection', () => {
     vi.mocked(connectionsApi.test).mockResolvedValue({ ok: true, detail: 'Listed 12 folders.' });
     await pickBoxConnection();
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
     await waitFor(() => expect(connectionsApi.test).toHaveBeenCalledWith(boxConnection.id));
     // The form-values probe must not be reached at all: with the credential
@@ -523,7 +529,7 @@ describe('reusing a stored connection', () => {
     vi.mocked(connectionsApi.test).mockResolvedValue({ ok: true, detail: 'Listed 12 folders.' });
     await pickBoxConnection();
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
     expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
@@ -538,7 +544,7 @@ describe('reusing a stored connection', () => {
     vi.mocked(connectionsApi.test).mockResolvedValue({ ok: true, detail: 'Listed 12 folders.' });
     await pickBoxConnection();
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
     expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
 
     // Back to "enter new credentials": the verdict belonged to the connection
@@ -795,7 +801,7 @@ describe('naming the connection that testing saves', () => {
     filledImapSource();
     fill(/^Connection name/, 'Acme old mail server');
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
     await waitFor(() =>
       expect(connectionsApi.add).toHaveBeenCalledWith(
@@ -809,7 +815,7 @@ describe('naming the connection that testing saves', () => {
     // a new obligation at the end of a long form.
     filledImapSource();
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
     await waitFor(() =>
       expect(connectionsApi.add).toHaveBeenCalledWith(
@@ -841,7 +847,7 @@ describe('naming the connection that testing saves', () => {
     // A warning, not a refusal: nothing keys off the name, and blocking here
     // would be friction at the worst moment — you have just proved a credential.
     expect(await screen.findByText(/already taken/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
     await waitFor(() => expect(connectionsApi.add).toHaveBeenCalled());
   });
 
@@ -966,7 +972,7 @@ describe('a credential that fails is still kept, and says so', () => {
     });
     fillImap();
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
     // The provider's words, verbatim — and then ours, saying it is not lost.
     expect(await screen.findByText(/AUTHENTICATIONFAILED/)).toBeTruthy();
@@ -981,7 +987,7 @@ describe('a credential that fails is still kept, and says so', () => {
     });
     fillImap();
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
     expect(await screen.findByText(/Listed 12 folders/)).toBeTruthy();
     expect(screen.queryByText(/The details were kept/)).toBeNull();
@@ -1009,7 +1015,7 @@ describe('a credential that fails is still kept, and says so', () => {
     await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
     fireEvent.change(fieldFor(/^Reuse a saved source connection/), { target: { value: stored.id } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Test/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Test/i }));
 
     expect(await screen.findByText(/invalid_client/)).toBeTruthy();
     expect(screen.queryByText(/The details were kept/)).toBeNull();

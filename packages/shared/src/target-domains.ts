@@ -94,6 +94,14 @@ const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
   nextcloud: 'Nextcloud',
 };
 
+/**
+ * A target type's name as a person reads it — `Nextcloud`, `WebDAV` — for the
+ * refusal sentences that name one (this file's, and `archive-in-target.ts`'s).
+ */
+export function targetTypeName(targetType: WizardTargetType): string {
+  return PROTOCOL_NAMES[targetType];
+}
+
 /** The selected domains the given target protocol cannot receive. */
 export function incoherentTargetDomains(
   targetType: WizardTargetType,

@@ -176,6 +176,21 @@ fail_at() { # fail_at [reason] — set the flag AND record where it fired
 "
 }
 
+# WHAT THIS STACK CANNOT PROVE, recorded the same way and printed beside the
+# verdict (workplan 0136 T5). Some proofs are out of reach on managed for a
+# while by design, and the plan asks that the run say so rather than skip in
+# silence, WITHOUT failing. The first was the archive reader, from 0136 T5
+# until 0148 T9 brought it back through the demo Nextcloud's files; no gap is
+# recorded today, and this stays for the next one. An echo in the
+# middle of the log says it to nobody: a green night ends on `SMOKE PASS`. So a
+# gap goes in a list the verdict prints, and `fail` is not touched.
+NOT_PROVEN=""
+not_proven() { # not_proven <what> — a gap this stack cannot prove; said, not failed
+  NOT_PROVEN="${NOT_PROVEN}  - ${SECTION}: $1
+"
+  echo "NOT PROVEN on this stack: $1"
+}
+
 # `note` names the section AND remembers it, so `fail_at` can say which half of
 # the run was speaking without every call site repeating it.
 note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
@@ -3134,99 +3149,247 @@ else
   fail_at
 fi
 
-# ---------- the export archive, and the one gate that costs nothing ----------
+# ---------- the export archive: refused on the server, read from the destination ----------
 #
-# THE ONLY SOURCE THIS GATE CAN DRIVE COMPLETELY, and it is worth saying why
-# before the assertions (workplan 0116 T1/T7).
+# WHAT THIS SECTION PROVED UNTIL WORKPLAN 0136 T5, AND WHAT IT PROVES NOW.
 #
-# Every other provider source here is `uncoverable` in the coverage table for
-# one reason: it needs a real account at a real company and a consent screen
-# somebody presses. The Apple block above is the extreme case — it can only
-# assert the two refusals that return BEFORE any network call, because creating
-# a sentinel Apple connection would fire a bogus password at Apple on every
-# nightly run.
+# It wrote a small Takeout inside the API container and added it as an archive
+# connection, and the API measured it: three items, one of them an edit. That
+# was the one live proof that the archive reader, the qualifier and the
+# credential descriptor reached the DEPLOYED image (0116 T10). It worked
+# because the API opened a path on its OWN disk — which is exactly what 0136
+# T5 stops: a tester could type any path and learn what the API container
+# holds. On managed a path on the server is now refused at every door, before
+# anything opens it, and the first half below proves that refusal.
 #
-# An archive needs NONE of that. It is a folder of files, so a fixture tree
-# written into the API container is a complete and honest stand-in: the same
-# bytes a person's export contains, minus the person. No account, no consent, no
-# egress — and unlike Apple's block this one is not net-zero, it is net-POSITIVE.
-# It creates a connection, tests it against real bytes, and reads the measure
-# back off the stored row.
-#
-# WHAT THAT BUYS over the unit tests, which is the part they cannot: it proves
-# the archive reader, the qualifier and the credential descriptor all reached the
-# DEPLOYED image, and that the `archive` kind survived into the database's CHECK
-# constraint. A kind dropped from any of those during a build answers differently
-# here while every unit test stays green.
+# The second half is the proof back (0148 T9): the same fixture Takeout,
+# written into tenant B's files on the demo Nextcloud, read by a migration
+# with `where: "target"`, the export's place on managed (0148 D11).
 note "the export archive"
 
-# The smallest Takeout that is still a Takeout: one year folder, two photos with
-# DIFFERENT bytes (identical bytes would collapse to one item, correctly, and
-# hide what is being counted), and a sidecar so the date range is real.
-ARCHIVE_ROOT="/tmp/smoke-takeout"
-PHOTOS_DIR="$ARCHIVE_ROOT/Takeout/Google Photos/Photos from 2024"
-if docker exec "$API_CONTAINER" sh -lc "
-      mkdir -p '$PHOTOS_DIR' &&
-      printf 'gate-photo-one'   > '$PHOTOS_DIR/IMG_0001.jpg' &&
-      printf 'gate-photo-two'   > '$PHOTOS_DIR/IMG_0002.jpg' &&
-      printf 'gate-edit-of-one' > '$PHOTOS_DIR/IMG_0001-edited.jpg' &&
-      printf '%s' '{\"photoTakenTime\":{\"timestamp\":\"1700000000\"}}' \
-        > '$PHOTOS_DIR/IMG_0001.jpg.supplemental-metadata.json'
-    " >/dev/null 2>&1; then
-  echo "fixture Takeout written inside '$API_CONTAINER' at $ARCHIVE_ROOT"
+# A PATH ON THE SERVER IS REFUSED, and nothing is stored. `/tmp` exists in
+# every container, so if the door let it through the API would answer with
+# what it found there. The row count is taken before and after, because a
+# refusal that still wrote the row would be a refusal in name only.
+archive_rows_before="$(q "SELECT count(*) FROM connection WHERE display_name = 'gate: a path on the server'")"
+r="$(http POST "$API/api/connections" "$TOK_R" \
+  '{"role":"source", "type":"archive", "displayName":"gate: a path on the server", "values":{"provider":"google-takeout","path":"/tmp"}}')"
+code="${r%% *}"; body="${r#* }"
+archive_error="$(jq -r '.error // empty' <<<"$body")"
+archive_reason="$(jq -r '.reason // empty' <<<"$body")"
+archive_rows_after="$(q "SELECT count(*) FROM connection WHERE display_name = 'gate: a path on the server'")"
+# Two questions, each with its own reason, so the verdict says which one broke.
+# What the gate sees is the answer and the row count; that nothing opened the
+# path is the unit guard's to prove (a-path-on-the-server-a-managed-pass-cannot-read).
+if [ "$code" = "400" ] && [ "$archive_error" = "archive_on_server" ] \
+  && [[ "$archive_reason" == *"cannot read a file on the server"* ]]; then
+  echo "archive at a path on the server: HTTP 400 archive_on_server, 'cannot read a file on the server'"
+else
+  echo "archive at a path on the server: HTTP $code, error '${archive_error:-<none>}' — ${body:0:250} (expected 400 archive_on_server, 'cannot read a file on the server')"
+  fail_at "a path on the server was not refused: HTTP $code, error '${archive_error:-<none>}'"
+fi
+if [ -z "$archive_rows_before" ] || [ -z "$archive_rows_after" ]; then
+  fail_at "the connection row count could not be read, so a stored refusal would not show"
+elif [ "$archive_rows_after" != "$archive_rows_before" ]; then
+  fail_at "the archive was answered but a row was written: $archive_rows_before -> $archive_rows_after"
+else
+  echo "archive at a path on the server: no row stored ($archive_rows_before -> $archive_rows_after)"
+fi
 
-  # AN UNREADABLE ARCHIVE IS `unknown`, NEVER AN EMPTY ONE. Asserted FIRST,
-  # because it is the property most worth having on a real stack: a truncated
-  # 25 GB download is the common case, and answering "you have no photos" to
-  # somebody who waited a week for it is the worst sentence this product could
-  # produce. `/tmp` exists and is not a Takeout, which is exactly the shape of
-  # somebody pointing at the wrong folder.
-  r="$(http POST "$API/api/connections" "$TOK_R" \
-    '{"role":"source", "type":"archive", "displayName":"gate: not a takeout", "values":{"provider":"google-takeout","path":"/tmp"}}')"
+# THE DEMO NEXTCLOUD, AS THIS SCRIPT REACHES IT FROM OUTSIDE THE STACK. Read
+# here, before the export archive, because that section is now the first to
+# write to it (0148 T9); the Nextcloud door further down uses the same `$NC`.
+nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
+# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
+# reads .env to avoid: an operator who binds the DAV backend to a private mesh
+# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
+# every assertion below curling a loopback address nothing listens on any more,
+# and the gate would report a target failure that is really a moved port.
+nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
+NC="http://${nc_host:-localhost}:${nc_port:-8083}"
+
+# AND THE PROOF BACK: AN EXPORT READ FROM THE DESTINATION'S OWN FILES
+# (0148 T9, D11).
+#
+# The measured Takeout returns, where a managed customer's export lives: in a
+# folder of the files their migration writes to, read by byte range over
+# WebDAV (`where: "target"`, 0116 T4). The same four files as the step 0136 T5
+# retired, written into tenant B's files on the demo Nextcloud — the account
+# tenant B's own mapping already migrates files into — and read by a
+# migration created the way the wizard creates one: a new archive connection
+# with `where: "target"`, and tenant B's stored Nextcloud connection reused as
+# the destination. Its preflight must count what the old step measured.
+#
+# WHAT THAT PROVES that no unit test can: the archive kind, the create door's
+# `where` and its target check, the worker's discovery reaching the reader
+# through the destination's store, and that store answering over real HTTP,
+# all on the DEPLOYED images.
+#
+# NET ZERO. The folder, the migration and its source connection are taken back
+# below and the taking-back is checked; the reused destination connection is
+# tenant B's own and is left exactly as it was.
+ARCHIVE_TAG="smoke-archive-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+ARCHIVE_DIR="$ARCHIVE_TAG"
+# Tagged, so a row an aborted run left behind says which run it was. The
+# rows are never FOUND by this name: see the source connection below.
+ARCHIVE_NAME="gate: an export in the destination ${ARCHIVE_TAG}"
+ARCHIVE_FILES="${NC}/remote.php/dav/files/${TARGET_DAV_USER}/${ARCHIVE_DIR}"
+# Encoded once, as a DAV href is: two of these folder names have spaces.
+ARCHIVE_PHOTOS="Takeout/Google%20Photos/Photos%20from%202024"
+
+archive_dav() { # archive_dav <method> <path under ARCHIVE_DIR> [body] — prints the HTTP status
+  local args=(-sS -o /dev/null -w '%{http_code}' -X "$1"
+    -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}")
+  [ "$#" -ge 3 ] && args+=(--data-binary "$3")
+  curl "${args[@]}" "${ARCHIVE_FILES}${2:+/$2}"
+}
+
+# The smallest Takeout that is still a Takeout, as before: one year folder,
+# two photos with DIFFERENT bytes (identical bytes would collapse to one item,
+# correctly, and hide what is being counted), an edited version of one, and a
+# sidecar so the date range is real. 14 + 14 + 16 bytes of media, 46 of JSON.
+archive_written=1
+for dir in "" "Takeout" "Takeout/Google%20Photos" "$ARCHIVE_PHOTOS"; do
+  code="$(archive_dav MKCOL "$dir")"
+  case "$code" in
+    201) ;;
+    *) archive_written=0; echo "MKCOL ${ARCHIVE_DIR}/${dir}: HTTP $code (expected 201)" ;;
+  esac
+done
+for pair in "IMG_0001.jpg|gate-photo-one" "IMG_0002.jpg|gate-photo-two" \
+  "IMG_0001-edited.jpg|gate-edit-of-one" \
+  'IMG_0001.jpg.supplemental-metadata.json|{"photoTakenTime":{"timestamp":"1700000000"}}'; do
+  code="$(archive_dav PUT "${ARCHIVE_PHOTOS}/${pair%%|*}" "${pair#*|}")"
+  case "$code" in
+    201|204) ;;
+    *) archive_written=0; echo "PUT ${pair%%|*}: HTTP $code (expected 201)" ;;
+  esac
+done
+
+archive_mapping_id=""
+archive_source_id=""
+if [ "$archive_written" = "1" ]; then
+  echo "fixture Takeout written into ${TARGET_DAV_USER}'s files at ${ARCHIVE_DIR}/"
+
+  # TENANT B'S OWN DESTINATION, by its mapping, so the export is read from the
+  # very files that mapping writes to. Its kind is posted as the target type,
+  # as the wizard posts the kind of the connection it reuses.
+  archive_target="$(q "SELECT c.id || ' ' || c.kind FROM mailbox_mapping m JOIN mailbox mb ON mb.id = m.target_mailbox_id JOIN connection c ON c.id = mb.connection_id WHERE m.id = '$APPLY_MAPPING'")"
+  archive_target_id="${archive_target%% *}"
+  archive_target_kind="${archive_target#* }"
+  [ -n "$archive_target_id" ] \
+    || fail_at "tenant B's mapping $APPLY_MAPPING has no destination connection to read the export through"
+  r="$(http POST "$API/api/migrations" "$TOK_R" \
+    "$(jq -nc --arg name "$ARCHIVE_NAME" --arg path "$ARCHIVE_DIR" \
+      --arg tid "$archive_target_id" --arg tkind "$archive_target_kind" \
+      '{name:$name, sourceType:"archive",
+        sourceConfig:{username:"", provider:"google-takeout", path:$path, where:"target"},
+        targetType:$tkind, targetConnectionId:$tid,
+        targetConfig:{username:"", password:"", useSsl:true},
+        syncConfig:{domains:["file"], schedule:"0 2 * * *"}}')")"
   code="${r%% *}"; body="${r#* }"
-  archive_answer="$(jq -r '.qualification.domains.file.answer // empty' <<<"$body")"
-  if [ "$code" = "201" ] && [ "$archive_answer" = "unknown" ]; then
-    echo "archive we cannot open: file face is 'unknown' with a reason, not a measured 'no'"
+  archive_mapping_id="$(jq -r '.id // empty' <<<"$body")"
+  archive_mapping_status="$(jq -r '.status // empty' <<<"$body")"
+  # Paused is what makes creating this safe: a draft is never picked up by a
+  # tick, so nothing is ever copied into tenant B's files from it.
+  if [ "$code" = "201" ] && [ -n "$archive_mapping_id" ] && [ "$archive_mapping_status" = "paused" ]; then
+    echo "migration from an export in the destination ('$archive_target_kind' target): created and paused"
+    # THIS RUN'S SOURCE CONNECTION, through THIS RUN'S MIGRATION, the way the
+    # destination is found above. The create answer does not carry its id,
+    # and a display name is shared by every run that left its row behind: a
+    # lookup by it reads, or deletes, whichever row Postgres returns first
+    # (the lesson of a-person-opened-in-the-wrong-organisation). Read now,
+    # because the migration is deleted before its source connection.
+    archive_source_id="$(q "SELECT c.id FROM mailbox_mapping m JOIN mailbox mb ON mb.id = m.source_mailbox_id JOIN connection c ON c.id = mb.connection_id WHERE m.id = '$archive_mapping_id'")"
+    [ -n "$archive_source_id" ] \
+      || fail_at "the migration from an export in the destination has no source connection row"
   else
-    echo "archive we cannot open: HTTP $code, file answer '${archive_answer:-<none>}' — ${body:0:200} (expected 201 and 'unknown')"
-    fail_at
+    fail_at "a migration from an export in the destination was not created: HTTP $code, status '${archive_mapping_status:-<none>}' — ${body:0:250}"
   fi
+else
+  fail_at "the fixture Takeout could not be written into the demo Nextcloud, so the archive was not read"
+fi
 
-  # AND THE REAL ONE. Three items from four files, because Takeout's sidecar is
-  # metadata rather than an item — and the breakdown says which of the three is
-  # the edit, which is what stops the total reading as a duplication bug.
-  r="$(http POST "$API/api/connections" "$TOK_R" \
-    "{\"role\":\"source\", \"type\":\"archive\", \"displayName\":\"gate: takeout fixture\", \"values\":{\"provider\":\"google-takeout\",\"path\":\"$ARCHIVE_ROOT\"}}")"
-  code="${r%% *}"; body="${r#* }"
-  archive_answer="$(jq -r '.qualification.domains.file.answer // empty' <<<"$body")"
-  archive_items="$(jq -r '.qualification.domains.file.volume.items // empty' <<<"$body")"
-  archive_edited="$(jq -r '.qualification.domains.file.volume.byKind.edited // empty' <<<"$body")"
-  if [ "$code" = "201" ] && [ "$archive_answer" = "yes" ] \
-    && [ "$archive_items" = "3" ] && [ "$archive_edited" = "1" ]; then
-    echo "archive measured on the real stack: 3 items, 1 of them an edited version, from 4 files"
+if [ -n "$archive_mapping_id" ]; then
+  # STORED WITH ITS PLACE. Read from the database, not the API's echo: a door
+  # that dropped `where` stored a path on the server, which is what this
+  # section's first half refuses.
+  archive_where="$(q "SELECT coalesce(config->>'where', '<none>') FROM connection WHERE id = '$archive_source_id'")"
+  if [ "$archive_where" = "target" ]; then
+    echo "archive connection stored with where 'target'"
   else
-    echo "archive measure: HTTP $code, answer '${archive_answer:-<none>}', items '${archive_items:-<none>}', edited '${archive_edited:-<none>}' — ${body:0:250} (expected 201, yes, 3, 1)"
-    fail_at
+    fail_at "the archive connection was stored with where '${archive_where:-<no row>}', not 'target'"
   fi
 
   # A path is not a password: this kind stores NO credential, and the row's
   # secret is the shape that proves it. Read from the database rather than from
   # the API's echo, because the echo is what a route chose to say and this is
   # what was written.
-  archive_secret="$(q "SELECT coalesce(secret_ref, '<null>') FROM connection WHERE display_name = 'gate: takeout fixture' LIMIT 1")"
+  archive_secret="$(q "SELECT coalesce(secret_ref, '<null>') FROM connection WHERE id = '$archive_source_id'")"
   case "$archive_secret" in
     *'"username"'*|*'"password"'*)
-      echo "archive connection stored a credential-shaped secret: ${archive_secret:0:120} (a path is not a password)"
-      fail_at ;;
+      fail_at "the archive connection stored a credential-shaped secret: ${archive_secret:0:120} (a path is not a password)" ;;
     *) echo "archive connection stored no credential fields, which is this kind's truth" ;;
   esac
 
-  # Left behind on purpose: the fixture is four small files in the container's
-  # own /tmp, the container is torn down with the stack, and removing it here
-  # would only make a re-run of the block below impossible to debug.
+  # THE PREFLIGHT, as the confirm screen asks for it: enqueue the count, then
+  # read what it stored. Only the migration's own domain, files.
+  r="$(http POST "$API/api/migrations/${archive_mapping_id}/discover" "$TOK_R" '{}')"
+  code="${r%% *}"
+  if [ "$code" != "202" ]; then
+    fail_at "the archive's preflight was not started: HTTP $code — ${r#* }"
+  else
+    archive_file=""
+    i=0
+    while [ $i -lt "$SYNC_POLLS" ]; do
+      sleep "$POLL_SLEEP"
+      i=$((i + 1))
+      r="$(http GET "$API/api/migrations/${archive_mapping_id}/discovery" "$TOK_R")"
+      archive_file="$(jq -c '.domains[]? | select(.domain == "file")' <<<"${r#* }" 2>/dev/null || true)"
+      [ -n "$archive_file" ] && break
+    done
+    # THREE ITEMS FROM FOUR FILES, and the bytes say which three. The sidecar
+    # is metadata, not an item; the edit is an item of its own, beside its
+    # original. 14 + 14 + 16 = 44 is the two photos and the edit, and nothing
+    # else adds to 44: the sidecar in place of the edit would be 74, the edit
+    # left out 28. The year folder's own row carries the count, because the
+    # domain's total also holds the manifest the import writes at the top.
+    archive_error="$(jq -r '.lastError // empty' <<<"$archive_file" 2>/dev/null || true)"
+    archive_year="$(jq -c '.perCollection[]? | select(.name == "Photos from 2024")' <<<"$archive_file" 2>/dev/null || true)"
+    archive_items="$(jq -r '.items // empty' <<<"$archive_year" 2>/dev/null || true)"
+    archive_bytes="$(jq -r '.bytes // empty' <<<"$archive_year" 2>/dev/null || true)"
+    if [ -z "$archive_file" ]; then
+      fail_at "the archive's preflight stored no file count after $((SYNC_POLLS * POLL_SLEEP))s"
+    elif [ -n "$archive_error" ]; then
+      fail_at "the archive's preflight failed: ${archive_error:0:250}"
+    elif [ "$archive_items" = "3" ] && [ "$archive_bytes" = "44" ]; then
+      echo "archive counted on the real stack, from the destination's files: 3 items, 1 of them an edited version, from 4 files"
+    else
+      fail_at "the archive's preflight counted items '${archive_items:-<none>}', bytes '${archive_bytes:-<none>}' in 'Photos from 2024' — ${archive_file:0:300} (expected 3 and 44: two photos and one edited version)"
+    fi
+  fi
+fi
+
+# ...AND TAKEN BACK: the migration (its preflight rows go with it), its new
+# source connection, and the folder. Tenant B's destination connection was
+# only reused, and stays.
+archive_left=0
+if [ -n "$archive_mapping_id" ]; then
+  r="$(http DELETE "$API/api/migrations/${archive_mapping_id}" "$TOK_R")"
+  case "${r%% *}" in 200|204) ;; *) archive_left=$((archive_left + 1)); echo "DELETE migration: HTTP ${r%% *}" ;; esac
+fi
+if [ -n "$archive_source_id" ]; then
+  r="$(http DELETE "$API/api/connections/${archive_source_id}" "$TOK_R")"
+  case "${r%% *}" in 200|204) ;; *) archive_left=$((archive_left + 1)); echo "DELETE source connection: HTTP ${r%% *}" ;; esac
+fi
+code="$(archive_dav DELETE "")"
+case "$code" in 204|404) ;; *) archive_left=$((archive_left + 1)); echo "DELETE ${ARCHIVE_DIR}/: HTTP $code" ;; esac
+code="$(archive_dav PROPFIND "")"
+[ "$code" = "404" ] || { archive_left=$((archive_left + 1)); echo "${ARCHIVE_DIR}/ is still there: PROPFIND answered HTTP $code"; }
+if [ "$archive_left" = "0" ]; then
+  echo "and taken back: the migration, its source connection and the fixture folder"
 else
-  echo "could not write the fixture Takeout into '$API_CONTAINER' — the archive gate did not run"
-  fail_at
+  fail_at "the archive step left $archive_left thing(s) behind — they will accumulate in tenant B's files and rows"
 fi
 
 report_json "shared addresses" "/api/shared-addresses" '.addresses | length'
@@ -4498,15 +4661,9 @@ fi
 # NET ZERO, like everything else here. (1), (2) and (4) store nothing at all —
 # a probe, and two refusals. (3) must create to prove anything, so it deletes
 # what it created and says whether that worked.
-nc_port="$(smoke_env_value NEXTCLOUD_PORT)"
-# THE PUBLISH MOVED AND THE CALLER STAYED AT LOCALHOST is the failure this
-# reads .env to avoid: an operator who binds the DAV backend to a private mesh
-# address (NEXTCLOUD_BIND, for browsing it over the VPN) would otherwise leave
-# every assertion below curling a loopback address nothing listens on any more,
-# and the gate would report a target failure that is really a moved port.
-nc_host="$(smoke_env_value NEXTCLOUD_BIND)"
-NC="http://${nc_host:-localhost}:${nc_port:-8083}"
-
+#
+# `$NC`, the demo Nextcloud as this script reaches it, is read in the export
+# archive section above, which writes to it first.
 note "the Nextcloud door"
 nc_dav_url="${NC}/remote.php/dav"
 
@@ -5401,6 +5558,12 @@ fi
 note "verdict"
 api_restart_check "$API_STARTED_AT"
 echo "verify: $VERIFY_RESULT   apply: $APPLY_RESULT"
+# The gaps first, so a pass names them next to SMOKE PASS and a fail still
+# ends on what failed.
+if [ -n "$NOT_PROVEN" ]; then
+  echo "not proven on this stack (does not fail the run):"
+  printf '%s' "$NOT_PROVEN"
+fi
 if [ "$fail" = "0" ]; then
   echo "SMOKE PASS — evidence in $OUT"
 else

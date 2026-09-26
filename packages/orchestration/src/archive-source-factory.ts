@@ -25,6 +25,7 @@
 
 import {
   ARCHIVE_PROVIDERS,
+  archiveInJmapTargetSentence,
   archiveProviderName,
   parseArchiveSource,
   type ArchiveProvider,
@@ -68,6 +69,10 @@ export const ARCHIVE_CONNECTION_KIND = 'archive';
  * Pacific rather than the account holder's. A reader written today would parse
  * dates nine hours out and explode an iWork document into its members, so it
  * waits on the second export 0116 specifies rather than on a first one.
+ *
+ * A reader added here is added to `ARCHIVE_PROVIDERS_WITH_READERS` in shared
+ * too, which is how the archive form drops its *To be tested* tag (0148 T3);
+ * `the-form-and-the-readers-agree.unit.test.ts` fails until it is.
  */
 const READERS: Readonly<Partial<Record<ArchiveProvider, (store?: ArchiveStore) => ArchiveReader>>> = {
   'google-takeout': (store) => createTakeoutArchiveReader(store),
@@ -85,7 +90,13 @@ export function archiveReaderFor(provider: string, store?: ArchiveStore): Archiv
   return make ? make(store) : undefined;
 }
 
-/** The exports a reader exists for — what a surface may honestly offer today. */
+/**
+ * The exports a reader exists for — what a surface may honestly offer today.
+ *
+ * Read from `READERS`, as before 0148 T3. The form cannot call this (shared
+ * cannot import orchestration), so it reads the copy in shared,
+ * `ARCHIVE_PROVIDERS_WITH_READERS`, and a test holds the two equal.
+ */
 export function archiveProvidersWithReaders(): ReadonlyArray<ArchiveProvider> {
   return ARCHIVE_PROVIDERS.filter((p) => READERS[p] !== undefined);
 }
@@ -152,12 +163,10 @@ export function archiveStoreInTarget(
   targetKind: string,
 ): ArchiveStore {
   if (protocol !== 'webdav') {
-    throw new Error(
-      `This migration's file target is a ${targetKind} account, which this product writes to over ` +
-        'JMAP — and an archive is read by asking for byte ranges of a file, which JMAP does not ' +
-        'offer. Nothing is wrong with the export: either point this archive at a path on the ' +
-        'machine running the pass, or give the migration a file target that speaks WebDAV.',
-    );
+    // The sentence is shared (0148 T9): the create door and the wizard's
+    // target step refuse a JMAP destination in these words before any pass
+    // gets here, through `archiveInTargetRefusal`.
+    throw new Error(archiveInJmapTargetSentence(targetKind));
   }
   return webdavStore(endpoint);
 }

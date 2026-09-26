@@ -169,3 +169,118 @@ describe('the verdict prints what was recorded', () => {
     expect(out).not.toContain('what failed:');
   });
 });
+
+/**
+ * WHAT THE GATE COULD NOT PROVE, said beside the verdict (workplan 0136 T5).
+ *
+ * The same lesson from the other side. When the managed API stopped reading a
+ * path on its own disk, the archive section lost the one live proof that the
+ * archive reader reached the deployed image, and 0136 T5 asks that the output
+ * SAY so rather than skip the step in silence, without failing the run. A
+ * line in the middle of a log several thousand lines long says it to nobody:
+ * a green night ends on `SMOKE PASS` and the gap shows only to whoever
+ * searches for it — the `skipped-no-item` and `SMOKE PASS` of run #6 again.
+ * So a gap is recorded like a failure is, and printed next to the verdict on a
+ * pass and on a fail, while the flag stays where it was.
+ */
+describe('what the gate could not prove is printed beside the verdict', () => {
+  /** The `not_proven` definition, taken from the script rather than restated. */
+  function notProvenDefinition(): string {
+    const start = smoke.indexOf('not_proven() {');
+    const end = smoke.indexOf('\n}\n', start);
+    expect(start, 'smoke-managed.sh defines no not_proven()').toBeGreaterThan(-1);
+    return smoke.slice(start, end + 3);
+  }
+
+  /** From the verify/apply line to the exit: everything the verdict prints. */
+  function verdictTail(): string {
+    const start = smoke.indexOf('echo "verify: $VERIFY_RESULT');
+    const end = smoke.indexOf('exit "$fail"', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return smoke.slice(start, end);
+  }
+
+  function run(fail: string): string {
+    return execFileSync(
+      'bash',
+      [
+        '-c',
+        [
+          'set -u',
+          `fail=${fail}`,
+          'FAIL_REASONS=""',
+          'NOT_PROVEN=""',
+          'VERIFY_RESULT=done',
+          'APPLY_RESULT=applied',
+          'OUT=/tmp/evidence.txt',
+          'SECTION="the export archive"',
+          failAtDefinition(),
+          notProvenDefinition(),
+          'not_proven "the archive reader in the deployed image (0148 T9)"',
+          `[ "$fail" = "${fail}" ] || echo "NOT_PROVEN MOVED THE FLAG"`,
+          fail === '1' ? 'fail_at "a reason"' : ':',
+          verdictTail(),
+        ].join('\n'),
+      ],
+      { encoding: 'utf8' },
+    );
+  }
+
+  it('a pass names the gap next to SMOKE PASS, and stays a pass', () => {
+    const out = run('0');
+    expect(out).not.toContain('NOT_PROVEN MOVED THE FLAG');
+    expect(out).toContain('SMOKE PASS');
+    const verdictAt = out.indexOf('verify: done');
+    const gapAt = out.lastIndexOf('the archive reader in the deployed image (0148 T9)');
+    expect(gapAt, 'the gap is not printed with the verdict').toBeGreaterThan(verdictAt);
+    expect(gapAt).toBeLessThan(out.indexOf('SMOKE PASS'));
+    // And it names the section it came from, as a failure's entry does.
+    expect(out).toContain('- the export archive: the archive reader in the deployed image (0148 T9)');
+  });
+
+  it('a fail still ends on what failed, with the gap above it', () => {
+    const out = run('1');
+    const gapAt = out.lastIndexOf('the archive reader in the deployed image (0148 T9)');
+    expect(gapAt).toBeGreaterThan(out.indexOf('verify: done'));
+    expect(gapAt).toBeLessThan(out.indexOf('SMOKE FAIL'));
+    expect(out.indexOf('what failed:')).toBeGreaterThan(gapAt);
+  });
+
+  // REWRITTEN ON PURPOSE by 0148 T9. This asked that the archive section
+  // record its gap through `not_proven`; T9 closed the gap, so the section now
+  // proves the reader again instead — and a `not_proven` left there would be a
+  // gap reported beside a proof that was made.
+  it('the archive section no longer records a gap: it reads the export from the destination', () => {
+    const section = smoke.slice(smoke.indexOf('note "the export archive"'));
+    const next = section.indexOf('\nreport_json ');
+    const lines = code(section.slice(0, next));
+    expect(lines.some((l) => /^\s*not_proven\s+"/.test(l)), 'a gap is still recorded').toBe(false);
+    expect(lines.some((l) => l.includes('where:"target"')), 'no archive posted with where "target"').toBe(true);
+    // And a gap closed is a failure again when it breaks, never a skip.
+    expect(lines.some((l) => /fail_at "the archive's preflight/.test(l))).toBe(true);
+  });
+
+  // THIS RUN'S ROWS, found through THIS RUN'S MIGRATION (0148 T9 review; the
+  // lesson of a-person-opened-in-the-wrong-organisation). A display name is
+  // shared by every run that left its row behind, so a lookup by it reads, or
+  // deletes, whichever row Postgres returns first. From the in-destination
+  // half on: the half before it COUNTS rows by name before and after a
+  // refusal, and a row left by another run is in both counts.
+  it('the archive section finds its source connection through its own migration, never by name', () => {
+    const start = smoke.indexOf('ARCHIVE_TAG="');
+    expect(start, 'the in-destination half of the archive section is gone').toBeGreaterThan(
+      smoke.indexOf('note "the export archive"'),
+    );
+    const section = smoke.slice(start);
+    const lines = code(section.slice(0, section.indexOf('\nreport_json ')));
+    expect(
+      lines.filter((l) => /display_name\s*=/.test(l)),
+      'a row of this section is looked up by its display name',
+    ).toEqual([]);
+    expect(
+      lines.some((l) => l.includes('source_mailbox_id') && l.includes('$archive_mapping_id')),
+      'the source connection is not read through the migration just created',
+    ).toBe(true);
+  });
+});
