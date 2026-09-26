@@ -2,7 +2,26 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-09-25 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26, build review: T10 (a) fixes on the same branch
+(`claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`), not merged.** `main` was
+merged into the branch first. Both reviews found the same defect: the architecture doc moved
+Pattern S to *Partial* in §11.2 #1 and still said, in two other places, that it migrates. §14.1's
+closing update now carries a dated 2026-09-25 note: Pattern S is built and copies as an ordinary
+mapping, the manifest lists it under *Partial* until one real shared mailbox is copied, and the
+column follows `SOURCE_PROOFS.sharedMailbox`, which follows *Live proofs* (T10 (b) moves it back).
+The v1.7 change line says the manifest said *Migrates* from 2026-08-04 until 2026-09-25, rather
+than describing today's column. The doc keeps version 1.7, as the other edits since 2026-09-23
+did. No guard goes with this: a test that read the architecture doc would put it on the path CI
+runs tests for, and `a-doc-a-test-reads-that-ci-skipped`'s control holds that it is not.
+
+Not changed, and left for the owner: the confirm screen's label for a discovered shared address,
+*"Shared mailbox — the store is copied"* (*"Gedeeld postvak — het postvak wordt gekopieerd"*).
+It describes what Pattern S does, not a proof. It shows only for a source that can list groups,
+which the *Microsoft 365 account* button's delegated grant cannot. Rewording it is a copy
+decision in both languages, outside T10 (a)'s list, and one reviewer offered leaving it as the
+first choice. `main`'s #1180 emptied the copy budget's exceptions; this branch never added one.
 
 **2026-09-25, build: T10 (a), shared mailboxes to Partial, on branch
 `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged.** The owner decided
