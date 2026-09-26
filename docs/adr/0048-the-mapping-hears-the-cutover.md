@@ -5,8 +5,8 @@
   in `@openmig/core`, the CLI over them, gated against a real ledger. **Amended 2026-09-24**: the
   grace period copies (workplan 0128 T2, the owner's D1 (a)); **2026-09-26**: a window per data
   type (0128 T5 slice 4, the owner's D8), only the paths in the phase the mapping leaves move
-  with it (slice 5a), and a data type is cut over on its own (slice 5b); see the amendments at the
-  end.
+  with it (slice 5a), a data type is cut over on its own (slice 5b), and ended or kept on its own
+  (slice 7a); see the amendments at the end.
 - **Date:** 2026-09-19 (decided); 2026-09-20 (built)
 - **Deciders:** owner
 - **Relates to:** [ADR-0047](./0047-a-rollback-is-a-setback.md) (the rollback is the other half of
@@ -60,7 +60,10 @@
   start of the rest never moves one back that was cut over on its own.
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
-  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
+  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so. **For one
+  data type** (amended 2026-09-26, 0128 T5 slice 7a) its own *End* and *Keep copying* decide its
+  `done` or its lane (`endOrKeepPath`, ledger), End by the same rule over its own failures, and
+  the migration's status is its paths' roll-up: `done` once every data type has ended.
 - **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
   what is unknown after a timeout, so no pass runs (FAILED is not a state that copies); `rollback`
   is the explicit undo and resumes the sync.
@@ -287,3 +290,25 @@ and only a data type the migration carries. Approval and execution stay the CLI'
 Gates: `packages/ledger/src/a-cutover-of-one-data-type.unit.test.ts` (the steps over mail's
 ledger and path, beside running calendars), `packages/core/src/who-may-begin-a-cutover.unit.test.ts`
 and `apps/worker/src/cli/cutover-commands.unit.test.ts`.
+
+## Amendment, 2026-09-26: one data type ended or kept on its own (workplan 0128 T5, slice 7a)
+
+The owner's D3 and D8 put the ending per data type: where a migration ends, each data type is
+ended or kept copying on its own. `complete` still closes a ledger and leaves its data type in
+`cutover`, and what follows is still the owner's, on the Finish page, now for each data type:
+*End* makes it `done`, and *Keep copying* puts it in the lane (`continuous`). One door decides and
+writes both, for both editions (`endOrKeepPath`, in the ledger's `an-ending-per-data-type.ts`).
+End is refused over the data type's own unresolved failures unless forced, as `finishTransition`
+refuses the migration's Finish, and a forced End is recorded as forced. From before its cutover
+either press is its cutover too, on step 4's attestation (D3): End is one move, as Finish is, and
+Keep is recorded as the cutover and then the lane. The migration's status is its paths' roll-up,
+written and recorded in the same transaction, as at a data type's own cutover (slice 5b): `done`
+once every data type has ended.
+
+What a press on the whole migration does to a data type ended or kept on its own stays 5a's rule
+until the owner answers 0128's D9 (a rollback of the whole migration) and D10 (the whole
+migration's *Keep copying*): only the paths in the phase the migration leaves move.
+
+Gates: `packages/ledger/src/an-ending-per-data-type.unit.test.ts` (the door),
+`apps/api/src/routes/migrations/a-data-type-ended-or-kept.unit.test.ts` and
+`apps/selfhost/src/a-data-type-ended-or-kept-on-the-appliance.unit.test.ts` (each edition's).

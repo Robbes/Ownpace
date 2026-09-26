@@ -1170,6 +1170,27 @@ file switched off has no such mark, and the page says *switched off* for it.
 
 Each stop and resume is in the audit log as `path.status`, with who pressed it.
 
+**Ending or keeping one data type** (workplan 0128 T3). Where a migration ends,
+each data type can be ended or kept copying on its own:
+`POST /mappings/{id}/domains/{kind}/end` makes it `done` (its passes stop, and
+what is copied stays), and `…/keep` puts it in the continuous lane, where
+deletions at the old provider are no longer mirrored. The managed edition has
+the same pair under `/api/migrations/{id}/domains/{kind}/`. From before its
+cutover either press is its cutover too, so move mail delivery first (step 4
+above). The migration follows its data types:
+
+- with every data type ended it is `done`: the appliance stops scheduling it
+  and says so once, as `finish` does, and a data type kept later brings the
+  schedule back;
+- End refuses while that data type's own items are awaiting a decision, as
+  `finish` does, unless you add `?force=true`; the record then says it was
+  forced;
+- a stopped data type cannot be kept (resume it first), but it can be ended,
+  which clears the stop.
+
+Each move is in the audit log as `path.phase`, with who pressed it, and the
+migration's as `mapping.status` when it moved.
+
 ## Health & troubleshooting
 
 - **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and

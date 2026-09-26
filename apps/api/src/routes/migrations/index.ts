@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
-import { activateAddedPath, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
+import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
@@ -21,7 +21,9 @@ import {
   RunStore,
   CutoverStore,
   PATH_ADDED_ACTION,
+  pathEndingRefusalReason,
   pathStopRefusalReason,
+  type PathEnding,
   readPathStopFacts,
   pathStopChoices,
 } from '@openmig/ledger';
@@ -3766,5 +3768,69 @@ function stopOrResumeRoute(stop: boolean) {
 
 router.post('/:mappingId/domains/:domain/stop', authenticate, stopOrResumeRoute(true));
 router.post('/:mappingId/domains/:domain/resume', authenticate, stopOrResumeRoute(false));
+
+/**
+ * POST /api/migrations/:mappingId/domains/:domain/end and …/keep — END OR KEEP
+ * ONE DATA TYPE where its migration ends (workplan 0128 T3, T5 slice 7; the
+ * owner's D3 and D8).
+ *
+ * End makes it `done`: its passes stop, its slot is let go, and what is copied
+ * stays. Its own failures still waiting on a decision refuse it unless the
+ * press is forced (`?force=true`), as they refuse the whole migration's
+ * Finish. Keep copying puts it in the continuous lane, holding a slot; from
+ * before its cutover it is recorded as the cutover and then the lane (D3). The
+ * migration's status is then its paths' roll-up: with every data type ended,
+ * it is `done`. The ledger's own door (`endOrKeepPath`) checks, writes and
+ * records in this one transaction, and a slot taken raises the month's peak.
+ */
+function endOrKeepRoute(ending: PathEnding) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { mappingId, domain: rawDomain } = req.params;
+      const tenantId = req.tenantId;
+      if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
+      if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+      const parsed = z.enum(DISCOVERY_DOMAINS).safeParse(rawDomain);
+      if (!parsed.success) {
+        const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+        return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
+      }
+      const domain = parsed.data;
+      const force = String(req.query.force) === 'true';
+
+      const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        const failures =
+          ending === 'end' ? await new PgLedger(db).listFailures(asTenantId(tenantId), asMappingId(mappingId), domain) : [];
+        return endOrKeepDataType(db, tenantId, {
+          mappingId,
+          domain,
+          ending,
+          actor: req.userId ?? 'unknown',
+          force,
+          unresolvedFailures: failures.filter((f) => f.needsDecision).length,
+        });
+      });
+      if ('refused' in outcome) {
+        if (outcome.refused === 'not_found') {
+          return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        }
+        const reason = pathEndingRefusalReason(outcome, domain);
+        return void res.status(409).json({
+          error: `${ending}_refused`,
+          ...outcome,
+          message: reason,
+          reason,
+          ...(outcome.refused === 'unresolved_failures' ? { forceable: true } : {}),
+        });
+      }
+      res.json({ id: mappingId, domain, ending, ...outcome });
+    } catch (error) {
+      serverFault(res, `${ending}_domain_failed`, `${ending === 'end' ? 'ending' : 'keeping'} a data type`, error);
+    }
+  };
+}
+
+router.post('/:mappingId/domains/:domain/end', authenticate, endOrKeepRoute('end'));
+router.post('/:mappingId/domains/:domain/keep', authenticate, endOrKeepRoute('keep'));
 
 export default router;
