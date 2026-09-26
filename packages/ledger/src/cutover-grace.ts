@@ -14,10 +14,17 @@
  *
  * `CUTOVER_STILL_COPIES_WHERE` is that rule in SQL, over `cutover_state`
  * aliased `c`: for the managed tick, which chooses what to schedule in one
- * statement, for the appliance's gates, and for `cutoverStillCopies` here.
- * `cutoverStillCopiesAt` in shared says the same in TypeScript, and
- * `a-grace-period-that-copies.unit.test.ts` holds the two in step over every
- * state and both sides of the end.
+ * statement, and for `readCutoverWindows` here, which every gate asks through
+ * `readPathPhases`. `cutoverStillCopiesAt` in shared says the same in
+ * TypeScript, and `a-grace-period-that-copies.unit.test.ts` holds the two in
+ * step over every state and both sides of the end.
+ *
+ * **A window per data type** (0128 T5, slice 4, ledger migration 0067). Each
+ * cutover ledger row has its own window, and a data type's is its own row's,
+ * or the whole migration's where it has none, as the store reads a ledger
+ * (`CutoverStore`). The tick asks whether any of a migration's rows still
+ * copies: a pass it starts moves past each data type whose own window is
+ * closed, so any is enough to start one, and none is enough to start none.
  */
 
 import { sql } from 'drizzle-orm';
@@ -29,14 +36,44 @@ export const CUTOVER_STILL_COPIES_WHERE =
   "WHEN 'GRACE_PERIOD' THEN c.grace_period_started_at + make_interval(hours => c.grace_period_hours) " +
   "WHEN 'CUTOVER_IN_PROGRESS' THEN c.updated_at + make_interval(hours => c.grace_period_hours) END)";
 
-/** Whether this migration's cutover still copies. Read inside the organisation's transaction. */
-export async function cutoverStillCopies(db: PgDatabase, tenantId: string, mappingId: string): Promise<boolean> {
+/** A migration's cutover windows, read once for a pass. */
+export interface CutoverWindows {
+  /** Whether any of its cutover ledgers still copies: the managed tick's question. */
+  readonly any: boolean;
+  /**
+   * Whether a ledger's cutover still copies: a data type's own, or the whole
+   * migration's where it has none; without a data type, the whole migration's.
+   */
+  readonly of: (domain?: string) => boolean;
+}
+
+/** A migration that is not in its cutover: no window is asked. */
+export const NO_CUTOVER_WINDOWS: CutoverWindows = { any: false, of: () => false };
+
+/** Each of a migration's cutover windows, in one statement. Read inside the organisation's transaction. */
+export async function readCutoverWindows(db: PgDatabase, tenantId: string, mappingId: string): Promise<CutoverWindows> {
   const found = (await db.execute(sql`
-    SELECT EXISTS (
-      SELECT 1 FROM cutover_state c
-       WHERE c.tenant_id = ${tenantId}::uuid AND c.mapping_id = ${mappingId}::uuid
-         AND ${sql.raw(CUTOVER_STILL_COPIES_WHERE)}
-    ) AS copies
-  `)) as unknown as { rows: Array<{ copies: boolean }> };
-  return found.rows[0]?.copies === true;
+    SELECT c.domain, COALESCE(${sql.raw(CUTOVER_STILL_COPIES_WHERE)}, false) AS copies
+      FROM cutover_state c
+     WHERE c.tenant_id = ${tenantId}::uuid AND c.mapping_id = ${mappingId}::uuid
+  `)) as unknown as { rows: Array<{ domain: string | null; copies: boolean }> };
+  const whole = found.rows.find((r) => r.domain === null)?.copies === true;
+  const own = new Map(found.rows.filter((r) => r.domain !== null).map((r) => [r.domain!, r.copies === true]));
+  return {
+    any: found.rows.some((r) => r.copies === true),
+    of: (domain) => (domain === undefined ? whole : (own.get(domain) ?? whole)),
+  };
+}
+
+/**
+ * Whether a ledger's cutover still copies, as `readCutoverWindows` answers it:
+ * a data type's own or the whole migration's, or the whole migration's.
+ */
+export async function cutoverStillCopies(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  domain?: string,
+): Promise<boolean> {
+  return (await readCutoverWindows(db, tenantId, mappingId)).of(domain);
 }
