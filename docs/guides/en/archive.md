@@ -82,7 +82,7 @@ On the **Connections** page, add a connection and choose **Export archive**. It 
 
 - **Which export**: Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet).
 - **Where the export is**: **In a folder of your destination's files (Nextcloud or WebDAV)**, or **On this appliance's disk**. The second is for migrations that run on a computer you can put files on; where that is not so, the form shows it greyed out with the line *Only on a self-hosted appliance*.
-- **The folder**: for your destination's files, the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). On a disk, the folder you extracted the download into, or the `.zip` itself.
+- The folder, in a box whose name follows that choice. **Folder in your destination's files**: the folder as your files show it, from the top, such as `Exports/takeout-20260904`, or one `.zip` in it (see [Your export in your own Nextcloud](#own-nextcloud)). **Where the archive is**, for a disk: the folder you extracted the download into, or the `.zip` itself.
 
 Then press **Add and test**. Testing does not move anything. For an export on a disk, it opens the archive and tells you what is in it; for an export in your destination's files, it says the export is counted at the preflight, because the destination is chosen with the migration and until then there is nowhere to look. Either way, before anything moves, you learn:
 
@@ -101,7 +101,7 @@ The export does not have to be on a disk. If the files you are moving to are in 
 
 1. Upload the `.zip` parts into **one folder** of the files the migration will write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the way you always add files, such as the Nextcloud website or its desktop app.
 2. In the wizard, choose **Export archive** as the source. Under **Where the export is**, choose **In a folder of your destination's files (Nextcloud or WebDAV)**.
-3. Type the folder as it appears in your files, from the top, for example `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
+3. In **Folder in your destination's files**, type the folder as it appears in your files, from the top, for example `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
 4. Press **Test and save connections**. It says the export is counted at the preflight. That is expected: the destination is chosen on the target step, and until then there is nowhere to look.
 5. On the target step, choose that same Nextcloud or WebDAV account. The preflight then counts what is in the export, before anything moves.
 
