@@ -16,8 +16,9 @@ contacts, OneDrive) — **in your own tenant, registered by you**.
 > before any foreign tenant could consent); the credential never leaves your
 > custody — you put it in your own appliance's `secrets.cmd`/`.env` or the
 > connection screen, so the "whitelisting" is credential
-> custody plus the Application Access Policy narrowing the app to named
-> mailboxes; and revocation is yours — delete the app registration and every
+> custody plus a fence around the mailboxes the app may reach (an Application
+> Access Policy then; how that fence is built today is under
+> [Application Access Policy](#application-access-policy)); and revocation is yours — delete the app registration and every
 > token dies. The multi-tenant consent-URL machinery below is kept only for
 > the record, marked as not the current model.
 
@@ -52,7 +53,9 @@ This approach:
 - **Needs no publisher verification**: that requirement only exists when a
   foreign tenant consents to somebody else's multi-tenant app
 - **Follows least-privilege**: permissions are scoped to only what's needed,
-  and the Application Access Policy narrows mailbox access further
+  and Exchange Online can fence the mailboxes the app reaches (see
+  [Application Access Policy](#application-access-policy): for IMAP that is
+  `Add-MailboxPermission`, for Graph a scoped RBAC for Applications role)
 
 ### Access Model
 
@@ -60,25 +63,47 @@ Two authentication paths are supported:
 
 | Path | Use Case | Auth Type | Permissions |
 |------|----------|-----------|-------------|
-| **Managed Path** | Organization/SMB tenants | Application Credentials (client-credentials) | App permissions + Application Access Policy |
+| **Managed Path** | Organization/SMB tenants | Application Credentials (client-credentials) | App permissions (`Mail.Read` or `IMAP.AccessAsApp`), with the mailbox fence in Exchange Online |
 | **Self-Host Path** | Individual/family users | Delegated (user login) | Delegated permissions |
 
 Both paths use the same app registration but different permission configurations.
 
 ### Least-Privilege Permission Sets
 
-**Managed Path (Application Permissions):**
-- `IMAP.AccessAsUser.All` - Access mail via IMAP with user context
-- `Calendars.Read` - Read calendar events (Graph)
-- `Contacts.Read` - Read contacts (Graph)
-- `Files.Read.All` - Read OneDrive files (Graph)
-- `offline_access` - Refresh token support
+> **Corrected 2026-09-25 (workplan 0148 T8).** This section, Step 3 and the Quick Reference
+> listed `IMAP.AccessAsUser.All` and `offline_access` as **application** permissions. Both are
+> delegated only: Microsoft's Graph permissions reference gives neither an application
+> identifier, and an app-only token carries neither. The `oauth2` card's app-only IMAP token is
+> for `https://outlook.office365.com/.default` (`build-deps-from-mapping.ts`), which carries only
+> permissions configured on **Office 365 Exchange Online**: `IMAP.AccessAsApp`, plus the
+> application's service principal registered in Exchange Online and given the mailbox. The
+> customer-facing recipe is the Microsoft guide's `{#application}` section
+> ([`guides/en/microsoft.md`](guides/en/microsoft.md#application), and its Dutch twin), and the
+> lists below match it.
 
-**Self-Host Path (Delegated Permissions):**
-- `IMAP.AccessAsUser.All` - Access mail via IMAP with user context
+**Managed Path (Application Permissions)** — the wizard's *Via the Graph API* (`graph`) and
+*Via IMAP* (`oauth2`) cards. Both read one mailbox's mail, and an administrator consents:
+- *Via the Graph API*: **Microsoft Graph → Application permissions** → `Mail.Read` ("Read mail in
+  all mailboxes"). The source reads `/users/{mailbox}/…` with a `https://graph.microsoft.com/.default`
+  token (`mail-source-factory.ts`).
+- *Via IMAP*: **Office 365 Exchange Online → Application permissions** → `IMAP.AccessAsApp`, then
+  `New-ServicePrincipal` and `Add-MailboxPermission` in Exchange Online PowerShell (Step 3b).
+- An appliance mapping file that reads the other faces of a NAMED mailbox under the
+  client-credentials flow (`graph-calendar`, `graph-contacts`, `graph-drive`, `graph-todo` with a
+  `mailbox`) adds the application permission for each face it reads: `Calendars.Read`,
+  `Contacts.Read`, `Files.Read.All` (there is no application `Files.Read`) and `Tasks.Read.All`
+  (there is no application `Tasks.Read`). The managed wizard's two cards do not build those faces:
+  a stored `o365` connection resolves them to the DAV builder (`source-face-builders.ts`).
+
+**Self-Host Path (Delegated Permissions)** — **Microsoft Graph → Delegated permissions**, each
+asked for only by the face that uses it:
+- `IMAP.AccessAsUser.All` - Mail via IMAP in the signed-in user's context (token scope
+  `https://outlook.office.com/IMAP.AccessAsUser.All`)
+- `Mail.Read` - Mail via Graph
 - `Calendars.Read` - Read calendar events (Graph)
 - `Contacts.Read` - Read contacts (Graph)
-- `Files.Read.All` - Read OneDrive files (Graph)
+- `Files.Read` - Read the signed-in user's own OneDrive (Graph)
+- `Tasks.Read` - Read Microsoft To Do (Graph)
 - `offline_access` - Refresh token support
 
 > **Note:** POP is intentionally NOT enabled. IMAP is the primary mail access method.
@@ -109,28 +134,56 @@ After registration, you'll be on the app's overview page. Navigate to **API perm
 
 #### Add Application Permissions (for Managed Path)
 
+**3a. Microsoft Graph — the `graph` card (and a Graph mapping on the appliance):**
+
 1. Click **+ Add a permission**
 2. Select **Microsoft Graph**
 3. Select **Application permissions**
-4. Add the following permissions:
-   - `IMAP.AccessAsUser.All` (under Mail)
-   - `Calendars.Read` (under Calendars)
-   - `Contacts.Read` (under Contacts)
-   - `Files.Read.All` (under Files)
-   - `offline_access` (under Token Injection)
+4. Add `Mail.Read` (under Mail). Add `Calendars.Read`, `Contacts.Read`, `Files.Read.All` or
+   `Tasks.Read.All` only for an appliance mapping that reads that face of a named mailbox (see
+   *Least-Privilege Permission Sets*).
 5. Click **Add permissions**
+
+**3b. Office 365 Exchange Online — the `oauth2` card (IMAP, app-only):**
+
+1. Click **+ Add a permission**
+2. Select the **APIs my organization uses** tab and search for **Office 365 Exchange Online**
+3. Select **Application permissions**
+4. Add `IMAP.AccessAsApp`
+5. Click **Add permissions**, and grant admin consent (Step 4)
+6. Register the application's service principal in Exchange Online and give it the mailbox,
+   in Exchange Online PowerShell as an Exchange administrator:
+
+```powershell
+Install-Module -Name ExchangeOnlineManagement
+Connect-ExchangeOnline -UserPrincipalName <exchange-admin-address>
+# ObjectId: the ENTERPRISE APPLICATION's Object ID (Entra -> Enterprise applications -> the app
+# -> Overview), not the App registration's. The wrong one makes authentication fail.
+New-ServicePrincipal -AppId <application-client-id> -ObjectId <enterprise-app-object-id>
+Get-ServicePrincipal | fl
+Add-MailboxPermission -Identity <mailbox-address> -User <service-principal-identity> -AccessRights FullAccess
+```
+
+Repeat `Add-MailboxPermission` per mailbox. This is Microsoft's documented recipe for app-only
+IMAP: *Authenticate an IMAP, POP or SMTP connection using OAuth*, section *Use client credentials
+grant flow to authenticate SMTP, IMAP, and POP connections*
+(learn.microsoft.com/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth).
+It is written from that page and from the code; no tenant walk of it is recorded yet
+(workplan 0148 T8 (b), the owner's run).
 
 #### Add Delegated Permissions (for Self-Host Path)
 
 1. Click **+ Add a permission** again
 2. Select **Microsoft Graph**
 3. Select **Delegated permissions**
-4. Add the following permissions:
-   - `IMAP.AccessAsUser.All` (under Mail)
+4. Add the delegated permissions of the faces you read (see *Least-Privilege Permission Sets*):
+   - `IMAP.AccessAsUser.All` (under IMAP)
+   - `Mail.Read` (under Mail)
    - `Calendars.Read` (under Calendars)
    - `Contacts.Read` (under Contacts)
-   - `Files.Read.All` (under Files)
-   - `offline_access` (under Token Injection)
+   - `Files.Read` (under Files)
+   - `Tasks.Read` (under Tasks)
+   - `offline_access` (under OpenId permissions)
 5. Click **Add permissions**
 
 ### Step 4: Grant Admin Consent
@@ -340,6 +393,27 @@ as the policy having failed.
 The dedicated runbook has all of it right, plus the from-zero registration walkthrough and the
 two proof steps. Removed here 2026-08-13 rather than corrected in both places.
 
+**Microsoft has since replaced App Access Policies** (read 2026-09-25 for workplan 0148 T8, from
+the `New-ApplicationAccessPolicy` cmdlet page): *"App Access Policies are replaced by Role Based
+Access Control for Applications … Don't create new App Access Policies as these policies will
+eventually require migration."* The runbook's §4 still creates one; rewriting it for RBAC for
+Applications is open.
+
+**RBAC for Applications does not narrow an Entra grant; it replaces it** (corrected 2026-09-26).
+Microsoft's page *Role Based Access Control for Applications in Exchange Online*
+(learn.microsoft.com/exchange/permissions-exo/application-rbac) says the permissions an
+application holds are the union of what Entra ID grants and what Exchange's RBAC assigns, and
+that a resource-scoped `Mail.Read` in RBAC for Applications needs the `Mail.Read` assignment in
+Entra ID removed, or there is no effective scoping. So a `graph` registration whose `Mail.Read`
+is consented in Entra (Step 3a, Step 4) reads every mailbox whatever Exchange says; the narrower
+route consents nothing in Entra for mail and assigns Exchange's application `Mail.Read` role with
+a management scope instead. This was read on 2026-09-26 through a search of learn.microsoft.com
+(the page itself could not be fetched from the session) and has not been walked. The customer
+guide says the same in two sentences and gives no steps.
+
+An App Access Policy governs Graph and EWS access, not IMAP: a `oauth2` (IMAP) card's reach is
+the mailboxes given with `Add-MailboxPermission` (Step 3b).
+
 ## Configuration
 
 ### Environment Variables
@@ -461,16 +535,18 @@ curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 
 #### Test 3: IMAP XOAUTH2 Authentication
 
-Test IMAP access using the access token:
+Test IMAP access using the access token. An app-only IMAP token is for Exchange Online, not for
+Graph, and needs `IMAP.AccessAsApp` plus Step 3b's two Exchange Online commands:
 
 ```bash
-# Using curl to get IMAP token
+# Using curl to get an app-only IMAP token
 curl -X POST https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&scope=imap&grant_type=client_credentials"
+  -d "client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&scope=https://outlook.office365.com/.default&grant_type=client_credentials"
 ```
 
-Then use the token with imapsync or similar IMAP clients.
+Then authenticate with SASL XOAUTH2 at `outlook.office365.com:993` as the mailbox address, with
+any IMAP client that speaks it.
 
 ### Common Errors and Troubleshooting
 
@@ -479,11 +555,12 @@ Then use the token with imapsync or similar IMAP clients.
 | `invalid_client` | Wrong client ID or secret | Verify credentials in Azure Portal |
 | `unauthorized_client` | Consent not granted | Admin must grant consent via consent URL |
 | `insufficient_privileges` | Permissions not granted | Check API permissions in Azure Portal |
-| `access_denied` | App Access Policy blocking | Verify mailbox is in policy scope |
+| `access_denied` | App Access Policy (legacy) or RBAC for Applications scope blocking | Verify the mailbox is in the policy's or the role assignment's scope |
 | `429 Too Many Requests` | Rate limiting | Implement exponential backoff |
 | `invalid_grant` | Refresh token expired | User must re-authenticate |
 | `AADSTS50105` | Permission not consented | Request admin consent |
 | `IMAP connection failed` | IMAP disabled in tenant | Enable IMAP in Exchange Admin Center |
+| IMAP `AUTHENTICATE failed` with an app-only token | No `IMAP.AccessAsApp`, no Exchange service principal, or no mailbox permission | Step 3b: the permission under Office 365 Exchange Online, `New-ServicePrincipal` with the enterprise application's Object ID, `Add-MailboxPermission` |
 
 ### Troubleshooting Checklist
 
@@ -520,16 +597,15 @@ A successful token response should include:
   "token_type": "Bearer",
   "expires_in": 3599,
   "ext_expires_in": 3599,
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6...",
-  "scope": "Calendars.Read Contacts.Read Files.Read.All IMAP.AccessAsUser.All"
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6..."
 }
 ```
 
 **Key fields to verify:**
 - `token_type`: Should be "Bearer"
 - `expires_in`: Token lifetime in seconds (typically 3599 = ~1 hour)
-- `scope`: Should include all requested permissions
-- `access_token`: Valid JWT token
+- `access_token`: Valid JWT token. A client-credentials response lists no permissions; they are
+  in the token's `roles` claim (below).
 
 ### Token Decoding
 
@@ -541,9 +617,12 @@ echo "eyJ0eXAiOiJKV1QiLCJhbGc..." | base64 -d | jq .
 ```
 
 Expected claims:
-- `scp` or `roles`: Should contain your requested permissions
-- `aud`: Should be `https://graph.microsoft.com`
-- `iss`: Should be `https://login.microsoftonline.com/{tenant}/v2.0`
+- `roles` (app-only token) or `scp` (delegated token): the permissions granted. An app-only Graph
+  token for the `graph` card shows `Mail.Read`; an app-only IMAP token shows `IMAP.AccessAsApp`
+- `aud`: `https://graph.microsoft.com` for a Graph token, `https://outlook.office365.com` for an
+  app-only IMAP token
+- `iss`: `https://sts.windows.net/{tenant}/` for both, with `ver` `1.0`: Microsoft Graph and
+  Exchange Online take v1.0 access tokens, whichever endpoint issued them
 
 ---
 
@@ -551,13 +630,14 @@ Expected claims:
 
 ### Permission Summary
 
-| Permission | Type | Purpose | Flow |
-|------------|------|---------|------|
-| `IMAP.AccessAsUser.All` | Application/Delegated | Mail access via IMAP | Both |
-| `Calendars.Read` | Application/Delegated | Read calendar events | Both |
-| `Contacts.Read` | Application/Delegated | Read contacts | Both |
-| `Files.Read.All` | Application/Delegated | Read OneDrive files | Both |
-| `offline_access` | Delegated | Refresh token support | Delegated only |
+| Permission | API | Type | Purpose |
+|------------|-----|------|---------|
+| `Mail.Read` | Microsoft Graph | Application | The `graph` card: a named mailbox's mail |
+| `IMAP.AccessAsApp` | Office 365 Exchange Online | Application | The `oauth2` card: app-only IMAP, with `New-ServicePrincipal` and `Add-MailboxPermission` |
+| `Calendars.Read`, `Contacts.Read`, `Files.Read.All`, `Tasks.Read.All` | Microsoft Graph | Application | Appliance mappings that read those faces of a named mailbox |
+| `IMAP.AccessAsUser.All` | Microsoft Graph | Delegated only | Mail via IMAP as the signed-in user |
+| `Mail.Read`, `Calendars.Read`, `Contacts.Read`, `Files.Read`, `Tasks.Read` | Microsoft Graph | Delegated | The signed-in user's own faces |
+| `offline_access` | Microsoft Graph | Delegated only | Refresh token support |
 
 ### Flow Comparison
 

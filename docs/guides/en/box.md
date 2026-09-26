@@ -34,7 +34,7 @@ The third value is the **numeric** user id of the account being migrated — Adm
 
 ### 4. Enter it {#box}
 
-Pick Box in the wizard: the Client ID, the numeric user id and the Client secret all go on the source step, the secret stored encrypted. The **Test and save connections** button runs one read-only listing through exactly what a pass would build.
+Pick Box in the wizard. Everything goes on the source step: the account's address under **Username**, the number from step 3 under **Box user ID (numeric)**, and the two values from step 1 under **Client ID (application ID)** and **Client secret**, the secret stored encrypted. The **Test and save connections** button runs one read-only listing through exactly what a pass would build.
 
 The **Root folder ID** field left empty means `0` — the account root ("All Files"); a folder id scopes the migration to that folder.
 
