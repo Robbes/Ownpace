@@ -14,9 +14,10 @@
  * See docs/architecture/solution-architecture.md §11 (DNS switch procedure)
  */
 
-import type { TenantId, MappingId } from '@openmig/shared';
+import type { TenantId, MappingId, DiscoveryDomain } from '@openmig/shared';
 import type { CutoverStateStore } from '@openmig/ledger';
 import {
+  cutoverBeginRefusal,
   verifyAllDns,
   checkPropagation,
   generateDnsRunbook,
@@ -84,6 +85,30 @@ export interface CutoverCliDeps {
   mappingLifecycle: MappingLifecyclePort;
   /** `--reason`: why the cutover is being rolled back, for its event trail. */
   rollbackReason?: string;
+  /**
+   * `--kind`: the data type this cutover is of (0128 T5, slice 5b). The
+   * entrypoint wires its own ledger (`bindCutoverLedger`) into
+   * `cutoverPersistence` and its own path (`pathLifecyclePort`) into
+   * `mappingLifecycle`, so every step below moves that data type alone. Absent
+   * for the whole migration. Only mail has DNS: every other data type is cut
+   * over without an MX record to check, point or revert.
+   */
+  kind?: DiscoveryDomain;
+}
+
+/** Whether this cutover moves mail, and so has an MX record to check, point and revert. */
+export function carriesMail(deps: Pick<CutoverCliDeps, 'kind'>): boolean {
+  return deps.kind === undefined || deps.kind === 'email';
+}
+
+/** What a step moved, as its result lines name it: the mapping, or the data type. */
+function moved(deps: Pick<CutoverCliDeps, 'kind'>): string {
+  return deps.kind === undefined ? 'Mapping' : `The ${deps.kind} path`;
+}
+
+/** What this cutover is of, as its lines name it: the mapping, or one data type of it. */
+function cutOverWhat(deps: Pick<CutoverCliDeps, 'kind' | 'mappingId'>): string {
+  return deps.kind === undefined ? `mapping ${deps.mappingId}` : `${deps.kind} of mapping ${deps.mappingId}`;
 }
 
 /** CLI output formatter */
@@ -153,9 +178,11 @@ export function mappingHalfLines(
   mappingId: MappingId,
   decision: Exclude<CutoverTransition, { refuse: string }>,
   step: 'execute' | 'complete',
+  kind?: DiscoveryDomain,
 ): string[] {
+  const subject = cutOverWhat({ mappingId, kind });
   if (decision.stop) {
-    const move = `mapping ${mappingId} '${decision.from}' -> '${decision.to}'`;
+    const move = `${subject} '${decision.from}' -> '${decision.to}'`;
     const authority = 'the source is no longer the authority on what exists, so no deletion there is mirrored.';
     if (step === 'complete') {
       return [`Stop the shadow sync: ${move} — no pass runs after this, and ${authority}`];
@@ -167,7 +194,7 @@ export function mappingHalfLines(
     ];
   }
   return [
-    `Leave mapping ${mappingId} '${decision.from}': ${decision.reason}.`,
+    `Leave ${subject} '${decision.from}': ${decision.reason}.`,
     ...(decision.warning ? [decision.warning] : []),
   ];
 }
@@ -219,9 +246,23 @@ export async function startCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Starting Cutover');
   CutoverCliOutput.info(`Tenant: ${deps.tenantId}`);
   CutoverCliOutput.info(`Mapping: ${deps.mappingId}`);
-  CutoverCliOutput.info(`Domain: ${deps.dnsDomain}`);
+  if (deps.kind !== undefined) CutoverCliOutput.info(`Data type: ${deps.kind}`);
+  if (carriesMail(deps)) CutoverCliOutput.info(`Domain: ${deps.dnsDomain}`);
 
   try {
+    // A data type's own cutover and the whole migration's are kept apart
+    // (0128 T5, slice 5b): refused here, in words, before anything is read
+    // as this cutover's ledger.
+    const refused = cutoverBeginRefusal(
+      await deps.cutoverPersistence.loadLedgers(deps.tenantId, deps.mappingId),
+      deps.kind,
+    );
+    if (refused) {
+      CutoverCliOutput.error(refused.refuse);
+      CutoverCliOutput.info(refused.hint);
+      process.exit(1);
+    }
+
     const existing = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
 
     if (!existing) {
@@ -288,59 +329,63 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
   const results: Array<{ check: string; status: 'PASS' | 'FAIL'; message: string }> = [];
   let allPassed = true;
 
-  // Check 1: DNS records
-  CutoverCliOutput.info('Checking DNS records...');
-  try {
-    const dnsStatus = await verifyAllDns(deps.dnsDomain, deps.dkimSelector);
+  // Check 1: DNS records, which only mail has (0128 T5, slice 5b).
+  if (!carriesMail(deps)) {
+    CutoverCliOutput.info(`No DNS to check: a ${deps.kind} cutover moves no mail record.`);
+  } else {
+    CutoverCliOutput.info('Checking DNS records...');
+    try {
+      const dnsStatus = await verifyAllDns(deps.dnsDomain, deps.dkimSelector);
 
-    if (dnsStatus.mxVerified) {
-      CutoverCliOutput.success('MX records verified');
-      results.push({ check: 'MX Records', status: 'PASS', message: 'Verified' });
-    } else {
-      CutoverCliOutput.error('MX records not verified');
-      results.push({ check: 'MX Records', status: 'FAIL', message: dnsStatus.errors[0] || 'Not found' });
+      if (dnsStatus.mxVerified) {
+        CutoverCliOutput.success('MX records verified');
+        results.push({ check: 'MX Records', status: 'PASS', message: 'Verified' });
+      } else {
+        CutoverCliOutput.error('MX records not verified');
+        results.push({ check: 'MX Records', status: 'FAIL', message: dnsStatus.errors[0] || 'Not found' });
+        allPassed = false;
+      }
+
+      if (dnsStatus.spfVerified) {
+        CutoverCliOutput.success('SPF record verified');
+        results.push({ check: 'SPF Record', status: 'PASS', message: 'Verified' });
+      } else {
+        CutoverCliOutput.warning('SPF record not verified');
+        results.push({ check: 'SPF Record', status: 'FAIL', message: dnsStatus.errors[0] || 'Not found' });
+        // Not blocking - just a warning
+      }
+
+      if (dnsStatus.dkimVerified) {
+        CutoverCliOutput.success('DKIM record verified');
+        results.push({ check: 'DKIM Record', status: 'PASS', message: 'Verified' });
+      } else {
+        CutoverCliOutput.warning('DKIM record not configured');
+        results.push({ check: 'DKIM Record', status: 'FAIL', message: 'Not configured' });
+        // Not blocking - just a warning
+      }
+
+      if (dnsStatus.dmarcVerified) {
+        CutoverCliOutput.success('DMARC record verified');
+        results.push({ check: 'DMARC Record', status: 'PASS', message: 'Verified' });
+      } else {
+        CutoverCliOutput.warning('DMARC record not configured');
+        results.push({ check: 'DMARC Record', status: 'FAIL', message: 'Not configured' });
+        // Not blocking - just a warning
+      }
+
+      if (dnsStatus.autodiscoverVerified) {
+        CutoverCliOutput.success('Autodiscover verified');
+        results.push({ check: 'Autodiscover', status: 'PASS', message: 'Verified' });
+      } else {
+        CutoverCliOutput.warning('Autodiscover not configured');
+        results.push({ check: 'Autodiscover', status: 'FAIL', message: 'Not configured' });
+        // Not blocking - just a warning
+      }
+    } catch (error) {
+      const err = error as Error;
+      CutoverCliOutput.error(`DNS verification failed: ${err.message}`);
       allPassed = false;
     }
-
-    if (dnsStatus.spfVerified) {
-      CutoverCliOutput.success('SPF record verified');
-      results.push({ check: 'SPF Record', status: 'PASS', message: 'Verified' });
-    } else {
-      CutoverCliOutput.warning('SPF record not verified');
-      results.push({ check: 'SPF Record', status: 'FAIL', message: dnsStatus.errors[0] || 'Not found' });
-      // Not blocking - just a warning
-    }
-
-    if (dnsStatus.dkimVerified) {
-      CutoverCliOutput.success('DKIM record verified');
-      results.push({ check: 'DKIM Record', status: 'PASS', message: 'Verified' });
-    } else {
-      CutoverCliOutput.warning('DKIM record not configured');
-      results.push({ check: 'DKIM Record', status: 'FAIL', message: 'Not configured' });
-      // Not blocking - just a warning
-    }
-
-    if (dnsStatus.dmarcVerified) {
-      CutoverCliOutput.success('DMARC record verified');
-      results.push({ check: 'DMARC Record', status: 'PASS', message: 'Verified' });
-    } else {
-      CutoverCliOutput.warning('DMARC record not configured');
-      results.push({ check: 'DMARC Record', status: 'FAIL', message: 'Not configured' });
-      // Not blocking - just a warning
-    }
-
-    if (dnsStatus.autodiscoverVerified) {
-      CutoverCliOutput.success('Autodiscover verified');
-      results.push({ check: 'Autodiscover', status: 'PASS', message: 'Verified' });
-    } else {
-      CutoverCliOutput.warning('Autodiscover not configured');
-      results.push({ check: 'Autodiscover', status: 'FAIL', message: 'Not configured' });
-      // Not blocking - just a warning
-    }
-  } catch (error) {
-    const err = error as Error;
-    CutoverCliOutput.error(`DNS verification failed: ${err.message}`);
-    allPassed = false;
   }
 
   // Check 2: Data completeness — the §20 gate. This is the check the whole
@@ -541,10 +586,14 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
 
     if (
       !confirmed(deps, 'execute this cutover', [
-        `Move the cutover ledger for mapping ${deps.mappingId} to CUTOVER_IN_PROGRESS (from APPROVED).`,
-        ...mappingHalfLines(deps.mappingId, decision, 'execute'),
-        `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then enter the GRACE_PERIOD.`,
-        'Mail delivery follows DNS — this is the point users notice.',
+        `Move the cutover ledger for ${cutOverWhat(deps)} to CUTOVER_IN_PROGRESS (from APPROVED).`,
+        ...mappingHalfLines(deps.mappingId, decision, 'execute', deps.kind),
+        ...(carriesMail(deps)
+          ? [
+              `Wait for YOU to point the ${deps.dnsDomain} MX record at ${deps.targetMailServer} — this command does not change DNS — then enter the GRACE_PERIOD.`,
+              'Mail delivery follows DNS — this is the point users notice.',
+            ]
+          : [`Enter the GRACE_PERIOD at once: a ${deps.kind} cutover has no MX record to wait for.`]),
       ])
     ) {
       process.exit(1);
@@ -560,14 +609,27 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
     });
     if (entered.mapping.changed) {
       CutoverCliOutput.success(
-        `Mapping ${entered.mapping.from} -> ${entered.mapping.to}: ` +
+        `${moved(deps)} ${entered.mapping.from} -> ${entered.mapping.to}: ` +
           (entered.copiesThroughGrace
             ? 'it keeps copying until the grace period ends, then stops.'
             : 'it stays stopped.'),
       );
     } else {
-      CutoverCliOutput.warning(`Mapping left '${entered.mapping.from}': ${entered.mapping.note ?? ''}`);
+      CutoverCliOutput.warning(`${moved(deps)} left '${entered.mapping.from}': ${entered.mapping.note ?? ''}`);
       if (entered.mapping.warning) CutoverCliOutput.warning(entered.mapping.warning);
+    }
+
+    // Only mail has an MX record to wait for (0128 T5, slice 5b): any other
+    // data type enters its grace period as soon as it is cut over.
+    if (!carriesMail(deps)) {
+      await deps.cutoverPersistence.transitionState(deps.tenantId, deps.mappingId, 'GRACE_PERIOD', {
+        gracePeriodStartedAt: new Date().toISOString(),
+      });
+      CutoverCliOutput.success(`Cutover of ${deps.kind} executed — grace period active.`);
+      CutoverCliOutput.info(
+        'Watch it copy through the grace period, then close it out with "complete --yes" (or "rollback --yes" to revert).',
+      );
+      return;
     }
 
     // Nothing here switches DNS, and no worker job does either — DNS provider
@@ -685,8 +747,8 @@ export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
 
     if (
       !confirmed(deps, 'complete this cutover', [
-        `Mark the cutover ledger for mapping ${deps.mappingId} COMPLETED (from GRACE_PERIOD) — a terminal state.`,
-        ...mappingHalfLines(deps.mappingId, decision, 'complete'),
+        `Mark the cutover ledger for ${cutOverWhat(deps)} COMPLETED (from GRACE_PERIOD) — a terminal state.`,
+        ...mappingHalfLines(deps.mappingId, decision, 'complete', deps.kind),
         'After this, "rollback" is no longer accepted; reverting means a manual MX change.',
         "Leave the migration's own ending to you: finishing it ('done', which checks unresolved " +
           "failures) or keeping it copying ('continuous') is decided on the Finish page, not here.",
@@ -707,17 +769,19 @@ export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
     CutoverCliOutput.success('Cutover completed.');
     if (closed.mapping.changed) {
       CutoverCliOutput.success(
-        `Mapping ${closed.mapping.from} -> ${closed.mapping.to}: the shadow sync has stopped.`,
+        `${moved(deps)} ${closed.mapping.from} -> ${closed.mapping.to}: the shadow sync has stopped.`,
       );
     } else {
-      CutoverCliOutput.info(`Mapping left '${closed.mapping.from}': ${closed.mapping.note ?? ''}`);
+      CutoverCliOutput.info(`${moved(deps)} left '${closed.mapping.from}': ${closed.mapping.note ?? ''}`);
       if (closed.mapping.warning) CutoverCliOutput.warning(closed.mapping.warning);
     }
     CutoverCliOutput.info(
       `The mapping is '${closed.mapping.to}'. This command closes the cutover ledger, not the migration: ` +
         "finish it ('done') or keep it copying ('continuous') from the Finish page.",
     );
-    CutoverCliOutput.info('Restore DNS TTLs to their normal values and archive the source per the runbook.');
+    if (carriesMail(deps)) {
+      CutoverCliOutput.info('Restore DNS TTLs to their normal values and archive the source per the runbook.');
+    }
   } catch (error) {
     if (error instanceof CutoverRefused) {
       CutoverCliOutput.error(`Completion refused: ${error.message}`);
@@ -764,16 +828,20 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
       process.exit(1);
     }
     const mappingLine = decision.reactivate
-      ? `Set mapping ${deps.mappingId} back to '${decision.to}' (from '${decision.from}') — ` +
+      ? `Set ${cutOverWhat(deps)} back to '${decision.to}' (from '${decision.from}') — ` +
         'the sync resumes with the source authoritative.'
-      : `Leave mapping ${deps.mappingId} '${decision.from}': ${decision.reason}`;
+      : `Leave ${cutOverWhat(deps)} '${decision.from}': ${decision.reason}`;
 
     if (
       !confirmed(deps, 'roll this cutover back', [
         `Mark the cutover ROLLED_BACK in the ledger (from ${state.currentState}).`,
         mappingLine,
-        'Leave DNS untouched — reverting the MX record is a MANUAL step (verify-only DNS).',
-        'Leave mail delivered to the TARGET where it is — a rollback never salvages from the target.',
+        ...(carriesMail(deps)
+          ? [
+              'Leave DNS untouched — reverting the MX record is a MANUAL step (verify-only DNS).',
+              'Leave mail delivered to the TARGET where it is — a rollback never salvages from the target.',
+            ]
+          : []),
         // The channel exists (0030 T4); this command does not use it. Said as
         // a property of THIS command, so nobody expects mail from here.
         'Send no notification from here — the run-rollback job with notifyUsers does that.',
@@ -790,25 +858,28 @@ export async function rollbackCutover(deps: CutoverCliDeps): Promise<void> {
       rolledBackBy: 'cli',
       reason: deps.rollbackReason ?? 'Rolled back from the operator CLI',
       log: (message) => CutoverCliOutput.info(message),
+      movesMail: carriesMail(deps),
     });
 
     CutoverCliOutput.success(`Cutover rolled back (from ${outcome.from}).`);
     if (outcome.mapping.changed) {
       CutoverCliOutput.success(
-        `Mapping ${outcome.mapping.from} -> ${outcome.mapping.to}: the sync resumes with the source authoritative.`,
+        `${moved(deps)} ${outcome.mapping.from} -> ${outcome.mapping.to}: the sync resumes with the source authoritative.`,
       );
     } else {
-      CutoverCliOutput.warning(`Mapping left '${outcome.mapping.from}': ${outcome.mapping.note ?? ''}`);
+      CutoverCliOutput.warning(`${moved(deps)} left '${outcome.mapping.from}': ${outcome.mapping.note ?? ''}`);
     }
-    // Said after the action, on the path that runs: `confirmed()` returns
-    // early on `--yes` and never prints its consequence bullets.
-    CutoverCliOutput.warning(TARGET_MAIL_STAYS);
-    // Do not imply DNS was restored — it was not. Verify-only DNS (owner
-    // decision 2026-07-16); the operator reverts the MX record by hand.
-    CutoverCliOutput.warning(
-      `MANUAL STEP REQUIRED: revert the ${deps.dnsDomain} MX record to the original mail server.`,
-    );
-    CutoverCliOutput.info('Then re-check it with: verify (or regenerate the runbook with: runbook)');
+    if (carriesMail(deps)) {
+      // Said after the action, on the path that runs: `confirmed()` returns
+      // early on `--yes` and never prints its consequence bullets.
+      CutoverCliOutput.warning(TARGET_MAIL_STAYS);
+      // Do not imply DNS was restored — it was not. Verify-only DNS (owner
+      // decision 2026-07-16); the operator reverts the MX record by hand.
+      CutoverCliOutput.warning(
+        `MANUAL STEP REQUIRED: revert the ${deps.dnsDomain} MX record to the original mail server.`,
+      );
+      CutoverCliOutput.info('Then re-check it with: verify (or regenerate the runbook with: runbook)');
+    }
   } catch (error) {
     if (error instanceof RollbackRefused) {
       // Nothing was written. Said so, because "failed" would read as half done.
@@ -918,6 +989,7 @@ export async function showStatus(deps: CutoverCliDeps): Promise<void> {
     const init = events.find((e) => e.eventType === 'CUTOVER_INITIALIZED');
 
     const rows: Array<{ label: string; value: string }> = [
+      ...(deps.kind !== undefined ? [{ label: 'Data type', value: deps.kind }] : []),
       {
         label: 'State',
         value: entered

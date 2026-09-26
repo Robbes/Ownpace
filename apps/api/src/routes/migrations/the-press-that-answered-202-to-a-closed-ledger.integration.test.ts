@@ -219,6 +219,26 @@ describe('POST /api/migrations/:id/cutover asks the ledger before it enqueues', 
     expect(triggerMock).not.toHaveBeenCalled();
   });
 
+  it('once a data type has a cutover of its own: 409, the whole migration is not prepared (0128 T5, slice 5b)', async () => {
+    await cutoverStore.initializeCutover({
+      tenantId: TENANT as never,
+      mappingId: mappingId as never,
+      startedBy: 'test',
+      domain: 'email',
+    });
+
+    const res = await press();
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'cutover_refused', code: 'cut_over_by_data_type' });
+    expect(res.body.message).toContain('email');
+    expect(res.body.hint).toContain('--kind');
+    expect(triggerMock).not.toHaveBeenCalled();
+    expect(await cutoverStore.loadLedgers(TENANT as never, mappingId as never)).toEqual([
+      { domain: 'email', state: 'PREPARING' },
+    ]);
+  });
+
   it('a press on a mapping that is not the tenant\'s is 404 before the ledger is asked', async () => {
     const other = '5f4b0000-e29b-41d4-a716-446655443511';
     const res = await request.post(`/api/migrations/${other}/cutover`).set(auth()).send({});

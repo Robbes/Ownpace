@@ -204,43 +204,45 @@ describe('the store, for one data type', () => {
   });
 
   it('moves a data type on its own row, from the ledger it read, and never the whole migration’s', async () => {
+    // A whole migration's cutover that failed: not under way, so a data type
+    // may leave it by beginning its own (slice 5b).
     await store().initializeCutover({ tenantId: TENANT, mappingId: MAPPING, startedBy: 'test' });
-    await store().transitionState(TENANT, MAPPING, 'READY_FOR_CUTOVER', { verifiedBy: 'test' });
+    await store().transitionState(TENANT, MAPPING, 'FAILED', { failureReason: 'test' });
 
-    const mail = await store().transitionState(TENANT, MAPPING, 'APPROVED', { approvedBy: 'someone' }, 'email');
-    expect(mail).toMatchObject({ domain: 'email', state: 'APPROVED' });
+    const mail = await store().transitionState(TENANT, MAPPING, 'PREPARING', { retriedBy: 'someone' }, 'email');
+    expect(mail).toMatchObject({ domain: 'email', state: 'PREPARING' });
     expect(await ledgerRows()).toEqual([
-      { domain: null, state: 'READY_FOR_CUTOVER' },
-      { domain: 'email', state: 'APPROVED' },
+      { domain: null, state: 'FAILED' },
+      { domain: 'email', state: 'PREPARING' },
     ]);
     expect(await store().loadCutoverState(TENANT, MAPPING, 'email')).toMatchObject({
       domain: 'email',
-      state: 'APPROVED',
+      state: 'PREPARING',
     });
-    expect((await store().loadCutoverState(TENANT, MAPPING))!.state).toBe('READY_FOR_CUTOVER');
-    expect((await store().loadCutoverState(TENANT, MAPPING, 'calendar'))!.state).toBe('READY_FOR_CUTOVER');
+    expect((await store().loadCutoverState(TENANT, MAPPING))!.state).toBe('FAILED');
+    expect((await store().loadCutoverState(TENANT, MAPPING, 'calendar'))!.state).toBe('FAILED');
 
     // A second data type, on a row of its own again.
-    await store().transitionState(TENANT, MAPPING, 'FAILED', { failureReason: 'test' }, 'calendar');
+    await store().transitionState(TENANT, MAPPING, 'PREPARING', { retriedBy: 'someone' }, 'calendar');
     expect(await ledgerRows()).toEqual([
-      { domain: null, state: 'READY_FOR_CUTOVER' },
-      { domain: 'calendar', state: 'FAILED' },
-      { domain: 'email', state: 'APPROVED' },
+      { domain: null, state: 'FAILED' },
+      { domain: 'calendar', state: 'PREPARING' },
+      { domain: 'email', state: 'PREPARING' },
     ]);
     // And mail moves on from its own row, not from the one it once read.
-    await store().transitionState(TENANT, MAPPING, 'CUTOVER_IN_PROGRESS', { executedBy: 'someone' }, 'email');
-    expect((await store().loadCutoverState(TENANT, MAPPING, 'email'))!.state).toBe('CUTOVER_IN_PROGRESS');
+    await store().transitionState(TENANT, MAPPING, 'READY_FOR_CUTOVER', { verifiedBy: 'someone' }, 'email');
+    expect((await store().loadCutoverState(TENANT, MAPPING, 'email'))!.state).toBe('READY_FOR_CUTOVER');
 
     // Each trail: its own events after the whole migration's it inherited.
     const mailTrail = await store().getEventHistory(TENANT, MAPPING, undefined, 'email');
     expect(mailTrail.map((e) => [e.toState, e.domain ?? null])).toEqual([
       ['PREPARING', null],
-      ['READY_FOR_CUTOVER', null],
-      ['APPROVED', 'email'],
-      ['CUTOVER_IN_PROGRESS', 'email'],
+      ['FAILED', null],
+      ['PREPARING', 'email'],
+      ['READY_FOR_CUTOVER', 'email'],
     ]);
     const wholeTrail = await store().getEventHistory(TENANT, MAPPING);
-    expect(wholeTrail.map((e) => e.toState)).toEqual(['PREPARING', 'READY_FOR_CUTOVER']);
+    expect(wholeTrail.map((e) => e.toState)).toEqual(['PREPARING', 'FAILED']);
   });
 
   it('starts a data type’s own ledger where the migration has none', async () => {
@@ -273,11 +275,11 @@ describe('the store, for one data type', () => {
   it('says whose ledger a transition moves itself, whatever its metadata carries', async () => {
     await store().initializeCutover({ tenantId: TENANT, mappingId: MAPPING, startedBy: 'test' });
     // A `domain` in the metadata (a mail domain, say) is not whose ledger it is.
-    await store().transitionState(TENANT, MAPPING, 'READY_FOR_CUTOVER', { domain: 'calendar' });
-    await store().transitionState(TENANT, MAPPING, 'APPROVED', { domain: 'calendar' }, 'email');
+    await store().transitionState(TENANT, MAPPING, 'FAILED', { domain: 'calendar' });
+    await store().transitionState(TENANT, MAPPING, 'PREPARING', { domain: 'calendar' }, 'email');
     expect(await ledgerRows()).toEqual([
-      { domain: null, state: 'READY_FOR_CUTOVER' },
-      { domain: 'email', state: 'APPROVED' },
+      { domain: null, state: 'FAILED' },
+      { domain: 'email', state: 'PREPARING' },
     ]);
   });
 });

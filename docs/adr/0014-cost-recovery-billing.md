@@ -1,6 +1,6 @@
 # ADR-0014: Cost-recovery billing for the managed edition
 
-- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment near the end) and **2026-09-24, later** (a data type its owner stops keeps its slot before its cutover and releases it in the continuous lane; only a data type the migration carries is a path — 0128 D2 (c); the amendment at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
+- **Status:** Accepted 2026-06-20; **amended 2026-08-20** (metered → tiers), **2026-09-10** (a sixth path state, `continuous`, which holds a slot — owner decision 0117 D6) **2026-09-24** (Tiny is free, and free means no billing — the owner; see the amendment near the end), **2026-09-24, later** (a data type its owner stops keeps its slot before its cutover and releases it in the continuous lane; only a data type the migration carries is a path — 0128 D2 (c)) and **2026-09-26** (consequence 4's gap closed for the cutover: a data type is cut over on its own, and its slot is released then — 0128 T5 slice 5b; the amendments at the end); **retitled 2026-09-20** (owner) — "(no profit)" dropped from the title, since the tiers cross-subsidise by design (the 2026-08-20 amendment) and a title that said otherwise was the last place the old model lived. The 2026-08-20 amendment note follows: the model changed from metered
   resources to five tiers on paths running at the same time, and "no profit" no longer
   describes it. Owner decision in conversation; workplan 0088's blocking T1.
 - **Date:** 2026-06-20
@@ -966,3 +966,14 @@ beside it (`path_lifecycle.stopped_at`, ledger migration 0066).
 the lane and the operator's screen all derive from it. The pricing page says it in one
 paragraph beside the lane's, in both languages, since the stop's doors (0128 T4, slice 3b).
 
+## Amendment 2026-09-26 — a data type cut over on its own (0128 T5, slice 5b; the owner's D8)
+
+Consequence 4 said the billing unit and the lifecycle were at different grains, so that *"a
+customer cannot today cut over mail while calendar keeps running"*. For the cutover that is now
+closed. Each data type has its own cutover ledger (slice 4) and its own path phase, and the
+operator's CLI cuts one over on its own (`--kind`): mail's path moves to `cutover` and releases
+its slot then (`holdsASlot`), while calendars keep theirs and keep copying. The migration's
+status is its paths' roll-up. A press on the whole migration moves only the paths in the phase it
+leaves (slice 5a), so pausing or starting the rest never takes a slot back for a data type that
+was cut over. What is left of consequence 4 is on the owner's side of the screen: the managed
+service's preparation taking a data type (slice 5c) and the Finish page per data type (slice 7).
