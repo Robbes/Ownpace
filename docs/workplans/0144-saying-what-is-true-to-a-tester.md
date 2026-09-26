@@ -625,6 +625,12 @@ build, in three parts:
   Each of these is an `alpha` entry, and it leaves the page in the pull request that removes the
   limit.
 
+**2026-09-26, from 0150 (proposed).** 0150 T9 adds a Dropbox native-files row to the matrix's
+open gaps, so the page gets a `gap` entry for it: Dropbox Paper docs are not copied yet; each is
+refused by name and parked, and can be left behind. Paper docs kept outside the Dropbox file tree
+stay behind too (0150 T7). 0150 D6 puts this entry in its alpha minimum. When 0150 T4 exports
+Paper docs, the first half leaves the page and the second stays.
+
 The guide (T1) links to it. So can the *why* of 0131 T2's hint, which today names no page; that
 is proposed here for 0131 to take up once the page exists.
 
