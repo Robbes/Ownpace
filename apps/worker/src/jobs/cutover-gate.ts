@@ -64,14 +64,25 @@ export function verificationConfigFor(
   };
 }
 
+/**
+ * The data types the gate verifies: every one the migration carries, or, for
+ * the cutover of one data type, that one alone (0128 T5, slice 5b), and only
+ * if the migration carries it.
+ */
+export function gateScope(carried: ReadonlySet<DiscoveryDomain>, only?: DiscoveryDomain): Set<DiscoveryDomain> {
+  return new Set([...carried].filter((d) => only === undefined || d === only));
+}
+
 /** The §20 gate over one migration: each data type it has, against that data type's own target. */
 export async function runCutoverGate(
   pool: Pool,
   connectionString: string,
   tenantId: string,
   mappingId: string,
+  // The cutover of one data type verifies that data type alone (0128 T5, slice 5b).
+  only?: DiscoveryDomain,
 ): Promise<VerificationResult> {
-  const selected = await enabledDomains(pool, tenantId, mappingId);
+  const selected = gateScope(await enabledDomains(pool, tenantId, mappingId), only);
   const stopped = await stoppedDomains(pool, tenantId, mappingId);
   const targets = await buildTargetReindexers(pool, tenantId, mappingId);
   // It opens a pool of its own, closed below.

@@ -135,9 +135,10 @@ describe('on a managed database', () => {
 describe('every caller of the ledger door hands it the peak', () => {
   // The door takes slots on a rollback. A caller that leaves `onSlotsTaken`
   // out puts them in no month's peak, which is how the CLI and the rollback
-  // job were until 2026-09-24.
+  // job were until 2026-09-24. A data type's own path takes them too, on its
+  // own rollback (0128 T5, slice 5b), so its door is one of them.
   const ROOT = join(import.meta.dirname, '..', '..', '..');
-  const DOORS = /\b(mappingLifecyclePort|applyMappingStatusChange)\(/;
+  const DOORS = /\b(mappingLifecyclePort|applyMappingStatusChange|pathLifecyclePort|applyPathStatusChange)\(/;
 
   function sources(dir: string, out: string[]): string[] {
     for (const name of readdirSync(dir)) {
@@ -164,9 +165,18 @@ describe('every caller of the ledger door hands it the peak', () => {
     ]);
     for (const { file, text } of callers) {
       if (file === 'apps/selfhost/src/index.ts') continue; // Below: it has no peak.
-      expect(text, `${file} calls the ledger door without the peak`).toMatch(
-        /mappingLifecyclePort\(pool, tenantId, mappingId, '[a-z-]+', \{\s*onSlotsTaken: raiseThePeakWhereThereIsOne\(/,
-      );
+      expect(text, `${file} makes no peak`).toMatch(/onSlotsTaken(?::|\s*=)\s*raiseThePeakWhereThereIsOne\(/);
+      const code = text
+        .split('\n')
+        .filter((line) => !/^\s*(\*|\/\/|\/\*|import)/.test(line))
+        .join('\n');
+      const calls = [...code.matchAll(new RegExp(DOORS.source, 'g'))];
+      expect(calls.length, file).toBeGreaterThan(0);
+      for (const call of calls) {
+        expect(code.slice(call.index), `${file} calls ${call[1]} without the peak`).toMatch(
+          /^\w+\([^()]*?\{\s*onSlotsTaken\b/,
+        );
+      }
     }
   });
 

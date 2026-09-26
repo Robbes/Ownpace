@@ -219,6 +219,38 @@ from there, the **mapping's lifecycle** with what it means for the passes
 (`cutover — stopped for the cutover; no pass runs …`, ADR-0048), when it
 started and by whom, and the append-only event trail newest first.
 
+### One data type at a time (`--kind`)
+
+Every command above takes `--kind <data type>` (`email`, `calendar`,
+`contact`, `file` or `task`): the cutover of that data type alone, on a ledger
+of its own, while the migration's other data types keep copying as before
+(workplan 0128 T5, the owner's D8). Mail can be cut over, copy through its
+grace period and be completed while files keep running until their own
+cutover.
+
+```bash
+pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \
+  --tenant <tenant-id> \
+  --mapping <mapping-id> \
+  --kind calendar
+```
+
+- **Only mail has DNS.** For any other data type `--domain` is not needed:
+  `verify` checks no record (the data check still runs, for that data type
+  alone), `execute` enters the grace period at once, and `rollback` has no MX
+  record to point back.
+- **The steps are the same**, and move that data type's path alone: `execute`
+  moves it to `cutover` and `rollback` back to `active`. The migration's own
+  status follows its data types: `active` while any of them is still before
+  its cutover, `cutover` once every one is.
+- **Kept apart from the whole migration's cutover.** A data type's own does
+  not begin while the whole migration's is under way; carry on with that one,
+  or roll it back first. And once a data type has its own, the whole
+  migration's does not begin again, here or from the managed service's
+  preparation: cut over the rest one at a time too.
+- `status --kind <data type>` shows that data type's ledger; without `--kind`
+  it shows the whole migration's.
+
 ## Pre-cutover checklist (24 hours before)
 
 - [ ] Generate the DNS runbook and stage the record changes with your DNS

@@ -58,6 +58,13 @@ export interface RollbackDeps {
   /** Progress lines; the callers route them to their own output. */
   readonly log: (message: string) => void;
   /**
+   * False for the cutover of a data type other than mail (0128 T5, slice 5b):
+   * it had no MX record to point back, and no mail reached the target through
+   * one, so `TARGET_MAIL_STAYS` is not said. Absent for mail and for the whole
+   * migration, which carries it.
+   */
+  readonly movesMail?: boolean;
+  /**
    * Runs AFTER the rollback succeeded, and its failure never undoes it: the
    * rollback IS complete, and a mail server being down must not report
    * otherwise. The outcome says whether it sent, so the caller can say so.
@@ -149,7 +156,7 @@ export async function performRollback(deps: RollbackDeps): Promise<RollbackOutco
     mappingStatus: mapping.to,
   });
   deps.log('Cutover marked ROLLED_BACK.');
-  deps.log(TARGET_MAIL_STAYS);
+  if (deps.movesMail !== false) deps.log(TARGET_MAIL_STAYS);
 
   let notified: RollbackOutcome['notified'] = 'not_asked';
   if (deps.notify) {

@@ -248,34 +248,42 @@ describe('Setup — asks for what the product uses', () => {
 /**
  * "Read the full setup guide" opened the not-found page for every target and
  * for the IMAP source: the link was `/docs/${provider}-setup` whether or not
- * that guide exists, and no target has one. It shows now only when it goes
- * somewhere.
+ * that guide exists, and no target had one. It showed only when it went
+ * somewhere. Since workplan 0148 T4 every card has a guide, and the link opens
+ * the card's own section: the card's `guide` field, `<slug>#<section>`, read
+ * for the side the checklist is for (`a-guide-for-every-card.unit.test.tsx`
+ * checks every card).
  */
-describe('Setup — links the full guide only when there is one', () => {
-  it('links the guide a provider has', async () => {
+describe('Setup — links the card\'s own guide section', () => {
+  it('links the section of the card the checklist is for', async () => {
     get.mockResolvedValue(checklist());
     renderPage();
 
     const guide = await screen.findByText('Read the full setup guide');
-    expect(guide.getAttribute('href')).toBe('/docs/box');
+    expect(guide.getAttribute('href')).toBe('/docs/box#box');
   });
 
   // One guide per family of cards (workplan 0148 T4): the Google products
-  // share `google`, the Microsoft cards `microsoft`.
+  // share `google`, the Microsoft cards `microsoft`, each with its own section.
   it.each([
-    ['gmail', '/docs/google'],
-    ['graph', '/docs/microsoft'],
-  ])('links the family guide for %s', async (provider, href) => {
-    get.mockResolvedValue(checklist({ provider }));
-    renderPage(`/setup/source/${provider}`);
+    ['source', 'gmail', '/docs/google#gmail'],
+    ['source', 'graph', '/docs/microsoft#graph'],
+    ['source', 'imap', '/docs/imap#imap-source'],
+    ['target', 'imap', '/docs/imap#imap-target'],
+    ['target', 'webdav', '/docs/dav#webdav'],
+  ] as const)('links the family guide for the %s card %s', async (side, provider, href) => {
+    get.mockResolvedValue(checklist({ side, provider }));
+    renderPage(`/setup/${side}/${provider}`);
 
     const guide = await screen.findByText('Read the full setup guide');
     expect(guide.getAttribute('href')).toBe(href);
   });
 
-  it('offers no link to a guide that does not exist', async () => {
-    get.mockResolvedValue(checklist({ side: 'target', provider: 'jmap' }));
-    renderPage('/setup/target/jmap');
+  it('offers no link for a provider with no card on that side', async () => {
+    // Box is a source card and not a target, so a target checklist for it
+    // names no guide section, and a link would open the wrong door's guide.
+    get.mockResolvedValue(checklist({ side: 'target', provider: 'box' }));
+    renderPage('/setup/target/box');
 
     await screen.findAllByText(/Client ID and a Client Secret/);
     expect(screen.queryByText('Read the full setup guide')).toBeNull();

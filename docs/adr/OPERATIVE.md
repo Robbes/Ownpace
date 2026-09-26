@@ -805,7 +805,9 @@ Nothing in this amendment is built. It records the decision the three tasks in
   to `active` when it was `cutover` or `continuous`. That is the whole of it. It never swaps
   source and target, never writes to the source, never removes or copies anything on the target,
   and never writes DNS (verify-only, owner 2026-07-16 — reverting the MX record is the operator's
-  hand).
+  hand). **A rollback of one data type** (`--kind`, amended 2026-09-26, workplan 0128 T5 slice
+  5b) sets back its own ledger and its own path alone; the migration's status is then its paths'
+  roll-up, and only mail has an MX record to point back.
 - **One implementation**: `performRollback` in `@openmig/core` (`cutover-rollback.ts`). The
   operator CLI (`rollback --yes`) and the `run-rollback` Trigger.dev job are callers that gate,
   print and notify; neither decides anything. Guards: `cutover-rollback.unit.test.ts`,
@@ -835,7 +837,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
   (GRACE_PERIOD → COMPLETED) write `mailbox_mapping.status` as well as the ledger. A mapping that
   is `active` or `paused` becomes **`cutover`**, and the source is no longer the authority on what
   exists. `cutover`, `continuous` and `done` are left where they are — `done` with a warning that
-  a rollback will be refused for it.
+  a rollback will be refused for it. **For one data type** (`--kind`, amended 2026-09-26, 0128 T5
+  slice 5b) the same two steps move its own ledger and its own path, by the same rule asked of the
+  path's phase, and the migration's status becomes its paths' roll-up; only mail waits for an MX
+  record.
 - **A migration that was `active` at `execute` keeps being copied until the grace period ends**
   (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
   slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is

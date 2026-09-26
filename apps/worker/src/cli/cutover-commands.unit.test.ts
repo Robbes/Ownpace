@@ -851,8 +851,14 @@ describe('startCutover()', () => {
   let logged: string[];
   let exitSpy: ReturnType<typeof vi.spyOn>;
 
-  function startStore(existing: string | undefined, events: Array<{ toState: string }> = []) {
+  function startStore(
+    existing: string | undefined,
+    events: Array<{ toState: string }> = [],
+    // Every ledger of the migration, as slice 5b's begin rule reads them.
+    ledgers: Array<{ domain?: string; state: string }> = existing ? [{ state: existing }] : [],
+  ) {
     return {
+      loadLedgers: vi.fn().mockResolvedValue(ledgers),
       loadCutoverState: vi.fn().mockResolvedValue(existing ? { currentState: existing, state: existing } : undefined),
       initializeCutover: vi.fn().mockResolvedValue({ currentState: 'PREPARING', state: 'PREPARING' }),
       transitionState: vi.fn().mockResolvedValue({ currentState: 'PREPARING' }),
@@ -940,5 +946,129 @@ describe('startCutover()', () => {
     expect(out).toContain('Cutover attempted again: ROLLED_BACK -> PREPARING (attempt 2)');
     expect(out).toContain('on the target only');
     expect(out).not.toContain('0009 T8');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// One data type, `--kind` (workplan 0128 T5, slice 5b): its own ledger and its
+// own path, wired by the entrypoint; here, what the commands say and skip.
+// Only mail has DNS, and a data type's cutover and the whole migration's are
+// kept apart before anything is read as this cutover's ledger.
+// ---------------------------------------------------------------------------
+
+describe('the cutover of one data type', () => {
+  let logged: string[];
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    logged = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function ofKind(store: unknown, kind: 'email' | 'calendar', mapping = makeMapping('active')): CutoverCliDeps {
+    return { ...makeDeps(store as ReturnType<typeof makeStore>, true, mapping), kind };
+  }
+
+  it("does not begin a data type's own while the whole migration's is under way", async () => {
+    const store = {
+      loadLedgers: vi.fn().mockResolvedValue([{ state: 'APPROVED' }]),
+      loadCutoverState: vi.fn(),
+      initializeCutover: vi.fn(),
+      transitionState: vi.fn(),
+    };
+    await expect(startCutover(ofKind(store, 'calendar'))).rejects.toThrow('process.exit(1)');
+    expect(store.loadCutoverState).not.toHaveBeenCalled();
+    expect(store.initializeCutover).not.toHaveBeenCalled();
+    expect(logged.join('\n')).toContain("The whole migration's cutover is under way (APPROVED)");
+  });
+
+  it("does not begin the whole migration's once a data type has its own, and says to go on with --kind", async () => {
+    const store = {
+      loadLedgers: vi.fn().mockResolvedValue([{ domain: 'email', state: 'COMPLETED' }]),
+      loadCutoverState: vi.fn(),
+      initializeCutover: vi.fn(),
+      transitionState: vi.fn(),
+    };
+    await expect(startCutover(makeDeps(store as unknown as ReturnType<typeof makeStore>, true))).rejects.toThrow(
+      'process.exit(1)',
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(store.initializeCutover).not.toHaveBeenCalled();
+    expect(logged.join('\n')).toContain('--kind');
+  });
+
+  it('checks no DNS for calendars, and still runs the data gate', async () => {
+    // Stubbed, so a DNS check that did run would answer at once rather than reach the network.
+    const dns = vi.spyOn(core, 'verifyAllDns').mockResolvedValue({
+      mxVerified: true,
+      spfVerified: true,
+      dkimVerified: true,
+      dmarcVerified: true,
+      autodiscoverVerified: true,
+      errors: [],
+    } as never);
+    const store = {
+      loadCutoverState: vi.fn().mockResolvedValue({ currentState: 'PREPARING', state: 'PREPARING' }),
+      transitionState: vi.fn().mockResolvedValue({ currentState: 'READY_FOR_CUTOVER' }),
+    };
+    const gate = vi.fn().mockResolvedValue({
+      overallStatus: 'PASS',
+      canProceedToCutover: true,
+      score: 1,
+      totalItemsSource: 3,
+      totalItemsTarget: 3,
+      totalDiscrepancies: 0,
+      recommendations: [],
+      contentEvidence: 'sampled' as ContentEvidence,
+    } as unknown as VerificationResult);
+
+    expect(await verifyCutover({ ...ofKind(store, 'calendar'), runDataVerification: gate })).toBe(true);
+    expect(dns).not.toHaveBeenCalled();
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(logged.join('\n')).toContain('No DNS to check');
+  });
+
+  it('enters the grace period at once for calendars: no MX record to wait for', async () => {
+    // Stubbed, so a wait that did run would answer at once rather than poll the network.
+    const propagation = vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const store = makeStore('APPROVED');
+    const mapping = makeMapping('active');
+
+    await executeCutover(ofKind(store, 'calendar', mapping));
+
+    expect(store.transitionState.mock.calls.map((c) => c[2])).toEqual(['CUTOVER_IN_PROGRESS', 'GRACE_PERIOD']);
+    expect(propagation).not.toHaveBeenCalled();
+    expect(mapping.setStatus).toHaveBeenCalledWith({ from: 'active', to: 'cutover', via: 'cutover' });
+    expect(logged.join('\n')).not.toContain('MX record');
+  });
+
+  it('still waits for the MX record when the data type is mail', async () => {
+    const propagation = vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const store = makeStore('APPROVED');
+
+    await executeCutover(ofKind(store, 'email'));
+
+    expect(propagation).toHaveBeenCalledTimes(1);
+    expect(logged.join('\n')).toContain('MX record');
+  });
+
+  it('rolls calendars back without a word about mail or its MX record', async () => {
+    const store = makeStore('GRACE_PERIOD');
+
+    await rollbackCutover(ofKind(store, 'calendar', makeMapping('cutover')));
+
+    const out = logged.join('\n');
+    expect(out).toContain('The calendar path cutover -> active');
+    expect(out).not.toContain('MX record');
+    expect(out).not.toContain('stays on the target');
   });
 });

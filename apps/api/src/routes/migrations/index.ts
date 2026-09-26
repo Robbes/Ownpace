@@ -43,7 +43,7 @@ import {
   parseArchiveSource,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
-import { prepareTransition } from '@openmig/core/cutover-state';
+import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { getTriggerClient } from '@openmig/scheduler';
 import type {
   GoogleNativeFilePolicy,
@@ -3171,10 +3171,23 @@ router.post(
       // Ask the ledger BEFORE anything is enqueued: the same decision the job
       // follows, so the door never refuses what the job would accept, and
       // never accepts what the job would refuse.
-      const ledger = await withTenantDb(tenantId, pool, async (db) => {
+      const { ledger, ledgers } = await withTenantDb(tenantId, pool, async (db) => {
         const cutoverStore = new CutoverStore(db);
-        return cutoverStore.loadCutoverState(asTenantId(tenantId), asMappingId(mappingId));
+        return {
+          ledger: await cutoverStore.loadCutoverState(asTenantId(tenantId), asMappingId(mappingId)),
+          ledgers: await cutoverStore.loadLedgers(asTenantId(tenantId), asMappingId(mappingId)),
+        };
       });
+
+      // The whole migration's cutover does not begin once a data type has one
+      // of its own (0128 T5, slice 5b): the rest are cut over one at a time
+      // too, by the operator's CLI. The job refuses the same.
+      const begin = cutoverBeginRefusal(ledgers);
+      if (begin) {
+        res.status(409).json({ error: 'cutover_refused', message: begin.refuse, hint: begin.hint, code: begin.code });
+        return;
+      }
+
       const decision = prepareTransition(ledger ? (ledger.currentState ?? ledger.state) : undefined);
 
       if ('refuse' in decision) {

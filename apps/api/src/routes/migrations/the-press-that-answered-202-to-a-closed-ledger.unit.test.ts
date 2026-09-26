@@ -51,10 +51,25 @@ describe('the cutover door asks the ledger before it enqueues', () => {
 
   it('answers 409 cutover_refused with the reason, the hint, the stable code and the state', () => {
     expect(POST).toMatch(/status\(409\)[\s\S]{0,80}error: 'cutover_refused'/);
-    const refusal = POST.slice(POST.indexOf("error: 'cutover_refused'"), POST.indexOf("error: 'cutover_refused'") + 300);
+    // The ledger's own refusal is the last one; the begin rule's comes first (below).
+    const at = POST.lastIndexOf("error: 'cutover_refused'");
+    const refusal = POST.slice(at, at + 300);
     for (const field of ['message: decision.refuse', 'hint: decision.hint', 'code: decision.code', 'state: decision.from']) {
       expect(refusal).toContain(field);
     }
+  });
+
+  it('refuses the whole migration once a data type has a cutover of its own, before the ledger is asked (0128 T5, slice 5b)', () => {
+    const beginAt = POST.indexOf('cutoverBeginRefusal(');
+    const askAt = POST.indexOf('prepareTransition(');
+    const enqueueAt = POST.indexOf('.tasks.trigger(');
+    expect(beginAt).toBeGreaterThan(POST.indexOf('loadLedgers('));
+    expect(askAt).toBeGreaterThan(beginAt);
+    const refusal = POST.slice(POST.indexOf("error: 'cutover_refused'"), POST.indexOf("error: 'cutover_refused'") + 200);
+    for (const field of ['message: begin.refuse', 'hint: begin.hint', 'code: begin.code']) {
+      expect(refusal).toContain(field);
+    }
+    expect(POST.indexOf('return;', POST.indexOf("error: 'cutover_refused'"))).toBeLessThan(enqueueAt);
   });
 
   it('returns on a refusal, so nothing is enqueued', () => {

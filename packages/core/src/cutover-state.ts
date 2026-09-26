@@ -320,6 +320,89 @@ export function prepareTransition(state: CutoverState | undefined): PrepareTrans
 }
 
 /**
+ * The states in which a cutover is under way: begun and not yet over. A
+ * cutover that FAILED or was ROLLED_BACK can begin again, and one that is
+ * COMPLETED is closed; none of those three is under way.
+ */
+export const CUTOVER_UNDER_WAY: readonly CutoverState[] = [
+  'PREPARING',
+  'READY_FOR_CUTOVER',
+  'APPROVED',
+  'CUTOVER_IN_PROGRESS',
+  'GRACE_PERIOD',
+];
+
+/** One cutover ledger of a migration: a data type's own, or the whole migration's (no `domain`). */
+export interface CutoverLedgerRow {
+  readonly domain?: DiscoveryDomain;
+  readonly state: CutoverState;
+}
+
+/** A cutover that may not begin, and why. Nothing was written. */
+export interface CutoverBeginRefusal {
+  readonly refuse: string;
+  readonly hint: string;
+  readonly code: 'whole_under_way' | 'cut_over_by_data_type';
+}
+
+/**
+ * Whether a cutover may begin (0128 T5, slice 5b): be started, retried or
+ * attempted again, for one data type or for the whole migration.
+ *
+ * - **A data type's own may not begin while the whole migration's is under
+ *   way.** The data type reads that ledger as its own (slice 4), so its cutover
+ *   is already happening, with the rest.
+ * - **The whole migration's may not begin once a data type has its own.** A
+ *   rollback of the whole migration would then move back a data type cut over
+ *   on its own, and the managed tick's question, whether any ledger row still
+ *   copies, would stop being each data type's. The rest are cut over one at a
+ *   time too.
+ *
+ * Null when it may. A data type whose own ledger already exists goes on with
+ * it, whatever the whole migration's says.
+ */
+export function cutoverBeginRefusal(
+  ledgers: readonly CutoverLedgerRow[],
+  domain?: DiscoveryDomain,
+): CutoverBeginRefusal | null {
+  if (domain !== undefined) {
+    if (ledgers.some((l) => l.domain === domain)) return null;
+    const whole = ledgers.find((l) => l.domain === undefined);
+    if (whole === undefined || !CUTOVER_UNDER_WAY.includes(whole.state)) return null;
+    return {
+      refuse: `The whole migration's cutover is under way (${whole.state}), and it includes ${domain}.`,
+      hint:
+        'Carry on with it without --kind, or roll it back first; then ' +
+        `${domain} can be cut over on its own. Nothing was changed.`,
+      code: 'whole_under_way',
+    };
+  }
+  const own = ledgers.flatMap((l) => (l.domain === undefined ? [] : [l.domain]));
+  if (own.length === 0) return null;
+  return {
+    refuse: `This migration's data types are cut over one at a time: ${own.join(', ')} ${own.length === 1 ? 'has' : 'have'} a cutover of its own.`,
+    hint: 'Cut over each remaining data type with --kind. Nothing was changed.',
+    code: 'cut_over_by_data_type',
+  };
+}
+
+/**
+ * Whether a data type may write its own ledger for the first time, leaving
+ * the whole migration's it read (0128 T5, slice 5b): only by beginning its own
+ * cutover (to PREPARING), and never while the whole migration's is under way.
+ * Null when it may.
+ */
+export function leavingTheWholeLedgerRefusal(inherited: CutoverState, to: CutoverState): string | null {
+  if (CUTOVER_UNDER_WAY.includes(inherited)) {
+    return `The whole migration's cutover is under way (${inherited}); a data type cannot move on it alone.`;
+  }
+  if (to !== 'PREPARING') {
+    return `A data type leaves the whole migration's cutover (${inherited}) only by beginning its own; start it first.`;
+  }
+  return null;
+}
+
+/**
  * Create initial cutover status
  */
 export function createInitialCutoverStatus(
