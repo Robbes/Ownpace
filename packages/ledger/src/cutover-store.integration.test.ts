@@ -170,9 +170,11 @@ describe('CutoverStore (integration)', () => {
 
   it('keeps a data type’s ledger beside the whole migration’s (0128 T5, slice 4, migration 0067)', async () => {
     await store.initializeCutover({ tenantId: TENANT, mappingId: MAPPING_A, startedBy: 'test' });
-    await store.transitionState(TENANT, MAPPING_A, 'READY_FOR_CUTOVER', { readyAt: 'now' });
-    // Mail moves on a row of its own; the whole migration's stays where it was.
-    await store.transitionState(TENANT, MAPPING_A, 'APPROVED', { approvedBy: 'operator' }, 'email');
+    await store.transitionState(TENANT, MAPPING_A, 'FAILED', { failureReason: 'test' });
+    // Mail leaves the whole migration's failed ledger by beginning its own
+    // (slice 5b), on a row of its own; the whole migration's stays where it was.
+    await store.transitionState(TENANT, MAPPING_A, 'PREPARING', { retriedBy: 'operator' }, 'email');
+    await store.transitionState(TENANT, MAPPING_A, 'READY_FOR_CUTOVER', { readyAt: 'now' }, 'email');
     // Saved again, the whole migration's row is updated in place: on a real
     // server too, the key's NULLs are equal and the upsert finds it.
     await store.saveCutoverState((await store.loadCutoverState(TENANT, MAPPING_A))!);
@@ -181,11 +183,11 @@ describe('CutoverStore (integration)', () => {
       sql`SELECT domain, state FROM cutover_state WHERE mapping_id = ${MAPPING_A} ORDER BY domain NULLS FIRST`,
     );
     expect(rows.rows).toEqual([
-      { domain: null, state: 'READY_FOR_CUTOVER' },
-      { domain: 'email', state: 'APPROVED' },
+      { domain: null, state: 'FAILED' },
+      { domain: 'email', state: 'READY_FOR_CUTOVER' },
     ]);
-    expect((await store.loadCutoverState(TENANT, MAPPING_A, 'email'))?.currentState).toBe('APPROVED');
-    expect((await store.loadCutoverState(TENANT, MAPPING_A, 'file'))?.currentState).toBe('READY_FOR_CUTOVER');
-    expect((await store.loadCutoverState(TENANT, MAPPING_A))?.currentState).toBe('READY_FOR_CUTOVER');
+    expect((await store.loadCutoverState(TENANT, MAPPING_A, 'email'))?.currentState).toBe('READY_FOR_CUTOVER');
+    expect((await store.loadCutoverState(TENANT, MAPPING_A, 'file'))?.currentState).toBe('FAILED');
+    expect((await store.loadCutoverState(TENANT, MAPPING_A))?.currentState).toBe('FAILED');
   });
 });
