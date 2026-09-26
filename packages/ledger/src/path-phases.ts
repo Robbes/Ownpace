@@ -27,7 +27,15 @@
  */
 
 import { and, eq } from 'drizzle-orm';
-import { pathRunsNow, phasesOfThePaths, rollUpPhases, runsPassesNow, type PathPhaseOf, type PathRow } from '@openmig/shared';
+import {
+  pathRunsNow,
+  phasesOfThePaths,
+  rollUpPhases,
+  runsPassesNow,
+  shareMayBeApplied,
+  type PathPhaseOf,
+  type PathRow,
+} from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
 import { NO_CUTOVER_WINDOWS, readCutoverWindows } from './cutover-grace.ts';
@@ -143,4 +151,20 @@ export async function readPathPhases(
     phaseOf: phasesOfThePaths(row.status, windows.of, paths),
     anyRuns,
   };
+}
+
+/**
+ * The sharing queue's cutover gate for one migration (ADR-0032 §5; 0128 T5,
+ * slice 6): whether a share of this subject may be applied now, its own data
+ * type at or past its cutover, read as every gate reads a data type's phase.
+ * A migration that is gone applies nothing.
+ */
+export async function readShareGate(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+): Promise<(subject: string) => boolean> {
+  const phases = await readPathPhases(db, tenantId, mappingId);
+  if (phases === null) return () => false;
+  return (subject) => shareMayBeApplied(subject, phases.status, phases.phaseOf);
 }

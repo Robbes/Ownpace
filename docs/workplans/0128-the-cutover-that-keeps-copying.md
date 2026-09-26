@@ -4,6 +4,45 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26: T5's sixth slice, first part (6a): each share waits for its own data type's
+cutover.** A calendar shared with a colleague is applied once the calendars are cut over, while
+the files keep running and their shares wait for their own cutover (D8).
+- **The rule** (`shareMayBeApplied`, shared): `share_grant.subject` names the data type (a
+  `calendar` share is calendars, a `drive_item` files, a `mailbox` right mail), and the share may
+  be applied once that data type is at or past its cutover: `cutover`, `done` or `continuous`. A
+  share the gate cannot place waits for the whole migration. Both editions read it from each data
+  type's phase, as every gate does (`readShareGate`, ledger).
+- **Found on the way, fixed:** the gate allowed `done` only, where ADR-0032 §5 says done or
+  cutover.
+- **Each press asks per row** (`share-queue.ts`, core). The one-go press applies the shares of the
+  data types that are cut over and leaves the rest open, counted (`waitingForCutover`), for the
+  press at their own cutover: one wave per data type. With none of them cut over it is refused,
+  naming the data types that wait. A folder press is all or nothing. The refusal names the data
+  type (`notCutOverReason`).
+- **The announcement of the shares carried by hand** (0104 T3) is one wave for the whole
+  migration, so it waits for every data type, at the migration's cutover and no longer only once
+  it is done. One wave per data type, with its once-only guard kept per data type, is 6b.
+- ADR-0032's operative rule is amended, with an amendment section.
+
+Evidence:
+- the rule on its own (4): which data type a share belongs to, its own phase over the
+  migration's, each phase at or past a cutover, and one it cannot place;
+- the reader on PGlite as `app_user` (4): calendars cut over on their own, every data type past
+  its cutover, a status written alone (rows not believed), and a migration that is gone;
+- each press (5): a row of each data type, the one-go press leaving the files open and applying
+  them at their own cutover, refused whole when nothing is cut over, a folder of files, and the
+  refusal's words; the three earlier gate tests now expect the row's own data type;
+- the doors: managed's on Postgres 16 (2) and the appliance's on its own PGlite (1), with
+  calendars cut over while files run: the calendar share passes the gate, the file share and the
+  one-go press leave the files waiting, and the announcement opens at the whole migration's
+  cutover;
+- 24 mutations, all killed (managed's doors on Postgres 16): the rule without `cutover` or
+  `continuous`, asking the status, or taking files for mail; the reader letting a gone migration
+  through, or reading the status alone; each press ungated, asking the files' phase for every row,
+  the one-go press refused while something is cut over, never refused, or counting nothing
+  waiting; the refusal's order, number and fallback; and each door, on both editions, opening the
+  row, the one-go press or the folder, or the announcement back to `done` only.
+
 **2026-09-26: fix: the final sync passes over a data type its owner stopped.** The pass moved
 past a stopped data type (T4) and reported nothing for it, and the final sync read that as a data
 type it had not finished: the preparation of a whole migration with any data type stopped failed
@@ -495,7 +534,7 @@ its test.
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
 | T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | ✅ **Built 2026-09-25** (D2 (c), D4, D5, D6; T5 slice 3) | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 5 built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 5, and 6's first part, built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -683,7 +722,7 @@ cutover; once every one is past it, a new data type is a new migration, as today
   (`0001_baseline.sql`); the Drizzle schema calls it `uk_cutover_state_mapping`, so a migration
   that dropped it by that name would silently drop nothing. *Dropped by its real name in slice
   4.*
-- The share gate allows `done` only, where ADR-0032 says *done or cutover*.
+- The share gate allows `done` only, where ADR-0032 says *done or cutover*. *Fixed in slice 6.*
 - `slotsHeld` counts path rows without asking whether the data type is still selected. Nothing
   deselects one today, but a stop must not strand a slot.
 - The appliance writes no path rows and no scope rows, and its Start and Finish write the status
@@ -722,7 +761,10 @@ cutover; once every one is past it, a new data type is a new migration, as today
    migration once a data type has its own (both built with 5b). The first keeps the tick's question (does any ledger
    row still copy) the same as each data type's (slice 4); the second keeps a rollback of the
    whole migration from moving back a data type cut over on its own (5a).
-6. **Shares per data type**, announced once at each data type's cutover.
+6. **Shares per data type**, announced once at each data type's cutover, in two parts. First (6a)
+   each share waits for its own data type's cutover, in every press, and the gate opens at the
+   cutover as ADR-0032 says (*built 2026-09-26*). Then (6b) the announcement of the shares carried
+   by hand, one wave per data type, with its once-only guard kept per data type.
 7. **T3 on the Finish page**, per data type: *End* and *Keep copying* each, step 4 for mail only,
    the lane per data type, the appliance's missing lane route (D4), and the grace period's end in
    the digest (D7). With a data type ended or kept on its own, a press on the whole migration

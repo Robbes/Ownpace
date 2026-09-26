@@ -2,7 +2,9 @@
 
 - **Status:** Accepted (owner decision, 2026-08-16 — "yes, accepted") — first slice built
   the same day, with the owner's own addition: **every manual step is a trackable
-  checklist row**, not only the applicable ones (workplan 0052)
+  checklist row**, not only the applicable ones (workplan 0052). **Amended 2026-09-26**: each
+  share waits for its own data type's cutover (workplan 0128 T5, slice 6, the owner's D8); see
+  the amendment at the end
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** workplan 0029 (the permission inventory — §14.2's read half; this is the
@@ -19,7 +21,7 @@
 
 - Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
 - **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
-- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the mapping's lifecycle says done/cutover.
+- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the share's **own data type** is at or past its cutover (`cutover`, `done` or `continuous`; 0128 T5, slice 6); the announcement of shares carried by hand waits for the whole migration's.
 - Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
 
 ## Context
@@ -215,6 +217,34 @@ listing the scan already makes. The Nextcloud source arm had never been asked th
 was already parsing, so every row came back unplaced, nothing folded, and a folder press on the
 one platform this gate runs against would have answered `no_such_folder` forever. Reading the two
 fields costs no extra request and no new permission.
+
+## Amendment, 2026-09-26: each share at its own data type's cutover (workplan 0128 T5, slice 6)
+
+The owner's D8 gave each data type its own cutover: mail can be cut over while the files keep
+running as an ordinary sync until theirs. §5's rule holds for each of them. A share is an
+announcement that the new system is live for the thing it shares, so it waits for **its own data
+type's** cutover: `share_grant.subject` says which (`calendar` is calendars, `drive_item` files,
+`mailbox` mail), and the gate asks that data type's phase as every other gate reads it
+(`readShareGate`, over `readPathPhases`). A share the gate cannot place waits for the whole
+migration.
+
+At or past its cutover is `cutover`, `done` or `continuous`. The gate had allowed `done` only,
+where §5 says done or cutover; from the cutover on, the new system is the one people use.
+
+The presses keep their shapes, and each asks per row. The one-go press applies the shares of the
+data types that are cut over and leaves the rest open, counted (`waitingForCutover`), for the press
+at their own cutover: one wave per data type, never a trickle. With none of them cut over it is
+refused as before, naming the data types that wait. A folder press is all or nothing, as its
+grantees' gate is. The announcement of the shares carried by hand (0104 T3) is one wave for the
+whole migration, so it waits for every data type: the migration's status at or past its cutover.
+Making it one wave per data type too, with its once-only guard kept per data type, is the slice's
+second part.
+
+Gates: `packages/shared/src/a-share-waits-for-its-own-cutover.unit.test.ts` (the rule),
+`packages/core/src/share-queue.unit.test.ts` (each press),
+`packages/ledger/src/the-share-gate.unit.test.ts` (the reader), and the doors on both editions:
+`apps/api/src/routes/migrations/a-share-waits-for-its-own-cutover.integration.test.ts` and
+`apps/selfhost/src/a-share-waits-for-its-own-cutover-on-the-appliance.unit.test.ts`.
 
 ## What this ADR does not decide
 

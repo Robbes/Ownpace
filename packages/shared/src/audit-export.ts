@@ -87,6 +87,7 @@ export const AUDIT_DETAIL_FIELDS = {
   locale: 'keep',
   resend: 'keep',
   leftForChecklist: 'keep',
+  waitingForCutover: 'keep',
   links: 'keep',
   manual: 'keep',
   capability: 'keep',
