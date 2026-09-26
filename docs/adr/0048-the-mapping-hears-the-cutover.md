@@ -3,7 +3,8 @@
 - **Status:** **Accepted 2026-09-19** — the owner's pick the evening ADR-0047 recorded the gap
   ("Go ahead with the CLI cutover row"); **built 2026-09-20** as `enterCutover` and `closeCutover`
   in `@openmig/core`, the CLI over them, gated against a real ledger. **Amended 2026-09-24**: the
-  grace period copies (workplan 0128 T2, the owner's D1 (a)); see the amendment at the end.
+  grace period copies (workplan 0128 T2, the owner's D1 (a)); **2026-09-26**: a window per data
+  type (0128 T5 slice 4, the owner's D8); see the amendments at the end.
 - **Date:** 2026-09-19 (decided); 2026-09-20 (built)
 - **Deciders:** owner
 - **Relates to:** [ADR-0047](./0047-a-rollback-is-a-setback.md) (the rollback is the other half of
@@ -36,6 +37,10 @@
   managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the
   pass and the appliance ask it through the one reader's `anyRuns`, which also asks it of each
   data type's own row, so a data type kept in the lane runs after the migration's window closes.
+  **Since slice 4 each data type has its own window** (amended 2026-09-26): its own cutover
+  ledger row's (`cutover_state.domain`, ledger migration 0067), or the whole migration's where it
+  has none. The tick schedules a migration while any of its windows is open, and its pass moves
+  past each data type whose own window is closed.
 - The decision is **`cutoverTransition` in `@openmig/shared`**, beside `rollbackTransition`, and
   the two agree row by row: whatever a cutover stops, a rollback puts back to `active`.
 - **The mapping first, the ledger second**, and every refusal before either write — the order
@@ -212,3 +217,24 @@ write: the API's doors record it as before, and entering the continuous lane now
 since the lane takes back the slots a cutover released. A rollback through the CLI is trued up
 the next time the tier is read.
 
+## Amendment, 2026-09-26: a window per data type (workplan 0128 T5, slice 4)
+
+The owner's D8 splits the cutover per data type: mail can be cut over, copy through its grace
+period and stop, while files keep running until their own cutover. Slice 4 gives each data type a
+cutover ledger of its own, before anything writes one (that is slice 5's cutover of one data
+type). `cutover_state` and `cutover_event` gain a `domain`, and the ledger's key becomes (tenant,
+migration, data type) under its real name. A row with no data type is the whole migration's: every
+row written before, and the ledger of each data type that has none of its own.
+
+**What this decision's window rule becomes.** The window is still read from a ledger row, by the
+same rule, and `copies_through_grace` is still set by `execute`, now on the row it moves. A data
+type in `cutover` asks its own row's window, or the whole migration's where it has none
+(`readCutoverWindows`, through `readPathPhases`). The managed tick asks whether any row of the
+migration still copies, which is the reader's answer too: a pass it starts moves past each data
+type whose own window is closed, and none open starts none. Until slice 5 every migration has
+only the whole migration's row, so every answer is the one it was.
+
+Gates: `packages/ledger/src/a-cutover-ledger-per-data-type.unit.test.ts` (the key, the store and
+the window, on PGlite as `app_user`), and `apps/worker/src/jobs/a-grace-period-that-copies.unit.test.ts`,
+which asks the tick's own query and the pass's step before each data type with a window per data
+type.

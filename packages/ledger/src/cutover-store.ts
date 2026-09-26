@@ -10,8 +10,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import type { TenantId, MappingId } from '@openmig/shared';
-import { eq, and, asc } from 'drizzle-orm';
+import type { TenantId, MappingId, DiscoveryDomain } from '@openmig/shared';
+import { eq, and, asc, isNull, or, sql } from 'drizzle-orm';
 import * as schema from './schema-pg.ts';
 import { withTenant } from './db.ts';
 import type { LedgerDriver } from './driver.ts';
@@ -33,6 +33,22 @@ import { canRollback } from '@openmig/core/cutover-state';
 /**
  * Port interface for cutover state persistence.
  * This is the contract that the core cutover orchestrators depend on.
+ *
+ * ## A ledger per data type (workplan 0128 T5, slice 4)
+ *
+ * Every method takes an optional data type, last. Without one it is the whole
+ * migration's ledger, the row with no data type: every ledger written before
+ * slice 4, and the only one any caller asks for until slice 5 cuts over one
+ * data type on its own. With one:
+ *
+ * - **A read is that data type's own ledger, or the whole migration's where it
+ *   has none.** A migration cut over whole was cut over for each of its data
+ *   types, so its one row answers for each of them. The row says whose it is
+ *   (`CutoverStatus.domain`, absent for the whole migration's).
+ * - **Its trail is its own events and the whole migration's**, the history of
+ *   the ledger it read.
+ * - **A write is always to its own row**, starting from the ledger it read. The
+ *   whole migration's row is never moved by a data type's transition.
  */
 export interface CutoverStateStore {
   initializeCutover(params: {
@@ -40,32 +56,37 @@ export interface CutoverStateStore {
     mappingId: MappingId;
     targetMailServer?: string;
     startedBy?: string;
+    domain?: DiscoveryDomain;
   }): Promise<CutoverStatus>;
 
   saveCutoverState(status: CutoverStatus): Promise<void>;
 
   loadCutoverState(
     tenantId: TenantId,
-    mappingId: MappingId
+    mappingId: MappingId,
+    domain?: DiscoveryDomain
   ): Promise<CutoverStatus | undefined>;
 
   loadEvents(
     tenantId: TenantId,
     mappingId: MappingId,
-    limit?: number
+    limit?: number,
+    domain?: DiscoveryDomain
   ): Promise<CutoverEvent[]>;
 
   getEventHistory(
     tenantId: TenantId,
     mappingId: MappingId,
-    limit?: number
+    limit?: number,
+    domain?: DiscoveryDomain
   ): Promise<CutoverEvent[]>;
 
   transitionState(
     tenantId: TenantId,
     mappingId: MappingId,
     toState: CutoverState,
-    metadataOrReason?: string | Record<string, unknown>
+    metadataOrReason?: string | Record<string, unknown>,
+    domain?: DiscoveryDomain
   ): Promise<CutoverStatus>;
 }
 
@@ -109,21 +130,21 @@ export function tenantCutoverStore(source: LedgerDriver | Pool, tenantId: Tenant
       same(status.tenantId);
       return inTenant((store) => store.saveCutoverState(status));
     },
-    loadCutoverState: async (t, mappingId) => {
+    loadCutoverState: async (t, mappingId, domain) => {
       same(t);
-      return inTenant((store) => store.loadCutoverState(t, mappingId));
+      return inTenant((store) => store.loadCutoverState(t, mappingId, domain));
     },
-    loadEvents: async (t, mappingId, limit) => {
+    loadEvents: async (t, mappingId, limit, domain) => {
       same(t);
-      return inTenant((store) => store.loadEvents(t, mappingId, limit));
+      return inTenant((store) => store.loadEvents(t, mappingId, limit, domain));
     },
-    getEventHistory: async (t, mappingId, limit) => {
+    getEventHistory: async (t, mappingId, limit, domain) => {
       same(t);
-      return inTenant((store) => store.getEventHistory(t, mappingId, limit));
+      return inTenant((store) => store.getEventHistory(t, mappingId, limit, domain));
     },
-    transitionState: async (t, mappingId, toState, metadataOrReason) => {
+    transitionState: async (t, mappingId, toState, metadataOrReason, domain) => {
       same(t);
-      return inTenant((store) => store.transitionState(t, mappingId, toState, metadataOrReason));
+      return inTenant((store) => store.transitionState(t, mappingId, toState, metadataOrReason, domain));
     },
   };
 }
@@ -157,20 +178,25 @@ export class CutoverStore implements CutoverStateStore {
    * CUTOVER_INITIALIZED event, so the audit trail did not show the revocation
    * either (hard rule 2). Restarting a cutover is an explicit transition, not a
    * side effect of asking for one.
+   *
+   * For a data type, the ledger it reads is the one that exists: the whole
+   * migration's, where it has none of its own, is returned unchanged too.
    */
   async initializeCutover(params: {
     tenantId: TenantId;
     mappingId: MappingId;
     targetMailServer?: string;
     startedBy?: string;
+    domain?: DiscoveryDomain;
   }): Promise<CutoverStatus> {
-    const existing = await this.loadCutoverState(params.tenantId, params.mappingId);
+    const existing = await this.loadCutoverState(params.tenantId, params.mappingId, params.domain);
     if (existing) return existing;
 
     const now = new Date().toISOString();
     const status: CutoverStatus = {
       tenantId: params.tenantId,
       mappingId: params.mappingId,
+      ...(params.domain !== undefined ? { domain: params.domain } : {}),
       state: 'PREPARING',
       phase: 'PREPARATION',
       startedAt: now,
@@ -191,6 +217,7 @@ export class CutoverStore implements CutoverStateStore {
     const initEvent: CutoverEvent = {
       tenantId: params.tenantId,
       mappingId: params.mappingId,
+      ...(params.domain !== undefined ? { domain: params.domain } : {}),
       timestamp: now,
       fromState: null,
       toState: 'PREPARING',
@@ -218,6 +245,8 @@ export class CutoverStore implements CutoverStateStore {
       id: randomUUID(),
       tenantId: status.tenantId,
       mappingId: status.mappingId,
+      // Whose ledger: the data type's, or none for the whole migration's.
+      domain: status.domain ?? null,
       state: this.mapStateToDb(status.state),
       phase: this.mapPhaseToDb(status.phase),
       verificationStatus: this.mapVerificationStatus(status.verificationStatus),
@@ -231,7 +260,9 @@ export class CutoverStore implements CutoverStateStore {
       createdAt: new Date(now),
       updatedAt: new Date(now),
     }).onConflictDoUpdate({
-      target: [schema.cutoverState.tenantId, schema.cutoverState.mappingId],
+      // The key since slice 4 (migration 0067), whose NULLs are equal: the
+      // whole migration's row is found as it always was.
+      target: [schema.cutoverState.tenantId, schema.cutoverState.mappingId, schema.cutoverState.domain],
       set: {
         state: this.mapStateToDb(status.state),
         phase: this.mapPhaseToDb(status.phase),
@@ -251,11 +282,13 @@ export class CutoverStore implements CutoverStateStore {
   }
 
   /**
-   * Load cutover state from the database
+   * Load cutover state from the database: the whole migration's ledger, or a
+   * data type's own, or the whole migration's where that data type has none.
    */
   async loadCutoverState(
     tenantId: TenantId,
-    mappingId: MappingId
+    mappingId: MappingId,
+    domain?: DiscoveryDomain
   ): Promise<CutoverStatus | undefined> {
     const result = await this.getDb()
       .select()
@@ -263,9 +296,12 @@ export class CutoverStore implements CutoverStateStore {
       .where(
         and(
           eq(schema.cutoverState.tenantId, tenantId),
-          eq(schema.cutoverState.mappingId, mappingId)
+          eq(schema.cutoverState.mappingId, mappingId),
+          this.ledgerOf(schema.cutoverState.domain, domain)
         )
       )
+      // Its own row first; the key allows one of each.
+      .orderBy(sql`${schema.cutoverState.domain} NULLS LAST`)
       .limit(1);
 
     if (result.length === 0) {
@@ -283,6 +319,7 @@ export class CutoverStore implements CutoverStateStore {
     const insertData = {
       tenantId: event.tenantId,
       mappingId: event.mappingId,
+      domain: event.domain ?? null,
       timestamp: new Date(event.timestamp),
       fromState: event.fromState ? this.mapStateToDb(event.fromState) : null,
       toState: this.mapStateToDb(event.toState),
@@ -294,12 +331,14 @@ export class CutoverStore implements CutoverStateStore {
     await this.getDb().insert(schema.cutoverEvent).values(insertData);
   }
   /**
-   * Load cutover events from the database
+   * Load cutover events from the database: the whole migration's trail, or a
+   * data type's own events with the whole migration's it inherited.
    */
   async loadEvents(
     tenantId: TenantId,
     mappingId: MappingId,
-    limit?: number
+    limit?: number,
+    domain?: DiscoveryDomain
   ): Promise<CutoverEvent[]> {
     const query = this.getDb()
       .select()
@@ -307,7 +346,8 @@ export class CutoverStore implements CutoverStateStore {
       .where(
         and(
           eq(schema.cutoverEvent.tenantId, tenantId),
-          eq(schema.cutoverEvent.mappingId, mappingId)
+          eq(schema.cutoverEvent.mappingId, mappingId),
+          this.ledgerOf(schema.cutoverEvent.domain, domain)
         )
       );
     
@@ -331,6 +371,7 @@ export class CutoverStore implements CutoverStateStore {
       return {
         tenantId: row.tenantId as TenantId,
         mappingId: row.mappingId as MappingId,
+        ...(row.domain !== null ? { domain: row.domain } : {}),
         timestamp: row.timestamp.toISOString(),
         fromState: row.fromState,
         toState: row.toState,
@@ -349,22 +390,25 @@ export class CutoverStore implements CutoverStateStore {
   async getEventHistory(
     tenantId: TenantId,
     mappingId: MappingId,
-    limit?: number
+    limit?: number,
+    domain?: DiscoveryDomain
   ): Promise<CutoverEvent[]> {
-    return this.loadEvents(tenantId, mappingId, limit);
+    return this.loadEvents(tenantId, mappingId, limit, domain);
   }
 
   /**
-   * Transition cutover state and log the event
+   * Transition cutover state and log the event. For a data type, on its own
+   * row, starting from the ledger it read: its own, or the whole migration's.
    */
   async transitionState(
     tenantId: TenantId,
     mappingId: MappingId,
     toState: CutoverState,
-    metadataOrReason?: string | Record<string, unknown>
+    metadataOrReason?: string | Record<string, unknown>,
+    domain?: DiscoveryDomain
   ): Promise<CutoverStatus> {
     // Load current state
-    const current = await this.loadCutoverState(tenantId, mappingId);
+    const current = await this.loadCutoverState(tenantId, mappingId, domain);
     if (!current) {
       throw new Error(`No cutover state found for mapping ${mappingId}`);
     }
@@ -394,6 +438,7 @@ export class CutoverStore implements CutoverStateStore {
     const event: CutoverEvent = {
       tenantId,
       mappingId,
+      ...(domain !== undefined ? { domain } : {}),
       timestamp: new Date().toISOString(),
       fromState: current.state,
       toState,
@@ -415,6 +460,10 @@ export class CutoverStore implements CutoverStateStore {
     if (metadata) {
       Object.assign(updated, metadata);
     }
+    // Whose ledger it is, is the store's to say: the data type asked about,
+    // even where it read the whole migration's (never the metadata's).
+    if (domain !== undefined) updated.domain = domain;
+    else delete updated.domain;
 
     await this.saveCutoverState(updated);
 
@@ -422,6 +471,14 @@ export class CutoverStore implements CutoverStateStore {
   }
 
   // Helper methods
+
+  /**
+   * Which rows are the ledger asked about: the whole migration's (no data
+   * type), or a data type's own with the whole migration's beside it.
+   */
+  private ledgerOf(column: typeof schema.cutoverState.domain | typeof schema.cutoverEvent.domain, domain?: DiscoveryDomain) {
+    return domain === undefined ? isNull(column) : or(eq(column, domain), isNull(column));
+  }
 
   private mapStateToDb(state: CutoverState): 'PREPARING' | 'READY_FOR_CUTOVER' | 'APPROVED' | 'CUTOVER_IN_PROGRESS' | 'GRACE_PERIOD' | 'COMPLETED' | 'FAILED' | 'ROLLED_BACK' {
     const stateMap: Record<CutoverState, 'PREPARING' | 'READY_FOR_CUTOVER' | 'APPROVED' | 'CUTOVER_IN_PROGRESS' | 'GRACE_PERIOD' | 'COMPLETED' | 'FAILED' | 'ROLLED_BACK'> = {
@@ -511,6 +568,7 @@ export class CutoverStore implements CutoverStateStore {
     return {
       tenantId: row.tenantId as TenantId,
       mappingId: row.mappingId as MappingId,
+      ...(row.domain !== null ? { domain: row.domain } : {}),
       state: row.state,
       phase: dbPhaseToPhase[row.phase] || 'PREPARATION',
       startedAt: row.createdAt.toISOString(),
