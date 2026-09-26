@@ -65,6 +65,13 @@ const ACCOUNT = '5f500000-e29b-41d4-a716-446655441735';
 const NAMELESS_CONN = '5f500000-e29b-41d4-a716-446655441716';
 const NAMELESS_BOX = '5f500000-e29b-41d4-a716-446655441726';
 const NAMELESS = '5f500000-e29b-41d4-a716-446655441736';
+/**
+ * Google Drive with a whole client of its own: the one kind whose scope Google
+ * holds to reading, so the page may say "read-only" (0144 T3 (c)).
+ */
+const DRIVE_CONN = '5f500000-e29b-41d4-a716-446655441717';
+const DRIVE_BOX = '5f500000-e29b-41d4-a716-446655441727';
+const DRIVE = '5f500000-e29b-41d4-a716-446655441737';
 
 /** The account the ready mapping reads: its connection's stored username. */
 const NAMED = 'someone@example.invalid';
@@ -257,6 +264,11 @@ beforeAll(async () => {
        VALUES ($1,$2,'source','google','account','{"user":"account@example.invalid"}'::jsonb,'connected')`,
       [ACCOUNT_CONN, TENANT],
     );
+    await q(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1,$2,'source','google_drive','drive','{}'::jsonb,'connected',$3)`,
+      [DRIVE_CONN, TENANT, creds],
+    );
     // The destination: a Nextcloud named by its host, with no credential in
     // this fixture — the account it writes is the mapping's own.
     await q(
@@ -270,6 +282,7 @@ beforeAll(async () => {
       [CALENDAR_BOX, CALENDAR_CONN],
       [ACCOUNT_BOX, ACCOUNT_CONN],
       [NAMELESS_BOX, NAMELESS_CONN],
+      [DRIVE_BOX, DRIVE_CONN],
       [TARGET_BOX, TARGET_CONN],
     ]) {
       await q(
@@ -285,6 +298,7 @@ beforeAll(async () => {
       [CALENDAR, CALENDAR_BOX, TARGET_BOX],
       [ACCOUNT, ACCOUNT_BOX, TARGET_BOX],
       [NAMELESS, NAMELESS_BOX, TARGET_BOX],
+      [DRIVE, DRIVE_BOX, TARGET_BOX],
     ]) {
       await q(
         `INSERT INTO mailbox_mapping
@@ -354,6 +368,27 @@ describe('what the page may know before the button', () => {
     expect(Date.parse(res.body.expiresAt)).toBeGreaterThan(Date.now());
   });
 
+  it('says the Gmail scope is not read-only at Google, so the page does not call it that (0144 T3 (c))', async () => {
+    // `https://mail.google.com/` also sends and deletes, by Google's own
+    // description. The page says what Ownpace does and that Google describes
+    // the permission more broadly, instead of "Read-only".
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.body.readOnlyAtProvider).toBe(false);
+  });
+
+  it('says the Drive scope IS read-only at Google, so the page may call it that (0144 T3 (c))', async () => {
+    // The other half of the decision, through the route: a route that sent a
+    // constant `false`, or dropped the decision's value on the way out, would
+    // pass every Gmail case above and take "Read-only" away from the one kind
+    // where Google enforces it.
+    const { token } = await mintLink(DRIVE);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.scope).toBe(`${GOOGLE_SOURCE_SCOPES['google-drive']} ${WHO}`);
+    expect(res.body.readOnlyAtProvider).toBe(true);
+  });
+
   it('tells the link holder NOTHING else about the organisation', async () => {
     const { token } = await mintLink(MAPPING);
     const res = await request(app).get(`/api/grant/${token}`);
@@ -368,6 +403,7 @@ describe('what the page may know before the button', () => {
       'from',
       'organisation',
       'organisationPhone',
+      'readOnlyAtProvider',
       'reads',
       'scope',
       'to',
@@ -678,6 +714,9 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
       if (isRefusal(owners)) throw new Error(owners.reason);
       expect(page.body.scope).toBe(`${owners.scope} ${WHO}`);
       expect(page.body.reads).toBe('your calendars and their events and your tasks');
+      // Tasks alone would be read-only at Google; the calendar is not, and one
+      // scope that can write makes the grant one that can (0144 T3 (c)).
+      expect(page.body.readOnlyAtProvider).toBe(false);
       // Its own account, from the connection's config: an OAuth row stores no
       // username in its secret.
       expect(page.body.from).toBe('account@example.invalid');
@@ -713,7 +752,12 @@ describe('the ending', () => {
     expect(res.text).not.toContain(REFRESH);
     expect(res.text).not.toContain('postMessage');
     expect(res.text).toMatch(/that is done/i);
-    expect(res.text).toMatch(/read-only/i);
+    // Gmail's scope also allows changes, so the ending no longer calls the
+    // access read-only (0144 T3 (c)): it says what Ownpace does, and that the
+    // permission Google recorded allows more.
+    expect(res.text).not.toMatch(/read-only/i);
+    expect(res.text).toMatch(/Ownpace only reads/);
+    expect(res.text).toMatch(/also allows changes/);
 
     const mapping = await mappingRow(MAPPING);
     expect(mapping?.source_secret_ref).toBeTruthy();
@@ -732,6 +776,47 @@ describe('the ending', () => {
       listMappingLinks(db, { tenantId: TENANT, mappingId: MAPPING }),
     );
     expect(links.find((l) => l.id === id)?.state).toBe('used');
+  });
+
+  /**
+   * "Read-only" at the ending only where Google holds WHAT IT RECORDED to
+   * reading (0144 T3 (c)). The page before the button can judge only the ask.
+   * The consent asks with `include_granted_scopes`, so Google's answer also
+   * carries every permission this account already gave the same application,
+   * and on the managed edition every organisation shares that one application.
+   * The ending is the first moment the grant itself is known, so it says which.
+   */
+  const DRIVE_SCOPE = GOOGLE_SOURCE_SCOPES['google-drive'];
+  const grantedAs = (scope: string) => () => ({
+    status: 200,
+    body: { refresh_token: REFRESH, scope, id_token: idTokenFor(NAMED) },
+  });
+
+  it('says read-only for a Drive grant Google recorded as Drive alone', async () => {
+    tokenResponse = grantedAs(`${DRIVE_SCOPE} ${WHO}`);
+    const { token } = await mintLink(DRIVE);
+    const res = await grantThrough(token);
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/that is done/i);
+    expect(res.text).toMatch(/read-only/i);
+  });
+
+  it('does not, when Google hands back a Drive grant that also carries mail from an earlier consent', async () => {
+    // Somebody who once granted Gmail to the same application, and now opens
+    // a Drive link: the page before the button said "Read-only", truthfully of
+    // the ask, and the token Ownpace now holds could send mail.
+    tokenResponse = grantedAs(`${DRIVE_SCOPE} https://mail.google.com/ ${WHO}`);
+    const { token } = await mintLink(DRIVE);
+    const res = await grantThrough(token);
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/that is done/i);
+    expect(res.text).not.toMatch(/read-only/i);
+    expect(res.text).toMatch(/Ownpace only reads/);
+    expect(res.text).toMatch(/already given the same app/);
+    // Stored all the same: over-RECEIVING is reported, never refused
+    // (`unsatisfiedScopes`), and refusing would strip nothing at Google.
+    const mapping = await mappingRow(DRIVE);
+    expect(mapping?.source_secret_ref).toBeTruthy();
   });
 
   it('stores NOTHING when the owner revoked the link mid-flight', async () => {

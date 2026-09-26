@@ -80,8 +80,16 @@ Before any button, the page tells them:
   see is genuine either way — this page, and Google's own;
 - **what will be read** — their mail, calendars, contacts, tasks or files, in plain words; for a
   Google account, exactly the data types the migration copies;
-- **that it is read-only** — nothing is ever deleted or changed in their account, and nobody
-  sees their password, because they sign in on Google's own page;
+- **that Ownpace only reads** — nothing is ever deleted or changed in their account, and nobody
+  sees their password, because they sign in on Google's own page. For mail, calendars and
+  contacts it also says that Google may describe the permission more broadly, because the
+  permission Ownpace asks for there also allows changes, and Google's own screen says so;
+  Ownpace makes none;
+- **"read-only" only where Google enforces it**: for a link that asks only for Google Drive,
+  Google Tasks or both, whose permissions Google holds to reading, the box says *Read-only*
+  instead. That is said of what the link asks for. Google also adds to the grant any permission
+  the same Google account already gave the same app, which may allow changes, so the page after
+  Google says which it was (below);
 - **the exact permission** Google will record, so they can find it again in their own account;
 - **how long the link works**;
 - **which account to sign in with**: the one the migration reads, and that any other is refused;
@@ -90,6 +98,13 @@ Before any button, the page tells them:
 Then one button. When they press it they go to Google, sign in, and land back on a page that
 says it is done. **That page contains no token and asks nothing else of them.** They can close
 it and get on with their day.
+
+That page judges the permission Google actually recorded, not the one the link asked for. It
+calls the access read-only only when every permission Google recorded is the read-only one for
+Google Drive or Google Tasks. Otherwise it says that Ownpace only reads and that the permission
+also allows changes. When the link asked only for Drive or Tasks and Google's answer carries
+more, because the same account had already given the same app a broader permission, the page
+says that too.
 
 ### Only the account the page names
 

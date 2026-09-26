@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 157 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 158 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -159,6 +159,10 @@ reading a file drops off its entry by itself.
 
 - [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
 
+### `apps/api/src/routes/migrations/grant-link-readiness.unit.test.ts`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+
 ### `apps/api/src/routes/migrations/index.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -256,6 +260,10 @@ reading a file drops off its entry by itself.
 - [a-version-you-can-see-before-you-sign-in](../scripts/a-version-you-can-see-before-you-sign-in.unit.test.ts) — THE BUILD STAMP WAS ON EVERY PAGE EXCEPT THE ONES YOU CAN SEE.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 
+### `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+
 ### `apps/web/src/components/AlphaNote.tsx`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -284,6 +292,7 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-list-somebody-deletes-on-the-strength-of](../scripts/a-list-somebody-deletes-on-the-strength-of.unit.test.ts) — A LIST SOMEBODY DELETES ON THE STRENGTH OF (workplan 0117 T2, D7 branch (a)).
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
@@ -759,6 +768,10 @@ reading a file drops off its entry by itself.
 ### `docs/google-workspace-setup.md`
 
 - [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts) — A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
+
+### `docs/grant-links.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 
 ### `docs/guides/en/box.md`
 
@@ -1374,9 +1387,17 @@ reading a file drops off its entry by itself.
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
+### `site/pages/en/how-it-works.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+
 ### `site/pages/en/pricing.md`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+### `site/pages/nl/hoe-het-werkt.md`
+
+- [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
 
 ### `site/prices.mjs`
 
@@ -2138,6 +2159,19 @@ Reads:
 - `apps/api/src/services/invoice-generation.ts`
 - `packages/managed/src/pricing.ts`
 - `packages/managed/src/pricing.unit.test.ts`
+
+### [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts)
+
+A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
+
+Reads:
+
+- `apps/api/src/routes/migrations/grant-link-readiness.unit.test.ts`
+- `apps/web/src/a-permission-described-as-it-is.unit.test.tsx`
+- `apps/web/src/i18n/strings.ts`
+- `docs/grant-links.md`
+- `site/pages/en/how-it-works.md`
+- `site/pages/nl/hoe-het-werkt.md`
 
 ### [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts)
 

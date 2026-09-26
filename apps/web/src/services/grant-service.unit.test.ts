@@ -25,6 +25,7 @@ describe('the grant subject, as the page receives it', () => {
         organisationPhone: '+31 20 123 4567',
         reads: 'your contacts',
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
+        readOnlyAtProvider: true,
         from: 'someone@example.invalid',
         to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest@example.org' },
         expiresAt: '2026-09-30T00:00:00.000Z',
@@ -32,6 +33,9 @@ describe('the grant subject, as the page receives it', () => {
     });
     const subject = await grantApi.read('abc.def');
     expect(subject.checkedCompany).toBe('ACME LEGAL B.V.');
+    // Whether Google holds the grant to reading (0144 T3 (c)): the page picks
+    // its box by it, so a schema that dropped it would say one thing to all.
+    expect(subject.readOnlyAtProvider).toBe(true);
     expect(subject.askedBy).toBe('owner@example.org');
     expect(subject.organisationPhone).toBe('+31 20 123 4567');
     expect(subject.from).toBe('someone@example.invalid');
@@ -51,6 +55,7 @@ describe('the grant subject, as the page receives it', () => {
         organisationPhone: null,
         reads: 'your contacts',
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
+        readOnlyAtProvider: true,
         from: 'someone@example.invalid',
         to: { provider: 'jmap', host: null, account: null },
         expiresAt: '2026-09-30T00:00:00.000Z',
@@ -61,6 +66,25 @@ describe('the grant subject, as the page receives it', () => {
     expect(subject.askedBy).toBeNull();
     expect(subject.organisationPhone).toBeNull();
     expect(subject.to.host).toBeNull();
+  });
+
+  it('refuses a subject that does not say whether Google holds it to reading (0144 T3 (c))', async () => {
+    // Absent is not "no": a page that defaulted either way would be deciding
+    // what Google enforces on the server's behalf.
+    getMock.mockResolvedValue({
+      data: {
+        organisation: 'Acme Legal',
+        checkedCompany: null,
+        askedBy: null,
+        organisationPhone: null,
+        reads: 'your contacts',
+        scope: 'https://www.googleapis.com/auth/contacts.readonly',
+        from: 'someone@example.invalid',
+        to: { provider: 'jmap', host: null, account: null },
+        expiresAt: '2026-09-30T00:00:00.000Z',
+      },
+    });
+    await expect(grantApi.read('abc.def')).rejects.toThrow();
   });
 
   it('refuses a subject that names no account to sign in with (0108 T8 (b))', async () => {
@@ -74,6 +98,7 @@ describe('the grant subject, as the page receives it', () => {
         organisationPhone: null,
         reads: 'your contacts',
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
+        readOnlyAtProvider: true,
         from: null,
         to: { provider: 'jmap', host: null, account: null },
         expiresAt: '2026-09-30T00:00:00.000Z',

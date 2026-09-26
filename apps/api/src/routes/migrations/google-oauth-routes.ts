@@ -29,6 +29,7 @@ import {
   exchangeCode,
   grantResultPage,
   rawIpCallbackRefusal,
+  recordedPermission,
   unreachableCallbackRefusal,
   type ExchangeRefusalCode,
   type GoogleConsentSourceType,
@@ -359,7 +360,14 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   // distributes the link, we never do"* is untouched. The link is put in front
   // of the person who is already here, in their own browser.
   const progressUrl = await mintProgressLink(getDbPool(), link);
-  page(200, grantResultPage(progressUrl ? { ok: true, progressUrl } : { ok: true }));
+  // "Read-only" at the ending only where Google holds what it RECORDED to
+  // reading (0144 T3 (c)): with `include_granted_scopes` the grant can carry
+  // more than the link asked for, and this is the first moment that is known.
+  const permission = recordedPermission(pending.scope, outcome.grantedScopes);
+  page(
+    200,
+    grantResultPage(progressUrl ? { ok: true, progressUrl, permission } : { ok: true, permission }),
+  );
 });
 
 export default router;
