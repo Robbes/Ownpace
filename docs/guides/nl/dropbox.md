@@ -23,7 +23,7 @@ De test vraagt Dropbox alleen naar het bovenste niveau van de hoofdmap, en antwo
 
 ## Wat er meegaat {#what-moves}
 
-De inhoud van de bestanden en de mappenboom. Wat gedeeld is, bestandsverzoeken, Paper-documenten en de versiegeschiedenis blijven achter. Verwijderingen worden herkend door te tellen wat ontbreekt (twee schone rondes); het "terugzetten" van Dropbox en het lezen van verwijderde items worden nog niet ondersteund.
+De inhoud van de bestanden en de mappenboom. De deelinstellingen (met wie iets gedeeld is), bestandsverzoeken, Paper-documenten en de versiegeschiedenis blijven achter. Verwijderingen worden herkend door te tellen wat ontbreekt (twee schone rondes); het "terugzetten" van Dropbox en het lezen van verwijderde items worden nog niet ondersteund.
 
 ## Als de test iets meldt {#when-test-says}
 
@@ -44,7 +44,7 @@ De schermen van Dropbox staan hieronder met hun Engelse namen.
 
 - `files.metadata.read`
 - `files.content.read`
-- `sharing.read` — niet verplicht, en ook alleen-lezen: hij drijft de knop **Gedeelde mappen bekijken…** in de wizard aan. Zonder werken migraties gewoon; het bekijken krijgt dan de eigen weigering van Dropbox, die de scope noemt.
+- `sharing.read` — niet verplicht, en ook alleen-lezen: daarmee werkt de knop **Gedeelde mappen bekijken…** in de wizard. Zonder deze scope werken migraties gewoon; het bekijken krijgt dan de eigen weigering van Dropbox, die de scope noemt.
 
 Verder niets. De App key en het App secret op het tabblad Settings horen in het deel **Uw eigen Dropbox-app gebruiken** van de wizard, als paar: de App key onder **App-sleutel**, het App secret onder **Clientgeheim**.
 

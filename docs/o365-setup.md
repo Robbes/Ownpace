@@ -16,8 +16,9 @@ contacts, OneDrive) — **in your own tenant, registered by you**.
 > before any foreign tenant could consent); the credential never leaves your
 > custody — you put it in your own appliance's `secrets.cmd`/`.env` or the
 > connection screen, so the "whitelisting" is credential
-> custody plus the Application Access Policy narrowing the app to named
-> mailboxes; and revocation is yours — delete the app registration and every
+> custody plus a fence around the mailboxes the app may reach (an Application
+> Access Policy then; how that fence is built today is under
+> [Application Access Policy](#application-access-policy)); and revocation is yours — delete the app registration and every
 > token dies. The multi-tenant consent-URL machinery below is kept only for
 > the record, marked as not the current model.
 
@@ -52,7 +53,9 @@ This approach:
 - **Needs no publisher verification**: that requirement only exists when a
   foreign tenant consents to somebody else's multi-tenant app
 - **Follows least-privilege**: permissions are scoped to only what's needed,
-  and the Application Access Policy narrows mailbox access further
+  and Exchange Online can fence the mailboxes the app reaches (see
+  [Application Access Policy](#application-access-policy): for IMAP that is
+  `Add-MailboxPermission`, for Graph a scoped RBAC for Applications role)
 
 ### Access Model
 
@@ -60,7 +63,7 @@ Two authentication paths are supported:
 
 | Path | Use Case | Auth Type | Permissions |
 |------|----------|-----------|-------------|
-| **Managed Path** | Organization/SMB tenants | Application Credentials (client-credentials) | App permissions + Application Access Policy |
+| **Managed Path** | Organization/SMB tenants | Application Credentials (client-credentials) | App permissions (`Mail.Read` or `IMAP.AccessAsApp`), with the mailbox fence in Exchange Online |
 | **Self-Host Path** | Individual/family users | Delegated (user login) | Delegated permissions |
 
 Both paths use the same app registration but different permission configurations.
@@ -153,7 +156,7 @@ After registration, you'll be on the app's overview page. Navigate to **API perm
 
 ```powershell
 Install-Module -Name ExchangeOnlineManagement
-Connect-ExchangeOnline -Organization <tenant-id>
+Connect-ExchangeOnline -UserPrincipalName <exchange-admin-address>
 # ObjectId: the ENTERPRISE APPLICATION's Object ID (Entra -> Enterprise applications -> the app
 # -> Overview), not the App registration's. The wrong one makes authentication fail.
 New-ServicePrincipal -AppId <application-client-id> -ObjectId <enterprise-app-object-id>
@@ -394,7 +397,20 @@ two proof steps. Removed here 2026-08-13 rather than corrected in both places.
 the `New-ApplicationAccessPolicy` cmdlet page): *"App Access Policies are replaced by Role Based
 Access Control for Applications … Don't create new App Access Policies as these policies will
 eventually require migration."* The runbook's §4 still creates one; rewriting it for RBAC for
-Applications is open. The customer guide names the RBAC route in one sentence and gives no steps.
+Applications is open.
+
+**RBAC for Applications does not narrow an Entra grant; it replaces it** (corrected 2026-09-26).
+Microsoft's page *Role Based Access Control for Applications in Exchange Online*
+(learn.microsoft.com/exchange/permissions-exo/application-rbac) says the permissions an
+application holds are the union of what Entra ID grants and what Exchange's RBAC assigns, and
+that a resource-scoped `Mail.Read` in RBAC for Applications needs the `Mail.Read` assignment in
+Entra ID removed, or there is no effective scoping. So a `graph` registration whose `Mail.Read`
+is consented in Entra (Step 3a, Step 4) reads every mailbox whatever Exchange says; the narrower
+route consents nothing in Entra for mail and assigns Exchange's application `Mail.Read` role with
+a management scope instead. This was read on 2026-09-26 through a search of learn.microsoft.com
+(the page itself could not be fetched from the session) and has not been walked. The customer
+guide says the same in two sentences and gives no steps.
+
 An App Access Policy governs Graph and EWS access, not IMAP: a `oauth2` (IMAP) card's reach is
 the mailboxes given with `Add-MailboxPermission` (Step 3b).
 
@@ -539,7 +555,7 @@ any IMAP client that speaks it.
 | `invalid_client` | Wrong client ID or secret | Verify credentials in Azure Portal |
 | `unauthorized_client` | Consent not granted | Admin must grant consent via consent URL |
 | `insufficient_privileges` | Permissions not granted | Check API permissions in Azure Portal |
-| `access_denied` | App Access Policy blocking | Verify mailbox is in policy scope |
+| `access_denied` | App Access Policy (legacy) or RBAC for Applications scope blocking | Verify the mailbox is in the policy's or the role assignment's scope |
 | `429 Too Many Requests` | Rate limiting | Implement exponential backoff |
 | `invalid_grant` | Refresh token expired | User must re-authenticate |
 | `AADSTS50105` | Permission not consented | Request admin consent |
@@ -605,7 +621,8 @@ Expected claims:
   token for the `graph` card shows `Mail.Read`; an app-only IMAP token shows `IMAP.AccessAsApp`
 - `aud`: `https://graph.microsoft.com` for a Graph token, `https://outlook.office365.com` for an
   app-only IMAP token
-- `iss`: Should be `https://login.microsoftonline.com/{tenant}/v2.0`
+- `iss`: `https://sts.windows.net/{tenant}/` for both, with `ver` `1.0`: Microsoft Graph and
+  Exchange Online take v1.0 access tokens, whichever endpoint issued them
 
 ---
 

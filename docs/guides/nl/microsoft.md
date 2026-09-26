@@ -1,6 +1,6 @@
 # Microsoft 365 — het account, de toestemming, de registratie
 
-Een Microsoft 365-migratie meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Het leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen app](#own-app) staan, dus dit product kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier.
+De kaart **Microsoft 365 account** meldt zich aan met een **appregistratie in Microsoft Entra ID** en een refresh-token waarvoor het account dat u migreert toestemming geeft. Die kaart leest alleen, en dat zit in de opbouw zelf: de toestemming vraagt alleen de gedelegeerde `.Read`-rechten die onder [Met een eigen app](#own-app) staan, dus dit product kan niet in het postvak, de agenda's, de contacten of OneDrive schrijven, ook niet als het dat zou willen. Dat is een afgedwongen garantie, geen belofte op papier. De kaarten **Via de Graph-API** en **Via IMAP** werken anders, met de registratie van een beheerder: zie [de registratie die deze twee kaarten nodig hebben](#application).
 
 **De meeste mensen hebben alleen de eerste kaart nodig.** Heeft deze dienst een eigen registratie, dan tonen de wizard en de pagina Verbindingen een knop **Verbinden met Microsoft**, en hoeft u niets onder [Met een eigen app](#own-app) te doen. Lees dat deel alleen als u liever uw eigen registratie gebruikt.
 
@@ -28,7 +28,7 @@ U kunt ook uw eigen registratie gebruiken: open **Uw eigen appregistratie gebrui
 
 ### Via de Graph-API {#graph}
 
-**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Die heeft een beheerder nodig die de postvakken van anderen migreert, en de gedelegeerde toestemming van de kaart **Microsoft 365 account** kan dat nooit. De wizard vraagt het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
+**Via IMAP** en **Via de Graph-API** melden zich aan met uw eigen registratie, met **toepassingsrechten** die een beheerder in uw eigen tenant verleent. Dat is wat een beheerder nodig heeft die de postvakken van anderen migreert; de gedelegeerde toestemming van de kaart **Microsoft 365 account** kan dat nooit. De wizard vraagt het adres van het postvak, onder **Gebruikersnaam**, en de **Tenant-ID**, de **Client-ID (applicatie-ID)** en het **Clientgeheim** van die registratie.
 
 Beide kaarten lezen de mail van één postvak. Agenda's, contacten, OneDrive en To Do lopen via de kaart **Microsoft 365 account**.
 
@@ -57,7 +57,7 @@ Er komt geen refresh-token aan te pas: deze kaarten melden zich aan als de toepa
 
 Verder niets: de kaart leest mail, en dit ene recht dekt dat. Druk daarna op **Grant admin consent for** uw organisatie, en bevestig.
 
-**Weet hoe ver dit recht reikt voordat u het verleent.** Als toepassingsrecht kan `Mail.Read` elk postvak in de organisatie lezen, niet alleen het postvak dat u in de wizard invult. Deze dienst leest alleen het postvak dat de verbinding noemt, en schrijft er nooit in. Exchange Online kan een toepassing beperken tot postvakken met naam; Microsoft beschrijft dat als op rollen gebaseerd toegangsbeheer voor toepassingen in Exchange Online, en u stelt het in Exchange in, niet hier.
+**Weet hoe ver dit recht reikt voordat u het verleent.** Als toepassingsrecht kan `Mail.Read` elk postvak in de organisatie lezen, niet alleen het postvak dat u in de wizard invult. Deze dienst leest alleen het postvak dat de verbinding noemt, en schrijft er nooit in. Exchange Online kan een toepassing in plaats daarvan `Mail.Read` geven voor alleen de postvakken die u noemt; Microsoft beschrijft dat als Role Based Access Control for Applications in Exchange Online. Dat vervangt deze stap, het beperkt hem niet: een `Mail.Read` waarvoor hier toestemming is gegeven, reikt tot elk postvak, wat Exchange ook zegt. Een beheerder die de smallere weg wil, verleent `Mail.Read` hier dus niet, en kent in Exchange de toepassingsrol toe met een bereik.
 
 #### Via IMAP: het recht in Exchange Online {#application-imap}
 
@@ -71,8 +71,8 @@ Deze kaart meldt zich als de toepassing aan bij de IMAP-server van Exchange Onli
 3. Registreer de toepassing in Exchange Online. Een Exchange-beheerder doet dat in Exchange Online PowerShell, na één keer `Install-Module -Name ExchangeOnlineManagement`:
 
 ```
-Connect-ExchangeOnline -Organization <uw tenant-ID>
-New-ServicePrincipal -AppId <Application (client) ID> -ObjectId <Object ID van de bedrijfstoepassing>
+Connect-ExchangeOnline -UserPrincipalName <uw beheerdersadres>
+New-ServicePrincipal -AppId <Application (client) ID> -ObjectId <Object ID onder Enterprise applications>
 ```
 
 De Object ID is die op de pagina Overview van de toepassing onder **Enterprise applications**, niet die onder **App registrations**. Met de verkeerde mislukt de aanmelding van de kaart.
@@ -83,7 +83,7 @@ De Object ID is die op de pagina Overview van de toepassing onder **Enterprise a
 Add-MailboxPermission -Identity <adres van het postvak> -User <identiteit van de service-principal> -AccessRights FullAccess
 ```
 
-Herhaal stap 4 voor elk postvak dat de kaart moet lezen. FullAccess is het recht dat Microsoft hiervoor beschrijft; deze dienst leest het postvak alleen.
+Herhaal stap 4 voor elk postvak dat de kaart moet lezen. FullAccess is het recht dat Microsoft hiervoor beschrijft, en daarmee zou een toepassing het postvak ook kunnen wijzigen, niet alleen lezen. Dat deze kaart alleen leest, is dus een eigenschap van deze dienst, niet iets wat Microsoft afdwingt. Bij **Via de Graph-API** dwingt Microsoft het wel af: `Mail.Read` kan alleen lezen.
 
 ## Wat er meegaat {#what-moves}
 
@@ -106,7 +106,7 @@ Met een eigen registratie betekent **`AADSTS700016`** — "Application with iden
 
 Microsoft publiceert geen adres om OAuth-toestemming in te trekken. Als wij ons exemplaar van uw refresh-token verwijderen, staat de toestemming bij Microsoft dus nog. U trekt die zelf in: [My Account](https://myaccount.microsoft.com) → Privacy → **Apps and services you have given access to**.
 
-Een verwijderingsbewijs zegt dat met zoveel woorden, want een inloggegeven dat wij verwijderden en een toestemming die bij de aanbieder blijft staan, zijn twee verschillende dingen.
+Een verwijderingsbewijs zegt dat met zoveel woorden, want inloggegevens die wij verwijderden en een toestemming die bij de aanbieder blijft staan, zijn twee verschillende dingen.
 
 De toestemming van een **beheerder** — die van **Via IMAP** en **Via de Graph-API** — staat ergens anders, en alleen een beheerder kan haar weghalen: Entra → Enterprise applications → Permissions.
 
@@ -128,9 +128,9 @@ Voor **Via IMAP** neemt een Exchange-beheerder daarnaast het postvak terug met `
 AADSTS700016: Application with identifier '…' was not found in the directory '…'
 ```
 
-Dat leest als een tikfout in de client-ID, en dat is het niet.
+Dat lijkt op een tikfout in de client-ID, maar dat is het niet.
 
-Is uw registratie met opzet voor één tenant, typ dan de Directory (tenant) ID in het veld **Tenant-ID** van de wizard, zodat de toestemming tegen uw directory loopt. Laat het anders leeg.
+Is uw registratie met opzet voor één tenant, typ dan de Directory (tenant) ID in het veld **Tenant-ID** van de wizard, zodat de toestemming in uw directory plaatsvindt. Laat het anders leeg.
 
 #### Omleidingsadres {#own-app-redirect}
 
@@ -151,9 +151,9 @@ API permissions → Add a permission → **Microsoft Graph** → **Delegated per
 - `Contacts.Read` — diens contacten
 - `Files.Read` — diens eigen OneDrive
 - `Tasks.Read` — diens Microsoft To Do-lijsten, alleen gevraagd als Taken is aangevinkt
-- `offline_access` — het refresh-token, zonder welk de toestemming na een uur vervalt
+- `offline_access` — het refresh-token, waarzonder de toestemming na een uur vervalt
 
-**Verder niets, en zeker niet de `.All`-varianten.** `Files.Read.All` zou de OneDrive van de hele tenant lezen; `Files.Read` leest de eigen OneDrive van de aangemelde gebruiker. Dit product migreert het account dat voor het staat, en een token dat niet verder reikt is daar de goedkoopste garantie voor.
+**Verder niets, en zeker niet de `.All`-varianten.** `Files.Read.All` zou de OneDrive van de hele tenant lezen; `Files.Read` leest de eigen OneDrive van de aangemelde gebruiker. Dit product migreert het account dat u koppelt, en een token dat niet verder reikt, is daar de goedkoopste garantie voor.
 
 **Geef hier geen beheerderstoestemming.** Dit zijn gedelegeerde rechten: de persoon die u migreert keurt ze zelf goed op het toestemmingsscherm, en daar is de knop voor.
 

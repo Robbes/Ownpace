@@ -1,6 +1,6 @@
 # Microsoft 365 — the account, the consent, the registration
 
-A Microsoft 365 migration authenticates with an **app registration in Microsoft Entra ID** and a refresh token consented by the account being migrated. Read-only by construction: the consent asks only for the `.Read` delegated permissions listed under [With your own app](#own-app), so this product could not write to the mailbox, calendar, contacts or OneDrive even if it wanted to — an enforced guarantee, not a promise in a document.
+The **Microsoft 365 account** card authenticates with an **app registration in Microsoft Entra ID** and a refresh token consented by the account being migrated. That card is read-only by construction: the consent asks only for the `.Read` delegated permissions listed under [With your own app](#own-app), so this product could not write to the mailbox, calendar, contacts or OneDrive even if it wanted to — an enforced guarantee, not a promise in a document. The **Via the Graph API** and **Via IMAP** cards work differently, with an administrator's registration: see [the registration these two cards need](#application).
 
 **Most people need only the first card.** Where this service has its own registration, the wizard and the Connections page show a **Connect with Microsoft** button, and nothing under [With your own app](#own-app) is your problem. Read it if you would rather use your own registration.
 
@@ -16,7 +16,7 @@ A Microsoft 365 migration authenticates with an **app registration in Microsoft 
 
 One Microsoft 365 account, one sign-in: mail, calendars, contacts and OneDrive, whichever you tick.
 
-**The short way: press Connect with Microsoft.** It opens Microsoft's consent screen for the account being migrated, and when that account approves, the refresh token lands in the field by itself and the connection is saved and tested in one go. Nothing is typed, and the client secret never leaves the server.
+**The short way: press Connect with Microsoft.** It opens Microsoft's consent screen for the account being migrated, and when that account approves, the refresh token lands in the **Refresh token** field by itself and the connection is saved and tested in one go. Nothing is typed, and the client secret never leaves the server.
 
 The screen asks **which account** before it asks anything else, deliberately. Without that, somebody already signed in to the wrong Microsoft account grants that one, silently, and the migration reads the wrong mailbox — a failure that looks like success until somebody notices whose mail arrived.
 
@@ -57,7 +57,7 @@ No refresh token is involved: these cards sign in as the application itself, and
 
 Nothing else: the card reads mail, and this one permission covers it. Then **Grant admin consent for** your organisation, and confirm.
 
-**Read the width before you grant it.** As an application permission, `Mail.Read` can read every mailbox in the organisation, not only the one you type in the wizard. This service reads only the mailbox the connection names, and never writes to it. Exchange Online can limit an application to named mailboxes; Microsoft documents that as role-based access control for applications in Exchange Online, and it is set in Exchange, not here.
+**Read the width before you grant it.** As an application permission, `Mail.Read` can read every mailbox in the organisation, not only the one you type in the wizard. This service reads only the mailbox the connection names, and never writes to it. Exchange Online can instead give an application `Mail.Read` over named mailboxes only; Microsoft documents this as Role Based Access Control for Applications in Exchange Online. That replaces this step rather than narrowing it: a `Mail.Read` consented here reaches every mailbox whatever Exchange says, so an administrator who wants the narrower route does not grant `Mail.Read` here, and assigns Exchange's application role with a scope instead.
 
 #### Via IMAP: the Exchange Online permission {#application-imap}
 
@@ -71,7 +71,7 @@ This card signs in to Exchange Online's IMAP server as the application. Such a t
 3. Register the application in Exchange Online. An Exchange administrator does this in Exchange Online PowerShell, after `Install-Module -Name ExchangeOnlineManagement` once:
 
 ```
-Connect-ExchangeOnline -Organization <your tenant ID>
+Connect-ExchangeOnline -UserPrincipalName <your administrator address>
 New-ServicePrincipal -AppId <Application (client) ID> -ObjectId <Object ID of the enterprise application>
 ```
 
@@ -83,7 +83,7 @@ The Object ID is the one on the Overview page of the application under **Enterpr
 Add-MailboxPermission -Identity <the mailbox address> -User <the service principal's identity> -AccessRights FullAccess
 ```
 
-Repeat step 4 for each mailbox the card should read. FullAccess is the permission Microsoft documents for this; this service only reads the mailbox.
+Repeat step 4 for each mailbox the card should read. FullAccess is the permission Microsoft documents for this, and it would let an application change the mailbox as well as read it. So for this card, read-only is a property of this service, not something Microsoft enforces. For **Via the Graph API** Microsoft does enforce it: `Mail.Read` can only read.
 
 ## What moves {#what-moves}
 

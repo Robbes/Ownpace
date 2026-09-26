@@ -384,18 +384,24 @@ describe('each guide quotes the wizard\'s labels in its own language (0148 T4)',
     }
   });
 
-  it.each(fieldCases)('$locale/$slug names every required field of $type by the wizard\'s label', ({ locale, type, slug }) => {
-    const text = guideAt(locale, slug)!.toLowerCase();
+  // The label is QUOTED: a bold span that is the label exactly, as the guides
+  // quote every control. Until 2026-09-26 this was a case-insensitive search
+  // of the whole text, and a review showed what that let through: change
+  // nl/microsoft's **Refresh-token** to **Vernieuwingstoken** and the case
+  // still passed, because "een refresh-token" stood in plain prose two lines
+  // up. A word in a sentence is not the reader's way to the box.
+  it.each(fieldCases)('$locale/$slug quotes every required field of $type by the wizard\'s label', ({ locale, type, slug }) => {
+    const quoted = new Set(boldIn(guideAt(locale, slug)!));
     const missing = credentialFieldsFor('source', type)
       .filter((f) => f.required)
       .map((f) => STRINGS[locale][f.labelKey as keyof (typeof STRINGS)['en']])
-      .filter((label) => !text.includes(label.toLowerCase()));
+      .filter((label) => !quoted.has(label));
 
     expect(
       missing,
-      `${locale}/${slug}.md never names ${missing.map((l) => `“${l}”`).join(', ')}, which is how the ` +
-        `wizard labels a field it REQUIRES for a '${type}' source in this language. Quote the label as ` +
-        'the screen shows it, so the reader can find the box.',
+      `${locale}/${slug}.md never quotes ${missing.map((l) => `“**${l}**”`).join(', ')}, which is how the ` +
+        `wizard labels a field it REQUIRES for a '${type}' source in this language. Quote the label in ` +
+        'bold, exactly as the screen shows it, so the reader can find the box.',
     ).toEqual([]);
   });
 
@@ -451,10 +457,25 @@ describe('each guide quotes the wizard\'s labels in its own language (0148 T4)',
  * an export that only needs trying; the line says it cannot be read yet.
  */
 describe('the Apple export carries its to-be-tested tag and line (0148 D7)', () => {
-  const LINE: Record<Locale, string> = {
-    en: '**To be tested.** We cannot read an Apple export yet. Request one only for your own records.',
-    nl: '**Nog te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
-  };
+  // Read from the form's own strings since #1176 merged them, so the guide
+  // and the option cannot drift apart: the tag in bold, then the line.
+  const LINE = Object.fromEntries(
+    (Object.keys(STRINGS) as Locale[]).map((locale) => [
+      locale,
+      `**${STRINGS[locale]['wizard.archiveProvider.untested']}.** ` +
+        STRINGS[locale]['wizard.archiveProvider.noReader.apple-privacy'],
+    ]),
+  ) as Record<Locale, string>;
+
+  it('reads the words the form shows', () => {
+    expect(LINE.en).toBe(
+      '**To be tested.** We cannot read an Apple export yet. Request one only for your own records.',
+    );
+    expect(LINE.nl).toBe(
+      '**Nog te testen.** Een Apple-export kunnen we nog niet lezen. Vraag die alleen aan voor uw eigen archief.',
+    );
+  });
+
   const cases = (Object.keys(LINE) as Locale[]).flatMap((locale) =>
     ['apple', 'archive'].map((slug) => ({ locale, slug })),
   );
@@ -607,6 +628,22 @@ describe('the Microsoft guide carries both registration recipes (0148 T8)', () =
   /** The permissions a list names: one per bullet, in backticks at its start. */
   const listed = (section: string) => [...section.matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]!);
   const DELEGATED_ONLY = ['IMAP.AccessAsUser.All', 'offline_access'];
+  /**
+   * Entra's words for the kind of permission and for the consent button, as
+   * its screen shows them. The Dutch guide names Entra's screens by their
+   * English names until 0148 T0 reads Microsoft's Dutch screens against it,
+   * and class 5 of `docs/i18n-prose-boundary.md` then wants Microsoft's own
+   * Dutch, so a Dutch guide may carry either and the correct change does not
+   * turn this red. The permission names, the API names and the cmdlets are
+   * the same in every language and are held exactly.
+   */
+  const ENTRA_WORDS = {
+    en: { application: /Application permissions/, consent: /Grant admin consent/ },
+    nl: {
+      application: /Application permissions|Toepassingsmachtigingen/,
+      consent: /Grant admin consent|Beheerderstoestemming verlenen/,
+    },
+  } as const;
 
   it('reads a section to the next heading of its level, and not past it', () => {
     const doc = '### A {#a}\n- `One`\n#### B {#b}\n- `Two`\n```\n# not a heading\n```\n### C {#c}\n- `Three`\n';
@@ -626,9 +663,8 @@ describe('the Microsoft guide carries both registration recipes (0148 T8)', () =
     it(`${locale}: Via the Graph API's application permissions name Mail.Read, and no delegated-only one`, () => {
       const graph = sectionOf(guide(), 'application-graph');
       expect(graph, `${locale}/microsoft.md has no {#application-graph} section`).toBeDefined();
-      // Entra's own words for the kind of permission, which its screen shows.
       expect(graph).toContain('Microsoft Graph');
-      expect(graph).toContain('Application permissions');
+      expect(graph).toMatch(ENTRA_WORDS[locale].application);
       expect(listed(graph!)).toContain('Mail.Read');
       for (const permission of DELEGATED_ONLY) {
         expect(listed(graph!), `${permission} is delegated only`).not.toContain(permission);
@@ -636,7 +672,7 @@ describe('the Microsoft guide carries both registration recipes (0148 T8)', () =
       // Nowhere in the registration these cards need, not even in passing.
       const application = sectionOf(guide(), 'application')!;
       for (const permission of DELEGATED_ONLY) expect(application).not.toContain(permission);
-      expect(application).toContain('Grant admin consent');
+      expect(application).toMatch(ENTRA_WORDS[locale].consent);
     });
 
     it(`${locale}: Via IMAP's recipe names IMAP.AccessAsApp under Office 365 Exchange Online, and the two Exchange steps`, () => {
@@ -644,7 +680,7 @@ describe('the Microsoft guide carries both registration recipes (0148 T8)', () =
       expect(imap, `${locale}/microsoft.md has no {#application-imap} section`).toBeDefined();
       expect(imap).toContain('Office 365 Exchange Online');
       expect(listed(imap!)).toContain('IMAP.AccessAsApp');
-      expect(imap).toContain('Grant admin consent');
+      expect(imap).toMatch(ENTRA_WORDS[locale].consent);
       expect(imap).toMatch(/\bNew-ServicePrincipal\b/);
       expect(imap).toMatch(/\bAdd-MailboxPermission\b/);
       // The Via IMAP card's own subsection points at its recipe.

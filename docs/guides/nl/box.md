@@ -36,7 +36,7 @@ De derde waarde is het **numerieke** gebruikers-ID van het account dat u migreer
 
 ### 4. Vul het in {#box}
 
-Kies Box in de wizard. Alles komt in de stap Bron: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientgeheim**; het geheim wordt versleuteld bewaard. De knop **Verbindingen testen en bewaren** doet één lijst, alleen lezend, via precies wat een ronde zou opbouwen.
+Kies Box in de wizard. Alles komt in de stap Bron: het adres van het account onder **Gebruikersnaam**, het getal uit stap 3 onder **Box-gebruikers-ID (numeriek)**, en de twee waarden uit stap 1 onder **Client-ID (applicatie-ID)** en **Clientgeheim**; het geheim wordt versleuteld bewaard. De knop **Verbindingen testen en bewaren** haalt één keer een lijst op, alleen lezend, via precies wat een ronde zou opbouwen.
 
 Laat u het veld **ID van de hoofdmap** leeg, dan betekent dat `0`: de hoofdmap van het account ("All Files"); een map-ID beperkt de migratie tot die map.
 
@@ -44,7 +44,7 @@ Een map waarvoor het account is uitgenodigd (een **gedeelde samenwerkingsmap**) 
 
 ## Wat er meegaat {#what-moves}
 
-De inhoud van de bestanden, precies en met een sha1-controle, en de mappenboom verhuizen. Wat gedeeld is, samenwerkingen, opmerkingen, taken, de weergave van Box Notes, de versiegeschiedenis en **weblinks** (bladwijzers: verwijzingen, geen bestanden) blijven achter.
+De inhoud van de bestanden, precies en met een sha1-controle, en de mappenboom verhuizen. De deelinstellingen (met wie iets gedeeld is), samenwerkingen, opmerkingen, taken, de weergave van Box Notes, de versiegeschiedenis en **weblinks** (bladwijzers: verwijzingen, geen bestanden) blijven achter.
 
 ### De prullenbak, en waarom die ertoe doet {#trash}
 

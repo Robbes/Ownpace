@@ -11,7 +11,7 @@ Een export is een **momentopname**. Hij bevat alles tot de dag waarop hij werd k
 Twee dingen, en geen van beide is een wachtwoord:
 
 - **Welke export**: Google Takeout, of Apple Data & Privacy. Daaraan zien wij hoe we hem moeten lezen: de twee zijn vanbinnen heel anders ingedeeld, en aan de bestanden zelf is het niet te zien.
-- **Waar het archief staat**: de `.zip` die u downloadde, of de map waarin u hem uitpakte. Een download in meerdere delen: een van de delen, en wij lezen ze allemaal.
+- **Waar het archief staat**: de `.zip` die u downloadde, of de map waarin u hem uitpakte. Een download in meerdere delen: een van de delen, en wij lezen ze allemaal. Die map mag in de Nextcloud- of WebDAV-bestanden staan waar u naartoe verhuist: zie [Uw export in uw eigen Nextcloud](#own-nextcloud).
 
 Dat is de hele verbinding. Wij melden ons hiervoor nergens namens u aan, dus er is geen account om te koppelen en achteraf niets om in te trekken.
 
@@ -55,7 +55,7 @@ De stappen hieronder zijn hoe u Apple om een export vraagt, en wat u erover moet
 1. Ga naar **privacy.apple.com** en meld u aan met uw Apple-account.
 2. Kies **Request a copy of your data**.
 3. Vink aan wat u wilt. Voor het verhuizen van bestanden en foto's is dat **iCloud Drive files and documents** en **iCloud Photos**.
-4. Kies een grootste bestandsgrootte: Apple biedt delen van **1, 2, 5, 10 of 25 GB**. Kies grotere delen, tenzij uw verbinding onbetrouwbaar is.
+4. Kies een maximale bestandsgrootte: Apple biedt delen van **1, 2, 5, 10 of 25 GB**. Kies grotere delen, tenzij uw verbinding onbetrouwbaar is.
 5. Bevestig. Apple toont een pagina die u bedankt en zegt dat uw gegevens worden klaargemaakt.
 
 Apple zegt dat dit **tot zeven dagen** duurt. In de praktijk hangt het af van hoeveel u hebt: één echte aanvraag, voor een kleine iCloud Drive, duurde **vijf dagen en zes uur** van de vraag tot de mail dat de gegevens klaarstonden.
@@ -80,12 +80,13 @@ In de contact- en agendagegevens die Apple exporteert, zijn **e-mailadressen ged
 
 ### De verbinding toevoegen {#archive}
 
-Voeg op de pagina **Verbindingen** een verbinding toe en kies **Export archive**. Die vraagt twee dingen:
+Voeg op de pagina **Verbindingen** een verbinding toe en kies **Export archive**. Die vraagt drie dingen:
 
-- **Welke export**: Google Takeout of Apple Data & Privacy.
-- **Waar het archief staat**: de map waarin u de download uitpakte, of de `.zip` zelf, als pad op de computer die de migraties uitvoert. De kaart leest de export waar hij staat en kan nog geen upload aannemen, dus de export moet op de eigen schijf van die computer staan. Lopen uw migraties niet op een computer waar u bestanden op kunt zetten, dan kan deze kaart uw export nog niet bereiken.
+- **Welke export**: Google Takeout, of Apple Data & Privacy (nog te testen: die kunnen we nog niet lezen).
+- **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**. Het tweede is voor migraties die lopen op een computer waar u bestanden op kunt zetten; waar dat niet zo is, toont het formulier die keuze grijs, met de regel "Alleen op een eigen appliance".
+- **De map**: voor de bestanden van uw bestemming de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). Op een schijf de map waarin u de download uitpakte, of de `.zip` zelf.
 
-Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Het opent het archief en vertelt u wat erin zit:
+Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat u de bestemming met de migratie kiest en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets verhuist:
 
 - hoeveel items,
 - hoeveel bytes,
@@ -93,6 +94,24 @@ Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Het opent het arch
 - en **welke datums de export beslaat**, zodat u in één oogopslag ziet of het de export is die u denkt.
 
 Laat de test zien wat het archief bevat, maak er dan een migratie van zoals u dat bij elk account doet: kies **Export archive** als bron, kies de verbinding die u toevoegde, kies waar de bestanden heen moeten, en start. Bestanden en foto's zijn de enige soort gegevens die een archief bevat, dus dat is het enige vakje om aan te vinken.
+
+### Uw export in uw eigen Nextcloud {#own-nextcloud}
+
+De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe verhuist in een Nextcloud, of op een andere server die uw bestanden via WebDAV aanbiedt, dan kunt u de export daar neerzetten, en lezen wij hem uit die map. Laat het formulier u geen schijf kiezen, dan is dit de manier om ons een export te geven.
+
+**Uitpakken is niet nodig.** Upload de `.zip`-bestanden precies zoals Google ze leverde, alle delen in dezelfde map. Wij lezen ze waar ze staan, een paar megabyte tegelijk, en veranderen ze nooit. Hebt u de export al in die map uitgepakt, dan werkt dat ook.
+
+1. Upload de `.zip`-delen naar **één map** in de bestanden waarin de migratie schrijft: hetzelfde Nextcloud- of WebDAV-account dat u als bestemming kiest. Doe dat zoals u altijd bestanden toevoegt, bijvoorbeeld via de website van Nextcloud of de desktopapp.
+2. Kies in de wizard **Export archive** als bron. Kies onder **Waar de export staat** voor **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**.
+3. Typ de map zoals die in uw bestanden staat, vanaf de hoofdmap, bijvoorbeeld `Exports/takeout-20260904`. U kunt ook één `.zip` daarin noemen: wij lezen de delen ernaast.
+4. Druk op **Verbindingen testen en bewaren**. De test zegt dat de export bij de preflight wordt geteld. Dat hoort zo: de bestemming kiest u in de stap Doel, en tot dan valt er nergens te kijken.
+5. Kies in de stap Doel datzelfde Nextcloud- of WebDAV-account. De preflight telt dan wat er in de export zit, voordat er iets verhuist.
+
+**Uw foto's komen aan als gewone bestanden en mappen.** Wat wij in uw bestanden schrijven, is nooit een `.zip`: elk album wordt een map, een foto in geen enkel album komt in een map voor zijn jaar, zoals `Photos from 2019`, en één bestand bovenaan somt alles op wat de export over elke foto wist. Zie [Waar alles terechtkomt](#where-things-land).
+
+Dit werkt alleen met een Nextcloud- of WebDAV-bestemming. Een account zonder bestanden, of een JMAP-account, kan ons de export niet geven: via JMAP kunnen we een bestand niet in stukken lezen, en de stap Doel zegt dat ook.
+
+**De `.zip`-bestanden blijven staan waar u ze neerzette.** Wij lezen ze alleen, dus na de migratie staan ze nog in die map, en ze nemen in uw account net zoveel ruimte in als de export zelf. Hebt u gecontroleerd dat alles is aangekomen, verwijder ze dan zelf.
 
 ## Wat er meegaat {#what-moves}
 
@@ -134,7 +153,7 @@ Kunnen we het archief niet openen, dan zeggen we dat en waarom: meestal omdat de
 
 Er is niets in te trekken: we hebben ons nergens namens u aangemeld. We lezen het archief alleen: de bestanden worden nooit gewijzigd, verplaatst of verwijderd, en we houden geen kopie van het archief zelf.
 
-Het blijft dus na de verhuizing op de schijf staan, en het is goed om te onthouden wat het is: een volledige, onversleutelde kopie van alles wat het bedrijf u gaf. Bewaar het ergens waar u ook uw foto's zou bewaren, of verwijder het als u zeker weet dat de verhuizing klaar is.
+Het blijft dus na de verhuizing staan waar u het neerzette, op een schijf of in een map van uw bestanden, en het is goed om te onthouden wat het is: een volledige, onversleutelde kopie van alles wat het bedrijf u gaf. Bewaar het ergens waar u ook uw foto's zou bewaren, of verwijder het als u zeker weet dat de verhuizing klaar is.
 
 ## Vragen die mensen stellen {#questions}
 

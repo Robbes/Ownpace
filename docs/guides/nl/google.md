@@ -2,13 +2,13 @@
 
 De Microsoft-tegenhanger van deze handleiding is [de Microsoft-handleiding](microsoft.md).
 
-Deze handleiding gaat over de Google-kaarten in de wizard: de kaart **Google account**, en de vier kaarten die elk één Google-product lezen. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en vraagt niets op deze pagina u iets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
+Deze handleiding gaat over de Google-kaarten in de wizard: de kaart **Google account**, en de vier kaarten die elk één Google-product lezen. Heeft deze dienst een eigen Google-app, dan drukt u op **Verbinden met Google** en geeft u bij Google toestemming, en hoeft u op deze pagina niets aan te maken. De stappen om een eigen app te maken staan aan het eind, onder [Met een eigen app](#own-app), voor als u liever uw eigen app gebruikt.
 
 ## Wat u nodig hebt {#before}
 
 - Het Google-account waarvan de gegevens verhuizen, en de aanmelding ervan. De knop **Verbinden met Google** in de wizard opent het eigen toestemmingsscherm van Google voor dat account.
 - Is het account van iemand anders, dan hebt u diens wachtwoord niet nodig: [stuur een toegangslink](#grant-link).
-- Migreert u een hele Workspace met veel accounts? Lees dan eerst [domain-wide delegation](#domain-wide-delegation). Die vervangt een toestemming per persoon per product door één handeling van een beheerder, en er is een Workspace-beheerder voor nodig.
+- Migreert u een hele Workspace met veel accounts? Lees dan eerst [domeinbrede delegatie](#domain-wide-delegation). Die vervangt een toestemming per persoon per product door één handeling van een beheerder, en er is een Workspace-beheerder voor nodig.
 
 ## Koppelen {#connect}
 
@@ -22,11 +22,11 @@ Eén Google-account, één aanmelding. De regel onder de naam van de kaart zegt 
 
 Het token vraagt `https://www.googleapis.com/auth/drive.readonly`, en verder niets. Een migratie leest. Het token dat dit product aanmaakt, kan in de Drive van de bron niets maken, wijzigen of verwijderen. Dat is sterker dan een belofte op papier: Google dwingt het af.
 
-Het is een **gedelegeerd** inloggegeven: het leest de Drive van de persoon die toestemming geeft, met de gedeelde Drives die die persoon kan zien. Voor een hele Workspace is er een tweede weg, die u zelf kiest: **[domain-wide delegation](#domain-wide-delegation)**, aan het eind van deze handleiding. Tokens per gebruiker blijven de standaard: de kleinste toegang, per persoon in te trekken, en zonder beheerder.
+Het token is **gedelegeerd**: het leest de Drive van de persoon die toestemming geeft, met de gedeelde Drives die die persoon kan zien. Voor een hele Workspace is er een tweede weg, die u zelf kiest: **[domeinbrede delegatie](#domain-wide-delegation)**, aan het eind van deze handleiding. Tokens per gebruiker blijven de standaard: de kleinste toegang, per persoon in te trekken, en zonder beheerder.
 
-Het veld **Hoofdmap-ID** laat de migratie ergens anders beginnen dan in Mijn Drive. Een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de ID van de gedeelde map begint, is hoe zo'n map verhuist. De ID's die dit inloggegeven kan bereiken, ziet u met de knop **Gedeelde Drives en mappen bekijken…** in de stap Bron: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan waar u kunt beginnen, vallen erbuiten.
+Het veld **Hoofdmap-ID** laat de migratie ergens anders beginnen dan in Mijn Drive. Een **gedeelde Drive** heeft een eigen ID, en een **map die iemand met dit account deelde** ook. "Gedeeld met mij" is een weergave en geen map, dus wat erin staat verschijnt nooit onder de boom van Mijn Drive; een aparte migratie die bij de ID van de gedeelde map begint, is hoe zo'n map verhuist. De ID's die dit token kan bereiken, ziet u met de knop **Gedeelde Drives en mappen bekijken…** in de stap Bron: een lijst, alleen lezend, via dezelfde koppeling die een migratie gebruikt. Losse gedeelde bestanden, die met u gedeeld zijn maar niet in een map staan waar u kunt beginnen, vallen erbuiten.
 
-**Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te kopiëren, alleen een weergave die Google maakt, en de wizard vraagt als wat elke soort moet aankomen. Bij elke keuze laat Drive het document omzetten; hier wordt niets geconverteerd.
+**Google Documenten, Spreadsheets, Presentaties en Tekeningen** hebben geen bestand om te kopiëren, alleen een weergave die Google maakt, en de wizard vraagt in welk formaat elke soort moet aankomen. Bij elke keuze zet Drive het document om; hier wordt niets geconverteerd.
 
 - Documenten komen aan als `.odt` (OpenDocument), `.docx` (Microsoft Office) of `.pdf`.
 - Spreadsheets komen aan als `.ods`, `.xlsx` of `.pdf`.
@@ -41,11 +41,11 @@ Het geëxporteerde bestand krijgt de naam van het document **plus de extensie va
 
 ### Gmail {#gmail}
 
-**De scope is `https://mail.google.com/`, en een smallere is er niet.** Ownpace leest Gmail via IMAP (XOAUTH2 op `imap.gmail.com:993`), en dat is de enige scope die de IMAP-server van Google accepteert. De fijnere `gmail.readonly`-scopes horen bij de REST-API en worden aan de IMAP-deur geweigerd. De scope leest als volledige toegang tot de mail. Dit product schrijft er nooit mee (de bronkoppeling kan niet schrijven, en Gmail is nooit een doel van een migratie), maar anders dan bij `drive.readonly` van Drive is dat een eigenschap van het product en niet iets wat Google afdwingt. Het staat hier omdat doen alsof het anders is een onwaarheid is die een audit binnen een minuut vindt.
+**De scope is `https://mail.google.com/`, en een smallere is er niet.** Ownpace leest Gmail via IMAP (XOAUTH2 op `imap.gmail.com:993`), en dat is de enige scope die de IMAP-server van Google accepteert. De fijnere `gmail.readonly`-scopes horen bij de REST-API en worden aan de IMAP-deur geweigerd. De scope komt neer op volledige toegang tot de mail. Dit product schrijft er nooit mee (de bronkoppeling kan niet schrijven, en Gmail is nooit een doel van een migratie), maar anders dan bij `drive.readonly` van Drive is dat een eigenschap van het product en niet iets wat Google afdwingt. Het staat hier omdat doen alsof het anders is een onwaarheid is die een audit binnen een minuut vindt.
 
 **Een token met toestemming voor Drive werkt niet.** Een refresh-token draagt de scopes waarvoor toestemming is gegeven, en een token voor `drive.readonly` antwoordt `invalid_scope` zodra er een token voor mail wordt gevraagd. **Verbinden met Google** op de kaart Gmail vraagt de mailscope.
 
-Alleen voor een **persoonlijk** account kan het veld **App-wachtwoord** de toestemming vervangen. Lees [het deel daarover](#app-password) voordat u het kiest: Google raadt het af, het vraagt tweestapsverificatie, het bestaat niet op een Workspace-account, en het is het ruimere inloggegeven, niet het smallere. **Beide invullen verandert niets**: de toestemming wint zodra die compleet is, dus een app-wachtwoord dat van een eerdere poging is blijven staan, kan niet ongemerkt de plaats innemen.
+Alleen voor een **persoonlijk** account kan het veld **App-wachtwoord** de toestemming vervangen. Lees [het deel daarover](#app-password) voordat u het kiest: Google raadt het af, het vraagt tweestapsverificatie, het bestaat niet op een Workspace-account, en het geeft ruimere toegang, niet smallere. **Beide invullen verandert niets**: de toestemming wint zodra die compleet is, dus een app-wachtwoord dat van een eerdere poging is blijven staan, kan niet ongemerkt de plaats innemen.
 
 #### Een persoonlijk Gmail-account kan een app-wachtwoord gebruiken, en Google ziet dat liever niet {#app-password}
 
@@ -53,13 +53,13 @@ Voor **alleen mail**, en alleen op een **persoonlijk** Google-account, is er een
 
 **Google raadt app-wachtwoorden af, en wij ook.** Dat is geen formaliteit:
 
-- een app-wachtwoord **opent het hele postvak**, waar een token met toestemming alleen opent waarvoor toestemming is gegeven. Het is het ruimere inloggegeven, niet het smallere;
+- een app-wachtwoord **opent het hele postvak**, waar een token met toestemming alleen opent waarvoor toestemming is gegeven. Het geeft dus ruimere toegang, niet smallere;
 - het vraagt **tweestapsverificatie** op het account voordat Google er een wil maken. Zonder tweestapsverificatie is er geen scherm voor app-wachtwoorden;
 - **het bestaat niet op een Workspace-account**: beheerders kunnen het uitzetten, en Google haalt het weg. Hoort het account bij een Workspace, gebruik dan **Verbinden met Google**.
 
 Het ene echte voordeel, en de reden dat deze weg er is: **intrekken kan de eigenaar alleen.** Eén regel in de eigen lijst met app-wachtwoorden van het account verwijderen, en de toegang is weg, zonder Ownpace aan te raken, zonder beheerder, en zonder een OAuth-client te verwijderen die andere migraties misschien gebruiken. Voor iemand die zijn persoonlijke postvak twee weken aan een migratie uitleent, is dat echt iets waard.
 
-Het dagelijkse downloadplafond is **precies hetzelfde**: Google legt het op aan de IMAP-server, niet aan het inloggegeven, dus aan de doorvoer verandert niets.
+Het dagelijkse downloadplafond is **precies hetzelfde**: Google legt het op aan de IMAP-server, niet aan de inloggegevens, dus aan de doorvoer verandert niets.
 
 ### Google Calendar {#google-calendar}
 
@@ -83,15 +83,15 @@ U kiest hoe lang de link werkt, een dag, een week of een maand, en u kunt hem op
 
 **Wij sturen de link nooit.** Dat doet u, zoals u die persoon gewoonlijk bereikt. Ownpace leert het adres van die persoon nooit kennen, en kan het dus ook niet lekken.
 
-### Domain-wide delegation: één handeling van een beheerder in plaats van N toestemmingen {#domain-wide-delegation}
+### Domeinbrede delegatie: één handeling van een beheerder in plaats van N toestemmingen {#domain-wide-delegation}
 
-Een Workspace-beheerder kan een **service-account** één keer toestemming geven om zich als gebruikers voor te doen, voor een opgesomde lijst scopes. Gebruik dit als toestemming per gebruiker niet meer te doen is; sla het over voor een handvol accounts. **Weet hoe ver het reikt voordat u het kiest: de sleutel kan voor de toegestane scopes elke gebruiker in het domein lezen.** Elke migratie noemt nog steeds precies één account (het onderwerp); wat ruimer wordt is het inloggegeven, niet een migratie.
+Een Workspace-beheerder kan een **service-account** één keer toestemming geven om zich als gebruikers voor te doen, voor een opgesomde lijst scopes. Gebruik dit als toestemming per gebruiker niet meer te doen is; sla het over voor een handvol accounts. **Weet hoe ver het reikt voordat u het kiest: de sleutel kan voor de toegestane scopes elke gebruiker in het domein lezen.** Elke migratie noemt nog steeds precies één account (het account dat de migratie leest, onder **Gebruikersnaam**); wat ruimer wordt, is de sleutel, niet een migratie.
 
 De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in de taal van uw account.
 
 1. **Maak een apart service-account** (IAM → service accounts) in een willekeurig Google Cloud-project, zonder rollen en zonder iets anders. Het heeft maar één taak: deze migratie.
 2. **Maak een JSON-sleutel** (keys → add key → JSON). Dit bestand is nu het gevoeligste geheim van de migratie; behandel het zo.
-3. **Geef toestemming in de Admin console**: Admin → Security → Access and data control → API controls → **Domain-wide delegation** → voeg de client-ID van het service-account toe, met ALLEEN de scopes die de gekozen producten nodig hebben, nooit een ruimere set "voor de zekerheid":
+3. **Geef toestemming in de Admin-console**: Admin → Security → Access and data control → API controls → **Domain-wide delegation** → voeg de client-ID van het service-account toe, met ALLEEN de scopes die de gekozen producten nodig hebben, nooit een ruimere set "voor de zekerheid":
 
 - Drive: `https://www.googleapis.com/auth/drive.readonly`
 - Gmail: `https://mail.google.com/`
@@ -100,17 +100,17 @@ De schermen van Google staan hieronder met hun Engelse namen; Google toont ze in
 - Taken: `https://www.googleapis.com/auth/tasks.readonly`
 
 4. **Vul het in**: plak het hele sleutelbestand in het veld **Serviceaccount-sleutel** van de wizard, en geef bij elke migratie het account op. De refresh-tokenvelden zijn dan niet meer verplicht; de weigeringen zeggen het als er iets ontbreekt.
-5. **Trek het in bij de overstap.** Verwijder de delegatie in de Admin console (en de sleutel) als de migratie klaar is. Het inloggegeven leeft zo lang als de migratie, en deze stap hoort evengoed bij de verhuizing als stap 3.
+5. **Trek het in bij de overstap.** Verwijder de delegatie in de Admin-console (en de sleutel) als de migratie klaar is. De sleutel leeft zo lang als de migratie, en deze stap hoort evengoed bij de verhuizing als stap 3.
 
 ## Wat er meegaat {#what-moves}
 
-**Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die verhuizen als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die kopiëren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert het alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gekopieerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gekopieerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gekopieerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
+**Wat er met labels gebeurt.** Via IMAP toont Gmail elk label als een map, en die verhuizen als mappen. Gmail toont ook drie weergaven die berichten uit andere mappen nog eens bevatten: All Mail, Starred en Important. Die kopiëren zou elk bericht dubbel opleveren, één keer per weergave waarin het staat. Daarom slaat Ownpace die drie weergaven over (herkend aan de eigen kenmerken `\All`/`\Flagged`/`\Important` van Google, die in elke taal gelijk blijven) en migreert alles wat echt is: INBOX, uw labels, Sent, Drafts. Prullenbak en Spam worden standaard niet gekopieerd, zoals bij elke IMAP-bron, terwijl de prullenbak wel wordt gelezen als bewijs van verwijderingen. Een bericht met meerdere labels staat in meerdere mappen, maar mail wordt herkend aan de Message-ID, dus het wordt **één keer gekopieerd**, naar de map waar een ronde het eerst ziet. Wordt het later onder een ander label gezien, dan wordt het niet opnieuw gekopieerd; het kan wel in de wachtrij **Verplaatsingen** verschijnen als melding van een plaatsing aan de bronkant. Dat is informatie, geen opdracht. Labelt u veel, dan beschrijft die wachtrij vooral de labels van Gmail, en niet iets wat u deed.
 
 ### Wat een Drive-migratie nog niet doet {#drive-not-yet}
 
 Hier gezegd, zodat u het niet zelf hoeft te ontdekken:
 
-- **Geen stapsgewijze delta.** Elke ronde loopt elke map langs. De tweede ronde kopieert niets wat er al staat: het kost een lijst, geen nieuwe kopie.
+- **Geen lijst van alleen de wijzigingen.** Elke ronde loopt elke map langs. De tweede ronde kopieert niets wat er al staat: het kost een lijst, geen nieuwe kopie.
 - **Verwijderingen worden nooit uit het verwijdersignaal van Drive gehaald.** Google zet dat ook bij verloren toegang en bij gewijzigd delen, en dat zijn geen verwijderingen. Wat een ronde WEL leest, is de **prullenbak** van de eigenaar: een bestand in de prullenbak is een verwijdering door de eigenaar, meteen gemeld met echt bewijs, en de wachtrij **Verwijderingen** kan dan aanbieden om de kopie op het doel weg te halen. Is de prullenbak geleegd, dan valt het terug op tellen wat ontbreekt.
 - **Een verplaatst of hernoemd bestand laat de oude kopie op het doel staan.** Het wordt herkend en gemeld; het doel laten volgen is iets wat u per bestand goedkeurt, in de wachtrij **Verplaatsingen**. Een Google Document, Spreadsheet, Presentatie of Tekening wordt herkend aan de Drive-ID, dus hernoemen wordt als verplaatsing gemeld en nooit als verwijdering, in welk formaat het ook wordt geëxporteerd.
 - **Twee bestanden met dezelfde naam in dezelfde map kunnen niet allebei mee.** Een bestand wordt herkend aan zijn pad, dus twee met hetzelfde pad zijn een harde stop, geen instelling.
@@ -129,7 +129,7 @@ Daarom komt het gemeten Drive-getal van een verbinding overeen met de regel Goog
 
 - **`accessNotConfigured`**, met de naam van een API: in het Google Cloud-project achter de app staat die API uit. De zin van Google noemt de API en linkt naar de juiste pagina, en de test toont die zin, niet de XML waarin hij binnenkomt. Wordt de app van deze dienst gebruikt, dan is dat een instelling van deze dienst: meld het aan wie deze dienst beheert. Met [uw eigen app](#own-app) zet u hem aan in uw project.
 - **`invalid_scope`**: het refresh-token kreeg toestemming voor een ander Google-product. Verbind opnieuw vanaf de kaart waarop u bent.
-- **`unauthorized_client`** met een sleutel van een service-account betekent dat stap 3 van [domain-wide delegation](#domain-wide-delegation) ontbreekt of de verkeerde scope noemt; de foutmelding noemt de client-ID en de scope die erbij moeten. Een `invalid_grant` daar betekent meestal dat het onderwerp geen gebruiker in het domein is.
+- **`unauthorized_client`** met een sleutel van een service-account betekent dat stap 3 van [domeinbrede delegatie](#domain-wide-delegation) ontbreekt of de verkeerde scope noemt; de foutmelding noemt de client-ID en de scope die erbij moeten. Een `invalid_grant` daar betekent meestal dat het account onder **Gebruikersnaam** geen gebruiker in het domein is.
 - **`invalid_grant`**: het refresh-token is dood. **Behandel het refresh-token als een wachtwoord.** Het geeft leestoegang tot het wordt ingetrokken, en het verloopt niet vanzelf. Het sterft wel als:
 
 1. het wachtwoord van het account verandert;
@@ -142,14 +142,14 @@ Elk van deze geeft dezelfde `invalid_grant` van Google, en de melding van de tes
 
 - Een toestemming die met **Verbinden met Google** is gegeven, trekt u in bij Google, in de beveiligingsinstellingen van het Google-account, in de lijst met apps van derden die toegang hebben.
 - Een **app-wachtwoord** trekt u in door de regel ervan te verwijderen uit de eigen lijst met app-wachtwoorden van het account. De toegang is meteen weg, en verder wordt niets aangeraakt.
-- Een **service-account** trekt u in door de delegatie in de Admin console te verwijderen, en de sleutel.
+- Een **service-account** trekt u in door de delegatie in de Admin-console te verwijderen, en de sleutel.
 - Met [uw eigen app](#own-app) trekt het verwijderen van de OAuth-client elk token in dat ermee is gemaakt.
 
 ## Met een eigen app {#own-app}
 
 Dit doet u één keer, in **uw eigen** Google Cloud-project, zodat Ownpace een Google-account kan lezen met een client van uzelf. Het levert twee waarden op, client-ID en clientgeheim, die in het deel **Uw eigen Google-client gebruiken** van de wizard horen, naast **Verbinden met Google**.
 
-**Hetzelfde model als bij Microsoft, om dezelfde redenen.** De appregistratie staat in **uw** project en is door u geregistreerd; het inloggegeven blijft bij u; en intrekken doet u zelf: verwijder de OAuth-client en elk token is dood. De knop **Verbinden met Google** in de wizard regelt de toestemming voor u met uw eigen client: hij opent het toestemmingsscherm van Google met uw client-ID en geheim, en vult het refresh-token voor u in.
+**Hetzelfde model als bij Microsoft, om dezelfde redenen.** De appregistratie staat in **uw** project en is door u geregistreerd; de inloggegevens blijven bij u; en intrekken doet u zelf: verwijder de OAuth-client en elk token is dood. De knop **Verbinden met Google** in de wizard regelt de toestemming voor u met uw eigen client: hij opent het toestemmingsscherm van Google met uw client-ID en geheim, en vult het refresh-token voor u in.
 
 De schermen van Google Cloud staan hieronder met hun Engelse namen; Google toont ze in de taal van uw account.
 
@@ -188,7 +188,7 @@ Deze keuze maakte u [hierboven](#own-app-whose-account). In de woorden van de co
 
 **APIs & Services → Credentials → Create credentials → OAuth client ID.**
 
-Kies **Web application** en voeg een geautoriseerd omleidingsadres toe (Authorised redirect URIs): de wizard toont de precieze waarde als u met uw eigen client op **Verbinden met Google** drukt, zodat een verschil zichtbaar is voordat Google weigert. Het eindigt op `/api/migrations/google/callback`. De omleiding is er alleen om het refresh-token één keer te krijgen; daarna gebruiken migraties het refresh-token rechtstreeks.
+Kies **Web application** en voeg een adres toe onder Geautoriseerde omleidings-URI’s (Authorised redirect URIs): de wizard toont de precieze waarde als u met uw eigen client op **Verbinden met Google** drukt, zodat een verschil zichtbaar is voordat Google weigert. Het eindigt op `/api/migrations/google/callback`. De omleiding is er alleen om het refresh-token één keer te krijgen; daarna gebruiken migraties het refresh-token rechtstreeks.
 
 Kopieer de **client ID** en het **client secret**, open **Uw eigen Google-client gebruiken** in de wizard, vul beide in en druk op **Verbinden met Google**.
 

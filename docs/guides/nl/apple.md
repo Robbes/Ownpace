@@ -21,7 +21,7 @@ U typt geen van die servers. Het zijn de gepubliceerde waarden van Apple, in dit
 
 ### 1. Maak een app-specifiek wachtwoord {#app-password}
 
-**Gebruik niet het wachtwoord van uw Apple-account.** Elk Apple-account heeft tweestapsverificatie, en het eigen wachtwoord van zo'n account wordt **met opzet geweigerd door IMAP, CalDAV en CardDAV**. Het is niet het verkeerde wachtwoord: het is het goede wachtwoord van een soort die hier niet kan, en het zorgvuldiger typen zal nooit werken.
+**Gebruik niet het wachtwoord van uw Apple-account.** Elk Apple-account heeft twee-factor-authenticatie, en het eigen wachtwoord van zo'n account wordt **met opzet geweigerd door IMAP, CalDAV en CardDAV**. Het is niet het verkeerde wachtwoord: het is het goede wachtwoord van een soort die hier niet kan, en het zorgvuldiger typen zal nooit werken.
 
 1. Meld u aan op [`account.apple.com`](https://account.apple.com).
 2. **Aanmelden en beveiliging** → **App-specifieke wachtwoorden**.
@@ -43,7 +43,7 @@ Verbindingen met Google, Microsoft en Dropbox bieden een toestemmingsknop met é
 
 **Apple publiceert voor Mail, Agenda, Contacten, Herinneringen en iCloud Drive geen OAuth-scope voor wie dan ook buiten Apple.** Er is geen toestemmingsscherm om u naartoe te sturen, geen token om te ontvangen, en niets wat een knop zou kunnen doen. Het is geen recht dat wij nog moeten aanvragen of een verificatie die we nog moeten kopen: de scope bestaat voor derden gewoon niet.
 
-**Inloggen met Apple is iets anders, en dat bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich met uw Apple-account bij dit product aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
+**De knop Log in met Apple is iets anders, en die bestaat hier wel.** Biedt deze dienst het aan, dan kunt u zich met uw Apple-account bij dit product aanmelden. Dat geeft een naam en een e-mailadres: een identiteit, geen postvak. Het bereikt geen van uw gegevens, en het vervangt de verbinding hierboven niet. Beide kunnen tegelijk waar zijn en brengen mensen vaak in de war: de knop op het aanmeldscherm gaat over **wie u bent**; het wachtwoord op deze pagina gaat over **wat er gelezen mag worden**.
 
 ## Wat er meegaat {#what-moves}
 
@@ -51,7 +51,7 @@ E-mail, agenda's, contacten en herinneringen, wat u aanvinkt. Niet iCloud Drive.
 
 ### Wat herinneringen meebrengen {#reminders}
 
-De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus één inloggegeven bereikt beide. Maar het zijn **geen** afspraken, en dit product doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
+De herinneringen van Apple zijn `VTODO`-objecten op dezelfde CalDAV-server als uw agenda's, dus dezelfde inloggegevens bereiken beide. Maar het zijn **geen** afspraken, en dit product doet ook niet alsof. Taken zijn een eigen soort gegevens, apart van afspraken. Een herinnering als afspraak in de agenda zetten, zou iets opleveren wat gemigreerd lijkt en fout is.
 
 Het doel moet dus ook taken kunnen dragen. Een CalDAV-doel dat in zijn `supported-calendar-component-set` alleen `VEVENT` noemt, kan ze niet aannemen, en de wizard zegt dat wanneer u kiest wat u migreert, in plaats van halverwege een ronde te falen.
 
@@ -85,7 +85,7 @@ Wat er terugkomt, in de eigen beschrijving van Apple:
 
 Tijden staan overal in **UTC**, dus er hoeft niets uit een lokaal tijdsverschil te worden geraden.
 
-Apple is ongewoon duidelijk over waar dit voor is: op de vraag of u de gegevens naar een andere aanbieder kunt verhuizen, antwoordt Apple in het Engels "Yes. We provide your data in industry-standard formats designed to be easy to import into other services.": ja, in standaardformaten die gemaakt zijn om makkelijk in andere diensten te importeren.
+Apple is ongewoon duidelijk over waar dit voor is: op de vraag of u de gegevens naar een andere aanbieder kunt verhuizen, antwoordt Apple in het Engels: "Yes. We provide your data in industry-standard formats designed to be easy to import into other services." Dus ja: in standaardformaten die gemaakt zijn om makkelijk in andere diensten te importeren.
 
 ### Wat de export niet bevat, en één ding om na te kijken {#export-not}
 
@@ -117,7 +117,7 @@ Dit product gokt geen serveradres of gedrag van een aanbieder: het meet ze, of z
 
 - De **servers en poorten** zijn de gepubliceerde waarden van Apple, vastgelegd met de dag waarop ze zijn gelezen.
 - Het **ontbreken van een API voor iCloud Drive** en het **ontbreken van een OAuth-scope voor gegevens** komen uit de ontwikkelaarsdocumentatie van Apple: het zijn afwezigheden, en juist zo'n bewering moet opnieuw worden nagekeken in plaats van te worden aangenomen dat ze blijft kloppen.
-- Het **gedrag van een echt iCloud-account** is **nog niet gemeten**: of het app-specifieke wachtwoord met de streepjes die Apple toont wordt geaccepteerd, of Apple als gebruikersnaam het deel voor de @ of het hele adres wil, en welke aantallen per onderdeel terugkomen. Een begeleide ronde tegen een echt account maakt die van beredeneerd tot gemeten. Tot die is gedaan, is deze pagina juist over het ontwerp van Apple en onbewezen over de servers van Apple.
+- Het **gedrag van een echt iCloud-account** is **nog niet gemeten**: of het app-specifieke wachtwoord met de streepjes die Apple toont wordt geaccepteerd, of Apple als gebruikersnaam het deel voor de @ of het hele adres wil, en welke aantallen per onderdeel terugkomen. Een begeleide ronde met een echt account verandert die van beredeneerd in gemeten. Tot die is gedaan, is deze pagina juist over het ontwerp van Apple en onbewezen over de servers van Apple.
 
 ## Als de test iets meldt {#when-test-says}
 
