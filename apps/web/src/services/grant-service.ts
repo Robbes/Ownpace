@@ -24,6 +24,9 @@ const SubjectSchema = z.object({
   organisationPhone: z.string().nullable(),
   reads: z.string(),
   scope: z.string(),
+  // Whether Google itself holds that scope to reading (workplan 0144 T3 (c)).
+  // The page says "read-only" only when it is true.
+  readOnlyAtProvider: z.boolean(),
   // Where from and where to (workplan 0108 T8a): the account the migration
   // reads, and the kind of server it writes, its host and the account on it.
   // Never null since T8 (b): the grant is bound to that account, so the server

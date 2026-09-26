@@ -21,8 +21,10 @@ import {
   exchangeCode,
   grantResultPage,
   rawIpCallbackRefusal,
+  recordedPermission,
   unreachableCallbackRefusal,
 } from './google-consent.ts';
+import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
 
 const PENDING = {
   clientId: 'cid',
@@ -491,6 +493,57 @@ describe('the result page: one origin, no leaks', () => {
   });
 });
 
+/**
+ * "Read-only" at the link holder's ending only where Google holds WHAT IT
+ * RECORDED to reading (workplan 0144 T3 (c)).
+ *
+ * The ending said *"Access is read-only"* after every grant, Gmail's included,
+ * whose `https://mail.google.com/` Google describes as sending and deleting
+ * too. And the page before the button can judge only the ask: the consent asks
+ * with `include_granted_scopes`, so Google's answer also carries whatever this
+ * account already gave the same application. The ending is the first moment
+ * the grant itself is known, so it judges that, and says which of three it is.
+ */
+describe("the link holder's ending says read-only only where Google holds the grant to reading", () => {
+  const DRIVE = GOOGLE_SOURCE_SCOPES['google-drive'];
+  const GMAIL = GOOGLE_SOURCE_SCOPES.gmail;
+  const WHO = SIGNED_IN_ACCOUNT_SCOPES;
+  const asked = (data: string) => [data, ...WHO].join(' ');
+
+  it('judges what Google recorded, and leaves out who signed in', () => {
+    expect(recordedPermission(asked(DRIVE), [DRIVE, ...WHO])).toBe('read-only');
+    expect(recordedPermission(asked(GMAIL), [GMAIL, ...WHO])).toBe('allows-changes');
+  });
+
+  it('calls a grant broader than a read-only ask widened: an earlier consent to the same app came along', () => {
+    expect(recordedPermission(asked(DRIVE), [DRIVE, GMAIL, ...WHO])).toBe('widened');
+    // Drive's full scope satisfies the read-only ask (`unsatisfiedScopes`), and
+    // it can write.
+    expect(recordedPermission(asked(DRIVE), ['https://www.googleapis.com/auth/drive', ...WHO])).toBe('widened');
+  });
+
+  it('says read-only when it is', () => {
+    const page = grantResultPage({ ok: true, permission: 'read-only' });
+    expect(page).toContain('Access is <strong>read-only</strong>');
+  });
+
+  it('says Ownpace only reads, and that the permission allows changes, when it does', () => {
+    const page = grantResultPage({ ok: true, permission: 'allows-changes' });
+    expect(page).not.toMatch(/read-only/i);
+    expect(page).toContain('Ownpace only reads');
+    expect(page).toContain('nothing is ever deleted or changed at your end');
+    expect(page).toContain('also allows changes');
+    expect(page).not.toContain('already given');
+  });
+
+  it('says Google added an earlier permission when the grant came back broader than the link asked', () => {
+    const page = grantResultPage({ ok: true, permission: 'widened' });
+    expect(page).not.toMatch(/read-only/i);
+    expect(page).toContain('Ownpace only reads');
+    expect(page).toContain('already given the same app');
+  });
+});
+
 describe("the link holder's ending, when nothing was stored", () => {
   it('says to ask for a fresh link when this one can no longer be used', () => {
     const page = grantResultPage({ ok: false, reason: 'This link can no longer be used.' });
@@ -536,7 +589,7 @@ describe('every ending is a whole document a phone lays out at its own width', (
     ['the owner, handed back', consentResultPage({ webOrigin: 'https://app.example.nl', outcome: OK })],
     ['the owner, copy-paste', consentResultPage({ outcome: OK })],
     ['the owner, refused', consentResultPage({ outcome: { ok: false, reason: 'access_denied' } })],
-    ['the link holder, done', grantResultPage({ ok: true })],
+    ['the link holder, done', grantResultPage({ ok: true, permission: 'read-only' })],
     ['the link holder, refused', grantResultPage({ ok: false, reason: 'No.', link: 'unused' })],
   ];
 
@@ -587,7 +640,7 @@ describe("the headers the page is served under: the API's defaults deny it its o
     const pages = [
       consentResultPage({ webOrigin: ORIGIN, outcome: { ok: false, reason: 'Google reported: access_denied.' } }),
       consentResultPage({ outcome: OK }),
-      grantResultPage({ ok: true }),
+      grantResultPage({ ok: true, permission: 'read-only' }),
     ];
     for (const page of pages) {
       expect(scriptOf(page)).toBeUndefined();

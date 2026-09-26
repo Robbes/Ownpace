@@ -32,10 +32,13 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   PROVIDER_ACCOUNT_DOMAINS,
+  googleConsentAllowsChanges,
   isProviderAccountKind,
+  sourceTypeDomains,
   type CredentialField,
   type DiscoveryDomain,
   type ProviderAccountKind,
+  type WizardSourceType,
 } from '@openmig/shared';
 import {
   mappingApi,
@@ -55,6 +58,12 @@ export interface ProviderConsent {
   readonly isAccountKind: boolean;
   readonly faces: ReadonlyArray<DiscoveryDomain>;
   readonly domains: DiscoveryDomain[];
+  /**
+   * What this consent asks the provider for: an account's ticked faces, or
+   * the one type a single-purpose card is. What the lines beside the button
+   * describe (`ConsentLines`, workplan 0144 T3 (a)).
+   */
+  readonly asked: ReadonlyArray<DiscoveryDomain>;
   readonly setDomains: React.Dispatch<React.SetStateAction<DiscoveryDomain[]>>;
   readonly note: string | null;
   readonly redirect: string | null;
@@ -122,6 +131,7 @@ export function useProviderConsent(opts: {
     : [];
 
   const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
+  const asked = consentAsks(type, domains, faces);
   const [note, setNote] = React.useState<string | null>(null);
   const [redirect, setRedirect] = React.useState<string | null>(null);
   const [landed, setLanded] = React.useState(0);
@@ -235,6 +245,7 @@ export function useProviderConsent(opts: {
     faces,
     domains,
     setDomains,
+    asked,
     note,
     redirect,
     pairMissing,
@@ -246,6 +257,77 @@ export function useProviderConsent(opts: {
     words,
   };
 }
+
+/**
+ * What a consent for this source asks for: the faces ticked, for a provider
+ * ACCOUNT (the only kind whose consent is a set), and otherwise the one type
+ * the card is. Shared by both doors, so the wizard and the Connections page
+ * describe the same ask the same way.
+ *
+ * An account's ticks count only inside `served`, the faces this deployment
+ * serves for the kind (`/api/provider-accounts`, read by the door). The
+ * Connections panel offers only those, but the wizard's source step offers all
+ * five, and a tick outside the answer is refused by the server before Google
+ * is asked for anything, so it is no part of the ask. `undefined` means the
+ * door has no answer that bounds this kind, and the ticks stand.
+ */
+export function consentAsks(
+  type: string,
+  ticked: ReadonlyArray<DiscoveryDomain>,
+  served: ReadonlyArray<DiscoveryDomain> | undefined,
+): ReadonlyArray<DiscoveryDomain> {
+  if (isProviderAccountKind(type)) {
+    return served === undefined ? ticked : ticked.filter((d) => served.includes(d));
+  }
+  return sourceTypeDomains(type as WizardSourceType) ?? [];
+}
+
+/**
+ * THE LINES BESIDE A CONNECT BUTTON, laid out once for both doors.
+ *
+ * The wizard's source step draws its own button and the Connections page
+ * draws the panel below; what sits under either is this, so the two cannot
+ * say different things about the same consent. Today that is the button's own
+ * hint and, for Google, one line more (workplan 0144 T3 (a)). 0140 T3's line
+ * about in-app browsers belongs here too, beside these.
+ *
+ * **The line beside *Connect with Google*.** Google's screen, one click later,
+ * describes `https://mail.google.com/`, `auth/calendar` and `auth/carddav` as
+ * allowing changes and permanent deletion. That is the first a tester heard of
+ * it, on a page they have never seen, from a company that is not us. So the
+ * line says it first, with what is true of Ownpace: it only reads, and changes
+ * and deletes nothing. Shown when the consent asks for mail, calendars or
+ * contacts, and not for Drive or Tasks, whose scopes Google holds to reading
+ * (`googleConsentAllowsChanges`, from shared, held to the scope tables by their
+ * tests). It is §3's two sentences, whole: a promise about a consent, which the
+ * owner's copy rule keeps verbatim (0118 §2), not a field hint to be cut to
+ * twelve words, and so it has no fold.
+ *
+ * Whose app asks (the deployment's or one the person typed in) changes nothing
+ * here: the scope Google describes is the same. What the deployment decides is
+ * which faces an account consent may ask for at all, and `asked` is kept
+ * inside that answer by `consentAsks`: the Connections panel offers only the
+ * faces `/api/provider-accounts` returned, and the wizard's source step offers
+ * all five, so there the door hands the answer in.
+ */
+export const ConsentLines: React.FC<{
+  /** The provider whose consent the button runs, from the descriptor. */
+  readonly provider: string | undefined;
+  /** What the consent asks for (`consentAsks`). */
+  readonly asked: ReadonlyArray<DiscoveryDomain>;
+}> = ({ provider, asked }) => {
+  const t = useT();
+  if (provider === undefined) return null;
+  const word = (suffix: 'connect.hint' | 'connect.why') => t(`wizard.${provider}.${suffix}` as StringKey);
+  return (
+    <>
+      <Hint text={word('connect.hint')} why={word('connect.why')} />
+      {provider === 'google' && googleConsentAllowsChanges(asked) && (
+        <Hint text={t('wizard.google.readsOnly')} />
+      )}
+    </>
+  );
+};
 
 /**
  * The faces to ask for, the button, and what came back — in the provider's own
@@ -300,7 +382,7 @@ export const ProviderConsentPanel: React.FC<{
       >
         {words('connect')}
       </button>
-      <Hint text={words('connect.hint')} why={words('connect.why')} />
+      <ConsentLines provider={consent.provider} asked={consent.asked} />
       {consent.note && (
         <p className={`mt-1 text-sm ${consent.note === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
           {consent.note === 'received' ? t('wizard.consent.received') : consent.note}

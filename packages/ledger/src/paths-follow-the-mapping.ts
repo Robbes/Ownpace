@@ -34,10 +34,22 @@
  * taken, and the API's doors record the peak on it. A write through the
  * ledger's own door (the CLI, the rollback job) records it through
  * `applyMappingStatusChange`'s `onSlotsTaken`, which both pass.
+ *
+ * ## Each path in its own phase (workplan 0128 T5, slice 5a)
+ *
+ * Once a data type can be cut over on its own (slice 5b), a migration's paths
+ * are not all in one phase: mail in its cutover while files still copy before
+ * theirs. A press on the whole migration then moves only the paths in the
+ * phase the migration leaves (`pathFollows`). Pausing, resuming or starting
+ * the rest does not move mail back before its cutover, which would bring its
+ * deletion detectors back (0117 D4). Where the rows do not add up to the
+ * status (something wrote the status alone), the status is every path's
+ * phase, as the reader believes it (`readPathPhases`), and every path moves,
+ * as before.
  */
 
 import { and, eq } from 'drizzle-orm';
-import type { DiscoveryDomain, MappingId, TenantId } from '@openmig/shared';
+import { rollUpPhases, type DiscoveryDomain, type MappingId, type TenantId } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import { PgPathLifecycleStore } from './path-lifecycle-store.ts';
 import type { MappingStatus } from './mapping-status-audit.ts';
@@ -50,8 +62,33 @@ export interface PathsMoved {
   readonly slotsTaken: boolean;
 }
 
+/** A mapping-status change, as its paths follow it: the status it leaves (none for a new one), and the one it takes. */
+export interface PathsChange {
+  readonly from: string | null;
+  readonly to: MappingStatus;
+}
+
 /**
- * Move every included path of one mapping to follow a mapping-status change.
+ * Whether one path moves with its migration's status change (0128 T5, slice
+ * 5a), given its own phase (undefined: it has no row, it never ran) and
+ * whether the migration's rows are believed (they add up to the status it
+ * leaves).
+ *
+ * Believed, a path moves when it is in the phase the migration leaves: a data
+ * type cut over on its own stays where it is when the rest is paused, resumed
+ * or started. `done` ends every path, and `active` also starts one that never
+ * ran. Not believed, every path moves, as every one did before.
+ */
+export function pathFollows(change: PathsChange, phase: string | undefined, believed: boolean): boolean {
+  if (change.to === 'active') return phase === undefined || phase === 'ready' || !believed || phase === change.from;
+  if (phase === undefined) return false;
+  if (!believed) return true;
+  return change.to === 'done' ? phase !== 'done' : phase === change.from;
+}
+
+/**
+ * Move the included paths of one mapping to follow a mapping-status change:
+ * the ones `pathFollows` says move.
  *
  * Call it inside the SAME transaction as the `mailbox_mapping.status` write,
  * after that write. The five mapping states map one-to-one onto ADR-0014's
@@ -62,7 +99,7 @@ export async function movePathsWithMapping(
   db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
   tenantId: string,
   mappingId: string,
-  to: MappingStatus,
+  change: PathsChange,
 ): Promise<PathsMoved> {
   const included = await db
     .select({ domain: schemaPg.scopeSelection.domain })
@@ -77,33 +114,33 @@ export async function movePathsWithMapping(
   if (included.length === 0) return { moved: 0, slotsTaken: false };
 
   const store = new PgPathLifecycleStore(db);
-
-  if (to === 'active') {
-    for (const { domain } of included) {
-      await store.activate(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain);
-    }
-    return { moved: included.length, slotsTaken: true };
-  }
-
-  // Only rows that exist: a path that never activated has nothing to pause,
-  // cut over or finish, and creating one here would either hold a slot for a
-  // path that never ran (`paused`) or fabricate a history (`cutover`/`done`).
+  // Each included path's own phase; one with no row never ran. Only rows that
+  // exist move to anything but `active`: a path that never activated has
+  // nothing to pause, cut over or finish, and creating one here would either
+  // hold a slot for a path that never ran (`paused`) or fabricate a history
+  // (`cutover`/`done`).
   const existing = await db
-    .select({ domain: schemaPg.pathLifecycle.domain })
+    .select({ domain: schemaPg.pathLifecycle.domain, state: schemaPg.pathLifecycle.state })
     .from(schemaPg.pathLifecycle)
     .where(
       and(eq(schemaPg.pathLifecycle.tenantId, tenantId), eq(schemaPg.pathLifecycle.mappingId, mappingId)),
     );
-  const known = new Set(existing.map((r) => r.domain));
+  const phaseOf = new Map<string, string>(existing.map((r) => [r.domain, r.state]));
+  const phases = included.map(({ domain }) => phaseOf.get(domain)).filter((p): p is string => p !== undefined);
+  const believed = rollUpPhases(phases) === change.from;
+
   let moved = 0;
   for (const { domain } of included) {
-    if (known.has(domain)) {
-      await store.moveTo(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain, to);
-      moved += 1;
+    if (!pathFollows(change, phaseOf.get(domain), believed)) continue;
+    if (change.to === 'active') {
+      await store.activate(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain);
+    } else {
+      await store.moveTo(tenantId as TenantId, mappingId as MappingId, domain as DiscoveryDomain, change.to);
     }
+    moved += 1;
   }
-  // `continuous` takes back the slots `cutover` or `done` released (0117 D6),
-  // so it raises the peak as a start does. `paused` holds a slot too, but only
-  // one a running path already held, so it cannot raise anything.
-  return { moved, slotsTaken: moved > 0 && to === 'continuous' };
+  // `active` takes slots, and `continuous` takes back the ones `cutover` or
+  // `done` released (0117 D6), so both raise the peak. `paused` holds a slot
+  // too, but only one a running path already held, so it cannot raise anything.
+  return { moved, slotsTaken: moved > 0 && (change.to === 'active' || change.to === 'continuous') };
 }

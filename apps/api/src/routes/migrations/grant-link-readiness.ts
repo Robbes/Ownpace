@@ -43,7 +43,11 @@
  */
 
 import { providerAccountDomains, type DiscoveryDomain } from '@openmig/shared';
-import { GOOGLE_SOURCE_SCOPES, type GoogleConsentSourceType } from './google-consent.ts';
+import {
+  GOOGLE_SOURCE_SCOPES,
+  heldToReadingByGoogle,
+  type GoogleConsentSourceType,
+} from './google-consent.ts';
 import { googleAccountConsent, isRefusal } from './google-account-consent.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES } from './signed-in-account.ts';
 
@@ -157,6 +161,20 @@ export interface GrantLinkAsk {
   readonly scope: string;
   /** The data types it covers, in the scope table's order. */
   readonly domains: ReadonlyArray<DiscoveryDomain>;
+  /**
+   * Whether every data scope this link ASKS for is one Google holds to reading
+   * (workplan 0144 T3 (c); `GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE`). The page says
+   * "read-only" only then. Otherwise it says that Ownpace only reads and that
+   * Google describes the permission more broadly, because Google's screen, one
+   * click later, will.
+   *
+   * A claim about the ASK, not about the grant Google will record: the consent
+   * asks with `include_granted_scopes` (`consentUrl`), so Google also hands
+   * back every permission this account already gave the same application,
+   * which may allow changes. Only the ending can see that, and it says so
+   * (`recordedPermission`).
+   */
+  readonly readOnlyAtProvider: boolean;
 }
 
 export type GrantLinkDecision =
@@ -306,11 +324,20 @@ export function grantLinkAsk(r: Omit<GrantLinkReadiness, 'hasWebUrl'>): GrantLin
       );
     }
   }
+  // Read-only at Google, from the data scopes this link asks for: they are
+  // what Google describes on its screen. Decided on the data scope alone,
+  // because who signed in is not data and every link asks it (0144 T3 (c)).
+  const readOnlyAtProvider = heldToReadingByGoogle(scope);
   // Who signed in, asked beside the data: the ending compares it with the
   // account the page named, and refuses anything else (T8 (b)).
   return {
     ok: true,
-    ask: { client, scope: [scope, ...SIGNED_IN_ACCOUNT_SCOPES].join(' '), domains },
+    ask: {
+      client,
+      scope: [scope, ...SIGNED_IN_ACCOUNT_SCOPES].join(' '),
+      domains,
+      readOnlyAtProvider,
+    },
   };
 }
 

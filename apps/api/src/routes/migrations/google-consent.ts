@@ -33,6 +33,7 @@
 
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE,
   domainsToScopes,
   grantSatisfiesAskedScope,
   type GoogleGrantDomain,
@@ -410,6 +411,46 @@ export function unsatisfiedScopes(asked: string, granted: ReadonlyArray<string>)
 }
 
 /**
+ * Whether Google itself holds these scopes to READING (workplan 0144 T3 (c)):
+ * every data scope among them is on `GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE`. The
+ * two that say who signed in are left out, as `unsatisfiedScopes` leaves them
+ * out: they are asked of every grant link and are not data. No data scope at
+ * all is not read-only, because there is then nothing to call it.
+ *
+ * One judge for the ask and for the grant: `grantLinkAsk` puts it to the
+ * scopes a link ASKS for, and the link's ending to the scopes Google RECORDED
+ * (`recordedPermission`).
+ */
+export function heldToReadingByGoogle(scopes: string | ReadonlyArray<string>): boolean {
+  const data = (typeof scopes === 'string' ? scopes.split(/\s+/) : scopes)
+    .filter((scope) => scope.length > 0)
+    .filter((scope) => !SIGNED_IN_ACCOUNT_SCOPES.includes(scope));
+  return data.length > 0 && data.every((scope) => GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE.includes(scope));
+}
+
+/**
+ * What the permission Google RECORDED allows, as the link holder's ending
+ * says it (workplan 0144 T3 (c)).
+ *
+ * - `read-only`: every data scope Google recorded is one it holds to reading.
+ * - `allows-changes`: the link itself asked for a scope that also allows
+ *   changes (mail, calendars, contacts), and the page before the button said so.
+ * - `widened`: the link asked only for scopes Google holds to reading, and
+ *   Google's answer carries one that is not. `consentUrl` asks with
+ *   `include_granted_scopes`, so the answer also carries every permission this
+ *   account already gave the same application, and on the managed edition
+ *   every organisation's links run on that one application. The page before
+ *   the button said *"Read-only"*, which was true of the ask, and the ending is
+ *   the first moment anybody can know it is not true of the grant.
+ */
+export type RecordedPermission = 'read-only' | 'allows-changes' | 'widened';
+
+export function recordedPermission(asked: string, granted: ReadonlyArray<string>): RecordedPermission {
+  if (heldToReadingByGoogle(granted)) return 'read-only';
+  return heldToReadingByGoogle(asked) ? 'widened' : 'allows-changes';
+}
+
+/**
  * Exchange the authorization code for tokens. The secret appears in the
  * POST body and nowhere else; the answer's `scope` field is the grant
  * ENUMERATED, so a narrower grant refuses with the difference named.
@@ -619,7 +660,15 @@ export function consentResultPage(p: {
  */
 export function grantResultPage(
   outcome:
-    | { readonly ok: true; readonly progressUrl?: ProgressPageUrl }
+    | {
+        readonly ok: true;
+        readonly progressUrl?: ProgressPageUrl;
+        /**
+         * What the permission Google recorded allows (0144 T3 (c)). Required,
+         * so no caller can reach "read-only" by leaving it out.
+         */
+        readonly permission: RecordedPermission;
+      }
     | {
         readonly ok: false;
         readonly reason: string;
@@ -661,14 +710,26 @@ export function grantResultPage(
       '<p>Bookmark it. It works for the next 90 days, and the person running the migration ' +
       'can turn it off at any time.</p>'
     : '';
+  // "Read-only" only where Google holds what it recorded to reading (0144 T3
+  // (c)). Otherwise what is true of Ownpace, and what is true of the
+  // permission, said apart.
+  const access = {
+    'read-only': 'Access is <strong>read-only</strong>: nothing is ever deleted or changed at your end.',
+    'allows-changes':
+      '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. The ' +
+      'permission Google recorded also allows changes; Ownpace makes none.',
+    widened:
+      '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. ' +
+      'Google also added permissions this account had already given the same app, and one of ' +
+      'them allows changes; Ownpace makes none.',
+  }[outcome.permission];
   return shell(
     `<main style="${PAGE_STYLE}"><h1>Thank you — that is done</h1>` +
       '<p>Your account is now connected, and the migration can read from it. You do not have ' +
       'to do anything else, and this link will not work again.</p>' +
       keepThis +
-      '<p>Access is <strong>read-only</strong>: nothing is ever deleted or changed at your ' +
-      'end. You can withdraw it at any time from your Google account’s security settings, ' +
-      'under the third-party apps that have access.</p></main>',
+      `<p>${access} You can withdraw it at any time from your Google account’s security ` +
+      'settings, under the third-party apps that have access.</p></main>',
   );
 }
 

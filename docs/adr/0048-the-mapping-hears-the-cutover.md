@@ -4,7 +4,8 @@
   ("Go ahead with the CLI cutover row"); **built 2026-09-20** as `enterCutover` and `closeCutover`
   in `@openmig/core`, the CLI over them, gated against a real ledger. **Amended 2026-09-24**: the
   grace period copies (workplan 0128 T2, the owner's D1 (a)); **2026-09-26**: a window per data
-  type (0128 T5 slice 4, the owner's D8); see the amendments at the end.
+  type (0128 T5 slice 4, the owner's D8), and only the paths in the phase the mapping leaves move
+  with it (slice 5a); see the amendments at the end.
 - **Date:** 2026-09-19 (decided); 2026-09-20 (built)
 - **Deciders:** owner
 - **Relates to:** [ADR-0047](./0047-a-rollback-is-a-setback.md) (the rollback is the other half of
@@ -50,6 +51,9 @@
   the same transaction as the row, by the same port the rollback writes through. **The mapping's
   paths move with it in that transaction** (corrected 2026-09-24): `execute` and `complete`
   release their slots, and a rollback takes them back, as the API's doors do (workplan 0109 T1b).
+  Only the paths in the phase the mapping leaves move (amended 2026-09-26, 0128 T5 slice 5a),
+  where its rows add up to its status: a data type in another phase keeps its own, so a pause or a
+  start of the rest never moves one back that was cut over on its own.
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
   lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
@@ -238,3 +242,20 @@ Gates: `packages/ledger/src/a-cutover-ledger-per-data-type.unit.test.ts` (the ke
 the window, on PGlite as `app_user`), and `apps/worker/src/jobs/a-grace-period-that-copies.unit.test.ts`,
 which asks the tick's own query and the pass's step before each data type with a window per data
 type.
+
+## Amendment, 2026-09-26: only the paths in the phase the mapping leaves (workplan 0128 T5, slice 5a)
+
+The correction above moved every included path with the mapping. That was right while every
+path was in the mapping's phase, and it stops being right once a data type can be cut over on its
+own (slice 5b): a pause or a start of the rest would move a cut-over data type back before its
+cutover, where its deletion detectors come back (0117 D4). So one rule decides, for
+every door that moves the mapping (`pathFollows`, in the ledger's `paths-follow-the-mapping.ts`):
+where the mapping's rows add up to the status it leaves, only the paths in that phase move,
+`done` ends every path, and a start also starts one that never ran; where they do not add up (a
+status written alone), every path moves, as before, since the reader then believes the status for
+every data type. Until slice 5b every path is in the mapping's phase, so every door moves the
+paths it moved.
+
+Gates: `packages/ledger/src/a-door-moves-only-its-own-paths.unit.test.ts` (the rule), and
+`apps/api/src/routes/migrations/path-lifecycle-wiring.unit.test.ts`, which presses managed's
+doors and the ledger's own on a migration whose mail was cut over on its own.

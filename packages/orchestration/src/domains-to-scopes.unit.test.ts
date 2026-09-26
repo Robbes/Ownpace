@@ -16,8 +16,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { GOOGLE_READ_ONLY_AT_GOOGLE, type DiscoveryDomain } from '@openmig/shared';
 import {
   GOOGLE_SCOPES_ASKED_BY_DOMAIN,
+  GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE,
   domainsToScopes,
   type GoogleGrantDomain,
 } from './account-qualification.ts';
@@ -115,5 +117,45 @@ describe('the ask can never be a superset — proved against the table', () => {
         'https://www.googleapis.com/auth/tasks.readonly',
       ]),
     );
+  });
+});
+
+/**
+ * Which asks Google itself holds to reading (workplan 0144 T3).
+ *
+ * The grant page says "Read-only" only when every data scope a link asks is
+ * one of these, and the wizard's line beside *Connect with Google* reads the
+ * same fact per data type from shared, because the browser cannot import this
+ * table. Two readings of one fact, held together here at the table.
+ */
+describe('the scopes Google itself holds to reading (0144 T3)', () => {
+  /** The grant vocabulary to the discovery one; `mail` is the only word that differs. */
+  const DISCOVERY: Readonly<Record<GoogleGrantDomain, DiscoveryDomain>> = {
+    mail: 'email',
+    calendar: 'calendar',
+    contact: 'contact',
+    file: 'file',
+    task: 'task',
+  };
+
+  it('holds no scope that can write, and none on the broader list', () => {
+    for (const scope of GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE) {
+      expect(scope, 'a read-only scope is named so by Google').toMatch(/\.readonly$/);
+      expect(BROADER_THAN_WE_NEED).not.toContain(scope);
+    }
+  });
+
+  it("agrees, type by type, with the answer the web reads from shared", () => {
+    for (const domain of ALL) {
+      expect(
+        GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE.includes(GOOGLE_SCOPES_ASKED_BY_DOMAIN[domain]),
+        domain,
+      ).toBe(GOOGLE_READ_ONLY_AT_GOOGLE[DISCOVERY[domain]]);
+    }
+  });
+
+  it('calls Drive and Tasks read-only today, and mail, calendars and contacts not', () => {
+    const readOnly = ALL.filter((d) => GOOGLE_SCOPES_READ_ONLY_AT_GOOGLE.includes(GOOGLE_SCOPES_ASKED_BY_DOMAIN[d]));
+    expect(readOnly).toEqual(['file', 'task']);
   });
 });

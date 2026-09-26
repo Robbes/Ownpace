@@ -2403,7 +2403,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // and its scope (workplan 0109 T1b). The default draft ('paused') gets
       // no rows: absent means `ready`, and a draft has not moved anything.
       if (mapping.status === 'active') {
-        await movePathsWithMapping(db, tenantId, mapping.id, 'active');
+        await movePathsWithMapping(db, tenantId, mapping.id, { from: null, to: 'active' });
       }
 
       return mapping;
@@ -2903,7 +2903,7 @@ router.put(
           // (workplan 0109 T1b). Gated like the audit row: a PATCH restating
           // the status a mapping already has is a request, not a transition.
           if (previousStatus !== updateData.status) {
-            await movePathsWithMapping(db, tenantId, mappingId, updateData.status);
+            await movePathsWithMapping(db, tenantId, mappingId, { from: previousStatus, to: updateData.status });
           }
         }
         return { kind: 'updated', row } as const;
@@ -3520,7 +3520,7 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
         // Every included path takes its slot in the same transaction
         // (workplan 0109 T1b): `activate` stamps `first_activated_at` once,
         // so a resume through this route keeps the original date.
-        await movePathsWithMapping(db, tenantId, mappingId, 'active');
+        await movePathsWithMapping(db, tenantId, mappingId, { from: mapping.status, to: 'active' });
       });
     }
 

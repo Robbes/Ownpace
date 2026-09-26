@@ -183,7 +183,10 @@ export async function applyMappingStatusChange(
         ),
       );
     if (change.from !== change.to) {
-      const { slotsTaken } = await movePathsWithMapping(db, tenantId, change.mappingId, change.to);
+      const { slotsTaken } = await movePathsWithMapping(db, tenantId, change.mappingId, {
+        from: change.from,
+        to: change.to,
+      });
       if (slotsTaken && options.onSlotsTaken) await options.onSlotsTaken(db);
     }
     await recordMappingStatusChange(db, tenantId, change);
