@@ -300,6 +300,37 @@ export interface DomainStatusReport {
    * `undefined` beside a date.
    */
   readonly lastActiveAt?: string;
+  /**
+   * Its owner stopped it (workplan 0128 T4, slice 3c): `state` is `stopped`,
+   * and the strip says *stopped by you*, whose way back is Resume. Absent for
+   * one the mapping file switched off (0125 T7), which the strip says as
+   * *switched off*.
+   */
+  readonly stoppedByOwner?: true;
+}
+
+/**
+ * ONE DATA TYPE'S STOP, AS THE MIGRATION PAGE OFFERS IT (workplan 0128 T4,
+ * slice 3c): the press the stop door accepts now, or none.
+ *
+ * Made by the door's own rule (`pathStopChoices`, ledger), so the page cannot
+ * offer a press the door refuses. Served by both editions: managed on
+ * `GET /migrations/{id}` as `stopChoices`, the appliance on `/status` as each
+ * mapping's `stops`.
+ */
+export interface PathStopChoice {
+  readonly domain: DiscoveryDomain;
+  /** Its owner stopped it. */
+  readonly stopped: boolean;
+  /** The press the door accepts now: the one that turns it the other way, or none. */
+  readonly offer: 'stop' | 'resume' | null;
+  /**
+   * Why there is no press, where the page must say so. A code, which the
+   * page words (the i18n prose boundary): `not_running` for a stopped data
+   * type on a migration that does not run, `last_one_copying` for the last
+   * one still copying (D5).
+   */
+  readonly held?: 'not_running' | 'last_one_copying';
 }
 
 /**
@@ -352,6 +383,7 @@ export function buildDomainStatusReports(
       ...(s.lastPassMetrics ? { lastPass: s.lastPassMetrics } : {}),
       ...(s.pausedReason ? { pausedReason: s.pausedReason } : {}),
       lastActiveAt: s.updatedAt,
+      ...(s.stoppedByOwner === true ? { stoppedByOwner: true as const } : {}),
     };
   });
 }
@@ -416,6 +448,12 @@ export interface StatusReport {
      */
     readonly sourceType?: string;
     readonly domains: readonly DomainStatusReport[];
+    /**
+     * Each data type's stop, as the page offers it (workplan 0128 T4, slice
+     * 3c). Optional: a payload built before it omits it, and the page then
+     * offers no stop rather than guessing one.
+     */
+    readonly stops?: readonly PathStopChoice[];
   }>;
 }
 

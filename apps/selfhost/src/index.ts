@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -1437,9 +1437,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   const verifyRunner = createVerifyRunner(async () => {
     const reports: Record<string, VerificationResult> = {};
     for (const m of mappings) {
+      // The data types its owner stopped are skipped, and say so (0128 T4, D6).
+      const tenantId = m.config.tenantId as string;
+      const phases = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+        readPathPhases(tdb, tenantId, m.mailboxMappingId),
+      );
+      const stopped = new Set(DISCOVERY_DOMAINS.filter((d) => phases?.phaseOf(d).stopped === true));
       reports[m.config.mappingId] = await verifyMapping(
         { ...m.config, mappingId: m.mailboxMappingId } as typeof m.config,
         ledgerOptions,
+        stopped,
       );
     }
     // The §20 gate is the slow one — minutes against a real target — and the
@@ -1562,6 +1569,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
+          // Each data type's stop as the page offers it (0128 T4, slice 3c),
+          // by the rule the stop door itself decides by.
+          const tenantId = m.config.tenantId as string;
+          const facts = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+            readPathStopFacts(tdb, tenantId, m.mailboxMappingId),
+          );
           inputs.push({
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
@@ -1569,6 +1582,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             statuses,
             failures,
             adopted,
+            ...(facts === undefined ? {} : { stops: pathStopChoices(facts) }),
           });
         }
         // The channel's state travels with the status an owner already polls.
@@ -3252,6 +3266,47 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         }
         return sendJson(res, 200, out);
       }
+      // POST /mappings/:id/domains/:domain/stop and …/resume — stop or resume one
+      // data type (0128 T4, T5 slice 3b). D4: the stop is kept in the
+      // appliance's own database, not in its configuration file. The ledger's
+      // own door checks, writes and records, as managed's routes press it; no
+      // peak, since the appliance bills nothing.
+      const stopMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/domains\/([^/]+)\/(stop|resume)$/.exec(req.url)
+          : null;
+      if (stopMatch) {
+        await drain(req);
+        const id = decodeURIComponent(stopMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const domain = decodeURIComponent(stopMatch[2]!);
+        if (!(DISCOVERY_DOMAINS as readonly string[]).includes(domain)) {
+          const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+          return sendJson(res, 400, { error: 'invalid_domain', message: reason, reason });
+        }
+        const action = stopMatch[3] as 'stop' | 'resume';
+        const stop = action === 'stop';
+        const tenantId = m.config.tenantId as string;
+        const outcome = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          stopOrResumePath(tdb, tenantId, {
+            mappingId: m.mailboxMappingId,
+            domain: domain as DiscoveryDomain,
+            stop,
+            actor: 'operator',
+          }),
+        );
+        if ('refused' in outcome) {
+          if (outcome.refused === 'not_found') return sendJson(res, 404, { error: 'unknown mapping' });
+          const reason = pathStopRefusalReason(outcome, domain as DiscoveryDomain);
+          return sendJson(res, 409, { error: `${action}_refused`, refused: outcome.refused, message: reason, reason });
+        }
+        if (outcome.changed) {
+          log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${stop ? 'stopped' : 'resumed'} by operator`);
+        }
+        return sendJson(res, 200, { id, domain, stopped: stop, changed: outcome.changed });
+      }
+
       const startMatch = req.method === 'POST' && req.url ? /^\/mappings\/([^/]+)\/start$/.exec(req.url) : null;
       if (startMatch) {
         await drain(req);

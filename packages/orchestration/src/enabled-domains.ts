@@ -142,3 +142,23 @@ export function describeAbsentDomains(
 
   return lines;
 }
+
+/**
+ * The data types of one migration its owner stopped (workplan 0128 T4): the
+ * ones the migration carries whose path row has a stop. Verification skips
+ * them and says *stopped by you* (D6).
+ */
+export async function stoppedDomains(
+  pool: Pool,
+  tenantId: string,
+  mappingId: string,
+): Promise<Set<DiscoveryDomain>> {
+  const { rows } = await pool.query<{ domain: DiscoveryDomain }>(
+    `SELECT p.domain FROM path_lifecycle p
+       JOIN scope_selection s ON s.mapping_id = p.mapping_id AND s.domain = p.domain AND s.included
+      WHERE p.tenant_id = $1 AND p.mapping_id = $2 AND p.stopped_at IS NOT NULL`,
+    [tenantId, mappingId],
+  );
+  return new Set(rows.map((r) => r.domain));
+}
+

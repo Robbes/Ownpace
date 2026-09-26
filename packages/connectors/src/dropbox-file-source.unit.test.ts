@@ -383,3 +383,113 @@ describe('listSharedFolders — the browse behind rootPath (0049/0051, Dropbox t
     expect(JSON.parse(calls[1]!.body!)).toEqual({ cursor: 'more' });
   });
 });
+
+describe("the 'Dropbox' root alias — the whole account, not a subfolder (2026-09-25)", () => {
+  // The web view calls the account root "Dropbox", and the desktop client
+  // syncs it under a folder of that name. Typed into rootPath as a literal
+  // path it asks the API for a subfolder that does not exist: every listing
+  // 409s with path/not_found while the Test button — rooted at '' because
+  // the connection config carries no rootPath — passes. The alias must
+  // therefore mean the API root, exactly like ''.
+  const alias = (rootPath: string) => {
+    const seen: string[] = [];
+    const transport: DropboxTransport = async (_url, init) => {
+      seen.push((JSON.parse(init.body ?? '{}') as { path: string }).path);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ entries: [], cursor: 'c', has_more: false }),
+        arrayBuffer: async () => new ArrayBuffer(0),
+        text: async () => '',
+      };
+    };
+    return { transport, seen, rootPath };
+  };
+
+  for (const spelling of ['Dropbox', 'dropbox', '/Dropbox', '/Dropbox/', ' Dropbox ']) {
+    it(`"${spelling}" is the account root — the API is asked for ''`, async () => {
+      const { transport, seen, rootPath } = alias(spelling);
+      const source = new DropboxFileSource(transport, {
+        apiBaseUrl: API,
+        contentBaseUrl: CONTENT,
+        rootPath,
+      });
+      await source.listSince({ path: '' });
+      expect(seen[0]).toBe('');
+    });
+  }
+
+  it('does NOT alias a real folder named like the account', async () => {
+    // A team folder legitimately named "Dropbox stuff" must stay addressable.
+    const { transport, seen, rootPath } = alias('/Dropbox stuff');
+    const source = new DropboxFileSource(transport, {
+      apiBaseUrl: API,
+      contentBaseUrl: CONTENT,
+      rootPath,
+    });
+    await source.listSince({ path: '' });
+    expect(seen[0]).toBe('/Dropbox stuff');
+  });
+
+  it('a 409 on the configured root says the root is the problem, in fixable words', async () => {
+    const notFound = {
+      '.tag': 'error',
+      error: { '.tag': 'path', path: { '.tag': 'not_found' } },
+      error_summary: 'path/not_found/',
+    };
+    const transport: DropboxTransport = async () => ({
+      ok: false,
+      status: 409,
+      json: async () => notFound,
+      arrayBuffer: async () => new ArrayBuffer(0),
+      text: async () => JSON.stringify(notFound),
+    });
+    const source = new DropboxFileSource(transport, {
+      apiBaseUrl: API,
+      contentBaseUrl: CONTENT,
+      rootPath: '/Team',
+    });
+    await expect(source.listSince({ path: '' })).rejects.toThrow(
+      /root folder configured.*does not exist.*Leave the root path empty/s,
+    );
+  });
+
+  it("a 409 on a SUBFOLDER stays Dropbox's own words — no root hint", async () => {
+    const notFound = {
+      '.tag': 'error',
+      error: { '.tag': 'path', path: { '.tag': 'not_found' } },
+      error_summary: 'path/not_found/',
+    };
+    const transport: DropboxTransport = async (_url, init) => {
+      const { path } = JSON.parse(init.body ?? '{}') as { path: string };
+      if (path === '/Team/Docs')
+        return {
+          ok: false,
+          status: 409,
+          json: async () => notFound,
+          arrayBuffer: async () => new ArrayBuffer(0),
+          text: async () => JSON.stringify(notFound),
+        };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ entries: [], cursor: 'c', has_more: false }),
+        arrayBuffer: async () => new ArrayBuffer(0),
+        text: async () => '',
+      };
+    };
+    const source = new DropboxFileSource(transport, {
+      apiBaseUrl: API,
+      contentBaseUrl: CONTENT,
+      rootPath: '/Team',
+    });
+    const message = await source.listSince({ path: 'Docs' }).then(
+      () => '',
+      (e: unknown) => String(e),
+    );
+    expect(message).toContain('409');
+    expect(message, 'a deleted subfolder is not a mis-rooting').not.toContain(
+      'root folder configured',
+    );
+  });
+});

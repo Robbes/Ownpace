@@ -109,10 +109,11 @@ interface FinishRow {
   readonly lifecycle: MappingLifecycle;
   readonly needingDecision: number;
   /**
-   * The data types switched off after copying (0125 T7). Step 3 names each
-   * one: its copies stay as they were, and the final pass leaves it out.
+   * The data types stopped after copying: switched off in the mapping file
+   * (0125 T7), or stopped by their owner (0128 T4). Step 3 names each one:
+   * its copies stay as they were, and the final pass leaves it out.
    */
-  readonly stopped: ReadonlyArray<Pick<DomainStatusReport, 'domain' | 'itemsSynced'>>;
+  readonly stopped: ReadonlyArray<Pick<DomainStatusReport, 'domain' | 'itemsSynced' | 'stoppedByOwner'>>;
 }
 
 const stoppedIn = (domains: readonly DomainStatusReport[] | undefined) =>
@@ -622,7 +623,9 @@ const Finish: React.FC = () => {
                           count: formatNumber(d.itemsSynced, locale),
                         },
                       )}
-                      why={t('finish.step3.stopped.why')}
+                      // Whose stop it is decides the way back (0128 T4): Resume
+                      // on the migration's page, or the mapping file.
+                      why={t(d.stoppedByOwner ? 'finish.step3.stoppedByYou.why' : 'finish.step3.stopped.why')}
                     />
                   ))}
                   {perMapping && mappingDomains.error != null && (

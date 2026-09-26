@@ -179,6 +179,13 @@ export const MappingDomainStatusSchema = z.object({
    */
   lastActiveAt: z.string().optional(),
   /**
+   * Its owner stopped it (0128 T4, slice 3c): the strip then says *stopped
+   * by you*, not *switched off*. Named here because `z.object` strips what it
+   * does not name, and without it every stop would read as the mapping
+   * file's.
+   */
+  stoppedByOwner: z.literal(true).optional().catch(undefined),
+  /**
    * Why the domain stopped on purpose, when it did. Parsed as the closed
    * union the UI has sentences for — same rule as `lastErrorCategory`: an
    * older or newer server sending something else drops the field rather than
@@ -243,6 +250,20 @@ const KindChoiceSchema = z.discriminatedUnion('state', [
 ]);
 export type KindChoiceView = z.infer<typeof KindChoiceSchema>;
 
+/**
+ * Each data type's stop, as the page offers it (workplan 0128 T4, slice 3c):
+ * `PathStopChoice` in shared, made by the stop door's own rule, so a press
+ * offered is a press the door accepts. A `held` the page has no words for
+ * drops, rather than failing the whole payload.
+ */
+const StopChoiceSchema = z.object({
+  domain: DomainEnum,
+  stopped: z.boolean(),
+  offer: z.enum(['stop', 'resume']).nullable(),
+  held: z.enum(['not_running', 'last_one_copying']).optional().catch(undefined),
+});
+export type StopChoiceView = z.infer<typeof StopChoiceSchema>;
+
 const ConnectionRefSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
@@ -272,6 +293,9 @@ export const MappingSchema = z.object({
   // Optional, and caught to undefined: a payload from an API that predates it
   // still parses, and the panel then offers nothing rather than guessing.
   kindChoices: z.array(KindChoiceSchema).optional().catch(undefined),
+  // The same rule for the stops (0128 T4, slice 3c): absent from an API that
+  // predates them, and then the page offers no stop at all.
+  stopChoices: z.array(StopChoiceSchema).optional().catch(undefined),
   lastSyncAt: z.string().optional(),
   // When the person who granted through a link took it back (0108 T8 (c)).
   // Optional for a payload from an API that predates it: absent reads as "not

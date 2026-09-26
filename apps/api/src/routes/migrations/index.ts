@@ -12,13 +12,24 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
-import { activateAddedPath, movePathsWithMapping } from './path-lifecycle-wiring.ts';
+import { activateAddedPath, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgMigrationStatusStore, PgLedger, RunStore, CutoverStore } from '@openmig/ledger';
+import {
+  PgMigrationStatusStore,
+  PgLedger,
+  RunStore,
+  CutoverStore,
+  PATH_ADDED_ACTION,
+  pathStopRefusalReason,
+  readPathStopFacts,
+  pathStopChoices,
+} from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
   ARCHIVE_PROVIDER_ORIGINS,
+  ARCHIVE_WHERE,
+  archiveInTargetRefusal,
   archiveProviderName,
   asMappingId,
   asTenantId,
@@ -87,6 +98,7 @@ import {
   dropboxDeploymentClient,
   microsoftDeploymentClient,
   halfMicrosoftClientPairProblem,
+  providerClientFacts,
   resolveGoogleClient,
   resolveDropboxClient,
   parseGoogleDriveSource,
@@ -103,6 +115,7 @@ import {
   updateTransition,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
+import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
 function firstOrThrow<T>(rows: T[], what: string): T {
@@ -198,9 +211,16 @@ export function sourceConnectionConfig(
     // refuse must not be one this door stores. The superRefine has already
     // said so with a field-anchored message, so a throw here is a coding
     // error rather than an input one.
+    //
+    // AND WHICH STORE THE PATH IS IN (0148 T9). This passed `provider` and
+    // `path` only, so a posted `where` was dropped here and every archive was
+    // stored as a path on the machine running the pass — the one place a
+    // managed pass cannot read (0136 T5). Passed through as it came: absent
+    // stays absent, which the parser reads as `disk`.
     return parseArchiveSource({
       provider: cfg.provider,
       path: cfg.path,
+      ...(cfg.where === undefined ? {} : { where: cfg.where }),
     }) as unknown as Record<string, unknown>;
   }
   if (body.sourceType === 'box') {
@@ -336,6 +356,41 @@ function googleCredentialKeysRequired(): ReadonlyArray<'clientId' | 'clientSecre
   return googleDeploymentClient() === null
     ? (['clientId', 'clientSecret', 'refreshToken'] as const)
     : (['refreshToken'] as const);
+}
+
+/** Whether this deployment carries the provider's app: the fact the wizard reads too. */
+function carriesApp(provider: 'google' | 'dropbox'): boolean {
+  return providerClientFacts()[provider] === 'deployment';
+}
+
+/**
+ * THE REFUSAL WHERE THIS SERVICE CARRIES THE APP (workplan 0148 T2 (d), owner
+ * decision D2: "Stop the false hints on managed").
+ *
+ * With the deployment's Google client or Dropbox app configured, the door asks
+ * only for the refresh token — and the refusal still opened "authenticates with
+ * your own Google Cloud OAuth client", sending a tester to create what the
+ * service already has. So each caller branches on `carriesApp`, the one fact
+ * the wizard reads (`providerClientFacts()`), and here names the token and the
+ * button that fills it in. Where each connection brings its own app, each row
+ * keeps the sentence it had. English, as refusals are
+ * (`docs/i18n-prose-boundary.md`).
+ *
+ * `consented`, when given, is the scope the token must carry — for somebody
+ * pasting one rather than pressing the button, which asks for it itself.
+ */
+function deploymentAppTokenRefusal(
+  sourceType: string,
+  provider: 'Google' | 'Dropbox',
+  missing: ReadonlyArray<string>,
+  consented?: string,
+): string {
+  return (
+    `A '${sourceType}' source needs a refresh token` +
+    (consented ? ` consented with the ${consented} scope` : '') +
+    `, and this service has its own ${provider} app: press Connect with ${provider}, which ` +
+    `fills it in. sourceConfig is missing ${missing.join(', ')}.`
+  );
 }
 
 /**
@@ -546,6 +601,11 @@ export function knownConnectionValues(
     rootFolderId: str(cfg.rootFolderId),
     rootPath: str(cfg.rootPath),
     userId: str(cfg.userId),
+    // WHICH STORE an export archive's row is in (0148 T9 review). The wizard
+    // reusing the row starts its choice from this, so the screen shows the
+    // store the pass will read rather than this edition's default — which on
+    // the appliance flipped a row in the destination's files to the disk.
+    where: str(cfg.where),
   };
 
   // Only what this provider asks for, and never a secret one. The descriptor
@@ -639,7 +699,18 @@ export function sourceConfigOverride(
       // changed provider is a different connection, and letting a mapping
       // override it would let one row's export be opened by the other's
       // reader, which reports emptiness rather than failing (0116 §5).
-      return keep({ path: cfg.path });
+      //
+      // `where` travels WITH the path (0148 T9): a path means nothing until it
+      // says which store it is in, and the next export in a series can be kept
+      // somewhere else — on the disk last time, in the destination's files
+      // this time. Kept only a path, a reused connection's override could not
+      // say "in the destination" at all.
+      //
+      // And ONLY with the path (T9 review). The pass lays the override over
+      // the stored row key by key, so a `where` alone would move the ROW's
+      // path into another store: a folder of the destination's files looked
+      // for on the disk, or a disk path looked for in the Nextcloud.
+      return keep(cfg.path ? { path: cfg.path, where: cfg.where } : {});
     case 'gmail':
     case 'google-calendar':
     case 'google-contacts':
@@ -880,6 +951,40 @@ function getSharedPool() {
   return _dbPool;
 }
 
+/**
+ * A stored connection's config, read in this tenant, or `undefined` when no
+ * such row is this tenant's. Only the config: a door judging a location has
+ * no business with the credential beside it. A missing row is not refused
+ * here — the create transaction's reuse check says which id was wrong.
+ */
+async function storedConnectionConfig(
+  tenantId: string,
+  connectionId: string,
+): Promise<Record<string, unknown> | undefined> {
+  const rows = await withTenantDb(tenantId, getSharedPool(), (db) =>
+    db
+      .select({ config: schema.connection.config })
+      .from(schema.connection)
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId))),
+  );
+  const config = rows[0]?.config;
+  return config && typeof config === 'object' ? (config as Record<string, unknown>) : undefined;
+}
+
+/**
+ * WHERE THE PASS WILL READ a reused archive connection (0148 T9 review): the
+ * stored row with this mapping's override laid over it key by key, as
+ * `build-deps-from-mapping.ts` lays it. A reuse that names the next export's
+ * folder and not its store reads that folder in the ROW's store, so the doors
+ * judge this, not the override alone.
+ */
+export function archiveLocationOnReuse(
+  stored: Readonly<Record<string, unknown>> | undefined,
+  override: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return { ...(stored ?? {}), ...override };
+}
+
 // Schema validation
 /**
  * Exported for the retraction guard (`sync-mode.unit.test.ts`).
@@ -944,6 +1049,21 @@ export const CreateMappingBase = z.object({
     provider: z.string().optional(),
     /** Archive only: WHERE the archive is. Not a secret — a path is not a password. */
     path: z.string().optional(),
+    /**
+     * Archive only (workplan 0148 T9): WHICH STORE `path` is in — `disk`, the
+     * machine running the pass, or `target`, a folder of the files this
+     * migration writes to (0116 T4). Absent means `disk`, the shared parser's
+     * default. An unknown value is refused here by name rather than dropped,
+     * because dropped it would mean `disk`: on managed a refusal about a path
+     * on the server, for a misspelling of ours.
+     */
+    where: z
+      .enum(ARCHIVE_WHERE, {
+        message:
+          `where: expected ${ARCHIVE_WHERE.map((w) => `"${w}"`).join(' or ')} — "target" is a folder ` +
+          "of the destination's own files, \"disk\" a path on the machine running the pass.",
+      })
+      .optional(),
     /** Google Drive only: what happens to Docs/Sheets/Slides. The VALUES are
      *  validated by the shared parser in the superRefine, not re-enumerated
      *  here — one authority, both editions. */
@@ -1175,11 +1295,12 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
-          `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
-          'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
-          'read-only command that proves all three before anything migrates.',
+        message: carriesApp('google')
+          ? deploymentAppTokenRefusal('google-drive', 'Google', missing)
+          : "A 'google-drive' source authenticates with your own Google Cloud OAuth client and a " +
+            `delegated refresh token: sourceConfig is missing ${missing.join(', ')}. ` +
+            'Where each comes from is docs/google-workspace-setup.md, which ends with one ' +
+            'read-only command that proves all three before anything migrates.',
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -1218,10 +1339,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
-          `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
+        message: carriesApp('google')
+          ? deploymentAppTokenRefusal(body.sourceType, 'Google', missing, scope)
+          : `A '${body.sourceType}' source authenticates with your own Google Cloud OAuth client ` +
+            `and a refresh token consented with the ${scope} scope: sourceConfig is missing ` +
+            `${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md.`,
       });
     }
     // The ACCOUNT's ceiling is THIS DEPLOYMENT'S, not the product's (ADR-0041,
@@ -1344,10 +1466,11 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
-        message:
-          "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
-          `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
-          `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
+        message: carriesApp('dropbox')
+          ? deploymentAppTokenRefusal('dropbox', 'Dropbox', missing)
+          : "A 'dropbox' source authenticates with your own Dropbox app (App key as clientId, " +
+            `App secret as clientSecret) and a refresh token: sourceConfig is missing ` +
+            `${missing.join(', ')}. Where each comes from is docs/dropbox-setup.md.`,
       });
     }
     refuseHalfDropboxClientPair(ctx, body.sourceConfig);
@@ -1399,6 +1522,16 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
     if (archiveRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: archiveRefusal });
     }
+    // IN THE DESTINATION'S FILES, THE DESTINATION HAS TO HAVE FILES THE
+    // READER CAN ASK FOR (0148 T9, D11). The shared rule, which the wizard's
+    // target step reads too: WebDAV and Nextcloud serve byte ranges; JMAP has
+    // files and no ranges, and is refused in the sentence the pass writes;
+    // the rest have no files at all. Anchored to `targetType`, because the
+    // destination is the choice to change.
+    if (body.sourceConfig.where === 'target') {
+      const inTarget = archiveInTargetRefusal(body.targetType);
+      if (inTarget) ctx.addIssue({ code: 'custom', path: ['targetType'], message: inTarget });
+    }
   } else if (body.sourceType === 'box') {
     // No refreshToken demanded, by DESIGN: Box rotates refresh tokens on
     // every use, so the Client Credentials Grant is used and the subject
@@ -1437,16 +1570,22 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         ? []
         : googleCredentialKeysRequired().filter((k) => !body.sourceConfig[k]);
     if (missing.length > 0) {
+      const googleApp = carriesApp('google');
       ctx.addIssue({
         code: 'custom',
         path: ['sourceConfig', missing[0]!],
         message:
-          "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
-          `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
-          `missing ${missing.join(', ')}. Where each comes from is docs/google-workspace-setup.md. ` +
-          'A PERSONAL Google account may send appPassword instead of all three — Google ' +
-          'recommends against it, it needs 2-step verification on the account, and it does ' +
-          'not exist on a Workspace account.',
+          (googleApp
+            ? deploymentAppTokenRefusal('gmail', 'Google', missing, 'https://mail.google.com/') +
+              ' '
+            : "A 'gmail' source authenticates with your own Google Cloud OAuth client and a " +
+              `refresh token consented with the https://mail.google.com/ scope: sourceConfig is ` +
+              `missing ${missing.join(', ')}. Where each comes from is ` +
+              'docs/google-workspace-setup.md. ') +
+          `A PERSONAL Google account may send appPassword instead${
+            googleApp ? '' : ' of all three'
+          } — Google recommends against it, it needs 2-step verification on the account, and ` +
+          'it does not exist on a Workspace account.',
       });
     }
     refuseHalfGoogleClientPair(ctx, body.sourceConfig);
@@ -1789,9 +1928,14 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
         });
       }
       const half = { sourceType: body.sourceType, sourceConfig: body.sourceConfig };
+      const config = sourceConnectionConfig(half);
+      // NOT A PATH ON THIS MACHINE (0136 T5), judged on exactly what the probe
+      // would open. See `archive-on-the-server.ts`.
+      const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), config);
+      if (onServer) return void res.status(400).json(onServer);
       const result = await probeSourceConnection(
         sourceKindFor(body.sourceType),
-        sourceConnectionConfig(half),
+        config,
         sourceCredentialRecord(half),
       );
       return void res.json(result);
@@ -1964,6 +2108,40 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         message: 'Tenant ID not found in authentication context',
       });
       return;
+    }
+
+    // NOT A PATH ON THIS MACHINE (0136 T5). Nothing here opens the path, but
+    // what this door stores a pass would read, so it is refused before
+    // anything is written. Judged on WHERE THE PASS WILL READ (0148 T9
+    // review): the new connection's config, or — reusing one — the stored
+    // row with this mapping's override laid over it, which is what the pass
+    // reads (`archiveLocationOnReuse`). Judged on the override alone, a row in
+    // the destination's files reused with the next export's folder was
+    // refused as a path on the server, and a JMAP destination was let through
+    // for it, to fail in the pass.
+    if (body.sourceType === 'archive') {
+      const location = body.sourceConnectionId
+        ? archiveLocationOnReuse(
+            await storedConnectionConfig(tenantId, body.sourceConnectionId),
+            sourceConfigOverride(body),
+          )
+        : sourceConnectionConfig(body);
+      const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), location);
+      // With `message` too: this door's 400 is documented as the `Error`
+      // shape, and the other refusals here carry one.
+      if (onServer) return void res.status(400).json({ ...onServer, message: onServer.reason });
+      // And in the destination's files, a destination that can serve it: the
+      // superRefine's rule (0148 D11), asked again of the location the pass
+      // will read, because a reused row can say `target` when the body does
+      // not. The same shape as the schema's refusal, anchored the same way.
+      const inTarget = location['where'] === 'target' ? archiveInTargetRefusal(body.targetType) : null;
+      if (inTarget) {
+        return void res.status(400).json({
+          error: 'Validation error',
+          message: inTarget,
+          details: [{ code: 'custom', path: ['targetType'], message: inTarget }],
+        });
+      }
     }
 
     // Persist the full chain in one tenant-scoped transaction (RLS-enforced):
@@ -2307,7 +2485,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted } =
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts } =
       await withTenantDb(
       tenantId,
       pool,
@@ -2323,7 +2501,15 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           );
         const mapping = mappings[0];
         if (!mapping) {
-          return { mapping: null, sourceConn: null, targetConn: null, scopeRows: [], domainStatus: [], failures: [] };
+          return {
+            mapping: null,
+            sourceConn: null,
+            targetConn: null,
+            scopeRows: [],
+            domainStatus: [],
+            failures: [],
+            stopFacts: undefined,
+          };
         }
 
         // THE MAPPING'S OWN CONNECTIONS, through its mailboxes — not the
@@ -2344,7 +2530,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted] =
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts] =
           await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
@@ -2367,6 +2553,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // happened to an item that this page had no counter for, so its
           // totals never added up and there was nothing to read instead.
           new PgLedger(db).countAdoptedByDomain(tenantId as TenantId, mappingId as MappingId),
+          // What the stop door would accept for each data type (0128 T4,
+          // slice 3c), read the way the door reads it.
+          readPathStopFacts(db, tenantId, mappingId),
         ]);
 
         return {
@@ -2377,6 +2566,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           domainStatus,
           failures,
           adopted,
+          stopFacts,
         };
       },
     );
@@ -2480,6 +2670,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
         },
         process.env,
       ),
+      // Each data type's stop, as the page offers it (0128 T4, slice 3c): the
+      // page offers exactly the press `…/stop` or `…/resume` accepts, because
+      // both ask `decidePathStop`.
+      ...(stopFacts === undefined ? {} : { stopChoices: pathStopChoices(stopFacts) }),
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,
@@ -3461,6 +3655,14 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
         .set({ updatedAt: new Date() })
         .where(and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)));
       if (mapping.status === 'active') await activateAddedPath(db, tenantId, mappingId, domain);
+      // Recorded, as every other door that changes what a migration carries
+      // (found building 0128 T4: this one wrote no record).
+      await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+        actor: req.userId ?? 'unknown',
+        action: PATH_ADDED_ACTION,
+        entity: 'path',
+        detail: { mappingId, domain },
+      });
 
       const now = new Set<string>([...current, domain]);
       return { kind: 'added', domains: DISCOVERY_DOMAINS.filter((d) => now.has(d)) } as const;
@@ -3479,5 +3681,55 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
     serverFault(res, 'add_kind_failed', 'adding a kind to this migration', error);
   }
 });
+
+/**
+ * POST /api/migrations/:mappingId/domains/:domain/stop and …/resume — STOP OR
+ * RESUME ONE DATA TYPE of a running migration (workplan 0128 T4, T5 slice 3b;
+ * the owner's D2 (c), D5, D6).
+ *
+ * Its copies stay, its record stays, it no longer follows the source, and a
+ * resume continues where it stopped. The ledger's own door
+ * (`stopOrResumePath`) checks, writes and records in this one transaction: only
+ * while the migration runs, only a data type it carries, never the last one
+ * still copying (D5: end the migration instead). A resume in the lane takes its
+ * slot back, and the month's peak rises with it.
+ *
+ * Nothing is enqueued: every pass reads each data type's stop afresh.
+ */
+/** One handler for both doors: `stop` true for …/stop, false for …/resume. */
+function stopOrResumeRoute(stop: boolean) {
+  const action = stop ? 'stop' : 'resume';
+  return async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { mappingId, domain: rawDomain } = req.params;
+      const tenantId = req.tenantId;
+      if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
+      if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+      const parsed = z.enum(DISCOVERY_DOMAINS).safeParse(rawDomain);
+      if (!parsed.success) {
+        const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+        return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
+      }
+      const domain = parsed.data;
+
+      const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        stopOrResumeDataType(db, tenantId, { mappingId, domain, stop, actor: req.userId ?? 'unknown' }),
+      );
+      if ('refused' in outcome) {
+        if (outcome.refused === 'not_found') {
+          return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        }
+        const reason = pathStopRefusalReason(outcome, domain);
+        return void res.status(409).json({ error: `${action}_refused`, refused: outcome.refused, message: reason, reason });
+      }
+      res.json({ id: mappingId, domain, stopped: stop, changed: outcome.changed });
+    } catch (error) {
+      serverFault(res, `${action}_domain_failed`, `${stop ? 'stopping' : 'resuming'} a data type`, error);
+    }
+  };
+}
+
+router.post('/:mappingId/domains/:domain/stop', authenticate, stopOrResumeRoute(true));
+router.post('/:mappingId/domains/:domain/resume', authenticate, stopOrResumeRoute(false));
 
 export default router;

@@ -229,6 +229,20 @@ describe('a kind added to a running migration', () => {
     expect(await pathOf(MAPPING.paused, 'task')).toBeUndefined();
   });
 
+  it('records who added which data type (0128 T4)', async () => {
+    const recorded = (
+      await owner.query(
+        `SELECT actor, detail FROM audit_log WHERE action = 'path.added' AND detail ->> 'mappingId' = ANY($1) ORDER BY at`,
+        [[MAPPING.active, MAPPING.paused]],
+      )
+    ).rows as Array<{ actor: string; detail: Record<string, unknown> }>;
+    expect(recorded.map((r) => r.detail)).toEqual([
+      { mappingId: MAPPING.active, domain: 'task' },
+      { mappingId: MAPPING.paused, domain: 'task' },
+    ]);
+    expect(recorded.every((r) => r.actor !== 'unknown' && r.actor.length > 0)).toBe(true);
+  });
+
   it('refuses after cutover, in the words the page shows', async () => {
     const choices = (await detail(MAPPING.done)).kindChoices;
     expect(choices.find((c) => c.domain === 'task')).toEqual({

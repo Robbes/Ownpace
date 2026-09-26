@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { STRINGS } from '../i18n/strings.ts';
 
 const { mappingApiGet, fetchStatusMock, editionFlag } = vi.hoisted(() => ({
   mappingApiGet: vi.fn(),
@@ -301,6 +302,78 @@ describe('the live progress strip', () => {
     expect(screen.getByText(/last synced/)).toBeInTheDocument();
     // The other mapping's numbers must not leak into this hub.
     expect(screen.queryByText('999 synced')).not.toBeInTheDocument();
+    expect(mappingApiGet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * STOP AND RESUME ONE DATA TYPE, ON BOTH EDITIONS (workplan 0128 T4, slice
+ * 3c; the owner's D4: the appliance gets the same choice). One panel, two
+ * payloads: managed's detail carries `stopChoices`, the appliance's `/status`
+ * carries each mapping's `stops`. And the strip says whose stop it is.
+ */
+describe('a data type stopped from this page', () => {
+  const row = (domain: string, state: string, extra: Record<string, unknown> = {}) => ({
+    domain,
+    state,
+    itemsSynced: 12,
+    itemsFailed: 0,
+    bytesTransferred: 0,
+    itemsRetrying: 0,
+    itemsNeedingDecision: 0,
+    ...extra,
+  });
+
+  it('managed: offers Stop from the detail payload, and says a switched-off one as switched off', async () => {
+    mappingApiGet.mockResolvedValue(
+      aMapping({
+        syncConfig: { domains: ['email', 'calendar'] },
+        domainStatus: [row('email', 'in_progress'), row('calendar', 'stopped')],
+        kindChoices: [
+          { domain: 'email', state: 'on' },
+          { domain: 'calendar', state: 'on' },
+        ],
+        stopChoices: [
+          { domain: 'email', stopped: false, offer: 'stop' },
+          { domain: 'calendar', stopped: false, offer: 'stop' },
+        ],
+      }),
+    );
+    renderHub();
+
+    expect(await screen.findByRole('button', { name: 'Stop Email' })).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['confirm.progress.stopped'])).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['confirm.progress.stoppedByYou'])).not.toBeInTheDocument();
+  });
+
+  it('selfhost: offers Resume from /status, THIS mapping’s stops only, and says the stop is yours', async () => {
+    editionFlag.selfhost = true;
+    fetchStatusMock.mockResolvedValue({
+      status: 'ok',
+      mappings: [
+        {
+          mappingId: 'other-mapping',
+          migrationStatus: 'active',
+          domains: [],
+          stops: [{ domain: 'file', stopped: false, offer: 'stop' }],
+        },
+        {
+          mappingId: 'acme-mail',
+          migrationStatus: 'active',
+          domains: [row('calendar', 'stopped', { stoppedByOwner: true }), row('contact', 'in_progress')],
+          stops: [
+            { domain: 'calendar', stopped: true, offer: 'resume' },
+            { domain: 'contact', stopped: false, offer: null, held: 'last_one_copying' },
+          ],
+        },
+      ],
+    });
+    renderHub();
+
+    expect(await screen.findByRole('button', { name: 'Resume Calendar' })).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['settings.kinds.held.lastOne'])).toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['confirm.progress.stoppedByYou'])).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop Files' })).not.toBeInTheDocument();
     expect(mappingApiGet).not.toHaveBeenCalled();
   });
 });

@@ -18,6 +18,7 @@ import type {
   ItemFailure,
   MigrationStatus,
   MappingLifecycle,
+  PathStopChoice,
 } from '@openmig/shared';
 import type { DomainStatusReport, StatusReport, NotificationChannelReport } from '@openmig/shared';
 import { buildDomainStatusReports } from '@openmig/shared';
@@ -42,6 +43,12 @@ export interface MappingStatusInput {
    * which is what a screen needs in order to say nothing rather than "none".
    */
   readonly adopted?: Readonly<Partial<Record<DiscoveryDomain, number>>>;
+  /**
+   * Each data type's stop as the page offers it (0128 T4, slice 3c), from
+   * `pathStopChoices`. Omitted, the row has no `stops`, and the page offers
+   * no stop rather than guessing one.
+   */
+  readonly stops?: readonly PathStopChoice[];
 }
 
 /**
@@ -65,7 +72,7 @@ export function buildStatusReport(
     status: 'ok',
     ...(notifications ? { notifications } : {}),
     mappings: inputs.map(
-      ({ mappingId, migrationStatus, sourceType, statuses, failures = [], adopted }) => ({
+      ({ mappingId, migrationStatus, sourceType, statuses, failures = [], adopted, stops }) => ({
         mappingId,
         migrationStatus,
         // Spread, not `sourceType: sourceType`: a caller that did not supply
@@ -77,6 +84,7 @@ export function buildStatusReport(
       // MigrationStatus rows lacked itemsRetrying/itemsNeedingDecision and a
       // UI reading them saw undefined where this edition served numbers.
         domains: buildDomainStatusReports(statuses, failures, adopted),
+        ...(stops === undefined ? {} : { stops }),
       }),
     ),
   };

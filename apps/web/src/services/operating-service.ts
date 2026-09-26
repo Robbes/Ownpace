@@ -627,6 +627,29 @@ export async function fetchStatus(): Promise<StatusReport> {
 }
 
 /**
+ * STOP OR RESUME ONE DATA TYPE (workplan 0128 T4, slice 3c): the one press
+ * both editions take, at `…/domains/{domain}/stop` or `…/resume` under the
+ * mapping's own path (`/mappings/{id}` on the appliance, `/migrations/{id}`
+ * on managed).
+ *
+ * Offered exactly where the page's stop choices say so (`pathStopChoices`,
+ * the door's own rule). A refusal the page did not foresee, such as another
+ * tab stopping the last other data type first, is a 409 whose `message` is
+ * the door's sentence, which the caller shows as it is.
+ */
+export async function stopOrResumeDataType(
+  mappingId: string,
+  domain: string,
+  action: 'stop' | 'resume',
+): Promise<{ id: string; domain: string; stopped: boolean; changed: boolean }> {
+  return (
+    await client.post<{ id: string; domain: string; stopped: boolean; changed: boolean }>(
+      `${mappingPath(mappingId)}/domains/${encodeURIComponent(domain)}/${action}`,
+    )
+  ).data;
+}
+
+/**
  * One migration's per-data-type rows, from whichever payload this edition
  * serves them on (0125 T7): the appliance's `/status`, filtered to this
  * mapping, or managed's `GET /migrations/{id}`. Both are
