@@ -1976,6 +1976,9 @@ const TriggerSyncSchema = z.object({
 const TriggerCutoverSchema = z.object({
   skipFinalSync: z.boolean().default(false),
   skipVerification: z.boolean().default(false),
+  // One data type's cutover (0128 T5, slice 5c): its own ledger, its own final
+  // sync and its own gate. Absent for the whole migration.
+  domain: z.enum(DISCOVERY_DOMAINS).optional(),
   pattern: z.string().optional(), // Accept legacy 'pattern' field for tests
 }).passthrough(); // Allow additional fields
 
@@ -3170,19 +3173,35 @@ router.post(
 
       // Ask the ledger BEFORE anything is enqueued: the same decision the job
       // follows, so the door never refuses what the job would accept, and
-      // never accepts what the job would refuse.
-      const { ledger, ledgers } = await withTenantDb(tenantId, pool, async (db) => {
+      // never accepts what the job would refuse. For one data type, its own
+      // ledger, or the whole migration's where it has none (slice 4).
+      const { ledger, ledgers, carried } = await withTenantDb(tenantId, pool, async (db) => {
         const cutoverStore = new CutoverStore(db);
         return {
-          ledger: await cutoverStore.loadCutoverState(asTenantId(tenantId), asMappingId(mappingId)),
+          ledger: await cutoverStore.loadCutoverState(asTenantId(tenantId), asMappingId(mappingId), body.domain),
           ledgers: await cutoverStore.loadLedgers(asTenantId(tenantId), asMappingId(mappingId)),
+          carried:
+            body.domain === undefined
+              ? undefined
+              : ((await readPathStopFacts(db, tenantId, mappingId))?.carried ?? []).map((c) => c.domain),
         };
       });
 
+      // Only a data type the migration carries is cut over on its own.
+      if (body.domain !== undefined && !carried!.includes(body.domain)) {
+        res.status(409).json({
+          error: 'cutover_refused',
+          message: `This migration does not carry ${body.domain}; it carries ${carried!.join(', ') || 'no data type'}.`,
+          hint: 'Name a data type the migration carries. Nothing was changed.',
+          code: 'not_a_path',
+        });
+        return;
+      }
+
       // The whole migration's cutover does not begin once a data type has one
-      // of its own (0128 T5, slice 5b): the rest are cut over one at a time
-      // too, by the operator's CLI. The job refuses the same.
-      const begin = cutoverBeginRefusal(ledgers);
+      // of its own, nor a data type's own while the whole migration's is under
+      // way (0128 T5, slices 5b and 5c). The job refuses the same.
+      const begin = cutoverBeginRefusal(ledgers, body.domain);
       if (begin) {
         res.status(409).json({ error: 'cutover_refused', message: begin.refuse, hint: begin.hint, code: begin.code });
         return;
@@ -3223,6 +3242,7 @@ router.post(
         success: true,
         runId: run.id,
         triggeredAt: new Date().toISOString(),
+        ...(body.domain !== undefined ? { domain: body.domain } : {}),
         // What was actually enqueued. This used to return a gracePeriodEnd
         // computed from the request, which reads as "the cutover is running and
         // its grace period ends at T" — nothing had run yet, and the task never

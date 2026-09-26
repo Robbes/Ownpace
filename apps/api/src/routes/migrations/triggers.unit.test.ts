@@ -69,6 +69,16 @@ describe('resolveCutoverJob', () => {
     });
   });
 
+  it('carries the data type a cutover is of, and none for the whole migration (0128 T5, slice 5c)', () => {
+    expect(resolveCutoverJob(TENANT, MAPPING, { domain: 'calendar' }).payload).toEqual({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'calendar',
+      options: { skipFinalSync: false, skipVerification: false },
+    });
+    expect(resolveCutoverJob(TENANT, MAPPING, {}).payload).not.toHaveProperty('domain');
+  });
+
   it('passes through the provided options', () => {
     const { payload } = resolveCutoverJob(TENANT, MAPPING, {
       skipFinalSync: true,

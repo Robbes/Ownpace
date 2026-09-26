@@ -66,13 +66,15 @@ export function resolveSyncJob(
 export function resolveCutoverJob(
   tenantId: string,
   mappingId: string,
-  opts: { skipFinalSync?: boolean; skipVerification?: boolean },
+  opts: { skipFinalSync?: boolean; skipVerification?: boolean; domain?: string },
 ): { taskId: 'run-cutover'; payload: Record<string, unknown> } {
   return {
     taskId: 'run-cutover',
     payload: {
       tenantId,
       mappingId,
+      // One data type's cutover (0128 T5, slice 5c); absent for the whole migration.
+      ...(opts.domain !== undefined ? { domain: opts.domain } : {}),
       options: {
         skipFinalSync: opts.skipFinalSync === true,
         skipVerification: opts.skipVerification === true,

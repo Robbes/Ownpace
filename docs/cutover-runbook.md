@@ -250,6 +250,11 @@ pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \
   preparation: cut over the rest one at a time too.
 - `status --kind <data type>` shows that data type's ledger; without `--kind`
   it shows the whole migration's.
+- **On the managed service**, the preparation takes the data type too:
+  `POST /api/migrations/<mapping-id>/cutover` with `{"domain": "calendar"}`
+  runs the final sync of calendars alone and the data check over them alone,
+  and stops at `READY_FOR_CUTOVER` on calendars' own ledger. Approve and
+  execute it here, with `--kind calendar`.
 
 ## Pre-cutover checklist (24 hours before)
 

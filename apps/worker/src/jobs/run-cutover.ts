@@ -41,9 +41,9 @@
  */
 
 import { z } from 'zod';
-import { asTenantId, asMappingId } from '@openmig/shared';
+import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import { AbortTaskRunError, configure, schemaTask, logger } from '@trigger.dev/sdk';
-import { tenantCutoverStore, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
+import { tenantCutoverStore, bindCutoverLedger, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
   cutoverBeginRefusal,
@@ -62,6 +62,9 @@ import { runCutoverGate } from './cutover-gate.ts';
 const CutoverJobSchema = z.object({
   tenantId: z.string().uuid(),
   mappingId: z.string().uuid(),
+  // One data type's cutover (0128 T5, slice 5c): its own ledger, its own
+  // final sync and its own gate. Absent for the whole migration.
+  domain: z.enum(DISCOVERY_DOMAINS).optional(),
   options: z.object({
     skipFinalSync: z.boolean().default(false),
     skipVerification: z.boolean().default(false),
@@ -101,6 +104,12 @@ export interface CutoverPreparationResult {
 export interface CutoverPreparationDeps {
   tenantId: string;
   mappingId: string;
+  /**
+   * The data type this preparation is of (0128 T5, slice 5c), whose own
+   * ledger the caller bound into `cutoverStore`; absent for the whole
+   * migration. It decides which cutover may begin (`cutoverBeginRefusal`).
+   */
+  domain?: DiscoveryDomain;
   cutoverStore: Pick<
     CutoverStateStore,
     'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory' | 'loadLedgers'
@@ -182,9 +191,9 @@ export async function prepareCutover(
   const mappingId = asMappingId(deps.mappingId);
 
   // The whole migration's preparation does not begin once a data type has a
-  // cutover of its own (0128 T5, slice 5b): the rest are cut over one at a
-  // time too. A refusal, not a failed cutover.
-  const refused = cutoverBeginRefusal(await deps.cutoverStore.loadLedgers(tenantId, mappingId));
+  // cutover of its own (0128 T5, slice 5b), nor a data type's own while the
+  // whole migration's is under way (5c). A refusal, not a failed cutover.
+  const refused = cutoverBeginRefusal(await deps.cutoverStore.loadLedgers(tenantId, mappingId), deps.domain);
   if (refused) {
     deps.log(`${refused.refuse} ${refused.hint}`);
     throw new CutoverRefused(refused.refuse, refused.hint);
@@ -239,7 +248,11 @@ export async function prepareCutover(
   const result: CutoverPreparationResult = { ready: false, state: 'PREPARING', from, attempt };
 
   if (deps.runFinalSync) {
-    deps.log('Running the final sync over every data type the migration has...');
+    deps.log(
+      deps.domain === undefined
+        ? 'Running the final sync over every data type the migration has...'
+        : `Running the final sync of ${deps.domain}...`,
+    );
     const sync = await deps.runFinalSync();
     result.finalSync = sync.total;
     result.finalSyncByDomain = sync.byDomain;
@@ -312,9 +325,9 @@ export const runCutover = schemaTask({
   description: 'Cutover preparation (final sync + verification gate)',
   schema: CutoverJobSchema,
   run: async (payload: unknown) => {
-    const { tenantId, mappingId, options } = payload as CutoverJobPayload;
+    const { tenantId, mappingId, domain, options } = payload as CutoverJobPayload;
 
-    appLog.info('Starting cutover preparation', { tenantId, mappingId, options });
+    appLog.info('Starting cutover preparation', { tenantId, mappingId, domain, options });
 
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
@@ -329,12 +342,15 @@ export const runCutover = schemaTask({
     // `drizzle(pool)` store worked here only because the bundled deployments
     // connect as a superuser; on an operator's own Postgres it would read
     // nothing (docs/rls-guide.md).
-    const cutoverStore = tenantCutoverStore(pool, asTenantId(tenantId));
+    // One data type's preparation writes its own ledger (0128 T5, slice 5c).
+    const wholeLedger = tenantCutoverStore(pool, asTenantId(tenantId));
+    const cutoverStore = domain === undefined ? wholeLedger : bindCutoverLedger(wholeLedger, domain);
 
     try {
       return await prepareCutover({
         tenantId,
         mappingId,
+        ...(domain !== undefined ? { domain } : {}),
         cutoverStore,
         // The SDK's `logger`, not `ctx.logger`: Trigger.dev v4's TaskRunContext
         // carries run metadata only (task/attempt/run/queue/environment/...) and
@@ -353,8 +369,9 @@ export const runCutover = schemaTask({
               const { runDeltaSync } = await import('./run-delta-sync.ts');
               // The in-network API address, for the reason managed-sync-tick gives.
               configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' });
+              // One data type's final sync is that data type's pass alone.
               const pass = await runDeltaSync.triggerAndWait(
-                { tenantId, mappingId },
+                { tenantId, mappingId, ...(domain !== undefined ? { domains: [domain] } : {}) },
                 {
                   concurrencyKey: mappingId,
                   tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'cutover-final-sync'],
@@ -374,7 +391,7 @@ export const runCutover = schemaTask({
             },
         runGate: options.skipVerification
           ? undefined
-          : () => runCutoverGate(pool, dbUrl, tenantId, mappingId),
+          : () => runCutoverGate(pool, dbUrl, tenantId, mappingId, domain),
       });
     } catch (error) {
       const err = error as Error;
