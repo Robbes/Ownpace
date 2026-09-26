@@ -342,6 +342,14 @@ const en = {
   // whole: a consent sentence, which 0118 §2 keeps verbatim, not a `.hint`.
   'wizard.google.readsOnly':
     'For mail, calendars and contacts, Google describes a broader permission than Ownpace uses. Ownpace only reads; it changes and deletes nothing in this account.',
+  // Beside Connect with Google, always (workplan 0140 T3 (a)): Google is
+  // reported to refuse its consent inside another app's built-in browser, and
+  // nothing said what to do. The grant page's twin ends "The link still
+  // works"; this one ends by signing in again, because the wizard and the
+  // Connections page have no grant link to reopen. A consent sentence, kept
+  // whole (0118 §2), not a `.hint`.
+  'wizard.google.inAppBrowser':
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into Safari or Chrome, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
   'wizard.dropbox.connect': 'Connect with Dropbox',
   'wizard.dropbox.connect.hint': 'Opens Dropbox’s consent screen and fills in the refresh token.',
@@ -371,6 +379,14 @@ const en = {
   'wizard.microsoft.ownClient': 'Use your own app registration',
   'wizard.microsoft.redirectUri':
     'Register this exact address in your app registration under Authentication → Redirect URIs:',
+  // Beside Connect with Microsoft, before anything is pressed (workplan 0140
+  // T6 (b)): an organisation decides who in it may consent, and a tester met
+  // that only after the button, as microsoftConsentRefusal's sentence. True
+  // whether or not publisher verification (T5) is done. The second sentence is
+  // Microsoft's documented default as understood in 0140 §4.3; T6's personal
+  // account confirms or corrects it.
+  'wizard.microsoft.orgApproval':
+    'A work or school account may need its organisation’s administrator to approve Ownpace first. A personal Microsoft account does not.',
   // The tenant, which is the field Google and Dropbox have no equivalent of.
   // Empty is the RIGHT answer for almost everybody, and a hint that only said
   // "optional" would leave the one person it matters to guessing.
@@ -1001,6 +1017,11 @@ const en = {
   // The account is a condition (0108 T8 (b)): what to sign in with, and why
   // Google also asks for their address.
   'grant.signInAs': 'Sign in as {account}. Google shares your address to confirm it; other accounts are refused.',
+  // Above the button (workplan 0140 T3 (a)): a link sent by chat or mail opens
+  // in that app's own browser, where Google is reported to refuse the consent.
+  // Opening the link again elsewhere spends nothing (grant.ts), so it says so.
+  'grant.inAppBrowser':
+    'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into Safari or Chrome. The link still works.',
   'grant.connect': 'Continue with Google',
   'grant.connecting': 'Opening Google…',
   'grant.disclosure': 'By continuing you accept how your data is handled:',
@@ -1283,8 +1304,15 @@ const en = {
   // reader, and nobody can act on the words "auth expired". The raw provider
   // message still renders verbatim beside these — this is the actionable
   // half, not a replacement for the precise one.
+  // Names the Connections page's own buttons, verbatim (workplan 0140 T2 (b)):
+  // Reconnect on a row whose kind has a consent button, Replace credentials on
+  // every other, since this category covers a refused password too. It said
+  // "Reconnect" before any button did. Which button a row shows follows its
+  // KIND, not what it stores (a Gmail row with an app password says
+  // Reconnect), so the sentence leaves the choice to the row and says nothing
+  // about passwords.
   'failure.authExpired':
-    'The connection to this account has expired. Reconnect it on the Connections page and this will carry on from where it stopped \u2014 nothing is lost.',
+    'The connection to this account has expired. On the Connections page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
   'failure.rateLimited':
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
@@ -2028,6 +2056,10 @@ const en = {
     'Connecting it shows what it holds: how many items, how many bytes, which albums, and the dates it covers. Each album is copied once, with one file listing everything Google knew about each photo. An archive is a snapshot of the day it was prepared, so a later export only adds; nothing is ever removed because an export no longer mentions it.',
   'connections.delete': 'Delete',
   'connections.rotate': 'Replace credentials',
+  // The same panel, named for what it does on a row whose kind has a consent
+  // button (Google, Dropbox, Microsoft): mint a new token (workplan 0140 T2 (b)).
+  // failure.authExpired names this word.
+  'connections.reconnect': 'Reconnect',
   'connections.rotate.hint':
     'Paste the new values; they are checked before replacing the old.',
   'connections.rotate.why':
@@ -2363,7 +2395,7 @@ const nl: Record<keyof typeof en, string> = {
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
   'failure.authExpired':
-    'De verbinding met dit account is verlopen. Herstel de verbinding op de pagina Verbindingen; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
+    'De verbinding met dit account is verlopen. Druk op de pagina Verbindingen op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
   'failure.rateLimited':
     'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
@@ -2740,6 +2772,8 @@ const nl: Record<keyof typeof en, string> = {
     'Registreer dit exacte adres in uw Google-client onder Geautoriseerde omleidings-URI’s:',
   'wizard.google.readsOnly':
     'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
+  'wizard.google.inAppBrowser':
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar Safari of Chrome, en meld u in die browser aan bij Ownpace.',
   'wizard.dropbox.connect': 'Verbinden met Dropbox',
   'wizard.dropbox.connect.hint':
     'Opent het toestemmingsscherm van Dropbox en vult het vernieuwingstoken in.',
@@ -2766,6 +2800,8 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.microsoft.ownClient': 'Uw eigen appregistratie gebruiken',
   'wizard.microsoft.redirectUri':
     'Registreer dit exacte adres in uw appregistratie onder Verificatie → Omleidings-URI’s:',
+  'wizard.microsoft.orgApproval':
+    'Voor een werk- of schoolaccount kan eerst goedkeuring van de beheerder van uw organisatie nodig zijn. Voor een persoonlijk Microsoft-account niet.',
   'wizard.microsoft.tenantId.hint': 'Laat leeg tenzij uw appregistratie voor één tenant is.',
   'wizard.microsoft.tenantId.why':
     'Leeg betekent de mapinstelling van deze installatie, die elk werk-, school- of persoonlijk Microsoft-account accepteert. Een registratie voor één tenant die naar de verkeerde map wordt gestuurd, mislukt met een melding dat de toepassing niet is gevonden, wat op een typefout lijkt en het niet is.',
@@ -3261,6 +3297,8 @@ const nl: Record<keyof typeof en, string> = {
   'grant.scopeIntro': 'Google legt deze toestemming vast als:',
   'grant.until': 'Deze link werkt tot {date}.',
   'grant.signInAs': 'Log in als {account}. Google deelt uw adres ter controle; andere accounts worden geweigerd.',
+  'grant.inAppBrowser':
+    'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar Safari of Chrome. De link blijft werken.',
   'grant.connect': 'Doorgaan met Google',
   'grant.connecting': 'Google wordt geopend…',
   'grant.disclosure': 'Door door te gaan gaat u akkoord met hoe uw gegevens worden behandeld:',
@@ -3948,6 +3986,7 @@ const nl: Record<keyof typeof en, string> = {
     'Koppelen laat zien wat erin zit: hoeveel items, hoeveel bytes, welke albums en welke periode. Elk album wordt één keer gekopieerd, met één bestand waarin alles staat wat Google over elke foto wist. Een archief is een momentopname van de dag waarop het is klaargezet, dus een latere export voegt alleen toe; er wordt nooit iets verwijderd omdat een export het niet meer noemt.',
   'connections.delete': 'Verwijderen',
   'connections.rotate': 'Inloggegevens vervangen',
+  'connections.reconnect': 'Opnieuw verbinden',
   'connections.rotate.hint':
     'Plak de nieuwe waarden; ze worden gecontroleerd vóór ze de oude vervangen.',
   'connections.rotate.why':

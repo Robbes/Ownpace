@@ -94,6 +94,19 @@ const conn = (over: Partial<ConnectionSummary> = {}): ConnectionSummary => ({
   ...over,
 });
 
+/**
+ * The word on a row's credential button (workplan 0140 T2 (b)): *Reconnect* on
+ * a row whose kind has a consent button, *Replace credentials* on every other.
+ * Read from the same descriptor the page reads, so the tests below that open
+ * the panel open it the way a person would, by the word on the row.
+ */
+const panelLabel = (kind: string, role: 'source' | 'target'): string =>
+  role === 'source' &&
+  credentialFieldsFor(role, wizardTypeForConnectionKind(kind)).find((f) => f.key === 'refreshToken')
+    ?.consent !== undefined
+    ? STRINGS.en['connections.reconnect']
+    : STRINGS.en['connections.rotate'];
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -249,7 +262,7 @@ describe('replacing credentials', () => {
     list.mockResolvedValue([conn({ kind, role })]);
     renderPage();
 
-    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(await screen.findByText(panelLabel(kind, role)));
 
     // Exactly the server's own rule, read from the same descriptor the route
     // reads — not a list copied into this test to agree by hand.
@@ -295,7 +308,8 @@ describe('replacing credentials', () => {
     list.mockResolvedValue([conn({ kind, role })]);
     renderPage();
 
-    fireEvent.click(await screen.findByText('Replace credentials'));
+    // Reconnect, since 0140 T2 (b): the same panel, named for what it does here.
+    fireEvent.click(await screen.findByText('Reconnect'));
 
     const provider = credentialFieldsFor(role, wizardTypeForConnectionKind(kind)).find(
       (f) => f.key === 'refreshToken',
@@ -327,7 +341,7 @@ describe('replacing credentials', () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     renderPage();
 
-    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(await screen.findByText('Reconnect'));
     // An account kind asks for the faces first; tick one so the button is live.
     const connect = await screen.findByText(STRINGS.en['wizard.google.connect']);
     await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
@@ -363,7 +377,7 @@ describe('replacing credentials', () => {
     // descriptor's `pairedWith`, not from a Google list kept in this page.
     list.mockResolvedValue([conn({ kind: 'gmail', role: 'source' })]);
     renderPage();
-    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(await screen.findByText('Reconnect'));
 
     expect(screen.queryAllByText(STRINGS.en['wizard.clientId']).length).toBeGreaterThan(0);
     expect(screen.queryAllByText(STRINGS.en['wizard.sourceClientSecret']).length).toBeGreaterThan(0);
@@ -401,7 +415,7 @@ describe('replacing credentials', () => {
     list.mockResolvedValue([conn({ kind: 'dropbox' })]);
     renderPage();
 
-    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(await screen.findByText('Reconnect'));
 
     expect(screen.getByPlaceholderText('user@example.com')).toBeTruthy();
     expect(screen.getByPlaceholderText('1//…')).toBeTruthy();
@@ -417,7 +431,7 @@ describe('replacing credentials', () => {
     );
     renderPage();
 
-    fireEvent.click(await screen.findByText('Replace credentials'));
+    fireEvent.click(await screen.findByText('Reconnect'));
     fireEvent.click(screen.getByText('Check and replace'));
 
     expect(await screen.findByText(/App key/)).toBeTruthy();

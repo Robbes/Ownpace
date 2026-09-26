@@ -350,7 +350,8 @@ const Row: React.FC<{
         )}
         {/* What is STANDING against this connection (workplan 0094 T5): a
             pass that failed since the last Test, by category, with the
-            category's own remedy — and Replace credentials is beside it.
+            category's own remedy — and the button it names (Reconnect or
+            Replace credentials, whichever this row shows) is beside it.
             The line sits on the side the pass named, or on both cards when
             it could not tell; where the connection is the thing to act on,
             the tail says which case this is. The guard is against a category
@@ -420,7 +421,18 @@ const Row: React.FC<{
             }
             className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
           >
-            {t('connections.rotate')}
+            {/* NAMED FOR WHAT IT DOES HERE (workplan 0140 T2 (b)). On a row
+                whose kind has a consent button, what this panel mints is a new
+                token from the provider's consent: Reconnect, the word the
+                failure line always used and no button said. Every other row
+                keeps Replace credentials. The same panel either way, and the
+                same fact the panel reads to draw its consent button (the
+                descriptor's `consent`), not a list of kinds kept here. So it
+                follows the KIND, not what the row stores: a Gmail row holding
+                an app password says Reconnect too, which is why
+                failure.authExpired names both words and leaves the choice to
+                the row. */}
+            {rotateConsent.isGrantKind ? t('connections.reconnect') : t('connections.rotate')}
           </button>
           <button
             type="button"

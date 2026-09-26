@@ -8,8 +8,8 @@
  * `failure-key.ts` exists so the customer and the operator they phone read the
  * SAME sentence, and that argument is right for those two. It does not extend
  * to a third reader, because those sentences are addressed to somebody who can
- * act: *"Reconnect it on the Connections page"*, *"The provider's own message
- * is below"*. The person holding a progress link has no Connections page, no
+ * act: *"On the Connections page, press Reconnect or Replace credentials"*,
+ * *"The provider's own message is below"*. The person holding a progress link has no Connections page, no
  * account to reach one with, and no message below — the prose never crosses to
  * them (`viewRowFor` in `@openmig/shared`).
  *

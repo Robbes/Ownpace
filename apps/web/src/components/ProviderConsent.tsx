@@ -287,9 +287,12 @@ export function consentAsks(
  *
  * The wizard's source step draws its own button and the Connections page
  * draws the panel below; what sits under either is this, so the two cannot
- * say different things about the same consent. Today that is the button's own
- * hint and, for Google, one line more (workplan 0144 T3 (a)). 0140 T3's line
- * about in-app browsers belongs here too, beside these.
+ * say different things about the same consent. That is the button's own hint
+ * and, by provider, the consent screens' own lines: for Google, what the
+ * permission allows (workplan 0144 T3 (a)) and the in-app browser (0140 T3
+ * (a)); for Microsoft, what an organisation may ask (0140 T6 (b)). What the
+ * picked card IS stays one line higher, where the wizard says it (0148 T2 (a)'s
+ * about-line), so nothing here repeats whose app it is.
  *
  * **The line beside *Connect with Google*.** Google's screen, one click later,
  * describes `https://mail.google.com/`, `auth/calendar` and `auth/carddav` as
@@ -309,15 +312,44 @@ export function consentAsks(
  * inside that answer by `consentAsks`: the Connections panel offers only the
  * faces `/api/provider-accounts` returned, and the wizard's source step offers
  * all five, so there the door hands the answer in.
+ *
+ * **The in-app browser, beside *Connect with Google*** (0140 T3 (a)). A link
+ * tapped in a chat or mail app opens in that app's own browser, where Google
+ * is reported to refuse its consent (*"Error 403: disallowed_useragent"*,
+ * outside knowledge, 0140 §1). One plain line, always shown for Google, with
+ * no sniffing for user agents: that is T3's optional part, not built. It ends
+ * by signing in to Ownpace again, because these doors have no grant link to
+ * reopen; the grant page carries its own twin above its button. Dropbox and
+ * Microsoft get none, because how they behave there is not known (§1).
+ *
+ * **What an organisation may ask, beside *Connect with Microsoft*** (0140 T6
+ * (b)). The deployment's registration serves every organisation (authority
+ * `common`), and an organisation decides who in it may consent to an app like
+ * that. A tester from one met it only after the button, as
+ * `microsoftConsentRefusal`'s sentence. The line says it before, and holds
+ * whether or not publisher verification (T5) is done. It is shown with a pair
+ * the person typed too, where it still holds: an organisation's consent
+ * settings decide for a registration of its own as well, and the line says
+ * "may".
+ *
+ * **Heard before the button is pressed** (the review of 2026-09-26). Both
+ * lines come after the button in the page, so a keyboard or screen-reader user
+ * reaches the button first; T6's whole point is that the line is known before
+ * pressing. So each door's button points at them (`aria-describedby`, as 0148
+ * did for its select), through `consentLineIds`, which names the ids this
+ * component gives them.
  */
 export const ConsentLines: React.FC<{
   /** The provider whose consent the button runs, from the descriptor. */
   readonly provider: string | undefined;
   /** What the consent asks for (`consentAsks`). */
   readonly asked: ReadonlyArray<DiscoveryDomain>;
-}> = ({ provider, asked }) => {
+  /** The door's own `useId()`, which its button hands to `consentLineIds`. */
+  readonly idBase: string;
+}> = ({ provider, asked, idBase }) => {
   const t = useT();
   if (provider === undefined) return null;
+  const beforePressing = consentLineIds(provider, idBase);
   const word = (suffix: 'connect.hint' | 'connect.why') => t(`wizard.${provider}.${suffix}` as StringKey);
   return (
     <>
@@ -325,9 +357,22 @@ export const ConsentLines: React.FC<{
       {provider === 'google' && googleConsentAllowsChanges(asked) && (
         <Hint text={t('wizard.google.readsOnly')} />
       )}
+      {provider === 'google' && <Hint id={beforePressing} text={t('wizard.google.inAppBrowser')} />}
+      {provider === 'microsoft' && <Hint id={beforePressing} text={t('wizard.microsoft.orgApproval')} />}
     </>
   );
 };
+
+/**
+ * The id of the line beside a provider's Connect button that must be heard
+ * before it is pressed (0140 T3 (a) for Google, T6 (b) for Microsoft), for the
+ * button's `aria-describedby`; undefined where `ConsentLines` draws none.
+ */
+export function consentLineIds(provider: string | undefined, idBase: string): string | undefined {
+  if (provider === 'google') return `${idBase}-in-app-browser`;
+  if (provider === 'microsoft') return `${idBase}-org-approval`;
+  return undefined;
+}
 
 /**
  * The faces to ask for, the button, and what came back — in the provider's own
@@ -338,6 +383,7 @@ export const ProviderConsentPanel: React.FC<{
   readonly className?: string;
 }> = ({ consent, className = 'mt-4' }) => {
   const t = useT();
+  const linesId = React.useId();
   if (!consent.isGrantKind) return null;
   const { words } = consent;
   return (
@@ -367,6 +413,7 @@ export const ProviderConsentPanel: React.FC<{
         type="button"
         onClick={consent.start}
         disabled={consent.pairMissing || consent.facesMissing || consent.accountMissing}
+        aria-describedby={consentLineIds(consent.provider, linesId)}
         className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
         title={
           consent.pairMissing
@@ -382,7 +429,7 @@ export const ProviderConsentPanel: React.FC<{
       >
         {words('connect')}
       </button>
-      <ConsentLines provider={consent.provider} asked={consent.asked} />
+      <ConsentLines provider={consent.provider} asked={consent.asked} idBase={linesId} />
       {consent.note && (
         <p className={`mt-1 text-sm ${consent.note === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
           {consent.note === 'received' ? t('wizard.consent.received') : consent.note}

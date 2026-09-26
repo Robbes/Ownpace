@@ -4,16 +4,63 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
-**2026-09-26, build: T7 (b), a Dropbox consent that asks only to read, decided by the owner on
-2026-09-25 and built on branch
+**2026-09-26, build: T2 (b), T3 (a), T6 (b) and T7 (b), the consent screens' own lines,
+decided by the owner on 2026-09-25 and built on branch
 `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged.** The owner was asked
 *"The rest of group R2 is still Proposed in the plans. Which should I build now, before the first
-invitation?"* and chose all three: 0144 T3 (a) and (c), this plan's consent-screen lines (T2 (b),
-T3 (a), T6 (b) and T7 (b)), and 0141 T10 (a). This is 0131 §6's group R2, step 7. T7 (b) is one
-commit on its own, `feat(api): a Dropbox consent that asks only to read (workplan 0140 T7 (b))`,
-so that it can go as its own PR, as §5 item 6 asks. It touches nothing the web lines touch, and
-applies to `main` by itself; the web lines follow it on the same branch.
+invitation?"* and chose all three: 0144 T3 (a) and (c), this plan's consent-screen lines, and
+0141 T10 (a). This is 0131 §6's group R2, step 7. The branch was built on
+`claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true` (0144 T3), because the lines
+sit beside that branch's line in its `ConsentLines` component. That branch merged into `main` as
+#1188 on 2026-09-26, and `main` is merged into this one.
 
+The branch carries two commits, in this order, so that T7 (b) can go as its own PR, as §5 item 6
+asks:
+
+1. `feat(api): a Dropbox consent that asks only to read (workplan 0140 T7 (b))`: T7 (b) alone,
+   with the docs and comments it made false. It touches nothing the web lines touch, and applies
+   to `main` by itself.
+2. `feat(web): consent screens a tester can pass (workplan 0140 T2 (b), T3 (a), T6 (b))`: the web
+   lines and the review's fixes to them. It needs 0144 T3's `ConsentLines` beneath it, which is
+   on `main` since #1188.
+
+§3 gives T2, T3 and T6 no letters. The letters 0131 §6 uses are read in §3's order: T2 (a) is
+the steps for the tester and (b) the build; T3 (a) is the sentence and (b) the optional
+detection; T6 (a) is the two consents and (b) the sentence before *Connect with Microsoft*. T7
+carries its own.
+
+- **T2 (b), a reconnect the page can find.** On the Connections page, the row of a connection
+  whose kind has a consent button labels its button *Reconnect* / *Opnieuw verbinden*, and it
+  opens the same panel. Those are Google's five kinds, Dropbox and Microsoft, read from the
+  descriptor's `consent` as the panel already does (`rotateConsent.isGrantKind`), with the
+  deployment's app or the connection's own. Every other row keeps *Replace credentials*. The
+  label follows the kind, not what the row stores, so a Gmail row that signs in with an app
+  password says *Reconnect* too. `failure.authExpired` names both buttons verbatim and leaves
+  the choice to the row. EN: *"… On the Connections page, press Reconnect or Replace
+  credentials, whichever its row shows, and this will carry on …"*. NL: *"… Druk op de pagina
+  Verbindingen op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit
+  account staat; daarna …"*. The three pins in `LiveProgress.unit.test.tsx` follow the new
+  English. The glossary has a row for *Reconnect*. T2 (a),
+  the steps, is the owner's to give and is not built, and neither is its step 4's check of a
+  second grant link for a source that already holds a grant.
+- **T3 (a), open it in Safari or Chrome.** The grant page carries §3's sentence, whole, between
+  the sign-in line and *Continue with Google* / *Doorgaan met Google* (`grant.inAppBrowser`). The
+  lines under *Connect with Google*, in the wizard and the Connections panel both
+  (`ConsentLines`), carry `wizard.google.inAppBrowser`: the same sentence, ending *"…, then
+  sign in to Ownpace there."* / *"…, en meld u in die browser aan bij Ownpace."* instead of
+  *"The link still works."* It is always shown for Google, on every Google card, and never
+  for Dropbox or Microsoft, whose behaviour in an embedded browser §1 does not know. It comes
+  after the button there, so the button points at it (`aria-describedby`) and a screen reader
+  hears it before pressing.
+  `docs/grant-links.md` has the paragraph under "Issuing one" and under "My link says it does
+  not work". Not built: the optional user-agent detection. The owner's check from WhatsApp and
+  a mail app is still open.
+- **T6 (b), the sentence before *Connect with Microsoft*.** §3's two sentences, in both
+  languages (`wizard.microsoft.orgApproval`), in `ConsentLines`, so under *Connect with
+  Microsoft* on the wizard's *Microsoft 365 account* card and in the Connections panel. The
+  button points at it (`aria-describedby`), as it does at T3's line. T6 (a), the two consents, is not
+  done, so the second sentence is still Microsoft's documented default as understood in §4.3,
+  not a measurement.
 - **T7 (b), a consent that asks only to read.** `dropboxConsentUrl` puts
   `scope=account_info.read files.metadata.read files.content.read` on the URL.
   `exchangeDropboxCode` refuses a grant carrying any scope outside those three and
@@ -23,14 +70,37 @@ applies to `main` by itself; the web lines follow it on the same branch.
   for (open question 5). T7 (a), the console read, stays the owner's, and the first real consent
   after the change is still to be recorded here.
 
-Guard, shown failing on the unchanged code: two cases in `dropbox-consent.unit.test.ts`, the URL
-carrying exactly the read scopes and a grant with `files.content.write` refused by name (both
-failed, 4 passed). Each was then shown to fail by a mutation, each restored: no scope on the URL
-(1), `sharing.read` asked for too (1), and a write scope accepted (1). The URL case's
-`account_info.read` failed while the URL asked for two scopes.
+Guards, shown failing on the unchanged branch:
+`apps/web/src/pages/a-reconnect-the-page-can-find.unit.test.tsx` (10 cases, 8 failed; the two
+password-row cases passed, as they should), `apps/web/src/pages/a-grant-page-that-names-a-real-browser.unit.test.tsx`
+(14 cases, all failed), `apps/web/src/components/a-microsoft-consent-that-warns-an-organisation.unit.test.tsx`
+(8 cases, all failed), and two cases in `dropbox-consent.unit.test.ts` (both failed, 4 passed).
+Each was then shown to fail by a mutation, each restored: no in-app line beside *Connect with
+Google* (8 fail), the in-app line beside every provider (4), the grant page's line below its
+button (2), the Microsoft line beside every provider (4), no Microsoft line (4), every row
+saying *Reconnect* (2), the old Dutch failure sentence (1), no scope on the Dropbox URL (1),
+`sharing.read` asked for too (1), and a write scope accepted (1).
+
+The review's fixes (2026-09-26), each guarded and shown failing before the fix: a Gmail row
+with an app password in the T2 guard (2 new cases, both failed on the first build's sentence,
+which tied *Replace credentials* to a password); the Connect button's `aria-describedby` in the
+T3 and T6 guards (12 cases failed until the buttons pointed at the lines); and
+`account_info.read` in the Dropbox URL case (failed while the URL asked for two scopes).
 
 Where the build departs from §3:
 
+- **One place for the lines under a Connect button.** §3 puts T3's line in
+  `ProviderConsentPanel`, but the wizard's source step draws its own button, so both lines sit
+  in `ConsentLines`, which both doors render, beside 0144 T3's line and under the button's own
+  hint. 0148 T2 (a)'s about-line stays where the wizard says what the card is, one line higher,
+  and nothing under the button repeats whose app it is.
+- **The panel's ending.** §3 says the last sentence reads *"then sign in to Ownpace there"*. It is
+  built as the end of the one sentence, in place of *"The link still works."*. The Dutch uses
+  the product's *aanmelden* (`login.title`), and names the browser rather than a second *daar*:
+  *"en meld u in die browser aan bij Ownpace"*.
+- **The Microsoft line with a pair the person typed, too.** §3 does not say, and its guard
+  renders the deployment's app. An organisation's consent settings decide for a registration
+  of its own as well, and the line says "may".
 - **`account_info.read` on the Dropbox URL as well.** §3 names the two file scopes, and the
   build first asked for exactly those, reading `account_info.read` as something Dropbox answers
   beside them. Dropbox's OAuth guide says the opposite: without `include_granted_scopes`, the
@@ -41,21 +111,34 @@ Where the build departs from §3:
   `account_info.read` on every user-linked app, so asking for it is never refused. Dropbox's own
   pages could not be reached from the build: the guide's wording was read in a search engine's
   excerpts of it, and each route's scope in `dropbox-api-spec` on GitHub.
+- **The failure sentence leaves the choice to the row.** §3 says it names both buttons. The
+  first build tied each to a kind of credential (*"or use Replace credentials for a
+  password"*), and the labels, chosen by kind, contradict that for a Gmail row with an app
+  password.
 - **Docs kept true after T7 (b), beyond §3's letter.** `docs/dropbox-setup.md` says what the
   button asks for, and that a token from it cannot run the shared-folder browse; so do two
-  bullets of `docs/guides/en/dropbox.md` and of `docs/guides/nl/dropbox.md`.
-  `apps/api/docs/openapi.yaml` said *"No scope on the URL"*, and comments said Dropbox asks for
-  no scope or that the app's permissions are the ask (`CreateMapping.tsx`,
-  `dropbox-token-provider.ts`, `mapping-service.ts`, `openapi-spec.unit.test.ts`); the
-  shared-folder browse's comment in `routes/migrations/index.ts` now says a button token gets
-  Dropbox's refusal too.
+  bullets of `docs/guides/en/dropbox.md` and of `docs/guides/nl/dropbox.md` (the Dutch guides
+  reached this branch from `main` after the first build). `apps/api/docs/openapi.yaml` said
+  *"No scope on the URL"*, and comments said Dropbox asks for no scope or that the app's
+  permissions are the ask (`CreateMapping.tsx`, `dropbox-token-provider.ts`,
+  `mapping-service.ts`, `openapi-spec.unit.test.ts`); the shared-folder browse's comment in
+  `routes/migrations/index.ts` now says a button token gets Dropbox's refusal too.
+- **The guards read more than §3 names.** T2's also reads the Dropbox and Microsoft rows; T3's
+  and T6's also read the wizard, and that the other providers' buttons carry no line.
 
 Expectations changed on purpose: `dropbox-consent.unit.test.ts`'s URL case pinned no `scope`,
-and now pins exactly the three read scopes.
+and now pins exactly the three read scopes. The three `LiveProgress.unit.test.tsx` pins read the
+new English sentence. `Connections.unit.test.tsx` opened the panel by the
+text *Replace credentials* in six places whose rows are consent kinds (the required-fields table
+over every kind, the consent table, the Google consent run, Gmail's pair, Dropbox's example and
+Dropbox's missing field); they now open it by *Reconnect*, the table through a helper that reads
+the same descriptor.
 
-Still open: the wizard's `wizard.about.dropbox.more` and the Dropbox setup step still offer
-`sharing.read` for the browse, which holds for a pasted token and not for one from the button
-(open question 5).
+Still open from these four: the wizard's `wizard.about.dropbox.more` and the Dropbox setup step
+still offer `sharing.read` for the browse, which holds for a pasted token and not for one from the
+button (open question 5). A Google row holding a whole-domain service-account key also says
+*Reconnect*, by the same rule of kind; its panel takes a new key, but no consent renews one. The Dutch of the four lines and of *Opnieuw verbinden* is this
+build's, and nobody has read it against the first tester's screens yet.
 
 **2026-09-24, build: T8 (a) and T9 (a), the labels, built with 0131 T2 (a) on branch
 `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.** The Box and Apple account cards carry *Experimental* / *Experimenteel* at
@@ -122,11 +205,11 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 |---|---|---|
 | T0 Each Google account a tester connects is a test user of the production client first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to, listed as test users for the client `ownpace-live` uses (T11). As Google's model is understood here, the list belongs to that client's Google Cloud project, so in the test client's project it is one list for both stacks (T11). |
 | T1 Testing or Production for the production Google client | ⏳ **Owner** (D1 chose Testing) | §3. Measure first, on the OTA stack's history; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. The choice also decides T11's project: leaving Testing means a project of its own. |
-| T2 What a Google tester is told, and a reconnect the page can find | 📋 **Proposed** (D1) | §3. The steps for the tester, and the word on the failure line matching a button that exists. |
-| T3 An "open it in Safari or Chrome" line before Google's screen | 📋 **Proposed** | §3. Google is reported to refuse consent inside an embedded browser (outside knowledge, §1); nothing on the page says what to do. |
+| T2 What a Google tester is told, and a reconnect the page can find | 🔨 **(b) the reconnect built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D1) | §3. The steps for the tester, and the word on the failure line matching a button that exists. (a), the steps, is the owner's to give. |
+| T3 An "open it in Safari or Chrome" line before Google's screen | 🔨 **(a) the line built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(a) Decided 2026-09-25 (owner)**; the optional detection **Proposed** | §3. Google is reported to refuse consent inside an embedded browser (outside knowledge, §1); nothing on the page says what to do. The owner's check from WhatsApp and a mail app is open. |
 | T4 An ADR for the deployment's Microsoft registration | 📋 **Proposed**, recommended now (D2) | §4. ADR-0006's operative rule says the multi-tenant app is retired; the code carries a deployment registration whose authority defaults to `common`. |
 | T5 Microsoft publisher verification | ⏳ **Owner** (Partner Center), recommended to start now (D2) | §4. It has a lead time, and an organisation's consent policy may depend on it. |
-| T6 One foreign organisation and one personal account, before the first Microsoft tester | 📋 **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. |
+| T6 One foreign organisation and one personal account, before the first Microsoft tester | 🔨 **(b) the sentence built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. (a), the two consents, is not done. |
 | T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 🔨 **(b) the read-only consent built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D3), the owner's | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
 | T8 Box: experimental, and for organisations with a Box administrator | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
@@ -366,6 +449,9 @@ Testing costs is set out in T1, and the owner confirms it there.
 Microsoft app get its own ADR, and should publisher verification start now?* — *"Explain"*.
 
 §4 explains, and T4 to T6 follow its advice. None of them is decided.
+
+2026-09-25: the owner decided T6 (b), the sentence before *Connect with Microsoft*, with the
+rest of 0131 §6's group R2 (Status, 2026-09-26). T4, T5 and T6 (a) stay undecided.
 
 **D3 — unproven sources are labelled.** *For sources nobody has run against a real account: prove
 them first, hide them, or label them experimental?* — *"Label"*.

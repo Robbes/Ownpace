@@ -38,7 +38,12 @@ export const Hint: React.FC<{
   className?: string;
   /** Open on first render — for the step somebody is on right now. */
   open?: boolean;
-}> = ({ text, why, label = 'why', tone = 'muted', className = 'mt-1', open }) => {
+  /**
+   * The id of the on-screen sentence, for a control that must be described by
+   * it (`aria-describedby`) because the sentence comes after it in the page.
+   */
+  id?: string;
+}> = ({ text, why, label = 'why', tone = 'muted', className = 'mt-1', open, id }) => {
   const t = useT();
   const toneClass = {
     muted: 'text-gray-500',
@@ -50,7 +55,11 @@ export const Hint: React.FC<{
   const foldClass = tone === 'note' ? 'text-yellow-800' : 'text-gray-500';
   return (
     <div className={className}>
-      {text && <p className={`text-sm ${toneClass}`}>{text}</p>}
+      {text && (
+        <p id={id} className={`text-sm ${toneClass}`}>
+          {text}
+        </p>
+      )}
       {why && (
         <details className={`${text ? 'mt-1 ' : ''}text-sm`} open={open}>
           <summary className={`cursor-pointer select-none ${foldClass}`}>

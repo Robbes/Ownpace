@@ -23,6 +23,13 @@ On the migration's page, under **Grant links**:
 2. Press **Create grant link**.
 3. Copy the link and send it, however you normally reach that person.
 
+**If they open it inside another app.** A link tapped in a chat or mail app opens in that app's
+own browser, and Google is reported to refuse its sign-in there. The page says what to do,
+above its button: *If this page opened inside another app, such as a chat or mail app, use
+that app's 'Open in browser' option or copy the link into Safari or Chrome. The link still
+works.* It does: opening a link spends nothing, so opening it again in Safari or Chrome is
+safe.
+
 **Worth doing once:** give your organisation a phone number, under **Team & organization →
 Organization → Phone number**. It is optional. When it is set, the page the other person opens
 shows it beside your address, and a number they can call is the quickest way for them to check
@@ -222,6 +229,13 @@ use it up, which is why a link that was merely previewed is still live.
 If the new link fails the same way, the problem is not the link. Check the source connection's
 Google application still exists and its client secret has not been rotated — or, where the
 connection stores none, the deployment's.
+
+**If Google's page said no, not this one,** and the link was opened inside another app, that
+app's own browser is the likely cause: Google is reported to refuse its sign-in there. A fresh
+link does not help with that; the same link, opened in a real browser, does. The page says so,
+above its button: *If this page opened inside another app, such as a chat or mail app, use
+that app's 'Open in browser' option or copy the link into Safari or Chrome. The link still
+works.*
 
 ## Two things this is not
 

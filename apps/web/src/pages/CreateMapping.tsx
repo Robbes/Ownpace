@@ -62,7 +62,7 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { ConsentLines, consentAsks } from '../components/ProviderConsent.tsx';
+import { ConsentLines, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import {
@@ -443,6 +443,9 @@ export function clearDraft(): void {
 
 const CreateMapping: React.FC = () => {
   const { t, locale } = useLocale();
+  // The source step's consent lines, which its Connect button points at
+  // (`consentLineIds`, the review of 2026-09-26).
+  const consentLinesId = React.useId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
@@ -2399,6 +2402,7 @@ const CreateMapping: React.FC = () => {
                   <button
                     type="button"
                     onClick={startConsent}
+                    aria-describedby={consentLineIds(grantProvider, consentLinesId)}
                     disabled={
                       accountMissing ||
                       (clientPairRequired &&
@@ -2427,14 +2431,18 @@ const CreateMapping: React.FC = () => {
                     {ps('connect')}
                   </button>
                   {/* The lines beside the button, laid out once for both
-                      doors (workplan 0144 T3 (a)): the button's hint, and
-                      for Google, what the permission allows and what
-                      Ownpace does. The faces above are all five, so the ask
-                      is bounded here by what this deployment serves
+                      doors (workplan 0144 T3 (a)): the button's hint; for
+                      Google, what the permission allows and what Ownpace does,
+                      and the in-app browser (0140 T3 (a)); for Microsoft, what
+                      an organisation may ask (0140 T6 (b)). The button above
+                      points at those last two, so they are heard before it is
+                      pressed. The faces above are all five, so the ask is
+                      bounded here by what this deployment serves
                       (`sourceAllowed`, from /api/provider-accounts). */}
                   <ConsentLines
                     provider={grantProvider}
                     asked={consentAsks(formData.sourceType, formData.domains, sourceAllowed)}
+                    idBase={consentLinesId}
                   />
                   {consentNote && (
                     <p

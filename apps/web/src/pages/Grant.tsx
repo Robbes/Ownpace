@@ -48,6 +48,12 @@
  * mid-intention — after somebody has cleared ten minutes to do this — is a
  * small betrayal that costs an afternoon.
  *
+ * **Where to open it** (workplan 0140 T3 (a)). A link tapped in a chat or mail
+ * app opens in that app's own browser, and Google is reported to refuse its
+ * consent there. One line above the button says to open it in Safari or
+ * Chrome instead, and that the link still works, which it does: opening it
+ * spends nothing.
+ *
  * **The privacy policy and terms, before any redirect.** This is the in-product
  * disclosure Google's verification requires, and it belongs where a person can
  * still walk away.
@@ -223,6 +229,14 @@ const Grant: React.FC = () => {
           <p className="mt-4 text-sm font-medium text-gray-900 break-words">
             {t('grant.signInAs', { account: subject.data.from })}
           </p>
+
+          {/* A link sent by chat or mail opens inside that app's own browser,
+              where Google is reported to refuse its consent (workplan 0140
+              T3 (a); outside knowledge, 0140 §1). Always shown, with no
+              sniffing for user agents, and before the button: opening the
+              link again in a real browser spends nothing (`grant.ts`), and
+              the line says so. */}
+          <p className="mt-3 text-sm text-gray-600">{t('grant.inAppBrowser')}</p>
 
           <button
             type="button"
