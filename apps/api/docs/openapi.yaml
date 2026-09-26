@@ -1526,7 +1526,14 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
-        '400': { description: Unknown type, a missing required field, or a value the schema refuses. }
+        '400':
+          description: |
+            Unknown type, a missing required field, or a value the schema refuses.
+            Or `archive_on_server` (workplan 0136 T5): an export archive whose
+            `where` is absent or `disk`, a path on this service's own machine,
+            which a managed migration cannot read. Refused before anything is
+            probed or stored; the sentence says the export goes in a folder of
+            the Nextcloud or WebDAV files the migration writes to.
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/connections/{id}:
     delete:
@@ -1604,6 +1611,11 @@ paths:
         '400': { description: A missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
+        '409':
+          description: |
+            `archive_on_server` (workplan 0136 T5): a stored export archive whose
+            path is on this service's own machine. Rotating probes the stored
+            path first, so it is refused before anything is opened or replaced.
   /api/connections/{id}/test:
     post:
       tags: [Connections]
@@ -1670,6 +1682,12 @@ paths:
                           sentence: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No such connection for this tenant. }
+        '409':
+          description: |
+            `archive_on_server` (workplan 0136 T5): a stored export archive whose
+            path is on this service's own machine, which a managed migration
+            cannot read. Refused before anything is opened; the row's `status`
+            becomes `error`, so the list does not show it as connected.
   /api/setup/{side}/{provider}:
     get:
       tags: [Setup]
@@ -1758,7 +1776,11 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
-        '400': { description: The body named neither side's shapes. }
+        '400':
+          description: |
+            The body named neither side's shapes. Or `archive_on_server` (workplan
+            0136 T5): an export archive at a path on this service's own machine,
+            refused before anything is probed.
         '401': { $ref: '#/components/responses/Unauthorized' }
   /api/migrations:
     get:
@@ -1803,7 +1825,17 @@ paths:
             application/json:
               schema: { type: object }
         '400':
-          description: Refused, naming what is incoherent or missing.
+          description: |
+            Refused, naming what is incoherent or missing. Or `archive_on_server`
+            (workplan 0136 T5): an export archive at a path on this service's own
+            machine — for a new connection, or in a reused one's override —
+            refused before anything is stored. That refusal also carries
+            `fields: [path]` and `reason`, the same sentence as `message`.
+            An archive whose `sourceConfig.where` is `target` (workplan 0148
+            T9) is read from a folder of the destination's own files, so a
+            destination that cannot serve it is refused at `targetType`: JMAP,
+            which has no byte ranges, and every destination with no files.
+            Only `webdav` and `nextcloud` qualify.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1821,6 +1853,16 @@ paths:
         `kindChoices` lists each data type the migration copies (`on`) or could
         gain (`addable`, or `refused` with a `reason`). It is the list
         `POST /api/migrations/{mappingId}/domains` accepts from.
+
+        `stopChoices` (workplan 0128 T4) lists each data type the migration
+        carries with its stop: `stopped`, and `offer`, the press
+        `…/domains/{domain}/stop` or `…/resume` accepts now (`stop`, `resume`
+        or null). Both ask one rule, so the page offers exactly what the door
+        accepts. Where there is no press, `held` says why when the page must
+        say so: `last_one_copying` (D5) or `not_running` (a stopped data type
+        on a migration that does not run). A `domainStatus` row its owner
+        stopped carries `stoppedByOwner: true`; one switched off otherwise
+        does not.
       responses:
         '200':
           description: The migration.
@@ -1948,10 +1990,12 @@ paths:
         it, neither side's last Test measured that it cannot, and the migration
         has not reached cutover.
 
-        Adding only: nothing here takes a data type off. A running migration's
-        new path takes its slot at once, a paused one's at its next start. The
-        migration's `updatedAt` moves, so the next preflight counts afresh.
-        Nothing is enqueued: the next pass copies the new data type.
+        Adding only: nothing here takes a data type off; a data type is
+        stopped and resumed on its own doors (`…/domains/{domain}/stop`). A
+        running migration's new path takes its slot at once, a paused one's at
+        its next start. The migration's `updatedAt` moves, so the next preflight
+        counts afresh. Nothing is enqueued: the next pass copies the new data
+        type. The addition is recorded (`path.added`).
       requestBody:
         required: true
         content:
@@ -1985,6 +2029,92 @@ paths:
             `kind_refused`, with a `reason` that says what to do instead: the
             data type is already there, one side cannot carry it, the last Test
             measured that it cannot, or the migration is past cutover.
+
+  /api/migrations/{mappingId}/domains/{domain}/stop:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - name: domain
+        in: path
+        required: true
+        schema: { type: string, enum: [email, calendar, contact, file, task] }
+    post:
+      tags: [Migrations]
+      summary: Stop one data type of a running migration
+      description: |
+        Stops ONE data type (workplan 0128 T4). Its copies stay, its record
+        stays, and it no longer follows the source; resuming continues where
+        it stopped. Only while the migration runs (`active` or `continuous`),
+        only a data type the migration carries, and only one before its
+        cutover or kept in the lane.
+
+        The last data type still copying cannot be stopped: end the migration
+        instead (D5). Before the cutover a stopped data type keeps its slot, as
+        a pause does; in the continuous lane it releases it (D2 (c)). The
+        progress strip says `stopped`, the check that everything arrived skips
+        it (D6), and the stop is recorded (`path.status`). Nothing is enqueued:
+        every pass reads the stop afresh.
+      responses:
+        '200':
+          description: Stopped, or already stopped (`changed` false).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, domain, stopped, changed]
+                properties:
+                  id: { type: string }
+                  domain: { type: string, enum: [email, calendar, contact, file, task] }
+                  stopped: { type: boolean, enum: [true] }
+                  changed: { type: boolean }
+        '400':
+          description: '`invalid_domain`: the path names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `stop_refused`, with `refused` the stable part and a `reason` that
+            says what to do instead: `not_running` (the migration is paused,
+            in its cutover or finished), `not_a_path` (the migration does not
+            carry this data type), `not_stoppable` (the data type is past its
+            cutover or has ended), or `last_one_copying` (end the migration
+            instead).
+
+  /api/migrations/{mappingId}/domains/{domain}/resume:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - name: domain
+        in: path
+        required: true
+        schema: { type: string, enum: [email, calendar, contact, file, task] }
+    post:
+      tags: [Migrations]
+      summary: Resume one stopped data type
+      description: |
+        Resumes a data type its owner stopped (workplan 0128 T4). It follows
+        the source again from where it stopped. In the continuous lane it
+        takes its slot back, and the month's peak rises with it (D2 (c)). The
+        resume is recorded (`path.status`).
+      responses:
+        '200':
+          description: Resumed, or already running (`changed` false).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, domain, stopped, changed]
+                properties:
+                  id: { type: string }
+                  domain: { type: string, enum: [email, calendar, contact, file, task] }
+                  stopped: { type: boolean, enum: [false] }
+                  changed: { type: boolean }
+        '400':
+          description: '`invalid_domain`: the path names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `resume_refused`, with `refused` and a `reason`: `not_running`,
+            `not_a_path` or `not_stoppable`, as for a stop.
 
   /api/migrations/{mappingId}/sync:
     parameters:

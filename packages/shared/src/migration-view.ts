@@ -154,7 +154,7 @@ export function viewGrantFor(row: {
 /**
  * Narrow one status report to what a link holder may see.
  *
- * ## The two fields that do not cross, and what each would cost
+ * ## The three fields that do not cross, and what each would cost
  *
  * **`lastError` — the provider's own prose.** Kept verbatim everywhere else
  * (ADR-0024's prose boundary) precisely because it is precise, and precise is
@@ -169,6 +169,11 @@ export function viewGrantFor(row: {
  * and left out anyway: it is an operator's diagnostic, it means nothing to
  * somebody asking whether their mail has arrived, and every line on this page
  * has to earn itself.
+ *
+ * **`stoppedByOwner` — whose stop it was** (0128 T4, slice 3c). The state
+ * `stopped` crosses, so the link holder sees that a data type no longer
+ * follows. Who stopped it, and so where the way back is, is the owner's
+ * business: the Resume it points at is on a page this reader cannot open.
  *
  * Written as an explicit construction and never as `{ ...report }`. A spread
  * would carry today's two forbidden fields and every future one, silently, on

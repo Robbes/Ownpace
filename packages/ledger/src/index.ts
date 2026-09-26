@@ -46,3 +46,4 @@ export * from './mapping-link-store.ts';
 // own ending is `apps/selfhost/src/forget-me.ts`, which revokes and nothing
 // else, because that is the only part its operator cannot do themselves.
 export * from './a-path-for-every-migration.ts';
+export * from './a-stop-per-data-type.ts';

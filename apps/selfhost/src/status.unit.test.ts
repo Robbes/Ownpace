@@ -59,6 +59,30 @@ describe('buildStatusReport', () => {
     expect(report.mappings[0]!.domains[0]!.lastError).toBe('connector auth failed: 401');
   });
 
+  it('carries each stop as the page offers it, and whose stop a stopped row is (0128 T4, slice 3c)', () => {
+    const stops = [
+      { domain: 'email' as const, stopped: true, offer: 'resume' as const },
+      { domain: 'calendar' as const, stopped: false, offer: null, held: 'last_one_copying' as const },
+    ];
+    const report = buildStatusReport([
+      {
+        mappingId: 'm',
+        migrationStatus: 'active',
+        statuses: [
+          status({ domain: 'email', state: 'stopped', stoppedByOwner: true }),
+          status({ domain: 'calendar', state: 'in_progress' }),
+        ],
+        stops,
+      },
+    ]);
+    expect(report.mappings[0]!.stops).toEqual(stops);
+    expect(report.mappings[0]!.domains[0]!.stoppedByOwner).toBe(true);
+    expect('stoppedByOwner' in report.mappings[0]!.domains[1]!).toBe(false);
+    // A caller that read no stops says nothing, rather than "none to offer".
+    const without = buildStatusReport([{ mappingId: 'm', migrationStatus: 'active', statuses: [] }]);
+    expect('stops' in without.mappings[0]!).toBe(false);
+  });
+
   it('omits lastError/lastSyncedAt when absent', () => {
     const report = buildStatusReport([{ mappingId: 'm', migrationStatus: 'paused', statuses: [status({ state: 'pending' })] }]);
     const d = report.mappings[0]!.domains[0]!;

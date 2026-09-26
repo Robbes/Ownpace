@@ -554,8 +554,9 @@ describe('the appliance\'s /docs points to the operator documents (0148 D9)', ()
   }
 
   it('words the line as the plan gives it, in both languages', () => {
-    // D9's wording, less its first article, so it fits the fifteen words a
-    // line on screen gets (workplan 0118's copy budget).
+    // D9's wording, less its first article: cut to fit the fifteen words a
+    // line on screen got until the owner dropped that cap on 2026-09-25
+    // (workplan 0118).
     expect(STRINGS.en['docs.operatorDocs']).toBe(
       'Running your own appliance? Settings and commands are in the operator documents in the repository.',
     );

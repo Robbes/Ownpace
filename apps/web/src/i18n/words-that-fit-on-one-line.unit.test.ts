@@ -1,70 +1,44 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * The copy budget (workplan 0118): a line on screen is one line.
+ * The copy budget (workplan 0118): what a hint, an intro, a placeholder and a
+ * title may spend on screen.
  *
  * The owner read the wizard on 2026-09-05 and found every field carrying
  * three thoughts at once — what goes in the box, why, and a caveat. The
  * rule since then: a hint is one sentence of at most twelve words, an intro
- * at most fifteen or none, a placeholder shows the shape of a value, and
- * anything else that stays on screen fits in fifteen. What does not fit
- * folds: a `.why`, a `.more` or a checklist `.detail` opens under a word
- * and has no budget, because nobody reads it until they ask.
+ * at most fifteen or none, a placeholder shows the shape of a value, and a
+ * title is a few words. What does not fit folds: a `.why`, a `.more` or a
+ * checklist `.detail` opens under a word and has no budget, because nobody
+ * reads it until they ask.
  *
- * Every key in the dictionary is under the rule, in both languages — the
- * screens came under it one slice at a time, and the last (the operator's
- * and sign-in screens) closed the list. A sentence that must stay long
- * verbatim (a consent, a remedy) is named in ALLOWED_OVER with its reason,
- * never deleted from the dictionary to get green.
+ * Everything else has no budget since 2026-09-25. This guard used to hold
+ * every other line to fifteen words as well, a cap none of the owner's
+ * decisions named, and it made a sentence fold whenever its line ran one word
+ * over. The owner: *"remove the generic 15-word cap rule and enforcement, it
+ * forces you to hide additional text. We will have to work on what text to
+ * actually show and what to fold. But now we fold to often."* What a screen
+ * shows and what it folds is decided on the screen, not by a word count.
+ *
+ * A hint, an intro, a placeholder or a title that must stay long verbatim is
+ * named in ALLOWED_OVER with its reason, never deleted from the dictionary to
+ * get green.
  */
 import { describe, it, expect } from 'vitest';
 import { STRINGS, LOCALES, type StringKey } from './strings.ts';
 
-// Since T4b (2026-09-05) every key in the dictionary is under the rule; the
-// exceptions are named below, one by one, with their reason.
-
 /** Folded copy: opens under a word, so it has no budget. */
 const FOLDED = /\.(why|more|detail)$/;
 
-/** key → why it may run over. Keep this SHORT. */
-const ALLOWED_OVER: Readonly<Record<string, string>> = {
-  // The three invitation-safety sentences on a calendar target (0106 T0):
-  // measured, unmeasured, absent. Safety sentences stay verbatim — owner,
-  // 2026-09-05 — because a shorter one would promise less than is measured.
-  // What finishing before delivery has moved costs, and the promise that
-  // finishing removes nothing: the two sentences on the Finish screen a
-  // person must read in full before pressing the button.
-  'finish.step4.warn.post': 'safety sentence, verbatim by owner decision',
-  'finish.step5.nothingChanges.post': 'safety promise, verbatim by owner decision',
-  // The failure remedies (0110 T3): what a person can DO about each
-  // category. Remedies stay verbatim — owner, 2026-09-05.
-  'failure.authExpired': 'remedy sentence, verbatim by owner decision',
-  'failure.rateLimited': 'remedy sentence, verbatim by owner decision',
-  'failure.quotaExceeded': 'remedy sentence, verbatim by owner decision',
-  'failure.targetRefused': 'remedy sentence, verbatim by owner decision',
-  'failure.unknown': 'remedy sentence, verbatim by owner decision',
-  // The two refusals added 2026-09-17, under the same rule as the five above.
-  // Both are longer than those, and deliberately: each has to name the
-  // account NOT to go and check, which is the whole reason the category
-  // exists. Their `view.*` twins are NOT here — that reader cannot act, so
-  // theirs say the fact in fifteen words and stop.
-  'failure.sourceRefused': 'remedy sentence, verbatim by owner decision',
-  'failure.formatRefused': 'remedy sentence, verbatim by owner decision',
-  // The ninth, 2026-09-18, under the same rule. Longer still, because it is
-  // the only remedy that names a SETTING the reader has to go and find: "change
-  // the policy" without naming the field is the instruction the owner already
-  // could not carry out, which is what put this category in the product.
-  'failure.policyRefused': 'remedy sentence, verbatim by owner decision',
-  // The consent page (0089): what the person being migrated reads before
-  // granting. Consent sentences stay verbatim — owner, 2026-09-05.
-  'grant.asking': 'consent sentence, verbatim by owner decision',
-  'grant.readOnly': 'consent sentence, verbatim by owner decision',
-  // Names the progress page since 0108 T8 (c) (owner, 2026-09-24: "yes").
-  'grant.withdraw': 'consent sentence, verbatim by owner decision',
-  // The alpha note's middle sentence (0131 T1): nothing charged, nothing backed
-  // up (0131 D5), the alpha can end. Sixteen words in Dutch. Safety sentences
-  // stay verbatim — owner, 2026-09-05 — and the mail says the same words.
-  'alpha.note.terms': 'safety sentence, verbatim by owner decision',
-};
+/**
+ * key → why it may run over its budget. Keep this SHORT.
+ *
+ * Empty since 2026-09-25. Every sentence it named was a line of the kind that
+ * no longer has a budget: the safety sentences on the Finish screen, the
+ * failure remedies, the consent sentences and the alpha note's middle one.
+ * They stay verbatim because the owner decided so (0118 T5, 0131 §3), not
+ * because this list names them.
+ */
+const ALLOWED_OVER: Readonly<Record<string, string>> = {};
 
 export type Budget = { readonly words: number; readonly oneSentence: boolean };
 
@@ -75,7 +49,8 @@ export function budgetFor(key: string): Budget | null {
   if (/\.intro$/.test(key)) return { words: 15, oneSentence: false };
   if (/\.placeholder$/.test(key)) return { words: 8, oneSentence: false };
   if (/\.title$/.test(key)) return { words: 8, oneSentence: false };
-  return { words: 15, oneSentence: false };
+  // No generic cap (owner, 2026-09-25): any other line says what it needs to.
+  return null;
 }
 
 export function wordCount(text: string): number {
@@ -118,6 +93,12 @@ describe('the copy budget — the counter itself', () => {
     expect(overBudget('x.hint', 'one two three four five six seven eight nine ten eleven twelve')).toBeNull();
     expect(overBudget('x.why', 'a'.repeat(10) + ' word '.repeat(80))).toBeNull();
   });
+
+  it('holds no other line to a count: the generic fifteen is gone (owner, 2026-09-25)', () => {
+    expect(budgetFor('confirm.progress.stopped')).toBeNull();
+    expect(overBudget('x.body', 'word '.repeat(40))).toBeNull();
+    expect(overBudget('x.intro', 'word '.repeat(16))).toMatch(/16 words, budget 15/);
+  });
 });
 
 describe('the copy budget — every budgeted key, in every language', () => {
@@ -135,5 +116,9 @@ describe('the copy budget — every budgeted key, in every language', () => {
 
   it('names only real keys in the allowance, so a removed sentence takes its excuse with it', () => {
     for (const key of Object.keys(ALLOWED_OVER)) expect(key in STRINGS.en).toBe(true);
+  });
+
+  it('names only keys that have a budget, so no excuse outlives its rule', () => {
+    for (const key of Object.keys(ALLOWED_OVER)) expect(budgetFor(key), key).not.toBeNull();
   });
 });

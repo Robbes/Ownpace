@@ -22,8 +22,8 @@ Two things, and neither of them is a password:
 
 | | |
 |---|---|
-| **Which export** | Google Takeout, or Apple Data & Privacy. This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
-| **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. |
+| **Which export** | Google Takeout, or Apple Data & Privacy (to be tested: we cannot read it yet). This tells us how to read it — the two are laid out completely differently inside, and there is no way to tell from the files themselves. |
+| **Where it is** | The `.zip` you downloaded, or the folder you extracted it into. A download in several parts: any one of the parts, and we read them all. The folder can also be in the Nextcloud you are moving to: see [Your export in your own Nextcloud](#your-export-in-your-own-nextcloud). |
 
 That is the whole connection. We never sign in anywhere on your behalf for this, so there is
 no account to link and nothing to revoke afterwards.
@@ -116,12 +116,14 @@ so a count that looks short has a reason you can read.
 
 ## Apple Data & Privacy
 
+**To be tested.** We cannot read an Apple export yet. Request one only for your own records.
+
 ### Asking for it
 
 1. Go to **privacy.apple.com** and sign in with your Apple Account.
 2. Choose **Request a copy of your data**.
 3. Tick what you want. For moving files and photos that is **iCloud Drive files and documents**
-   and **iCloud Photos**. You can tick more; we read files and photos from it.
+   and **iCloud Photos**. You can tick more; files and photos are what we will read from it.
 4. Choose a maximum file size — Apple offers **1, 2, 5, 10 or 25 GB** parts. Pick larger parts
    unless your connection is unreliable.
 5. Confirm. Apple shows a page thanking you and saying your data is being prepared.
@@ -150,12 +152,14 @@ your hands.
 
 ### Getting it ready for us
 
-Extract every part into the same folder, and point us at that folder.
+Extract every part into the same folder. Once we can read an Apple export, that folder is what
+you point us at.
 
 ### One thing Apple removes
 
 In the contact and calendar information Apple exports, **email addresses are partly hidden**.
-This does not affect your files or photos, which is what we read from an Apple export.
+This does not affect your files or photos, which are what we will read from an Apple export
+once we can.
 
 ---
 
@@ -178,6 +182,49 @@ rather than a `.zip` (we read `.zip`; ask Google for that format, or extract the
 point us at the folder). **We will never tell you an archive is empty when what really
 happened is that we could not read it.** Those are different answers and you deserve the true
 one.
+
+An export you put in a folder of the files you are moving to is not opened by **Test**: it is
+counted at the preflight, once the migration knows where those files are. See
+[Your export in your own Nextcloud](#your-export-in-your-own-nextcloud).
+
+---
+
+## Your export in your own Nextcloud
+
+The export does not have to be on a disk. If the files you are moving to are in a Nextcloud, or
+on another server that offers your files over WebDAV, you can put the export there and we read
+it from that folder.
+
+**There is no need to unpack it.** Upload the `.zip` files exactly as Google or Apple delivered
+them, every part into the same folder. We read them where they lie, a few megabytes at a time,
+and never change them. If you already unpacked the export into that folder, that works too.
+
+1. Upload the `.zip` parts of the export into **one folder** of the files the migration will
+   write to: the same Nextcloud or WebDAV account you will choose as the destination. Use the
+   way you always add files, such as the Nextcloud website or its desktop app. Keep every part
+   in that one folder.
+2. On the source step, choose **Export archive**. Under **Where the export is**, choose
+   **In a folder of your destination's files (Nextcloud or WebDAV)**.
+3. Type the folder as it appears in your files, from the top, for example
+   `Exports/takeout-20260904`. You can also name one `.zip` in it: we read the parts beside it.
+4. Press **Test and save connections**. It says the export is counted at the preflight. That
+   is expected: the destination is chosen on the target step, and until then there is nowhere
+   to look.
+5. Continue, and on the target step choose that same Nextcloud or WebDAV account. The
+   preflight then counts what is in the export, before anything moves.
+
+**Your photos arrive as ordinary files and folders.** What we write into your files is never a
+`.zip`: every album becomes a folder, a photo in no album goes into a folder for its year, such
+as `Photos from 2019`, and one file at the top lists everything the export knew about each
+photo.
+
+This works with a Nextcloud or a WebDAV destination only. An account that holds no files, or a
+JMAP account, cannot hand us the export: JMAP does not let us read a file in pieces, and we
+say so on the target step.
+
+**The `.zip` files stay where you put them.** We only read them, so after the migration they
+are still in that folder, and they take up as much space in your account as the export itself.
+Once you have checked that everything arrived, delete them yourself.
 
 ---
 
