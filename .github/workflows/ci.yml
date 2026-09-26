@@ -530,12 +530,29 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # What the box had when the unit tests began, so a worker killed
+      # mid-file can be read against it (the cap below). It cannot fail.
+      - name: Cores and memory
+        run: nproc; free -m || true
       - name: Run unit tests (vitest; excludes integration/e2e)
         env:
           SKIP_STALWART: 'true'
           # Unit tests mock all DAV/HTTP; no unit test reads NEXTCLOUD_* — skip
           # the ~30s Nextcloud container boot the global setup otherwise does.
           SKIP_NEXTCLOUD: 'true'
+          # AT MOST FOUR WORKERS ON THE SPARK. vitest runs one worker per core
+          # less one: three on a 4-vCPU hosted runner, and on the Spark as many
+          # as its cores allow (the step above prints them). A worker holds a
+          # PGlite database and its coverage, about 0.6GB: nineteen of them
+          # held 13GB at once when measured, on a box that also serves
+          # production. From 2026-09-24 a push to main failed here more often
+          # than it passed, most often with workers killed mid-file by SIGKILL,
+          # which vitest does not send and the kernel's out-of-memory killer
+          # does, and PGlite's migrations in a `beforeAll` past their 30
+          # seconds. The same suite passes on the hosted runners a pull
+          # request uses, which run three. Empty on a pull request, where
+          # vitest keeps its own default.
+          VITEST_MAX_WORKERS: ${{ github.event_name == 'push' && '4' || '' }}
         # No `--`: pnpm forwards it literally, and vitest's CLI parser discards
         # everything after it. `pnpm test -- --coverage` therefore ran
         # `vitest run --project unit --project unit-browser -- --coverage`,
