@@ -476,3 +476,106 @@ describe('a migration begins paused or active, and nothing later', () => {
     expect((await pathRows(running.body.id)).map((r) => r.state)).toEqual(['active']);
   });
 });
+
+describe('a press on the whole migration moves only the paths in the phase it leaves (0128 T5, slice 5a)', () => {
+  /**
+   * The migration's status and each path's own phase, placed by hand as slice
+   * 5b's cutover of one data type will leave them: mail cut over on its own
+   * while calendars still copy, and the status their roll-up.
+   */
+  async function place(status: string, phases: Record<'email' | 'calendar', string>): Promise<void> {
+    const conn = await driver.acquire();
+    try {
+      await conn.query(`UPDATE mailbox_mapping SET status = $2 WHERE id = $1`, [MAPPING, status]);
+      for (const [domain, state] of Object.entries(phases)) {
+        const ended = ['cutover', 'done'].includes(state);
+        await conn.query(
+          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, ended_at)
+           VALUES ($1, $2, $3, $4, now() - interval '1 day', ${ended ? `now() - interval '1 hour'` : 'NULL'})`,
+          [TENANT, MAPPING, domain, state],
+        );
+      }
+    } finally {
+      await conn.release();
+    }
+  }
+
+  /** Each path's phase, and whether it still says when it ended. */
+  const phases = async () => (await pathRows()).map((r) => [r.domain, r.state, r.ended_at !== null]);
+
+  it('pausing and resuming leave mail, cut over on its own, where it is', async () => {
+    await place('active', { email: 'cutover', calendar: 'active' });
+    const cut = (await pathRows()).find((r) => r.domain === 'email')!;
+
+    expect((await request(app).put(`/api/migrations/${MAPPING}`).send({ status: 'paused' })).status).toBe(200);
+    expect(await phases()).toEqual([
+      ['calendar', 'paused', false],
+      ['email', 'cutover', true],
+    ]);
+    expect((await request(app).post(`/api/migrations/${MAPPING}/start`).send({})).status).toBe(200);
+    expect(await phases()).toEqual([
+      ['calendar', 'active', false],
+      ['email', 'cutover', true],
+    ]);
+    // Untouched: its cutover's end is still the one it had.
+    expect((await pathRows()).find((r) => r.domain === 'email')!.ended_at).toEqual(cut.ended_at);
+  });
+
+  it('finishing ends every path, whatever its phase', async () => {
+    await place('active', { email: 'cutover', calendar: 'active' });
+    expect((await request(app).post(`/api/migrations/${MAPPING}/finish`).send({})).status).toBe(200);
+    expect(await phases()).toEqual([
+      ['calendar', 'done', true],
+      ['email', 'done', true],
+    ]);
+  });
+
+  it('finishing the lane leaves a path that already ended with the date it ended', async () => {
+    await place('continuous', { email: 'continuous', calendar: 'done' });
+    const ended = (await pathRows()).find((r) => r.domain === 'calendar')!.ended_at;
+    expect((await request(app).post(`/api/migrations/${MAPPING}/finish`).send({})).status).toBe(200);
+    expect(await phases()).toEqual([
+      ['calendar', 'done', true],
+      ['email', 'done', true],
+    ]);
+    expect((await pathRows()).find((r) => r.domain === 'calendar')!.ended_at).toEqual(ended);
+  });
+
+  it('keeping it copying takes the paths in its cutover, and leaves one that ended', async () => {
+    await place('cutover', { email: 'done', calendar: 'cutover' });
+    expect((await request(app).put(`/api/migrations/${MAPPING}`).send({ status: 'continuous' })).status).toBe(200);
+    expect(await phases()).toEqual([
+      ['calendar', 'continuous', false],
+      ['email', 'done', true],
+    ]);
+  });
+
+  it("the cutover CLI's own door moves only the paths in the phase the mapping leaves", async () => {
+    await place('active', { email: 'cutover', calendar: 'active' });
+    const cut = (await pathRows()).find((r) => r.domain === 'email')!;
+    await applyMappingStatusChange(driver, TENANT, {
+      mappingId: MAPPING,
+      from: 'active',
+      to: 'cutover',
+      actor: 'cli',
+      via: 'cutover',
+    });
+    expect(await phases()).toEqual([
+      ['calendar', 'cutover', true],
+      ['email', 'cutover', true],
+    ]);
+    // Mail was not cut over again: its cutover's end is still the one it had.
+    expect((await pathRows()).find((r) => r.domain === 'email')!.ended_at).toEqual(cut.ended_at);
+  });
+
+  it('rows that do not add up to the status: every path moves, as before', async () => {
+    // Finished, then set back by hand: the rows still say `done`, and the
+    // status is every path's phase, as the reader believes it.
+    await place('paused', { email: 'done', calendar: 'done' });
+    expect((await request(app).post(`/api/migrations/${MAPPING}/start`).send({})).status).toBe(200);
+    expect(await phases()).toEqual([
+      ['calendar', 'active', false],
+      ['email', 'active', false],
+    ]);
+  });
+});
