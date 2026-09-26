@@ -18,7 +18,10 @@ folder). On the **Permissions** tab enable exactly:
 - `sharing.read` — optional, read-only too: it powers the shared-folder **browse**
   (the wizard's "Browse shared folders" button and `scripts/list-dropbox-shared-folders.ts`).
   Without it migrations work unchanged; the browse gets Dropbox's own refusal, naming
-  the scope.
+  the scope. *Connect with Dropbox* does not ask for it, so a token from the button
+  cannot browse even where the app has it; a token consented the long way below can
+  (workplan 0140 T7 (b); whether the button should ask for it is that plan's open
+  question 5).
 
 Nothing else. The **App key** and **App secret** on the Settings tab are two of the three
 values.
@@ -32,6 +35,15 @@ Dropbox's consent screen for the account being migrated, and when that account a
 refresh token lands in the field by itself and the connection is saved and tested in one go.
 Nothing is typed, and the App secret never leaves the server. You can still use your own app
 instead: open *Use your own Dropbox app* and enter the App key and App secret as a pair.
+
+The button asks Dropbox for `files.metadata.read`, `files.content.read` and
+`account_info.read`, and nothing else, whichever app it runs on (workplan 0140 T7 (b),
+2026-09-26). The third is the one Dropbox keeps on every app, and *Test* needs it for the
+space-usage figure below: Dropbox grants only the scopes the button names. As Dropbox documents
+the `scope` parameter, that is a subset of the app's permissions and cannot widen them. What
+comes back is still read: a grant carrying any scope outside those three and `sharing.read` is
+refused, naming the scope, and nothing is stored. Take that scope off the app and press the
+button again.
 
 *Test* asks Dropbox for the top level of the root folder only, so it answers in seconds on a
 Dropbox of any size; the migration itself walks every folder. Beside the folder count, the

@@ -2,7 +2,60 @@
 
 > **In one line:** Provider consent for testers on `ownpace-live`: its own Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26, build: T7 (b), a Dropbox consent that asks only to read, decided by the owner on
+2026-09-25 and built on branch
+`claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged.** The owner was asked
+*"The rest of group R2 is still Proposed in the plans. Which should I build now, before the first
+invitation?"* and chose all three: 0144 T3 (a) and (c), this plan's consent-screen lines (T2 (b),
+T3 (a), T6 (b) and T7 (b)), and 0141 T10 (a). This is 0131 §6's group R2, step 7. T7 (b) is one
+commit on its own, `feat(api): a Dropbox consent that asks only to read (workplan 0140 T7 (b))`,
+so that it can go as its own PR, as §5 item 6 asks. It touches nothing the web lines touch, and
+applies to `main` by itself; the web lines follow it on the same branch.
+
+- **T7 (b), a consent that asks only to read.** `dropboxConsentUrl` puts
+  `scope=account_info.read files.metadata.read files.content.read` on the URL.
+  `exchangeDropboxCode` refuses a grant carrying any scope outside those three and
+  `sharing.read`, before it checks for a missing one: the refusal names the scope, says to
+  remove it from the app, and nothing is stored. This reverses the file's header and the pinned
+  "no scope" case on purpose, and both now say why. `sharing.read` is accepted back but not asked
+  for (open question 5). T7 (a), the console read, stays the owner's, and the first real consent
+  after the change is still to be recorded here.
+
+Guard, shown failing on the unchanged code: two cases in `dropbox-consent.unit.test.ts`, the URL
+carrying exactly the read scopes and a grant with `files.content.write` refused by name (both
+failed, 4 passed). Each was then shown to fail by a mutation, each restored: no scope on the URL
+(1), `sharing.read` asked for too (1), and a write scope accepted (1). The URL case's
+`account_info.read` failed while the URL asked for two scopes.
+
+Where the build departs from §3:
+
+- **`account_info.read` on the Dropbox URL as well.** §3 names the two file scopes, and the
+  build first asked for exactly those, reading `account_info.read` as something Dropbox answers
+  beside them. Dropbox's OAuth guide says the opposite: without `include_granted_scopes`, the
+  grant holds only the scopes the URL names. The Test's *Measured* line calls
+  `users/get_space_usage`, whose scope is `account_info.read` (`users.stone` in Dropbox's API
+  spec), so every token from the button would have lost the space-usage figure it has today,
+  and §3's *"loses nothing it has today"* would not have held. Dropbox keeps
+  `account_info.read` on every user-linked app, so asking for it is never refused. Dropbox's own
+  pages could not be reached from the build: the guide's wording was read in a search engine's
+  excerpts of it, and each route's scope in `dropbox-api-spec` on GitHub.
+- **Docs kept true after T7 (b), beyond §3's letter.** `docs/dropbox-setup.md` says what the
+  button asks for, and that a token from it cannot run the shared-folder browse; so do two
+  bullets of `docs/guides/en/dropbox.md` and of `docs/guides/nl/dropbox.md`.
+  `apps/api/docs/openapi.yaml` said *"No scope on the URL"*, and comments said Dropbox asks for
+  no scope or that the app's permissions are the ask (`CreateMapping.tsx`,
+  `dropbox-token-provider.ts`, `mapping-service.ts`, `openapi-spec.unit.test.ts`); the
+  shared-folder browse's comment in `routes/migrations/index.ts` now says a button token gets
+  Dropbox's refusal too.
+
+Expectations changed on purpose: `dropbox-consent.unit.test.ts`'s URL case pinned no `scope`,
+and now pins exactly the three read scopes.
+
+Still open: the wizard's `wizard.about.dropbox.more` and the Dropbox setup step still offer
+`sharing.read` for the browse, which holds for a pasted token and not for one from the button
+(open question 5).
 
 **2026-09-24, build: T8 (a) and T9 (a), the labels, built with 0131 T2 (a) on branch
 `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged.** The Box and Apple account cards carry *Experimental* / *Experimenteel* at
@@ -74,7 +127,7 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 | T4 An ADR for the deployment's Microsoft registration | 📋 **Proposed**, recommended now (D2) | §4. ADR-0006's operative rule says the multi-tenant app is retired; the code carries a deployment registration whose authority defaults to `common`. |
 | T5 Microsoft publisher verification | ⏳ **Owner** (Partner Center), recommended to start now (D2) | §4. It has a lead time, and an organisation's consent policy may depend on it. |
 | T6 One foreign organisation and one personal account, before the first Microsoft tester | 📋 **Proposed** (D2) | §3. Plus the sentence a tester reads before *Connect with Microsoft*. |
-| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 📋 **Proposed** (D3) | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
+| T7 Dropbox: the app's limits read in the console, and a consent that asks only to read | 🔨 **(b) the read-only consent built on branch `claude/ownpace-public-readiness-y7orc6-consent-screens-a-tester-can-pass`, not merged** (2026-09-26). 📋 **(b) Decided 2026-09-25 (owner)**; (a) **Proposed** (D3), the owner's | §3. The limit must be read in the Dropbox App Console, for the app live uses. The code change reverses a pinned test on purpose. |
 | T8 Box: experimental, and for organisations with a Box administrator | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2 and is decided. Rewording the guide's "read-only by construction" is **Proposed**. |
 | T9 Apple: experimental, with the password's own steps | 🔨 **(a) the label built on branch `claude/ownpace-public-readiness-y7orc6-a-card-that-says-it-is-unproven`, not merged** (2026-09-24). 📋 **Decided 2026-09-24** (D3) | §3. The label is 0131 T2. Never measured against a live account. |
 | T10 Which sign-in buttons the alpha offers | 📋 **Proposed** | §3. Email and password only on live's identity provider, unless the owner's own sign-in needs one. 0133 waits on this. The OTA stack's Google client already carries that stack's sign-in address (D5); live's gets live's only if a Google sign-in stays, recorded in ADR-0041 (T11). |

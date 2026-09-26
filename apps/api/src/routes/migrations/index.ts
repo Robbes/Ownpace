@@ -1883,7 +1883,9 @@ router.post(
 // mounting happens in Dropbox itself, never here. The trio keys are the
 // shared OAuth shape; Dropbox's App Console words for the first two are
 // "App key" and "App secret". Needs the `sharing.read` scope beside the
-// files scopes — an app created without it gets Dropbox's refusal verbatim.
+// files scopes — an app created without it gets Dropbox's refusal verbatim,
+// and so does a token from Connect with Dropbox, which does not ask for it
+// (workplan 0140 T7 (b); whether it should is 0140's open question 5).
 router.post(
   '/dropbox/shared-folders',
   authenticate,

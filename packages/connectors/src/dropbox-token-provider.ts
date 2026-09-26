@@ -14,9 +14,12 @@
  * Refusals use Dropbox's names, because that is what the operator is reading
  * when they go looking.
  *
- * No scope parameter: a Dropbox refresh token carries the permissions the app
- * was created with (`files.metadata.read` + `files.content.read` are what a
- * migration needs — the setup doc says to create the app read-only).
+ * No scope parameter: a Dropbox refresh token carries the permissions its
+ * consent granted (`files.metadata.read` + `files.content.read` are what a
+ * migration needs). Through *Connect with Dropbox* that is the read scopes the
+ * URL asks for, those two and `account_info.read`, whatever the app carries
+ * (workplan 0140 T7 (b)); a token consented by hand carries what the app was
+ * created with, which the setup doc says to make read-only.
  */
 
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';

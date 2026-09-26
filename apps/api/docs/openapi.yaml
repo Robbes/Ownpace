@@ -1231,10 +1231,13 @@ paths:
         app (`DROPBOX_OAUTH_CLIENT_ID`/`DROPBOX_OAUTH_CLIENT_SECRET`, both or
         neither) is used; half a pair is refused before anything is begun.
 
-        **No scope on the URL.** A Dropbox app is created with its permissions
-        (the guide says: the two read scopes), and the consent is granted
-        exactly those. `token_access_type=offline` is pinned, since without it
-        Dropbox mints no refresh token. The secret never appears in the URL.
+        **The read scopes on the URL** (workplan 0140 T7 (b)). The URL asks for
+        `files.metadata.read` and `files.content.read`, which a migration reads
+        with, and `account_info.read`, which the Test's space usage needs, and
+        nothing else, whichever app it runs on: as Dropbox documents `scope`, a
+        subset of the app's permissions that cannot widen them.
+        `token_access_type=offline` is pinned, since without it Dropbox mints
+        no refresh token. The secret never appears in the URL.
       requestBody:
         required: false
         content:
@@ -1272,7 +1275,9 @@ paths:
         begun at Google's is "not one the wizard is waiting for" here, and
         spent. Answers an HTML page under its own headers that hands the
         refresh token to the opening window as `ownpace-dropbox-consent`; a
-        grant missing a read scope is refused with the missing one named.
+        grant missing a read scope is refused with the missing one named, and
+        one carrying a scope outside the three the URL asks for and
+        `sharing.read` is refused with that scope named and nothing stored.
       security: []
       parameters:
         - { name: state, in: query, schema: { type: string } }
@@ -1286,7 +1291,7 @@ paths:
             text/html:
               schema: { type: string }
         '400':
-          description: No state this server is waiting for, no authorization code, or a grant a migration cannot run on.
+          description: No state this server is waiting for, no authorization code, a grant a migration cannot run on, or a grant carrying a scope this product does not read with.
           content:
             text/html:
               schema: { type: string }

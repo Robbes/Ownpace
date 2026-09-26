@@ -28,7 +28,7 @@ De inhoud van de bestanden en de mappenboom. De deelinstellingen (met wie iets g
 ## Als de test iets meldt {#when-test-says}
 
 - Een test die niet binnen 20 seconden antwoordt, zegt dat en houdt de verbinding, zodat u haar opnieuw kunt testen.
-- Het bekijken van gedeelde mappen wordt geweigerd met de eigen woorden van Dropbox, die de scope `sharing.read` noemen, als de app zonder die scope is gemaakt. Migraties werken gewoon; alleen het bekijken heeft hem nodig.
+- Het bekijken van gedeelde mappen wordt geweigerd met de eigen woorden van Dropbox, die de scope `sharing.read` noemen, als de app zonder die scope is gemaakt, of als het token van **Verbinden met Dropbox** komt, dat er niet om vraagt. Migraties werken gewoon; alleen het bekijken heeft hem nodig.
 
 ## Stoppen {#leaving}
 
@@ -44,7 +44,7 @@ De schermen van Dropbox staan hieronder met hun Engelse namen.
 
 - `files.metadata.read`
 - `files.content.read`
-- `sharing.read` — niet verplicht, en ook alleen-lezen: daarmee werkt de knop **Gedeelde mappen bekijken…** in de wizard. Zonder deze scope werken migraties gewoon; het bekijken krijgt dan de eigen weigering van Dropbox, die de scope noemt.
+- `sharing.read` — niet verplicht, en ook alleen-lezen: daarmee werkt de knop **Gedeelde mappen bekijken…** in de wizard. Zonder deze scope werken migraties gewoon; het bekijken krijgt dan de eigen weigering van Dropbox, die de scope noemt. **Verbinden met Dropbox** vraagt alleen de twee scopes hierboven en `account_info.read`, die Dropbox op elke app laat staan, dus met een token van die knop werkt het bekijken niet, ook niet als de app `sharing.read` heeft.
 
 Verder niets. De App key en het App secret op het tabblad Settings horen in het deel **Uw eigen Dropbox-app gebruiken** van de wizard, als paar: de App key onder **App-sleutel**, het App secret onder **Clientgeheim**.
 
