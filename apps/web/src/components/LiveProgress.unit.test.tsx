@@ -91,14 +91,14 @@ describe('a failed domain says what to do about it', () => {
     );
     // The word a customer cannot act on must not be what they are shown.
     expect(screen.queryByText('auth_expired')).toBeNull();
-    expect(screen.getByText(/Reconnect it on the Connections page/i)).toBeTruthy();
+    expect(screen.getByText(/press Reconnect or Replace credentials, whichever its row shows/i)).toBeTruthy();
   });
 
   it('keeps the provider prose VERBATIM beside it — both, not one', () => {
     const raw = '{"error":"invalid_grant","error_description":"Token has been expired."}';
     render(<LiveProgress domains={[row({ lastErrorCategory: 'auth_expired', lastError: raw })]} />);
     expect(screen.getByText(raw)).toBeTruthy();
-    expect(screen.getByText(/Reconnect it on the Connections page/i)).toBeTruthy();
+    expect(screen.getByText(/press Reconnect or Replace credentials, whichever its row shows/i)).toBeTruthy();
   });
 
   it('renders the prose alone when nothing was classified', () => {
@@ -160,7 +160,7 @@ describe('which side it happened on (workplan 0094 T5, second slice)', () => {
         domains={[row({ lastErrorCategory: 'auth_expired', lastError: 'invalid_grant', failedSide: 'source' })]}
       />,
     );
-    expect(screen.getByText(/Reconnect it on the Connections page/i)).toBeTruthy();
+    expect(screen.getByText(/press Reconnect or Replace credentials, whichever its row shows/i)).toBeTruthy();
     expect(screen.getByText(/It happened on the source side\./)).toBeTruthy();
   });
 
