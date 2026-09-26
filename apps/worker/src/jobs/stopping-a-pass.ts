@@ -110,8 +110,11 @@ export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
  */
 export type PassStep =
   | { readonly run: true }
-  | { readonly skip: 'data_type_no_longer_runs' | 'stopped_by_its_owner' }
+  | { readonly skip: PassSkip }
   | { readonly halt: PassHalt };
+
+/** Why a pass moved past one data type while the migration still ran. */
+export type PassSkip = 'data_type_no_longer_runs' | 'stopped_by_its_owner';
 
 export async function passStepBefore(
   db: Pool,

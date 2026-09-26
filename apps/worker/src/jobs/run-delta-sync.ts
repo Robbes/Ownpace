@@ -25,7 +25,7 @@ import {
   passCounts,
 } from '@openmig/core';
 import { budgetPauseToReason } from '@openmig/shared';
-import { passStepBefore, taskErrorFor, type PassHalt } from './stopping-a-pass.ts';
+import { passStepBefore, taskErrorFor, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -294,6 +294,7 @@ export const runDeltaSync = schemaTask({
      * data types this pass did not finish before it calls a target current.
      */
     const outcomes: Record<string, DomainOutcome> = {};
+    const passedOver: Record<string, PassSkip> = {};
     let stoppedBefore: string | undefined;
     let stoppedBecause: PassHalt | undefined;
 
@@ -390,6 +391,7 @@ export const runDeltaSync = schemaTask({
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });
           });
+          passedOver[domain] = step.skip;
           continue;
         }
         if ('halt' in step) {
@@ -771,6 +773,7 @@ export const runDeltaSync = schemaTask({
       const report: DeltaSyncOutput = {
         asked: domains,
         domains: outcomes,
+        ...(Object.keys(passedOver).length > 0 ? { passedOver } : {}),
         ...(stoppedBefore !== undefined ? { stoppedBefore } : {}),
         ...(stoppedBecause !== undefined ? { stoppedBecause } : {}),
       };

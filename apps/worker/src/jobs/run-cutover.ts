@@ -256,7 +256,10 @@ export async function prepareCutover(
     const sync = await deps.runFinalSync();
     result.finalSync = sync.total;
     result.finalSyncByDomain = sync.byDomain;
-    const lines = Object.entries(sync.byDomain).map(([domain, counts]) => `${domain}: ${passCounts(counts)}`);
+    const lines = [
+      ...Object.entries(sync.byDomain).map(([domain, counts]) => `${domain}: ${passCounts(counts)}`),
+      ...sync.passedOver,
+    ];
     deps.log(`Final sync: ${lines.length > 0 ? lines.join('; ') : 'no data type is selected for this migration'}`);
     if (sync.notFinished.length > 0) {
       throw new FinalSyncNotFinished(
