@@ -19,6 +19,7 @@ import type { MappingId, PermissionGrant, TenantId } from '@openmig/shared';
 import { MemoryLedger } from './__testing__/memory.ts';
 import {
   NOT_CUT_OVER_REASON,
+  notCutOverReason,
   applyAllOpenShareGrants,
   applyShareGrant,
   applyShareGrantsInFolder,
@@ -180,11 +181,11 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
     const row = await openCleanRow(ledger);
 
     const outcome = await applyShareGrant(
-      { ...deps(ledger), lifecycleDone: false, createShare: async () => ({ ok: true }) },
+      { ...deps(ledger), isCutOver: () => false, createShare: async () => ({ ok: true }) },
       row.id,
     );
 
-    expect(outcome).toMatchObject({ ok: false, code: 'not_cut_over' });
+    expect(outcome).toMatchObject({ ok: false, code: 'not_cut_over', reason: notCutOverReason(['drive_item']) });
   });
 
   it('refuses a link share with the unknown-audience sentence (ADR-0032 §7)', async () => {
@@ -193,7 +194,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
     const link = (await ledger.listShareGrants(TENANT, MAPPING)).find((r) => r.viaLink)!;
 
     const outcome = await applyShareGrant(
-      { ...deps(ledger), lifecycleDone: true, createShare: async () => ({ ok: true }) },
+      { ...deps(ledger), isCutOver: () => true, createShare: async () => ({ ok: true }) },
       link.id,
     );
 
@@ -219,7 +220,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
     const row = (await ledger.listShareGrants(TENANT, MAPPING))[0]!;
 
     const outcome = await applyShareGrant(
-      { ...deps(ledger), lifecycleDone: true, createShare: async () => ({ ok: true }) },
+      { ...deps(ledger), isCutOver: () => true, createShare: async () => ({ ok: true }) },
       row.id,
     );
 
@@ -231,7 +232,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
     const ledger = new MemoryLedger();
     const row = await openCleanRow(ledger);
 
-    const outcome = await applyShareGrant({ ...deps(ledger), lifecycleDone: true }, row.id);
+    const outcome = await applyShareGrant({ ...deps(ledger), isCutOver: () => true }, row.id);
 
     expect(outcome).toMatchObject({ ok: false, code: 'no_share_api' });
   });
@@ -244,7 +245,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
     const outcome = await applyShareGrant(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         createShare: async (r) => {
           created.push(`${r.onLabel}→${r.grantee}`);
           return { ok: true };
@@ -264,7 +265,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
 
     // Second apply: a settled checklist item stays settled.
     const again = await applyShareGrant(
-      { ...deps(ledger), lifecycleDone: true, createShare: async () => ({ ok: true }) },
+      { ...deps(ledger), isCutOver: () => true, createShare: async () => ({ ok: true }) },
       row.id,
     );
     expect(again).toMatchObject({ ok: false, code: 'already_settled' });
@@ -277,7 +278,7 @@ describe('applyShareGrant — every gate answers with its own sentence', () => {
     const outcome = await applyShareGrant(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         createShare: async () => ({ ok: false, reason: 'OCS answered 404: user unknown' }),
       },
       row.id,
@@ -346,15 +347,15 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
 
     const press = await applyAllOpenShareGrants({
       ...deps(ledger),
-      lifecycleDone: false,
+      isCutOver: () => false,
       createShare: async () => ({ ok: true }),
     });
     const perRow = await applyShareGrant(
-      { ...deps(ledger), lifecycleDone: false, createShare: async () => ({ ok: true }) },
+      { ...deps(ledger), isCutOver: () => false, createShare: async () => ({ ok: true }) },
       row.id,
     );
 
-    expect(press).toMatchObject({ ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
+    expect(press).toMatchObject({ ok: false, code: 'not_cut_over', reason: notCutOverReason(['drive_item']) });
     if (!press.ok && !perRow.ok) expect(press.reason).toBe(perRow.reason);
   });
 
@@ -365,7 +366,7 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
 
     const outcome = await applyAllOpenShareGrants({
       ...deps(ledger),
-      lifecycleDone: true,
+      isCutOver: () => true,
       createShare: async (row) => {
         shared.push(row.grantee ?? '');
         return { ok: true };
@@ -392,7 +393,7 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
 
     const outcome = await applyAllOpenShareGrants({
       ...deps(ledger),
-      lifecycleDone: true,
+      isCutOver: () => true,
       createShare: async (row) =>
         row.grantee === 'anna@example.nl'
           ? { ok: false, reason: 'OCS answered 403: Sharing is disabled for this folder' }
@@ -419,7 +420,7 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
 
     await applyAllOpenShareGrants({
       ...deps(ledger),
-      lifecycleDone: true,
+      isCutOver: () => true,
       createShare: async (row) =>
         row.grantee === 'anna@example.nl'
           ? { ok: false, reason: 'temporarily unavailable' }
@@ -429,7 +430,7 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
     const secondPressShared: string[] = [];
     const retry = await applyAllOpenShareGrants({
       ...deps(ledger),
-      lifecycleDone: true,
+      isCutOver: () => true,
       createShare: async (row) => {
         secondPressShared.push(row.grantee ?? '');
         return { ok: true };
@@ -450,7 +451,7 @@ describe('applyAllOpenShareGrants — the one-go press (0104 T1)', () => {
 
     await applyAllOpenShareGrants({
       ...deps(ledger),
-      lifecycleDone: true,
+      isCutOver: () => true,
       createShare: async () => ({ ok: true }),
     });
 
@@ -530,7 +531,7 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     const press = await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         confirmed: CONFIRMED,
         createShare: async (_row, shareWith) => {
           sentTo.push(shareWith ?? '(the source\u2019s own)');
@@ -565,7 +566,7 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     const press = await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         confirmed: {},
         createShare: async () => {
           asked += 1;
@@ -592,7 +593,7 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     const press = await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         confirmed: { 'anna@example.nl': '   ' },
         createShare: async () => ({ ok: true }),
       },
@@ -609,14 +610,36 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     const press = await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: false,
+        isCutOver: () => false,
         confirmed: CONFIRMED,
         createShare: async () => ({ ok: true }),
       },
       'F',
     );
 
-    expect(press).toMatchObject({ ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
+    expect(press).toMatchObject({ ok: false, code: 'not_cut_over', reason: notCutOverReason(['drive_item']) });
+  });
+
+  it('waits for the files, whatever else is cut over (0128 T5, slice 6)', async () => {
+    const ledger = new MemoryLedger();
+    await refreshed(ledger, FOLDER);
+    const sent: string[] = [];
+
+    const press = await applyShareGrantsInFolder(
+      {
+        ...deps(ledger),
+        isCutOver: (subject) => subject === 'calendar',
+        confirmed: CONFIRMED,
+        createShare: async (row) => {
+          sent.push(row.onLabel);
+          return { ok: true };
+        },
+      },
+      'F',
+    );
+
+    expect(press).toEqual({ ok: false, code: 'not_cut_over', reason: notCutOverReason(['drive_item']) });
+    expect(sent).toEqual([]);
   });
 
   it('refuses a container that heads no group, rather than pressing nothing quietly', async () => {
@@ -626,7 +649,7 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     const press = await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         confirmed: CONFIRMED,
         createShare: async () => ({ ok: true }),
       },
@@ -660,7 +683,7 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     const press = await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         confirmed: {},
         createShare: async () => ({ ok: true }),
       },
@@ -680,7 +703,7 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
     await applyShareGrantsInFolder(
       {
         ...deps(ledger),
-        lifecycleDone: true,
+        isCutOver: () => true,
         confirmed: CONFIRMED,
         createShare: async () => ({ ok: true }),
       },
@@ -706,5 +729,106 @@ describe('applyShareGrantsInFolder — one press over one folder (2026-09-19)', 
       grantee: 'anna@example.nl',
       sentTo: 'anna@new-domain.nl',
     });
+  });
+});
+
+describe('each share waits for its own data type\u2019s cutover (0128 T5, slice 6, D8)', () => {
+  // Calendars cut over on their own while the files keep running: the
+  // calendar's share is announced now, the files' at their own cutover.
+  const CALENDAR_GRANT: PermissionGrant = {
+    subject: 'calendar',
+    on: 'Team planning',
+    grantee: 'cas@example.nl',
+    role: 'read',
+    raw: '{"type":"user","role":"read","emailAddress":"cas@example.nl"}',
+  };
+  const SECOND_FILE: PermissionGrant = {
+    subject: 'drive_item',
+    on: 'Plans/q4.docx',
+    grantee: 'bram@example.nl',
+    role: 'reader',
+    raw: '{"type":"user","role":"reader","emailAddress":"bram@example.nl"}',
+  };
+  const calendarsCutOver = (subject: string) => subject === 'calendar';
+
+  async function rowsOf(ledger: MemoryLedger) {
+    await refreshed(ledger, [PERSON_GRANT, SECOND_FILE, CALENDAR_GRANT, LINK_GRANT]);
+    return ledger.listShareGrants(TENANT, MAPPING);
+  }
+
+  it('one row: a calendar share is applied once the calendars are cut over, a file share is not', async () => {
+    const ledger = new MemoryLedger();
+    const rows = await rowsOf(ledger);
+    const created: string[] = [];
+    const gated = {
+      ...deps(ledger),
+      isCutOver: calendarsCutOver,
+      createShare: async (row: { onLabel: string }) => {
+        created.push(row.onLabel);
+        return { ok: true as const };
+      },
+    };
+
+    const calendar = await applyShareGrant(gated, rows.find((r) => r.subject === 'calendar')!.id);
+    const file = await applyShareGrant(gated, rows.find((r) => r.onLabel === 'Plans/q4.docx')!.id);
+
+    expect(calendar.ok).toBe(true);
+    expect(file).toEqual({ ok: false, code: 'not_cut_over', reason: notCutOverReason(['drive_item']) });
+    expect(created).toEqual(['Team planning']);
+  });
+
+  it('the one-go press applies the data types that are cut over and leaves the rest open for their own', async () => {
+    const ledger = new MemoryLedger();
+    await rowsOf(ledger);
+
+    const press = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      isCutOver: calendarsCutOver,
+      createShare: async () => ({ ok: true }),
+    });
+
+    expect(press).toMatchObject({ ok: true, refused: [], waitingForCutover: 2 });
+    if (press.ok) expect(press.applied.map((r) => r.onLabel)).toEqual(['Team planning']);
+    const after = await ledger.listShareGrants(TENANT, MAPPING);
+    expect(after.filter((r) => r.subject === 'drive_item' && !r.viaLink).map((r) => r.state)).toEqual(['open', 'open']);
+    const receipt = ledger.auditEvents.find((e) => e.action === 'share.apply_all')!;
+    expect(receipt.detail).toMatchObject({ attempted: 1, applied: 1, waitingForCutover: 2 });
+
+    // And at the files' own cutover, the next press announces them: once each.
+    const next = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      isCutOver: () => true,
+      createShare: async () => ({ ok: true }),
+    });
+    expect(next).toMatchObject({ ok: true, waitingForCutover: 0 });
+    if (next.ok) expect(next.applied.map((r) => r.onLabel).sort()).toEqual(['Plans/q4.docx', 'Projects/budget.xlsx']);
+  });
+
+  it('with none of them cut over, the press is refused whole, naming each data type that waits', async () => {
+    const ledger = new MemoryLedger();
+    await rowsOf(ledger);
+
+    const press = await applyAllOpenShareGrants({
+      ...deps(ledger),
+      isCutOver: () => false,
+      createShare: async () => ({ ok: true }),
+    });
+
+    expect(press).toEqual({ ok: false, code: 'not_cut_over', reason: notCutOverReason(['drive_item', 'calendar']) });
+    if (!press.ok) expect(press.reason).toContain("this migration's calendars and files are applied once each is cut over");
+    expect(ledger.auditEvents.filter((e) => e.action === 'share.apply_all')).toEqual([]);
+  });
+
+  it('says which data type waits, in its own words; one it cannot place waits for the whole migration', () => {
+    expect(notCutOverReason(['calendar'])).toBe(
+      "Shares on this migration's calendars are applied once the calendars are cut over, not before: " +
+        'the share invite is an announcement that the new system is live, and the calendars are not ' +
+        'cut over yet. Work these rows once they are (ADR-0032).',
+    );
+    expect(notCutOverReason(['mailbox'])).toContain('once the mail is cut over');
+    expect(notCutOverReason(['mailbox'])).toContain('Work these rows once it is');
+    expect(notCutOverReason(['drive_item', 'drive_item'])).toBe(notCutOverReason(['drive_item']));
+    expect(notCutOverReason(['calendar', 'something_new'])).toBe(NOT_CUT_OVER_REASON);
+    expect(notCutOverReason([])).toBe(NOT_CUT_OVER_REASON);
   });
 });

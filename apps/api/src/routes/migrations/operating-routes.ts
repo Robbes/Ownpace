@@ -40,7 +40,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgCursorStore, PgMigrationStatusStore } from '@openmig/ledger';
+import { PgLedger, PgCursorStore, PgMigrationStatusStore, readShareGate } from '@openmig/ledger';
 import {
   DISCOVERY_DOMAINS,
   FAILURE_CATEGORIES,
@@ -107,7 +107,7 @@ import {
 } from '@openmig/core';
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
-import type { ShareGrantRow } from '@openmig/shared';
+import { PHASES_PAST_A_CUTOVER, type ShareGrantRow } from '@openmig/shared';
 import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
@@ -177,6 +177,16 @@ async function scope(req: AuthenticatedRequest, res: Response): Promise<Scoped |
 /** Run something with a tenant-scoped ledger. */
 function withLedger<T>(tenantId: string, fn: (ledger: PgLedger) => Promise<T>): Promise<T> {
   return withTenantDb(tenantId, pool(), (db) => fn(new PgLedger(db)));
+}
+
+/**
+ * The sharing queue's cutover gate (ADR-0032 §5), per data type since 0128 T5
+ * slice 6: whether a share's own data type is at or past its cutover, read as
+ * every gate reads a data type's phase. Read before the ledger's transaction
+ * opens, as the status is (`scope`).
+ */
+function shareGateOf(s: Scoped): Promise<(subject: string) => boolean> {
+  return withTenantDb(s.tenantId, pool(), (db) => readShareGate(db, s.tenantId, s.mappingId));
 }
 
 /** The sharing checklist's closing counts, for the completion report (0052 T6b). */
@@ -565,6 +575,7 @@ router.post(
       }
       // The checklist has no anonymous ticks: attribution names the decider.
       const decidedBy = req.userId ?? 'unknown';
+      const isCutOver = body.action === 'apply' ? await shareGateOf(s) : undefined;
 
       const outcome = await withLedger(s.tenantId, async (l) => {
         const deps = {
@@ -574,12 +585,12 @@ router.post(
           decidedBy,
           onError: (m: string, err: unknown) => log.error(m, err),
         };
-        if (body.action === 'apply') {
+        if (isCutOver !== undefined) {
           const createShare = await nextcloudCapabilityFor(s, body.grantee?.trim() || undefined);
           return applyShareGrant(
             {
               ...deps,
-              lifecycleDone: s.lifecycle === 'done',
+              isCutOver,
               ...(createShare ? { createShare } : {}),
             },
             grantId,
@@ -625,6 +636,7 @@ router.post(
         ? (req.body as { note: string }).note.trim().slice(0, 500)
         : undefined;
       const decidedBy = req.userId ?? 'unknown';
+      const isCutOver = await shareGateOf(s);
 
       const outcome = await withLedger(s.tenantId, async (l) => {
         const createShare = await nextcloudCapabilityFor(s, undefined, note);
@@ -634,7 +646,7 @@ router.post(
           ledger: l,
           decidedBy,
           onError: (m: string, err: unknown) => log.error(m, err),
-          lifecycleDone: s.lifecycle === 'done',
+          isCutOver,
           ...(createShare ? { createShare } : {}),
         });
       });
@@ -693,6 +705,7 @@ router.post(
       }
       const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : undefined;
       const decidedBy = req.userId ?? 'unknown';
+      const isCutOver = await shareGateOf(s);
 
       const outcome = await withLedger(s.tenantId, async (l) => {
         const createShare = await nextcloudCapabilityFor(s, undefined, note);
@@ -703,7 +716,7 @@ router.post(
             ledger: l,
             decidedBy,
             onError: (m: string, err: unknown) => log.error(m, err),
-            lifecycleDone: s.lifecycle === 'done',
+            isCutOver,
             confirmed,
             ...(createShare ? { createShare } : {}),
           },
@@ -754,7 +767,10 @@ router.post(
         });
       }
       const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : 'en';
-      if (s.lifecycle !== 'done') {
+      // The shares carried by hand are announced in one wave for the whole
+      // migration, so they wait for every data type's cutover: the status,
+      // which is at or past its cutover once every path is (0128 T5).
+      if (!PHASES_PAST_A_CUTOVER.includes(s.lifecycle)) {
         return void res.status(409).json({ error: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
       }
       if (!channelIsOn()) {

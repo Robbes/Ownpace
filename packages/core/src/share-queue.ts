@@ -28,8 +28,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { Ledger, MappingId, PermissionGrant, ShareGrantRow, TenantId } from '@openmig/shared';
-import { groupShareGrants } from '@openmig/shared';
+import type { DiscoveryDomain, Ledger, MappingId, PermissionGrant, ShareGrantRow, TenantId } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, dataTypeOfShare, groupShareGrants } from '@openmig/shared';
 import { mapGrant } from './permission-map.ts';
 
 /**
@@ -191,8 +191,10 @@ export interface ApplyShareDeps extends ShareQueueDeps {
    * The cutover gate (ADR-0032 §5), resolved by the edition: an invite is an
    * announcement that the new system is live, so a share applied into a
    * half-filled target is the wrong announcement from the right channel.
+   * Asked of each share's own data type (0128 T5, slice 6, the owner's D8):
+   * whether it is at or past its cutover (`shareMayBeApplied`, by subject).
    */
-  readonly lifecycleDone: boolean;
+  readonly isCutOver: (subject: string) => boolean;
   /**
    * The target's share API, when it has one — absent means the row stays a
    * manual step. The implementation notifies the grantee itself; that is the
@@ -289,15 +291,56 @@ async function audit(
  * Dropbox to be re-verified at build time.)
  */
 /**
- * One sentence, one source: the per-row apply and the one-go press both
- * refuse a not-yet-cut-over migration with exactly these words. Two copies
- * would drift, and a gate paraphrasing its own rule eventually disagrees
- * with it (workplan 0084, run #18).
+ * One sentence, one source: every press refuses a share applied before its
+ * cutover in these words, the per-row apply, the one-go press and the folder
+ * press alike. Two copies would drift, and a gate paraphrasing its own rule
+ * eventually disagrees with it (workplan 0084, run #18).
+ *
+ * This one is the whole migration's: a share the gate cannot place, and the
+ * announcement of the shares carried by hand (0104 T3), which waits for every
+ * data type. A share of one data type is refused in its own words
+ * (`notCutOverReason`).
  */
 export const NOT_CUT_OVER_REASON =
   'Shares are applied at or after cutover, not before: the share invite is an ' +
-  'announcement that the new system is live, and this migration is not finished. ' +
-  'Finish it, then work the sharing checklist (ADR-0032).';
+  'announcement that the new system is live, and this migration is not cut over yet. ' +
+  'Work the sharing checklist once it is (ADR-0032).';
+
+/** How a refusal names a data type: its shares are "on this migration's calendars". */
+const SHARED_DATA: Record<DiscoveryDomain, { readonly noun: string; readonly plural: boolean }> = {
+  email: { noun: 'mail', plural: false },
+  calendar: { noun: 'calendars', plural: true },
+  contact: { noun: 'contacts', plural: true },
+  file: { noun: 'files', plural: true },
+  task: { noun: 'tasks', plural: true },
+};
+
+/**
+ * The refusal of shares whose own data types are not cut over yet (0128 T5,
+ * slice 6), naming them: each share waits for its own data type's cutover,
+ * while the others may already be applied.
+ */
+export function notCutOverReason(subjects: readonly string[]): string {
+  const domains = subjects.map(dataTypeOfShare);
+  if (domains.length === 0 || domains.includes(undefined)) return NOT_CUT_OVER_REASON;
+  const named = DISCOVERY_DOMAINS.filter((d) => domains.includes(d)).map((d) => SHARED_DATA[d]);
+  if (named.length === 1) {
+    const { noun, plural } = named[0]!;
+    const be = plural ? 'are' : 'is';
+    return (
+      `Shares on this migration's ${noun} are applied once the ${noun} ${be} cut over, not before: ` +
+      'the share invite is an announcement that the new system is live, and the ' +
+      `${noun} ${be} not cut over yet. Work these rows once ${plural ? 'they are' : 'it is'} (ADR-0032).`
+    );
+  }
+  const nouns = named.map((n) => n.noun);
+  const list = `${nouns.slice(0, -1).join(', ')} and ${nouns[nouns.length - 1]}`;
+  return (
+    `Shares on this migration's ${list} are applied once each is cut over, not before: ` +
+    'the share invite is an announcement that the new system is live, and none of them ' +
+    'is cut over yet. Work these rows once they are (ADR-0032).'
+  );
+}
 
 export async function applyShareGrant(
   deps: ApplyShareDeps,
@@ -331,8 +374,8 @@ export async function applyShareGrant(
       reason: `This right has no clean equivalent the tool may create. What to do instead: ${row.verdictTarget}`,
     };
   }
-  if (!deps.lifecycleDone) {
-    return { ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON };
+  if (!deps.isCutOver(row.subject)) {
+    return { ok: false, code: 'not_cut_over', reason: notCutOverReason([row.subject]) };
   }
   if (!deps.createShare) {
     return {
@@ -392,14 +435,21 @@ export interface ApplyAllOutcome {
    * refusals would bury the checklist in noise about its own design.
    */
   readonly leftForChecklist: { readonly links: number; readonly manual: number };
+  /**
+   * Rows left open because their own data type is not cut over yet (0128 T5,
+   * slice 6): they are announced by a press at that data type's cutover, not
+   * by this one.
+   */
+  readonly waitingForCutover: number;
 }
 
 /**
  * THE ONE-GO PRESS (0104 T1). Every open, clean, addressable grant applied
- * in one recorded human action, at or after cutover — and because creating a
- * share is what makes the target notify its grantee, this press IS the
- * chosen moment: one wave of platform-native announcements, exactly when a
- * person decided.
+ * in one recorded human action, each at or after its own data type's cutover
+ * (0128 T5, slice 6) — and because creating a share is what makes the target
+ * notify its grantee, this press IS the chosen moment: one wave of
+ * platform-native announcements per data type, exactly when a person
+ * decided.
  *
  * Each row still walks through `applyShareGrant`, gates and all — the press
  * batches the decision, never the rules. A refusal on one row never stops
@@ -411,15 +461,21 @@ export interface ApplyAllOutcome {
 export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
   ApplyAllOutcome | { ok: false; code: 'not_cut_over'; reason: string }
 > {
-  if (!deps.lifecycleDone) {
-    return { ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON };
-  }
-
   const rows = await deps.ledger.listShareGrants(deps.tenantId, deps.mappingId);
   const open = rows.filter((r) => r.state === 'open');
   const links = open.filter((r) => r.viaLink).length;
   const manual = open.filter((r) => !r.viaLink && r.verdict !== 'clean').length;
-  const candidates = open.filter((r) => !r.viaLink && r.verdict === 'clean');
+  const addressable = open.filter((r) => !r.viaLink && r.verdict === 'clean');
+
+  // EACH DATA TYPE'S SHARES AT ITS OWN CUTOVER (0128 T5, slice 6, D8). The
+  // press is the moment for every data type that is cut over, and leaves the
+  // others for the press at their own cutover: one wave per data type, never
+  // a trickle. With none of them cut over, the press is refused as before.
+  const candidates = addressable.filter((r) => deps.isCutOver(r.subject));
+  const waiting = addressable.filter((r) => !deps.isCutOver(r.subject));
+  if (candidates.length === 0 && waiting.length > 0) {
+    return { ok: false, code: 'not_cut_over', reason: notCutOverReason(waiting.map((r) => r.subject)) };
+  }
 
   const applied: ShareGrantRow[] = [];
   const refused: Array<{
@@ -457,13 +513,14 @@ export async function applyAllOpenShareGrants(deps: ApplyShareDeps): Promise<
         applied: applied.length,
         refused: refused.length,
         leftForChecklist: { links, manual },
+        waitingForCutover: waiting.length,
       },
     });
   } catch (err) {
     deps.onError?.('recording the apply-all press failed (the shares themselves stand)', err);
   }
 
-  return { ok: true, applied, refused, leftForChecklist: { links, manual } };
+  return { ok: true, applied, refused, leftForChecklist: { links, manual }, waitingForCutover: waiting.length };
 }
 
 /** Where to send, per grantee the SOURCE named — one address a person confirmed. */
@@ -541,10 +598,6 @@ export async function applyShareGrantsInFolder(
   deps: ApplyFolderDeps,
   parentKey: string,
 ): Promise<ApplyAllOutcome | ApplyFolderRefusal> {
-  if (!deps.lifecycleDone) {
-    return { ok: false, code: 'not_cut_over', reason: NOT_CUT_OVER_REASON };
-  }
-
   const rows = await deps.ledger.listShareGrants(deps.tenantId, deps.mappingId);
   const group = groupShareGrants(rows).groups.find((g) => g.parentKey === parentKey);
   if (!group) {
@@ -562,6 +615,13 @@ export async function applyShareGrantsInFolder(
   const links = open.filter((r) => r.viaLink).length;
   const manual = open.filter((r) => !r.viaLink && r.verdict !== 'clean').length;
   const candidates = open.filter((r) => !r.viaLink && r.verdict === 'clean');
+
+  // Its own data type's cutover first (0128 T5, slice 6), for every row the
+  // press would reach: all or nothing, as the grantees' gate below is.
+  const early = candidates.filter((r) => !deps.isCutOver(r.subject));
+  if (early.length > 0) {
+    return { ok: false, code: 'not_cut_over', reason: notCutOverReason(early.map((r) => r.subject)) };
+  }
 
   // THE GATE. Every grantee this press would reach, checked BEFORE the first
   // invitation leaves — an all-or-nothing check, because a press that sent
@@ -631,7 +691,7 @@ export async function applyShareGrantsInFolder(
     deps.onError?.('recording the folder press failed (the shares themselves stand)', err);
   }
 
-  return { ok: true, applied, refused, leftForChecklist: { links, manual } };
+  return { ok: true, applied, refused, leftForChecklist: { links, manual }, waitingForCutover: 0 };
 }
 
 /**

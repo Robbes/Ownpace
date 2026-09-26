@@ -27,6 +27,7 @@ export * from './migration-view.ts';
 export * from './completion-report.ts';
 export * from './lifecycle.ts';
 export * from './path-phase.ts';
+export * from './share-gate.ts';
 export * from './confirmed-list.ts';
 export * from './verification-report.ts';
 export * from './discovery.ts';

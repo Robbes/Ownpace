@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, PHASES_PAST_A_CUTOVER } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -808,6 +808,18 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       readPathPhases(tdb, tenantId, m.mailboxMappingId),
     );
     return phases?.anyRuns === true;
+  };
+
+  /**
+   * The sharing queue's cutover gate (ADR-0032 §5), per data type since 0128
+   * T5 slice 6: whether a share's own data type is at or past its cutover,
+   * read as every gate here reads a data type's phase.
+   */
+  const shareGateOf = async (m: LoadedMapping): Promise<(subject: string) => boolean> => {
+    const tenantId = m.config.tenantId as string;
+    return withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+      readShareGate(tdb, tenantId, m.mailboxMappingId),
+    );
   };
 
   /** Stop scheduling a mapping, so a finished migration stops syncing at once. */
@@ -2253,12 +2265,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         const outcome =
           body.action === 'apply'
             ? await (async () => {
-                const lifecycle = await mappingStatus(m);
+                const isCutOver = await shareGateOf(m);
                 const createShare = nextcloudCapabilityFor(m, body.grantee?.trim() || undefined);
                 return applyShareGrant(
                   {
                     ...deps,
-                    lifecycleDone: lifecycle === 'done',
+                    isCutOver,
                     ...(createShare ? { createShare } : {}),
                   },
                   grantId,
@@ -2296,7 +2308,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           typeof body.note === 'string' && body.note.trim()
             ? body.note.trim().slice(0, 500)
             : undefined;
-        const lifecycle = await mappingStatus(m);
+        const isCutOver = await shareGateOf(m);
         const createShare = nextcloudCapabilityFor(m, undefined, note);
         const outcome = await applyAllOpenShareGrants({
           tenantId: m.config.tenantId as TenantId,
@@ -2304,7 +2316,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           ledger,
           decidedBy: 'operator',
           onError: (msg: string, err: unknown) => log.error(msg, err),
-          lifecycleDone: lifecycle === 'done',
+          isCutOver,
           ...(createShare ? { createShare } : {}),
         });
         if (!outcome.ok) {
@@ -2348,7 +2360,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           typeof body.note === 'string' && body.note.trim()
             ? body.note.trim().slice(0, 500)
             : undefined;
-        const lifecycle = await mappingStatus(m);
+        const isCutOver = await shareGateOf(m);
         const createShare = nextcloudCapabilityFor(m, undefined, note);
         const outcome = await applyShareGrantsInFolder(
           {
@@ -2357,7 +2369,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             ledger,
             decidedBy: 'operator',
             onError: (msg: string, err: unknown) => log.error(msg, err),
-            lifecycleDone: lifecycle === 'done',
+            isCutOver,
             confirmed,
             ...(createShare ? { createShare } : {}),
           },
@@ -2402,8 +2414,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           });
         }
         const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : channel.locale;
+        // The shares carried by hand are announced in one wave for the whole
+        // migration, so they wait for every data type's cutover: the status,
+        // which is at or past its cutover once every path is (0128 T5).
         const lifecycle = await mappingStatus(m);
-        if (lifecycle !== 'done') {
+        if (!PHASES_PAST_A_CUTOVER.includes(lifecycle)) {
           return sendJson(res, 409, { error: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
         }
         if (!channel.config.enabled) {
