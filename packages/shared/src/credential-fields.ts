@@ -788,8 +788,11 @@ export function wizardTypeForConnectionKind(kind: string): string {
     case 'google_contacts':
       return 'google-contacts';
     case 'o365':
-      // Both `oauth2` and `graph` store as o365; they share a setup profile
-      // and a field list, so either answer is correct for those uses.
+      // Both `oauth2` and `graph` store as o365 and share a field list, so
+      // either answer is correct for the fields. Their setup profiles differ
+      // since workplan 0148 T5 (a) (Exchange Online's permission against
+      // Microsoft Graph's), and the kind cannot say which card made the row:
+      // a checklist opened from a stored o365 connection is Graph's.
       return 'graph';
     default:
       return kind;

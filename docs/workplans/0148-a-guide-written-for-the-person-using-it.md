@@ -4,6 +4,102 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26, T5 (a) built.** On branch
+`claude/ownpace-public-readiness-y7orc6-a-checklist-that-says-what-comes-first`, one commit; not
+merged. Every card a tester is offered now has a checklist that says what comes first, or a
+written reason why it has none yet.
+
+- **Three new profiles** in `provider-setup.ts`, each in its card guide's words, with strings in
+  English and Dutch:
+  - **Apple** (`apple`): one step, `app_password`. Make an app-specific password at
+    *account.apple.com → Sign-In and Security → App-Specific Passwords* (the path of
+    `wizard.appleAppPassword.why`; in Dutch *Aanmelden en beveiliging → App-specifieke
+    wachtwoorden*). It yields the password, in the form `abcd-efgh-ijkl-mnop`.
+  - **Nextcloud** (`nextcloud`, target): `account_exists`, marked as an administrator's like
+    the other targets' first step; `app_password`, with the guide's menu path, *App name* and
+    *Create new app password* (in Dutch, Nextcloud's own *Creëer een nieuw app wachtwoord*);
+    `dav_url`, the address with `/remote.php/dav` for the card's **DAV base URL** box, and where
+    to read the user name. Not `WEBDAV_TARGET`, whose last step asks for a host, a port and a
+    path, and this card has no boxes for those.
+  - **Soverin** (`soverin`, target): `account_exists`; `password`, the account's password or an
+    app password if Soverin offers one, in the same box, and the test says per part whether it
+    covers mail; `mail_server`, only where mail moves: keep **Mail server** filled in
+    (`imap.soverin.net`, port 993, pre-filled from the provider directory), because a connection
+    saved without it carries no mail.
+- **The Google account card** was T2 (b)'s (`google: GOOGLE`, merged in #1177), with its own-app
+  flags, and where the deployment carries Google's client the page names the button. Nothing is
+  added here. The existing cases hold it.
+- **Each Microsoft registration card has its own recipe**, taken into T5 (a) from item (1) of the
+  note below. *Via the Graph API* (`graph`) and *Via IMAP* (`oauth2`) shared one profile, whose
+  permission step said, in both languages, to add Graph permissions "for mail, calendar, contacts
+  or files". Now both share the registration (`app_registration`, reworded to the guide's
+  `{#application}`: *Identity → Applications*, *Accounts in this organizational directory only*,
+  and where the two IDs are) and the secret (`client_secret`), in the guide's order. After them:
+  - `graph` keeps `api_permissions`, reworded: **Microsoft Graph → Application permissions →
+    `Mail.Read`**, nothing else, an administrator's consent, and how far `Mail.Read` reaches;
+  - `oauth2` gets three new steps: `exchange_permission` (`IMAP.AccessAsApp` under Office 365
+    Exchange Online), `service_principal` (`New-ServicePrincipal`, with the Object ID under
+    Enterprise applications) and `mailbox_permission` (`Add-MailboxPermission … FullAccess` for
+    each mailbox, with the guide's sentence that Microsoft does not hold this card to reading).
+
+  They are new keys, so a tick given against the Graph text is not read as done for the Exchange
+  permission. The old `api_permissions` rows of `oauth2` are left behind, which the header of
+  `provider-setup.ts` allows. The Dutch *postbussen* is now *postvakken*, the glossary's word.
+- **The guide link.** The page already opens the card's own section from the card table
+  (`cardGuideHref`). The new profiles are linked the same way, and a case holds it for each.
+
+**Guards first.**
+
+- `provider-setup.unit.test.ts` gains ten cases. The plan's guard: every card both doors offer has
+  steps, or stands on `WITHOUT_A_PROFILE` with its reason. "Offered on managed" is every
+  connectable type, because nothing is hidden (D10). The list only shrinks. Beside it: the new
+  keys pinned, their yields, no deployment app removing any of them, and five cases on the
+  Microsoft split (each card's keys, the shared steps, the administrator marks, every step kept
+  where the deployment carries Microsoft's registration). On the unchanged code 8 of the 10
+  failed. The plan's case listed `source:apple`, `target:soverin` and `target:nextcloud`.
+- `apps/web/src/pages/a-checklist-that-says-what-comes-first.unit.test.tsx`, new, 26 cases:
+  every step key of every profile resolves in both languages; per language, each new profile
+  names what its card's guide sections name (the provider's screen words, the wizard's labels,
+  the pre-filled values), and the guide names them too; Soverin's mail host and port are read
+  from `providerDirectoryEntry`; Nextcloud's **DAV base URL** label; Apple's path as
+  `wizard.appleAppPassword.why` has it; the Graph card names `Mail.Read` under Microsoft Graph and
+  no other data type or Exchange permission, and the IMAP card names Exchange Online's and not
+  `Mail.Read`, with no read-only claim; the page renders each new profile as steps, not *Nothing
+  to set up*, with the card's guide link, in both languages. On the unchanged code 23 of the 26
+  failed.
+- Mutations, each turning a case red: Apple's profile unmapped; Apple left on the list after its
+  profile landed; `oauth2: GRAPH` restored; an own-app flag on the shared registration; the old
+  "mail, calendar, contacts or files" text; a mistyped title key; *Apparaten en sessies* for
+  *Apparaten & sessies*; the directory's mail host changed; `Mail.Read` in an IMAP step; the
+  page's guide link dropped; the Apple guide's **once** removed.
+- One existing expectation changed on purpose. In
+  `a-hint-that-knows-the-service-has-an-app.unit.test.tsx`, "a provider with nothing to
+  prepare" used Apple, which now has a profile. It uses `microsoft`, which has none until T5 (b).
+
+**Departures from §3.**
+
+- The plan's `NOTHING_IN_ADVANCE` is `WITHOUT_A_PROFILE`. The archive does have something to do
+  in advance (request the export, days before), so its entry names T5 (b) rather than "nothing".
+  `microsoft` carries the plan's reason and T5 (b).
+- Entra's screen names stay English in the Dutch steps, as in the Dutch guide, until T0. The Dutch
+  cases hold only the names that are the same in every language.
+- Soverin's `account_exists` is not marked as an administrator's, where the other targets' first
+  step is: a Soverin account is one its holder signs up for.
+- The Graph profile's steps are reordered (registration, secret, permission), as the guide orders
+  them. The keys are unchanged.
+
+**Open.**
+
+- A stored *Via IMAP* connection's row on **Connections** opens the Graph card's checklist. Both
+  cards store as `o365`, `wizardTypeForConnectionKind('o365')` answers `graph`, and the list sends
+  no config that tells them apart. The wizard and the add form open the right one. Proposed for
+  0141's O365 lane with items (2) and (3) of the note below, or for a row of its own.
+- T5 (b): the Microsoft account card's own-app profile and the archive's, after the first
+  invitation. Until then the archive's checklist says *Nothing to set up in advance*, which is not
+  true of an export that takes days.
+- The WebDAV profile's app-password step names Nextcloud's button in the older Dutch, *Nieuw
+  app-wachtwoord*. It is not this task's card and is left as it is.
+
 **2026-09-26, T4 (b) merged with T4 (a).** #1189 (the Dutch guides, T4 (a), and the Microsoft
 recipes, T8) merged first, so `main` was merged into `claude/ownpace-public-readiness-y7orc6-five-new-guides`.
 Both label guards stay: T4 (b)'s, which reads each card's own section and every label a field that
@@ -73,7 +169,7 @@ Microsoft recipes) found sixteen things. All are fixed except where a bullet say
   `oauth2: GRAPH`, `graph: GRAPH`). Its text says to add Graph permissions "for mail, calendar,
   contacts or files" (`setup.graph.api_permissions.detail`, in both languages), which contradicts
   the IMAP recipe and the guide's "both cards read mail". It should be corrected before the first
-  invitation. (2) The wizard lets a person tick calendars, contacts, files or tasks on those two
+  invitation. *Taken into T5 (a) and built on 2026-09-26: see that note.* (2) The wizard lets a person tick calendars, contacts, files or tasks on those two
   cards, and a stored `o365` connection cannot build them: `source-face-builders.ts` resolves them
   to `dav`. (3) *Via IMAP*'s Graph fallback (`withGraphFallback`, `mail-source-factory.ts`) builds
   a Graph mail source with no mailbox. It would read `/me` with an app-only token, which Graph
@@ -720,7 +816,7 @@ the owner announced for *Via IMAP* (D5).
 | T2 No hint to create an app where the deployment carries one | 🟡 **(a), (b) and (d) built** merged in #1177 (2026-09-25); (c) is merged in #1173 (2026-09-25). 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) merged in #1176 (2026-09-25) — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
 | T4 A Dutch and an English guide for each source and target | 🔨 **(a) built**, merged in #1189 (2026-09-26): the six served guides in Dutch, the same outline and ids as the English, the per-language label guard. 🔨 **(b) built** on branch `claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
-| T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
+| T5 The checklist says what must be done first | 🔨 **(a) built on branch `claude/ownpace-public-readiness-y7orc6-a-checklist-that-says-what-comes-first`, not merged** (2026-09-26): profiles for Apple, Nextcloud and Soverin, and each Microsoft registration card its own recipe (the Graph profile's text, found under T8); the Google account card's was T2 (b)'s. (b) not started — *was:* 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
 | T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written**, merged in #1189 (2026-09-26), in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
