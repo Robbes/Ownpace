@@ -1109,6 +1109,22 @@ of things to do. To resume, set `mailbox_mapping.status` back to `active` and
 restart the appliance; to retire the mapping for good, remove it from the config
 directory.
 
+**Keeping copying after the cutover** (workplan 0128 D4). A migration past its
+cutover (`cutover` or `done`) can go on copying in the continuous lane:
+`PUT /mappings/{id}` with `{"status": "continuous"}`, which is what the Finish
+screen's *Keep copying* sends. Deletions at the old provider are no longer
+mirrored there, and the appliance bills nothing for it. The door takes a status
+and nothing else, and enters the lane only:
+
+- before a cutover it answers 409 `before_cutover`: the source is still the
+  authority there;
+- every other move answers 409 `own_door`: Start, Finish and the operator CLI's
+  cutover each have their own.
+
+The move is recorded as the operator's. The lane is ended by Finish
+(`POST /mappings/{id}/finish`), which the Finish screen offers beside *Still
+copying*; open failures refuse it unless you force it, as they refuse a finish.
+
 **A note on the pass in step 3.** `POST /mappings/{id}/run` runs a pass and
 answers when it has finished — useful any time, not just at cutover (after fixing
 a credential, say). Runs are single-flight per mapping, so it can never start a
