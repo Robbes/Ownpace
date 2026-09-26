@@ -1150,7 +1150,7 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
       // Every path that ever held a slot releases it in the same transaction
       // (workplan 0109 T1b): `ended_at` is stamped, so "when did this path
       // stop costing anything" is answerable from the billing ledger itself.
-      await movePathsWithMapping(db, s.tenantId, s.mappingId, 'done');
+      await movePathsWithMapping(db, s.tenantId, s.mappingId, { from: s.lifecycle, to: 'done' });
     });
 
     log.warn(

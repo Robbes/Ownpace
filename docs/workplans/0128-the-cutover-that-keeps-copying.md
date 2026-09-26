@@ -4,6 +4,33 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26: T5's fifth slice, first half (5a): a press on the whole migration moves only the
+paths in the phase it leaves.** Nothing can give a data type a phase of its own yet (5b); the doors
+are ready for it first, and every answer they give today is the one they gave.
+- **The rule** (`pathFollows`, ledger): where the migration's path rows add up to the status it
+  leaves, a path moves when it is in that phase. Pausing, resuming or starting the rest leaves a
+  data type cut over on its own where it is, since moving it back before its cutover would bring
+  its deletion detectors back (0117 D4). Finishing ends every path, and a start also starts one
+  that never ran. Where the rows do not add up (a status written alone), every path moves, as
+  before, since the reader believes the status for every data type then.
+- **Every door asks it**, through the one mover (`movePathsWithMapping`), which now takes the
+  status the migration leaves as well as the one it takes: managed's create, update, start and
+  finish, and the ledger's own door (the operator CLI's cutover and rollback, and each appliance
+  door that changes a migration's status).
+
+Evidence:
+- the rule on its own (4);
+- at managed's doors, with mail cut over on its own beside running calendars: a pause and a
+  resume leave mail where it is and its cutover's end untouched; a finish ends both, and one from
+  the lane leaves a path that had already ended with the date it ended; keeping it copying takes
+  the path in its cutover and leaves one that ended; the CLI's own door cuts over the rest and
+  leaves mail's cutover as it was; and rows that do not add up move as before (6);
+- 12 mutations, all killed: the rows never believed or always believed; a start taking every
+  path or skipping one that never ran; a finish sparing other phases or stamping one that had
+  already ended; a row conjured for a path that never ran; rows not believed moving nothing; and
+  each door, managed's update, start and finish and the ledger's own, forgetting the status it
+  leaves.
+
 **2026-09-26: T5's fourth slice: a cutover ledger per data type.** Nothing writes one yet: the
 cutover of one data type is slice 5. What one means is settled first, and until then every
 migration has only the whole migration's row, so every answer is the one it was.
@@ -383,7 +410,7 @@ its test.
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
 | T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | ✅ **Built 2026-09-25** (D2 (c), D4, D5, D6; T5 slice 3) | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 4 built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 4, and 5's first half, built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -599,15 +626,23 @@ cutover; once every one is past it, a new data type is a new migration, as today
 4. **The cutover ledger per data type:** the `domain` column, the key replaced by its real name,
    the store and the grace window per data type, old rows read as the whole migration. *Built
    2026-09-26.*
-5. **The cutover per data type:** `--kind` on the CLI, the cutover and rollback transitions per
-   path, and `POST /api/migrations/:id/cutover` taking the data type; its final sync and its gate
-   cover that data type only; DNS and MX for mail only. A data type's own cutover is refused
-   while the whole migration's is under way, which keeps the tick's question (does any ledger row
-   still copy) the same as each data type's (slice 4).
+5. **The cutover per data type**, in two halves. First (5a) a press on the whole migration moves
+   only the paths in the phase it leaves, so a data type cut over on its own is never moved back
+   with the rest (*built 2026-09-26*). Then (5b) `--kind` on the CLI, the cutover and rollback
+   transitions per path, and `POST /api/migrations/:id/cutover` taking the data type; its final
+   sync and its gate cover that data type only; DNS and MX for mail only. A data type's own
+   cutover is refused while the whole migration's is under way, and a cutover of the whole
+   migration once a data type has its own. The first keeps the tick's question (does any ledger
+   row still copy) the same as each data type's (slice 4); the second keeps a rollback of the
+   whole migration from moving back a data type cut over on its own (5a).
 6. **Shares per data type**, announced once at each data type's cutover.
 7. **T3 on the Finish page**, per data type: *End* and *Keep copying* each, step 4 for mail only,
    the lane per data type, the appliance's missing lane route (D4), and the grace period's end in
-   the digest (D7).
+   the digest (D7). With a data type ended or kept on its own, a press on the whole migration
+   meets paths in phases 5a does not move (only the phase the migration leaves): whether a
+   rollback of the whole migration takes a kept data type out of the lane
+   (`rollbackTransition` would), and whether a *Keep copying* of the whole migration brings back
+   one that ended, is decided here.
 
 ADR-0048, ADR-0047, ADR-0049, ADR-0032, ADR-0014's consequence 4 and 0117 D4 are amended with the
 slice that changes each of their rules.
