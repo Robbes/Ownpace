@@ -15,6 +15,9 @@
  *  - a data type it did not finish (its deadline, the day's download budget,
  *    or never reached) is named, and the cutover is not ready: the gate is not
  *    even asked, and the verdict is recorded once, never retried;
+ *  - a data type it moved past, because its owner stopped it (0128 T4) or it
+ *    no longer runs passes, is named as passed over, not as unfinished, and the
+ *    preparation goes on to the gate, which skips a stopped one too (D6);
  *  - the gate verifies the data types the migration has, and no others, in
  *    both doors, without building mail it never used.
  *
@@ -160,6 +163,38 @@ describe("the pass's own report, read for the cutover", () => {
     const report = finalSyncReport({ asked: ['task'], domains: {} });
 
     expect(report.notFinished).toEqual(['task reported nothing']);
+    expect(report.passedOver).toEqual([]);
+  });
+
+  it('names a data type its owner stopped as passed over, not as unfinished (0128 T4)', () => {
+    const report = finalSyncReport({
+      asked: ['email', 'calendar'],
+      domains: { calendar: counts(2, 0, 40) },
+      passedOver: { email: 'stopped_by_its_owner' },
+    });
+
+    expect(report.notFinished).toEqual([]);
+    expect(report.passedOver).toEqual(['email: passed over, because you stopped it']);
+    expect(report.byDomain).toEqual({ calendar: counts(2, 0, 40) });
+  });
+
+  it('tells one that no longer runs passes from one its owner stopped, and still names what it never reached', () => {
+    const report = finalSyncReport({
+      asked: ['email', 'calendar', 'file'],
+      domains: {},
+      passedOver: { email: 'data_type_no_longer_runs' },
+      stoppedBefore: 'calendar',
+    });
+
+    expect(report.passedOver).toEqual([
+      'email: passed over, because it no longer runs passes (past its own cutover, or ended)',
+    ]);
+    // Moving past one is not a halt: the pass stopped before calendars, and
+    // what it never reached is still behind.
+    expect(report.notFinished).toEqual([
+      'calendar was not reached, because the migration was paused or finished while the pass ran',
+      'file was not reached, because the migration was paused or finished while the pass ran',
+    ]);
   });
 });
 
@@ -199,6 +234,25 @@ describe('the preparation, with the final sync reporting per data type', () => {
     expect(String((failure as Error).message)).toContain("file stopped at the pass's own deadline");
     expect(runGate).not.toHaveBeenCalled();
     expect(state()).toBe('PREPARING');
+  });
+
+  it('goes on to the gate past a data type its owner stopped, and says it passed it over (0128 T4)', async () => {
+    const { done, logs, runGate, state } = prepare(async () =>
+      finalSyncReport({
+        asked: ['email', 'calendar'],
+        domains: { calendar: counts(2, 0, 40) },
+        passedOver: { email: 'stopped_by_its_owner' },
+      }),
+    );
+
+    const result = await done;
+
+    expect(result.ready).toBe(true);
+    expect(state()).toBe('READY_FOR_CUTOVER');
+    expect(runGate).toHaveBeenCalledOnce();
+    expect(logs).toContain(
+      'Final sync: calendar: 2 created, 0 updated, 40 skipped; email: passed over, because you stopped it',
+    );
   });
 
   it('records that verdict once and does not retry it, as it does a failed gate', () => {
@@ -312,5 +366,15 @@ describe('the doors, read as text', () => {
     expect(pass).toMatch(/\.\.\.\(stoppedBecause !== undefined \? \{ stoppedBecause \} : \{\}\)/);
     expect(pass).toMatch(/asked: domains,\s*domains: outcomes,/);
     expect(pass).toMatch(/runId,\s*\.\.\.report,/);
+  });
+
+  it('the pass says which data types it moved past, and why (0128 T4)', () => {
+    const pass = code('run-delta-sync.ts');
+    const skip = pass.slice(pass.indexOf("if ('skip' in step) {"), pass.indexOf("if ('halt' in step) {"));
+
+    expect(skip).toMatch(/passedOver\[domain\] = step\.skip;\s*continue;/);
+    expect(pass).toMatch(
+      /domains: outcomes,\s*\.\.\.\(Object\.keys\(passedOver\)\.length > 0 \? \{ passedOver \} : \{\}\),/,
+    );
   });
 });

@@ -4,6 +4,18 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26: fix: the final sync passes over a data type its owner stopped.** The pass moved
+past a stopped data type (T4) and reported nothing for it, and the final sync read that as a data
+type it had not finished: the preparation of a whole migration with any data type stopped failed
+with *reported nothing*, before the gate that skips a stopped one (D6) was even asked. The pass
+now says which data types it moved past and why (`passedOver`, `run-delta-sync`), and the final
+sync names each as passed over, not unfinished, and goes on to the gate. What the pass never
+reached is still behind.
+
+Evidence: the report with a stopped data type, and with one that no longer runs beside what a
+halt left unreached (2); the preparation going on to the gate past a stopped one, which failed
+before the fix (1); and the pass recording what it moved past, read as text (1).
+
 **2026-09-26: T5's fourth slice: a cutover ledger per data type.** Nothing writes one yet: the
 cutover of one data type is slice 5. What one means is settled first, and until then every
 migration has only the whole migration's row, so every answer is the one it was.
