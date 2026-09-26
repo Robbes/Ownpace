@@ -665,8 +665,18 @@ export class MemoryLedger implements Ledger {
 
   latestAuditEventAt(
     tenantId: LedgerRecord['tenantId'],
-    filter: { readonly actor?: string; readonly action: string; readonly mappingId?: string },
+    filter: {
+      readonly actor?: string;
+      readonly action: string;
+      readonly mappingId?: string;
+      readonly subject?: string;
+    },
   ): Promise<string | undefined> {
+    // A row listing no subjects was pressed for the whole migration.
+    const listsSubject = (detail: unknown, subject: string): boolean => {
+      const subjects = (detail as { subjects?: string[] } | undefined)?.subjects;
+      return subjects === undefined || subjects.includes(subject);
+    };
     const mine = this.auditEvents
       .filter(
         (e) =>
@@ -674,7 +684,8 @@ export class MemoryLedger implements Ledger {
           (filter.actor === undefined || e.actor === filter.actor) &&
           e.action === filter.action &&
           (filter.mappingId === undefined ||
-            (e.detail as { mappingId?: string } | undefined)?.mappingId === filter.mappingId),
+            (e.detail as { mappingId?: string } | undefined)?.mappingId === filter.mappingId) &&
+          (filter.subject === undefined || listsSubject(e.detail, filter.subject)),
       )
       .map((e) => e.at)
       .sort();

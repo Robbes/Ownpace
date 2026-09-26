@@ -8,8 +8,8 @@
  * Its calendars are cut over on their own while its files keep running: a
  * calendar share passes the gate and a file share does not, one row at a time
  * and in the one-go press, which leaves the file share open for the files' own
- * cutover. The announcement of the shares carried by hand waits for the whole
- * migration, and is let through at its cutover, not only once it is done.
+ * cutover. (The announcement of the shares carried by hand, one wave per data
+ * type, is `each-data-type-announced-once-on-the-appliance.unit.test.ts`'s.)
  *
  * The target points at port 1, so a share that passes the gate is refused by
  * the target (`target_refused`): what is under test is the gate, whose own
@@ -21,7 +21,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pgliteDriver } from '@openmig/ledger';
-import { NOT_CUT_OVER_REASON, notCutOverReason } from '@openmig/core';
+import { notCutOverReason } from '@openmig/core';
 import { start, type SelfhostHandle } from './index.ts';
 import { mappingSeed, uuidFromString } from './config-dir.ts';
 
@@ -115,7 +115,7 @@ async function post(base: string, path: string, body: unknown): Promise<{ status
 const apply = (base: string, id: string) => post(base, `${id}/decision`, { action: 'apply' });
 
 describe('a share waits for its own data type’s cutover on the appliance', () => {
-  it('a calendar share once calendars are cut over, a file share at the files’ own, and the announcement at the whole migration’s', async () => {
+  it('a calendar share once calendars are cut over, and a file share at the files’ own', async () => {
     const cfg = configDir();
     const dataDir = tempDir('ownpace-share-db-');
     let booted = await boot(cfg, dataDir);
@@ -173,9 +173,6 @@ describe('a share waits for its own data type’s cutover on the appliance', () 
 
       const folder = await post(booted.base, 'apply-folder', { parentKey: 'F', confirmed: TO_ANNA });
       expect(folder).toEqual({ status: 409, body: { error: 'not_cut_over', reason: notCutOverReason(['drive_item']) } });
-
-      const announce = await post(booted.base, 'announce', { note: 'Everything lives on the new server now.' });
-      expect(announce).toEqual({ status: 409, body: { error: 'not_cut_over', reason: NOT_CUT_OVER_REASON } });
     } finally {
       await booted.handle.stop();
     }
@@ -189,11 +186,6 @@ describe('a share waits for its own data type’s cutover on the appliance', () 
       const folder = await post(booted.base, 'apply-folder', { parentKey: 'F', confirmed: TO_ANNA });
       expect(folder.status).toBe(200);
       expect((folder.body.refused as Array<{ code: string }>).map((r) => r.code)).toEqual(['target_refused', 'target_refused']);
-
-      // Past the gate, and stopped by the next thing it asks: a mail channel.
-      const announce = await post(booted.base, 'announce', { note: 'Everything lives on the new server now.' });
-      expect(announce.status).toBe(409);
-      expect(announce.body.error).toBe('notifications_off');
     } finally {
       await booted.handle.stop();
     }

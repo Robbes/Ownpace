@@ -114,6 +114,10 @@ export const AUDIT_DETAIL_FIELDS = {
   // then: product vocabulary (`calendar`, `continuous`), naming nobody.
   domain: 'keep',
   phase: 'keep',
+  // The share subjects an announcement's wave covered, and the rows it left
+  // out as announced before (0128 T5, slice 6): product vocabulary and a count.
+  subjects: 'keep',
+  alreadyAnnounced: 'keep',
   // Names and addresses.
   on: 'pseudonym',
   folder: 'pseudonym',
