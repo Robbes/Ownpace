@@ -239,6 +239,63 @@ describe('POST /api/migrations/:id/cutover asks the ledger before it enqueues', 
     ]);
   });
 
+  describe('one data type, prepared on its own (0128 T5, slice 5c)', () => {
+    const pressFor = (domain: string) =>
+      request.post(`/api/migrations/${mappingId}/cutover`).set(auth()).send({ domain });
+
+    it('with no ledger: 202 that names it, and the job is asked for that data type alone', async () => {
+      const res = await pressFor('email');
+
+      expect(res.status).toBe(202);
+      expect(res.body).toMatchObject({ enqueued: 'cutover-preparation', domain: 'email' });
+      expect(res.body.preparation).toEqual({ from: null, resetsToPreparing: false, revokesApproval: false });
+      expect(triggerMock).toHaveBeenCalledWith(
+        'run-cutover',
+        expect.objectContaining({ tenantId: TENANT, mappingId, domain: 'email' }),
+        expect.anything(),
+      );
+      expect(await trail()).toEqual([]);
+    });
+
+    it("beside the whole migration's that failed: 202, from the ledger it inherits, taken back to PREPARING first", async () => {
+      await driveTo('FAILED');
+
+      const res = await pressFor('email');
+
+      expect(res.status).toBe(202);
+      expect(res.body.preparation).toEqual({ from: 'FAILED', resetsToPreparing: true, revokesApproval: false });
+      expect(triggerMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("while the whole migration's cutover is under way: 409 whole_under_way, nothing enqueued", async () => {
+      await driveTo('APPROVED');
+
+      const res = await pressFor('email');
+
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({ error: 'cutover_refused', code: 'whole_under_way' });
+      expect(res.body.message).toContain('APPROVED');
+      expect(triggerMock).not.toHaveBeenCalled();
+      expect(await cutoverStore.loadLedgers(TENANT as never, mappingId as never)).toEqual([{ state: 'APPROVED' }]);
+    });
+
+    it('a data type the migration does not carry: 409 not_a_path, nothing enqueued', async () => {
+      const res = await pressFor('calendar');
+
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({ error: 'cutover_refused', code: 'not_a_path' });
+      expect(res.body.message).toBe('This migration does not carry calendar; it carries email.');
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+
+    it('a word that is not a data type: 400, nothing enqueued', async () => {
+      const res = await pressFor('mail');
+
+      expect(res.status).toBe(400);
+      expect(triggerMock).not.toHaveBeenCalled();
+    });
+  });
+
   it('a press on a mapping that is not the tenant\'s is 404 before the ledger is asked', async () => {
     const other = '5f4b0000-e29b-41d4-a716-446655443511';
     const res = await request.post(`/api/migrations/${other}/cutover`).set(auth()).send({});

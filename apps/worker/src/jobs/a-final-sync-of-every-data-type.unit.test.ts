@@ -227,6 +227,44 @@ describe('the preparation, with the final sync reporting per data type', () => {
     expect(ledger.state()).toBeUndefined();
   });
 
+  it("does not prepare a data type's own while the whole migration's is under way, and records no failure (0128 T5, slice 5c)", async () => {
+    const ledger = memoryLedger();
+    const store = { ...ledger.store, loadLedgers: async () => [{ state: 'APPROVED' }] };
+    const runFinalSync = vi.fn();
+    const failure = await prepareCutover({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'email',
+      cutoverStore: store as unknown as Parameters<typeof prepareCutover>[0]['cutoverStore'],
+      log: () => {},
+      runFinalSync,
+    }).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(CutoverRefused);
+    expect((failure as Error).message).toContain('under way (APPROVED)');
+    expect(preparationFailurePolicy(failure)).toEqual({ recordFailed: false, retry: false });
+    expect(runFinalSync).not.toHaveBeenCalled();
+    expect(ledger.state()).toBeUndefined();
+  });
+
+  it("prepares a data type's own beside another data type's, and says whose final sync it runs (0128 T5, slice 5c)", async () => {
+    const ledger = memoryLedger();
+    const store = { ...ledger.store, loadLedgers: async () => [{ domain: 'calendar', state: 'GRACE_PERIOD' }] };
+    const logs: string[] = [];
+    const result = await prepareCutover({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domain: 'email',
+      cutoverStore: store as unknown as Parameters<typeof prepareCutover>[0]['cutoverStore'],
+      log: (line) => logs.push(line),
+      runFinalSync: async () => finalSyncReport({ asked: ['email'], domains: { email: counts(1, 0, 9) } }),
+      runGate: vi.fn(async () => PASSING),
+    });
+
+    expect(result.ready).toBe(true);
+    expect(logs).toContain('Running the final sync of email...');
+  });
+
   it('says so when the migration has no data type selected, rather than printing nothing', async () => {
     const { done, logs } = prepare(async () => finalSyncReport({ asked: [], domains: {} }));
 
@@ -306,15 +344,27 @@ describe('the doors, read as text', () => {
 
     expect(cutover).not.toContain('runShadowPass');
     expect(cutover).not.toContain('buildDepsFromMapping');
-    expect(cutover).toContain('runCutoverGate(pool, dbUrl, tenantId, mappingId)');
+    expect(cutover).toContain('runCutoverGate(pool, dbUrl, tenantId, mappingId, domain)');
   });
 
   it("the final sync is run-delta-sync, waited for on the migration's own queue", () => {
     const cutover = code('run-cutover.ts');
 
-    expect(cutover).toMatch(/runDeltaSync\.triggerAndWait\(\s*\{ tenantId, mappingId \}/);
+    expect(cutover).toMatch(
+      /runDeltaSync\.triggerAndWait\(\s*\{ tenantId, mappingId, \.\.\.\(domain !== undefined \? \{ domains: \[domain\] \} : \{\}\) \}/,
+    );
     expect(cutover).toMatch(/concurrencyKey: mappingId/);
     expect(cutover).toContain('return finalSyncReport(pass.output);');
+  });
+
+  it("one data type's preparation writes its own ledger, and asks its own begin rule (0128 T5, slice 5c)", () => {
+    const cutover = code('run-cutover.ts');
+
+    expect(cutover).toContain(
+      'const cutoverStore = domain === undefined ? wholeLedger : bindCutoverLedger(wholeLedger, domain);',
+    );
+    expect(cutover).toMatch(/prepareCutover\(\{\s*tenantId,\s*mappingId,\s*\.\.\.\(domain !== undefined \? \{ domain \} : \{\}\),/);
+    expect(cutover).toContain('cutoverBeginRefusal(await deps.cutoverStore.loadLedgers(tenantId, mappingId), deps.domain)');
   });
 
   it('a pass that failed after its own retries is a verdict, not retried three times more', () => {

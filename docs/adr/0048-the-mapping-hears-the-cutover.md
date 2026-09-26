@@ -280,6 +280,10 @@ type's own cutover does not begin while the whole migration's is under way, and 
 migration's does not begin once a data type has its own (`cutoverBeginRefusal`, core), in the
 CLI, in the managed preparation and at its door, and in the store under them.
 
+Since slice 5c the managed preparation takes a data type too (`POST /api/migrations/:id/cutover`
+with a `domain`): its own ledger, a final sync of that data type alone and the gate over it alone,
+and only a data type the migration carries. Approval and execution stay the CLI's.
+
 Gates: `packages/ledger/src/a-cutover-of-one-data-type.unit.test.ts` (the steps over mail's
 ledger and path, beside running calendars), `packages/core/src/who-may-begin-a-cutover.unit.test.ts`
 and `apps/worker/src/cli/cutover-commands.unit.test.ts`.
