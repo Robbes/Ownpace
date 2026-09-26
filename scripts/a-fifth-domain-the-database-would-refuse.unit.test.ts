@@ -4,9 +4,9 @@
  * No domain the product knows may be one the database refuses
  * (workplan 0113 T2).
  *
- * Eight tables store a domain, each behind its own `CHECK (domain = ANY
+ * Ten tables store a domain, each behind its own `CHECK (domain = ANY
  * (ARRAY[…]))`. A domain added to `DISCOVERY_DOMAINS` without a migration
- * widening those eight does not fail at compile time and does not fail at
+ * widening those ten does not fail at compile time and does not fail at
  * start-up. It fails when the first row is written — mid-pass, on a customer's
  * migration, with a constraint violation and a half-copied collection behind
  * it. That is the worst place to learn it, so it is learned here instead.
@@ -75,14 +75,17 @@ function effectiveDomainChecks(): Map<string, ReadonlyArray<string>> {
 }
 
 describe('the database accepts every domain the product knows', () => {
-  it('found the domain CHECKs at all — nine of them, or this guard is reading nothing', () => {
+  it('found the domain CHECKs at all — eleven of them, or this guard is reading nothing', () => {
     const checks = effectiveDomainChecks();
-    // Eight tables store a `domain`; `item` also carries the legacy
-    // `item_type` column, whose vocabulary says 'mail' where the others say
-    // 'email'. Nine in total, and the count is asserted because a regex that
+    // Ten tables store a `domain` (the cutover ledger's two since 0128 T5
+    // slice 4, migration 0067); `item` also carries the legacy `item_type`
+    // column, whose vocabulary says 'mail' where the others say 'email'.
+    // Eleven in total, and the count is asserted because a regex that
     // silently stopped matching would otherwise report perfect health.
     expect([...checks.keys()].sort()).toEqual([
       'collection_mapping_domain_check',
+      'cutover_event_domain_check',
+      'cutover_state_domain_check',
       'item_domain_check',
       'item_item_type_check',
       'migration_discovery_domain_check',

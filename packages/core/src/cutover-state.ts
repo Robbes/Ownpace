@@ -17,7 +17,7 @@
  * All state transitions are logged and must be explicit.
  */
 
-import type { TenantId, MappingId, CutoverWindow } from '@openmig/shared';
+import type { TenantId, MappingId, CutoverWindow, DiscoveryDomain } from '@openmig/shared';
 
 /** Cutover state values */
 export type CutoverState = 
@@ -44,6 +44,12 @@ export type CutoverPhase =
 export interface CutoverStatus {
   tenantId: TenantId;
   mappingId: MappingId;
+  /**
+   * The data type whose ledger this is (workplan 0128 T5, slice 4). Absent
+   * for the whole migration's: every ledger written before the ledger was
+   * kept per data type, and the one each data type reads until it has its own.
+   */
+  domain?: DiscoveryDomain;
   state: CutoverState;
   phase: CutoverPhase;
   startedAt: string;
@@ -133,6 +139,8 @@ export interface CutoverResult {
 export interface CutoverEvent {
   tenantId: TenantId;
   mappingId: MappingId;
+  /** The data type whose ledger this event moved; absent for the whole migration's (0128 T5, slice 4). */
+  domain?: DiscoveryDomain;
   timestamp: string;
   fromState: CutoverState | null; // null for initialization events
   toState: CutoverState;

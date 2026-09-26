@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26: T5's fourth slice: a cutover ledger per data type.** Nothing writes one yet: the
+cutover of one data type is slice 5. What one means is settled first, and until then every
+migration has only the whole migration's row, so every answer is the one it was.
+- **The ledger** (ledger migration 0067): `cutover_state` and `cutover_event` gain a `domain`,
+  checked against the same five data types as every other domain column, and the key becomes
+  (tenant, migration, data type), with NULLs equal. A row with no data type is the whole
+  migration's: every row written before, and the ledger of each data type that has none of its
+  own. The old key is dropped by its real name, `cutover_state_tenant_id_mapping_id_key`; the
+  Drizzle schema, which called it `uk_cutover_state_mapping`, names the new one as the database
+  does.
+- **The store** takes an optional data type on every method, last, so no caller changes. Without
+  one it is the whole migration's ledger, as before, whatever rows the data types have. With one,
+  a read is the data type's own ledger, or the whole migration's where it has none; its trail is
+  its own events after the whole migration's it inherited; and a write is always to its own row,
+  starting from the ledger it read.
+- **The grace window per data type** (`readCutoverWindows`, ledger): a data type in `cutover`
+  asks its own row's window, or the whole migration's, in its own phase or the one believed
+  (`phasesOfThePaths` takes a window per data type). The managed tick still asks whether any row
+  of the migration still copies, and so does the reader's `anyRuns`: a pass it starts moves past
+  each data type whose own window is closed.
+- ADR-0048's window rule is amended, the domain-CHECK guard counts eleven CHECKs, and T4's row
+  below says it is built.
+
+Evidence:
+- on PGlite as `app_user` (8): the key under its real name, the CHECK on both tables, the store
+  for the whole migration and for one data type (read, start, move, trail), the window, and the
+  phases every gate reads;
+- the rule in shared, with a window per data type in its own phase and in the one believed (1);
+- the tick's own query and the pass's step before each data type, with a window per data type,
+  both ways round and closed (1);
+- on Postgres 16, the migration applied by the runner, and a data type's ledger beside the whole
+  migration's, the upsert finding the whole migration's row (1); the cutover's integration files
+  pass on it (9 files, 69 tests);
+- 28 mutations, all killed:
+  - the migration's key still per migration, its NULLs distinct, the old key dropped by the
+    ORM's name, and either CHECK dropped;
+  - the store: the whole migration reading any row, no inheritance, the inherited row read first,
+    a write to the row it read, the metadata saying whose row it is, the old upsert target, and
+    the data type dropped on a save, a read, an event, a start and a transition's event;
+  - the bound store dropping the data type on a read, a transition and a trail;
+  - the window: a data type's own ignored, no fallback to the whole migration's, and *any* read
+    as the whole migration's;
+  - the reader running by the whole migration's window, or giving it to every data type, and the
+    shared rule asking one window of every data type.
+
 **2026-09-26: the lane's doors, three defects.** Found while building T4, fixed at the
 migration's level ahead of slice 7, which makes the same doors per data type:
 - **The appliance had no lane door**, so the Finish page's *Keep copying* was answered 404
@@ -596,7 +641,8 @@ cutover; once every one is past it, a new data type is a new migration, as today
 **Found while mapping it, to fix on the way.**
 - The unique key's real name is `cutover_state_tenant_id_mapping_id_key`
   (`0001_baseline.sql`); the Drizzle schema calls it `uk_cutover_state_mapping`, so a migration
-  that dropped it by that name would silently drop nothing.
+  that dropped it by that name would silently drop nothing. *Dropped by its real name in slice
+  4.*
 - The share gate allows `done` only, where ADR-0032 says *done or cutover*.
 - `slotsHeld` counts path rows without asking whether the data type is still selected. Nothing
   deselects one today, but a stop must not strand a slot.
@@ -684,8 +730,7 @@ retrying them. (b) was to keep the lane a second press after finishing.
 
 **D4 — the appliance (T3, T4)?** **Decided 2026-09-24: (a)**, *"2a"*. The appliance gets the same
 choice, data types included, with a stopped data type kept in its own database. Its *Keep
-copying* button failed until 2026-09-25: it called a route the appliance did not serve,
-and was answered 404.
+copying* button fails today: it calls a route the appliance does not serve, and is answered 404.
 (b) was managed only, with the appliance's button hidden until then.
 
 **D5 — stopping the last data type still copying (T4)?** **Decided 2026-09-24: (a)**, *"3a"*.

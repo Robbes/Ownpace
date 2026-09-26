@@ -18,9 +18,9 @@
  * the rows were left behind by something that wrote the status alone, and the
  * status is the answer every gate gave before the rows existed.
  *
- * The cutover's own window (`cutoverStillCopies`) is asked when the migration
- * or one of its paths is in `cutover`: one window per migration, until the
- * cutover ledger is kept per data type (slice 4).
+ * The cutover windows (`readCutoverWindows`) are asked when the migration or
+ * one of its paths is in `cutover`: each data type's is its own cutover
+ * ledger's, or the whole migration's where it has none (slice 4).
  *
  * A data type its owner stopped (0128 T4, `stopped_at`) is stopped whichever
  * phase is believed: it runs no pass, and its phase says the rest.
@@ -30,7 +30,7 @@ import { and, eq } from 'drizzle-orm';
 import { pathRunsNow, phasesOfThePaths, rollUpPhases, runsPassesNow, type PathPhaseOf, type PathRow } from '@openmig/shared';
 import * as schemaPg from './schema-pg.ts';
 import type { PgDatabase } from './db-types.ts';
-import { cutoverStillCopies } from './cutover-grace.ts';
+import { NO_CUTOVER_WINDOWS, readCutoverWindows } from './cutover-grace.ts';
 
 /**
  * The managed tick's twin of `anyRuns` for the one case the migration's own
@@ -63,8 +63,10 @@ export interface MigrationPhases {
   /** The migration's own lifecycle word, `mailbox_mapping.status`. */
   readonly status: string;
   /**
-   * Whether its cutover's grace period is still open; false unless the migration
-   * or one of its paths is in `cutover`.
+   * Whether any of its cutover ledgers still copies, the whole migration's or a
+   * data type's own (slice 4): the managed tick's question. False unless the
+   * migration or one of its paths is in `cutover`. Each data type's own window
+   * is in `phaseOf`.
    */
   readonly stillCopies: boolean;
   /**
@@ -125,20 +127,20 @@ export async function readPathPhases(
   const states = Object.values(paths).map((p) => p.state);
   // Asked only of a cutover, since no other phase depends on it (0128 T2).
   const inCutover = row.status === 'cutover' || states.includes('cutover');
-  const stillCopies = inCutover && (await cutoverStillCopies(db, tenantId, mappingId));
+  const windows = inCutover ? await readCutoverWindows(db, tenantId, mappingId) : NO_CUTOVER_WINDOWS;
   const agreed = rollUpPhases(states) === row.status;
   const anyRuns =
     row.status !== 'paused' &&
-    (runsPassesNow(row.status, row.status === 'cutover' && stillCopies) ||
+    (runsPassesNow(row.status, row.status === 'cutover' && windows.any) ||
       (agreed &&
-        Object.values(paths).some((p) =>
-          pathRunsNow({ phase: p.state, stillCopies: p.state === 'cutover' && stillCopies, stopped: p.stopped }),
+        Object.entries(paths).some(([domain, p]) =>
+          pathRunsNow({ phase: p.state, stillCopies: p.state === 'cutover' && windows.of(domain), stopped: p.stopped }),
         )));
   return {
     status: row.status,
-    stillCopies,
+    stillCopies: windows.any,
     grantWithdrawnAt: row.grantWithdrawnAt,
-    phaseOf: phasesOfThePaths(row.status, stillCopies, paths),
+    phaseOf: phasesOfThePaths(row.status, windows.of, paths),
     anyRuns,
   };
 }

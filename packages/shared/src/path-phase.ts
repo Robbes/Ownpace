@@ -109,23 +109,20 @@ export function rollUpPhases(phases: readonly string[]): string | undefined {
  * status set by hand does not start a data type its owner stopped. A stop can
  * only take passes away, never a deletion detector.
  *
- * `stillCopies` is the migration's cutover window, asked of a path in
- * `cutover`: one window per migration until the cutover ledger is kept per
- * data type (slice 4).
+ * `stillCopiesOf` is each data type's cutover window, asked of it in
+ * `cutover`, whichever phase is believed: its own cutover ledger's, or the
+ * whole migration's where it has none (`readCutoverWindows`, ledger; slice 4).
  */
 export function phasesOfThePaths(
   status: string,
-  stillCopies: boolean,
+  stillCopiesOf: (domain: string) => boolean,
   paths: Readonly<Record<string, PathRow>>,
 ): PathPhaseOf {
-  const migration: PathPhase = { phase: status, stillCopies: status === 'cutover' && stillCopies };
   const agreed = rollUpPhases(Object.values(paths).map((p) => p.state)) === status;
   return (domain) => {
     const own = paths[domain];
-    const phase: PathPhase =
-      own === undefined || !agreed
-        ? migration
-        : { phase: own.state, stillCopies: own.state === 'cutover' && stillCopies };
+    const believed = own === undefined || !agreed ? status : own.state;
+    const phase: PathPhase = { phase: believed, stillCopies: believed === 'cutover' && stillCopiesOf(domain) };
     return own?.stopped === true ? { ...phase, stopped: true } : phase;
   };
 }

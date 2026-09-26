@@ -42,7 +42,7 @@ import {
   cutoverStillCopiesAt,
   runsPassesNow,
 } from '@openmig/shared';
-import { whyThePassStops } from './stopping-a-pass.ts';
+import { passStepBefore, whyThePassStops } from './stopping-a-pass.ts';
 
 // UUID family 0128a000-…, unused elsewhere in the repo.
 const TENANT = asTenantId('0128a000-e29b-41d4-a716-446655440001');
@@ -414,5 +414,54 @@ describe('a pass already running keeps going through the grace period, and stops
       expect(await theTickConsidersIt(), `${copies} ${minutesPastTheEnd}`).toBe(halt === null);
       expect(runsPassesNow('cutover', await sqlSays())).toBe(halt === null);
     }
+  });
+});
+
+describe('a window per data type (0128 T5, slice 4)', () => {
+  /**
+   * A data type's own cutover row beside the whole migration's, placed by
+   * hand as slice 5's cutover of one data type will leave it, with the same
+   * clocks as `placeCutover`.
+   */
+  async function placeOwnCutover(
+    domain: string,
+    state: CutoverState,
+    copies: boolean,
+    minutesPastTheEnd: number,
+  ): Promise<void> {
+    await query(`DELETE FROM cutover_state WHERE mapping_id = $1 AND domain = $2`, [MAPPING, domain]);
+    await query(
+      `INSERT INTO cutover_state (tenant_id, mapping_id, domain, state, grace_period_hours, copies_through_grace,
+                                  grace_period_started_at, updated_at)
+       SELECT $1, $2, $3, $4, 72, $5, s, s
+         FROM (SELECT now() - interval '72 hours' - ($6::int * interval '1 minute') AS s) t`,
+      [TENANT, MAPPING, domain, state, copies, minutesPastTheEnd],
+    );
+  }
+
+  const step = (domain: string) => passStepBefore(driver as unknown as Pool, TENANT, MAPPING, domain);
+
+  it('the tick starts a pass while any data type still copies, and the pass moves past each that does not', async () => {
+    await setMapping('cutover');
+    // Cut over whole and over; mail's own grace period still open.
+    await placeCutover('COMPLETED', true, 5);
+    await placeOwnCutover('email', 'GRACE_PERIOD', true, -5);
+    expect(await theTickConsidersIt()).toBe(true);
+    expect(await whyThePassStops(driver as unknown as Pool, TENANT, MAPPING)).toBeNull();
+    expect(await step('email')).toEqual({ run: true });
+    expect(await step('file')).toEqual({ skip: 'data_type_no_longer_runs' });
+
+    // The whole migration's still open, mail's own over: the other way round.
+    await placeCutover('GRACE_PERIOD', true, -5);
+    await placeOwnCutover('email', 'COMPLETED', true, 5);
+    expect(await theTickConsidersIt()).toBe(true);
+    expect(await step('email')).toEqual({ skip: 'data_type_no_longer_runs' });
+    expect(await step('file')).toEqual({ run: true });
+
+    // Every window over, each on its own row: nothing is started, and a pass under way stops.
+    await placeCutover('GRACE_PERIOD', true, 5);
+    await placeOwnCutover('email', 'GRACE_PERIOD', true, 5);
+    expect(await theTickConsidersIt()).toBe(false);
+    expect(await whyThePassStops(driver as unknown as Pool, TENANT, MAPPING)).toBe('no_longer_runs');
   });
 });

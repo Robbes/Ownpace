@@ -33,10 +33,11 @@ import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledge
  *
  * The predicate is the reader's `anyRuns` (0128 T5, slice 2b): `runsPassesNow`,
  * the same function the lifecycle module defines for every other caller, asked
- * with the cutover's own window (0128 T2) of the migration, or of a path kept
- * in the lane when its rows add up to the migration's status. So the pass stops
- * exactly when the tick would not have started it: a cutover's pass runs until
- * its grace period ends, and not after, unless a data type of it is kept.
+ * with the cutover's windows (0128 T2), any of which will do (one per data
+ * type since slice 4), or of a path kept in the lane when its rows add up to
+ * the migration's status. So the pass stops exactly when the tick would not
+ * have started it: a cutover's pass runs until its last grace period ends,
+ * and not after, unless a data type of it is kept.
  * `PASS_RUNNING_STATES` is the same two states as
  * a VALUE, and that form exists for `managed-sync-tick`'s SQL, "the query
  * that cannot call a function" — this is TypeScript and can, so it does.
@@ -101,10 +102,11 @@ export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
  * cutover past its grace period, ended, or stopped by its owner, 0128 T4), so the
  * next one still gets its turn; and otherwise run it.
  *
- * Until a data type can have a phase of its own, every data type's phase is the
- * migration's (`readPathPhases`), so a pass never moves on past one: the halt
- * answers first. The seam is here so that, when mail can be cut over on its own,
- * the files after it are not stopped with it.
+ * A data type's phase is its own path row's (slice 2b), its stop its owner's
+ * (0128 T4), and its grace window its own cutover ledger's, or the whole
+ * migration's where it has none (slice 4). So once mail is cut over on its own
+ * (slice 5), a pass moves on past it when its window closes, and the files
+ * after it keep their turn.
  */
 export type PassStep =
   | { readonly run: true }
