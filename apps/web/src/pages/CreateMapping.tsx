@@ -62,7 +62,7 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { ConsentLines, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
+import { ConsentLines, ConsentNote, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import {
@@ -2469,15 +2469,9 @@ const CreateMapping: React.FC = () => {
                     asked={consentAsks(formData.sourceType, formData.domains, sourceAllowed)}
                     idBase={consentLinesId}
                   />
-                  {consentNote && (
-                    <p
-                      className={`mt-1 text-sm ${
-                        consentNote === 'received' ? 'text-green-700' : 'text-amber-800'
-                      }`}
-                    >
-                      {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
-                    </p>
-                  )}
+                  {/* A refusal is an alert, a consent that landed a status:
+                      the Connections door's line, one component (0145 T4). */}
+                  <ConsentNote note={consentNote} />
                   {consentRedirect && consentNote !== 'received' && (
                     <p className="mt-1 text-sm text-gray-500">
                       {ps('redirectUri')}{' '}
@@ -2838,9 +2832,11 @@ const CreateMapping: React.FC = () => {
           this block, createMutation.isError rendered nothing anywhere: the
           operator clicked "Create Migration" and the button simply returned
           to rest. The form stays — no data loss — and the message names what
-          the server refused. */}
+          the server refused. It is an alert (0145 T4), so a screen reader
+          hears it without going to look. It leaves the page while the next
+          attempt is pending, so a second refusal is heard again. */}
       {createMutation.isError && (
-        <div className="mt-6 flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
+        <div role="alert" className="mt-6 flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           {/* A duplicate is a REFUSAL with a way out, not a fault (0071 T6):
               the existing migration's name is the server's finding and the

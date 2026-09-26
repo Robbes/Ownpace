@@ -375,6 +375,40 @@ export function consentLineIds(provider: string | undefined, idBase: string): st
 }
 
 /**
+ * WHAT CAME BACK FROM A CONSENT, SAID OUT LOUD (workplan 0145 T4), for both
+ * doors.
+ *
+ * `note` is the door's own state: null before anything came back, `'received'`
+ * when the popup handed a token over, and otherwise the refusal's sentence.
+ * The line used to be plain text, so a person using a screen reader pressed
+ * *Connect with …* and heard nothing, whether the server refused or the
+ * consent landed.
+ *
+ * - A refusal is an alert. A consent that landed is a status: good news is
+ *   said, but not as an alarm.
+ * - Each has its own `key`. When a consent lands after a refusal, React then
+ *   puts a new element on the page instead of changing the role of the one
+ *   already there, which screen readers do not reliably announce.
+ * - Nothing is drawn while there is no note. Both doors clear the note before
+ *   they ask again, so a second refusal is a new alert and is heard again.
+ * - One element per outcome, and neither door draws it inside another live
+ *   region: a line inside one is read twice (`Login.tsx` says why).
+ */
+export const ConsentNote: React.FC<{ readonly note: string | null }> = ({ note }) => {
+  const t = useT();
+  if (!note) return null;
+  return note === 'received' ? (
+    <p key="received" role="status" className="mt-1 text-sm text-green-700">
+      {t('wizard.consent.received')}
+    </p>
+  ) : (
+    <p key="refused" role="alert" className="mt-1 text-sm text-amber-800">
+      {note}
+    </p>
+  );
+};
+
+/**
  * The faces to ask for, the button, and what came back — in the provider's own
  * words. Renders nothing for a kind whose descriptor names no consent.
  */
@@ -430,11 +464,7 @@ export const ProviderConsentPanel: React.FC<{
         {words('connect')}
       </button>
       <ConsentLines provider={consent.provider} asked={consent.asked} idBase={linesId} />
-      {consent.note && (
-        <p className={`mt-1 text-sm ${consent.note === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
-          {consent.note === 'received' ? t('wizard.consent.received') : consent.note}
-        </p>
-      )}
+      <ConsentNote note={consent.note} />
       {consent.redirect && consent.note !== 'received' && (
         <p className="mt-1 text-sm text-gray-500">
           {words('redirectUri')}{' '}

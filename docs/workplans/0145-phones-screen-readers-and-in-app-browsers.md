@@ -2,7 +2,83 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26, build: T4 outside the grant flow built on branch
+`claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged.** These are §3's lines
+that are not on the Grant and View pages. Those pages' refusals and waiting lines go in with T6,
+which rewrites them. Two things changed:
+
+- **The wizard's create failure is an alert.** Both kinds are covered: the server's refusal, and
+  the duplicate with its link to the migration that already exists. The alert leaves the page
+  while the next attempt is pending, so a second refusal is heard again.
+- **The consent line under *Connect with …* speaks in both doors.** A refusal is an alert. A
+  consent that landed is a status. The line is now one component, `ConsentNote` in
+  `apps/web/src/components/ProviderConsent.tsx`, which the wizard's source step and the
+  Connections page's panel both draw. Before, each door had its own copy. Each outcome has its own
+  `key`. So when a consent lands after a refusal, a new element takes the refusal's place. Changing
+  the role of an element already on the page is not reliably announced.
+
+No copy changed, in either language. Neither line sits inside another live region, so each failure
+is one announcement (`Login.tsx`:73).
+
+The guard is `apps/web/src/pages/an-error-that-is-announced.unit.test.tsx`. It has 10 cases, five
+in English and five in Dutch:
+
+- a refused create, pressed twice, with the second refusal a new alert;
+- a duplicate;
+- the wizard's refused consent and then a landed one;
+- the panel's refused consent and then a landed one;
+- the panel refused twice.
+
+All 10 failed on the unchanged code, each with *"Unable to find an accessible element with the
+role "alert""*. Nine mutations each made it fail:
+
+| Mutation | Cases that failed |
+|---|---|
+| The create failure without `role="alert"` | 4 |
+| `ConsentNote` without its keys | 4 |
+| The landed consent as an alert | 4 |
+| The refusal as a status | 6 |
+| The wizard's note inside an `aria-live` wrapper | 2 |
+| The wizard's root as a live region | 6 |
+| The wizard back on its own plain note | 2 |
+| The panel not clearing its note before it asks again | 2 |
+| The create failure kept on screen while the next attempt is pending | 2 |
+
+Where the build differs from §3:
+
+- **One component for both doors.** §3 asks for roles only. The wizard's copy of the line would
+  have needed the same roles and keys a second time, so it now draws the panel's component.
+- **A new element for each outcome**, by `key`, as above. §3 does not ask for it.
+- **The wizard's walk is local to the guard.** T3 (a) moves `walkToReview` out of
+  `CreateMapping.unit.test.tsx` into a shared file. Once both have landed, the guard should use
+  that file.
+
+What stays open:
+
+- **Grant and View go in with T6.** Their cases join this guard then.
+- **The wizard's landed consent may be cut short.** A landed consent saves and tests the
+  connection at once. A saved connection takes the consent block off the step, and the status with
+  it. So a screen reader may hear the line for only as long as the save takes. The Test result
+  that follows has no role.
+- **Other lines outside §3 have no role either.** A search of `apps/web/src` found these. They
+  appear after a press and have no role:
+  - the wizard's Test result and its shared-drive and Dropbox-folder browse errors;
+  - the result of a Connections row's Test or replace;
+  - `MappingDetail`'s pause failure;
+  - `Tenants`' rename, phone, notification and invite errors;
+  - `MappingLinksPanel`'s issue error;
+  - `Billing`'s VAT check and save failures;
+  - `Decisions`' preset error;
+  - the `Refused` lines in `Sharing` and `ApplyDeletionsPanel`;
+  - `PermissionsHandover`'s error;
+  - `CompletionReportDownload`'s failure;
+  - the shared-addresses runbook's failure.
+
+  The waiting lines outside the grant flow have no `role="status"` either, for example Login's
+  *checking* line and the pages' *loading* lines. §3 names none of these lines, so none was
+  changed. Whether they belong to T4 is a question for the next pass of this plan.
 
 **2026-09-24, build: T1 built on branch
 `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged, except the skip
@@ -105,7 +181,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T1 The phone menu takes focus and gives it back | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
-| T4 Errors are announced | 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
+| T4 Errors are announced | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged** (2026-09-26), all but the Grant and View lines; those 📋 **Proposed**, with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
 | T5 The consent window opens on the press itself | 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. |
 | T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
