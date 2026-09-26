@@ -975,5 +975,6 @@ operator's CLI cuts one over on its own (`--kind`): mail's path moves to `cutove
 its slot then (`holdsASlot`), while calendars keep theirs and keep copying. The migration's
 status is its paths' roll-up. A press on the whole migration moves only the paths in the phase it
 leaves (slice 5a), so pausing or starting the rest never takes a slot back for a data type that
-was cut over. What is left of consequence 4 is on the owner's side of the screen: the managed
-service's preparation taking a data type (slice 5c) and the Finish page per data type (slice 7).
+was cut over, and the managed service prepares one data type's cutover on its own too (slice
+5c). What is left of consequence 4 is on the owner's side of the screen: the Finish page per data
+type (slice 7).

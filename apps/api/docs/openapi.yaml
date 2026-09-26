@@ -2173,6 +2173,11 @@ paths:
         to `PREPARING` first, then prepared, so the trail shows the second
         attempt. A cutover under way or a finished ledger is refused with 409
         and nothing is enqueued.
+
+        With `domain`, one data type is prepared on its own (workplan 0128
+        T5): its own ledger (or the whole migration's, where it has none of
+        its own yet), a final sync of that data type alone, and a gate over
+        it alone. Only a data type the migration carries.
       requestBody:
         required: false
         content:
@@ -2182,6 +2187,7 @@ paths:
               properties:
                 skipFinalSync: { type: boolean }
                 skipVerification: { type: boolean }
+                domain: { type: string, enum: [email, calendar, contact, file, task] }
       responses:
         '202':
           description: |
@@ -2197,6 +2203,10 @@ paths:
                   - type: object
                     properties:
                       enqueued: { type: string, enum: [cutover-preparation] }
+                      domain:
+                        type: string
+                        enum: [email, calendar, contact, file, task]
+                        description: The data type prepared on its own; absent for the whole migration.
                       nextStep: { type: string }
                       preparation:
                         type: object
@@ -2217,9 +2227,13 @@ paths:
             it back), `closed` (the ledger is `COMPLETED`; one cutover ledger
             per mapping, and this one is finished), `cut_over_by_data_type`
             (a data type of this migration has a cutover of its own, workplan
-            0128 T5: the whole migration's is not prepared, and the operator
-            cuts over the rest one at a time, with the CLI's `--kind`). `state`
-            names the ledger state that refused, where one did.
+            0128 T5: the whole migration's is not prepared; prepare each
+            remaining data type with `domain`, and the operator cuts it over
+            with the CLI's `--kind`), `whole_under_way` (a `domain` was named
+            while the whole migration's cutover is under way: carry on with
+            that one, or roll it back first), `not_a_path` (the migration does
+            not carry the `domain` named). `state` names the ledger state that
+            refused, where one did.
           content:
             application/json:
               schema:
@@ -2228,7 +2242,7 @@ paths:
                   error: { type: string, enum: [cutover_refused] }
                   message: { type: string }
                   hint: { type: string }
-                  code: { type: string, enum: [under_way, closed, cut_over_by_data_type] }
+                  code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path] }
                   state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
 
   /api/migrations/{mappingId}/runs:

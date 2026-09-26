@@ -65,11 +65,21 @@ describe('the cutover door asks the ledger before it enqueues', () => {
     const enqueueAt = POST.indexOf('.tasks.trigger(');
     expect(beginAt).toBeGreaterThan(POST.indexOf('loadLedgers('));
     expect(askAt).toBeGreaterThan(beginAt);
-    const refusal = POST.slice(POST.indexOf("error: 'cutover_refused'"), POST.indexOf("error: 'cutover_refused'") + 200);
+    const refusedAt = POST.indexOf("error: 'cutover_refused'", beginAt);
+    const refusal = POST.slice(refusedAt, refusedAt + 200);
     for (const field of ['message: begin.refuse', 'hint: begin.hint', 'code: begin.code']) {
       expect(refusal).toContain(field);
     }
-    expect(POST.indexOf('return;', POST.indexOf("error: 'cutover_refused'"))).toBeLessThan(enqueueAt);
+    expect(POST.indexOf('return;', refusedAt)).toBeLessThan(enqueueAt);
+  });
+
+  it("asks the data type's own begin rule and ledger, and only of a data type the migration carries (0128 T5, slice 5c)", () => {
+    expect(POST).toContain('cutoverBeginRefusal(ledgers, body.domain)');
+    expect(POST).toContain('loadCutoverState(asTenantId(tenantId), asMappingId(mappingId), body.domain)');
+    const carriedAt = POST.indexOf("code: 'not_a_path'");
+    expect(carriedAt).toBeGreaterThan(POST.indexOf('readPathStopFacts('));
+    expect(POST.indexOf('return;', carriedAt)).toBeLessThan(POST.indexOf('.tasks.trigger('));
+    expect(POST).toContain('resolveCutoverJob(tenantId, mappingId, body)');
   });
 
   it('returns on a refusal, so nothing is enqueued', () => {
