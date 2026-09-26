@@ -2,7 +2,14 @@
 
 > **In one line:** Revising a live migration's config (`config-revision.ts`): managed's `nativeFilePolicy` edit form, the appliance's boot-time `revision_state` check, the `policy_refused` failure category, adding a data type, and a switched-off data type shown as `stopped`.
 
-## Status — 2026-09-23 (update this block at the end of every session)
+## Status — 2026-09-26 (update this block at the end of every session)
+
+**2026-09-26: the export-format key will carry Dropbox Paper docs too (0150 D7).** Workplan 0150
+reuses `nativeFilePolicies` with a `paper` kind rather than adding a Dropbox key. So when 0150 T3
+is built, the may-change row for `source.nativeFilePolicy` widens its wording to name Paper docs:
+§3's `sourceConfig.nativeFilePolicy` row, and the consequence in `config-revision.ts`, which says
+*"Every Google document whose format changes"*. 0150 T3 (c) carries the change. The verdict,
+*may change*, stays as T1 decided it. None of it is built yet.
 
 **2026-09-23, later still: T7 is BUILT, all three steps.** A switched-off data type with copies is
 `stopped` (migration 0057 widens the state CHECK), and `skipped` keeps its meaning: switched off
