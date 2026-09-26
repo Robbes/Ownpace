@@ -4,6 +4,16 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26, T4 (b) merged with T4 (a).** #1189 (the Dutch guides, T4 (a), and the Microsoft
+recipes, T8) merged first, so `main` was merged into `claude/ownpace-public-readiness-y7orc6-five-new-guides`.
+Both label guards stay: T4 (b)'s, which reads each card's own section and every label a field that
+follows another answer can show, and T4 (a)'s, which wants each label quoted in bold, rejects a label
+from the other language and wants a label's twin in the other guide. T4 (a)'s now reads its cases from
+each card's `guide` field, since this branch removed `guideSlugFor`. `LABELS_PENDING` loses Box and
+Dropbox, whose sections #1189 quoted in full. The Dutch archive guide gains what this branch's review fix
+gave the English one: both labels the folder's box can carry, *Map in de bestanden van uw
+bestemming* and *Waar het archief staat*, which the section-level guard asked for. Not merged.
+
 **2026-09-26: T4 (a) and T8 (a) and (b) reviewed and fixed, after main moved.** On branch
 `claude/ownpace-public-readiness-y7orc6-the-guides-in-dutch`, one more commit; not merged. Main was
 merged in first, up to #1183. #1180 dropped the copy budget's fifteen-word cap; this branch adds
@@ -163,6 +173,123 @@ appliance*, an unknown Dutch step, D7's line cut, a label twin or a required lab
 archive guide; whichever of the two merges second writes its Dutch twin, or the outline case
 fails. When #1176 merges, D7's line in the guard can be read from its strings rather than
 written out.
+
+**2026-09-26, T4 (b) reviewed and fixed** on branch
+`claude/ownpace-public-readiness-y7orc6-five-new-guides`, one more commit, after `main` (#1175 to
+#1180) was merged into it. Not merged. The two reviews gave fourteen distinct findings, each
+checked against the merged code. Twelve were fixed, one is recorded rather than changed, and one
+was rejected (both below):
+
+- **The label case reads a label that follows another answer.** After the merge it failed on
+  `archive`: #1178 names the path **The folder**, which is neither of the labels the form shows.
+  The case now resolves a field's `follows` through `followedField` for every answer of the field
+  it follows. The served archive guide names both labels, **Folder in your destination's files**
+  and **Where the archive is**, in `{#archive}` and in its own-Nextcloud steps. A new case holds
+  that a judged field follows another answer, so the resolution is not passing on nothing.
+- **The wizard's guide link opens a new tab.** The wizard keeps neither its step nor a typed
+  password across a navigation.
+- **The guides now say what the code does**, in both languages:
+  - The IMAP target's **Port** box already holds 443 (`initialFormData`), and the guide says to
+    replace it with the IMAP port. The other port boxes are described as holding a value, not as
+    showing an example.
+  - **Use SSL/TLS** is not posted by *Test and save connections*. The add door's `useSsl`
+    defaults to true, so a saved connection uses SSL/TLS whatever the box says. The box stays in
+    the steps as "leave it ticked" and has left the remedies.
+  - A second test after a failed one rotates the kept row. Rotation probes the stored config
+    with the new secret (`connections.ts`), so a corrected host, port or DAV base URL is never
+    tested. Each guide says so and how to test a corrected address: delete the kept connection
+    and test again.
+  - The CalDAV and CardDAV writers write to `calendars/<user>/` and `addressbooks/users/<user>/`
+    under the DAV base, the Nextcloud layout. Only the Test discovers. The DAV guide says this,
+    and that on another layout the Test can pass while the writes fail.
+  - A CalDAV target's **Tasks** is never locked by the Test. A protocol kind's task face is
+    `yes` or `unknown` (`askListable`), never `no`. The lock sentence is gone.
+  - *Sends nobody an invitation* now says what the writer does: `SCHEDULE-AGENT=CLIENT`, and a
+    server that ignores it could still send (ADR-0043). This is in the DAV, Nextcloud and Soverin
+    guides.
+  - Soverin: once a Test has saved the connection, the create door does not refuse an empty mail
+    server. The migration's mail fails when it runs, with the build-time sentence. The guide says
+    to keep **Mail server** filled in before testing, and how to recover. The create-time refusal
+    is kept for a migration created without a passing test.
+  - Nextcloud: the steps now type an **App name** first, because the button stays disabled
+    until one is typed. The Dutch button is Nextcloud's own *Creëer een nieuw app wachtwoord*.
+    Both were read from `nextcloud/server` master: `AuthTokenSetup.vue` and
+    `apps/settings/l10n/nl.json`, which also give *App naam*, *Beveiliging* and
+    *Apparaten & sessies*. The *Settings* entry of the menu is still for T0.
+  - `nl/jmap.md` reads *Deze dienst meldt zich aan*. The new guard's header counts eight cards
+    without a guide, not seven. The first commit's message still says seven; it is not rewritten.
+- **Evidence.** Guards first: the label case failed on `archive`, naming both labels, and the
+  new-tab assertion failed in 14 cases. After the fix, the four guide files pass 298 of 298.
+  Three mutations each turned a case red: the destination label dropped from `{#archive}`, the
+  resolution reduced to the declared label, and the new tab removed.
+
+**Rejected, with the reason.** T4 puts the wizard's link at the end of the about-line's fold.
+The 2026-09-25 note below gives T2 (a)'s open PR as the reason; that no longer holds, because
+#1177 has merged. The link stays beside *Open the setup checklist* for another reason. The IMAP
+source has no about-line. The deployment-app lines of Gmail, the Google account, Calendar,
+Contacts and Dropbox have no fold. `Hint`'s fold is a plain string. No target card has an
+about-line. That leaves one place where every card shows its link. **Recorded, not changed.**
+The guard and the lint's credential case both require English for a card's guide. That is
+stricter than T4 for a guide written in Dutch first: such a guide would need both cases to read
+`TRANSLATION_PENDING.en`. **Left in the product code, and described by the guides:** the wizard
+does not post `useSsl`, and a retest does not re-add a changed address.
+`wizard.testConnections.kept` ("correct them and try again") holds only for a changed secret.
+
+**2026-09-25, T4 (b): the five new guides, in Dutch and English.** Built on branch
+`claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged. Every source and target card
+now has a served guide section.
+
+- **Ten files.** `docs/guides/nl/` and `docs/guides/en/` gain `imap`, `jmap`, `dav`, `nextcloud`
+  and `soverin`, written Dutch first, with T4's outline and ids in both languages. Each card has a
+  section of its own under `connect`: `imap-source` and `imap-target`, `jmap`, `caldav`, `carddav`
+  and `webdav`, `nextcloud` and `soverin`. Each field is named by the wizard's own label in that
+  language. Every claim was read from the code or the repository's documents: the fields and
+  labels from `credential-fields.ts` and `strings.ts`, the data types from `target-domains.ts`,
+  the Test's answers from `probe-connection.ts`, `account-qualification.ts` and `probe-text.ts`,
+  Soverin's pre-filled hosts and ports from `provider-directory.ts`, and the revocation lines from
+  `token-revocation.ts`. The JMAP guide says that a file over 8 MB does not reach a JMAP target yet
+  (`STREAM_FILES_LARGER_THAN_BYTES`; `JmapFileTarget` reads `content` only, 0143 §1), and that
+  such a file is listed as failed.
+- **One map.** Each card in `front-door-cards.ts` gains a required `guide`, `<slug>#<section>`,
+  and `cardGuideHref(side, id)` reads it. `Setup.tsx`'s *Read the full setup guide* opens the
+  card's section for the checklist's side. The wizard shows the same link beside *Open the setup
+  checklist* on the source step and under the cards on the target step. The lint reads the card
+  in place of its `guideSlugFor`. The `/docs` index lists the five guides because they are served.
+- **Guards**, all in the web project. `a-guide-for-every-card.unit.test.tsx` (new) checks that
+  every source and target card names a served guide and a section under `connect`, in every
+  language the guide is written in, English always, and that no two cards share a section. It
+  checks that both languages of a guide carry the same explicit ids, in order, and that the index
+  in both languages lists every guide a card names. It also checks that the checklist and the
+  wizard link each card's own section. In the lint, the credential case now covers every source
+  and target card, the IMAP source included, and skips none. A new case holds that each card's
+  section names every required field by the wizard's label, in each language its guide is written
+  in.
+- **Evidence.** Guards first: on the tree before the guides and the field, 128 cases failed
+  across `a-guide-for-every-card`, `end-user-docs` and `Setup`. All pass now: 297 in those four
+  files, and 347 in the i18n, wizard, Connections and card tests. Seventeen mutations each turned
+  a case red. They were: a section id dropped in Dutch, a card naming a missing section, two cards
+  sharing one, a guide missing in English, in Dutch or in both, either wizard link removed, the
+  checklist linking the family, the index leaving a guide out, a label dropped in each language, a
+  passing guide put on the pending list, the ids out of order between languages, a guide naming
+  the operator or carrying an ISO date, and a `#` link to no heading.
+
+**Deviations.** The IMAP card is one id on two sides, so its sections are `imap-source` and
+`imap-target`, not the card id. The wizard's link is not at the end of the about-line's fold, as
+T4 says. The targets have no about-line, and T2 (a)'s open PR rewrites the source about-lines. T4's
+guard names an `ENGLISH_PENDING` list. It is not built: D8 starts it empty, and the Dutch half is
+held by `TRANSLATION_PENDING`, which still lists the six source guides. T4's label check is built
+with a list that only shrinks, `LABELS_PENDING` (`box`, `dropbox`, `google`, `microsoft`). Those
+English guides, split by T1, name a field in the provider's word or not at all in the card's
+section; `apple` and `archive` pass. The English synonym case stays beside it. The card-subsection
+case and its `CARD_GUIDE` map moved from `Docs.unit.test.tsx` to the new file, now read from the
+field and covering targets. `Setup.unit.test.tsx`'s links now carry the section. Its *no link*
+case moved from a JMAP target, which has a guide now, to a Box target, which is no card; before,
+that page linked the Box guide. Soverin's guide was not read against Soverin's own pages. It gives
+the published values the wizard pre-fills. It says the Test measures whether one app password
+covers mail as well as calendars and contacts, as `docs/soverin-supervised-run.md` §A leaves
+open. The Nextcloud menu path is the checklist's string in each language, not read from
+Nextcloud's screens. Both are for T0 and 0141 T7. T4's link to 0144 T2's page is left out:
+that page does not exist on `main`.
 
 **2026-09-24, T9 built.** The export read from a folder in the migration's own files is built
 on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on
@@ -592,11 +719,11 @@ the owner announced for *Via IMAP* (D5).
 | T1 A customer guide served, operator material left in `docs/` | 🔨 **Built in English**, merged in #1173 (2026-09-25): six guides, the widened lint, the CI filter and D9's line; the Dutch is T4's. 📋 **Decided 2026-09-24** (D1) | §3. The customer text moves to `docs/guides/nl/` and `docs/guides/en/`; the existing `docs/*-setup.md` keep their names and become the operator and self-host documents. The end-user-docs lint is widened so the rule holds. The appliance's `/docs` gains one line pointing to the operator documents (D9). **Before**, for the cards live offers. |
 | T2 No hint to create an app where the deployment carries one | 🟡 **(a), (b) and (d) built** merged in #1177 (2026-09-25); (c) is merged in #1173 (2026-09-25). 📋 **Decided 2026-09-24** (D2) | §3. (a) the wizard's about-lines and the redirect line under its button, (b) the setup checklist, (c) the guide's own-app section, (d) the create refusals and one Microsoft consent sentence. Each reads the fact the wizard already reads. The appliance keeps its steps. **Before.** |
 | T3 Cards that cannot work on managed are hidden there | 🔨 **Apple tag built 2026-09-24** (D7, both editions) merged in #1176 (2026-09-25) — *was:* 📋 **Decided 2026-09-24**: nothing is hidden on managed. The export archive stays, tagged experimental (D10, replacing D3), and so does *Via IMAP* (D5). The Apple export option is tagged *to be tested* on both editions (D7, D10) | §3. The flag and the hiding are not built (D10). What remains is the Apple tag. **Before.** |
-| T4 A Dutch and an English guide for each source and target | 🔨 **(a) built** on branch `claude/ownpace-public-readiness-y7orc6-the-guides-in-dutch`, not merged: the six served guides in Dutch, the same outline and ids as the English, the per-language label guard; reviewed and fixed 2026-09-26, the archive's Dutch twin level with #1178. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
+| T4 A Dutch and an English guide for each source and target | 🔨 **(a) built**, merged in #1189 (2026-09-26): the six served guides in Dutch, the same outline and ids as the English, the per-language label guard. 🔨 **(b) built** on branch `claude/ownpace-public-readiness-y7orc6-five-new-guides`, not merged: the IMAP, JMAP, DAV, Nextcloud and Soverin guides in Dutch and English, each card's `guide` field, the checklist's and the wizard's links, and the guards. Review fixed 2026-09-26. 📋 **Decided 2026-09-24** (D4, D8) | §3. Eleven guides for the twenty cards. Dutch first. Five are new: IMAP (source and target), JMAP, DAV, Nextcloud and Soverin. The i18n prose boundary gains a class for guides. **Before**, in Dutch and in English, for the cards live offers (D8). |
 | T5 The checklist says what must be done first | 📋 **Proposed** | §3. Profiles for Apple, Nextcloud and Soverin, and Google's for the Google account card (**before**); the Microsoft account card's and the archive's (**after**). |
 | T6 A renderer that keeps a guide's shape | 🟡 **(a) built**, merged in #1159 (2026-09-24); (b) not started. 📋 **Decided 2026-09-24** (D6): `Docs.tsx` is extended, with no new dependency | §3. Headings with ids, same-tab anchors, numbered steps, links inside bold, `lang` and titles (**before**); tables, blockquotes, continuation lines, indented fences (**after**). |
 | T7 Every link in a guide resolves, and a refusal links its guide | 📋 **Proposed** | §3. A guard over every served link; refusals carry a guide handle beside their words instead of naming a `.md` file. **After**, apart from the two sentences in T2 (d). |
-| T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written** on branch `claude/ownpace-public-readiness-y7orc6-the-guides-in-dutch`, not merged, in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
+| T8 The Microsoft app-registration recipe | 🔨 **(a) and (b) written**, merged in #1189 (2026-09-26), in both languages at the Microsoft guide's `{#application}`: `Mail.Read` under Microsoft Graph; `IMAP.AccessAsApp` under Office 365 Exchange Online, with `New-ServicePrincipal` and `Add-MailboxPermission`. Checked against Microsoft's published page sources, not walked; `o365-setup.md` corrected. Reviewed and fixed 2026-09-26: Exchange's RBAC route replaces the Entra grant rather than narrowing it, `-UserPrincipalName`, read-only scoped to the card that has it. (c) merged in #1173. The tenant walks ⏳ **Owner** (D5) | §3. Both recipes go into the `microsoft` guide with T4, **before** the first invitation, because both cards are offered then. (a) the *Graph API* card's permissions corrected; its walk before the card's first tester. (b) a recipe for *Via IMAP* written from Microsoft's documentation; its walk is the run the owner announced (D5). |
 | T9 The export read from a folder in the migration's own files | 🟡 **Built 2026-09-24**, review fixed 2026-09-25, on branch `claude/ownpace-public-readiness-y7orc6-the-export-in-your-own-files`, stacked on 0136 T5's branch, not merged. 📋 **Decided 2026-09-24** (D11) | §3. The archive form's choice and the doors' `where`, for a Nextcloud or WebDAV target; a JMAP target is refused by sentence. The archive guide's section, and the gate's archive step moved to the demo Nextcloud. **Before**, stacked on 0136 T5. |
 
 ## 1. What there is today

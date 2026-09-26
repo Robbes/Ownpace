@@ -29,6 +29,21 @@ export interface FrontDoorCard {
   readonly nameKey?: StringKey;
   readonly hintKey: StringKey;
   /**
+   * Where this card's customer guide says how to connect it (workplan 0148
+   * T4): `<slug>#<section>`, the guide `docs/guides/<locale>/<slug>.md` and
+   * the id of the card's own heading under its `connect` section.
+   *
+   * One guide per family of cards whose steps are the same, a section per
+   * card, so the checklist and the wizard open the part somebody needs rather
+   * than the top of a family's guide. `Setup.tsx` and the lint each kept a
+   * `guideSlug` function mapping the Google and Microsoft families by hand,
+   * and neither knew about a target; this is the one map they read now.
+   * Required, so a card cannot arrive without saying where its guide is, and
+   * `a-guide-for-every-card.unit.test.tsx` holds that the section exists in
+   * every language the guide is written in.
+   */
+  readonly guide: `${string}#${string}`;
+  /**
    * Offered on the CONNECTIONS page but not in the migration wizard
    * (workplan 0116 T1).
    *
@@ -58,53 +73,75 @@ export interface FrontDoorCard {
  * nor "365" — under the family heading each card names its connection method.
  */
 export const SOURCE_CARDS = [
-  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
+  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint', guide: 'imap#imap-source' },
   // The ACCOUNT (workplan 0114), first among the Microsoft cards for the same
   // reason `google` leads its family: it is the usual choice, and it is the
   // only one of the three that a person without an IT department can finish.
   // The two app-registration methods stay beside it for the customer who
   // already has a registration — cohabitation, not replacement.
-  { id: 'microsoft', name: 'Microsoft 365 account', hintKey: 'wizard.proto.microsoft.hint' },
-  { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint' },
-  { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint' },
+  {
+    id: 'microsoft',
+    name: 'Microsoft 365 account',
+    hintKey: 'wizard.proto.microsoft.hint',
+    guide: 'microsoft#microsoft',
+  },
+  { id: 'oauth2', nameKey: 'wizard.m365.viaImap', hintKey: 'wizard.proto.oauth2.hint', guide: 'microsoft#oauth2' },
+  { id: 'graph', nameKey: 'wizard.m365.viaGraph', hintKey: 'wizard.proto.graph.hint', guide: 'microsoft#graph' },
   // The ACCOUNT (workplan 0106 T3b), first among the Google cards because
   // `FRONT_DOOR_FAMILIES` puts it first — "the usual choice first". The four
   // product cards stay beside it and are the only way to mail and files on a
   // deployment that has not declared the restricted scope class.
-  { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint' },
-  { id: 'google-drive', name: 'Google Drive', hintKey: 'wizard.proto.googleDrive.hint' },
-  { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint' },
-  { id: 'google-calendar', name: 'Google Calendar', hintKey: 'wizard.proto.googleCalendar.hint' },
-  { id: 'google-contacts', name: 'Google Contacts', hintKey: 'wizard.proto.googleContacts.hint' },
-  { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint' },
-  { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint' },
+  { id: 'google', name: 'Google account', hintKey: 'wizard.proto.google.hint', guide: 'google#google' },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    hintKey: 'wizard.proto.googleDrive.hint',
+    guide: 'google#google-drive',
+  },
+  { id: 'gmail', name: 'Gmail', hintKey: 'wizard.proto.gmail.hint', guide: 'google#gmail' },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    hintKey: 'wizard.proto.googleCalendar.hint',
+    guide: 'google#google-calendar',
+  },
+  {
+    id: 'google-contacts',
+    name: 'Google Contacts',
+    hintKey: 'wizard.proto.googleContacts.hint',
+    guide: 'google#google-contacts',
+  },
+  { id: 'dropbox', name: 'Dropbox', hintKey: 'wizard.proto.dropbox.hint', guide: 'dropbox#dropbox' },
+  { id: 'box', name: 'Box', hintKey: 'wizard.proto.box.hint', guide: 'box#box' },
   // The Apple ACCOUNT (workplan 0115). A card on its own, not a family: there
   // is no second Apple method to sit beside it, because Apple publishes no API
   // one could have been built on. Its hint has to do more work than the
   // others' — it is the only source card where the credential is not obvious
   // from the name, and the first question everyone asks is why there is no
   // button.
-  { id: 'apple', name: 'Apple account (iCloud)', hintKey: 'wizard.proto.apple.hint' },
+  { id: 'apple', name: 'Apple account (iCloud)', hintKey: 'wizard.proto.apple.hint', guide: 'apple#apple' },
   // The EXPORT ARCHIVE (workplan 0116 T1) — one card for both exports, because
   // which export it is (`ARCHIVE_PROVIDERS`) is a field ON the connection and
   // not a kind of its own. Named for what it is rather than for either
   // gatekeeper, so a third export joins it without renaming anything. It was
   // `connectionOnly` for one slice; since T5/T6 the wizard offers it too.
-  { id: 'archive', name: 'Export archive', hintKey: 'wizard.proto.archive.hint' },
+  { id: 'archive', name: 'Export archive', hintKey: 'wizard.proto.archive.hint', guide: 'archive#archive' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export const TARGET_CARDS = [
-  { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint' },
-  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint' },
-  { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint' },
-  { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint' },
-  { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint' },
-  { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint' },
+  { id: 'jmap', name: 'JMAP', hintKey: 'wizard.proto.jmap.hint', guide: 'jmap#jmap' },
+  // The IMAP card is on both sides and its guide is one: the section says which.
+  { id: 'imap', name: 'IMAP', hintKey: 'wizard.proto.imap.hint', guide: 'imap#imap-target' },
+  // The three protocol cards share one guide, `dav`, a section each.
+  { id: 'caldav', name: 'CalDAV', hintKey: 'wizard.proto.caldav.hint', guide: 'dav#caldav' },
+  { id: 'carddav', name: 'CardDAV', hintKey: 'wizard.proto.carddav.hint', guide: 'dav#carddav' },
+  { id: 'webdav', name: 'WebDAV', hintKey: 'wizard.proto.webdav.hint', guide: 'dav#webdav' },
+  { id: 'soverin', name: 'Soverin', hintKey: 'wizard.proto.soverin.hint', guide: 'soverin#soverin' },
   // ONE CARD FOR A NEXTCLOUD, not three (owner's ask, 2026-09-07). The three
   // protocol cards above it stay: somebody with a DAV server that is not a
   // Nextcloud still needs them, and somebody with an atypical Nextcloud path
   // may still prefer them.
-  { id: 'nextcloud', name: 'Nextcloud', hintKey: 'wizard.proto.nextcloud.hint' },
+  { id: 'nextcloud', name: 'Nextcloud', hintKey: 'wizard.proto.nextcloud.hint', guide: 'nextcloud#nextcloud' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export type SourceCard = (typeof SOURCE_CARDS)[number];
@@ -135,6 +172,22 @@ export type TargetCard = (typeof TARGET_CARDS)[number];
  */
 export function frontDoorCards(role: 'source' | 'target'): ReadonlyArray<FrontDoorCard> {
   return role === 'target' ? TARGET_CARDS : SOURCE_CARDS;
+}
+
+/**
+ * Where a card's guide section is, as an address in the app:
+ * `/docs/<slug>#<section>` (workplan 0148 T4). Undefined for an id that is no
+ * card on that side, such as a checklist opened by hand for a provider the
+ * door does not offer there.
+ *
+ * No check that the guide ships: `a-guide-for-every-card.unit.test.tsx` holds
+ * that every card's guide is served, so a link built here always opens one.
+ */
+export function cardGuideHref(role: 'source' | 'target', id: string): string | undefined {
+  const card = frontDoorCards(role).find((c) => c.id === id);
+  if (!card) return undefined;
+  const [slug, section] = card.guide.split('#');
+  return `/docs/${slug}#${section}`;
 }
 
 /**

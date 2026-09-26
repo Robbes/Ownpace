@@ -84,7 +84,7 @@ Voeg op de pagina **Verbindingen** een verbinding toe en kies **Export archive**
 
 - **Welke export**: Google Takeout, of Apple Data & Privacy (nog te testen: die kunnen we nog niet lezen).
 - **Waar de export staat**: **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**, of **Op de schijf van deze appliance**. Het tweede is voor migraties die lopen op een computer waar u bestanden op kunt zetten; waar dat niet zo is, toont het formulier die keuze grijs, met de regel "Alleen op een eigen appliance".
-- **De map**: voor de bestanden van uw bestemming de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). Op een schijf de map waarin u de download uitpakte, of de `.zip` zelf.
+- De map, in een vak waarvan de naam die keuze volgt. **Map in de bestanden van uw bestemming**: de map zoals uw bestanden die tonen, vanaf de hoofdmap, zoals `Exports/takeout-20260904`, of één `.zip` daarin (zie [Uw export in uw eigen Nextcloud](#own-nextcloud)). **Waar het archief staat**, voor een schijf: de map waarin u de download uitpakte, of de `.zip` zelf.
 
 Druk dan op **Toevoegen en testen**. Testen verplaatst niets. Voor een export op een schijf opent het het archief en vertelt het u wat erin zit. Voor een export in de bestanden van uw bestemming zegt het dat de export bij de preflight wordt geteld, omdat u de bestemming met de migratie kiest en er tot dan nergens te kijken valt. Hoe dan ook weet u, voordat er iets verhuist:
 
@@ -103,7 +103,7 @@ De export hoeft niet op een schijf te staan. Staan de bestanden waar u naartoe v
 
 1. Upload de `.zip`-delen naar **één map** in de bestanden waarin de migratie schrijft: hetzelfde Nextcloud- of WebDAV-account dat u als bestemming kiest. Doe dat zoals u altijd bestanden toevoegt, bijvoorbeeld via de website van Nextcloud of de desktopapp.
 2. Kies in de wizard **Export archive** als bron. Kies onder **Waar de export staat** voor **In een map in de bestanden van uw bestemming (Nextcloud of WebDAV)**.
-3. Typ de map zoals die in uw bestanden staat, vanaf de hoofdmap, bijvoorbeeld `Exports/takeout-20260904`. U kunt ook één `.zip` daarin noemen: wij lezen de delen ernaast.
+3. Typ in **Map in de bestanden van uw bestemming** de map zoals die in uw bestanden staat, vanaf de hoofdmap, bijvoorbeeld `Exports/takeout-20260904`. U kunt ook één `.zip` daarin noemen: wij lezen de delen ernaast.
 4. Druk op **Verbindingen testen en bewaren**. De test zegt dat de export bij de preflight wordt geteld. Dat hoort zo: de bestemming kiest u in de stap Doel, en tot dan valt er nergens te kijken.
 5. Kies in de stap Doel datzelfde Nextcloud- of WebDAV-account. De preflight telt dan wat er in de export zit, voordat er iets verhuist.
 
