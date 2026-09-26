@@ -854,6 +854,9 @@ Nothing in this amendment is built. It records the decision the three tasks in
   the same transaction as the row, by the same port the rollback writes through. **The mapping's
   paths move with it in that transaction** (corrected 2026-09-24): `execute` and `complete`
   release their slots, and a rollback takes them back, as the API's doors do (workplan 0109 T1b).
+  Only the paths in the phase the mapping leaves move (amended 2026-09-26, 0128 T5 slice 5a),
+  where its rows add up to its status: a data type in another phase keeps its own, so a pause or a
+  start of the rest never moves one back that was cut over on its own.
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
   lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
