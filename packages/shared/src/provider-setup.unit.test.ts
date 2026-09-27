@@ -16,9 +16,11 @@ import {
   providersWithSetup,
   setupStepsFor,
   summariseSetup,
+  type SetupSide,
   type SetupStepStatus,
 } from './provider-setup.ts';
 import type { ProviderClientFacts } from './provider-clients.ts';
+import { connectableTypes } from './credential-fields.ts';
 
 const status = (
   key: string,
@@ -135,6 +137,143 @@ describe('the own-app steps, against what the deployment carries (0148 T2 (b))',
     }
     expect(setupStepsFor('source', 'box', facts({ google: 'deployment', dropbox: 'deployment' })))
       .toHaveLength(4);
+  });
+});
+
+/**
+ * THE CHECKLIST SAYS WHAT MUST BE DONE FIRST (workplan 0148 T5 (a)).
+ *
+ * Five cards a tester is offered opened a checklist that said *"Nothing to set
+ * up in advance; go straight to the wizard"*: Apple, which wants an
+ * app-specific password made at Apple first; Nextcloud and Soverin, whose
+ * account has to exist and whose password is typed into the wizard; and the
+ * two cards T5 (b) is about. So every card both doors offer has a profile, or
+ * stands on the list below with the reason it has none. Nothing is hidden on
+ * managed (D10), so "offered on managed" is every connectable type.
+ *
+ * The list only shrinks: an entry whose card has a profile fails, so the
+ * excuse goes when T5 (b) lands.
+ */
+describe('every card has a checklist, or a reason it has none (0148 T5)', () => {
+  /** `side:type` → why that card has no profile yet, and whose it is. */
+  const WITHOUT_A_PROFILE: Readonly<Record<string, string>> = {
+    'source:microsoft':
+      "Nothing in advance where the deployment carries Microsoft's registration: Connect with Microsoft. " +
+      'Its own-app profile, for a deployment without one, is 0148 T5 (b), after the first invitation.',
+    'source:archive':
+      '0148 T5 (b), after the first invitation: request the export, which takes minutes to days at ' +
+      'Google and up to seven days at Apple, and download it before the date the provider shows.',
+  };
+
+  const SIDES: ReadonlyArray<SetupSide> = ['source', 'target'];
+
+  it('every card both doors offer has steps, or is on the list with its reason', () => {
+    const missing = SIDES.flatMap((side) =>
+      connectableTypes(side)
+        .filter((type) => setupStepsFor(side, type).length === 0)
+        .map((type) => `${side}:${type}`)
+        .filter((card) => !(card in WITHOUT_A_PROFILE)),
+    );
+    expect(missing, 'cards whose checklist says there is nothing to prepare').toEqual([]);
+  });
+
+  it('the list only shrinks: each entry is a real card, still without a profile, with a reason', () => {
+    for (const [card, reason] of Object.entries(WITHOUT_A_PROFILE)) {
+      const [side, type] = card.split(':') as [SetupSide, string];
+      expect(connectableTypes(side), card).toContain(type);
+      expect(setupStepsFor(side, type), `${card} has a profile now: take it off the list`).toEqual([]);
+      expect(reason.trim().length, card).toBeGreaterThan(0);
+    }
+  });
+
+  const keys = (side: SetupSide, type: string) => setupStepsFor(side, type).map((s) => s.key);
+
+  it('pins the stored KEYS of the three new profiles', () => {
+    expect(keys('source', 'apple')).toEqual(['app_password']);
+    expect(keys('target', 'nextcloud')).toEqual(['account_exists', 'app_password', 'dav_url']);
+    expect(keys('target', 'soverin')).toEqual(['account_exists', 'password', 'mail_server']);
+  });
+
+  it('says what each new step yields, where it yields something to type', () => {
+    const yields = (side: SetupSide, type: string) =>
+      Object.fromEntries(setupStepsFor(side, type).map((s) => [s.key, s.yieldsKey]));
+    expect(yields('source', 'apple')).toEqual({ app_password: 'setup.apple.app_password.yields' });
+    expect(yields('target', 'nextcloud')).toMatchObject({
+      app_password: 'setup.nextcloud.app_password.yields',
+      dav_url: 'setup.nextcloud.dav_url.yields',
+    });
+    expect(yields('target', 'soverin')).toMatchObject({ password: 'setup.soverin.password.yields' });
+  });
+
+  it('no deployment app replaces any of them: each is kept whatever the service carries', () => {
+    const everyApp: ProviderClientFacts = { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' };
+    for (const [side, type] of [
+      ['source', 'apple'],
+      ['target', 'nextcloud'],
+      ['target', 'soverin'],
+    ] as const) {
+      const all = setupStepsFor(side, type);
+      expect(all.length, `${side}:${type}`).toBeGreaterThan(0);
+      expect(setupStepsFor(side, type, everyApp), `${side}:${type}`).toEqual(all);
+    }
+  });
+});
+
+/**
+ * EACH MICROSOFT REGISTRATION CARD GETS THE RECIPE IT NEEDS (0148 T5 (a),
+ * found under T8 on 2026-09-26).
+ *
+ * *Via IMAP* (`oauth2`) and *Via the Graph API* (`graph`) shared one profile,
+ * whose permission step said to add Microsoft Graph permissions "for mail,
+ * calendar, contacts or files". Both cards read one mailbox's mail, and the
+ * IMAP card's token carries only what is given on Office 365 Exchange Online:
+ * `IMAP.AccessAsApp`, a service principal registered in Exchange Online and the
+ * mailbox given to it (the Microsoft guide's `{#application-imap}`). So the two
+ * share the registration and its secret, word for word, and each has its own
+ * permission. The IMAP card's steps are new KEYS: a tick given against the
+ * Graph text is not a tick for the Exchange permission, and the old
+ * `api_permissions` rows of `oauth2` are left harmlessly behind.
+ */
+describe('each Microsoft registration card gets the recipe it needs (0148 T5 (a))', () => {
+  const keys = (type: string) => setupStepsFor('source', type).map((s) => s.key);
+  const byKey = (type: string) => new Map(setupStepsFor('source', type).map((s) => [s.key, s]));
+
+  it('Via the Graph API: the registration, its secret, then one Microsoft Graph permission', () => {
+    expect(keys('graph')).toEqual(['app_registration', 'client_secret', 'api_permissions']);
+  });
+
+  it('Via IMAP: the same registration and secret, then what Exchange Online wants', () => {
+    expect(keys('oauth2')).toEqual([
+      'app_registration',
+      'client_secret',
+      'exchange_permission',
+      'service_principal',
+      'mailbox_permission',
+    ]);
+    expect(setupStepsFor('source', 'oauth2')).not.toBe(setupStepsFor('source', 'graph'));
+  });
+
+  it('the two share the registration and secret steps, and nothing else', () => {
+    const graph = byKey('graph');
+    const imap = byKey('oauth2');
+    expect(imap.get('app_registration')).toBe(graph.get('app_registration'));
+    expect(imap.get('client_secret')).toBe(graph.get('client_secret'));
+    expect(imap.has('api_permissions'), 'the Graph permission is not the IMAP card’s').toBe(false);
+    expect(graph.has('exchange_permission')).toBe(false);
+  });
+
+  it('marks every consent and Exchange step as an administrator’s', () => {
+    expect(byKey('graph').get('api_permissions')?.needsAnotherPerson).toBe(true);
+    for (const key of ['exchange_permission', 'service_principal', 'mailbox_permission']) {
+      expect(byKey('oauth2').get(key)?.needsAnotherPerson, key).toBe(true);
+    }
+  });
+
+  it("keeps every step where the deployment carries Microsoft's registration: these cards take their own", () => {
+    const microsoft: ProviderClientFacts = { google: 'connection', dropbox: 'connection', microsoft: 'deployment' };
+    for (const type of ['graph', 'oauth2']) {
+      expect(setupStepsFor('source', type, microsoft), type).toEqual(setupStepsFor('source', type));
+    }
   });
 });
 
