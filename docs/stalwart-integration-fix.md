@@ -262,6 +262,10 @@ what actually resolves the problem vs. what merely works around it:
    `e2e.yml`'s "Pick free host ports" step is the reference implementation: bind to port 0, read
    back the OS-assigned free port, close, use that. Do the same in the agent rather than
    hardcoding a port — or, better, use item 0 and skip host ports for this purpose entirely.
+   **Rule (workplan 0132 T3):** `setup-stalwart.sh` publishes both ports on
+   `STALWART_BIND`, `127.0.0.1` unless set, because its accounts and passwords are in this
+   repository. So the published ports answer on the host's loopback only, and
+   `host.docker.internal` from a container does not reach them: use item 0's network alias.
 5. If the agent drives the Testcontainers integration suite directly (not just `e2e.yml`'s compose
    flow), it also needs `stalwart-cli` on its own `PATH` (or `STALWART_CLI_PATH` set) — a real
    host-level binary dependency in `testcontainers-setup.ts`'s provisioning phase, separate from the
