@@ -28,11 +28,12 @@ set -euo pipefail
 #
 # Env overrides (all optional):
 #   MANAGED_NETWORK          the ACTUAL compose network name the worker/api containers are on
-#                             (default ownpace-managed_ownpace-network -- Compose
-#                             prefixes managed.yml's `ownpace-network` key with its pinned
-#                             project name `ownpace-managed`; verify with `docker compose -f
-#                             managed.yml config` if that pinned name ever changes)
-#   NEXTCLOUD_CONTAINER       (default ownpace-nextcloud, matches managed.yml)
+#                             (default <project>_ownpace-network -- Compose prefixes
+#                             managed.yml's `ownpace-network` key with the project name,
+#                             and <project> is this checkout's: COMPOSE_PROJECT_NAME, else
+#                             managed.yml's `name:`; verify with `docker compose -f
+#                             managed.yml config`)
+#   NEXTCLOUD_CONTAINER       (default <project>-nextcloud, matches managed.yml)
 #   NEXTCLOUD_HOST_PORT       host port nextcloud's :80 is published on
 #                             (default 8083, matches managed.yml's NEXTCLOUD_PORT default)
 #   STALWART_CONTAINER/VOLUME/CONFIG_VOLUME/JMAP_PORT/IMAPS_PORT — forwarded to
@@ -44,7 +45,7 @@ set -euo pipefail
 #     127.0.0.1:<published-port> may not be reachable from your own shell even though
 #     Stalwart is genuinely up (see docs/stalwart-integration-fix.md's DooD section).
 #     Join your own container to $MANAGED_NETWORK (`docker network connect
-#     ownpace-managed_ownpace-network <your-container>`) and set
+#     <project>_ownpace-network <your-container>`) and set
 #     STALWART_CLI_URL=http://stalwart:8080 if the default doesn't work.
 #   NEXTCLOUD_URL — forwarded to setup-nextcloud-users.sh, same DooD caveat as
 #     STALWART_CLI_URL above (confirmed to affect this script too, 2026-07-25). Join
@@ -78,14 +79,16 @@ if [ -z "${NEXTCLOUD_ADMIN_PASSWORD:-}" ] && [ -f "$COMPOSE_ENV_FILE" ]; then
 fi
 
 # Must match the ACTUAL Docker network name docker compose creates for managed.yml's
-# `ownpace-network` key, which Compose prefixes with the project name (managed.yml pins
-# `name: ownpace-managed`, so this is fixed/predictable -- verify with `docker compose -f
-# managed.yml config` if you ever change that pinned name). Getting this wrong doesn't error: it
-# just makes setup-stalwart.sh silently create and join an ISOLATED network of its own, leaving
+# `ownpace-network` key, which Compose prefixes with the project name. The project is this
+# checkout's own (COMPOSE_PROJECT_NAME, else managed.yml's `name:`), so the demo joins the
+# network of the stack it is set up for, and never another stack's on the same machine
+# (workplan 0132 T1) -- verify with `docker compose -f managed.yml config`. Getting this
+# wrong doesn't error: it just makes setup-stalwart.sh silently create and join an ISOLATED network of its own, leaving
 # Stalwart unreachable from api/worker with no obvious symptom until a sync actually tries to
 # connect (confirmed live on the Spark box, 2026-07-25, while chasing an unrelated Postgres bug).
-MANAGED_NETWORK="${MANAGED_NETWORK:-ownpace-managed_ownpace-network}"
-NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}"
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
+MANAGED_NETWORK="${MANAGED_NETWORK:-${COMPOSE_PROJECT}_ownpace-network}"
+NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-${COMPOSE_PROJECT}-nextcloud}"
 NEXTCLOUD_HOST_PORT="${NEXTCLOUD_HOST_PORT:-8083}"
 # FOLLOW THE PUBLISH, DO NOT ASSUME LOOPBACK. setup-nextcloud-users.sh defaults
 # its base URL to 127.0.0.1:$NEXTCLOUD_HOST_PORT, which is right until an

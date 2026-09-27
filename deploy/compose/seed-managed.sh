@@ -41,6 +41,14 @@ COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
   echo "FATAL: $ENV_FILE not found — run ./deploy/compose/bootstrap-managed.sh --only env" >&2
   exit 1
 }
+# This checkout's own stack (workplan 0132 T1). Compose finds Postgres's port
+# below, and it follows a COMPOSE_PROJECT_NAME exported in the shell over this
+# checkout's .env, so the reader refuses a shell that names the other stack.
+# Asked before the .env is sourced, which would hide the mismatch when the file
+# names a project.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+compose_project "${SCRIPT_DIR}" >/dev/null || exit 1
 set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
@@ -78,7 +86,7 @@ DIRECT="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhos
 # THE CHECK IS THE SEED'S OWN CONNECTION, not a probe beside it — and that is a
 # correction, not a shortcut. A probe would have to reach Postgres the way this
 # seed does, from the host through the published port, because the tempting
-# `docker exec ownpace-db psql -h 127.0.0.1` is answered by pg_hba's `trust`
+# `psql -h 127.0.0.1` inside the database container is answered by pg_hba's `trust`
 # line and succeeds with ANY password, wrong ones included. That vacuous check
 # has been shipped here once already; the first draft of this block wrote it
 # again, and scripts/the-check-postgres-never-made.unit.test.ts refused it.
@@ -118,7 +126,7 @@ if [ "$seed_rc" -ne 0 ]; then
       echo
       cat <<'REMEDY'
 export NEWPG="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | head -1)"
-docker exec -i -e NEWPG ownpace-db psql -U openmigrate -d openmigrate <<'SQL'
+docker compose -f managed.yml exec -T -e NEWPG postgres psql -U openmigrate -d openmigrate <<'SQL'
 \set pw `printf '%s' "$NEWPG"`
 ALTER ROLE openmigrate PASSWORD :'pw';
 SQL
