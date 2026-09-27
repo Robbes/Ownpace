@@ -11,9 +11,10 @@
  *
  * `zip-archive.ts` imported `crc32` from `node:zlib`. That export is recent;
  * this repository's `package.json` asks for Node 24 and gets it on the
- * developer's machine, but the task images are built by a CLI this repository
- * does not pin, on a runtime it does not choose. The import resolved locally
- * and failed there.
+ * developer's machine. The CLI that builds the task images is pinned to the
+ * SDK's version, but `trigger.config.ts` named no runtime, so the CLI built
+ * them on its default, which in 4.5.16 is Node 21. The import resolved locally
+ * and failed there. The config has named `node-24` since workplan 0146 T6.
  *
  * WHY IT WAITED TO BITE. Every task imports `@openmig/connectors`, and the
  * archive reader comes with it — so the break was present from the moment that
@@ -48,8 +49,9 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'
  *
  * That is the real boundary rather than a list of today's three files. A test
  * BUILDS fixtures and runs on whatever Node CI has, which has the export. A
- * job runs in a task image built by a CLI this repository does not pin, on a
- * runtime it does not choose — and that is where the deploy died.
+ * job runs in a task image built on the runtime the task config names or,
+ * when it names none, on the server project's default or else the CLI's own,
+ * which is how the deploy died.
  *
  * Derived, so the next test that needs a zip fixture is not a maintenance
  * task, and the next SOURCE file that reaches for the platform still is.
