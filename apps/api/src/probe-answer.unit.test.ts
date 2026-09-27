@@ -5,9 +5,10 @@
  *
  * `probeAnswers` is the one place the managed API turns what a host a tester
  * typed said into a sentence. What this holds: each kind of `said` becomes our
- * sentence and never the full text; the full text goes to the log once, under
- * the reference the sentence ends with; one request records one event; and a
- * result or a face without `said` passes as it came.
+ * sentence and never the full text; the parts stay on the answer with the
+ * reference, so a screen can say them in its reader's language; the full text
+ * goes to the log once, under the reference the sentence ends with; one request
+ * records one event; and a result or a face without `said` passes as it came.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -80,14 +81,18 @@ describe('the probe result', () => {
       `The server answered 500 with something that is not a DAV, JMAP or IMAP error. Reference ${ref}.`,
     );
     expect(answered.reason).not.toContain('admin page');
-    expect(answered).not.toHaveProperty('said');
+    // The parts stay, with the reference, for a screen to say in its language.
+    expect(answered.said).toEqual({ kind: 'answered', protocol: 'dav', status: 500, reference: ref });
+    expect(JSON.stringify(answered.said)).not.toContain('admin page');
     expect(answered.outcome).toEqual({ code: 'providerRefused' });
   });
 
   it("nothing answered: the outcome is 'unreachable'", () => {
     const answered = probeAnswers('testing a connection').result(refused({ kind: 'unreachable' }, 'connect ECONNREFUSED 10.0.0.9:5432'));
     expect(answered.outcome).toEqual({ code: 'unreachable' });
-    if (!answered.ok) expect(answered.reason).not.toContain('10.0.0.9');
+    if (answered.ok) return;
+    expect(answered.reason).not.toContain('10.0.0.9');
+    expect(answered.said).toEqual({ kind: 'unreachable', reference: recorded[0]?.reference });
   });
 
   it("the rule's refusal: the outcome is 'insideOurNetwork', and no host", () => {
@@ -139,7 +144,7 @@ describe('the qualification', () => {
     },
   };
 
-  it('each face with parts is said from them, and the parts are not kept', () => {
+  it('each face with parts is said from them, and keeps them with the reference', () => {
     const answers = probeAnswers('testing a connection', 'a-tenant');
     const q = answers.qualification(measured);
     const ref = recorded[0]?.reference;
@@ -147,10 +152,11 @@ describe('the qualification', () => {
       answer: 'unknown',
       reason: 'refused',
       detail: `Unmeasured — the server answered 500 with something that is not a DAV, JMAP or IMAP error. Reference ${ref}.`,
+      said: { kind: 'answered', protocol: 'dav', status: 500, reference: ref },
     });
     expect(q.domains.contact.detail).toMatch(/^Unmeasured — nothing answered at that address/);
+    expect(q.domains.contact.said).toEqual({ kind: 'unreachable', reference: ref });
     expect(JSON.stringify(q)).not.toContain('admin page');
-    expect(JSON.stringify(q)).not.toContain('said');
     // The faces without parts are as they were.
     expect(q.domains.mail).toEqual(measured.domains.mail);
     expect(q.domains.file).toEqual(measured.domains.file);

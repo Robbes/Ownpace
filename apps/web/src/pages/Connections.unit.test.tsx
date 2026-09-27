@@ -1734,3 +1734,77 @@ describe('the consent asks for its ending in the page’s language (0145 T6)', (
     }
   });
 });
+
+/**
+ * A TEST AT A TYPED ADDRESS, IN THE READER'S LANGUAGE (workplan 0136 T3).
+ *
+ * The managed API answers a Test at an address the tester typed from its
+ * parts, and keeps them beside its English sentence with the reference that
+ * finds the full text in its log. The card says them in Dutch to a Dutch
+ * reader, the refused faces too, and the limit on tests is ours as well.
+ * `apps/web/src/i18n/an-answer-a-dutch-tester-read-in-english.unit.test.ts`
+ * holds every sentence; this holds that the card uses them.
+ */
+describe('a Test at a typed address reads in the page’s language (0136 T3)', () => {
+  beforeEach(() => window.localStorage.setItem('ownpace.locale', 'nl'));
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  function renderInDutch() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <LocaleProvider>
+          <MemoryRouter>
+            <Connections />
+          </MemoryRouter>
+        </LocaleProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('the answer and each refused face are said from their parts, with the reference', async () => {
+    list.mockResolvedValue([conn({ kind: 'nextcloud', role: 'target' })]);
+    const said = { kind: 'insideOurNetwork' as const, reference: '1a2b3c4d' };
+    testConnection.mockResolvedValue({
+      ok: false,
+      reason: 'That address is inside this service’s own network … Reference 1a2b3c4d.',
+      outcome: { code: 'insideOurNetwork' },
+      said,
+      qualification: {
+        domains: {
+          calendar: {
+            answer: 'unknown',
+            reason: 'refused',
+            detail: 'Unmeasured — that address is inside this service’s own network … Reference 1a2b3c4d.',
+            said,
+          },
+        },
+      },
+    });
+    renderInDutch();
+
+    fireEvent.click(await screen.findByText(STRINGS.nl['connections.test']));
+
+    expect(
+      await screen.findByText(/^Dat adres ligt binnen het eigen netwerk van deze dienst.*Referentie 1a2b3c4d\.$/),
+    ).toBeTruthy();
+    expect(screen.getByText(/^Agenda: Niet gemeten — dat adres ligt binnen het eigen netwerk/)).toBeTruthy();
+    expect(screen.queryByText(/inside this service’s own network/)).toBeNull();
+  });
+
+  it('the limit on tests says so in Dutch, not in the server’s English', async () => {
+    list.mockResolvedValue([conn()]);
+    testConnection.mockRejectedValue(
+      axiosStatus(429, 'Too Many Requests', {
+        error: 'too_many_tests',
+        reason: 'You have tested a lot of connections in the last hour. Wait a little, then test again.',
+      }),
+    );
+    renderInDutch();
+
+    fireEvent.click(await screen.findByText(STRINGS.nl['connections.test']));
+
+    expect(await screen.findByText(STRINGS.nl['probe.tooManyTests'])).toBeTruthy();
+    expect(screen.queryByText(/tested a lot of connections/)).toBeNull();
+  });
+});

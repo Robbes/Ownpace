@@ -237,6 +237,19 @@ export function inUseMigrations(err: unknown): { names: string[]; used: number }
 }
 
 /**
+ * Whether a door refused a Test because the member has tested too many
+ * connections in the last hour (`too_many_tests`, workplan 0136 T3).
+ *
+ * Ours, like the refusals above, so the screen says it in the reader's
+ * language. The server's `reason` is the English for the same sentence.
+ */
+export function tooManyTests(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const data = err.response?.data as { error?: unknown } | undefined;
+  return err.response?.status === 429 && data?.error === 'too_many_tests';
+}
+
+/**
  * The migration a `duplicate_mapping` refusal points at, or null (0071 T6).
  *
  * Same split again: the existing migration's name and id are the finding, the
