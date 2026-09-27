@@ -44,6 +44,32 @@
 # all). The scripts reach a service with `docker compose exec <service>`, and take the project
 # from `compose_project` in env-read.sh. `scripts/two-stacks-on-one-box.unit.test.ts` renders this
 # file under two projects and fails on anything the two would share.
+#
+# EVERY PORT ANSWERS ON LOOPBACK, AND ANY OTHER ADDRESS IS ASKED FOR (workplan 0132 T3, T1f).
+# A publish with no host address is Docker's 0.0.0.0, every interface, and Docker writes its own
+# firewall rules for it, so a host firewall's input rules do not close it. Seven ports here were
+# published that way until workplan 0132 T3. On a machine with two stacks it is worse than "reachable from
+# outside": a container reaches every port the host publishes through its network's gateway, so
+# each stack's containers could reach the other's Postgres, API and Trigger.dev API.
+#
+# So each published port has two entries. The first is `127.0.0.1`, fixed, because the bring-up,
+# the smoke, the deploy CLI and the seed ask these ports on localhost from the host. The second is
+# `${<NAME>_BIND:-127.0.0.1}`: unset, it renders the same as the first and Compose keeps one of them;
+# set in this stack's `.env`, it adds that address and leaves loopback where it was. What a bind is
+# set to is the front's address for a port a public name is routed to (the web app, the identity
+# provider and the status page), and a mesh address for a page the owner opens from a laptop.
+# A bind is one IPv4 address, never a name (Compose refuses the whole file, `invalid IP address`)
+# and never 0.0.0.0; `bootstrap-managed.sh` refuses both before Compose reads the file.
+# `scripts/a-port-published-on-purpose.unit.test.ts` holds every `ports:` entry to this shape.
+# Mailpit and Nextcloud keep their older single bind, which their callers follow.
+#
+# A BIND ON A MESH ADDRESS TIES THE CONTAINER'S START TO THAT ADDRESS. Docker binds the address
+# when it starts the container, and the address must exist then. After a reboot where Docker
+# starts before the mesh client has its address, the container fails with `cannot assign
+# requested address`, its loopback publish with it, and a restart policy does not reliably
+# retry that start. A publish on every interface never had this dependency. The remedy,
+# `net.ipv4.ip_nonlocal_bind=1` or Docker ordered after the mesh, and the check after a reboot are
+# in docs/managed-bring-up.md, "Which address a port answers on".
 name: ownpace-managed
 services:
   # PostgreSQL Database
@@ -56,7 +82,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openmigrate_password}
       POSTGRES_DB: ${POSTGRES_DB:-openmigrate}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Loopback, and POSTGRES_BIND only if something off this machine needs
+      # the database, which nothing here does: the host scripts ask localhost,
+      # and the stack reaches it by name. See the header for the shape.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
       # NO docker-entrypoint-initdb.d mount of the migration files, deliberately
@@ -222,7 +252,10 @@ services:
       PORT: 3000
       APP_LOG_LEVEL: info
     ports:
-      - "${TRIGGER_PORT:-3090}:3000"
+      # Plain HTTP, and the deploy CLI asks it on localhost (TRIGGER_API_ORIGIN),
+      # so TRIGGER_BIND stays empty on a real box. See the header.
+      - "127.0.0.1:${TRIGGER_PORT:-3090}:3000"
+      - "${TRIGGER_BIND:-127.0.0.1}:${TRIGGER_PORT:-3090}:3000"
     volumes:
       - trigger_shared:/home/node/shared
     depends_on:
@@ -485,7 +518,13 @@ services:
     environment:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
     ports:
-      - "${TRIGGER_TLS_PORT:-3443}:3443"
+      # The dashboard. To open it from a laptop over the mesh, set
+      # TRIGGER_TLS_BIND to this machine's mesh IP address, the one
+      # TRIGGER_TLS_HOST names (an IP, never a name; docs/managed-bring-up.md,
+      # "Addressing the dashboard"). The smoke keeps asking 127.0.0.1. See the
+      # header.
+      - "127.0.0.1:${TRIGGER_TLS_PORT:-3443}:3443"
+      - "${TRIGGER_TLS_BIND:-127.0.0.1}:${TRIGGER_TLS_PORT:-3443}:3443"
     volumes:
       - ./trigger-tls.Caddyfile:/etc/caddy/Caddyfile:ro
       - trigger_tls_data:/data
@@ -672,7 +711,13 @@ services:
       # own block — web 3123, status 3124, www 3125 — which is unclaimed by
       # convention and by anything else in this repo.
       # Same number both sides — see ZITADEL_PORT above.
-      - "${ZITADEL_PORT:-3126}:${ZITADEL_PORT:-3126}"
+      #
+      # A ROUTED PORT: a public name (`id.…`) leads here through the front, and
+      # so does the API, which reaches its issuer by that name. Loopback stays
+      # for `wait_for_idp_ready`; ZITADEL_BIND is set to the front's address in
+      # this stack's `.env`, or the name stops answering. See the header.
+      - "127.0.0.1:${ZITADEL_PORT:-3126}:${ZITADEL_PORT:-3126}"
+      - "${ZITADEL_BIND:-127.0.0.1}:${ZITADEL_PORT:-3126}:${ZITADEL_PORT:-3126}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -977,7 +1022,10 @@ services:
       # `scripts/a-rule-nothing-switched-on.unit.test.ts`.
       OWNPACE_REACHABLE_HOSTS: ${OWNPACE_REACHABLE_HOSTS:-}
     ports:
-      - "${API_PORT:-3001}:3001"
+      # It serves an unauthenticated `/metrics`, and the web app reaches it by
+      # name, so API_BIND stays empty on a real box. See the header.
+      - "127.0.0.1:${API_PORT:-3001}:3001"
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-3001}:3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -1026,7 +1074,11 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-3123}:80"
+      # A ROUTED PORT: the app's public name (`app.…`) leads here through the
+      # front. WEB_BIND is set to the front's address in this stack's `.env`,
+      # or the name stops answering. See the header.
+      - "127.0.0.1:${WEB_PORT:-3123}:80"
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3123}:80"
     depends_on:
       - api
     networks:
@@ -1121,7 +1173,10 @@ services:
       # outage is still readable afterwards.
       - gatus_data:/data
     ports:
-      - "${STATUS_PORT:-3124}:8080"
+      # A ROUTED PORT where a status name leads here (live's `status.…`), and
+      # STATUS_BIND is then the front's address. See the header.
+      - "127.0.0.1:${STATUS_PORT:-3124}:8080"
+      - "${STATUS_BIND:-127.0.0.1}:${STATUS_PORT:-3124}:8080"
     networks:
       - ownpace-network
       # The second network exists for one name: see the provider's

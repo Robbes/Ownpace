@@ -36,10 +36,18 @@ set -euo pipefail
 #   STALWART_NETWORK            shared network to join (default ownpace_dev-network)
 #   STALWART_JMAP_PORT          host port for JMAP/management (default 18080)
 #   STALWART_IMAPS_PORT         host port for IMAPS (default 1993)
+#   STALWART_BIND               host address both ports are published on (default
+#                                127.0.0.1). Loopback, because the accounts below and
+#                                their passwords are in this repository (workplan 0132
+#                                T3). Containers on $NETWORK reach it by name and need
+#                                no published port; set a mesh address here only to
+#                                reach it from another machine on that mesh. Never
+#                                0.0.0.0 on a machine with a public name.
 #   STALWART_RECOVERY_PASSWORD  recovery-mode admin password (default provision_password)
 #   STALWART_CLI_URL            URL stalwart-cli itself connects to for provisioning
-#                                (default http://127.0.0.1:$JMAP_PORT, i.e. the published
-#                                port). Override to http://stalwart:8080 if the caller is a
+#                                (default: the published JMAP port, on the address it is
+#                                published on, 127.0.0.1 unless STALWART_BIND says
+#                                otherwise). Override to http://stalwart:8080 if the caller is a
 #                                Docker-outside-of-Docker sandbox that has joined $NETWORK —
 #                                see docs/stalwart-integration-fix.md's DooD section. Only
 #                                affects stalwart-cli; the readiness check below always goes
@@ -53,7 +61,16 @@ NETWORK="${STALWART_NETWORK:-ownpace_dev-network}"
 JMAP_PORT="${STALWART_JMAP_PORT:-18080}"
 IMAPS_PORT="${STALWART_IMAPS_PORT:-1993}"
 RECOVERY_PASSWORD="${STALWART_RECOVERY_PASSWORD:-provision_password}"
-CLI_URL="${STALWART_CLI_URL:-http://127.0.0.1:${JMAP_PORT}}"
+# Which address the two ports are published on, and so the address this host
+# asks them on: a publish that moved and a caller that stayed at localhost is a
+# "never came up" that blames Stalwart for a moved port. Every interface
+# includes loopback, so that one is asked on 127.0.0.1.
+BIND="${STALWART_BIND:-127.0.0.1}"
+case "$BIND" in
+  0.0.0.0) HOST_ADDR=127.0.0.1 ;;
+  *) HOST_ADDR="$BIND" ;;
+esac
+CLI_URL="${STALWART_CLI_URL:-http://${HOST_ADDR}:${JMAP_PORT}}"
 
 STALWART_CLI="${STALWART_CLI_PATH:-stalwart-cli}"
 command -v "$STALWART_CLI" >/dev/null 2>&1 || {
@@ -150,7 +167,7 @@ docker run -d \
   -e STALWART_HOSTNAME=0.0.0.0 \
   -e STALWART_RECOVERY_MODE=1 \
   -e STALWART_RECOVERY_ADMIN="admin:${RECOVERY_PASSWORD}" \
-  -p "${JMAP_PORT}:8080" \
+  -p "${BIND}:${JMAP_PORT}:8080" \
   "$IMAGE" --config /etc/stalwart/config.json >/dev/null
 
 wait_for_jmap "Recovery listener"
@@ -188,14 +205,14 @@ docker run -d \
   -v "$VOLUME:/opt/stalwart/data" \
   -v "$CONFIG_VOLUME:/etc/stalwart:ro" \
   -e STALWART_HOSTNAME=0.0.0.0 \
-  -p "${JMAP_PORT}:8080" \
-  -p "${IMAPS_PORT}:993" \
+  -p "${BIND}:${JMAP_PORT}:8080" \
+  -p "${BIND}:${IMAPS_PORT}:993" \
   "$IMAGE" --config /etc/stalwart/config.json >/dev/null
 
 wait_for_jmap "Normal-mode server"
 
 echo "[setup-stalwart] Ready."
-echo "[setup-stalwart]   JMAP:  http://127.0.0.1:${JMAP_PORT}/.well-known/jmap  (or http://stalwart:8080 from ${NETWORK})"
-echo "[setup-stalwart]   IMAPS: 127.0.0.1:${IMAPS_PORT} (TLS, self-signed cert; or stalwart:993 from ${NETWORK})"
+echo "[setup-stalwart]   JMAP:  http://${HOST_ADDR}:${JMAP_PORT}/.well-known/jmap  (or http://stalwart:8080 from ${NETWORK})"
+echo "[setup-stalwart]   IMAPS: ${HOST_ADDR}:${IMAPS_PORT} (TLS, self-signed cert; or stalwart:993 from ${NETWORK})"
 echo "[setup-stalwart]   Accounts: source@dev.local/source_password, target@dev.local/target_password,"
 echo "[setup-stalwart]             shared@dev.local/shared_password, target-shared@dev.local/target-shared_password"

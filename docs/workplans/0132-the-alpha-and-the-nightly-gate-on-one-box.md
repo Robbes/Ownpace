@@ -203,6 +203,189 @@ the code did.
 - **Still open, and whose.** Unchanged from the entry above: the owner's T0 steps 1 and 5 on the
   machine after the first nightly run.
 
+**2026-09-27: T3 (a), with T1f, built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged.**
+It is stacked on T1's branch and carries T1's commit, so T1 merges first. Every port both stacks
+and the site publish now answers on `127.0.0.1`, and anything more is a setting.
+
+> **MERGE PRECONDITION, the owner's, in two parts.** Each bind is the front's address, the IPv4
+> address of this machine that the ingress in front of the names connects to, or its mesh address
+> for a page opened from a laptop. A bind takes an IP address, never a name.
+>
+> 1. **The OTA stack, before the merge.** The nightly gate deploys `main` to the OTA stack by
+>    itself, so this change reaches that stack on the first run after the merge. In its `.env`
+>    (`~/.persistent/ownpace-managed/.env`, which the gate restores and the operator's checkout
+>    links to), set `WEB_BIND` and `ZITADEL_BIND`; `STATUS_BIND` too, because the OTA status page
+>    is opened over the mesh (0142 records it as reachable only there), and it is needed wherever a
+>    status name is routed as well; and `TRIGGER_TLS_BIND`, the machine's mesh IP address that
+>    `TRIGGER_TLS_HOST` names, if the Trigger.dev dashboard is opened from a laptop over the mesh.
+>    Without them, `app.ota.ownpace.eu` and `id.ota.ownpace.eu` stop answering at that first run,
+>    the API cannot reach its issuer (it asks the provider by its public name), and the status
+>    page goes dark on the mesh with its lamps red. A name or `0.0.0.0` in any `*_BIND` stops
+>    the bring-up in `load_env`, naming the key.
+> 2. **The site, before it is next recreated.** No workflow and no script runs `www.yml`, so the
+>    gate never touches the site: `ownpace-www` keeps its old publish, on every interface, and
+>    `www.ota.ownpace.eu` keeps answering, until somebody recreates it. Set `WWW_BIND` in the
+>    `.env` the site is brought up with (`deploy/compose/.env` in that checkout, because Compose
+>    reads the `.env` beside `www.yml`), then, from that checkout updated to the merge, run
+>    `docker compose -f deploy/compose/www.yml up -d`. T0 step 1 has the check. Until that run,
+>    the site's exposure this change closes stays open.
+>
+> The running `managed.yml` and `www.yml` read none of these keys, so setting them now changes
+> nothing until the change arrives. Live sets its own at T1b step 3, before its first bring-up.
+> The address is written only in those `.env` files, never here: the address guard keeps mesh
+> addresses out of the repository. The examples in this change are the placeholder
+> `100.64.0.1`, the dashboard section's existing `10.0.0.5`, and documentation addresses
+> (`192.0.2.x`, `203.0.113.x`) in the renders and the guard. `docs/managed-bring-up.md` (*Which
+> address a port answers on*, and a note at the top of *Updating a running deployment*) and the
+> runbook's *Upgrade* say the same.
+
+- **The shape.** Each of the eight ports has two entries: `127.0.0.1:${<NAME>_PORT:-n}:target`,
+  fixed, and `${<NAME>_BIND:-127.0.0.1}:${<NAME>_PORT:-n}:target`. `managed.yml` has
+  `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_TLS_BIND`, `ZITADEL_BIND`, `WEB_BIND` and
+  `STATUS_BIND`; `www.yml` has `WWW_BIND`. Empty, the bind renders the same as the fixed entry and
+  Compose keeps one: compose-go's `EnforceUnicity` drops a port entry that repeats another's
+  address, port, target and protocol (in compose-go since v2.0.0). Set, it adds that address and
+  loopback stays. `managed.env.example` lists the eight keys bare, with the rule, which ones a
+  routed name needs, and `100.64.0.1` as the shape. The registry stays on its literal loopback;
+  Mailpit and Nextcloud keep their single bind, which their callers follow.
+- **The demo's Stalwart.** `deploy/selfhost/setup-stalwart.sh` publishes both ports on
+  `STALWART_BIND`, `127.0.0.1` by default, and asks that address itself: `stalwart-cli`'s default
+  URL and the printed addresses follow the bind, and so does `setup-managed-demo.sh`'s seeder.
+  Everything in CI already reached it on loopback from the host or by name on the network.
+  `e2e.yml`'s header said the appliance reached it through `host.docker.internal`; its mapping
+  step points the mail source and target at the name `stalwart`, and the header now says so.
+- **The guard, and that it failed first.** `scripts/a-port-published-on-purpose.unit.test.ts`, 13
+  cases. On the unchanged code (T1's branch) 7 failed: the rule named exactly the eight entries
+  (`postgres`, `trigger-api`, `trigger-tls`, `zitadel`, `api`, `web`, `gatus` in `managed.yml`,
+  `www` in `www.yml`, each "no host address, so Docker publishes it on every interface"), the
+  eight named binds were missing from both files and seven of them from the example, and `setup-stalwart.sh`
+  had no `STALWART_BIND`, a fixed `CLI_URL` and a seeder fixed on `127.0.0.1`. Ten mutations
+  each turned a guard red: the web app without its loopback entry, `API_BIND` with `-` for `:-`,
+  the site back on every interface, a bare `-p` for IMAPS, `CLI_URL` fixed on loopback, the demo
+  seeder fixed on loopback, `TRIGGER_TLS_BIND` gone from the example, the status page's publish
+  on `WEB_BIND`, `POSTGRES_BIND` defaulting to `0.0.0.0`, and (in `identity-in-the-gate`) one
+  port on two addresses counted as a clash.
+- **A guard that had to follow.** `scripts/identity-in-the-gate.unit.test.ts` read only a bare
+  `${X_PORT:-n}:…` publish. With an address in front it found none, and its own vacuity case
+  failed with 4 of 65 red. Its parser now takes `127.0.0.1:` or a bind in front, and a port on two
+  addresses counts as one port, not a clash.
+- **Checked with Compose itself** (5.1.1, here), with a throwaway `.env` that fills every required
+  key with a placeholder. Defaults: every service renders one publish, on `127.0.0.1`. Under
+  `-p ownpace-live` with `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND` set to `192.0.2.10` and
+  `TRIGGER_TLS_BIND` to `192.0.2.20`: those four render two publishes, loopback and the set
+  address, and the rest one. `www.yml` renders one publish, and two with `WWW_BIND` set.
+- **Departures from §3.** Every port keeps a fixed loopback entry, not only the routed ones, and a
+  bind adds an address rather than replacing loopback. §3 gave the non-routed ports the single-bind
+  shape Mailpit has. But the smoke asks the dashboard on `127.0.0.1`, the deploy CLI the Trigger.dev
+  API on localhost, the seed and `operator.sh` Postgres on localhost, so a bind that replaced
+  loopback would break them, the failure `a-publish-that-moved-and-a-caller-that-did-not` records.
+  The routed ports' second publish is the port's own `*_BIND`, one key per port, rather than a
+  separate front variable, so the owner sets it only where a name is routed. `setup-stalwart.sh`'s
+  callers follow its bind, which §3 did not ask for, for the same reason.
+- **§1, as of this change.** The eight ports §1 lists as published on every interface, and the demo
+  Stalwart's two, are on loopback unless a bind says otherwise. The appliance nightly's Stalwart
+  is on loopback too, so the exposure check's note about that run (T3) now concerns its dev
+  Nextcloud only.
+- **Open, and whose.** The owner's: the merge precondition above; then, after the first gate run,
+  `docker ps --format '{{.Names}} {{.Ports}}'` on the machine shows each OTA container on
+  `127.0.0.1` and, for the routed ones, the front's address, and `app.ota.ownpace.eu` and
+  `id.ota.ownpace.eu` answer (T0 step 1). Separately, the site's recreate from an updated
+  checkout, after which `ownpace-www` shows `127.0.0.1` and the front's address and
+  `www.ota.ownpace.eu` answers (T0 step 1). Once, after the first reboot with a bind on a mesh
+  address in place, the same `docker ps` shows those containers up (T0 step 5; *Which address a
+  port answers on* has why and the remedy). The machine's Compose version is not visible from
+  here; one without the dedup would pass Docker the loopback entry twice, and `docker compose -f
+  deploy/compose/managed.yml config` on the machine shows whether it does. T3 (b) to (d), the
+  exposure check, the outside probe and the path written down, are 0131 §6 R7 step 8.
+
+**2026-09-27, later: the review's fixes to T3 (a), on the same branch, not merged.** A review of
+the build found a precondition that promised what the gate does not do, three owner steps that
+were missing, a new way for a routed container not to start, and three guards that let a
+regression through. The entry above is corrected in place; this says what changed.
+
+- **The precondition, in two parts.** No workflow or script runs `www.yml`, and the site is its
+  own project, so the gate neither recreates nor removes it. After the merge `ownpace-www` keeps
+  its all-interfaces publish, and `www.ota.ownpace.eu` keeps answering whatever `WWW_BIND` says,
+  until somebody runs `docker compose -f deploy/compose/www.yml up -d` from an updated checkout.
+  So part 1 is the OTA stack's binds before the merge, and part 2 is `WWW_BIND` and that recreate,
+  with T0 step 1's check. `STATUS_BIND` is no longer "if a status name is routed": 0142 records the
+  OTA status page as reached over the mesh, so it is part 1. `TRIGGER_TLS_BIND` is the IP address
+  `TRIGGER_TLS_HOST` names, not "the same address": a host may be a name, and a name in any bind
+  fails every compose command against the file (`invalid IP address`, checked with Compose 5.1.1).
+- **Live's binds.** The Status said live sets its own at T1b, and no step said so. T1b step 3 now
+  asks for `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND` (and `TRIGGER_TLS_BIND` only for a
+  dashboard opened over the mesh); T1e and T0 step 4 point to it, and T0 step 5 checks live's
+  publishes with `docker ps`.
+- **A bind on a mesh address ties the container's start to that address.** Docker binds the
+  address when it starts the container. After a reboot where Docker starts before the mesh client
+  has its address, `web`, `zitadel`, `gatus`, `trigger-tls` and `www` fail with `cannot assign
+  requested address`, their loopback publish with them, and a start that failed while the daemon
+  restored containers is not retried. An all-interfaces publish never had that dependency.
+  `docs/managed-bring-up.md`, *Which address a port answers on*, the `managed.yml` and `www.yml`
+  headers and `managed.env.example` say so and name the remedy, `net.ipv4.ip_nonlocal_bind=1` in
+  `/etc/sysctl.d/`, or a `docker.service` drop-in ordered after the mesh client that waits for the
+  address. T0 step 5 has a check after the first reboot. Not tried on the machine; the owner's.
+- **The bring-up refuses a bind that is not an address.** `refuse_a_bind_that_is_not_an_address`
+  in `bootstrap-managed.sh`'s `load_env`, before `config -q`, so the gate's `--from data` run
+  reaches it too. It reads every `*_BIND` key in the file, `MAILPIT_BIND`, `NEXTCLOUD_BIND` and
+  `STALWART_BIND` included, the line in force, and refuses `0.0.0.0`, `::`, anything that is not
+  one IPv4 address (a name, three octets, a leading zero, an octet over 255), and `KEY=   # note`,
+  which Compose reads as the address. It names the key and never repeats a value that is not an
+  address, since the gate's log is public. `0.0.0.0` beside the fixed loopback publish does not
+  widen anything: the container cannot bind at all, with Docker's words. The site's `WWW_BIND` is
+  read by `www.yml` directly, so only the docs cover it there.
+- **The dashboard hint.** `phase_env`'s advice for a laptop, and the decisions a new `.env` asks
+  for, name `TRIGGER_TLS_BIND`. `note_dashboard_on_this_machine_only`, also in `load_env`, notes a
+  `TRIGGER_TLS_HOST` that is not `localhost` or `127.0.0.1` with an empty bind, without printing
+  the host. A note, not a refusal: an SSH tunnel is a way to work.
+- **The gate's own seed step** still asks the demo Stalwart on `127.0.0.1` and does not read the
+  `.env`. Rather than a second reader, its comment in `e2e-managed.yml` and `setup-managed-demo.sh`'s
+  `STALWART_BIND` note say so, and that the OTA `.env` leaves `STALWART_BIND` unset.
+- **The guards.** `a-port-published-on-purpose` has 33 cases, up from 13 (34 after the second
+  review, below). The example must list `WWW_BIND` too. The demo Stalwart's publishes are read
+  inside `docker run` commands only, so a `mkdir -p` is not one: `-p` with its value apart, after
+  `=` or attached, alone or after boolean short flags (`-dp V`), and `--publish` apart or after
+  `=`, each quoted or not. `-P`, `--publish-all` and a literal host network are refused outright. `CLI_URL`'s host and the seeder's `SEED_IMAP_HOST` must each be a variable taken from the
+  bind, which a literal `localhost` or no assignment fails. The refusal and the note have 19
+  cases, most of them running the function for real against a `.env` the test writes, and the
+  publish reader one of its own. `identity-in-the-gate`'s clash check now reads the
+  file with YAML and keys each host port by service: one port on two addresses of one service is
+  one port, and the same port under a second service is a clash, with a vacuity case (66 cases).
+- **That they failed first.** Against the branch's own `bootstrap-managed.sh` and example, 19 of
+  the 33 failed: every refusal and note case. Four mutations passed the old guards and turned the
+  new ones red: `WWW_BIND=` removed from the example, `SEED_IMAP_HOST=localhost` in the demo, an
+  unquoted `-p ${JMAP_PORT}:8081` added to the demo Stalwart's `docker run`, and the web app's
+  loopback publish copied into `gatus` (the old `identity-in-the-gate` 65 of 65 green, the new
+  one red).
+- **Docs.** In `docs/managed-bring-up.md` the section is `###` and follows the dashboard
+  paragraph, which it used to swallow, and the bring-up's phase 2 names the binds.
+  *Updating a running deployment* and the runbook's *Upgrade* and TLS-front notes follow the
+  two-part precondition and the IP rule. `docs/windows-appliance-runbook.md` cites 0132 T3 once.
+- **Still open, and whose.** The owner's: the precondition's two parts, T0 step 1's two checks,
+  and the check after the first reboot. The rest is as the entry above says.
+
+**2026-09-27, later still: a second review of those fixes, on the same branch, not merged.** It
+found the Stalwart publish reader claiming more forms than it read, and the branch no longer
+merging cleanly with `main`.
+
+- **The reader.** It needed `=` or a space after `-p`, so the attached `-p${IMAPS_PORT}:993`,
+  which Docker takes, passed; and `-P` (`--publish-all`) publishes every port the image exposes
+  on every interface with no value to read at all. The reader now takes the attached form, a `-p`
+  after boolean short flags in one cluster (`-dp V`, `-itpV`) and single quotes, and the Stalwart
+  case refuses any `docker run` carrying `-P` alone or in a cluster, `--publish-all`, or a literal
+  `--network host` / `--net=host`. The vacuity cases cover each form, and the refusal leaves
+  `-ePATH=…`, `--network "$NETWORK"` and `--network-alias host` alone. The comments name the forms
+  read rather than *every form*. **Failed first:** the new vacuity cases failed against the old
+  reader, and four mutations of `setup-stalwart.sh` (an added `-p${IMAPS_PORT}:994`, an added `-P`,
+  an added `-dp ${JMAP_PORT}:8081`, `--network host` in place of `$NETWORK`) passed the old guard
+  (33 of 33) and turn the new one red. 34 cases.
+- **Before the merge.** `main` has moved past this branch's base, and `docs/LESSONS.md` and
+  `docs/workplans/README.md`, which both regenerate, conflict. Once T1's branch has merged, `main`
+  is merged into this branch (not rebased), both files are regenerated with
+  `node scripts/lessons.mjs --write` and `node scripts/workplan-index.mjs --write`, and the unit
+  tests are run again after `pnpm install --frozen-lockfile`. A trial merge in a scratch tree
+  cleared both conflicts that way, and nothing else conflicted.
+
 **2026-09-27: T6 (b) built, the hold covers every enqueue (0131 §6 R7 step 4).** On branch
 `claude/ownpace-public-readiness-y7orc6-a-hold-that-holds-every-door`, not merged. One function,
 `enqueueUnlessHeld` in `apps/api/src/enqueue-unless-held.ts`, reads the open hold. While one is
@@ -309,10 +492,10 @@ spec is held by the guard too.
 | T1c Its own Trigger.dev plane | 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
-| T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 📋 **Decided 2026-09-24** (D7), carried by T3 | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. |
+| T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
+| T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) — *was:* 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. |
@@ -642,13 +825,31 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
    `./deploy/compose/bootstrap-managed.sh --from data --with-demo` from `~/ownpace-managed`,
    brings the OTA stack up under T1's names. Its volumes keep their names, because they are named
    after the project and the project does not change. Check with `docker ps`.
+   **Before T3 (a) merges**, set the OTA stack's binds (the merge precondition in the Status
+   block, part 1), or `app.ota.ownpace.eu` and `id.ota.ownpace.eu` stop answering at the next gate
+   run. After that run, `docker ps --format '{{.Names}} {{.Ports}}'` shows every OTA container on
+   `127.0.0.1`, and the front's address on the routed ones.
+   **The site is a separate step**, because no gate run recreates it (part 2). Set `WWW_BIND` in
+   the `.env` beside `www.yml` in the site's checkout, update that checkout to the merge, and run
+   `docker compose -f deploy/compose/www.yml up -d` there. Then the same `docker ps` shows
+   `ownpace-www` on `127.0.0.1` and the front's address, and `www.ota.ownpace.eu` answers. Before
+   that run the site still publishes on every interface, whatever `WWW_BIND` says.
 2. **Change the OTA stack's passwords (T2)**, with the steps given there.
 3. **Stand live up (T1b to T1d)**: its checkout at a tag, its `.env`, its ports, its database
    passwords set by the owner in that `.env` before the first bring-up (D8), the bring-up without
    the demo, the one human step on its own Trigger.dev dashboard, its identity provider at
    `id.ownpace.eu`, and the owner's own account on it, appointed operator with `operator.sh add`.
-4. **Route the production names to it (T1e).**
+4. **Route the production names to it (T1e).** The routes connect to the front's address, so
+   live's `.env` carries `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND` first (T1b step 3).
 5. **Run the checks.** From `~/ownpace-live`:
+   - `docker ps --filter name=ownpace-live --format '{{.Names}} {{.Ports}}'` shows live's
+     containers on `127.0.0.1`, and `web`, `zitadel` and `gatus` on the front's address as well.
+     Nothing is on `0.0.0.0`.
+   - **Once, after a reboot**, the same command shows every container with a bind on a mesh
+     address up. Such a bind ties the container's start to that address existing, and a
+     container that failed to start while Docker restored it is not retried
+     (`docs/managed-bring-up.md`, *Which address a port answers on*, has the remedy). Do this on
+     the first reboot after T3 (a) is on the machine, for both stacks and the site.
    - `docker compose -f deploy/compose/managed.yml exec -T api printenv NODE_ENV` prints
      `production` (T4). Run the same from `~/ownpace-managed` for the OTA stack.
    - `curl -s https://app.ownpace.eu/api/auth/mode` answers `managed`.
@@ -862,7 +1063,12 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
    `trigger-credentials.sh` and `trigger-version.sh` look in the OTA stack's.
 3. **Ports of its own.** Every `*_PORT` variable gets a value the OTA stack does not use:
    `POSTGRES_PORT`, `TRIGGER_PORT`, `TRIGGER_TLS_PORT`, `ZITADEL_PORT`, `API_PORT`, `WEB_PORT`,
-   `STATUS_PORT` and `REGISTRY_PORT` (T1c).
+   `STATUS_PORT` and `REGISTRY_PORT` (T1c). **And the addresses the routed ones answer on.**
+   Every port answers on `127.0.0.1` only unless its bind adds an address (T3 (a)), so live's
+   `.env` also gets the front's address as `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND`, and
+   `TRIGGER_TLS_BIND` only if live's dashboard is opened over the mesh (T1c opens it on
+   `localhost`). Without them the production names do not answer (T1e). Each is an IPv4 address,
+   never a name; `POSTGRES_BIND`, `API_BIND` and `TRIGGER_BIND` stay empty.
 4. **The production names.** The browser-visible addresses that 0091 T1 lists name
    `https://app.ownpace.eu`. The identity provider's `ZITADEL_EXTERNALDOMAIN` is `id.ownpace.eu`,
    with port 443, secure, and TLS terminated in front, in the shape `managed.env.example` shows
@@ -950,7 +1156,9 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
 
 - **The routes.** In NetBird: `app.ownpace.eu` to live's `WEB_PORT`, `id.ownpace.eu` to live's
   `ZITADEL_PORT`, and `status.ownpace.eu` to live's `STATUS_PORT`. External names stay on 443, as
-  0091 records, so the local port numbers appear nowhere a browser or Google sees.
+  0091 records, so the local port numbers appear nowhere a browser or Google sees. Those ports
+  answer on the front's address only through live's `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND`
+  (T1b step 3); without them a route reaches nothing.
 - **0091 T4 is answered.** `app.` now means production, so the production names lead to the
   machine on purpose. What remains of 0091's concern is the route: a production name must reach
   live's ports, never the OTA stack's. The check below confirms it.
