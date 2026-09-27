@@ -25,6 +25,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
 import CreateMapping from './CreateMapping.tsx';
+import { nextButton, targetHostBox, walkToReview } from './wizard-walk.tsx';
 import {
   mappingApi,
   providerAccountsApi,
@@ -97,66 +98,8 @@ const renderWizard = () => {
   );
 };
 
-/**
- * The target's host box, found by its LABEL rather than the example inside it.
- *
- * These lookups used to ask for the placeholder `jmap.example.com`, which
- * every target door showed — including the five it was wrong for. Pinning the
- * tests to the example is why nobody noticed an IMAP target suggesting a JMAP
- * host on port 443 (2026-09-07). A label is what the field IS; a placeholder
- * is a worked example, and the two must be free to differ per protocol.
- */
-const targetHostBox = (): HTMLElement => screen.getByLabelText(/^Host/);
-
-const nextButton = () =>
-  // AN EXACT MATCH, because a CARD is a button too (2026-09-07). `/Next|.../`
-// unanchored matched the "Nextcloud" target card as well as the wizard's own
-  // Next button the moment that card existed, and every step-through test began
-  // failing with "found multiple elements" — a selector fault reading as a
-  // product fault. Anchored, the query means the button it always meant.
-  screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
-
-/** Fill only what each step RENDERS and advance — the whole point of the
- *  0037 T1 pin. Fails on the old gates at the very first click. */
-const walkToReview = () => {
-  // Step 1 — Source: each side now carries its OWN credentials (workplan
-  // 0070), so the account and the password gate here, beside the host.
-  fireEvent.change(screen.getByPlaceholderText('imap.example.com'), {
-    target: { value: 'mail.old-provider.example' },
-  });
-  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
-    target: { value: 'source@acme.example' },
-  });
-  // The password too, which this comment has claimed since 0070 and this walk
-  // did not type: the gate read a hand-written branch that asked for a host
-  // and a port only, and now it reads the descriptor, which has always marked
-  // an IMAP source's password required (2026-09-07).
-  fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
-    target: { value: 'source-password' },
-  });
-  expect(nextButton()).toBeEnabled();
-  fireEvent.click(nextButton());
-
-  // Step 2 — Target: host, account, password (port prefilled, jmap preselected).
-  fireEvent.change(targetHostBox(), {
-    target: { value: 'stalwart.acme.example' },
-  });
-  fireEvent.change(screen.getAllByPlaceholderText('user@example.com')[0]!, {
-    target: { value: 'target@acme.example' },
-  });
-  fireEvent.change(document.querySelectorAll('input[type="password"]')[0]!, {
-    target: { value: 'target-password' },
-  });
-  fireEvent.click(nextButton());
-
-  // Step 3 — The migration itself: a name, what to move (email preselected)
-  // and how often (empty = the default cadence).
-  fireEvent.change(screen.getByPlaceholderText('My Migration'), {
-    target: { value: 'Acme mail' },
-  });
-  fireEvent.click(nextButton());
-};
-
+// `targetHostBox`, `nextButton` and `walkToReview` live in `wizard-walk.tsx`
+// since 0145 T3 (a), which walks the same steps.
 
 /**
  * Fill the source account and any secret the chosen provider now demands

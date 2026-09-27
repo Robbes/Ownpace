@@ -267,6 +267,17 @@ const steps: { id: Step; nameKey: StringKey; icon: React.FC<React.SVGProps<SVGSV
   { id: 'review', nameKey: 'wizard.step.review', icon: Check },
 ];
 
+/**
+ * Whether the reader's browser says motion is fine: the step change scrolls
+ * smoothly only then (0145 T3 (a)). Asked as `no-preference` rather than
+ * `reduce`, so that a browser that cannot say gets the instant scroll, which
+ * is right for everybody. Every browser the app supports has `matchMedia`;
+ * jsdom does not.
+ */
+const motionWelcome = (): boolean =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+
 const dataTypes: {
   id: DiscoveryDomain;
   nameKey: StringKey;
@@ -1080,6 +1091,30 @@ const CreateMapping: React.FC = () => {
         void queryClient.invalidateQueries({ queryKey: ['connections'] });
       });
   };
+
+  /**
+   * A NEW STEP STARTS AT THE TOP (workplan 0145 T3 (a)).
+   *
+   * Next sits at the bottom of each step, so a new step used to open scrolled
+   * to where the last one ended, and a screen reader stayed on Next and heard
+   * nothing. Now Next and Back send the page to the top and put focus on the
+   * step's heading, which a screen reader then reads, with no live region.
+   *
+   * Not on the first render: opening the wizard is a new page, which `Layout`
+   * scrolls, and focus there is 0145 T3 (b)'s. The heading is focused first,
+   * with `preventScroll`, or the browser would jump it into view before the
+   * page glides to the top. Nothing here touches the phone menu's focus (T1):
+   * a step changes only from the page, and while the menu is open the page is
+   * `inert`.
+   */
+  const stepHeadingRef = React.useRef<HTMLHeadingElement>(null);
+  const shownStep = React.useRef(currentStep);
+  React.useLayoutEffect(() => {
+    if (shownStep.current === currentStep) return;
+    shownStep.current = currentStep;
+    stepHeadingRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: motionWelcome() ? 'smooth' : 'instant' });
+  }, [currentStep]);
 
   const handleBack = () => {
     if (currentStep > 0) {
@@ -2832,8 +2867,17 @@ const CreateMapping: React.FC = () => {
         </ol>
       </nav>
 
-      {/* Step Content */}
+      {/* Step Content. The heading is the same on every step (0145 T3 (a)):
+          visible, because on a phone the progress row above is small, and the
+          place focus goes on Next and Back. */}
       <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+        <h2 ref={stepHeadingRef} tabIndex={-1} className="mb-4 text-sm font-medium text-gray-600">
+          {t('wizard.stepHeading', {
+            n: currentStep + 1,
+            total: steps.length,
+            step: t(steps[currentStep].nameKey),
+          })}
+        </h2>
         {renderStep()}
       </div>
 
