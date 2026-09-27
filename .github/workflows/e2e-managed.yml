@@ -33,7 +33,7 @@ name: E2E (managed)
 # The managed stack's Trigger.dev instance cannot be bootstrapped unattended.
 # `deploy-tasks.sh` documents the one-time steps and they need a human: create
 # an account and project through the dashboard's magic-link login (the link is
-# printed into `docker logs trigger-api` because no mail server is configured),
+# printed into the trigger-api service's log because no mail server is configured),
 # copy TRIGGER_PROJECT_REF and a `tr_prod_` secret key into `.env`, run a CLI
 # login once per machine, and set the task runtime environment variables in the
 # dashboard — the deployed tasks run in their OWN containers and inherit
@@ -165,7 +165,7 @@ jobs:
           # A repository VARIABLE is passed verbatim: GitHub does not expand
           # `$HOME` in it, and neither does the shell, because `${VAR:-default}`
           # substitutes the value without re-expanding it. So a variable set to
-          # "$HOME/.persistent/ownpace-managed" yields a literal path starting
+          # "$HOME/.persistent/<project>" yields a literal path starting
           # with a dollar sign, nothing is ever restored, and the check below
           # reports "this runner has never had the managed stack set up" —
           # naming a symptom that is three steps from the cause. Observed on
@@ -174,14 +174,21 @@ jobs:
             *'$'*)
               echo "::error::MANAGED_ENV_PERSIST_DIR contains an unexpanded variable: ${MANAGED_ENV_PERSIST_DIR}"
               echo "A repository variable is used literally — GitHub does not expand \$HOME in it."
-              echo "Set it to an absolute path (e.g. /home/<user>/.persistent/ownpace-managed),"
+              echo "Set it to an absolute path (e.g. /home/<user>/.persistent/<project>),"
               echo "or DELETE the variable entirely: this workflow's own default already expands"
               echo "\$HOME correctly, because there it is a literal in the script rather than a value."
               echo "Settings -> Secrets and variables -> Actions -> Variables."
               exit 1
               ;;
           esac
-          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+          # ONE PERSISTED DIRECTORY PER STACK, named after its compose project
+          # (workplan 0132 T1). The checkout has no .env yet, so this is
+          # managed.yml's own `name:`: the OTA stack, the only one the gate
+          # drives. The second stack on the machine keeps its own, and the gate
+          # never reads it (0132 T1g).
+          . deploy/compose/env-read.sh
+          COMPOSE_PROJECT="$(compose_project deploy/compose)"
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
           if [ -f "${PERSIST_DIR}/.env" ]; then
             mkdir -p deploy/compose/pgbouncer
             cp "${PERSIST_DIR}/.env" deploy/compose/.env
@@ -217,7 +224,9 @@ jobs:
             grep -qE "^${key}=." "$ENV_FILE" 2>/dev/null || missing+=("$key")
           done
           if [ ${#missing[@]} -gt 0 ]; then
-            PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+            . deploy/compose/env-read.sh
+            COMPOSE_PROJECT="$(compose_project deploy/compose)"
+            PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
             echo "::error::This runner has never had the managed stack set up: missing ${missing[*]}."
             echo "The Trigger.dev half cannot be bootstrapped unattended — see the ONE-TIME"
             echo "prerequisites in deploy/compose/deploy-tasks.sh: create the account and project"
@@ -311,7 +320,9 @@ jobs:
           # different one next run and every user it holds is stranded, which is
           # exactly the hazard ensure-env-secrets.sh has a refusal list for. The
           # copy is additive — the script never replaced anything above.
-          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+          . deploy/compose/env-read.sh
+          COMPOSE_PROJECT="$(compose_project deploy/compose)"
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
           mkdir -p "${PERSIST_DIR}"
           cp deploy/compose/.env "${PERSIST_DIR}/.env"
           echo "persisted to ${PERSIST_DIR}/.env so the next run reuses these exact values"

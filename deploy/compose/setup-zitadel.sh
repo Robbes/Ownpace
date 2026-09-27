@@ -47,6 +47,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# The compose project this checkout drives. A volume name this script prints is
+# built from it, so on a box with two stacks it names this stack's volume and
+# not the other's (workplan 0132 T1). See compose_project in env-read.sh.
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 UPSERT="${SCRIPT_DIR}/env-upsert.sh"
 
 PROJECT_NAME="Ownpace"
@@ -98,7 +102,7 @@ read_env() { # read_env <key> [default]
 # rejecting every token with a message about signatures, when the real cause is
 # a trailing slash or a port.
 # The fallback is managed.yml's, not a second opinion — `ownpace-idp`, the
-# provider's container name and its network alias. This said `localhost` while
+# provider's network alias. This said `localhost` while
 # compose said the same thing, and that agreement was the bug: see the refusal
 # below for why no containerised API can ever reach an issuer on loopback.
 IDP_DOMAIN="$(read_env ZITADEL_EXTERNALDOMAIN ownpace-idp)"
@@ -154,7 +158,7 @@ stack comes up healthy and every authenticated request answers HTTP 500.
 
 It has to be a name that resolves to the provider from INSIDE the compose
 network as well as from a browser. The default is 'ownpace-idp', which is this
-provider's container name and a network alias:
+provider's network alias:
 
     ${UPSERT} ${ENV_FILE} ZITADEL_EXTERNALDOMAIN=ownpace-idp
     echo '127.0.0.1  ownpace-idp' | sudo tee -a /etc/hosts   # only for a browser
@@ -163,7 +167,7 @@ On a self-hosted runner, edit the PERSISTED .env as well or instead — the
 checkout's copy is restored from it at the top of every run and anything written
 here is destroyed by the next \`actions/checkout\` clean:
 
-    \${MANAGED_ENV_PERSIST_DIR:-~/.persistent/ownpace-managed}/.env
+    \${MANAGED_ENV_PERSIST_DIR:-~/.persistent/${COMPOSE_PROJECT}}/.env
 
 A deployment with real DNS sets its real hostname instead and needs no hosts
 entry, because DNS answers for both sides.
@@ -181,8 +185,8 @@ again. That destroys the provider's accounts and NOTHING else, and this script
 rebuilds the project, the application and the client id on the next run:
 
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
-    docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
-    docker volume rm -f ownpace-managed_zitadel_machinekey
+    docker compose -f ${SCRIPT_DIR}/managed.yml exec -T postgres sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
+    docker volume rm -f ${COMPOSE_PROJECT}_zitadel_machinekey
     ${SCRIPT_DIR}/bootstrap-managed.sh --only app" ;;
 esac
 
@@ -350,7 +354,7 @@ read_provisioning_token() {
     ${out}
 
 That is a failure to READ the file, not a missing token. The file lives on the
-${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey volume; this reads it
+${COMPOSE_PROJECT}_zitadel_machinekey volume; this reads it
 with busybox because the provider's own image has no shell."
   printf '%s' "$out"
 }
@@ -522,7 +526,7 @@ cover nearly every case:
   not run since before that window closed. The way back in without destroying
   anything: sign in at ${ISSUER}/ui/console as the first user, mint a new
   personal access token on the 'ownpace-setup' service user, and write it over
-  /machinekey/pat.txt on the ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey volume.
+  /machinekey/pat.txt on the ${COMPOSE_PROJECT}_zitadel_machinekey volume.
 
   IT BELONGS TO AN INSTANCE THAT NO LONGER EXISTS. /machinekey/pat.txt is
   written on FIRST INIT only, so clearing the zitadel DATABASE while keeping
@@ -572,8 +576,8 @@ account — and this script rebuilds the project, the application and the client
 id from scratch afterwards:
 
     docker compose -f ${SCRIPT_DIR}/managed.yml rm -sf zitadel
-    docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
-    docker volume rm -f ownpace-managed_zitadel_machinekey
+    docker compose -f ${SCRIPT_DIR}/managed.yml exec -T postgres sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'
+    docker volume rm -f ${COMPOSE_PROJECT}_zitadel_machinekey
     ${SCRIPT_DIR}/bootstrap-managed.sh --only app" ;;
         *) die "${method} ${path} answered HTTP 404:
     ${out}" ;;
@@ -996,16 +1000,19 @@ else
     say "adding it"
     # `/email/smtp`, not `/smtp`: the latter is marked deprecated in this
     # version's admin.proto in favour of the email-provider endpoints.
+    # The description names the stack, so the provider's console says which
+    # stack's relay this is. It is a label only: the provider is found by its
+    # host above, so an older one described otherwise is still found.
     CREATED="$(api POST /admin/v1/email/smtp "$(jq -nc \
       --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "${SMTP_TLS:-false}" \
-      --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" '{
+      --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" --arg stack "$COMPOSE_PROJECT" '{
         senderAddress: $from,
         senderName: "Ownpace",
         host: $host,
         tls: $tls,
         user: $user,
         password: $pw,
-        description: "ownpace-managed"
+        description: $stack
       }')")"
     SMTP_ID="$(jq -r '.id // empty' <<<"$CREATED")"
     [ -n "$SMTP_ID" ] || die "the provider accepted POST /admin/v1/email/smtp and the
@@ -1343,7 +1350,7 @@ the same URI:
         say "      under Default settings -> Login Behaviour and Security -> Identity Providers"
         say "      (the INSTANCE page — an organisation's own login policy is reset by this script),"
         say "      or from this shell:"
-        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT:-ownpace-managed}_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt)\""
+        say "        PAT=\"\$(docker run --rm -v ${COMPOSE_PROJECT}_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt)\""
         say "        for id in ${others}; do"
         say "          curl -sS -X DELETE ${ISSUER}/admin/v1/policies/login/idps/\$id -H \"Authorization: Bearer \$PAT\""
         say "        done"
@@ -1961,9 +1968,14 @@ EOF
 #   and a kept database with a cleared volume leaves no token at all.
 #
 #     docker compose -f deploy/compose/managed.yml rm -sf zitadel
-#     docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'
-#     docker volume rm ownpace-managed_zitadel_machinekey
+#     docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'
+#     docker volume rm <project>_zitadel_machinekey
 #     ./deploy/compose/bootstrap-managed.sh --only app
+#
+#   <project> is the compose project of the checkout this runs in:
+#   COMPOSE_PROJECT_NAME in deploy/compose/.env, or managed.yml's `name:` when
+#   that is unset (workplan 0132 T1). The refusals above print this recipe with
+#   it filled in.
 #
 #   THE LAST LINE IS NOT `setup-zitadel.sh`, AND THAT IS THE WHOLE POINT OF IT.
 #   A volume Docker has just recreated is owned by root, and this provider's
