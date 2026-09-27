@@ -32,6 +32,20 @@ of* it.
    evidence badges. The server's token is the handle; the localized prose
    sits beside it. This is the sanctioned path if client-side explanation of
    refusal `code`s is ever wanted — the `reason` still renders as served.
+
+   **A Test at an address the tester typed is the one place the client says
+   the `reason` itself** (workplan 0136 T3). On managed, that `reason` is not
+   the server's diagnostic: the API writes it from the refusal's parts (a
+   status, a server's own words only when they came as an error document we
+   know, or what kind of failure it was) and never passes on the remote's
+   bytes. So the answer, and each refused face of the qualification, keeps
+   the parts as `said`, with the reference that finds the full text in the
+   log. The screens say them from the dictionary (`saidText` in
+   `apps/web/src/i18n/probe-text.ts`), with the server's words verbatim inside
+   our sentence in both languages. Parts without a reference are not such an
+   answer, and the text as served renders, as before. The English is one
+   sentence on both sides: `scripts/a-sentence-the-screen-and-the-api-word-apart.unit.test.ts`
+   fails when either side rewords it.
 3. **Dates, times and numbers** — through the shared `Intl` helpers
    (`apps/web/src/i18n/datetime.ts` via `useFormatters()`), keyed on the
    active app locale, never the browser's.

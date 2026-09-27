@@ -235,7 +235,7 @@ async function everyDoor(): Promise<Array<{ door: string; status: number; body: 
 }
 
 /** The faces the connection doors measured, as each was answered. */
-async function facesOfAnAdd(): Promise<Record<string, { detail: string }>> {
+async function facesOfAnAdd(): Promise<Record<string, { detail: string; said?: unknown }>> {
   const add = await request(app)
     .post('/api/connections')
     .send({ role: 'target', type: 'nextcloud', displayName: 'ours', values: { url: davBase, ...CREDS } });
@@ -274,7 +274,12 @@ describe('a server that answers with something that is not an error document', (
       );
     }
     expect(JSON.stringify(faces)).not.toContain(MARKER);
-    expect(JSON.stringify(faces), 'the parts are the answer’s, not the record’s').not.toContain('"said"');
+    // The parts stay on the stored face, with the reference, for a screen to
+    // say in its reader's language: a status and a protocol, nothing it sent.
+    for (const name of ['calendar', 'task', 'contact', 'file'] as const) {
+      const reference = /Reference ([0-9a-f]{8})\.$/.exec(faces[name]?.detail ?? '')?.[1];
+      expect(faces[name]?.said, name).toEqual({ kind: 'answered', protocol: 'dav', status: 500, reference });
+    }
   });
 });
 

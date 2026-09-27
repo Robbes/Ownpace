@@ -57,6 +57,7 @@ import {
   invalidCredentialFields,
   missingCredentialFields,
   serverMessage,
+  tooManyTests,
 } from '../services/api.ts';
 import { QUALIFICATION_KEYS, credentialFieldRequired } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
@@ -106,6 +107,8 @@ const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>
           : t('connections.inUse.unnamed');
       return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.reason')}`;
     }
+    // The limit on tests (0136 T3): ours, so in the reader's language.
+    if (tooManyTests(err)) return t('probe.tooManyTests');
     return serverMessage(err);
   };
 };
@@ -290,7 +293,7 @@ const Row: React.FC<{
     try {
       setResult(await connectionsApi.test(connection.id));
     } catch (err) {
-      setResult({ ok: false, reason: serverMessage(err) });
+      setResult({ ok: false, reason: refusalText(err) });
     } finally {
       setTesting(false);
       // AND RE-READ THE ROW, or the card contradicts its own answer.
@@ -543,6 +546,7 @@ const Row: React.FC<{
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
+            result.said,
           )}
           {result.qualification && (
             /* What this account CAN CARRY (0106 T0) — per domain, measured. */
@@ -943,6 +947,7 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             result.outcome,
             result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
             locale,
+            result.said,
           )}
           {result.qualification && (
             <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
