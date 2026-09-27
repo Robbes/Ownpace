@@ -2,7 +2,76 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-09-26 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27, build: T12 (a)'s runbook stage and T7 (a)'s corrections, on branch
+`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged.** This is 0131 §6's R5 step 3, which calls
+the stage T12 (a1). It is text only. No walk and no sitting has happened, and nothing here records
+one.
+
+- **Stage 8 — two strangers**, in `docs/owner-test-runbook.md`. It has T12 (a)'s eight steps, each
+  with what to do and what to expect, on `ownpace-live` after 0133 T4. It says what to record: pass
+  or fail, the date, live's release from the build stamp, and the language, never an address. It
+  says where: this block, B's consent screens in 0140 T6, and a first pass that meets all seven
+  points as a *Recorded proofs* row, with its verdict turned proven in the same pull request.
+  Stage 9 is 0145 T10's phone half.
+- **Stage 10 — Soverin as a target** points at `docs/soverin-supervised-run.md`, which has T7 (a)'s
+  corrections. Step H arms the lane with `LIVE_TARGET_API_TOKEN`, and says whose token it is, how
+  it is made and how long it lives. It is the tenant owner's, and that person belongs to that one
+  organisation, because the lane sends no tenant header and `resolveTenant` takes the only
+  membership. It is the web app's `auth_token`, the identity provider's ID token, as
+  `managed-bring-up.md` describes. It lives until its `exp`, which the provider sets, and the lane
+  never renews it. Step B gains event 4, whose organiser is the Soverin account's own address, and
+  step E checks its copy and one update of it.
+- **How each fact was checked.** Every label, route and sentence the stages quote was read at
+  `origin/main` (`eba2d10`): `strings.ts` in both languages, `AppRoutes.tsx`, `SOURCE_PROOFS` in
+  `front-door.ts`, `scope-manifest.ts`, the grant ending in `google-consent.ts`, the link refusal in
+  `mapping-link-store.ts`, `permissions.ts` and `directory-availability.ts`, `selectAuthMode` and
+  `resolveTenant` in `auth.ts`, `live-target-lane.ts`, `live-target-nightly.ts` and
+  `e2e-live-target.yml`.
+
+**Found while checking, and not fixed here.**
+
+1. **The sitting cannot run as T7 settles it.** T7's *"The stack (settled)"* takes the OTA stack's
+   demo Nextcloud as the source. On `main` the managed front door offers no CalDAV, CardDAV or
+   Nextcloud source: `SOURCE_CARDS` has none, and the create route's `sourceType` refuses one. The
+   demo tenants' Nextcloud source is written by `seed-managed.ts`, not through the door. Open
+   question 9 asks the owner which source to use. The runbook says so, and describes the seed and
+   the mapping without saying where they go.
+2. **A token from the provider does not keep the lane armed.** After the token's `exp`, every run is
+   red with a 401. Step H says to take the `LIVE_TARGET_*` lines out again then, which leaves the
+   control, the sweep and the silence running. Open question 10 asks how the product half stays
+   armed. The comments in `scripts/live-target-lane.ts` and `e2e-live-target.yml` still call mint
+   mode the mode for today's stack.
+3. **A Soverin target gets no *"What the target will do with what we write"* section in the
+   permission report.** `tenantTargetConduct` in `permissions.ts` looks for a `caldav`, `nextcloud`
+   or `webdav` target, and a `soverin` connection is none of those. For Soverin, the scheduling
+   verdict is only in the audit log, and step E.3 reads it there. A code fix, not planned.
+4. **Stage 8's step 8 fails for a Microsoft 365 account on `main`**, because T11 is not built. The
+   report's calendar section says *"this tenant has no Microsoft 365 source connection, and only
+   Graph can enumerate a directory"*. The stage says so.
+5. **The runbook's other stale facts**, corrected. The Test no longer shows the scheduling verdict
+   (A.3). One Soverin connection and one mapping, not two (A.4, D.1). The list is
+   `GET /api/migrations`, not `/api/mappings` (D.2). *Trigger sync* is on the Migrations list (D.3).
+   And the labels are the ones on the screen.
+
+**No guard.** T12 (a) and T7 both say *"No code, so there is no guard"*. A test that read these
+runbooks would put them on the docs-only path CI skips (`a-doc-a-test-reads-that-ci-skipped`). Each
+fact was checked against the code instead.
+
+**Departures from §3.**
+
+- T7 asks for step H's rewrite and step B's event. The runbook's steps A, D, E and G were corrected
+  too, because as written they named labels, a route and a second connection that `main` does not
+  have.
+- Step E.4 adds one update of event 4, for T9's *"T7's sitting repeats this"*. The removal stays in
+  T9's own sitting, because step G removes by hand.
+- Stage 10 is not named in T7. It is the owner test runbook's pointer to the sitting, as Stages 1
+  to 3 point to theirs.
+
+**Open, and whose.** The walk (T12 (a)) and the sitting (T7) are the owner's. So are open
+questions 9 and 10. Finding 3, and the two stale comments in finding 2, are code nobody has
+planned.
 
 **2026-09-26, build review: T10 (a) fixes on the same branch
 (`claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`), not merged.** `main` was
@@ -189,12 +258,12 @@ for the card says so.
 | T4 The Apple account (iCloud) | ⏳ **Owner** | §3. Part 1 of `apple-supervised-run.md`, then the separate first pass it asks for. **Before a tester who uses it.** |
 | T5 Google Tasks | ⏳ **Owner** | §3. 0126 T8 as written. **Before a tester who ticks Tasks.** |
 | T6 A second Google account, and Drive's open live items | ⏳ **Owner**, with a tester's agreement | §3. **After.** Whole-domain delegation is 🅿️ **Parked (trigger: a Workspace the owner administers, or a tester who asks for it)**. |
-| T7 Soverin as a target | ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
+| T7 Soverin as a target | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's corrections, (a)); ⏳ **Owner** (the sitting, and its source: open question 9) — *was:* ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud) | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)); ⏳ **Owner** (0027 T0's consent run, after) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed** | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
-| T12 The managed journey in a browser | ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
+| T12 The managed journey in a browser | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
@@ -955,3 +1024,21 @@ The numbers and C are written in this block. No code, so there is no guard.
 8. **A tester's pass as a proof.** With the tester's agreement, counts only, recorded as "a
    tester's, supervised"? Recommended: yes. It is the only route for Box, and the natural one for a
    second Google account.
+9. **The Soverin sitting's source (T7).** The runbook's source, the OTA stack's demo Nextcloud,
+   cannot be picked through the managed front door, which offers no CalDAV, CardDAV or Nextcloud
+   source (Status, 2026-09-27). The choices:
+   - (a) a source the door offers, in an account that holds only what step B seeds, such as a
+     throwaway Google account that is a test user of the OTA stack's Google client. No code. Its
+     seed must be made without that provider mailing event 1's or event 4's attendee, or step F
+     turns red for a reason that is not the product's;
+   - (b) a CalDAV and CardDAV source on the managed door: code, and a card of its own;
+   - (c) the mapping written into the database, as `seed-managed.ts` writes the demo tenants'. The
+     sitting then no longer walks the front door, which is half of what it proves.
+
+   Recommended: (a), because it needs no code and keeps the front door.
+10. **The live-target lane's product half (T7, T13).** On the OTA stack the lane signs in with the
+    identity provider's ID token, which lives until its `exp` and is never renewed, so the product
+    half is armed only by hand, for a run. To keep it armed: a longer ID-token lifetime at the
+    provider, which applies to every sign-in on the OTA instance (no tester signs in there under
+    0132 D7), or a lane that signs in by itself, as the managed smoke's `sign_in_as` does, which is
+    code for T13. Until one is chosen, the lane runs its control, sweep and silence every night.

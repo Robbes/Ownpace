@@ -10,7 +10,11 @@ to do differently this round, and what to send back**. The stage documents are:
 | 1 | [`google-workspace-setup.md`](./google-workspace-setup.md) | Credentials + the export byte-stability verdict + the CI fixture |
 | 2 | [`windows-appliance-runbook.md`](./windows-appliance-runbook.md) | The appliance on Windows — already proven for mail; this round adds Drive and the queues |
 | 3 | [`selfhost-quickstart.md`](./selfhost-quickstart.md) | The compose deployment on the Spark, over days |
+| 10 | [`soverin-supervised-run.md`](./soverin-supervised-run.md) | A migration into a provider we do not host, and the nightly lane that keeps checking it |
 | — | [`operator-runbook.md`](./operator-runbook.md) | What every queue and refusal means, while you are clicking |
+
+Stages 8 and 9 are written out below. They are walked on `ownpace-live`, the stack testers use,
+and not on the machines above.
 
 ## App-first or commands-first? Both — but the order is not a preference
 
@@ -358,6 +362,234 @@ re-prepares from it (0009 T9), and nothing else reads it.
 **Send back:** the full `verify` output — every domain's line, especially any
 `NOT_VERIFIABLE` — and the `status` output. Nothing else is yours here: the
 door, the job and the rollback are the managed gate's.
+
+---
+
+## Stage 8 — two strangers (workplan 0141 T12 (a); `ownpace-live`, before the first invitation)
+
+Two people who are not you walk the managed journey on live: sign-in, a source, the confirm
+page, a first pass, a progress link, a grant link, *Report a problem* and the Finish page's
+permission list. Nothing in the repository drives this journey in a browser against a real API
+(0141 §1). The phone half is Stage 9.
+
+**When.** On `ownpace-live`, after 0133 T4, the mail half of the same walk. This stage follows
+on from that walk's step 4: each person has joined as the owner of an organisation of their own.
+The alpha note (0131 T1) and the *Experimental* tag (0131 T2) are both on `main`, so any release
+cut from it carries them.
+
+**Before you start.**
+
+- **Two fresh accounts, A and B.** Neither is on your own domains.
+- **Two languages.** A's browser is set to Dutch, B's to English. The app takes its language
+  from the browser the first time, and keeps a choice made with the menu's switch after that.
+- **A's source** is a Google account that is a test user of live's Google client (0140 T0).
+- **B's source** is a personal Microsoft account (outlook.com, hotmail.com or live.com). Its
+  consent is also 0140 T6's personal-account consent.
+- **A target for each first pass**, one you provide for the walk (0141 open question 3).
+- **Live's release.** Note it from the build stamp at the foot of the menu. Every record below
+  carries it.
+
+Each step says what to do, then what to expect. A for Dutch, B for English, unless a step names
+one of them.
+
+1. **The language.** Open the dashboard.
+   **Expect:** A sees Dutch and B sees English. The amber note at the top of the page begins
+   *"Alfa: een kleine, uitgenodigde groep probeert deze dienst uit."* for A and *"Alpha: a
+   small invited group is trying this service out."* for B. No note means live's web bundle
+   was not built for the alpha (`VITE_OWNPACE_STAGE`, `apps/web/src/services/stage.ts`). Press
+   the other language (the **EN** and **NL** buttons in the menu): the page's text changes, and
+   the page's `lang` follows it (`<html lang="nl">` or `"en"`, in the browser's inspector).
+2. **The source.** Start a migration (*Nieuwe migratie* / *New Migration*, which opens
+   `/mappings/new`). A chooses the *Google account* card and presses *Verbinden met Google*. B
+   chooses the *Microsoft 365 account* card and presses *Connect with Microsoft*.
+   **Expect:** the provider's consent completes and the wizard goes on with the connection. For
+   B, write down what Microsoft's screens showed and whether the app was marked unverified: that
+   record is 0140 T6's.
+3. **The tag and the scope.** Walk the wizard to its last step and press *Migratie aanmaken* /
+   *Create Migration*. The confirm page (`/mappings/<id>/confirm`) opens.
+   **Expect:**
+   - In the wizard, a source that has no live proof carries *Experimenteel* / *Experimental*
+     (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`). B's *Microsoft 365 account* card
+     carries it, and so does each of its data types. A's *Google account* card does not, but its
+     tasks data type does, and so does email where live offers it for a Google account.
+   - On the confirm page, B's scope list shows *Shared mailboxes* under *Partial*, and never
+     under *Migrates* (0141 T10). A's list has no shared-mailbox row: that row applies to the
+     Microsoft 365 account only. The list's column titles follow the language (*Gedeeltelijk*,
+     *Migreert*); its rows are English on both.
+4. **The first pass.** Press *Start migratie* / *Start migration*.
+   **Expect:** the progress moves, and the first pass ends `completed` in the target you
+   provided. Write down what the preflight found, what was copied and what was skipped, per data
+   type.
+5. **A progress link.** On the migration's page (`/mappings/<id>`), under *Voortgangslinks* /
+   *Progress links*, press *Voortgangslink maken* / *Create progress link*. Open the link signed
+   out, in a private window.
+   **Expect:** the page (`/view/<link>`) shows the migration's progress, and nothing that reads
+   or changes the migration.
+6. **A grant link (A only).** Grant links are for Google sources only. On A's migration page,
+   under *Toegangslinks*, choose how long it works and press *Toegangslink maken*
+   ([`grant-links.md`](./grant-links.md), *Issuing one*).
+   - Open it in a private window, press *Doorgaan met Google*, and at Google sign in with any
+     other Google account.
+     **Expect:** it is refused. The page after Google names both addresses and says *"Nothing
+     was stored, and your link still works."*
+   - Open it again and sign in as A. **Expect:** it is accepted.
+   - Open it a third time. **Expect:** it cannot be used. The grant page says *"This link cannot
+     be used. It may have been used already, …"*, and on the migration page the link reads *"Op …
+     is toegang gegeven. Deze link is verbruikt."*
+
+   That refusal and the page after Google are English on `main`, even for A. 0145 T6 puts them
+   in the reader's language. Write down the language each came in.
+7. **Report a problem.** From the menu, *Een probleem melden* / *Report a problem*. Describe
+   anything, and press *Melding versturen* / *Send the report*.
+   **Expect:** where live has a helpdesk (0130), the page answers *"Sent. Your report is number
+   …"* and the report reaches you. Where it has none, the page says *"Reporting a problem is not
+   set up on this service."*, and a tester's route is the address in the alpha conditions
+   (0131 T5). Write down which of the two it was.
+8. **The permission list.** On the Finish page (`/mappings/<id>/finish`), press *Haal de
+   rechtenlijst op* / *Get the permission list*, and read the file it downloads.
+   **Expect:** every sentence in it is true of that source. For A's Google account, the
+   calendar section says *"Google Calendar sharing is not yet read by this tool …"*, which is
+   true. For B's Microsoft 365 account it says *"this tenant has no Microsoft 365 source
+   connection, and only Graph can enumerate a directory"*, which is not: B has one. That is
+   0141 T11, which is not built. Until live's release carries it, B's step 8 is a failure, and
+   the record names T11.
+
+**Record.** For each step and each person: pass or fail, the date, live's release, and the
+language seen. Never an address, a name or a tenant id. It goes in 0141's Status as a dated
+paragraph. B's consent screens also go to 0140 T6. A first pass that meets all seven points of
+*What counts as a live proof* ([`feature-matrix.md`](./feature-matrix.md), *Live proofs*) is also
+a row under *Recorded proofs*, with the account *a second account* and the stack
+`ownpace-live`. Where that row's kind and data type are still experimental in `SOURCE_PROOFS`,
+as all of B's are, the verdict turns proven in the same pull request as the row;
+`scripts/a-proof-that-was-written-down.unit.test.ts` refuses a row beside an experimental
+verdict.
+
+**Passes when** all eight steps pass for both people. Until 0141 T11 is in live's release, step
+8 cannot pass for B.
+
+---
+
+## Stage 9 — the same walk on two phones (workplan 0145 T10; `ownpace-live`, before the first invitation)
+
+Stage 8 again, on phones, in Dutch, and with a screen reader. It also produces the list of
+browsers that other apps open a link in. Nothing in the repository runs the app at phone width,
+in WebKit or under a screen reader (0145 §1), so this walk is the only check there is.
+
+**When.** After Stage 8, on `ownpace-live`, once live runs a release that carries 0145's
+minimum (0146 T5 is how live gets a release). On `main` on 2026-09-27 the minimum is only
+partly there:
+
+| 0145 task | Steps below | On `main` |
+|---|---|---|
+| T1, the phone menu takes focus and gives it back | 3 | Yes (`Layout.tsx`) |
+| T3 (a), each wizard step starts at the top and says which it is | 5 | No |
+| T5 with T7 (a), the consent window opens on the press, and a greyed-out button says why | 4 | No |
+| T6, the grant page and the consent endings in one language | 6 | No |
+
+A step whose task is not in live's release is recorded as *not in this release*, not as a
+failure.
+
+**Before you start.**
+
+- **The phones.** An iPhone on iOS 16.4 or later, with Safari, and an Android phone with
+  Chrome. Both are set to Dutch.
+- **The screen readers.** The whole walk once on each phone, then steps 3 to 5 again: once with
+  VoiceOver on the iPhone, and once with TalkBack on the Android phone.
+- **The apps.** When you grant the first testers' requests, ask which apps they read their mail
+  and chats in (0145 D2). Those apps are the rows of the table below.
+- **Live's release.** The build stamp is at the foot of the menu, and at the foot of the pages
+  outside it, such as sign-in, the request form, and the grant and progress pages.
+
+The steps, on each phone:
+
+1. On the Dutch site, press *Toegang aanvragen*.
+   **Expect:** the request form (`/request-access?locale=nl`) opens in Dutch, and the page does
+   not scroll sideways.
+2. Sign in.
+   **Expect:** the identity provider's page fits the phone's width. If it does not, the finding
+   goes to 0135.
+3. Open the menu (*Menu*), then close it with *Sluiten*, and once more with the grey backdrop.
+   **Expect:** when the menu opens, the screen reader is on *Sluiten*. When it closes, the reader
+   is back on *Menu* (T1).
+4. In the wizard, choose the *Google account* card and press *Verbinden met Google*.
+   **Expect:** Google's page opens, the result arrives back in the wizard, and Google's tab
+   closes (T5). Where the button is greyed out, the reason is written under it (T7 (a)). On
+   `main` it is only in the button's tooltip, which a finger cannot open.
+5. Press *Volgende* on each step.
+   **Expect:** each step starts at the top of the page, and the screen reader reads its
+   heading, such as *"Stap 2 van 4: Doel"* (T3 (a)). The four steps are *Bron*, *Doel*,
+   *Migratie* and *Controleren*.
+6. Open a grant link, like Stage 8's step 6, from WhatsApp and from your mail app.
+   **Expect:** the grant page, Google's return and the page after it are all in Dutch (T6), and
+   that last page fits the screen (#1137). Each app's browser goes in the table below.
+7. Open the progress link.
+   **Expect:** it can be read on the phone, and it does not scroll sideways.
+8. In Safari, set the page zoom to 200% and walk the wizard.
+   **Expect:** all its text and buttons can still be reached (WCAG 1.4.4).
+
+**The in-app browsers.** For the grant link, and for the sign-in link in the access-granted mail,
+one row for each app the testers named:
+
+| App | Phone and OS version | Which browser opened | Google's page | Our page after it | Date | Release |
+|---|---|---|---|---|---|---|
+
+*Which browser opened* is one of: the system browser, an in-app tab, or a view inside the app.
+The two page columns say whether it worked.
+
+**Record.** For each step, on each phone and in each screen-reader pass: pass, fail or *not in
+this release*; the date; live's release; the kind of phone and its OS version; the browser; the
+language seen. Never an address. The rows and the table go in 0145's Status. The grant link's
+in-app rows also go to 0140 T3. Name a browser where neither the consent window nor its link
+comes back in 0145 T5: it is what that task's parked same-tab fallback waits for. A sign-in page
+that does not fit goes to 0135. 0145 T9 (a)'s paragraph for the tester guide is written after
+this, and says only what this walk found.
+
+**Passes when** every step passes on both phones, and steps 3 to 5 pass under both screen
+readers.
+
+---
+
+## Stage 10 — Soverin as a target (workplan 0141 T7; the OTA stack, before a tester who picks the Soverin card)
+
+Follow [`soverin-supervised-run.md`](./soverin-supervised-run.md), steps A to H. It is 0105 T3's
+sitting: a small calendar and contacts migration into Soverin, a provider we do not host,
+through the managed front door, with the catch-all as the only ear. Its step H arms the nightly
+lane that keeps checking the same thing (0141 T13).
+
+**Where.** The OTA stack, not `ownpace-live`. The lane reads that stack's persisted `.env`, and
+step H points it at that stack's API (0141 T7, under 0132 D7).
+
+**It cannot start yet.** The runbook's source was the OTA stack's demo Nextcloud, which we host
+and may seed. On `main` the managed front door offers no CalDAV, CardDAV or Nextcloud source:
+the wizard and the Connections page show the cards in `SOURCE_CARDS`
+(`apps/web/src/components/front-door-cards.ts`), and the create route accepts the same list.
+Which source the sitting uses is open question 9 in 0141, and it is yours. The runbook says so
+under *Before the sitting*.
+
+**What changed in the runbook on 2026-09-27** (0141 T7 (a)):
+
+- step H signs in with a token from the identity provider, because the stack will not accept a
+  token the lane signs itself. It says whose token that is, how to take it, and how long it
+  lives;
+- step B gains event 4, whose organiser is the Soverin account's own address. So the sitting
+  also answers 0141 T9's canary on a target we do not run, and step E checks its copy and one
+  update;
+- the rest now matches the code: one Soverin connection carries calendars, contacts, mail and
+  tasks, so one mapping is enough; the Test no longer shows the scheduling verdict, so step E
+  reads it from the audit log; and the labels are the ones on the screen.
+
+**Record.**
+
+- The runbook's findings, as dated rows in 0105's Status, the same day.
+- In 0141's Status: that the sitting ran on the OTA stack, and step H's verdict line.
+- A pass that meets all seven points of *What counts as a live proof* is a row under *Recorded
+  proofs*. Its *Kind* is the source's kind, its *Target* is `soverin`, and its stack is the OTA
+  stack. It is never *Kind* `soverin`: `SOURCE_PROOFS.faces.soverin` holds Soverin as a
+  *source*, which this sitting does not prove.
+
+**Passes when** step C's control arrives, step E finds every seeded item on Soverin, step F
+finds nothing carrying the run's tag that day and the day after, step G leaves nothing behind,
+and step H's run by hand prints `PASS`.
 
 ## The safety rails, all in one place
 
