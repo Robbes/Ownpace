@@ -967,6 +967,11 @@ services:
       # (workplan 0134). The api warns about a blank value in production, and
       # with OWNPACE_STAGE=alpha refuses to start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
+      # How many migrations one organisation may have that are not finished
+      # (workplan 0143 T2a). Unset means the default in the api's
+      # `migration-cap.ts`, five during the alpha; a value that is not a whole
+      # number of at least 1 stops the api from starting, naming it.
+      MAX_MIGRATIONS_PER_ORGANISATION: ${MAX_MIGRATIONS_PER_ORGANISATION:-}
       # THE MAIL SETTINGS. Absent here until 2026-08-25, which meant this
       # container could not send a single notification no matter what `.env`
       # said: compose passes NOTHING it has not been told to pass, and
