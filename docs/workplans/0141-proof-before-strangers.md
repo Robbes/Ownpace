@@ -12,6 +12,9 @@
   over the same two nights, four since each of its two schedules counts as a run. It takes at
   least two nights from the first green scheduled run. 0132 T6 step 1 reads the same N from
   here.
+- **T2's calendar step checks a changed series too** (*"yes, add it, we'll need to test that"*):
+  a repeating series with one occurrence moved, one retitled and one cancelled, beside the
+  recurring, all-day and attendee events it already checks.
 - **The credential model for directory reads is parked** (*"later / park"*). T11's minimum
   stands: a `microsoft` connection is told its grant is delegated, and an `o365` one that could
   not be read is told this deployment does not yet read with the organisation's own
@@ -691,7 +694,11 @@ has no demo servers, so open question 3 asks which. The faces go in this order:
    without bodies, or the pass cannot parse them, 0059 T5(a) is answered "no". The face is then
    hidden until it is rebuilt, and the rebuild is its own plan. A tag that says "not yet run" must
    not stand in front of a face known to be broken. Check a recurring event, an all-day event and
-   one with attendees (T9's silence).
+   one with attendees (T9's silence). Check also a repeating series in which single occurrences
+   were changed in Outlook: one moved to another time, one retitled, one cancelled (the owner,
+   2026-09-27). The moved one must arrive at its new time, the retitled one under its new title,
+   and the cancelled one not at all. A copy that took only the series' rule would show all three
+   as they were, and a tester would notice only by missing a meeting.
 2. **Contacts.** Cards from the default folder, which 0114 moved to `/me/contacts`, and photos,
    which have been read since 2026-09-23 (matrix :181).
 3. **Files.** The preflight finishes counting (0058 T7/T8). Nested paths arrive nested; 0058 T6(b)
