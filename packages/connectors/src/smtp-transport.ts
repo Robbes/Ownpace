@@ -44,6 +44,12 @@ export function smtpTransport(smtp: SmtpSettings): MailTransport {
       port: smtp.port,
       // Implicit TLS on 465; STARTTLS is negotiated automatically otherwise.
       secure: smtp.secure,
+      // A LOGIN IS NEVER SENT IN THE CLEAR (workplan 0133 T2, item 5). Without
+      // this, nodemailer upgrades to STARTTLS when the relay offers it and
+      // sends the login over plain SMTP when it does not. With a login and no
+      // implicit TLS, the connection must upgrade or the send fails. A catcher
+      // with no login is untouched.
+      ...(smtp.user && !smtp.secure ? { requireTLS: true } : {}),
       // Only ever reaches nodemailer when the setting survived
       // `readNotifierConfig`, which refuses it outright in production.
       ...(smtp.allowSelfSignedCertificate ? { tls: { rejectUnauthorized: false } } : {}),
