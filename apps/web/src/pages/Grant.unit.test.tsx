@@ -15,6 +15,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { LocaleProvider } from '../i18n/index.tsx';
 
 const { readMock, authorizeMock, serverMessageMock, assignMock } = vi.hoisted(() => ({
@@ -37,7 +38,7 @@ const SUBJECT = {
   checkedCompany: 'ACME LEGAL B.V.',
   askedBy: 'owner@example.org',
   organisationPhone: '+31 20 123 4567',
-  reads: 'your email — messages, folders and labels',
+  domains: ['email'],
   scope: SCOPE,
   // Gmail's scope also sends and deletes, so Google does not hold it to
   // reading (workplan 0144 T3 (c)), and the server says so.
@@ -69,6 +70,17 @@ beforeEach(() => {
   readMock.mockResolvedValue(SUBJECT);
   vi.stubGlobal('location', { assign: assignMock });
 });
+
+/**
+ * A refusal as the link client delivers one: the server's sentence in the
+ * body, which is what the page reads (`link-refusal.ts`), not the error's own
+ * message.
+ */
+function refused(status: number, data: unknown): AxiosError {
+  const err = new AxiosError(`Request failed with status code ${status}`);
+  err.response = { status, statusText: '', headers: {}, config: { headers: new AxiosHeaders() }, data };
+  return err;
+}
 
 describe('what a person sees before consenting', () => {
   it('names who is asking — consenting to an anonymous request is not consenting', async () => {
@@ -225,18 +237,21 @@ describe('pressing the button', () => {
     authorizeMock.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' });
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /Continue with Google/ }));
-    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def'));
+    // With the page's language, so the ending after Google is in it (0145 T6).
+    await waitFor(() => expect(authorizeMock).toHaveBeenCalledWith('abc.def', 'en'));
     expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1');
   });
 
   it("shows a refusal in the server's words rather than a dead button", async () => {
-    serverMessageMock.mockReturnValue(
-      'This migration is not ready to be connected — please tell the person who sent you the link.',
+    authorizeMock.mockRejectedValue(
+      refused(409, {
+        error: 'not_ready',
+        reason: 'This migration is not ready to be connected — please tell the person who sent you the link.',
+      }),
     );
-    authorizeMock.mockRejectedValue(new Error('409'));
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /Continue with Google/ }));
-    expect(await screen.findByText(/tell the person who sent you the link/)).toBeInTheDocument();
+    expect(await screen.findByText(/^This migration is not ready to be connected/)).toBeInTheDocument();
     expect(assignMock).not.toHaveBeenCalled();
     // And the button comes back, rather than staying stuck on "Opening…".
     expect(screen.getByRole('button', { name: /Continue with Google/ })).toBeInTheDocument();
@@ -245,10 +260,13 @@ describe('pressing the button', () => {
 
 describe('when the link is refused', () => {
   it("shows the server's sentence and offers no button to press", async () => {
-    serverMessageMock.mockReturnValue('This link cannot be used. Ask them for a fresh link.');
-    readMock.mockRejectedValue(new Error('401'));
+    readMock.mockRejectedValue(
+      refused(401, { error: 'link_unusable', message: 'This link cannot be used. Ask them for a fresh link.' }),
+    );
     renderPage();
     expect(await screen.findByText(/Ask them for a fresh link/)).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    // Only the language switch (0145 T6): nothing that starts a consent.
+    expect(screen.queryByRole('button', { name: /Continue with Google/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['EN', 'NL']);
   });
 });
