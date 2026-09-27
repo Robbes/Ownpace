@@ -147,6 +147,9 @@ const usePlaceholderFor = () => {
  *  - `policy_refused` is this migration's own decision (0125 T4). Testing a
  *    connection over it would be the wrong errand in the purest form: nothing
  *    about either account is in question.
+ *  - `too_large` is this service's own limit (0143 T4): a file larger than a
+ *    pass may carry, refused before a byte was read. Neither account is in
+ *    question there either.
  */
 const ASK_TEST: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   'auth_expired',

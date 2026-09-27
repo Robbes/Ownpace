@@ -92,6 +92,7 @@ import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { withClose, type WithClose } from './deps-lifecycle.ts';
 import { refuseDomainTheTargetCannotCarry } from './pass-domain-refusal.ts';
+import { largestFileBytesFromEnv } from './largest-file-setting.ts';
 import {
   STORED_CREDENTIAL_NAMES,
   buildGraphMailSourceFrom,
@@ -837,6 +838,10 @@ export async function buildDomainDepsFromMapping(
         ...common,
         source: fileSource,
         ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
+        // The largest file a managed pass copies (0143 T4): above it a listed
+        // file is refused before a byte is read. Read here, where only the
+        // managed tasks come; a value it cannot read stops the file pass here.
+        largestFileBytes: largestFileBytesFromEnv(process.env.LARGEST_FILE_MB),
         // Files can go over JMAP where the target speaks it (0031 T3). Read
         // off the connection's own `kind`, which has allowed `jmap` since the
         // 0001 baseline, so this needs no migration and no new config field.

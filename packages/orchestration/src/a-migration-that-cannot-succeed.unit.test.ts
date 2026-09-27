@@ -168,12 +168,17 @@ describe('only failures that cannot heal themselves', () => {
     // It is the clearest case the complement has had — the answer is not
     // merely unlikely to change on its own, it is a decision this product
     // already made and is waiting to be told to unmake.
+    //
+    // AND ON 2026-09-27. `too_large` joined it, the same way and for the same
+    // reason: a file larger than a pass here may carry is as large on the next
+    // pass, and only a person copying it by hand moves it (workplan 0143 T4).
     const needsAPerson = FAILURE_CATEGORIES.filter(
       (c: FailureCategory) => !SELF_HEALING_CATEGORIES.has(c),
     );
     expect(needsAPerson).toEqual([
       'auth_expired',
       'policy_refused',
+      'too_large',
       'source_refused',
       'target_refused',
       'format_refused',
