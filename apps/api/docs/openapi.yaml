@@ -1830,7 +1830,10 @@ paths:
         (DAV, Google, JMAP, an IMAP `NO`); a server that did not answer has the
         outcome code `unreachable`, and no address; an address inside this
         service's own network has `insideOurNetwork`, and no host. The sentence
-        ends with a reference that finds the full text in the server log.
+        ends with a reference that finds the full text in the server log. The
+        answer keeps those parts as `said`, with the reference, so a screen can
+        say them in its reader's language; the connection doors keep them the
+        same way on the result and on each refused face they store.
       requestBody:
         required: true
         content:
@@ -1855,6 +1858,22 @@ paths:
                   ok: { type: boolean }
                   detail: { type: string }
                   reason: { type: string }
+                  said:
+                    type: object
+                    description: |
+                      At an address the tester typed (workplan 0136 T3): what
+                      happened, in parts. `kind` is `answered`, `unreachable`,
+                      `certificate`, `insideOurNetwork` or `unknown`; an
+                      `answered` one has its `protocol` (`dav`, `jmap`, `imap`),
+                      its `status` when there was one, and `providerWords` only
+                      when the server sent an error document we know. `reference`
+                      finds the full text in the server log.
+                    properties:
+                      kind: { type: string }
+                      protocol: { type: string }
+                      status: { type: integer }
+                      providerWords: { type: string }
+                      reference: { type: string }
         '400':
           description: |
             The body named neither side's shapes. Or `archive_on_server` (workplan
