@@ -44,6 +44,7 @@ import {
   pgDriver,
   type PgDatabase,
 } from '@openmig/ledger';
+import { pruneDeclinedAccessRequests } from '@openmig/managed';
 import { log, setAuditExportSink } from '@openmig/shared';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -119,6 +120,12 @@ export const managedRetention = schedules.task({
       `[retention] deleted ${events.deleted} application events older than ${events.cutoff.toISOString()}` +
         (events.moreRemaining ? '; the batch ceiling stopped this pass, the next continues.' : '.'),
     );
+    // A declined access request, 30 days after the decision (0139 T6, the
+    // owner's number). Counts only: the rows are people's names and addresses.
+    const declined = await pruneDeclinedAccessRequests(db, now);
+    log.info(
+      `[retention] deleted ${declined.deleted} access request(s) declined before ${declined.cutoff.toISOString()}.`,
+    );
 
     return {
       deleted: result.deleted,
@@ -127,6 +134,7 @@ export const managedRetention = schedules.task({
       runsDeleted,
       runDays,
       appEventsDeleted: events.deleted,
+      declinedRequestsDeleted: declined.deleted,
     };
   },
 });
