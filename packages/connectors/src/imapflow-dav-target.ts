@@ -72,6 +72,7 @@ import type {
   UpsertResult,
 } from '@openmig/shared';
 import { contentHash, log } from '@openmig/shared';
+import { reachableHost } from '@openmig/shared/reachable-host';
 import {
   mapImapSpecialUse,
   KEYWORD_TO_FLAG,
@@ -124,8 +125,11 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
   }
 
   async connect(): Promise<void> {
+    // A host we are asked to reach (0136 T1): see ImapFlowSource.connect().
+    const reach = await reachableHost(this.config.host);
     const client = new ImapFlow({
-      host: this.config.host,
+      host: reach.host,
+      ...(reach.servername === undefined ? {} : { servername: reach.servername }),
       port: this.config.port,
       secure: this.config.tls,
       auth: { user: this.config.username, pass: this.config.password },

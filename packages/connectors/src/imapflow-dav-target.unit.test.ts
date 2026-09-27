@@ -18,9 +18,14 @@
  * removed.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TargetEntry, RawMessage } from '@openmig/shared';
 import { contentHash } from '@openmig/shared';
+import {
+  HostInsideOurNetwork,
+  refuseInternalAddresses,
+  type ResolveAll,
+} from '@openmig/shared/reachable-host';
 
 /** One message in the fake server. */
 interface FakeMsg {
@@ -62,6 +67,8 @@ let failFetch: Error | null;
 let searchNonAnswer: { value: false | undefined; afterCalls: number } | null;
 /** What `exists` was when each mailbox was first SELECTed — see getMailboxLock. */
 let selectedExists: Map<string, number>;
+/** The options the LAST client was built with: where it connects, and its TLS name. */
+let lastOptions: Record<string, unknown> | undefined;
 
 vi.mock('imapflow', () => {
   class FakeImapFlow {
@@ -70,6 +77,7 @@ vi.mock('imapflow', () => {
     public readonly options: Record<string, unknown>;
     constructor(options: Record<string, unknown>) {
       this.options = options;
+      lastOptions = options;
     }
     on(event: string, handler: (err: Error) => void): void {
       calls.push(`on(${event})`);
@@ -233,6 +241,7 @@ beforeEach(() => {
   connectError = null;
   lastErrorHandler = undefined;
   selectedExists = new Map();
+  lastOptions = undefined;
 });
 
 // =======================================================================
@@ -747,5 +756,46 @@ describe('a container is not a mailbox to write into', () => {
     boxes.set('Archive', []);
     await target().ensureMailbox({ path: 'Archive', name: 'Archive', specialUse: 'normal' });
     expect(calls).not.toContain('mailboxCreate(Archive)');
+  });
+});
+
+// =======================================================================
+// A host we are asked to reach (0136 T1)
+// =======================================================================
+
+describe('a host we are asked to reach (0136 T1)', () => {
+  /**
+   * The same as the IMAP source's: on managed, the typed host is resolved and
+   * checked before anything is opened, and the writer connects to the checked
+   * address with the typed name kept for TLS. With the rule off, as on the
+   * appliance, the host goes through as typed.
+   */
+  let release: (() => void) | undefined;
+  afterEach(() => {
+    release?.();
+    release = undefined;
+  });
+  const resolveTo =
+    (address: string): ResolveAll =>
+    async () => [{ address, family: 4 }];
+
+  it('connects to the host as typed while the rule is off, as the appliance does', async () => {
+    await target().connect();
+    expect(lastOptions?.host).toBe('imap.test');
+    expect(lastOptions).not.toHaveProperty('servername');
+  });
+
+  it('connects to the checked address, with the typed name kept for TLS', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('203.0.113.20') });
+    await target().connect();
+    expect(lastOptions?.host).toBe('203.0.113.20');
+    expect(lastOptions?.servername).toBe('imap.test');
+  });
+
+  it('refuses a name that resolves inside our network, before any socket', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('192.168.7.7') });
+    await expect(target().connect()).rejects.toBeInstanceOf(HostInsideOurNetwork);
+    expect(lastOptions).toBeUndefined();
+    expect(calls).not.toContain('connect');
   });
 });
