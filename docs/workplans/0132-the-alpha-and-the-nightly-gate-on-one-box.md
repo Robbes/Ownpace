@@ -331,10 +331,11 @@ regression through. The entry above is corrected in place; this says what change
 - **The gate's own seed step** still asks the demo Stalwart on `127.0.0.1` and does not read the
   `.env`. Rather than a second reader, its comment in `e2e-managed.yml` and `setup-managed-demo.sh`'s
   `STALWART_BIND` note say so, and that the OTA `.env` leaves `STALWART_BIND` unset.
-- **The guards.** `a-port-published-on-purpose` has 33 cases, up from 13. The example must list
-  `WWW_BIND` too. The demo Stalwart's publishes are read in every form Docker takes (`-p V`,
-  `-p=V`, `--publish V`, quoted or not) inside `docker run` commands only, so a `mkdir -p` is not
-  one. `CLI_URL`'s host and the seeder's `SEED_IMAP_HOST` must each be a variable taken from the
+- **The guards.** `a-port-published-on-purpose` has 33 cases, up from 13 (34 after the second
+  review, below). The example must list `WWW_BIND` too. The demo Stalwart's publishes are read
+  inside `docker run` commands only, so a `mkdir -p` is not one: `-p` with its value apart, after
+  `=` or attached, alone or after boolean short flags (`-dp V`), and `--publish` apart or after
+  `=`, each quoted or not. `-P`, `--publish-all` and a literal host network are refused outright. `CLI_URL`'s host and the seeder's `SEED_IMAP_HOST` must each be a variable taken from the
   bind, which a literal `localhost` or no assignment fails. The refusal and the note have 19
   cases, most of them running the function for real against a `.env` the test writes, and the
   publish reader one of its own. `identity-in-the-gate`'s clash check now reads the
@@ -352,6 +353,28 @@ regression through. The entry above is corrected in place; this says what change
   two-part precondition and the IP rule. `docs/windows-appliance-runbook.md` cites 0132 T3 once.
 - **Still open, and whose.** The owner's: the precondition's two parts, T0 step 1's two checks,
   and the check after the first reboot. The rest is as the entry above says.
+
+**2026-09-27, later still: a second review of those fixes, on the same branch, not merged.** It
+found the Stalwart publish reader claiming more forms than it read, and the branch no longer
+merging cleanly with `main`.
+
+- **The reader.** It needed `=` or a space after `-p`, so the attached `-p${IMAPS_PORT}:993`,
+  which Docker takes, passed; and `-P` (`--publish-all`) publishes every port the image exposes
+  on every interface with no value to read at all. The reader now takes the attached form, a `-p`
+  after boolean short flags in one cluster (`-dp V`, `-itpV`) and single quotes, and the Stalwart
+  case refuses any `docker run` carrying `-P` alone or in a cluster, `--publish-all`, or a literal
+  `--network host` / `--net=host`. The vacuity cases cover each form, and the refusal leaves
+  `-ePATH=…`, `--network "$NETWORK"` and `--network-alias host` alone. The comments name the forms
+  read rather than *every form*. **Failed first:** the new vacuity cases failed against the old
+  reader, and four mutations of `setup-stalwart.sh` (an added `-p${IMAPS_PORT}:994`, an added `-P`,
+  an added `-dp ${JMAP_PORT}:8081`, `--network host` in place of `$NETWORK`) passed the old guard
+  (33 of 33) and turn the new one red. 34 cases.
+- **Before the merge.** `main` has moved past this branch's base, and `docs/LESSONS.md` and
+  `docs/workplans/README.md`, which both regenerate, conflict. Once T1's branch has merged, `main`
+  is merged into this branch (not rebased), both files are regenerated with
+  `node scripts/lessons.mjs --write` and `node scripts/workplan-index.mjs --write`, and the unit
+  tests are run again after `pnpm install --frozen-lockfile`. A trial merge in a scratch tree
+  cleared both conflicts that way, and nothing else conflicted.
 
 | Task | Status | Notes |
 |---|---|---|

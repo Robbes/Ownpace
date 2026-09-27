@@ -61,9 +61,12 @@
  * AND THE READERS READ WHAT A REGRESSION WOULD WRITE. The first version found
  * Stalwart's publishes only as a double-quoted `-p "…"`, and the seeder case
  * only refused one literal: an unquoted `-p ${PORT}:993` and a seeder on
- * `localhost` both passed. The publish reader takes every form Docker does,
- * inside `docker run` only, and the seeder and `CLI_URL` must each ask a
- * variable taken from the bind.
+ * `localhost` both passed. The publish reader, inside `docker run` only, takes
+ * `-p` with its value apart, after `=` or attached, alone or after boolean
+ * short flags (`-dp`), and `--publish` apart or after `=`, each quoted or not;
+ * and `-P`, `--publish-all` and a literal host network, which publish with no
+ * value to read, are refused outright. The seeder and `CLI_URL` must each ask
+ * a variable taken from the bind.
  *
  * WHAT THIS CANNOT SEE. The `.env` on the machine. The routed ports answer the
  * public names only once the owner sets the front's address as their bind
@@ -460,6 +463,10 @@ describe('the demo Stalwart publishes on loopback too', () => {
     ).toBe(true);
     const bare = flags.filter((f) => !f.startsWith('${BIND}:') || splitTop(f).length !== 3);
     expect(bare, 'these publish flags publish on every interface, or not on ${BIND}').toEqual([]);
+    expect(
+      dockerRunsOnEveryInterface(code),
+      'a docker run in setup-stalwart.sh answers on every interface without a -p',
+    ).toEqual([]);
   });
 
   it('asks the address it publishes on, rather than assuming localhost', () => {
@@ -495,19 +502,50 @@ describe('the demo Stalwart publishes on loopback too', () => {
 });
 
 /**
- * Every value a `docker run` in this shell text publishes, in every form
- * Docker takes: `-p V`, `-p=V`, `--publish V`, `--publish=V`, quoted or not.
- * Only inside `docker run` commands, with their continuation lines joined, so
- * a `mkdir -p "$DIR"` elsewhere is not read as a publish.
+ * The `docker run` commands in this shell text, each on one line with its
+ * continuation lines joined, so a `mkdir -p "$DIR"` elsewhere is not read.
  */
-function dockerRunPublishes(code: string): string[] {
-  const commands = code
+function dockerRuns(code: string): string[] {
+  return code
     .replace(/\\\n/g, ' ')
     .split('\n')
     .filter((l) => /\bdocker\s+run\b/.test(l));
-  return commands.flatMap((c) =>
-    [...c.matchAll(/(?:^|\s)(?:-p|--publish)(?:=|\s+)("?)([^"\s]+)\1/g)].map((m) => m[2]!),
+}
+
+/**
+ * `docker run`'s boolean short flags, the ones a `-p` or `-P` may follow in
+ * one cluster (`-dp V`, `-itP`): detach, interactive, tty, quiet, publish-all.
+ */
+const RUN_BOOLEAN_SHORTS = 'ditqP';
+
+/**
+ * Every value a `docker run` in this shell text publishes. The forms read are
+ * the short flag with its value apart, after `=` or attached (`-p V`, `-p=V`,
+ * `-pV`), the same after boolean short flags in one cluster (`-dp V`,
+ * `-itpV`), and the long flag apart or after `=` (`--publish V`,
+ * `--publish=V`); each value bare, double-quoted or single-quoted.
+ * `dockerRunsOnEveryInterface` reads the flags that publish without a value.
+ */
+function dockerRunPublishes(code: string): string[] {
+  const publish = new RegExp(
+    `(?:^|\\s)(?:-[${RUN_BOOLEAN_SHORTS}]*p(?:=|\\s+|(?=[^\\s=]))|--publish(?:=|\\s+))(["']?)([^"'\\s]+)\\1`,
+    'g',
   );
+  return dockerRuns(code).flatMap((c) => [...c.matchAll(publish)].map((m) => m[2]!));
+}
+
+/**
+ * The flags in a `docker run` that answer on every interface with no `-p` to
+ * read: `-P` alone or in a cluster of boolean short flags (`-dP`),
+ * `--publish-all` with or without a value, and a literal host network
+ * (`--network host`, `--net=host`), which publishes nothing and needs nothing.
+ */
+function dockerRunsOnEveryInterface(code: string): string[] {
+  const everyInterface = new RegExp(
+    `(?:^|\\s)((?:-[${RUN_BOOLEAN_SHORTS}]*P|--publish-all\\b)\\S*|--net(?:work)?(?:=|\\s+)["']?host["']?(?=\\s|$))`,
+    'g',
+  );
+  return dockerRuns(code).flatMap((c) => [...c.matchAll(everyInterface)].map((m) => m[1]!));
 }
 
 /**
@@ -557,6 +595,11 @@ describe('the rule is not vacuous', () => {
       '  --publish="${BIND}:${IMAPS_PORT}:993" \\',
       '  -p=127.0.0.1:1:2 \\',
       '  --publish ${BIND}:3:4 \\',
+      '  -p${X}:5 \\',
+      '  -p"${BIND}:6:7" \\',
+      "  -p '${BIND}:8:9' \\",
+      '  -dp 10:11 \\',
+      '  -itp12:13 \\',
       '  "$IMAGE"',
     ].join('\n');
     expect(dockerRunPublishes(shell)).toEqual([
@@ -564,7 +607,37 @@ describe('the rule is not vacuous', () => {
       '${BIND}:${IMAPS_PORT}:993',
       '127.0.0.1:1:2',
       '${BIND}:3:4',
+      '${X}:5',
+      '${BIND}:6:7',
+      '${BIND}:8:9',
+      '10:11',
+      '12:13',
     ]);
+  });
+
+  it('finds every way a docker run answers on every interface without a -p', () => {
+    for (const flag of [
+      '-P',
+      '-dP',
+      '-Pd',
+      '-itPp1:2',
+      '--publish-all',
+      '--publish-all=true',
+      '--network host',
+      '--net=host',
+    ]) {
+      expect(dockerRunsOnEveryInterface(`docker run -d ${flag} "$IMAGE"`), flag).toEqual([flag]);
+    }
+    const quiet = [
+      'mkdir -P "$DIR"',
+      'docker run -d \\',
+      '  -ePATH=/bin \\',
+      '  --network "$NETWORK" \\',
+      '  --network-alias host \\',
+      '  -p "${BIND}:1:2" \\',
+      '  "$IMAGE"',
+    ].join('\n');
+    expect(dockerRunsOnEveryInterface(quiet)).toEqual([]);
   });
 
   it('splits only on the colons outside a variable', () => {
