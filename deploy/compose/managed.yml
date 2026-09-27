@@ -794,9 +794,13 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3001
-      # DATABASE_URL = DB owner (migrations / seed). APP_DATABASE_URL = non-owner
-      # `app_user` role the request path connects through so RLS is ALWAYS enforced
-      # (a superuser/owner bypasses RLS even under FORCE — see workplan 0011 T1).
+      # DATABASE_URL = DB owner: the fallback for the migrations and the audit
+      # key's pool when DIRECT_DATABASE_URL is unset, and the pool of two routes
+      # (the permission report and the sharing rescan, routes/permissions.ts).
+      # APP_DATABASE_URL = non-owner `app_user` role the request path connects
+      # through, so RLS is enforced there apart from those two routes (a
+      # superuser/owner bypasses RLS even under FORCE — see workplan 0011 T1;
+      # docs/rls-guide.md, "Where row security holds today").
       # DB_HOST/DB_PORT default to the pooler. Setting them to postgres:5432 in
       # .env puts the whole stack back on direct connections — the rollback the
       # pgbouncer service documents.
@@ -896,7 +900,11 @@ services:
       STATUS_URL: ${STATUS_URL:-http://gatus:8080}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually
-      # completes (0085 T5). Unset means the 7-day default in @openmig/shared.
+      # completes (0085 T5). Unset means the 7-day default in @openmig/shared,
+      # and that default assumes backups exist: nothing in this repository
+      # backs this database up yet. `ownpace-live` sets 0 during the alpha
+      # (workplan 0134). The api warns about a blank value in production, and
+      # with OWNPACE_STAGE=alpha refuses to start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
       # THE MAIL SETTINGS. Absent here until 2026-08-25, which meant this
       # container could not send a single notification no matter what `.env`
