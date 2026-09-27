@@ -43,7 +43,7 @@ import {
   qualificationReportLines,
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
-import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow, PHASES_PAST_A_CUTOVER } from '@openmig/shared';
+import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentialRefusal, refusalText, SCOPE_MANIFEST, DELETION_CONFIRMATIONS, DISCOVERY_DOMAINS, FAILURE_CATEGORIES, isFailureCategory, carriesGoogleNativeFiles, googleMailboxDelegationNotRead, buildCompletionReport, buildDomainStatusReports, renderCompletionReportMarkdown, phasesOfTheMigration, pathRunsNow } from '@openmig/shared';
 // The operating contract (ADR-0026): the queue shapes and the operator-facing
 // prose that goes with them, shared with the UI and the managed edition so the
 // three cannot drift apart in the explanations that stop somebody destroying
@@ -107,12 +107,10 @@ import { renderMetrics, METRICS_CONTENT_TYPE, setAppEventSink, parseLogFilters, 
 import { isCrossSiteWrite } from './cross-site.ts';
 import { answersTo, describeAllowlist, hostAllowlistFrom, namedHost } from './host-allowlist.ts';
 import {
-  assembleShareAnnouncements,
   createFailureStreakGate,
   createNotifier,
   renderEvent,
   renderDigest,
-  renderShareAnnouncement,
   digestSchedule,
   wantsAttention,
   type Notifier,
@@ -153,7 +151,7 @@ import {
   resolveCoverage,
   coverageIncompleteReason,
   buildIdentity,
-  NOT_CUT_OVER_REASON,
+  announceByHandShares,
   applyAllOpenShareGrants,
   applyShareGrantsInFolder,
   applyShareGrant,
@@ -2387,9 +2385,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // THE ANNOUNCEMENT THE PLATFORM CANNOT MAKE (0104 T3) — same verb as
       // managed: one press mails a Template-6 digest to each grantee of a
       // by-hand share. Note required (the "where" comes from the person who
-      // carried the shares); a prior press makes the next an explicit resend.
-      // On the appliance the operator IS the tenant — one person, their own
-      // box — so §17's operator/tenant split collapses here on purpose.
+      // carried the shares); one wave per data type, at its own cutover, and
+      // a data type announced before is mailed again only on purpose
+      // (`announceByHandShares`, 0128 T5). On the appliance the operator IS
+      // the tenant — one person, their own box — so §17's operator/tenant
+      // split collapses here on purpose.
       const sharingAnnounceMatch =
         req.method === 'POST' && req.url
           ? /^\/mappings\/([^/]+)\/sharing\/announce$/.exec(req.url)
@@ -2414,81 +2414,37 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           });
         }
         const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : channel.locale;
-        // The shares carried by hand are announced in one wave for the whole
-        // migration, so they wait for every data type's cutover: the status,
-        // which is at or past its cutover once every path is (0128 T5).
-        const lifecycle = await mappingStatus(m);
-        if (!PHASES_PAST_A_CUTOVER.includes(lifecycle)) {
-          return sendJson(res, 409, { error: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
-        }
-        if (!channel.config.enabled) {
-          return sendJson(res, 409, {
-            error: 'notifications_off',
-            reason:
-              'No mail channel is configured (SMTP_* / NOTIFY_*), so nobody can be ' +
-              'told. Configure the channel, then press again — nothing was sent.',
-          });
-        }
-        const tenantId = m.config.tenantId as TenantId;
-        const mappingId = m.mailboxMappingId as MappingId;
-        const previous = await ledger.latestAuditEventAt(tenantId, {
-          action: 'share.announce',
-          mappingId,
-        });
-        if (previous && body.confirmResend !== true) {
-          return sendJson(res, 409, {
-            error: 'already_announced',
-            reason:
-              `This migration's fallback announcement was already sent on ${previous}. ` +
-              'Sending again mails the same people again — pass confirmResend: true ' +
-              'to do that on purpose.',
-          });
-        }
-        const rows = await ledger.listShareGrants(tenantId, mappingId);
-        const assembly = assembleShareAnnouncements(rows);
-        const sent: string[] = [];
-        const failed: string[] = [];
-        for (const digest of assembly.digests) {
-          try {
-            const notifier = createNotifier(smtpTransport(channel.config.smtp), {
-              from: channel.config.settings.from,
-              to: [digest.grantee],
-              locale,
-            });
-            await notifier.notify(renderShareAnnouncement(digest, locale, note));
-            sent.push(digest.grantee);
-          } catch (err) {
-            log.error(`[sharing-announce] could not tell ${digest.grantee}:`, err);
-            failed.push(digest.grantee);
-          }
-        }
-        try {
-          await ledger.recordAuditEvent(tenantId, {
-            actor: 'operator',
-            action: 'share.announce',
-            entity: 'share_grant',
-            detail: {
-              mappingId,
-              grantees: assembly.digests.length,
-              sent: sent.length,
-              failed: failed.length,
-              withoutAddress: assembly.withoutAddress,
-              locale,
-              resend: previous !== undefined,
+        const isCutOver = await shareGateOf(m);
+        const config = channel.config;
+        const outcome = await announceByHandShares(
+          {
+            tenantId: m.config.tenantId as TenantId,
+            mappingId: m.mailboxMappingId as MappingId,
+            ledger,
+            pressedBy: 'operator',
+            isCutOver,
+            channelIsOn: config.enabled,
+            tell: async (grantee, message) => {
+              if (!config.enabled) return false;
+              try {
+                const notifier = createNotifier(smtpTransport(config.smtp), {
+                  from: config.settings.from,
+                  to: [grantee],
+                  locale,
+                });
+                await notifier.notify(message);
+                return true;
+              } catch (err) {
+                log.error(`[sharing-announce] could not tell ${grantee}:`, err);
+                return false;
+              }
             },
-          });
-        } catch (err) {
-          log.error('recording the announce press failed (the mails themselves stand)', err);
-        }
-        return sendJson(res, 200, {
-          status: 'ok',
-          pressedBy: 'operator',
-          sent,
-          failed,
-          platformAnnounced: assembly.platformAnnounced,
-          withoutAddress: assembly.withoutAddress,
-          resend: previous !== undefined,
-        });
+            onError: (message, err) => log.error(message, err),
+          },
+          { note, locale, confirmResend: body.confirmResend === true },
+        );
+        if (!outcome.ok) return sendJson(res, 409, { error: outcome.code, reason: outcome.reason });
+        return sendJson(res, 200, { status: 'ok', pressedBy: 'operator', ...outcome });
       }
       // The §14.2 permission inventory (workplan 0029 T1/T3/T4). Markdown,
       // same shape and same words as managed (ADR-0026), derived on every

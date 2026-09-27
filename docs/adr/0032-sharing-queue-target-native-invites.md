@@ -3,8 +3,9 @@
 - **Status:** Accepted (owner decision, 2026-08-16 — "yes, accepted") — first slice built
   the same day, with the owner's own addition: **every manual step is a trackable
   checklist row**, not only the applicable ones (workplan 0052). **Amended 2026-09-26**: each
-  share waits for its own data type's cutover (workplan 0128 T5, slice 6, the owner's D8); see
-  the amendment at the end
+  share waits for its own data type's cutover, and the shares carried by hand are announced once
+  per data type, at its cutover (workplan 0128 T5, slice 6, the owner's D8); see the amendment at
+  the end
 - **Date:** 2026-08-16
 - **Deciders:** owner
 - **Relates to:** workplan 0029 (the permission inventory — §14.2's read half; this is the
@@ -21,7 +22,7 @@
 
 - Grants are **rows** (`share_grant`) with verbatim source evidence; applying a share is a **per-grant owner decision** (apply/skip/edit) — never a pass side-effect; bulk is a loop over the same gated per-row apply.
 - **Nextcloud OCS is the only apply-capable target**; every other row stays manual with the protocol gap named. Link shares are **never auto-recreated**.
-- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the share's **own data type** is at or past its cutover (`cutover`, `done` or `continuous`; 0128 T5, slice 6); the announcement of shares carried by hand waits for the whole migration's.
+- The **target's own messaging notifies the grantee** — Ownpace never emails third parties, ever. Apply is refused until the share's **own data type** is at or past its cutover (`cutover`, `done` or `continuous`; 0128 T5, slice 6); the shares carried by hand are announced once per data type, at its own cutover.
 - Grantee addresses are proposed by the machine and **confirmed by a person**; attribution names the decider.
 
 ## Context
@@ -235,16 +236,24 @@ The presses keep their shapes, and each asks per row. The one-go press applies t
 data types that are cut over and leaves the rest open, counted (`waitingForCutover`), for the press
 at their own cutover: one wave per data type, never a trickle. With none of them cut over it is
 refused as before, naming the data types that wait. A folder press is all or nothing, as its
-grantees' gate is. The announcement of the shares carried by hand (0104 T3) is one wave for the
-whole migration, so it waits for every data type: the migration's status at or past its cutover.
-Making it one wave per data type too, with its once-only guard kept per data type, is the slice's
-second part.
+grantees' gate is.
+
+The announcement of the shares carried by hand (0104 T3), the slice's second part, goes the same
+way. One press announces the shares carried by hand of each data type that is cut over, and leaves
+the others, counted, for the press at their own cutover. Each data type is announced once: every
+press is remembered in the audit log with the share subjects it announced, and a data type
+announced before is mailed again only on purpose (`confirmResend`). A press made before the
+waves, for the whole migration, announced every data type (`announceByHandShares`, core).
 
 Gates: `packages/shared/src/a-share-waits-for-its-own-cutover.unit.test.ts` (the rule),
 `packages/core/src/share-queue.unit.test.ts` (each press),
 `packages/ledger/src/the-share-gate.unit.test.ts` (the reader), and the doors on both editions:
 `apps/api/src/routes/migrations/a-share-waits-for-its-own-cutover.integration.test.ts` and
-`apps/selfhost/src/a-share-waits-for-its-own-cutover-on-the-appliance.unit.test.ts`.
+`apps/selfhost/src/a-share-waits-for-its-own-cutover-on-the-appliance.unit.test.ts`. For the
+announcement: `packages/core/src/the-announcement-per-data-type.unit.test.ts` (the press),
+`packages/ledger/src/each-data-type-announced-once.unit.test.ts` (its memory), and the doors,
+`apps/api/src/routes/migrations/each-data-type-announced-once.integration.test.ts` and
+`apps/selfhost/src/each-data-type-announced-once-on-the-appliance.unit.test.ts`.
 
 ## What this ADR does not decide
 
