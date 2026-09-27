@@ -379,6 +379,10 @@ reading a file drops off its entry by itself.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/worker/src/jobs/cutover-gate.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
 ### `apps/worker/src/jobs/managed-digest.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
@@ -1307,6 +1311,10 @@ reading a file drops off its entry by itself.
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 
+### `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
+
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
+
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
@@ -2129,6 +2137,7 @@ Reads:
 
 - `apps/worker/src/cli/index.ts`
 - `apps/worker/src/index.ts`
+- `apps/worker/src/jobs/cutover-gate.ts`
 - `apps/worker/src/jobs/managed-digest.ts`
 - `apps/worker/src/jobs/managed-drift-detect.ts`
 - `apps/worker/src/jobs/managed-group-discovery.ts`
@@ -2337,6 +2346,7 @@ Reads:
 - `deploy/compose/set-task-env.sh`
 - `docs/managed-bring-up.md`
 - `docs/rls-guide.md`
+- `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
 
 ### [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts)
 

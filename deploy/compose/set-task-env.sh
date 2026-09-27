@@ -44,11 +44,15 @@
 # postgres:5432 past the pooler. No task reads it. The tasks do not run
 # migrations — the API, the appliance and the seed do. The two functions that
 # read this variable, migrationConnectionString and poolerInFront
-# (packages/ledger/src/direct-url.ts), are called by the API and the seed alone.
+# (packages/ledger/src/direct-url.ts), are called by the API and the seed alone;
+# scripts/a-pass-that-opened-the-owners-pool.unit.test.ts fails if the worker
+# or another package calls them.
 # Trigger.dev stores variables per environment, not per task, so every run of
 # every task held a superuser credential it never used.
-# scripts/a-run-that-carries-no-superuser.unit.test.ts fails if it comes back,
-# under any name.
+# scripts/a-run-that-carries-no-superuser.unit.test.ts fails if the name comes
+# back anywhere in this script outside a comment line, or if a value this
+# script composes from the owner's user or password is uploaded under any name
+# but DATABASE_URL (which T3 step 2 removes). It cannot see what .env holds.
 #
 # Leaving it out of the upload does NOT take it out of the store. `upload`
 # sends the variables it is given and nothing else (the SDK posts them to the

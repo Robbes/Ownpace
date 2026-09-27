@@ -19,19 +19,30 @@
  *   CROSS_TENANT            closed, and it stays. Each entry asks a question
  *                           that spans organisations by nature, or runs at the
  *                           machine and never as a task, and says which.
- *   KNOWN_REMOVED_BY_T1     today's per-tenant readers. It may only shrink: an
- *                           entry whose file no longer reads a database URL
- *                           fails until it is deleted, and the list cannot grow
- *                           past its size on the day it landed. T1 empties it,
- *                           and T1's PR deletes it.
+ *   KNOWN_REMOVED_BY_T1     today's per-tenant readers. It may only shrink:
+ *                           every entry must be one of the eleven it held on
+ *                           the day it landed, an entry whose file no longer
+ *                           reads a database URL fails until it is deleted, and
+ *                           the ceiling follows the list down, so a freed place
+ *                           cannot be refilled, not even by a name it once
+ *                           held. T1 empties it, and T1's PR deletes it.
  *
- * So a NEW file that reads the owner's URL fails at once, whichever way the
- * owner answers 0138 T0.
+ * So a NEW file that names a database URL other than `APP_DATABASE_URL` fails
+ * at once, whichever way the owner answers 0138 T0. A file that reaches the
+ * owner's URL through a function, without naming it, is caught only where the
+ * function is known: `migrationConnectionString` and `poolerInFront`
+ * (`packages/ledger/src/direct-url.ts`) read the owner's URL from the
+ * environment their caller passes, and the first returns it, so no scanned file
+ * but their own may name them. The builders on KNOWN_REMOVED_BY_T1
+ * are the other such functions, and until T1 part 2 a job that calls one
+ * inherits its owner read without being seen; T1 part 2 hands the builders
+ * their handle, and that route closes with the list.
  *
  * WHAT "READS A DATABASE URL" MEANS HERE. Any name ending in `DATABASE_URL`
  * other than `APP_DATABASE_URL` (so `DATABASE_URL`, `DIRECT_DATABASE_URL`, the
  * builders' `TEST_DATABASE_URL || DATABASE_URL` fallback, and T3 step 2's system
- * variable if it is named that way), used as a property (`process.env.X`,
+ * variable, which the T3 guard, `a-run-that-carries-no-superuser`, only lets go
+ * up under such a name), used as a property (`process.env.X`,
  * `env.X`), an element (`env['X']`), a destructured binding (`{ X } = …`) or a
  * string whose whole text is the name (`getEnv('X')`). Parsed, not grepped: a
  * comment or an error message that mentions the name is not a read.
@@ -39,11 +50,23 @@
  * WHAT IT DOES NOT SEE. A `new Pool()` with no connection string, which
  * node-postgres fills from `PGHOST`, `PGUSER` and the rest. No file here does
  * that; the second rule below, on who may build a pool in `jobs/`, is the net
- * for it in the place that matters.
+ * for it in the place that matters. That rule counts a `new` of `Pool`, or of
+ * pg's `Client`, under any local name (`import { Pool as PgPool } from 'pg'`
+ * got past its first version), and a `drizzle(…)` given anything but a handle,
+ * since drizzle then builds its own pool. It does not count an object with a
+ * `connectionString` handed to something else: `cutover-gate.ts` passes one to
+ * the verification reader, which opens its own connection from the URL
+ * `run-cutover.ts` reads, and T1 part 2 takes that with `run-cutover.ts`'s
+ * entry.
  *
- * The lists are exported: 0138 T5 step 2 extends the docs guard to check that
- * `docs/rls-guide.md` names every file on CROSS_TENANT, so the code and the
- * guide cannot disagree about who holds the cross-tenant connection.
+ * The lists stay in this file, unexported, on purpose. 0138 §3 has T5 step 2's
+ * docs guard read CROSS_TENANT, so that `docs/rls-guide.md` and the code cannot
+ * disagree about who holds the cross-tenant connection. But importing from a
+ * `.unit.test.ts` runs every case in it inside the importer: a one-case test
+ * that imported CROSS_TENANT from here reported 63 tests. T5 step 2 therefore
+ * first moves the lists to a plain module both guards import, and keeps each
+ * listed file's route to this guard in docs/LESSONS.md, which today comes
+ * from the paths being written here.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -55,7 +78,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Files that may read a database URL other than APP_DATABASE_URL, for good. */
-export const CROSS_TENANT: Record<string, string> = {
+const CROSS_TENANT: Record<string, string> = {
   'apps/worker/src/jobs/managed-sync-tick.ts':
     'which mappings are due across every organisation, how many runs are in flight, ' +
     'whether the platform is on hold (0138 T2)',
@@ -84,7 +107,7 @@ export const CROSS_TENANT: Record<string, string> = {
  * Today's per-tenant readers. May only shrink: 0138 T1 empties it, and its PR
  * deletes it together with the size check below.
  */
-export const KNOWN_REMOVED_BY_T1: Record<string, string> = {
+const KNOWN_REMOVED_BY_T1: Record<string, string> = {
   'apps/worker/src/jobs/run-delta-sync.ts': 'a pass, on the owner pool (T1 part 1)',
   'apps/worker/src/jobs/run-discovery.ts': 'a discovery, on the owner pool (T1 part 1)',
   'apps/worker/src/jobs/run-verification.ts':
@@ -105,8 +128,41 @@ export const KNOWN_REMOVED_BY_T1: Record<string, string> = {
     'verifyMapping falls back to DATABASE_URL; T1 part 2 removes the fallback',
 };
 
-/** Its size on the day it landed (2026-09-27). Lower it as entries go; never raise it. */
+/**
+ * KNOWN_REMOVED_BY_T1 as it landed (2026-09-27). Every entry must be one of
+ * these: a size check alone let a change free one place and give it to a new
+ * reader. Never add to it; T1's PR deletes it with the list.
+ */
+const KNOWN_REMOVED_BY_T1_AS_LANDED: readonly string[] = Object.freeze([
+  'apps/worker/src/jobs/run-delta-sync.ts',
+  'apps/worker/src/jobs/run-discovery.ts',
+  'apps/worker/src/jobs/run-verification.ts',
+  'apps/worker/src/jobs/run-confirmation.ts',
+  'apps/worker/src/jobs/run-apply-deletion.ts',
+  'apps/worker/src/jobs/run-apply-relocation.ts',
+  'apps/worker/src/jobs/run-cutover.ts',
+  'apps/worker/src/jobs/run-rollback.ts',
+  'packages/orchestration/src/build-deps-from-mapping.ts',
+  'packages/orchestration/src/build-deps.ts',
+  'packages/orchestration/src/orchestration.ts',
+]);
+
+/**
+ * Its size now. Lower it as entries go; never raise it. With the snapshot above
+ * it keeps a name that left from coming back.
+ */
 const KNOWN_REMOVED_BY_T1_AT_MOST = 11;
+
+/**
+ * Functions that read the owner's URL for their caller, from the environment
+ * the caller passes, so the caller never names it; with the one file that may
+ * name them. `migrationConnectionString` returns DIRECT_DATABASE_URL, or
+ * DATABASE_URL without it; `poolerInFront` compares the two.
+ */
+const OWNER_URL_HELPERS: Record<string, string> = {
+  migrationConnectionString: 'packages/ledger/src/direct-url.ts',
+  poolerInFront: 'packages/ledger/src/direct-url.ts',
+};
 
 const JOBS_DIR = 'apps/worker/src/jobs';
 
@@ -132,7 +188,7 @@ function sourceFiles(): string[] {
 const IS_DB_URL = (name: string) => /^(?:[A-Z][A-Z0-9]*_)*DATABASE_URL$/.test(name) && name !== 'APP_DATABASE_URL';
 
 /** The database-URL names a file reads, by the four forms in the header. */
-export function databaseUrlReads(file: string, text: string): string[] {
+function databaseUrlReads(file: string, text: string): string[] {
   // Cheap filter first: parsing every file would put this over the unit budget.
   if (!text.includes('DATABASE_URL')) return [];
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -157,22 +213,96 @@ export function databaseUrlReads(file: string, text: string): string[] {
   return [...found].sort();
 }
 
-/** Whether a file builds a node-postgres pool itself. */
-export function buildsAPool(file: string, text: string): boolean {
-  if (!/Pool|createPgDb/.test(text)) return false;
+/** Strip what changes a value's type and not the value. */
+function bare(e: ts.Expression): ts.Expression {
+  while (
+    ts.isParenthesizedExpression(e) ||
+    ts.isNonNullExpression(e) ||
+    ts.isAsExpression(e) ||
+    ts.isSatisfiesExpression(e) ||
+    ts.isTypeAssertionExpression(e)
+  ) {
+    e = e.expression;
+  }
+  return e;
+}
+
+/**
+ * Whether a file builds a node-postgres pool, or a client, itself: a `new` of
+ * `Pool`, or of pg's `Client`, under any name it is bound to; `createPgDb`; or a
+ * `drizzle(…)` whose first argument is not a handle it was given.
+ */
+function buildsAPool(file: string, text: string): boolean {
+  if (!/Pool|Client|createPgDb|drizzle/.test(text)) return false;
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const PG_CLASSES = ['Pool', 'Client'];
+  const pgNames = new Set<string>(); // local names bound to pg's Pool or Client
+  const pgModules = new Set<string>(); // local names bound to pg itself
+  const drizzleNames = new Set<string>(['drizzle']);
+  const bind = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const from = node.moduleSpecifier.text;
+      const clause = node.importClause?.isTypeOnly ? undefined : node.importClause;
+      const named = clause?.namedBindings;
+      if (from === 'pg' && clause?.name) pgModules.add(clause.name.text);
+      if (from === 'pg' && named && ts.isNamespaceImport(named)) pgModules.add(named.name.text);
+      if (named && ts.isNamedImports(named)) {
+        for (const el of named.elements) {
+          const imported = (el.propertyName ?? el.name).text;
+          if (el.isTypeOnly) continue;
+          if (from === 'pg' && PG_CLASSES.includes(imported)) pgNames.add(el.name.text);
+          if (from.startsWith('drizzle-orm') && imported === 'drizzle') drizzleNames.add(el.name.text);
+        }
+      }
+    } else if (ts.isVariableDeclaration(node) && node.initializer) {
+      // `const P = pg.Pool` and `const { Pool: P } = pg`.
+      const init = bare(node.initializer);
+      if (ts.isIdentifier(node.name) && ts.isPropertyAccessExpression(init) && init.name.text === 'Pool') {
+        pgNames.add(node.name.text);
+      } else if (ts.isObjectBindingPattern(node.name)) {
+        for (const el of node.name.elements) {
+          const key = el.propertyName ?? el.name;
+          if (ts.isIdentifier(key) && key.text === 'Pool' && ts.isIdentifier(el.name)) pgNames.add(el.name.text);
+        }
+      }
+    }
+    ts.forEachChild(node, bind);
+  };
+  bind(sf);
+  const isPgClass = (callee: string) =>
+    /(^|\.)Pool$/.test(callee) ||
+    pgNames.has(callee) ||
+    [...pgModules].some((m) => PG_CLASSES.some((c) => callee === `${m}.${c}`));
   let builds = false;
   const visit = (node: ts.Node) => {
     if (ts.isNewExpression(node)) {
+      if (isPgClass(node.expression.getText(sf))) builds = true;
+    } else if (ts.isCallExpression(node)) {
       const callee = node.expression.getText(sf);
-      if (/(^|\.)Pool$/.test(callee)) builds = true;
-    } else if (ts.isCallExpression(node) && /(^|\.)createPgDb$/.test(node.expression.getText(sf))) {
-      builds = true;
+      if (/(^|\.)createPgDb$/.test(callee)) builds = true;
+      else if (drizzleNames.has(callee)) {
+        const first = node.arguments[0];
+        if (!first || !ts.isIdentifier(bare(first))) builds = true;
+      }
     }
     if (!builds) ts.forEachChild(node, visit);
   };
   visit(sf);
   return builds;
+}
+
+/** The OWNER_URL_HELPERS a file names as code: an identifier or a string, not a comment. */
+function helperNames(file: string, text: string): string[] {
+  const helpers = Object.keys(OWNER_URL_HELPERS);
+  if (!helpers.some((h) => text.includes(h))) return [];
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const found = new Set<string>();
+  const visit = (node: ts.Node) => {
+    if ((ts.isIdentifier(node) || ts.isStringLiteralLike(node)) && helpers.includes(node.text)) found.add(node.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return [...found].sort();
 }
 
 const files = sourceFiles();
@@ -216,6 +346,24 @@ describe('who reads a database URL other than the application role', () => {
     expect(texts.has(file), `${file} is on CROSS_TENANT and is not a source file here`).toBe(true);
     expect(readers.has(file), `${file} is on CROSS_TENANT and reads no database URL: delete the entry`).toBe(true);
   });
+
+  it('no file but direct-url.ts names the functions that read the owner URL for their caller', () => {
+    // direct-url.ts is on CROSS_TENANT because its callers are the API and the
+    // seed. That is only true while no scanned file calls it: a task that did
+    // would open the owner's pool without naming a variable.
+    for (const [helper, home] of Object.entries(OWNER_URL_HELPERS)) {
+      expect(helperNames(home, texts.get(home)!), `${home} no longer defines ${helper}`).toContain(helper);
+    }
+    for (const file of files) {
+      const named = helperNames(file, texts.get(file)!).filter((h) => OWNER_URL_HELPERS[h] !== file);
+      expect(
+        named,
+        `${file} names ${named.join(', ')}, which reads the database owner's URL from the environment it is passed.\n` +
+          'A per-tenant task reads APP_DATABASE_URL (0138 T1). A job that must span organisations goes\n' +
+          'on CROSS_TENANT with its reason, and its own entry in OWNER_URL_HELPERS.',
+      ).toEqual([]);
+    }
+  });
 });
 
 describe('the list T1 empties only shrinks', () => {
@@ -227,9 +375,17 @@ describe('the list T1 empties only shrinks', () => {
     ).toBe(true);
   });
 
-  it('has not grown', () => {
+  it('holds only files it held when it landed, and has not grown', () => {
+    expect(KNOWN_REMOVED_BY_T1_AS_LANDED).toHaveLength(11);
+    for (const file of Object.keys(KNOWN_REMOVED_BY_T1)) {
+      expect(
+        KNOWN_REMOVED_BY_T1_AS_LANDED,
+        `${file} was not on KNOWN_REMOVED_BY_T1 when it landed, and the list takes no new entries.\n` +
+          'A per-tenant task reads APP_DATABASE_URL (0138 T1).',
+      ).toContain(file);
+    }
     expect(Object.keys(KNOWN_REMOVED_BY_T1).length).toBeLessThanOrEqual(KNOWN_REMOVED_BY_T1_AT_MOST);
-    // The ceiling follows the list down, so a freed place cannot be refilled.
+    // The ceiling follows the list down, so a name that left cannot come back.
     expect(KNOWN_REMOVED_BY_T1_AT_MOST).toBe(Object.keys(KNOWN_REMOVED_BY_T1).length);
   });
 });
@@ -237,11 +393,24 @@ describe('the list T1 empties only shrinks', () => {
 describe('a per-tenant job builds no pool of its own', () => {
   const jobs = files.filter((f) => f.startsWith(`${JOBS_DIR}/`));
 
-  it('found the jobs', () => {
+  it('found the jobs, and sees a pool built in each shape review found', () => {
     expect(jobs).toContain(`${JOBS_DIR}/run-delta-sync.ts`);
     expect(buildsAPool(`${JOBS_DIR}/managed-sync-tick.ts`, texts.get(`${JOBS_DIR}/managed-sync-tick.ts`)!)).toBe(
       true,
     );
+    for (const shape of [
+      "import { Pool as PgPool } from 'pg'; new PgPool({});",
+      "import pg from 'pg'; const { Pool: P } = pg; new P();",
+      "import { drizzle } from 'drizzle-orm/node-postgres'; drizzle(process.env.APP_DATABASE_URL!);",
+      "import { drizzle as d } from 'drizzle-orm/node-postgres'; d({ connection: { connectionString: 'x' } });",
+      "import { Client } from 'pg'; new Client({ connectionString: 'x' });",
+      "import * as pg from 'pg'; new pg.Client();",
+    ]) {
+      expect(buildsAPool('shape.ts', shape), shape).toBe(true);
+    }
+    // And a job that is handed its pool builds none.
+    expect(buildsAPool('shape.ts', "import { drizzle } from 'drizzle-orm/node-postgres'; drizzle(pool);")).toBe(false);
+    expect(buildsAPool(`${JOBS_DIR}/cutover-gate.ts`, texts.get(`${JOBS_DIR}/cutover-gate.ts`)!)).toBe(false);
   });
 
   it.each(jobs.map((f) => [f]))('%s', (file) => {

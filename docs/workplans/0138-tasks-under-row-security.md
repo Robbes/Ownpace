@@ -41,27 +41,43 @@ takes it from a tag (0132 T8, which §4 cited, is superseded). #1137 corrected
   `apps/api/src/scripts/seed-managed.ts`. A run now receives `DATABASE_URL` (still the owner),
   `APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the optional values. The script's header,
   `deploy-tasks.sh`'s header and `docs/managed-bring-up.md` phase 9 say so.
-- **T3's guard**, `scripts/a-run-that-carries-no-superuser.unit.test.ts`, traces each uploaded
-  variable back to where the script composes it, so the direct URL under another name is still
-  caught. On the unchanged script 2 of its 5 cases failed: `DIRECT_DATABASE_URL` is uploaded,
-  and an owner-composed value other than `DATABASE_URL` is uploaded (the same variable). The
-  `${POSTGRES_USER` half is a ratchet, since step 2 is not built: `OWNER_URL_UNTIL_T3_STEP_2`
-  holds `DATABASE_URL` alone, and the test fails if `DATABASE_URL` stops being the owner's while
-  the entry stays. 4 mutations, each red: the direct URL added back; the owner URL uploaded under
-  another name; `POSTGRES_PASSWORD` added to the pass-through list; `DATABASE_URL` composed from
-  another role with the entry kept.
+- **T3's guard**, `scripts/a-run-that-carries-no-superuser.unit.test.ts`, reads the upload block
+  whole and fails on any part of it it cannot read: every line of the `variables` literal and of
+  the optional list, every `process.env` read, every use of `variables` and every `envvars` call
+  must have a shape it knows. It traces each value through the script's assignments, as deep as
+  they go, and a value that reaches `$POSTGRES_USER` or `$POSTGRES_PASSWORD`, braced or not, is
+  the owner's under whatever name it goes up. It cannot see what `.env` holds: an owner URL put
+  there under a name that says nothing, and handed through, is outside it. The owner half is a
+  ratchet, since step 2 is not built: `OWNER_URL_UNTIL_T3_STEP_2` holds `DATABASE_URL` alone, and
+  the test fails if `DATABASE_URL` stops being the owner's while the entry stays. A URL may go up
+  only under a name T4 reads as a database URL, and the guard checks that T4's file still carries
+  the same pattern. **Failed first:** on the unchanged script 2 of the first version's 5 cases
+  failed: `DIRECT_DATABASE_URL` is uploaded, and an owner-composed value other than `DATABASE_URL`
+  is uploaded (the same variable). 15 ways back are cases in the guard, each red: the direct URL
+  as it was, with a comment after it, as `|| ""`, and written into `variables` after the literal;
+  the owner composed in the prefix and written in under another name, unbraced, and two
+  assignments deep; `PGPASSWORD` from `POSTGRES_PASSWORD` in `variables`; `POSTGRES_PASSWORD` in
+  the optional list; an unquoted name in that list; a `postgresql://` URL named `SYSTEM_URL`;
+  `DATABASE_URL` composed from another role with its entry kept; `envvars.create`;
+  `process.env` destructured; a second `node -e` block.
 - **T4**, `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`, parses every non-test `.ts`
   under `apps/worker/src` and `packages/*/src` that mentions `DATABASE_URL`. A read is any name
   ending in `DATABASE_URL` other than `APP_DATABASE_URL`, used as a property, an element, a
-  destructured binding or a string of its own; a comment or a message is not. Two exported lists:
+  destructured binding or a string of its own; a comment or a message is not. Two lists:
   `CROSS_TENANT` (9: the six scheduled jobs, the operator's CLI, the dev entrypoint and
   `direct-url.ts`), and `KNOWN_REMOVED_BY_T1` (11: the eight per-tenant jobs,
   `build-deps-from-mapping.ts`, `build-deps.ts` for `openLedger` and `orchestration.ts` for
-  `verifyMapping`). The second list may not grow past 11, and an entry whose file no longer reads
-  a URL fails until it is deleted. A second rule: a file in `apps/worker/src/jobs/` that builds a
-  `Pool` or calls `createPgDb` must be on a list. The guard first checks that it found the tick
-  and the builders, and that `stopping-a-pass.ts`, which names `DATABASE_URL` only in its header,
-  is not counted. **Failed first:** a ratchet passes on the code it was written for, so the
+  `verifyMapping`). Every entry of the second must be one of the 11 it landed with
+  (`KNOWN_REMOVED_BY_T1_AS_LANDED`), it may not grow past its current size, and an entry whose
+  file no longer reads a URL fails until it is deleted. No scanned file but `direct-url.ts` may
+  name `migrationConnectionString` or `poolerInFront`, which read the owner's URL for their caller
+  without the caller naming it. A second rule: a file in `apps/worker/src/jobs/` that builds a
+  pool must be on a list, where building one is a `new` of `Pool` or pg's `Client` under any
+  name it is bound to, `createPgDb`, or a `drizzle(…)` not handed a pool. Until T1 part 2, a job
+  that calls a builder on the ratchet list inherits its owner read without being seen. The guard
+  first checks that it found the tick and the builders, that `stopping-a-pass.ts`, which names
+  `DATABASE_URL` only in its header, is not counted, and that the pool rule sees the shapes
+  review found (below). **Failed first:** a ratchet passes on the code it was written for, so the
   failing run is its strict form. With `KNOWN_REMOVED_BY_T1` emptied, as it will be once T1
   lands, 19 of 51 cases failed on the unchanged code: the eight per-tenant jobs and the three
   orchestration files as readers, and the eight jobs as pool builders. 7 mutations, each red:
@@ -69,6 +85,30 @@ takes it from a tag (0132 T8, which §4 cited, is superseded). #1137 corrected
   package file; `const { DATABASE_URL: url } = process.env`; `getEnv('DATABASE_URL')`; a
   ratchet file that stops reading with its entry kept; an entry added to the ratchet list;
   `new pg.Pool` in `cutover-gate.ts`.
+
+**2026-09-27, later: review fixes, same branch, not merged.** Review found both guards narrower
+than their headers said, and ran mutations on scratch copies to show it. Each was run again here
+against the first version and against the fix:
+
+- **T3's guard skipped what it could not parse.** A `variables` line that was not exactly
+  `NAME: process.env.SOURCE,` was dropped without a word, the owner test matched only the braced
+  `${POSTGRES_USER`, and it followed one assignment. 12 of the 15 ways back listed above passed
+  all 5 of the first version's cases; all 15 fail the fix, and are now its own cases. The
+  script's header said the guard catches the direct URL "under any name", and this Status said
+  so too; both now say what it checks.
+- **T4's ratchet was pinned by size alone.** Freeing one entry and adding a new reader in the same
+  change passed. So did a new file calling `migrationConnectionString(process.env)`, a job calling
+  `poolerInFront`, `new PgPool` from `import { Pool as PgPool } from 'pg'`,
+  `drizzle(process.env.APP_DATABASE_URL!)`, `drizzle({ connection: … })` and `new Client(…)`:
+  7 mutations, each passing all cases of the first version and failing the fix.
+- **The owner's recipe** in `docs/managed-bring-up.md` resolved the environment itself instead of
+  through `trigger_env`, and read a not-found from `envvars.del` as proof that the plane never
+  held the variable, which `deploy/compose/reset-trigger.sh` records as untrue once. It now runs
+  in a subshell with the script's own resolver, prints what the delete said, and makes the list
+  `set-task-env.sh` prints the check, with trigger-db's `SecretStore` as the next place to look.
+- **The guard's header had the history backwards.** It said the direct URL was uploaded because
+  `docs/rls-guide.md` said the tasks run migrations. `git log -S` shows the upload came in with
+  the pooler on 2026-08-18 and the guide's row on 2026-09-01.
 
 Where the build departs from §3:
 
@@ -79,6 +119,14 @@ Where the build departs from §3:
 - **No entry yet for the audit sink's key connection or for T1's pool module.** On `main` the
   sink is built on each job's own pool and reads no URL itself, and T1's module does not exist.
   T1 adds both entries with the files.
+- **The lists are not exported.** §3 T4 says T5's guard reads the same list. Importing from a
+  `.unit.test.ts` runs every case in it inside the importer (in review, a one-case test that
+  imported `CROSS_TENANT` reported 63). T5 step 2 first moves the lists to a plain module both
+  guards import, and keeps each listed file's route to this guard in `docs/LESSONS.md`, which
+  today comes from the paths being written in the guard.
+- **The pool rule does not count an object with a `connectionString`.** `cutover-gate.ts` hands
+  one to the verification reader, which opens its own pool from the URL `run-cutover.ts` reads.
+  T1 part 2 takes that with `run-cutover.ts`'s entry.
 - **T3's guard carries its `${POSTGRES_USER` half as a ratchet.** §3 has it fail on today's
   script on both counts, and it does. What lands is the half step 1 makes true, plus a list of
   one that step 2 empties. Step 2's bring-up check, which asks Postgres whether the system role
@@ -94,6 +142,7 @@ Where the build departs from §3:
 `DIRECT_DATABASE_URL` once on each plane that holds it: the OTA stack's, and live's if its task
 environment was filled before this lands (0132 T1c). The command and the check are in
 `docs/managed-bring-up.md`, "Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`".
+The check is the list `set-task-env.sh` prints afterwards, not what the delete answers.
 Leaving the name out of the upload does not delete the stored value. It also matters for a later
 key rotation: `SET_TASK_ENV_FORCE_REWRITE=1` deletes and rewrites only what the script uploads,
 so a leftover would stay on the old key and stop every run. Not verified here: whether the

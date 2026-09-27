@@ -2048,17 +2048,41 @@ and `ownpace-live` if its tasks were set up before this change), from that
 stack's checkout:
 
 ```bash
-set -a; . deploy/compose/.env; set +a
-cd apps/worker
-TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" TRIGGER_ENV="${TRIGGER_ENV:-prod}" \
-  node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, process.env.TRIGGER_ENV, "DIRECT_DATABASE_URL").then(() => console.log("deleted DIRECT_DATABASE_URL"))'
-cd ../.. && ./deploy/compose/set-task-env.sh
+(
+  set -euo pipefail
+  set -a; . deploy/compose/.env; set +a
+  . deploy/compose/trigger-cli-lib.sh
+  TRIGGER_ENV="$(trigger_env deploy/compose/.env)"
+  cd apps/worker
+  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" TRIGGER_ENV="$TRIGGER_ENV" \
+    node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, process.env.TRIGGER_ENV, "DIRECT_DATABASE_URL").then(() => console.log("deleted DIRECT_DATABASE_URL"), (e) => console.log("delete said:", e && e.message ? e.message : e))'
+)
+./deploy/compose/set-task-env.sh
 ```
 
-`set-task-env.sh` then prints `upload OK — env now holds:` and the names in
-the store. `DIRECT_DATABASE_URL` must not be among them. If the delete fails
-because the variable does not exist, that plane never held it, which is the
-state this step is for.
+The parentheses keep a refusal inside them. `trigger_env` is the resolver
+`set-task-env.sh` itself uses, so the delete goes to the same environment the
+upload does, including on a `.env` that still carries the old
+`TRIGGER_ENV_SLUG`; when the two names disagree it refuses, and only the
+subshell exits, not your terminal.
+
+What the delete says is not the check. This repository has seen `envvars.del`
+report a variable missing while its row existed (`deploy/compose/reset-trigger.sh`,
+under a discarded key). The check is the line `set-task-env.sh` prints next,
+`upload OK — env now holds:` and the names in the store: `DIRECT_DATABASE_URL`
+must not be among them. If it is still listed, look for its row in the
+platform's own database (on live, under live's project name):
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T trigger-db \
+  psql -U trigger -d triggerdb -tA -c "SELECT key FROM \"SecretStore\" WHERE key LIKE '%DIRECT_DATABASE_URL%'"
+```
+
+A row there that the delete cannot remove is a secret the current key cannot
+read. `deploy/compose/reset-trigger.sh` says why a reset is then the way out
+and what it destroys, and
+[Rotating `TRIGGER_ENCRYPTION_KEY`](#rotating-trigger_encryption_key) when the
+wipe beats the surgery.
 
 ### Draining first, and telling customers why
 
