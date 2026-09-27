@@ -4,6 +4,174 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, review fixes: T6's branch, not merged.** The owner's reading of all the Dutch is
+still owed before it merges (0144 D1), and two answers are still the owner's: the grant half is
+built ahead of 0140's open question 2, and the switch follows this plan's open question 2 as
+recommended. What the review found, and what changed:
+
+- **A failure with no sentence from the server is the page's own.** `linkRefusal` now takes the
+  page's translator. A connection that dropped or timed out shows `link.unreachable`, and a
+  subject or answer the page cannot read (zod's refusal of a data type it has no words for, a
+  proxy's HTML) shows `link.unreadable`, in the page's language. Until then the alert showed
+  zod's JSON dump of its issues, axios's *Network Error* or *Request failed with status code
+  502*. The server's own sentences are shown as before. Both keys are new Dutch for the owner's
+  reading.
+- **The owner's three consent buttons are tested in Dutch.** Every earlier case ran in English,
+  which is also the page's language when nothing chose one, so a literal `locale: 'en'` at either
+  call site would have passed them all.
+- **The spec follows the wire.** `apps/api/docs/openapi.yaml` documents `domains` in place of
+  `reads`, `locale` on the four authorize bodies, and the Dutch half each link refusal carries.
+- **Three bilingual answers are held by a route test**: View's `not_found`, and the grant
+  authorize's `raw_ip_callback` and `unreachable_callback`.
+- **Two docs said more than the code does.** `docs/i18n-prose-boundary.md` class 4 and
+  `docs/grant-links.md` now name what is paired and what still answers in English (withdrawing
+  access, reporting a link, an unknown or expired consent state).
+- A comment in `google-oauth-routes.ts` said the owner's ending was exactly as 0089 T1 shipped it.
+
+The guards, each run first against the unfixed branch and each mutation turning it red:
+
+- `apps/web/src/pages/a-grant-page-in-one-language.unit.test.tsx`, five new cases, 19 in all: a
+  subject the page cannot read (a real `ZodError`), no connection, a timeout after the button, a
+  502 with an HTML body, and no connection on View. All five failed on the branch, showing zod's
+  JSON, *Network Error*, *timeout of 30000ms exceeded* and *Request failed with status code 502*.
+  Mutations: no connection read as unreadable (3 failed); a non-request error shown as its own
+  message (1).
+- `apps/web/src/pages/Connections.unit.test.tsx` and `CreateMapping.unit.test.tsx`, three cases
+  each: *Verbinden met Google*, *Dropbox* and *Microsoft* under `nl` send `locale: 'nl'`. They
+  pass on the branch, which was right; a literal `'en'` in `ProviderConsent.tsx`, and in
+  `CreateMapping.tsx`, turned all three red in each file.
+- `apps/api/src/openapi-spec.unit.test.ts`, 15 new cases: the subject documents `domains` with
+  `DISCOVERY_DOMAINS` and no `reads`; each route that reads `locale` off the body documents it;
+  each 401, 409 and 503 on the grant and view pages names its Dutch half. 14 failed against the
+  branch's spec. The fifteenth finds the routes that read `locale` by the line that reads it, so
+  a fifth cannot arrive unlisted; it reads the code, not the spec, and passed there too.
+- `apps/api/src/routes/grant.unit.test.ts`, two cases: a raw-IP callback and a loopback callback
+  behind a public app answer their code, a Dutch frame, and the operator's sentence verbatim in
+  both halves. Mutation: the English in both fields, and no `reasonNl` (both failed).
+- `Grant.unit.test.tsx` and `View.unit.test.tsx` refused with a bare `Error` and a mocked
+  `serverMessage`, a shape the server never sends. They now refuse with the server's body. One of
+  them still passed with the fix in place, only because `link.unreadable` also says *tell the
+  person who sent you the link*, which is what it searched for.
+- `apps/api/src/routes/view-routes.unit.test.ts`, one case: a migration gone between the link
+  check and the read answers `MIGRATION_GONE` in both languages. The cascade from
+  `mailbox_mapping` makes that branch a race, so the case drops it while it runs, as the case
+  before it drops a CHECK. Mutation: the English in both fields (failed).
+
+For the owner's reading, beside the rest of the Dutch:
+
+- **What will be read, when it names mail and something else.** §3's phrases joined by
+  `Intl.ListFormat` read *"U staat op het punt toegang te geven tot uw e-mail: berichten, mappen
+  en labels en uw agenda’s en de afspraken erin."*, where everything after the colon reads as
+  what the e-mail contains. The English has the same fault after its dash. The alternative is to
+  close the inner list: *"uw e-mail (berichten, mappen en labels)"* and *"your email (messages,
+  folders and labels)"*. The branch keeps §3's words until the owner chooses. If the owner takes
+  the alternative, both `grant.reads.email` entries in `strings.ts` change, with the three
+  expected sentences in `a-grant-page-in-one-language.unit.test.tsx`.
+- `link.unreachable` and `link.unreadable`, new with this round.
+
+**2026-09-26, build: T6 built on branch
+`claude/ownpace-public-readiness-y7orc6-one-language-through-the-grant`, not merged, both halves.
+The owner's reading of all the Dutch is owed before it merges (0144 D1).** The link refusal's
+Dutch, the five *reads* phrases and the keep-this-link sentence are §3's proposals; the rest of
+the Dutch is this build's. The grant half is built ahead of 0140's open question 2, and the
+switch follows this plan's open question 2 as recommended; both answers are still the owner's.
+
+- **What will be read comes from the dictionary.** `GET /api/grant/:link` answers `domains` in
+  place of `reads`, and `READS` and `listed` are gone from `grant.ts`. `Grant.tsx` words each
+  code from `grant.reads.email` … `grant.reads.task` and joins them with `Intl.ListFormat`
+  (`useFormatters().list`). The web client refuses a subject with no data type, or with one it
+  has no words for, rather than name less than will be read.
+- **Refusals come in pairs.** `packages/shared/src/link-holder-refusals.ts` holds each sentence
+  written for a link holder in EN and NL (class 4 of `docs/i18n-prose-boundary.md`):
+  `LINK_REFUSAL`, whose English half the ledger's `MAPPING_LINK_REFUSAL` now is; the link check
+  that could not run; the migration that is gone; the *"not ready"* frame and its seven reasons;
+  the two sign-in wrappers; the five exchange refusals; Google's own stop; nothing sent back;
+  the grant that was not kept; the spent link; and the three signed-in-account refusals. The JSON
+  answers carry `reason` and `reasonNl`, or `message` and `messageNl` from the link check.
+  `apps/web/src/services/link-refusal.ts` shows the Dutch half of the sentence the English
+  would show, and the English as served when there is no Dutch half. The word Google sent back,
+  the addresses and the operator's refusal of a callback address stay verbatim in both halves.
+- **The endings are in the page's language.** The grant page's authorize call and the owner's
+  three (Google, Dropbox, Microsoft, from the wizard and from the Connections panel) send
+  `locale`. The server records it on `PendingConsent` beside `link` and never puts it in the
+  redirect. The callback reads it from there, not from the query. `grantResultPage`,
+  `consentResultPage` and `shell()` take it, and anything but `nl`, or nothing, is English.
+  *"Bookmark it"* is §3's new sentence, in both languages.
+- **Grant and View have a switch.** `apps/web/src/components/LanguageSwitch.tsx` is `Layout`'s
+  two text buttons with `aria-pressed`, in a group named *Language* / *Taal*, in the top corner.
+  The page keeps a refusal rather than its sentence, so switching after it arrived shows its
+  other half.
+- **T4's Grant and View lines.** The refusal and the failure after the button on Grant, and the
+  refusal on View, are `role="alert"`. Both waiting lines are `role="status"`.
+- #1195's in-app browser line (`grant.inAppBrowser`) stays as it is.
+
+The guards, each run first against a scratch worktree of `origin/main` at `d1922cf2` with only
+the guard files copied in:
+
+- `packages/shared/src/a-refusal-the-link-holder-can-read.unit.test.ts`, 15 cases. It finds
+  every `{ en, nl }` the module exports rather than listing them. Each has both halves, they
+  differ, and the Dutch half has none of the English frame's words. Every exported function is
+  called, and a finding passed in comes through verbatim in both halves. `LINK_REFUSAL` keeps
+  the ledger's English and §3's Dutch, and `localeOf` is `nl` only for exactly `nl`. On `main`
+  the file fails to load, because the module does not exist. Each mutation made it fail: the
+  link refusal's Dutch set to its English (3 cases), `cannotSignInYet` dropping the detail from
+  its Dutch (1), one not-ready reason left in English (3), an exported function nobody checks
+  (1), and `localeOf` taking `nl-NL` (1).
+- `apps/api/src/routes/migrations/a-consent-ending-in-the-readers-language.unit.test.ts`, 33
+  cases. Both endings with `nl` are Dutch and carry `<html lang="nl">`, with the new
+  keep-the-link sentence in both languages, and each provider's no-opener sentence names its
+  own button. The callbacks of all three providers, and of a grant link, render the language
+  the authorize call recorded. The language is not in the redirect, the query cannot choose it,
+  and an unknown language or none renders English. 23 cases failed on `main`. The 10 that
+  passed are the English fallbacks and *"not in the redirect"*, which `main` already met. Each
+  mutation made it fail: `lang="en"` back in `shell()` (22), *Bookmark it.* back in the Dutch
+  (3), the no-opener sentence left in English (3), Google's owner authorize not recording the
+  language (2), Dropbox's callback reading it from the query (2), Google's callback preferring
+  the query (1), a grant link's refusal always in English (5), and `localeOf` defaulting to
+  Dutch (7).
+- `apps/web/src/pages/a-grant-page-in-one-language.unit.test.tsx`, 14 cases. Under `nl`, with
+  `domains: ['email', 'calendar']`, the sentence is all Dutch and has none of the old `READS`
+  phrases, and under `en` the list is joined as English joins one. A refused link and a
+  failure after the button show their Dutch half as an alert, a refusal with no Dutch half
+  shows its English, and the Dutch shown belongs to the sentence the English would show. The
+  waiting lines are statuses. Both pages have the switch with `aria-pressed`, and it changes
+  the sentence and the refusal. The button asks for the ending in the page's language. All 14
+  failed on `main`. Each mutation made it fail: the list joined with `' and '` (4), the refusal
+  ignoring the page's language (4), no alert on the link refusal (4) or on the failure after
+  the button (1), the button sending `en` (1), no `aria-pressed` (3), no switch on View (1), no
+  status on either waiting line (1 each), the Dutch taken from whichever field has one (1), and
+  one Dutch *reads* phrase left in English (2).
+
+`grant.unit.test.ts` has six new route cases, five of which failed on `main`; the sixth, an
+unknown language ending in English, passed there too. `mapping-link-auth.unit.test.ts` checks
+`messageNl`.
+
+Where the build differs from §3:
+
+- **The view page's refusals are paired too**: a migration that is gone (`MIGRATION_GONE`) and
+  the link check that could not run. The view page gets the switch, so its refusals come with
+  it.
+- **The owner's ending names each provider's own button** (*Verbinden met Dropbox*). The English
+  said *Connect with Google* for all three.
+- **English lists take the serial comma** (*a, b, and c*): that is what `Intl.ListFormat` does
+  in English. The server's `listed` did not.
+- **`ES2021.Intl` is added to `apps/web/tsconfig.json`**, for `Intl.ListFormat`. Safari has had
+  it since 14.1, below the README's floor.
+
+What stays open:
+
+- the owner's reading of the Dutch, before merge;
+- the owner's exchange refusals (`exchangeCode` and its Dropbox and Microsoft siblings) and
+  Microsoft's consent sentences (`microsoft-consent.ts`) render in English inside the Dutch
+  frame. They name the client and quote the provider, for the owner to act on;
+- a consent state that is unknown or expired ends in English, since nothing recorded a
+  language for it;
+- the withdrawal refusals (`withdraw-grant.ts`) and the report-a-link refusals
+  (`link-reports.ts`) are still English only. Both files were written after §1 was checked, and
+  they are the next pairs. Their lines on View and in `ReportThisLink` are T4's;
+- Grant and View still start from the browser's language, with no `?locale=`;
+- walking it on a phone is T10's.
+
 **2026-09-27, review fixes to T4 on the same branch, not merged.** The review found that an old
 answer could be announced as a new one. The line under *Connect with …* is drawn from the door's
 state, and that state outlives the block that draws the line. When a door was shown again, the
@@ -323,9 +491,9 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T1 The phone menu takes focus and gives it back | 🔨 **Built**, merged in #1169 (2026-09-25), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | (a) ✅ **done** in #1206, merged 2026-09-27; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
-| T4 Errors are announced | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged** (2026-09-26; review fixes 2026-09-27), all but the Grant and View lines; those 📋 **Proposed**, with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
+| T4 Errors are announced | ✅ **done** in #1207, merged 2026-09-27, all but the Grant and View lines; those 🔨 **Built on T6's branch** (2026-09-26), with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
 | T5 The consent window opens on the press itself | 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
-| T6 The grant flow and the consent endings in one language | 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. |
+| T6 The grant flow and the consent endings in one language | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-one-language-through-the-grant`, not merged** (2026-09-26, review fixes 2026-09-27), both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
 | T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
@@ -1012,7 +1180,8 @@ phone, the OS version, the browser and the language. It never records an address
 2. **The grant reader's language (T6).** Adding a language switch to the grant and view pages is
    recommended over carrying the issuer's language in the link. The reader of a grant link is not
    the person who made it, and that person's language says nothing about the reader's. The Dutch
-   wording on this page asks people to trust it, so the owner reads it first.
+   wording on this page asks people to trust it, so the owner reads it first. (Built as
+   recommended on T6's branch, 2026-09-26; the owner's answer is still owed.)
 3. **The same-tab fallback (T5).** Park it as proposed, until T0 or T10 finds a browser where
    neither the window nor the link comes back? Or build the server-held result for the owner's
    consent now? Parking is recommended: nothing so far shows the window and the link both failing.

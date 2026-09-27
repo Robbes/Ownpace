@@ -80,3 +80,13 @@ export function formatNumber(n: number, locale: Locale): string {
 export function formatCurrency(cents: number, currency: string, locale: Locale): string {
   return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(cents / 100);
 }
+
+/**
+ * A list as a sentence in the active language says it (workplan 0145 T6):
+ * en "a, b, and c" — nl "a, b en c". The grant page used to receive this
+ * sentence from the server, joined with an English "and" whatever language
+ * the page was in.
+ */
+export function formatList(items: ReadonlyArray<string>, locale: Locale): string {
+  return new Intl.ListFormat(locale, { type: 'conjunction' }).format(items);
+}

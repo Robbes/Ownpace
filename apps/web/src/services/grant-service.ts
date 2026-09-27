@@ -10,6 +10,8 @@
  */
 
 import { z } from 'zod';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
+import type { Locale } from '../i18n/strings.ts';
 import { linkClient as client } from './link-client.ts';
 
 const SubjectSchema = z.object({
@@ -22,7 +24,13 @@ const SubjectSchema = z.object({
   askedBy: z.string().nullable(),
   // The organisation's phone number, when it gave one (optional).
   organisationPhone: z.string().nullable(),
-  reads: z.string(),
+  // Which data types the link reads (workplan 0145 T6). The page words them
+  // from its own dictionary, in the reader's language; the server used to
+  // send an English sentence instead. A type this page has no words for is a
+  // parse failure rather than a shorter list: a consent page must not name
+  // less than will be read. Never empty: a link with nothing to ask is not
+  // ready, and the server refuses it.
+  domains: z.array(z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]])).min(1),
   scope: z.string(),
   // Whether Google itself holds that scope to reading (workplan 0144 T3 (c)).
   // The page says "read-only" only when it is true.
@@ -48,9 +56,14 @@ export const grantApi = {
     return SubjectSchema.parse(res.data);
   },
 
-  /** Where the button goes. Answers a URL to follow, never a redirect. */
-  authorize: async (link: string): Promise<{ url: string }> => {
-    const res = await client.post(`/grant/${encodeURIComponent(link)}/google/authorize`, {});
+  /**
+   * Where the button goes. Answers a URL to follow, never a redirect.
+   * `locale` is the language the page is in, so the ending after Google is in
+   * it too (workplan 0145 T6); the server keeps it and never puts it in the
+   * redirect.
+   */
+  authorize: async (link: string, locale: Locale): Promise<{ url: string }> => {
+    const res = await client.post(`/grant/${encodeURIComponent(link)}/google/authorize`, { locale });
     return z.object({ url: z.string() }).parse(res.data);
   },
 };
