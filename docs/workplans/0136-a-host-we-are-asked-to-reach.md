@@ -4,6 +4,19 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, T3's limit on tests built** (0131 §6, group M2, step 3) on branch
+`claude/mailbox-sync-errors-c2xsw2-a-limit-on-tests`, stacked on the answer's, not merged.
+
+- **One refusing limit, per member, shared by the five doors of §1:** sixty tests an hour
+  (`apps/api/src/probe-limit.ts`, on `createKnockLimiter`). The sixty-first is refused with 429,
+  `too_many_tests` and a `Retry-After`. A door counts a request only when it is about to connect,
+  so one refused for its shape, or for an archive on this machine, costs nothing. The counters
+  live in the API process, as the problem report's do.
+- **Proved.** `apps/api/src/routes/a-limit-on-tests.unit.test.ts` drives the real doors with the
+  probe stubbed: sixty pass and the next is refused before it connects; the five doors share the
+  count; another member of the same organisation still tests; malformed requests cost nothing;
+  and an hour later the member tests again. `openapi.yaml` documents the 429 on the five doors.
+
 **2026-09-27, T3's answer built** (0131 §6, group M2, step 3) on branch
 `claude/mailbox-sync-errors-c2xsw2-a-probe-that-does-not-read-aloud`, not merged. The per-member
 limit on tests is the next pull request, and the failures route is T3's second step.
@@ -212,7 +225,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 |---|---|---|
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **First slice built 2026-09-27** (the rule, not yet called); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, not merged**; the limit and the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer and the limit built 2026-09-27, not merged**; the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |

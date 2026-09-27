@@ -65,6 +65,7 @@ import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { Pool } from 'pg';
 import { serverFault } from '../server-fault.ts';
 import { probeAnswers } from '../probe-answer.ts';
+import { refusedOverTestLimit } from '../probe-limit.ts';
 
 const router = Router();
 
@@ -127,6 +128,10 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       });
       return;
     }
+
+    // The report measures the organisation's own DAV target again, at the
+    // address somebody typed: one test against the member's limit (0136 T3).
+    if (refusedOverTestLimit(req, res)) return;
 
     const scans = await tenantInventoryScans(tenantId, mailbox);
 

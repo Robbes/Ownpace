@@ -120,6 +120,7 @@ import {
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
+import { refusedOverTestLimit } from '../../probe-limit.ts';
 import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
@@ -1940,7 +1941,8 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
       // would open. See `archive-on-the-server.ts`.
       const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), config);
       if (onServer) return void res.status(400).json(onServer);
-      // What a host the tester typed said is answered from its parts (0136 T3).
+      // One test against the member's limit, then the answer from its parts (0136 T3).
+      if (refusedOverTestLimit(req, res)) return;
       const result = probeAnswers('testing a connection', req.tenantId).result(
         await probeSourceConnection(sourceKindFor(body.sourceType), config, sourceCredentialRecord(half)),
       );
@@ -1952,6 +1954,7 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
         reason: 'Testing the target needs targetType and targetConfig.',
       });
     }
+    if (refusedOverTestLimit(req, res)) return;
     const result = probeAnswers('testing a connection', req.tenantId).result(
       await probeTargetConnection(
         body.targetType,

@@ -84,6 +84,7 @@ vi.mock('pg', () => ({
 const { default: connectionRoutes } = await import('./connections.ts');
 const { default: migrationRoutes } = await import('./migrations/index.ts');
 const { default: permissionRoutes } = await import('./permissions.ts');
+const { resetProbeTestLimit } = await import('../probe-limit.ts');
 
 const app = express();
 app.use(express.json());
@@ -175,6 +176,8 @@ afterAll(async () => {
 let logged: string[];
 
 beforeEach(() => {
+  // Each case starts with a fresh count: the limit on tests is not what this holds.
+  resetProbeTestLimit();
   logged = [];
   vi.spyOn(log, 'warn').mockImplementation((...args: unknown[]) => void logged.push(args.join(' ')));
   h.row = {
