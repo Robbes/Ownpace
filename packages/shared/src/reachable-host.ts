@@ -96,6 +96,40 @@ export function isRefusedAddress(address: string): boolean {
   return refused.check(address, family === 4 ? 'ipv4' : 'ipv6');
 }
 
+/** Each refused range on its own, to ask which one a network lies in. */
+const eachRange = REFUSED_RANGES.map(({ cidr }) => {
+  const [network = '', prefix = ''] = cidr.split('/');
+  const family = isIP(network) === 6 ? 'ipv6' : 'ipv4';
+  const list = new BlockList();
+  list.addSubnet(network, Number(prefix), family);
+  return { family, prefix: Number(prefix), list };
+});
+
+/**
+ * Does a whole network lie inside the ranges the rule refuses?
+ *
+ * The bring-up asks this of every Docker network on the machine (0136 T1 (b)).
+ * The rule holds no range of its own for the Docker networks: on a daemon with
+ * Docker's built-in pools they lie inside the private ranges. A daemon can be
+ * set to hand out others, and a network outside the ranges is one whose
+ * containers a tenant's host could resolve to and be connected to.
+ *
+ * A network `n/p` lies inside a range `r/q` when `q <= p` and `n` is in the
+ * range: every address that shares `n`'s first `p` bits shares its first `q`.
+ * Anything that is not a network in CIDR form is answered `false`, so a value
+ * the bring-up cannot read is reported rather than passed.
+ */
+export function networkInsideRefusedRanges(cidr: string): boolean {
+  const match = /^([^/]+)\/(\d{1,3})$/.exec(cidr.trim());
+  if (!match) return false;
+  const network = match[1] ?? '';
+  const prefix = Number(match[2]);
+  const version = isIP(network);
+  if (version === 0 || prefix > (version === 4 ? 32 : 128)) return false;
+  const family = version === 4 ? 'ipv4' : 'ipv6';
+  return eachRange.some((range) => range.family === family && range.prefix <= prefix && range.list.check(network, family));
+}
+
 /** `[::1]` as `new URL()` spells an IPv6 host, without its brackets. */
 function unbracket(host: string): string {
   return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
