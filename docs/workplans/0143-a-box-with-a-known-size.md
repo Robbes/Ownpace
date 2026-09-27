@@ -4,6 +4,46 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, late: T2a built (0131 §6, group M4, step 3)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-migration-past-the-cap`, not merged. The owner accepted T0's
+provisional numbers the same day (open question 1), five migrations per organisation among them.
+
+- **Creating a migration is refused once the organisation has five that are not finished.**
+  `POST /api/migrations` answers 409, `migration_cap`: *"This organisation has 5 migrations that
+  are not finished, and may have 5 at once. Finish or delete one before you add another, or ask
+  whoever runs this service for more."* Every status but `done` counts, a draft among them.
+  Nothing is written for a refused one.
+- **One create at a time per organisation.** The cap is held in the create's own transaction,
+  under a per-organisation advisory lock taken before the count, as `live-link-limit.ts` holds
+  the grant links. Two presses at once cannot both be the fifth.
+- **The number is the deployment's:** `MAX_MIGRATIONS_PER_ORGANISATION`, blank for 5
+  (`apps/api/src/routes/migrations/migration-cap.ts`). `managed.yml` passes it to the api and the
+  env example documents it. A value that is not a whole number of at least 1 stops the api at
+  start, naming it.
+- **`maxMappings` and `maxUsers` left the generic organisation update.** Nothing read either.
+  Values already stored stay inert. A cap on members belongs with 0131's open question 6 and 0137.
+- **Proved.**
+  - `apps/api/src/routes/migrations/a-migration-past-the-cap.unit.test.ts`, 8 cases through the
+    real routes on PGlite:
+    - the sixth is refused with the sentence, and nothing is written;
+    - a finished one does not count, and a draft does;
+    - another organisation's do not;
+    - the setting moves the cap, and one it cannot read is refused;
+    - the organisation update stores neither key.
+
+    4 fail on `main`. The plan names it as an integration test; the routes are proved on PGlite,
+    like the other route guards.
+  - `a-migration-past-the-cap.integration.test.ts`: two creates at once with a cap of one, on a
+    real Postgres with two connections. The second waits for the lock and is refused. It runs in
+    CI's integration job.
+  - Mutations: 12 of 14 killed. Two survive the unit guard, for stated reasons:
+    - the lock removed: PGlite has one connection and cannot show a race; the integration test
+      is written for it;
+    - the organisation filter removed from the count: row security already scopes it to the
+      caller's organisation, so the filter is a second fence and the mutant is equivalent.
+- **Not in this change:** T2b and T2c, which §3 says could ride here, come as their own step, and
+  T2d's built hold comes after.
+
 **2026-09-27, evening: the owner answered open questions 1 and 3.**
 
 - **Open question 1, T0's provisional numbers: accepted for now**, *"accept proposals for now"*:
@@ -17,9 +57,8 @@
 - **Open question 3, T5's rule: (c)**, *"5c"*: the small data types first, then a fair share of
   what is left. M4's step 4 builds it.
 
-**2026-09-27: T2d's runbook step written (0131 §6, group M4, step 8, with 0142 T6)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged. Step 3 of
-`docs/incident-runbook.md` carries it, as §3 gives it:
+**2026-09-27: T2d's runbook step written (0131 §6, group M4, step 8, with 0142 T6)**, merged as
+#1252. Step 3 of `docs/incident-runbook.md` carries it, as §3 gives it:
 
 - as the database owner on live's database, the organisation's migrations in a state that runs
   passes, listed with their id and status first, because the list is what puts each one back;
@@ -298,7 +337,7 @@ unproved until then:
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, 2 GB, waves of about five; ⏳ **Owner** for the overall cap on the machine — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 🔨 **T2d's runbook step written 2026-09-27, not merged**, in 0142 T6's runbook; T2a to T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
+| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27, not merged**: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | 📋 **Decided 2026-09-27: (c)** (open question 3) — *was:* 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
