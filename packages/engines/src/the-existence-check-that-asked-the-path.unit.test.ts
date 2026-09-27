@@ -174,9 +174,13 @@ describe('the CardDAV check answers from the card, not from the path', () => {
     expect(await writer.findContactByNaturalKey('contacts', '1234')).toBeUndefined();
   });
 
-  it('says "not there" when the server refuses, rather than guessing', async () => {
+  it('says nothing when the server refuses, rather than guessing "not there"', async () => {
+    // It said "not there", which WAS the guess: a refused question read as an
+    // answer, deciding create-vs-adopt on nothing (workplan 0149 T2).
     const { writer } = carddav({ status: 400, body: 'Request contains an invalid argument.' });
-    expect(await writer.findContactByNaturalKey('contacts', 'abc')).toBeUndefined();
+    await expect(writer.findContactByNaturalKey('contacts', 'abc')).rejects.toThrow(
+      /refusing to treat this as "not present".*status 400: Request contains an invalid argument/,
+    );
   });
 });
 
