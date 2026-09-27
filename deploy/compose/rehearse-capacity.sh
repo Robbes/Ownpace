@@ -227,18 +227,17 @@ if stack_kind_may_be_live "$shell_kind"; then
     "Open a new shell and run this again."
 fi
 
-if [ "${COMPOSE_PROJECT_NAME+set}" = "set" ]; then
-  from_file="$(env_value "$ENV_FILE" COMPOSE_PROJECT_NAME)"
-  if [ "$COMPOSE_PROJECT_NAME" != "$from_file" ]; then
-    die "refused: this shell has COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}', and ${ENV_FILE} chooses '${from_file:-the default in managed.yml}'." \
-      "Compose follows the shell, so this would act on another stack than the checkout's." \
-      "Unset it (unset COMPOSE_PROJECT_NAME), or open a new shell, and run this again."
-  fi
-fi
-
-# The project Compose drives from here: said out loud, and the persisted
+# The project this checkout chooses, from the one reader (env-read.sh,
+# 0132 T1): the shell's COMPOSE_PROJECT_NAME, else this .env's, else
+# managed.yml's `name:`. It refuses a shell whose COMPOSE_PROJECT_NAME the
+# checkout does not choose: Compose follows the shell, so this would act on
+# another stack than the checkout's. Said out loud, and the persisted
 # directory's name.
-compose_project() {
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
+
+# The project Compose itself reports from here. Answering another one means
+# something above was missed, and it would act on another stack's containers.
+compose_reports_project() {
   local cfg
   if ! cfg="$("${COMPOSE[@]}" config 2>&1)"; then
     printf '%s\n' "$cfg" >&2
@@ -246,16 +245,9 @@ compose_project() {
   fi
   sed -n 's/^name:[[:space:]]*//p' <<<"$cfg"
 }
-COMPOSE_PROJECT="$(compose_project)" || die "docker compose could not read ${SCRIPT_DIR}/managed.yml with its .env (above)."
-[ -n "$COMPOSE_PROJECT" ] || die "docker compose reported no project name for ${SCRIPT_DIR}/managed.yml."
-
-# The project this checkout chooses: its .env's COMPOSE_PROJECT_NAME, else
-# managed.yml's own `name:`. Compose answering another one means something
-# above was missed, and it would act on another stack's containers.
-CHOSEN_PROJECT="$(env_value "$ENV_FILE" COMPOSE_PROJECT_NAME)"
-[ -n "$CHOSEN_PROJECT" ] || CHOSEN_PROJECT="$(sed -n 's/^name:[[:space:]]*//p' "${SCRIPT_DIR}/managed.yml")"
-if [ "$COMPOSE_PROJECT" != "$CHOSEN_PROJECT" ]; then
-  die "refused: docker compose reports the project '${COMPOSE_PROJECT}', and this checkout chooses '${CHOSEN_PROJECT}'." \
+REPORTED_PROJECT="$(compose_reports_project)" || die "docker compose could not read ${SCRIPT_DIR}/managed.yml with its .env (above)."
+if [ "$REPORTED_PROJECT" != "$COMPOSE_PROJECT" ]; then
+  die "refused: docker compose reports the project '${REPORTED_PROJECT:-none}', and this checkout chooses '${COMPOSE_PROJECT}'." \
     "Something in this shell points Compose at another stack. Open a new shell and run this again."
 fi
 
