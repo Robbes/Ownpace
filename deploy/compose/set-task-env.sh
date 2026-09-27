@@ -28,7 +28,7 @@
 #                        task container has no credentials at all — the same
 #                        trap the SMTP values fell into.
 #   SMTP_* / NOTIFY_*  — the notification channel (workplan 0030), OPTIONAL.
-#   LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS,
+#   LEDGER_RETENTION_DAYS, LEDGER_RUN_RETENTION_DAYS, LARGEST_FILE_MB,
 #   TRIGGER_API_URL_IN_NETWORK, LOG_LEVEL — OPTIONAL
 #                        knobs the tasks read and nothing used to upload, so
 #                        setting them in .env did nothing at all.
@@ -233,6 +233,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   NOTIFY_LOCALE="${NOTIFY_LOCALE:-}" \
   LEDGER_RETENTION_DAYS="${LEDGER_RETENTION_DAYS:-}" \
   LEDGER_RUN_RETENTION_DAYS="${LEDGER_RUN_RETENTION_DAYS:-}" \
+  LARGEST_FILE_MB="${LARGEST_FILE_MB:-}" \
   TRIGGER_API_URL_IN_NETWORK="${TRIGGER_API_URL_IN_NETWORK:-}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
   OWNPACE_REACHABLE_HOSTS="${OWNPACE_REACHABLE_HOSTS:-}" \
@@ -265,6 +266,9 @@ const { envvars } = require("@trigger.dev/sdk");
   //                               here in the same commit that made the task
   //                               read it — the guard that named this defect
   //                               failed first and is why this line exists.
+  //   LARGEST_FILE_MB             the largest file a pass copies (0143 T4),
+  //                               read where the file pass is built. Unset is
+  //                               10 GB, the number the owner chose.
   //   TRIGGER_API_URL_IN_NETWORK  the escape hatch beside the compose-network
   //                               default that makes due ticks work at all.
   //   LOG_LEVEL                   raising the log level on a task was impossible.
@@ -287,7 +291,7 @@ const { envvars } = require("@trigger.dev/sdk");
     "MICROSOFT_OAUTH_TENANT",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
-    "LEDGER_RETENTION_DAYS", "LEDGER_RUN_RETENTION_DAYS",
+    "LEDGER_RETENTION_DAYS", "LEDGER_RUN_RETENTION_DAYS", "LARGEST_FILE_MB",
     "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",
     // The rule for a host a tenant gives us admits these names (workplan
     // 0136 T2). Emptied, it is deleted below rather than left as it was.
