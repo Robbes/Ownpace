@@ -85,7 +85,11 @@ describe("a pass that could not read what it needs for moves and deletions", () 
     ]);
     const lines = said.mock.calls.map((c) => c.join(' ')).join('\n');
     expect(lines).toContain(`[ref ${events[0]!.reference}]`);
-    expect(JSON.stringify(events)).not.toContain('503');
+    // The error's own words stay in the line, never in the event. The reference
+    // is random hex and can hold "503" itself (it did, as 685036bd), so the
+    // status is looked for everywhere but there.
+    expect(JSON.stringify(events)).not.toContain('from the server');
+    expect(JSON.stringify({ ...events[0], reference: undefined })).not.toContain('503');
   });
 
   it('records nothing when both could be read', async () => {

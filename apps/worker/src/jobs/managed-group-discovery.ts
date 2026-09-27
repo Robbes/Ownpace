@@ -35,8 +35,10 @@ import {
   groupsNotEnumerable,
   notifierFromEnv,
   directoryAvailability,
+  type DirectoryEnv,
 } from '@openmig/connectors';
 import { runGroupDiscovery } from '@openmig/core';
+import { microsoftSourceKinds } from '@openmig/orchestration/source-face-builders';
 import type { HttpClient } from '@openmig/connectors';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -61,6 +63,41 @@ interface SourceRow {
   readonly tenant_id: string;
   readonly kind: string;
   readonly config: unknown;
+}
+
+/**
+ * The groups of one source, or why they cannot be listed. Exported for the
+ * guard (workplan 0141 T11).
+ */
+export async function listGroupsOf(
+  source: Pick<SourceRow, 'kind' | 'config'>,
+  env: DirectoryEnv = process.env,
+): Promise<GroupListing> {
+  // A source with no directory at all answers first, in its own words: no
+  // amount of configuration makes IMAP enumerable. A Microsoft source is found
+  // by every Microsoft kind (0141 T11); this branch named `o365` alone, so a
+  // Microsoft account was answered in IMAP's words.
+  if (!microsoftSourceKinds().includes(source.kind)) return listImapGroups();
+  const graphTenantId = (source.config as { tenantId?: string } | null)?.tenantId;
+  // Four preconditions, each with its own reason and its own fix, told apart
+  // in `directory-availability.ts`, where they are tested. The first is the
+  // source's kind: an account's grant is delegated.
+  const available = directoryAvailability(env, graphTenantId, source.kind);
+  if (!available.ok) {
+    return { kind: 'not_enumerable', reason: groupsNotEnumerable(available.reason) };
+  }
+  const tokenProvider = createTokenProvider({
+    tokenEndpoint: `https://login.microsoftonline.com/${graphTenantId!}/oauth2/v2.0/token`,
+    clientId: available.clientId,
+    clientSecret: available.clientSecret,
+    tenantId: graphTenantId!,
+    scope: 'https://graph.microsoft.com/.default',
+  });
+  return listMailEnabledGroups(
+    async () => (await tokenProvider.getToken()).accessToken,
+    httpClient,
+    { applicationPermissions: true },
+  );
 }
 
 export const managedGroupDiscovery = schedules.task({
@@ -94,35 +131,11 @@ export const managedGroupDiscovery = schedules.task({
     let blindSpots = 0;
 
     for (const source of sources) {
-      const graphTenantId = (source.config as { tenantId?: string } | null)?.tenantId;
-
       const summary = await runGroupDiscovery({
         tenantId: asTenantId(source.tenant_id),
         sourceConnectionId: source.id,
 
-        listGroups: async (): Promise<GroupListing> => {
-          // A source with no directory at all answers first, in its own
-          // words: no amount of configuration makes IMAP enumerable.
-          if (source.kind !== 'o365') return listImapGroups();
-          // Three preconditions, each with its own reason and its own fix —
-          // told apart in `directory-availability.ts`, where they are tested.
-          const available = directoryAvailability(process.env, graphTenantId);
-          if (!available.ok) {
-            return { kind: 'not_enumerable', reason: groupsNotEnumerable(available.reason) };
-          }
-          const tokenProvider = createTokenProvider({
-            tokenEndpoint: `https://login.microsoftonline.com/${graphTenantId!}/oauth2/v2.0/token`,
-            clientId: available.clientId,
-            clientSecret: available.clientSecret,
-            tenantId: graphTenantId!,
-            scope: 'https://graph.microsoft.com/.default',
-          });
-          return listMailEnabledGroups(
-            async () => (await tokenProvider.getToken()).accessToken,
-            httpClient,
-            { applicationPermissions: true },
-          );
-        },
+        listGroups: () => listGroupsOf(source),
 
         record: async (input) => {
           const { created } = await groups.upsert(asTenantId(source.tenant_id), input);

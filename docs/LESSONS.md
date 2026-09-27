@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 167 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 168 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -199,6 +199,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/permissions.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `apps/api/src/routes/platform-status.ts`
@@ -415,11 +416,13 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/managed-drift-detect.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-group-discovery.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-purge-closed.ts`
@@ -2322,6 +2325,16 @@ Reads:
 
 - `docs/google-workspace-setup.md`
 - `scripts/drive-export-stability.ts`
+
+### [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts)
+
+A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
+
+Reads:
+
+- `apps/api/src/routes/permissions.ts`
+- `apps/worker/src/jobs/managed-drift-detect.ts`
+- `apps/worker/src/jobs/managed-group-discovery.ts`
 
 ### [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts)
 
