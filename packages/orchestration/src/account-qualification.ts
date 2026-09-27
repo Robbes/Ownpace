@@ -73,6 +73,7 @@ import {
 } from './google-tasks-source-factory.ts';
 import { buildDropboxSourceFrom, STORED_DROPBOX_CREDENTIAL_NAMES } from './dropbox-source-factory.ts';
 import { parseArchiveSource } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { archiveReaderForLocation } from './archive-source-factory.ts';
 import type { GoogleCredentialsAsFound } from './drive-source-factory.ts';
 
@@ -628,7 +629,7 @@ async function qualifyJmap(
   });
   let capabilities: Record<string, unknown>;
   try {
-    const response = await fetch(sessionUrl, {
+    const response = await tenantFetch(sessionUrl, {
       headers: {
         Authorization: `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`,
         Accept: 'application/json',
