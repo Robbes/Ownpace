@@ -13,7 +13,7 @@
 # project (so its `proj_` ref and `tr_prod_` key), every deployment, and the run
 # history.
 #
-# WHAT IT DOES NOT TOUCH: `ownpace-db`. Tenants, mappings, items,
+# WHAT IT DOES NOT TOUCH: the application database. Tenants, mappings, items,
 # connections, invoices and the audit log are in a different database and a
 # different volume, and this script names the one it removes rather than
 # sweeping. The API and the pooler keep serving throughout.
@@ -26,23 +26,35 @@
 # `TRIGGER_PROJECT_REF` in .env has to be cleared, or the `account` phase sees it
 # populated, decides there is nothing to do, and skips the human step that is now
 # mandatory.
+#
+# WHOSE VOLUME (workplan 0132 T1). The stop and the removal below go through
+# `docker compose`, which acts on this checkout's project; the volume is then
+# removed BY NAME, which Compose does not scope. So the name is built from the
+# same project Compose chose. It used to be the OTA stack's, written out: run
+# from a second stack's checkout, this stopped that stack's Trigger.dev and then
+# went for the OTA stack's database, which Docker refuses only while a
+# container still holds it.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
-VOLUME="ownpace-managed_trigger_db_data"
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
+VOLUME="${COMPOSE_PROJECT}_trigger_db_data"
 
 if [ "${1:-}" != "--yes" ]; then
   cat >&2 <<EOF
-reset-trigger.sh destroys the Trigger.dev database:
+reset-trigger.sh destroys the Trigger.dev database of the stack
+'${COMPOSE_PROJECT}' (volume ${VOLUME}):
 
   - the account, organisation and project (its proj_ ref and tr_prod_ key)
   - every deployment
   - the entire run history
 
-It does NOT touch ownpace-db — tenants, mappings, items, connections and
-invoices are in a different database and are not affected.
+It does NOT touch the application database: tenants, mappings, items,
+connections and invoices are in a different database and are not affected.
 
 Afterwards you do the one human step again (dashboard: sign in, name an
 organisation and a project), and the bootstrap walks the rest.
