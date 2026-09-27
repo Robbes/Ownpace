@@ -319,10 +319,15 @@ describe('failures that must never look like an empty result', () => {
   });
 
   it('does not report a removal the server never confirmed', async () => {
+    // With a version, as every removal needs one (workplan 0149 T3); the read
+    // finds nothing to compare, so the destroy is what answers.
+    responders['ContactCard/get'] = () => ({ list: [] });
     responders['ContactCard/set'] = () => ({ destroyed: [] });
     // Neither destroyed nor notDestroyed. Returning success there lets the
     // ledger tombstone a row for a card still sitting on the target.
-    await expect(target().removeItem('srv-1')).rejects.toThrow(/did not confirm/);
+    await expect(target().removeItem('srv-1', { expectedTargetVersion: 'v1' })).rejects.toThrow(
+      /did not confirm/,
+    );
   });
 });
 
@@ -391,6 +396,46 @@ describe('ownership, on a transport with no ETag', () => {
     // The guard matters more here than anywhere else: this is the one
     // operation that cannot be undone.
     expect(result).toEqual({ conflicted: true });
+    expect(calls.some((c) => c.method === 'ContactCard/set')).toBe(false);
+  });
+
+  it('removes nothing, and reads nothing, when no version was recorded (workplan 0149 T3)', async () => {
+    // Every write records this card's fingerprint, so a row without one cannot
+    // say whether somebody changed the card since. It was destroyed anyway.
+    responders['ContactCard/set'] = () => {
+      throw new Error('a removal must not reach the server without a version');
+    };
+    const result = await target().removeItem('srv-1');
+    expect(result).toEqual({ unversioned: true });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses the REMOVAL when the stored card cannot be read (workplan 0149 T3)', async () => {
+    // The read returned undefined on a failure, which the check read as
+    // "cannot tell, go ahead": a failed read let the destroy through.
+    responders['ContactCard/get'] = () => {
+      throw new Error('the read failed');
+    };
+    responders['ContactCard/set'] = () => {
+      throw new Error('a removal must not reach the server when the read failed');
+    };
+    await expect(target().removeItem('srv-1', { expectedTargetVersion: 'v1' })).rejects.toThrow(
+      /so it was not removed/,
+    );
+    expect(calls.some((c) => c.method === 'ContactCard/set')).toBe(false);
+  });
+
+  it('refuses the rewrite when the stored card cannot be read (workplan 0149 T3)', async () => {
+    responders['ContactCard/get'] = (args) => {
+      if (!Array.isArray(args.ids)) return { list: [stored] }; // the snapshot read
+      throw new Error('the read failed');
+    };
+    responders['ContactCard/set'] = () => {
+      throw new Error('a rewrite must not reach the server when the read failed');
+    };
+    await expect(
+      target().upsertContact('book-1', rawContact('card-1'), { overwrite: true, expectedTargetVersion: 'v1' }),
+    ).rejects.toThrow(/so it was not rewritten/);
     expect(calls.some((c) => c.method === 'ContactCard/set')).toBe(false);
   });
 

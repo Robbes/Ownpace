@@ -7,7 +7,8 @@
  * calendar face that actually answered.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { RemoteRefusal } from '@openmig/shared';
 import {
   isDropboxKind,
   isQualifiableKind,
@@ -875,5 +876,74 @@ describe('the reach MEASURES each face it reached (owner 2026-09-02: GB in Drive
     });
     expect(lines[0]).toBe('Email ✓: x Measured: 2 messages, 2.0 KB.');
     expect(lines[1]).toBe('Calendar ✓: x');
+  });
+});
+
+describe('a refused face at an address the tester typed carries its parts (workplan 0136 T3)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const PAGE = '<!doctype html><html><body><p>an internal admin page</p></body></html>';
+
+  it('every DAV face of a caldav account: the status, and nothing of the page', async () => {
+    vi.stubGlobal('fetch', async () => new Response(PAGE, { status: 500 }));
+    const q = await qualifyAccount('caldav', DAV_CONFIG, CREDS);
+    for (const face of [q?.domains.calendar, q?.domains.task, q?.domains.contact, q?.domains.file]) {
+      expect(face?.answer).toBe('unknown');
+      expect(face?.said).toEqual({ kind: 'answered', protocol: 'dav', status: 500 });
+    }
+    // Mail is not asked on a caldav row, so it has nothing to carry.
+    expect(q?.domains.mail.said).toBeUndefined();
+  });
+
+  it("Apple's published roots are nobody's typed address: no parts", async () => {
+    vi.stubGlobal('fetch', async () => new Response(PAGE, { status: 500 }));
+    const q = await qualifyAccount('apple', {}, CREDS, {
+      imapListable: () => ({
+        listFolders: async () => {
+          throw new Error('LOGIN failed');
+        },
+      }),
+    });
+    expect(q?.domains.calendar.answer).toBe('unknown');
+    expect(q?.domains.calendar.said).toBeUndefined();
+    expect(q?.domains.contact.said).toBeUndefined();
+    expect(q?.domains.mail.said).toBeUndefined();
+  });
+
+  it("an imap row's mail face: the server's NO line as its part", async () => {
+    const q = await qualifyAccount('imap', { host: 'imap.example.net' }, CREDS, {
+      imapListable: () => ({
+        listFolders: async () => {
+          throw new RemoteRefusal('The IMAP server refused: NO Invalid credentials', {
+            protocol: 'imap',
+            providerWords: 'NO Invalid credentials',
+          });
+        },
+      }),
+    });
+    expect(q?.domains.mail.said).toEqual({ kind: 'answered', protocol: 'imap', providerWords: 'NO Invalid credentials' });
+  });
+
+  it('a typed mail host: its refusal carries its parts too', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    const q = await qualifyAccount('soverin', { ...DAV_CONFIG, mailHost: 'imap.example.net' }, CREDS, {
+      imapListable: () => ({
+        listFolders: async () => {
+          throw new Error('wrapped', {
+            cause: Object.assign(new Error('connect ETIMEDOUT 10.9.9.9:993'), { code: 'ETIMEDOUT' }),
+          });
+        },
+      }),
+    });
+    expect(q?.domains.mail.said).toEqual({ kind: 'unreachable' });
+  });
+
+  it('a JMAP session that cannot be read: every face carries what happened', async () => {
+    vi.stubGlobal('fetch', async () => new Response(PAGE, { status: 200 }));
+    const q = await qualifyAccount('jmap', { baseUrl: 'https://jmap.example.net' }, CREDS);
+    for (const face of Object.values(q?.domains ?? {})) {
+      expect(face.answer).toBe('unknown');
+      expect(face.said).toEqual({ kind: 'unknown' });
+    }
   });
 });

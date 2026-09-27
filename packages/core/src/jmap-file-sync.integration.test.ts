@@ -38,6 +38,7 @@ import { sql } from 'drizzle-orm';
 import { createPgDb } from '../../ledger/src/db.ts';
 import { PgLedger } from '../../ledger/src/ledger.ts';
 import { JmapFileTarget } from '../../connectors/src/jmap-file-target.ts';
+import { destroyJmapFixtures } from '../../connectors/src/__testing__/jmap-fixture-cleanup.ts';
 import { runFileSync } from './dav-sync.ts';
 import {
   asTenantId,
@@ -162,11 +163,20 @@ if (!JMAP_URL) {
     async function cleanTarget(): Promise<void> {
       const live = freshTarget();
       try {
+        const ids: string[] = [];
         for await (const entry of live.listEntries()) {
-          if (entry.naturalKey.startsWith('openmig-jmap-sync/')) {
-            await live.removeItem(entry.targetId).catch(() => undefined);
-          }
+          if (entry.naturalKey.startsWith('openmig-jmap-sync/')) ids.push(entry.targetId);
         }
+        // Straight on the server, not through `removeItem`: since workplan 0149
+      // T3 a removal needs the version the item was written with, and a
+      // cleanup has none. See connectors' `__testing__/jmap-fixture-cleanup.ts`.
+        await destroyJmapFixtures({
+          baseUrl: JMAP_URL!,
+          username: JMAP_USER,
+          password: JMAP_PASSWORD,
+          type: 'FileNode',
+          ids,
+        });
       } catch {
         // Nothing on the target yet, or it cannot be listed. Either way there
         // is nothing to clean and the tests below say so far more precisely.

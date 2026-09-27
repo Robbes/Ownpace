@@ -106,6 +106,7 @@ import {
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
 import type { ShareGrantRow } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
@@ -482,7 +483,7 @@ async function nextcloudCapabilityFor(
         username: creds.username ?? '',
         password: creds.password ?? '',
         httpClient: { request: async ({ url, method, headers, body }) => {
-          const r = await fetch(url, {
+          const r = await tenantFetch(url, {
             method,
             headers,
             ...(typeof body === 'string' ? { body } : {}),

@@ -22,11 +22,22 @@
  *   - and the ledger is TAKEN BACK, because one ledger per mapping on a stack
  *     that lives from night to night is otherwise tomorrow's failure.
  *
+ * AND IT READS THE LEDGER THE WAY THE LEDGER IS WRITTEN. The job writes a
+ * transition's trail entry and its state in one transaction, and E2E (managed)
+ * #200 read them in two statements: the state just before that commit
+ * (PREPARING), the entries just after it (2), and failed a ledger that had
+ * converged. The wait is lifted from the script and run in bash against a
+ * ledger that commits between two reads, so the next such read fails here,
+ * not on the Spark at night.
+ *
  * The lines are read from the real script, the way the neighbouring smoke
  * guards do: a test restating them would pass while the script drifted.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const smoke = readFileSync(
@@ -121,5 +132,56 @@ describe('the managed gate presses the cutover door', () => {
       expect(call, `a bare fail_at says nothing: ${call}`).toMatch(/^fail_at "/);
     }
     expect(section).not.toMatch(/\bfail=1\b/);
+  });
+
+  it('reads the state and its READY entries in one statement, so a commit cannot fall between them', () => {
+    const at = section.indexOf('ledger_ready_snapshot() {');
+    expect(at, 'the one-statement read is gone').toBeGreaterThan(-1);
+    const body = section.slice(at, section.indexOf('\n}\n', at));
+    expect(body.match(/\bq "/g), 'one statement, not two').toHaveLength(1);
+    expect(body).toContain('SELECT state FROM cutover_state WHERE $CUTOVER_WHERE');
+    expect(body).toContain("SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND to_state='READY_FOR_CUTOVER'");
+  });
+
+  it('the wait for the second READY holds when the transition commits between two reads', () => {
+    // The functions the wait calls, and the wait itself, as the script has them.
+    const functions = section.slice(section.indexOf('ledger_state() {'), section.indexOf('ledger_trail() {'));
+    const second = section.indexOf('cutover_press "second press, on READY_FOR_CUTOVER"');
+    const loopStart = section.indexOf('    i=0; st=""; ready_entries=""', second);
+    const loopEnd = section.indexOf('    done\n', loopStart) + '    done\n'.length;
+    expect(functions.length).toBeGreaterThan(100);
+    expect(loopStart).toBeGreaterThan(second);
+    const wait = section.slice(loopStart, loopEnd);
+    // A ledger on a clock: every read is a tick, and the job's transition to
+    // READY_FOR_CUTOVER (attempt 2) commits at tick 2, whole, the way one
+    // transaction does. Before it: PREPARING, one entry into READY.
+    const dir = mkdtempSync(join(tmpdir(), 'a-cutover-the-gate-never-pressed-'));
+    try {
+      const clock = join(dir, 'clock');
+      writeFileSync(clock, '0');
+      const script = [
+        'set -u',
+        'CUTOVER_WHERE="the demo mail mapping"; SYNC_POLLS=5; POLL_SLEEP=0',
+        'q() {',
+        `  local tick; tick=$(( $(cat '${clock}') + 1 )); echo "$tick" > '${clock}'`,
+        '  local done=0; [ "$tick" -ge 2 ] && done=1',
+        '  case "$1" in',
+        '    *cutover_state*cutover_event*) [ $done = 1 ] && echo "READY_FOR_CUTOVER|2" || echo "PREPARING|1" ;;',
+        '    *cutover_state*) [ $done = 1 ] && echo READY_FOR_CUTOVER || echo PREPARING ;;',
+        '    *cutover_event*) [ $done = 1 ] && echo 2 || echo 1 ;;',
+        '  esac',
+        '}',
+        functions,
+        wait,
+        'echo "$st $ready_entries"',
+      ].join('\n');
+      const seen = execFileSync('bash', ['-c', script], { encoding: 'utf8' }).trim();
+      expect(
+        seen,
+        'the wait saw half a transition: a state from before the commit and entries from after it',
+      ).toBe('READY_FOR_CUTOVER 2');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

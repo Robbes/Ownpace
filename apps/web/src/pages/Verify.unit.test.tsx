@@ -137,6 +137,9 @@ describe('the Verify screen', () => {
     // nothing reads PASS, score 1, ready to cut over — and
     // `determineVerificationStatus` never sees the `CHECKSUM_UNAVAILABLE_*`
     // issue that would say why, because it is handed percentages and counts.
+    // Since the owner's D2 of 2026-09-24 (workplan 0149 T4) that is only a
+    // target with no way to hash, JMAP contacts; one that can hash and
+    // answered nothing fails. This fixture is still that first, valid state.
     //
     // So the person about to delete their Google account sees a page that is
     // indistinguishable from one where every sampled item matched. This is the

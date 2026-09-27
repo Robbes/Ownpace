@@ -1113,6 +1113,15 @@ paths:
                   items:
                     type: string
                     enum: [email, calendar, contact, file, task]
+                locale:
+                  type: string
+                  enum: [en, nl]
+                  description: |
+                    The language the page was in when the button was pressed,
+                    so the page the provider sends the person back to is in it
+                    too (workplan 0145 T6). Recorded on the pending consent and
+                    never put in the redirect; anything else, or nothing, is
+                    English.
               oneOf:
                 - required: [sourceType]
                 - required: [domains]
@@ -1247,6 +1256,15 @@ paths:
               properties:
                 clientId: { type: string, description: The App key. }
                 clientSecret: { type: string, description: The App secret. }
+                locale:
+                  type: string
+                  enum: [en, nl]
+                  description: |
+                    The language the page was in when the button was pressed,
+                    so the page the provider sends the person back to is in it
+                    too (workplan 0145 T6). Recorded on the pending consent and
+                    never put in the redirect; anything else, or nothing, is
+                    English.
       responses:
         '200':
           description: Where to send the browser, and the address Dropbox must have registered.
@@ -1341,6 +1359,15 @@ paths:
                 tenantId:
                   type: string
                   description: The directory, when this caller brings their own registration.
+                locale:
+                  type: string
+                  enum: [en, nl]
+                  description: |
+                    The language the page was in when the button was pressed,
+                    so the page the provider sends the person back to is in it
+                    too (workplan 0145 T6). Recorded on the pending consent and
+                    never put in the redirect; anything else, or nothing, is
+                    English.
       responses:
         '200':
           description: Where to send the browser, and the address the registration must carry.
@@ -1755,8 +1782,15 @@ paths:
         call — built exactly the way a sync pass would build the connector, so
         a passed test cannot diverge from what create would store. A provider
         refusal ("wrong password", "invalid scope") is an ANSWER, returned as
-        `{ok:false, reason}` with the provider's words verbatim, not an error
-        status.
+        `{ok:false, reason, outcome}`, not an error status.
+
+        A provider's fixed hosts answer in their own words. An address the
+        tester typed is answered from its parts (workplan 0136 T3): the status,
+        and the server's words only when they came as an error document we know
+        (DAV, Google, JMAP, an IMAP `NO`); a server that did not answer has the
+        outcome code `unreachable`, and no address; an address inside this
+        service's own network has `insideOurNetwork`, and no host. The sentence
+        ends with a reference that finds the full text in the server log.
       requestBody:
         required: true
         content:
@@ -1973,7 +2007,18 @@ paths:
         operator type the migration's own name; the API itself does not
         second-guess a deliberate call.
       responses:
-        '200': { description: Deleted. }
+        '200':
+          description: |
+            Deleted. When the migration's own row held a credential, the token
+            a person granted through a grant link, it was revoked where the
+            provider supports it, after the delete, and `revocation` says what
+            happened (workplan 0139 T6). The organisation's credential, on the
+            connection, is never touched. A migration without a credential of
+            its own answers without `revocation`. Until 2026-09-27 this revoked
+            nothing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationDeleted' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -2611,7 +2656,7 @@ paths:
         migrated people get links).
 
         Says who is asking (the organisation's name, and the sign-in address
-        of the member who issued the link), what will be read in plain words,
+        of the member who issued the link), which data types will be read,
         the exact scope the link asks Google for and whether Google holds
         every data scope in it to reading, when the link stops working, and
         where the data comes from and goes to: the account the migration
@@ -2644,7 +2689,15 @@ paths:
                     type: string
                     nullable: true
                     description: The organisation's phone number, when it gave one; never anything that is not a phone number.
-                  reads: { type: string }
+                  domains:
+                    type: array
+                    minItems: 1
+                    items: { type: string, enum: [email, calendar, contact, file, task] }
+                    description: |
+                      Which data types the link reads, as codes. The page words
+                      them itself, in the reader's language, and joins them as
+                      that language joins a list (workplan 0145 T6); until then
+                      the server sent an English sentence as `reads`.
                   scope: { type: string }
                   readOnlyAtProvider:
                     type: boolean
@@ -2676,16 +2729,23 @@ paths:
             One sentence for every way a link can fail — unknown, forged,
             expired, revoked, already used, wrong purpose, malformed. The
             difference is deliberately not reported: the reader cannot act on
-            it, and naming it would tell a forger which part failed.
+            it, and naming it would tell a forger which part failed. The body
+            is `{error, message, messageNl}`: the sentence in English and in
+            Dutch, and the page shows the one in its language (workplan 0145
+            T6).
         '409':
           description: |
             The link is good but the migration cannot be connected — it no
             longer exists, its source is not a Google account, it names no
             account, it has no destination, it copies nothing, or its Google
             application is not configured or may not ask for mail or files. The
-            sentence is written to be forwarded to whoever sent the link.
+            sentence is written to be forwarded to whoever sent the link. The
+            body is `{error, reason, reasonNl}`: the sentence in English and
+            in Dutch (workplan 0145 T6).
         '503':
-          description: The link could not be checked just now. Ours, not the caller's.
+          description: |
+            The link could not be checked just now. Ours, not the caller's.
+            The body is `{error, message, messageNl}`, as for 401.
 
   /api/grant/{link}/google/authorize:
     parameters:
@@ -2716,7 +2776,27 @@ paths:
         `https://www.googleapis.com/auth/userinfo.email`, and names the
         migration's account as Google's `login_hint`: the callback stores the
         token only when that account is the one that signed in (0108 T8 (b)).
+
+        The page after Google is in the language the body names (workplan
+        0145 T6), which the server records on the pending consent beside the
+        link and never reads back from the redirect.
       security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locale:
+                  type: string
+                  enum: [en, nl]
+                  description: |
+                    The language the page was in when the button was pressed,
+                    so the page the provider sends the person back to is in it
+                    too (workplan 0145 T6). Recorded on the pending consent and
+                    never put in the redirect; anything else, or nothing, is
+                    English.
       responses:
         '200':
           description: Where to send the browser.
@@ -2726,12 +2806,23 @@ paths:
                 type: object
                 properties:
                   url: { type: string }
-        '401': { description: The link was refused — see GET above. }
+        '401':
+          description: |
+            The link was refused — see GET above. The body is
+            `{error, message, messageNl}`.
         '409':
           description: |
             The migration cannot be connected, or this deployment's callback
-            address is a raw IP, which Google will not accept as a redirect URI.
-        '503': { description: The link could not be checked just now. }
+            address is one Google will not redirect to: a raw IP
+            (`raw_ip_callback`), or a loopback address behind a public app
+            (`unreachable_callback`). The body is `{error, reason, reasonNl}`,
+            the sentence in English and in Dutch (workplan 0145 T6); for the
+            two callback refusals, the operator's own sentence stays verbatim
+            inside both.
+        '503':
+          description: |
+            The link could not be checked just now. The body is
+            `{error, message, messageNl}`.
 
   /api/grant/{link}/report:
     parameters:
@@ -2921,13 +3012,18 @@ paths:
             One sentence for every way a link can fail — unknown, forged,
             expired, revoked, wrong purpose, malformed. A credential link
             presented here is refused on its purpose, which is what keeps the
-            two lifetimes apart.
+            two lifetimes apart. The body is `{error, message, messageNl}`:
+            the sentence in English and in Dutch, and the page shows the one
+            in its language (workplan 0145 T6).
         '409':
           description: |
             The link is good but the migration no longer exists. The sentence is
-            written to be forwarded to whoever sent the link.
+            written to be forwarded to whoever sent the link. The body is
+            `{error, reason, reasonNl}`, in English and in Dutch.
         '503':
-          description: The link could not be checked just now. Ours, not the caller's.
+          description: |
+            The link could not be checked just now. Ours, not the caller's.
+            The body is `{error, message, messageNl}`, as for 401.
 
   /api/view/{link}/withdraw:
     parameters:
@@ -5777,6 +5873,17 @@ components:
         displayName: { type: string }
         revocation: { $ref: '#/components/schemas/RevocationOutcome' }
       required: [deleted, id, revocation]
+
+    MigrationDeleted:
+      type: object
+      description: |
+        The answer to a migration delete that went through, with what happened
+        to the grant its own row held, when it held one.
+      properties:
+        success: { type: boolean, enum: [true] }
+        message: { type: string }
+        revocation: { $ref: '#/components/schemas/RevocationOutcome' }
+      required: [success, message]
 
     RevocationOutcome:
       type: object

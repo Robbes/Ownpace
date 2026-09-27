@@ -35,6 +35,7 @@
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { LINK_REFUSAL } from '@openmig/shared';
 import { mappingLink } from './schema-pg.ts';
 import { withMappingLink } from './db.ts';
 import type { PgDatabase } from './db-types.ts';
@@ -92,11 +93,12 @@ export const MAPPING_LINK_LIFETIMES: Readonly<
  * The ONE sentence, for unknown, forged, expired, revoked and already-used
  * alike. It names the remedy that is true in every one of those cases, and it
  * never names the cause — see this file's header for why.
+ *
+ * The English half of `LINK_REFUSAL` in `@openmig/shared`, whose Dutch half
+ * sits beside it (workplan 0145 T6): one pair, read here and by the page, so
+ * the two can never say different things.
  */
-export const MAPPING_LINK_REFUSAL =
-  'This link cannot be used. It may have been used already, it may have expired, or the ' +
-  'person who sent it may have withdrawn it. Ask them for a fresh link — issuing one takes ' +
-  'them a moment.';
+export const MAPPING_LINK_REFUSAL: string = LINK_REFUSAL.en;
 
 /** What a verified link is allowed to say about itself. Never the hash. */
 export interface VerifiedMappingLink {

@@ -2,7 +2,190 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27, T3's answer built** (0131 §6, group M2, step 3) on branch
+`claude/mailbox-sync-errors-c2xsw2-a-probe-that-does-not-read-aloud`, not merged. The per-member
+limit on tests is the next pull request, and the failures route is T3's second step.
+
+- **The parts.** A refusal carries its parts beside its message (`RemoteRefusal`,
+  `packages/shared/src/remote-refusal.ts`): the status, and the provider's words only when the
+  body is an error document of a kind §3 lists, as the document itself (its root element or its
+  JSON shape) and not inside some other page, capped at 300 characters. The eight DAV refusals
+  the sources throw, the IMAP source's `NO` or `BAD` (with its response code), and the JMAP
+  session loader carry them. The messages are unchanged, except that the session loader's now
+  reads a JMAP problem document for its type and detail instead of pasting the first 300
+  characters of it, the way `davRefusalBody` unwraps a DAV one.
+- **Only for a host the tester typed.** The probe adds `said` (`whatHappened`) to a failure from a
+  target, or from a mail source whose row names its host (every `imap` row, and an `o365` row on
+  IMAP, since the door takes the field), and the qualification to a face refused at a typed
+  address. A provider's fixed hosts carry none, and their words render as before (0080, 0115 T5):
+  Graph, Google, Dropbox, Box. Apple's published roots are nobody's typed address and carry none
+  either.
+- **The answer** (`apps/api/src/probe-answer.ts`), at the five doors of §1: the Test door, the
+  three `/api/connections` doors (the headline, and every face before the row stores it) and the
+  permission report's faces. A server that answered: its status, and its words or *"with
+  something that is not a DAV, JMAP or IMAP error"*. Nothing answered: the new outcome code
+  `unreachable`, and no address. The rule's refusal (T1, read by its code): the new outcome code
+  `insideOurNetwork`, and no host, since after a redirect the host it names is the remote's. A
+  certificate and anything else: a sentence of ours. Each sentence ends with a reference; the full text goes to
+  the log under it, and the operator's log page records `probe.refused`, once per request.
+- **Proved.** `apps/api/src/routes/a-probe-that-does-not-read-aloud.unit.test.ts` drives the real
+  doors, probe and qualifier against servers on this machine: an HTML 500, a JSON 200 of another
+  shape and a text 403 reach no answer at any door, a GData 403, a Google JSON 400 and a Sabre
+  500 keep their code and message, a closed port answers `unreachable` without its address, and
+  an IMAP `NO` is its words. The log has every byte under the reference, which is also the proof
+  that each case reached its server. `scripts/a-refusal-that-pastes-its-envelope.unit.test.ts`
+  now also holds that every DAV refusal a source throws carries its parts, and that the session
+  loader pastes no body. With the rule switched on, what `tenantFetch` and `reachableHost` throw
+  reads as `insideOurNetwork` (`remote-refusal.unit.test.ts`). Through the doors, now that every
+  client goes through the rule: an address inside our network is refused at every door before
+  anything connects, as `insideOurNetwork`, and a host the rule admitted that redirects inward is
+  answered the same way, without the address it redirected to.
+- **Not yet:** the screens' Dutch for these sentences and for `unreachable` (the web half, after
+  the other session's pull requests on the same files); and the JMAP file and contact targets'
+  upload refusals, which a pass writes and a Test never reaches.
+
+**2026-09-27: T1 (b) built (0131 §6, group M2, step 4), beside T1 (a).** Before the API comes up,
+the bring-up checks that every Docker network on the machine lies inside the rule's ranges, and
+refuses to go on when one does not.
+
+- **Every network, not this project's.** `check_docker_networks` in `bootstrap-managed.sh`
+  lists every network the daemon has (`docker network ls -q`, with no filter) and inspects them
+  all: this stack's, the other stack's on the same daemon (D6), and Docker's own.
+- **The rule's own list decides.** `scripts/networks-inside-the-rule.ts`, run by the repo's
+  tsx, reads each subnet and gateway:
+  - `networkInsideRefusedRanges`, new in `reachable-host.ts`, answers whether a whole network
+    lies inside one refused range: its prefix no shorter than the range's, and its address in it;
+  - `isRefusedAddress` answers for a gateway.
+- **The refusal** names the network, its compose project, and the subnet or gateway outside. It
+  says why that matters, and names the fix: the daemon's `default-address-pools` inside
+  `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16`, or the network removed. The bring-up exits 1.
+  A failed `docker network inspect`, or an answer that is not its JSON, stops the bring-up too,
+  saying so rather than calling it a network outside.
+- **Where it runs:** at the start of `phase_app`, before the API and the tasks, which connect to
+  hosts a tester types. `phase_data` has created this stack's network by then.
+- **Which case the reference machine is in** is what the check's first run on it says, as §3
+  has it. Nothing here read that machine's daemon.
+- **Not yet:** the failure table in `docs/managed-bring-up.md` gets its row with the switch-on.
+  The other session's pull requests that change that document (#1214, #1217, #1219) come first,
+  by 0131 §6's out-of-turn rule.
+- **Proved.**
+  - `scripts/bootstrap-managed.unit.test.ts`, ten cases. The function is lifted from the script
+    and run in bash against a `docker` that answers from a fixture, with the real check behind
+    it. The fixture is shaped as `docker network inspect` prints it; it was written, not
+    recorded, since this environment has no Docker daemon. The fake honours a project filter, so
+    a check that asked only for its own project's networks would miss the other stack's.
+  - Two stacks inside pass, and the count is said. The other stack's network outside is refused
+    and named, and so are this stack's IPv6 network outside, a gateway outside, and a network
+    wider than the range it starts in. A failed inspect, an unreadable answer and an empty list
+    each stop the bring-up.
+  - `a-host-we-are-asked-to-reach.unit.test.ts` gains eighteen cases for
+    `networkInsideRefusedRanges`.
+  - **Mutations:** 12, all killed: only this project's networks asked for; the check never
+    called; a network outside let through; a failed inspect ignored; an empty list passed; an
+    unreadable answer read as a network outside; gateways, or subnets, not checked; the check
+    exiting 0 on a network outside; a wider network passing; no prefix read as a network; and a
+    prefix past the address's length passing.
+
+**2026-09-27: T1 (a), second slice built (0131 §6, group M2, step 1).** Every client that reaches
+a host a tenant typed now goes through the rule. The rule is still off in every process, so
+nothing behaves differently until the third slice switches it on.
+
+- **HTTP, through `tenantFetch`:**
+  - the CalDAV, CardDAV and WebDAV sources, and the three DAV writers;
+  - the JMAP clients: the session and the mail target through `http-rate-limit.ts`, and the file
+    and contact targets;
+  - the Test button's JMAP session and scheduling question, and the qualification's JMAP session;
+  - the API's two clients for an organisation's Nextcloud. The permissions report's also carries
+    Graph, whose public address passes the rule.
+- **IMAP, through `reachableHost`.** `ImapFlowSource` and `ImapFlowDavMailTarget` resolve and
+  check the typed host before anything is opened, and on the source before a token is fetched.
+  They then hand imapflow the checked address as `host`, with the typed name as `servername`.
+- **What stays on Node's own `fetch`,** each use named with its host in the guard:
+  - our own services: the identity provider, the status page and Zammad;
+  - the providers' fixed hosts: Graph, Google, Dropbox, Box and their token endpoints, Moneybird,
+    VIES and three DNS-over-HTTPS resolvers.
+
+  The provider clients' base URLs are constants. The doors store no base URL for a provider
+  connection: `sourceConfig` has no such field, and zod drops a key it does not know.
+- **Not changed:** `apps/selfhost`, the appliance's own server, where the rule is never on.
+- **The appliance bundle** now carries the rule, and undici's `Agent` and connector through the
+  connectors, and not undici's `lib/global.js`: checked on the bundle built with the packaging
+  script's own esbuild flags. A small entry bundled with the same flags ran the rule against a
+  local server. An admitted name was reached and `127.0.0.1` refused, and the process's global
+  dispatcher was the same object before and after. That global is Node's own: an ES module
+  `import` of `node:http` installs it, in any process.
+- **Proved.**
+  - `scripts/a-client-that-reaches-a-tenant-host.unit.test.ts` reads the server code, parsed. It
+    holds three lines: every use of Node's own `fetch` is listed with its host and its count;
+    every client of a tenant's host calls `tenantFetch`; and every IMAP client is built on what
+    `reachableHost` answered, with its `servername`.
+  - `packages/orchestration/src/a-host-we-are-asked-to-reach.unit.test.ts` is §3's probe test.
+    With the rule on, a CalDAV, CardDAV, WebDAV and JMAP target admitted by name is reached, and
+    its redirect to `127.0.0.1` is not followed. An IMAP host typed as `127.0.0.1` is refused
+    before a socket opens. The same probes with the rule off follow the redirect and connect,
+    which is the control.
+  - The IMAP source's and target's own tests pin the address, the `servername` and the refusal.
+  - **Mutations:** 19, all killed: each of the fourteen clients put back on Node's own
+    `fetch`; each IMAP client sent to the typed host, or without its `servername`; and the IMAP
+    source fetching its token before the check.
+
+**2026-09-27: T1 (a), first slice built (0131 §6, group M2, step 1).** The rule, in
+`packages/shared/src/reachable-host.ts`, and nothing calls it yet, so nothing behaves differently.
+T1 (a) comes in three pull requests: this one; the clients that reach a tenant's host going
+through it; and the managed API and tasks switching it on, with the doors' answer.
+
+- **The ranges.** Node's `BlockList` holds §3's list: loopback, `0.0.0.0/8` and `::`,
+  private, link-local, CGNAT, unique-local, multicast and reserved. An IPv4-mapped IPv6 address is
+  judged as the IPv4 inside it, which `BlockList` does itself. A single-label name and a host
+  field that is not a host are refused before any lookup.
+- **After resolution, on the address used.** `reachableAddress` checks every address a name
+  resolves to, not only the first. `checkedConnector` opens each socket to the checked address
+  and passes the typed `name:port` on as `host`, from which undici takes the TLS server name, so
+  the certificate is verified for the name that was typed. A redirect, a CalDAV server's absolute
+  href on another host, and a second socket in a keep-alive pool all go through it.
+- **Redirects, where the build differs from §3.** §3 had redirects become `redirect: 'manual'`,
+  with each `Location` checked before it is followed. The check sits in the connector instead.
+  Every hop opens its connection through it, so a redirect meets the same check as the first
+  request, on the address actually used, and no client changes how it follows one. `fetch`'s own
+  limit stays the bound on hops: it follows 20 and then fails.
+- **`undici`, the build's first decision.** 7.29.1, the 7 line that Node 24 bundles and that
+  also runs on the task runtime's Node 21 (0146 §1); 7.30.0 was inside the workspace's
+  three-day release-age window. Its `Agent` and `buildConnector` are imported by path, not
+  through its index: importing the index installs undici's own Agent as the process's global
+  dispatcher, which Node's built-in `fetch` reads, so every other request in the process would
+  change client. The two modules carry no such side effect; the appliance bundle was checked and
+  holds no part of undici's global dispatcher.
+- **Not a global dispatcher.** The same processes call their own services by compose name
+  (Trigger.dev at `trigger-api:3000`, the identity provider, the status page, the tasks' OTEL
+  endpoint), and those must keep working. So the rule rides only the requests to a host a tenant
+  gave us: `tenantFetch` is the global `fetch` until a process calls `refuseInternalAddresses`,
+  and with it on, a refusal comes back as `HostInsideOurNetwork`, not as `fetch failed`.
+  `reachableHost` is the same for a client that opens its own socket: the checked address, with
+  the typed name as `servername`. imapflow takes both (`host` and `servername`, imapflow
+  2.0.5's `dist/esm/imap-flow.js`:186 and :1893-1897), so IMAP needs no host rule of T4's to
+  stand in.
+- **Its own path, not the package's index.** The browser bundle loads `@openmig/shared` from its
+  index, and this module builds a `BlockList` and loads undici as it is imported. Exported from
+  the index, it was type-checked by the web app's own build, which failed, and
+  `scripts/ui-build-output.unit.test.ts` caught it. So Node code imports it as
+  `@openmig/shared/reachable-host`, and the guard pins that the index does not carry it.
+- **The refusal** names the host as typed and never the address, in English, with the code
+  `host_inside_our_network`. The Dutch sentence on the screens waits for R's pull requests that
+  change `strings.ts` and `Connections.tsx` (0131 §6's out-of-turn rule).
+- **Proved.** `a-host-we-are-asked-to-reach.unit.test.ts` (73 cases): one address inside each
+  range, and the first address past each prefix, so a range removed or widened turns it red; the
+  shapes; every answer checked; the connector's address and TLS name; and through a real server
+  on 127.0.0.1, a redirect and a hop to another name meeting the same check as the first request,
+  a streamed body carried, and the global `fetch` unchanged with the rule off; and the module
+  kept out of the package's index.
+  **Mutations:** 22, all killed: ranges dropped, widened and narrowed, and the prefix
+  ignored; the shapes; an address literal unchecked; only the first answer checked; the allowed
+  list admitting too much; the socket sent to the typed host, or the typed name lost for TLS; the
+  rule not carried by `tenantFetch`, or its refusal left as `fetch failed`; IMAP unchecked or
+  without its `servername`; the sentence not naming the host; and the module put back in the
+  index.
 
 **2026-09-24, T5 built** on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`,
 not merged. On the managed API an export archive whose `where` is absent or `disk` is refused
@@ -114,9 +297,9 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 📋 **Proposed**, advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **(a)'s two slices and (b) built 2026-09-27** (the rule, and every client of a tenant's host going through it, not yet switched on; the bring-up's network check); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, not merged**; the limit and the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |

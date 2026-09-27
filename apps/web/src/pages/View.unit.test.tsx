@@ -23,6 +23,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { AxiosError, AxiosHeaders } from 'axios';
 
 const { readMock, withdrawMock, serverMessageMock } = vi.hoisted(() => ({
   readMock: vi.fn(),
@@ -188,8 +189,17 @@ describe('when something is wrong', () => {
   });
 
   it("shows a refused link in the SERVER's words — they are written to be forwarded", async () => {
-    serverMessageMock.mockReturnValue('This link cannot be used. Ask them for a fresh link.');
-    readMock.mockRejectedValue(new Error('401'));
+    // The server's sentence in the body, which is what the page reads
+    // (`link-refusal.ts`), not the error's own message.
+    const refused = new AxiosError('Request failed with status code 401');
+    refused.response = {
+      status: 401,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'link_unusable', message: 'This link cannot be used. Ask them for a fresh link.' },
+    };
+    readMock.mockRejectedValue(refused);
     renderPage();
     expect(await screen.findByText(/Ask them for a fresh link/)).toBeInTheDocument();
     // And no counts of any kind: a refusal is not a migration with nothing in it.

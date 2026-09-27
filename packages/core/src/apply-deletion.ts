@@ -39,10 +39,13 @@
  * 4. **We wrote it.** `copied` or `updated` only. `adopted` bytes are the
  *    customer's own — they were on the target before we arrived — and removing
  *    them would delete data this migration never created.
- * 5. **They have not edited our copy.** The recorded target ETag must still
- *    match, which the writer checks at the moment of removal so there is no gap
- *    between reading and acting. An item the owner has changed in the new system
- *    is theirs now.
+ * 5. **They have not edited our copy.** The recorded target version must still
+ *    match, and the check happens in the removal itself: on DAV the server
+ *    decides, from `If-Match`, so there is no gap between reading and acting;
+ *    JMAP contacts and files read the copy first and refuse if that read fails;
+ *    IMAP compares UIDVALIDITY. An item the owner has changed in the new system
+ *    is theirs now. And a copy with no version recorded is not removed at all
+ *    (`version_unknown`, workplan 0149 T3): nothing could tell.
  * 6. **This does not look like a mass event.** See `MASS_DELETION_FRACTION`.
  *    The gate is about the EVIDENCE being wrong in bulk, not about an operator
  *    clicking too fast. `applyRelocation` measures relocations as well as
@@ -99,6 +102,21 @@ export const MASS_DELETION_FRACTION = 0.2;
  */
 export const MASS_DELETION_MIN_ITEMS = 20;
 
+/**
+ * Gate 5 with nothing to compare (workplan 0149 T3): the writer removed nothing,
+ * because no version was recorded for the copy. The words are the plan's.
+ */
+function versionUnknown(): ApplyDeletionOutcome {
+  return {
+    ok: false,
+    code: 'version_unknown',
+    reason:
+      'This copy was written without a version from the new system, so there is no way to tell ' +
+      'whether somebody has changed it there since. It was left alone. Delete it in the target ' +
+      'system yourself if you are sure, then choose `keep`.',
+  };
+}
+
 /** Why an apply was refused, or how it succeeded. */
 export type ApplyDeletionOutcome =
   /** The copy was removed. `kind` says how final that was. */
@@ -116,6 +134,15 @@ export type ApplyRefusal =
   | 'not_ours'
   | 'already_applied'
   | 'edited_on_target'
+  /**
+   * No version was recorded for this copy, so the writer removed nothing
+   * (workplan 0149 T3, the owner's D1).
+   *
+   * Its own code rather than `edited_on_target`, because nobody is known to
+   * have edited anything: the check had nothing to compare. A row written
+   * before versions existed, a server that returns none, or only a weak one.
+   */
+  | 'version_unknown'
   | 'mass_deletion_suspected'
   /**
    * So much of this domain has relocated at once that the correlation itself
@@ -347,9 +374,10 @@ export async function applyDeletion(
   const breaker = await massDeletionCheck(deps);
   if (breaker) return breaker;
 
-  // GATE 5 happens INSIDE the removal, where the ETag is: the writer refuses if
-  // the target no longer reports the version we recorded. Doing it here would
-  // leave a window between reading the version and acting on it.
+  // GATE 5 happens INSIDE the removal, where the version is: the writer refuses
+  // if the target no longer reports the version we recorded, and removes
+  // nothing when none was recorded. Doing it here would leave a window between
+  // reading the version and acting on it.
   // `collection` goes down with it because an IMAP UID is only meaningful
   // inside the mailbox it was issued in — see `TargetRemover.removeItem`. Every
   // other writer's id stands on its own and ignores it.
@@ -369,6 +397,9 @@ export async function applyDeletion(
         'alone — those changes are theirs (hard rule 2). Nothing was removed.',
     };
   }
+  // Read before `!removal.kind`, or a copy left alone for want of a version
+  // would read as a target that cannot remove (workplan 0149 T3).
+  if (removal.unversioned) return versionUnknown();
   if (!removal.kind) {
     return {
       ok: false,
@@ -593,6 +624,9 @@ export async function applyRelocation(
         'alone — those changes are theirs (hard rule 2). Nothing was removed.',
     };
   }
+  // Read before `!removal.kind`, or a copy left alone for want of a version
+  // would read as a target that cannot remove (workplan 0149 T3).
+  if (removal.unversioned) return versionUnknown();
   if (!removal.kind) {
     return {
       ok: false,

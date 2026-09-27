@@ -29,8 +29,13 @@
  *      read" are answers the sync loop treats very differently (hard rule 9).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { MailFolder } from '@openmig/shared';
+import {
+  HostInsideOurNetwork,
+  refuseInternalAddresses,
+  type ResolveAll,
+} from '@openmig/shared/reachable-host';
 
 /** One message as the fake server holds it. */
 interface FakeMessage {
@@ -162,6 +167,7 @@ function imapRefusal(status: 'NO' | 'BAD', text: string, command?: string): Erro
 }
 
 // Imported AFTER the mock is declared, the way vitest hoisting requires.
+const { RemoteRefusal } = await import('@openmig/shared');
 const { ImapFlowSource, isCertificateError, isSelectableFolder, imapRefusalDetail } = await import(
   './imapflow-source.ts'
 );
@@ -842,6 +848,26 @@ describe('a refusal says what the server said', () => {
   it('leaves an ordinary error exactly as it was', async () => {
     failNextOperations = { count: 1, error: new Error('LIST exploded') };
     await expect(source().listFolders()).rejects.toThrow(/^LIST exploded$/);
+    failNextOperations = { count: 1, error: new Error('LIST exploded') };
+    await expect(source().listFolders()).rejects.not.toBeInstanceOf(RemoteRefusal);
+  });
+
+  it('carries the NO line as its part, and not the command we sent (0136 T3)', async () => {
+    failNextOperations = {
+      count: 1,
+      error: imapRefusal('NO', '[NONEXISTENT] Unknown Mailbox: [Gmail] (Failure)', 'SELECT "[Gmail]"'),
+    };
+    const refused = await source().listFolders().catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(RemoteRefusal);
+    expect(refused).toMatchObject({
+      protocol: 'imap',
+      status: undefined,
+      providerWords: 'NO [NONEXISTENT] Unknown Mailbox: [Gmail] (Failure)',
+    });
+    // The message the operator reads is the one it always was.
+    expect((refused as Error).message).toBe(
+      'The IMAP server refused: NO [NONEXISTENT] Unknown Mailbox: [Gmail] (Failure) (in answer to: SELECT "[Gmail]")',
+    );
   });
 
   it('answers undefined for anything that is not one of imapflow’s refusals', () => {
@@ -874,5 +900,64 @@ describe('a refusal says what the server said', () => {
     }).listFolders();
     expect(refreshes).toBe(1);
     expect(folders).toHaveLength(2);
+  });
+});
+
+// =======================================================================
+describe('a host we are asked to reach (0136 T1)', () => {
+  /**
+   * On managed, the host a tenant typed is resolved and checked before
+   * anything is opened, and imapflow connects to the checked address with the
+   * typed name kept for TLS. On the appliance the rule is off and the host
+   * goes through as typed. The rule itself is pinned in `@openmig/shared`;
+   * these pin that this client asks it, and connects where it answers.
+   */
+  let release: (() => void) | undefined;
+  afterEach(() => {
+    release?.();
+    release = undefined;
+  });
+  const resolveTo =
+    (address: string): ResolveAll =>
+    async () => [{ address, family: 4 }];
+
+  it('connects to the host as typed while the rule is off, as the appliance does', async () => {
+    await source().listFolders();
+    expect(lastOptions?.host).toBe('imap.test');
+    expect(lastOptions).not.toHaveProperty('servername');
+  });
+
+  it('connects to the checked address, with the typed name kept for TLS', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('203.0.113.10') });
+    await source().listFolders();
+    expect(lastOptions?.host).toBe('203.0.113.10');
+    expect(lastOptions?.servername).toBe('imap.test');
+  });
+
+  it('refuses a name that resolves inside our network, before a socket or a token', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('10.1.2.3') });
+    let tokens = 0;
+    const refused = source({
+      authType: 'XOAUTH2',
+      tokenProvider: {
+        getToken: async () => {
+          tokens++;
+          return { accessToken: 'tok', expiresAt: new Date().toISOString() };
+        },
+        refresh: async () => ({ accessToken: 'tok2', expiresAt: new Date().toISOString() }),
+      },
+    }).listFolders();
+    await expect(refused).rejects.toBeInstanceOf(HostInsideOurNetwork);
+    expect(lastOptions).toBeUndefined();
+    expect(connects).toBe(0);
+    expect(tokens).toBe(0);
+  });
+
+  it('refuses an internal address typed as one, and names it as typed', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('203.0.113.10') });
+    await expect(source({ host: '127.0.0.1' }).listFolders()).rejects.toThrow(
+      /^127\.0\.0\.1 is an address inside this service's own network/,
+    );
+    expect(lastOptions).toBeUndefined();
   });
 });
