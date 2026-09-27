@@ -28,6 +28,139 @@ takes it from a tag (0132 T8, which §4 cited, is superseded). #1137 corrected
 `managed.env.example`'s migration number, but every sentence §1 quotes is still on `main`
 (checked at the merge), so T5's list stands.
 
+**2026-09-27, T5 step 1 built** on branch
+`claude/ownpace-public-readiness-y7orc6-where-row-security-holds`, not merged (0131 §6, R6 step 2).
+T0 is still the owner's and still open, so the documents say what is true today, not what T0 will
+decide. Documentation and code comments only; nothing a task, the API or the appliance does has
+changed. What changed:
+
+- **`docs/rls-guide.md`** has a new section, *Where row security holds today*: one table with
+  every connection, what it connects as, and whether the policies bind it. The API's request path
+  (`app_user`) and the appliance's `withTenant` scopes: in force. Every managed task, all fourteen
+  by name, and the builders they call: not in force, the owner. §2's `APP_DATABASE_URL` bullet says
+  the tasks do not use it yet, and the `set-task-env.sh` row names the three URLs a run receives,
+  which one every task connects with, and that no task reads the other two or runs migrations. The
+  opening paragraph no longer says the appliance's filter is never skipped. The *Policies* and
+  *RLS tables* sections are rewritten from the catalog (below).
+- **`docs/operator-runbook.md`**, *The two database roles*: `0001_baseline` creates `app_user`
+  (was `0009`), `set-task-env.sh` is no longer called *"the tasks' own migration connection"*, and a
+  new bullet says the tasks do not use `APP_DATABASE_URL` yet. The troubleshooting line had the
+  same two errors and is corrected too.
+- **`deploy/compose/managed.env.example`**: the owner's comment names the tasks among its holders
+  (not every holder: several deploy scripts hold it too, and the guide's §2 lists those), and the
+  `APP_DB_*` comment says the API connects as `app_user` and the tasks do not yet.
+- **`README.md`** and **`SECURITY.md`**: tenant isolation is enforced in the API, bar two routes,
+  and not yet in the tasks. `SECURITY.md`'s *"per-tenant secret scope"* is replaced by what is
+  there: each organisation's credentials in its own rows, all under the one
+  `SECRET_ENCRYPTION_KEY`.
+- **`docs/architecture/solution-architecture.md`** v1.8, §17.1's isolation row: in force on the
+  API's request path and not in the tasks, and *"egress controls"* marked not built with a pointer
+  to 0136 T7, which owns the rest of that table and §16.
+- **The code comments §1 lists**: seven in `build-deps-from-mapping.ts`, two in
+  `run-discovery.ts`, one in `run-delta-sync.ts`. Each now says the query's own tenant filter is
+  what holds on the task path, and why the policies do not.
+
+**No guard, on purpose.** §3 names none for step 1: step 2 extends
+`a-connection-the-docs-did-not-know-about` once T4's list exists. That guard stays green (it
+requires *"tenant isolation silently disappears"* and *"`APP_DATABASE_URL` → `app_user`"*, and both
+are kept; dropping the backticks round `app_user` in §2's bullet turned it red, 1 of its 6 cases,
+and restoring them turned it green). Every fact written was checked instead, against the code at
+`origin/main` (eba2d108) and against a real Postgres 16 with both migration chains applied
+(`scripts/local-pg.sh`):
+
+- *The tasks connect as the owner.* All fourteen files in `apps/worker/src/jobs/` that build a pool
+  read `process.env.DATABASE_URL`; no file in `apps/worker/src` or `packages/*/src` reads
+  `APP_DATABASE_URL` or `DIRECT_DATABASE_URL`, except `migrationConnectionString` and
+  `poolerInFront` (`packages/ledger/src/direct-url.ts`), pure functions of an env their caller
+  passes, whose callers are the API and the seed; no job gives `pgDriver` a role; no task calls
+  `runMigrations` or `migrationConnectionString`. `set-task-env.sh` uploads all three URLs.
+- *The owner is a superuser and `withTenant` on its connection does nothing.* Asked of the
+  database: with two organisations in `tenant`, the owner counted 2 with no tenant set, and 2
+  again inside a transaction with `app.current_tenant` set to one of them, the shape `withTenant`
+  takes on the tasks' pool. As `app_user` the same queries counted 0 and 1.
+- *The API's request path is `app_user`.* `getDbPool()` reads `APP_DATABASE_URL` first, and
+  `managed.yml` gives the API the `app_user` URL. Every pool in `apps/api/src` was listed: the rest
+  are `getDbPool()`, the audit key's pool (reads `deployment_key` only), the seed and the operator
+  script, and one more (below, *Found here, and not in §1*).
+- *Which tables have policies.* 43 tables, every one `FORCE`d: 28 from the ledger chain and 15
+  from the managed chain, listed by name in the guide. The guide's old list named 29 and missed
+  14, and four of the names it gave as *"from migrations 0001–0004"* are in the managed chain now.
+  34 carry the four tenant policies. Seven carry policies keyed on the signed-in person, an
+  operator's row or a grant link, beside or instead of the tenant's, and two carry fewer tenant
+  policies; the guide now says which. `rate_budget`, `byte_budget` and `app_event` have a
+  `tenant_id` and no row security, as their migrations say; `deployment_key` and `erasure_record`
+  have neither.
+- *Which paths pass the policies by design.* The ten `support_*` views are owned by the owner, have
+  no `security_invoker`, and return every tenant's rows to an operator; their own operator check is
+  the net, as managed migration 0009 says. Asked as `app_user` with no operator, `support_tenants`
+  returned 0 rows.
+
+**Found here, and not in §1: two API routes read on the owner's connection.**
+`apps/api/src/routes/permissions.ts` builds its own pool from `DATABASE_URL`
+(`new Pool({ connectionString: process.env.DATABASE_URL })`, since 0029, 2026-08-04). On managed
+that is the owner. `resolveMappingMailbox`, `tenantTargetConduct` and `tenantInventoryScans` read
+`mailbox_mapping` joined to `mailbox`, and `connection` with `secret_ref` and `config`, filtered by
+their own `tenant_id = $1`. Two routes call them: `GET /api/permissions/report` and
+`POST /api/migrations/:mappingId/sharing/rescan`. The tenant comes from the authenticated
+membership, so nothing is known to cross; but it is the task plane's gap on the request path. The
+documents now name it. **Open, not built, and not yet in this plan's task table:** the fix is
+small (those three helpers take `getDbPool()` and run inside `withTenant`), and T4's guard, which
+reads only `apps/worker/src` and `packages/*/src`, would not see it. Whether it goes first, rides
+with T4, or waits for T1 is for whoever builds R6 step 3, with the owner.
+
+**Where the build differs from §3's T5:**
+
+- **The guide got a section, not only a sentence.** §3 named §2's sentence and the table row. A
+  reader asking *"where does row security hold?"* needed every connection in one place, the API's
+  exceptions included, so the answer is one table near the top.
+- **The table list and the policy description were stale** and are rewritten from the catalog.
+  §3 did not name them; the task was to say which tables have policies, and the old list was wrong.
+- **Seven comments in `build-deps-from-mapping.ts`, not six.** The builder's header also said
+  *"All database operations are wrapped in withTenant() to enforce row-level security"*, and the
+  mapping check is not in `withTenant` at all.
+- **Also corrected, because they said the same wrong thing:** the runbook's troubleshooting line,
+  the env example's owner comment, and `SECURITY.md`'s *"per-tenant secret scope"*.
+- **§17.1's "egress controls" is marked, not removed.** 0136 T7 owns that row's rewrite and §16;
+  this step only stops the row it edits from claiming something that does not exist.
+
+Not changed, and why: `deploy-tasks.sh`'s header and `docs/managed-bring-up.md` list the uploaded
+variables correctly; T3 step 1 changes them with the upload. The legal texts' sentence goes to 0139.
+**Still open:** T0 (the owner); T5 step 2 (after T1 to T3); the permission report's pool (above).
+
+**2026-09-27, later: the review's twelve findings fixed,** on the same branch, in one more commit.
+Documentation and comments only, as before, and no guard, for the reason above. Each fact was asked
+again of the code, or of a Postgres 16 with both chains applied (`scripts/local-pg.sh`):
+
+- *The owner URL is the request path for two routes.* The runbook's *"Never the API's request
+  path"* and the guide's §2 *"Never the request path"* now say it is meant never to be, and name
+  the two routes. So does the API service's comment in `managed.yml`, which also said RLS is
+  *"ALWAYS enforced"*.
+- *No tenant set is not always zero rows.* Asked of `pg_policies`: 32 tables (126 policies) use the
+  plain `::uuid` form and 7 the `NULLIF` form. As `app_user` on one connection, a plain-form table
+  (`connection`) counted 0 before any tenant transaction and raised
+  `invalid input syntax for type uuid: ""` after one; a `NULLIF` table (`mapping_link`) counted 0
+  both times. The guide's *Policies* says so now, and points at managed migration `0004`. Nothing
+  leaks either way.
+- *Also corrected, because they said the same wrong thing:* the root `.env.example` (*"The
+  API/worker connect through … app_user … so row-level security is always enforced"*), the API
+  service's comment in `managed.yml`, and three comments outside §1's list: two in
+  `apps/api/src/routes/migrations/job-resolution.ts` and one in
+  `packages/orchestration/src/discovery.ts`. `run-discovery.ts`'s header now says the builder also
+  opens its own handle from `DATABASE_URL`.
+- *The guide's table lists every connection now.* It gains the API's migrations beside the audit
+  key's pool, and a row for the commands an operator runs with their own `DATABASE_URL`: the
+  cutover CLI, the standalone config-file worker, the appliance's `forget-me` and the two Drive
+  measurement scripts. Every `new Pool(`, `createPgDb(` and `createPgliteDb(` outside tests in
+  `apps/*/src`, `packages/*/src` and `scripts/` falls in one of its rows.
+- *§16 of the architecture document* loses *"secret scope"* too, and says where row security
+  holds, so it no longer contradicts §17.1; v1.8's note names both changes and §17.1's egress
+  mark. 0136 §1 quotes §16 as it was; its T7 still applies to *"egress controls"*, which stays.
+- Smaller: §17.1 names `SECRET_ENCRYPTION_KEY` rather than *"one deployment key"*, which read as the
+  `deployment_key` table; the guide names both FORCE tests, the managed chain's too; the env
+  example's owner comment adds Zitadel's database setup and the API, and the bullet above no longer
+  says it names every holder; the one package reader of `DIRECT_DATABASE_URL` is named above; a
+  cross-reference is fixed.
+
 **2026-09-27, T3 step 1 and T4 built** on branch
 `claude/ownpace-public-readiness-y7orc6-tasks-without-the-owners-connection-string`, not merged
 (0131 §6, R6 step 3). T0 is still open, so T4 is built as the ratchet §3 describes for option
@@ -134,8 +267,8 @@ Where the build departs from §3:
 - **Two lines that are also T5 step 1's.** `docs/rls-guide.md` §2's row for `set-task-env.sh`
   said it uploads the direct URL because the tasks run migrations, and `docs/operator-runbook.md`
   called the upload the tasks' migration connection. Both now say it uploads the owner URL every
-  task connects with today. R6 step 2 (0138 T5 step 1) rewrites the same two lines on its own
-  branch. Whichever merges second keeps its own wording, and keeps this fact: no
+  task connects with today. R6 step 2 (0138 T5 step 1) rewrote the same two lines on its own
+  branch. At the merge (below), T5 step 1's wording was kept and this fact added to it: no
   `DIRECT_DATABASE_URL` upload.
 
 **The owner's step, before the first invitation (⏳ Owner).** Delete the stored
@@ -150,7 +283,28 @@ platform drops a variable it is not sent. The SDK (4.5.16) sends only the given 
 environment's import endpoint; the server's side is not in this repository. Nothing was exercised
 against a running stack.
 
-Still open: T3 step 2 and T1, T2, T5 as before, and T0 (the owner).
+**2026-09-27, later still: T5 step 1's branch merged into this one,** by a merge commit, so this
+branch's PR stacks on T5 step 1's; neither is on `main`. Both had rewritten the same lines. The
+result keeps T5 step 1's documentation and T3 step 1's fact, each checked against this branch's
+`set-task-env.sh` and the two guards:
+
+- **Two URLs a run receives, not three.** T5 step 1 wrote, true at `eba2d108`, that
+  `set-task-env.sh` uploads three URLs and every run receives all three. `docs/rls-guide.md` §2's
+  row and `docs/operator-runbook.md`'s bullet on the tasks now say a run receives `DATABASE_URL`
+  (the owner, through the pooler) and `APP_DATABASE_URL`, beside `SECRET_ENCRYPTION_KEY` and the
+  optional values, that T3 step 1 stopped uploading `DIRECT_DATABASE_URL`, and where the owner's
+  one-off deletion is.
+- **What is built.** The guide's *Where row security holds today* said none of T1 to T4 is built.
+  It now says T3 step 1 and T4 are, and that neither changes the role a task connects as, and its
+  header note names T3 step 1's change beside T5's.
+- **The permission report's pool is outside T4.** T4 walks `apps/worker/src` and
+  `packages/*/src` only, so `apps/api/src/routes/permissions.ts` (T5 step 1's note) is not on its
+  lists or in its reach, and is still not in the task table. The guide says so.
+- **Left as written:** T5 step 1's note says `deploy-tasks.sh`'s header and
+  `docs/managed-bring-up.md` were left for T3 step 1, which changed them (above).
+
+Still open: T0 (the owner); T1 and T2; T3 step 2, and the owner's one-off deletion (above); T5
+step 2, after T1 to T3; the permission report's pool (T5 step 1's note).
 
 | Task | Status | Notes |
 |---|---|---|
@@ -159,7 +313,7 @@ Still open: T3 step 2 and T1, T2, T5 as before, and T0 (the owner).
 | T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1 | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only (open question 3). |
 | T3 No superuser in a run's environment | Step 1 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-tasks-without-the-owners-connection-string`, not merged** (2026-09-27); deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed** | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
 | T4 A guard that fails when a per-tenant job opens the owner's pool | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-tasks-without-the-owners-connection-string`, not merged** (2026-09-27), as a ratchet | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. T1 empties `KNOWN_REMOVED_BY_T1` and deletes it. |
-| T5 The documents say which connection the tasks use | 📋 **Proposed**; step 1 before the first invitation | §3. Step 1: what is true today. Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
+| T5 The documents say which connection the tasks use | 🔨 **Step 1 built on branch `claude/ownpace-public-readiness-y7orc6-where-row-security-holds`, not merged** (2026-09-27). Step 2 📋 **Proposed**, after T1 to T3 | §3. Step 1: what is true today, and an owner pool in the API that §1 missed (Status, 2026-09-27). Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
 
 ## 1. What there is today
 
@@ -611,7 +765,8 @@ acceptance in their own words, with the date it ends.
   (`apps/selfhost/src/index.ts` builds `PgLedger` over `persistenceBackend.db`), and only its
   `withTenant` scopes drop to `app_user`. It holds one organisation, so there is nothing to
   separate. T1's handle can serve it later, which would make the guide's "same code path" true.
-- **The API's request path.** It already connects as `app_user` (§1).
+- **The API's request path.** It already connects as `app_user` (§1), with one exception found
+  on 2026-09-27: the permission report's own pool (Status). That one is not in the table yet.
 
 ## Open questions
 

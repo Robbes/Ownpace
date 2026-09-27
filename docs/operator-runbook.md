@@ -51,18 +51,34 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 
 ### The two database roles (why there are two DB URLs)
 
-Migration `0009` creates a **non-owner `app_user`** role. RLS is enforced through it:
+Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforced through it:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
-  **superuser**, which **bypasses RLS even under FORCE**. Never the request path. It is held by the
-  scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh` (the demo
-  tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and `set-task-env.sh` (the
-  owner URL every task connects with today, workplan 0138). `docs/rls-guide.md` §2 carries the full
-  table, and a guard fails if a script composes an owner URL without appearing in it.
-- `APP_DATABASE_URL` → the **`app_user`** role. The API and the deployed Trigger.dev tasks
-  connect through this for all tenant data, so row-level security is always in force (workplan
-  0011 T1; `set-task-env.sh` uploads both URLs into the task env). If you ever point the app at
-  the owner URL, tenant isolation silently disappears — don't.
+  **superuser**, which **bypasses RLS even under FORCE**. Meant never to be the API's request path;
+  today two API routes open a pool on it, the permission report and the sharing rescan
+  (`apps/api/src/routes/permissions.ts`; `docs/rls-guide.md`, "Where row security holds today").
+  The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its audit key's
+  one connection. It is held
+  by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
+  (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
+  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **every task
+  connects with it today** (below). `docs/rls-guide.md` §2 carries the full table, and a guard
+  fails if a script composes an owner URL without appearing in it.
+- `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
+  row-level security is in force on its request path (workplan 0011 T1), with two routes excepted:
+  the permission report and the sharing rescan read on their own owner pool. If you ever point the
+  app at the owner URL, tenant isolation silently disappears — don't.
+- **The deployed Trigger.dev tasks do not use `APP_DATABASE_URL` yet.** `set-task-env.sh` uploads
+  two URLs, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both:
+  `DATABASE_URL` (the owner, through the pooler), which every task connects with, for tenant data
+  too; and `APP_DATABASE_URL`, which no task reads. So row security does not bind the tasks:
+  there, what keeps one organisation's rows from another is each query's own tenant filter.
+  Workplan 0138 moves the per-tenant tasks to `app_user`; `docs/rls-guide.md`, "Where row security
+  holds today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
+  `set-task-env.sh` uploaded a third, `DIRECT_DATABASE_URL` (the owner, straight to
+  `postgres:5432`), which no task read, since no task runs migrations. It no longer does, but a
+  plane that stored it keeps it until it is deleted once: `docs/managed-bring-up.md`, "Once, after
+  the pull that stopped uploading `DIRECT_DATABASE_URL`".
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
 rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
@@ -1209,8 +1225,9 @@ it until it is ended or kept copying.
 
 ## Health & troubleshooting
 
-- **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and
-  points at `app_user` (not the owner), and that migration `0009` ran (the role exists).
+- **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
+  and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
+  exists). The tasks do not read it yet: they connect with `DATABASE_URL` (workplan 0138).
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
