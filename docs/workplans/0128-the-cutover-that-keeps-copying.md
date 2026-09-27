@@ -2,7 +2,62 @@
 
 > **In one line:** The cutover (`run-cutover`, `cutover-gate.ts`): a final sync over every data type via `run-delta-sync`, passes during the grace period, a cutover per data type (`path_lifecycle`), ending or keeping each data type in the continuous lane, and per-data-type stop and resume on both editions.
 
-## Status — 2026-09-26 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T5's seventh slice, second part (7b): the Finish page ends or keeps each data
+type.** The checklist's last step lists the migration's data types, each with its own *End* and
+*Keep copying* (D3, D8), where one button for the whole migration stood. The grace period's end,
+on this page and in the digest (D7), is 7c.
+- **The page is offered what the door accepts** (`pathEndingChoices`, ledger): each data type's
+  phase as the reader believes it, and the presses `decidePathEnding` accepts now. Managed serves
+  it on the migration's detail (`endingChoices`), the appliance on `/status` (each mapping's
+  `endings`), and the page reads either (`fetchMappingDataTypes`).
+- **Step 4 for mail only.** Moving delivery is asked only while mail is before its own cutover,
+  and only mail's End and Keep wait for its tick, since either press is its cutover. Without
+  mail, or with mail past its cutover, there is no step 4, and the last step is the fourth.
+- **Keep copying is two presses**, the first with the lane's sentence (the tier on managed,
+  none on the appliance), as the lane's switch was. **End** over the data type's own open
+  failures is refused in the door's words, and only that refusal offers *End … anyway, leaving
+  them behind*; any other failure is shown as one, with no force.
+- **Past the cutover** (`done`, `continuous`), *Each data type* takes the place of the lane's
+  switch and of its End: a data type ended can be kept copying again, and one kept can be ended.
+  A data type its owner stopped offers End only, and says how it is kept.
+- **Found on the way, fixed:** managed's Finish answer told the operator to resume by setting
+  the status back to `active`, which its own update door refuses (ADR-0049). Both editions now
+  point at Keep copying per data type; the appliance keeps its hand edit, named as the way back
+  before the cutover.
+- The web's calls for the whole migration's Finish and lane switch lost their last caller, and
+  are gone with the lane's verb pin; ADR-0049's operative rule on that switch is amended. The
+  server doors stay, for a caller of the API.
+- English and Dutch.
+
+Evidence:
+- the choices on their own (6): before and in the cutover; ended, kept, and the other way round;
+  stopped by its owner; a paused migration offering nothing; no row, and rows not believed; and
+  one that never ran;
+- the page (35 and 6): mail waiting for step 4 while the calendars do not; no step 4 without
+  mail, or with mail past its cutover, and the last step numbered fourth; Keep in two presses;
+  a stopped data type; the force only after the door's refusal said what it costs, and a plain
+  failure or a refusal force cannot satisfy offering none; a migration never started, one done
+  and one in the lane, each offering what its data types allow; the appliance's words without a
+  tier; and the per-mapping page reading its own payload;
+- the web's press on both editions, its refusal told from a failure, and the choices read from
+  either payload and kept by managed's detail schema (8);
+- the payloads: managed's detail (1), the appliance's `/status` (1) and its builder (1); and
+  each edition's Finish answer pointing at Keep copying (2);
+- 38 mutations, all killed: the choices offered while paused, read off rows not believed,
+  offering every press or one that changes nothing, or never saying a stop; each payload
+  without them, and each Finish answer back to its old hint; the web's press always End, forcing
+  Keep or never forcing, recognising no refusal or any 409 as one, dropping the force's mark,
+  reading no choices, another migration's, or an offer it has no button for; and the page's
+  mail never waiting, every data type waiting, mail waiting past its cutover, Keep in one press,
+  the force always offered, not forced or offered for a plain failure, the appliance told of a
+  tier, a stop not said, End never or Keep always offered, step 4 always or for any data type,
+  the last step always fifth, the list missing past the cutover or shown before it, either
+  edition's choices unread, and the last step without its rows.
+- A guard moved with D3: the lane's door in `a-sixth-state-added-to-only-one-list` pinned the
+  switch to a migration past its cutover. It now pins what must not move: Keep only where the
+  door accepts it, and the price said before the press.
 
 **2026-09-26: T5's seventh slice, first part (7a): End and Keep one data type, on both
 editions.** Where a migration ends, each data type is ended or kept copying on its own (D3, D8),
@@ -631,9 +686,9 @@ its test.
 |---|---|---|
 | T1 The final sync covers every data type | ✅ **Built 2026-09-24** | §3. The pass the scheduler runs, not a mail reconcile of its own; the gate verifies the same data types, and a migration without mail no longer fails on email. |
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
-| T3 The ending is a choice: end, or keep copying which data types | 🟡 **Decided: D3, D5, D7**; with T5; its doors per data type built 2026-09-26 (T5 slice 7a) | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
+| T3 The ending is a choice: end, or keep copying which data types | 🟡 **Decided: D3, D5, D7**; with T5; its doors per data type built 2026-09-26 (T5 slice 7a), and the Finish page's 2026-09-27 (7b) | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | ✅ **Built 2026-09-25** (D2 (c), D4, D5, D6; T5 slice 3) | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 6, and 7's doors (7a), built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 6 and 7's doors (7a) built by 2026-09-26, and its page (7b) on 2026-09-27 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -868,7 +923,8 @@ cutover; once every one is past it, a new data type is a new migration, as today
 7. **T3 on the Finish page**, per data type, in three parts. First (7a) the doors: *End* and
    *Keep copying* for one data type, on both editions, through one door in the ledger, with the
    migration's status as its paths' roll-up (*built 2026-09-26*). Then (7b) the Finish page: the
-   two buttons beside each data type, step 4 for mail only, and the lane per data type. Then (7c)
+   two buttons beside each data type, step 4 for mail only, and the lane per data type (*built
+   2026-09-27*). Then (7c)
    the grace period's end, on the Finish page and in the digest (D7). With a data type ended or
    kept on its own, a press on the whole migration meets paths in phases 5a does not move (only
    the phase the migration leaves): whether a rollback of the whole migration takes a kept data

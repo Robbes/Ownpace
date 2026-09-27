@@ -21,6 +21,7 @@ import {
   RunStore,
   CutoverStore,
   PATH_ADDED_ACTION,
+  pathEndingChoices,
   pathEndingRefusalReason,
   pathStopRefusalReason,
   type PathEnding,
@@ -2679,8 +2680,11 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       ),
       // Each data type's stop, as the page offers it (0128 T4, slice 3c): the
       // page offers exactly the press `…/stop` or `…/resume` accepts, because
-      // both ask `decidePathStop`.
-      ...(stopFacts === undefined ? {} : { stopChoices: pathStopChoices(stopFacts) }),
+      // both ask `decidePathStop`. Its ending likewise, as the Finish page
+      // offers it (T5, slice 7b), by `decidePathEnding`.
+      ...(stopFacts === undefined
+        ? {}
+        : { stopChoices: pathStopChoices(stopFacts), endingChoices: pathEndingChoices(stopFacts) }),
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,

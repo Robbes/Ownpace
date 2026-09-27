@@ -38,7 +38,13 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { rollUpPhases, type DiscoveryDomain, type MappingId, type TenantId } from '@openmig/shared';
+import {
+  rollUpPhases,
+  type DiscoveryDomain,
+  type MappingId,
+  type PathEndingChoice,
+  type TenantId,
+} from '@openmig/shared';
 import type { PgDatabase } from './db.ts';
 import { PgLedger } from './ledger.ts';
 import { holdsASlot, PgPathLifecycleStore, type PathState } from './path-lifecycle-store.ts';
@@ -105,6 +111,20 @@ export type PathEndingDecision =
     };
 
 /**
+ * Rows that do not add up to the status are not believed (`phasesOfThePaths`):
+ * the status is then every data type's phase.
+ */
+function theStatusOverTheRows(facts: PathStopFacts): boolean {
+  const rows = facts.carried.flatMap((p) => (p.phase === undefined ? [] : [p.phase]));
+  return rows.length > 0 && rollUpPhases(rows) !== facts.status;
+}
+
+/** One data type's phase as the reader believes it: its own row, or the status. */
+function believedPhase(facts: PathStopFacts, path: PathStopFacts['carried'][number]): string {
+  return path.phase === undefined || theStatusOverTheRows(facts) ? facts.status : path.phase;
+}
+
+/**
  * The one rule: whether this press is accepted, from the facts alone.
  */
 export function decidePathEnding(
@@ -116,9 +136,8 @@ export function decidePathEnding(
   if (!PHASES_A_DATA_TYPE_ENDS_FROM.includes(facts.status)) return { refused: 'not_running', status: facts.status };
   const path = facts.carried.find((p) => p.domain === domain);
   if (path === undefined) return { refused: 'not_a_path' };
-  const rows = facts.carried.flatMap((p) => (p.phase === undefined ? [] : [p.phase]));
-  const believeTheStatus = rows.length > 0 && rollUpPhases(rows) !== facts.status;
-  const phase = path.phase === undefined || believeTheStatus ? facts.status : path.phase;
+  const believeTheStatus = theStatusOverTheRows(facts);
+  const phase = believedPhase(facts, path);
   if (!PHASES_A_DATA_TYPE_ENDS_FROM.includes(phase)) return { refused: 'not_running', status: phase };
 
   if (ending === 'end') {
@@ -200,6 +219,27 @@ export async function endOrKeepPath(
     ...(migration === undefined ? {} : { migration }),
     slotsTaken: to === 'continuous' && !holdsASlot(decision.phase as PathState, false),
   };
+}
+
+/**
+ * Each data type's ending as the Finish page offers it (0128 T3, T5 slice
+ * 7b): its phase as the reader believes it, and the presses the door accepts
+ * now, by the door's own rule, so the page cannot offer one the door refuses.
+ * End is offered without counting the data type's open failures, which the
+ * door answers with a refusal the page can force. None while the migration is
+ * paused or never started: the page says where the migration is.
+ */
+export function pathEndingChoices(facts: PathStopFacts): PathEndingChoice[] {
+  if (!PHASES_A_DATA_TYPE_ENDS_FROM.includes(facts.status)) return [];
+  return facts.carried.map((path) => ({
+    domain: path.domain,
+    phase: believedPhase(facts, path),
+    stopped: path.stopped,
+    offers: (['end', 'keep'] as const).filter((ending) => {
+      const decision = decidePathEnding(facts, path.domain, ending, { unresolvedFailures: 0 });
+      return 'changes' in decision && decision.changes;
+    }),
+  }));
 }
 
 /**

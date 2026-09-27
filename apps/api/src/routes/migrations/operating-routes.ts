@@ -1128,9 +1128,12 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
         'The migration is finished. This mapping no longer syncs, and drift, deletions and ' +
         'moves are no longer reported for it. Nothing was added to or removed from the ' +
         'target — what is there now is what stays.',
+      // A status update never leaves `done` for `active` (ADR-0049), so this
+      // said a move the door refuses. Keep copying per data type is the way
+      // back into copying (0128 T5, slice 7b).
       ifYouNeedToResume:
-        "Set the mapping's status back to 'active' to resume; the scheduler picks it up on its " +
-        'next poll.',
+        'To copy again, keep a data type copying on the Finish page: it runs in the continuous ' +
+        'lane, where deletions at the old provider are no longer mirrored.',
     };
     res.json(body);
   } catch (error) {

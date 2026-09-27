@@ -174,6 +174,16 @@ describe('POST /:mappingId/domains/:domain/end and /keep', () => {
     expect(await sql(`SELECT peak_paths FROM occupancy_peak WHERE tenant_id = $1`, [TENANT])).toEqual([]);
   });
 
+  it('offers the Finish page, on the detail payload, what the door accepts next (slice 7b)', async () => {
+    await press('end', 'email');
+    const detail = await request(app).get(`/api/migrations/${MAPPING}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.endingChoices).toEqual([
+      { domain: 'email', phase: 'done', stopped: false, offers: ['keep'] },
+      { domain: 'calendar', phase: 'cutover', stopped: false, offers: ['end', 'keep'] },
+    ]);
+  });
+
   it('refuses while the migration is not running, in words, and answers what is not there', async () => {
     await place('paused');
     const res = await press('keep', 'email');

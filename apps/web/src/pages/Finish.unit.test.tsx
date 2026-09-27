@@ -9,69 +9,88 @@
  * watching, so nothing reports it. That is silent data loss caused by pressing
  * the right button at the wrong time, and it is the whole reason this screen is
  * a checklist.
+ *
+ * Since 0128 T5 slice 7b the last step lists the migration's data types, each
+ * with its own End and Keep copying (the owner's D3 and D8), and step 4 asks
+ * for mail only: only mail's buttons wait for it.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import type { StatusReport } from '@openmig/shared';
+import type { PathEndingChoice, StatusReport } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 
 const {
   fetchStatus,
-  fetchMappingDomains,
+  fetchMappingDataTypes,
   fetchFailures,
   fetchMoves,
   fetchDeletions,
-  finishMigration,
+  endOrKeepDataType,
   requestFinalPass,
-  FinishRefusedError,
+  PathEndingRefusedError,
   fetchVerifyReport,
 } = vi.hoisted(() => {
-  class FinishRefusedError extends Error {
+  class PathEndingRefusedError extends Error {
     constructor(
-      readonly refusal: { error: string; hint?: string; code?: string },
-      readonly httpStatus: number,
+      readonly refusal: { error: string; refused: string; message: string; forceable?: true; count?: number },
     ) {
-      super(refusal.error);
-      this.name = 'FinishRefusedError';
+      super(refusal.message);
+      this.name = 'PathEndingRefusedError';
     }
   }
   return {
     fetchStatus: vi.fn(),
-    fetchMappingDomains: vi.fn(),
+    fetchMappingDataTypes: vi.fn(),
     fetchFailures: vi.fn(),
     fetchMoves: vi.fn(),
     fetchDeletions: vi.fn(),
     fetchVerifyReport: vi.fn(),
-    finishMigration: vi.fn(),
+    endOrKeepDataType: vi.fn(),
     requestFinalPass: vi.fn(),
-    FinishRefusedError,
+    PathEndingRefusedError,
   };
 });
 
 vi.mock('../services/operating-service', () => ({
   fetchVerifyReport,
   fetchStatus,
-  fetchMappingDomains,
+  fetchMappingDataTypes,
   fetchFailures,
   fetchMoves,
   fetchDeletions,
-  finishMigration,
+  endOrKeepDataType,
   requestFinalPass,
-  FinishRefusedError,
+  PathEndingRefusedError,
 }));
 
 import Finish from './Finish.tsx';
 
-function statusReport(migrationStatus: StatusReport['mappings'][number]['migrationStatus'], needingDecision = 0): StatusReport {
+type Lifecycle = StatusReport['mappings'][number]['migrationStatus'];
+
+/** Mail's ending as the door's rule offers it in each lifecycle, with mail its only data type. */
+const MAIL_ENDING: Record<Lifecycle, PathEndingChoice[]> = {
+  paused: [],
+  active: [{ domain: 'email', phase: 'active', stopped: false, offers: ['end', 'keep'] }],
+  cutover: [{ domain: 'email', phase: 'cutover', stopped: false, offers: ['end', 'keep'] }],
+  done: [{ domain: 'email', phase: 'done', stopped: false, offers: ['keep'] }],
+  continuous: [{ domain: 'email', phase: 'continuous', stopped: false, offers: ['end'] }],
+};
+
+function statusReport(
+  migrationStatus: Lifecycle,
+  needingDecision = 0,
+  endings: PathEndingChoice[] = MAIL_ENDING[migrationStatus],
+): StatusReport {
   return {
     status: 'ok',
     mappings: [
       {
         mappingId: 'acme-mail',
         migrationStatus,
+        endings,
         domains: [
           {
             domain: 'email',
@@ -119,22 +138,25 @@ beforeEach(() => {
   fetchMoves.mockResolvedValue(emptyQueue);
   fetchDeletions.mockResolvedValue(emptyQueue);
   fetchVerifyReport.mockResolvedValue({ state: 'never-run' });
-  fetchMappingDomains.mockResolvedValue([]);
+  fetchMappingDataTypes.mockResolvedValue({ domains: [], endings: MAIL_ENDING.active });
 });
 
+const END_MAIL = /^End Email$/;
+
 describe('the cutover order', () => {
-  it('will not finish until delivery has been confirmed moved', async () => {
+  it('will not end mail until delivery has been confirmed moved', async () => {
     // The gate. Everything else on this screen the appliance can check itself;
-    // this one is MX/DNS, outside the tool, and finishing without it is the
-    // silent-loss case.
+    // this one is MX/DNS, outside the tool, and ending mail without it is the
+    // silent-loss case. Keeping it copying is its cutover too, so it waits as well.
     fetchStatus.mockResolvedValue(statusReport('active'));
     renderScreen();
 
-    const button = await screen.findByRole('button', { name: /Finish this migration/ });
+    const button = await screen.findByRole('button', { name: END_MAIL });
     expect(button).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Keep copying Email' })).toBeDisabled();
 
     fireEvent.click(button);
-    expect(finishMigration).not.toHaveBeenCalled();
+    expect(endOrKeepDataType).not.toHaveBeenCalled();
   });
 
   it('spells out what happens if you finish first, rather than assuming it is understood', async () => {
@@ -146,23 +168,90 @@ describe('the cutover order', () => {
     ).toBeInTheDocument();
   });
 
-  it('finishes once delivery is confirmed', async () => {
+  it('ends mail once delivery is confirmed', async () => {
     fetchStatus.mockResolvedValue(statusReport('active'));
-    finishMigration.mockResolvedValue({
-      status: 'ok',
-      action: 'finish',
-      mappingId: 'acme-mail',
-      effect: 'The migration is finished.',
-    });
+    endOrKeepDataType.mockResolvedValue({ changed: true, migration: { from: 'active', to: 'done' } });
     renderScreen();
 
     fireEvent.click(await screen.findByLabelText(/Delivery now goes to the new system/));
-    const button = screen.getByRole('button', { name: /Finish this migration/ });
+    const button = screen.getByRole('button', { name: END_MAIL });
     expect(button).toBeEnabled();
 
     fireEvent.click(button);
-    await waitFor(() => expect(finishMigration).toHaveBeenCalledWith('acme-mail', false));
-    expect(await screen.findByText('The migration is finished.')).toBeInTheDocument();
+    await waitFor(() => expect(endOrKeepDataType).toHaveBeenCalledWith('acme-mail', 'email', 'end', false));
+  });
+
+  it('asks step 4 for mail only: the calendars end and keep copying without it', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [
+        ...MAIL_ENDING.active,
+        { domain: 'calendar', phase: 'active', stopped: false, offers: ['end', 'keep'] },
+      ]),
+    );
+    endOrKeepDataType.mockResolvedValue({ changed: true });
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: END_MAIL })).toBeDisabled();
+    const calendars = screen.getByRole('button', { name: 'End Calendar' });
+    expect(calendars).toBeEnabled();
+    fireEvent.click(calendars);
+    await waitFor(() => expect(endOrKeepDataType).toHaveBeenCalledWith('acme-mail', 'calendar', 'end', false));
+  });
+
+  it('asks nothing of step 4 where there is no mail, and numbers the last step fourth', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [
+        { domain: 'calendar', phase: 'active', stopped: false, offers: ['end', 'keep'] },
+        { domain: 'file', phase: 'active', stopped: false, offers: ['end', 'keep'] },
+      ]),
+    );
+    renderScreen();
+
+    expect(await screen.findByText(`4. ${STRINGS.en['finish.step5.title']}`)).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS.en['finish.step4.title'], { exact: false })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'End Files' })).toBeEnabled();
+  });
+
+  it('asks nothing of step 4 once mail is past its own cutover: its delivery moved then', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [
+        { domain: 'email', phase: 'cutover', stopped: false, offers: ['end', 'keep'] },
+        { domain: 'calendar', phase: 'active', stopped: false, offers: ['end', 'keep'] },
+      ]),
+    );
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: END_MAIL })).toBeEnabled();
+    expect(screen.queryByLabelText(/Delivery now goes to the new system/)).not.toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['finish.ending.phase.cutover'])).toBeInTheDocument();
+  });
+
+  it('keeps a data type copying in two presses, the first saying what the lane costs', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [{ domain: 'calendar', phase: 'active', stopped: false, offers: ['end', 'keep'] }]),
+    );
+    endOrKeepDataType.mockResolvedValue({ changed: true });
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep copying Calendar' }));
+    expect(endOrKeepDataType).not.toHaveBeenCalled();
+    expect(screen.getByText(STRINGS.en['lane.intro'])).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: STRINGS.en['lane.confirm'] }));
+    await waitFor(() => expect(endOrKeepDataType).toHaveBeenCalledWith('acme-mail', 'calendar', 'keep', false));
+  });
+
+  it('offers a data type its owner stopped End only, and says how it is kept', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('active', 0, [
+        { domain: 'calendar', phase: 'active', stopped: true, offers: ['end'] },
+        { domain: 'file', phase: 'active', stopped: false, offers: ['end', 'keep'] },
+      ]),
+    );
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: 'End Calendar' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Keep copying Calendar' })).not.toBeInTheDocument();
+    expect(screen.getByText(/You stopped Calendar\. End it, or resume it/)).toBeInTheDocument();
   });
 
   it('says plainly that nothing is added or removed, because "finish" reads destructive', async () => {
@@ -188,39 +277,31 @@ describe('the failure queue', () => {
 
   it("offers force only AFTER the server has said what it would cost", async () => {
     fetchStatus.mockResolvedValue(statusReport('active', 3));
-    finishMigration.mockRejectedValueOnce(
-      new FinishRefusedError(
-        {
-          error: '3 item(s) could not be migrated and are awaiting a decision',
-          hint: 'Resolve them first — retry each item, or accept it to leave it behind.',
-          code: 'unresolved_failures',
-        },
-        409,
-      ),
+    endOrKeepDataType.mockRejectedValueOnce(
+      new PathEndingRefusedError({
+        error: 'end_refused',
+        refused: 'unresolved_failures',
+        count: 3,
+        message: '3 item(s) of email could not be migrated and are awaiting a decision.',
+        forceable: true,
+      }),
     );
     renderScreen();
 
     fireEvent.click(await screen.findByLabelText(/Delivery now goes to the new system/));
     // No force option exists yet.
-    expect(screen.queryByText(/Finish anyway/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anyway, leaving them behind/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Finish this migration/ }));
+    fireEvent.click(screen.getByRole('button', { name: END_MAIL }));
 
     expect(
-      await screen.findByText('3 item(s) could not be migrated and are awaiting a decision'),
+      await screen.findByText('3 item(s) of email could not be migrated and are awaiting a decision.'),
     ).toBeInTheDocument();
     // Now it does, with the cost stated above it.
-    const force = screen.getByRole('button', { name: /Finish anyway/ });
-    finishMigration.mockResolvedValue({
-      status: 'ok',
-      action: 'finish',
-      mappingId: 'acme-mail',
-      leftUnmigrated: 3,
-      effect: 'The migration is finished.',
-    });
+    const force = screen.getByRole('button', { name: 'End Email anyway, leaving them behind' });
+    endOrKeepDataType.mockResolvedValue({ changed: true, migration: { from: 'active', to: 'done' } });
     fireEvent.click(force);
-    await waitFor(() => expect(finishMigration).toHaveBeenLastCalledWith('acme-mail', true));
-    expect(await screen.findByText(/3 items left unmigrated/)).toBeInTheDocument();
+    await waitFor(() => expect(endOrKeepDataType).toHaveBeenLastCalledWith('acme-mail', 'email', 'end', true));
   });
 });
 
@@ -230,15 +311,19 @@ describe('a migration that cannot be finished', () => {
     renderScreen();
 
     expect(await screen.findByText(/Never started, so there is nothing to finish/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Finish this migration/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: END_MAIL })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Keep copying/ })).not.toBeInTheDocument();
   });
 
-  it('shows a finished one as finished, with no checklist', async () => {
+  it('shows a finished one as finished, with no checklist, and each data type it can keep copying', async () => {
     fetchStatus.mockResolvedValue(statusReport('done'));
     renderScreen();
 
     expect(await screen.findByText(/no longer syncs/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Finish this migration/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Run the check/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: END_MAIL })).not.toBeInTheDocument();
+    expect(screen.getByText(STRINGS.en['finish.each.title'])).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep copying Email' })).toBeEnabled();
   });
 });
 
@@ -268,6 +353,17 @@ describe('the per-mapping mode (workplan 0019 T5)', () => {
     expect(fetchStatus).not.toHaveBeenCalled();
     // The queues were asked about THIS mapping, not everything.
     expect(fetchFailures).toHaveBeenCalledWith('acme-mail');
+  });
+
+  it('offers each data type’s ending from this migration’s own payload', async () => {
+    fetchMappingDataTypes.mockResolvedValue({
+      domains: [],
+      endings: [{ domain: 'file', phase: 'active', stopped: false, offers: ['end', 'keep'] }],
+    });
+    renderPerMapping();
+
+    expect(await screen.findByRole('button', { name: 'End Files' })).toBeEnabled();
+    expect(fetchMappingDataTypes).toHaveBeenCalledWith('acme-mail');
   });
 
   it("keeps the checklist's links inside the mapping", async () => {
@@ -310,49 +406,38 @@ describe('the mapping id goes somewhere (0034 T1)', () => {
 describe('force is offered only when the refusal explained it (0038 T1)', () => {
   it('a transport failure renders a plain error and a plain retry — NEVER force', async () => {
     fetchStatus.mockResolvedValue(statusReport('active'));
-    finishMigration.mockRejectedValueOnce(new Error('network timeout'));
+    endOrKeepDataType.mockRejectedValueOnce(new Error('network timeout'));
     renderScreen();
 
     fireEvent.click(await screen.findByLabelText(/Delivery now goes to the new system/));
-    fireEvent.click(screen.getByRole('button', { name: /Finish this migration/ }));
+    fireEvent.click(screen.getByRole('button', { name: END_MAIL }));
 
-    expect(await screen.findByText('network timeout')).toBeInTheDocument();
+    expect(await screen.findByText(/network timeout/)).toBeInTheDocument();
     // The missing test the fleet named: clicking force after a timeout would
     // retry with force=true and silently skip the informed-refusal gate.
-    expect(screen.queryByText(/Finish anyway/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/anyway, leaving them behind/)).not.toBeInTheDocument();
     // A plain retry, force=false.
-    finishMigration.mockResolvedValue({
-      status: 'ok',
-      action: 'finish',
-      mappingId: 'acme-mail',
-      effect: 'The migration is finished.',
-    });
-    fireEvent.click(screen.getByRole('button', { name: /Try finishing again/ }));
-    await waitFor(() => expect(finishMigration).toHaveBeenLastCalledWith('acme-mail', false));
+    endOrKeepDataType.mockResolvedValue({ changed: true });
+    fireEvent.click(screen.getByRole('button', { name: END_MAIL }));
+    await waitFor(() => expect(endOrKeepDataType).toHaveBeenLastCalledWith('acme-mail', 'email', 'end', false));
   });
 
-  it('the paused refusal renders its hint WITHOUT a force button — force cannot start a migration', async () => {
+  it('a refusal force cannot satisfy is said WITHOUT a force button', async () => {
     fetchStatus.mockResolvedValue(statusReport('active'));
-    finishMigration.mockRejectedValueOnce(
-      new FinishRefusedError(
-        {
-          error: "Cannot finish a migration that was never started (it is 'paused')",
-          hint: 'Start it first — or remove the migration if it should not run at all.',
-          code: 'paused',
-        },
-        409,
-      ),
+    endOrKeepDataType.mockRejectedValueOnce(
+      new PathEndingRefusedError({
+        error: 'end_refused',
+        refused: 'not_running',
+        message: "email is ended or kept once its migration has started, and this one is 'paused'.",
+      }),
     );
     renderScreen();
 
     fireEvent.click(await screen.findByLabelText(/Delivery now goes to the new system/));
-    fireEvent.click(screen.getByRole('button', { name: /Finish this migration/ }));
+    fireEvent.click(screen.getByRole('button', { name: END_MAIL }));
 
-    expect(
-      await screen.findByText(/Cannot finish a migration that was never started/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Start it first/)).toBeInTheDocument();
-    expect(screen.queryByText(/Finish anyway/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/once its migration has started/)).toBeInTheDocument();
+    expect(screen.queryByText(/anyway, leaving them behind/)).not.toBeInTheDocument();
   });
 });
 
@@ -451,8 +536,8 @@ describe('the checklist checks what it claims to check (0038 T3)', () => {
     expect(await screen.findByText(/moves table unreachable/)).toBeInTheDocument();
     expect(screen.getByText(/not the same as clear/)).toBeInTheDocument();
     expect(screen.queryByText('Reading…')).not.toBeInTheDocument();
-    // The finish button stays usable — the server re-checks anyway.
-    expect(screen.getByRole('button', { name: /Finish this migration/ })).toBeInTheDocument();
+    // The End stays usable — the server re-checks anyway.
+    expect(screen.getByRole('button', { name: END_MAIL })).toBeInTheDocument();
   });
 });
 
@@ -528,28 +613,30 @@ describe('a stopped data type is named where the final pass is', () => {
   }
 
   it('names it in the per-mapping checklist too, from this migration’s own rows', async () => {
-    fetchMappingDomains.mockResolvedValue([calendar('stopped', 7)]);
+    fetchMappingDataTypes.mockResolvedValue({ domains: [calendar('stopped', 7)] });
     renderPerMapping();
     expect(
       await screen.findByText('Calendar is stopped and not in this pass: its 7 copies stay as they were.'),
     ).toBeInTheDocument();
-    expect(fetchMappingDomains).toHaveBeenCalledWith('acme-mail');
+    expect(fetchMappingDataTypes).toHaveBeenCalledWith('acme-mail');
   });
 
   // One its owner stopped (0128 T4, slice 3c) is the same exception with a
   // different way back: Resume on the migration's page, not the mapping file.
   it('points one its owner stopped at Resume, and one switched off at switching it back on', async () => {
-    fetchMappingDomains.mockResolvedValue([
-      { ...calendar('stopped', 7), stoppedByOwner: true as const },
-      { ...calendar('stopped', 3), domain: 'contact' as const },
-    ]);
+    fetchMappingDataTypes.mockResolvedValue({
+      domains: [
+        { ...calendar('stopped', 7), stoppedByOwner: true as const },
+        { ...calendar('stopped', 3), domain: 'contact' as const },
+      ],
+    });
     renderPerMapping();
     expect(await screen.findByText(STRINGS.en['finish.step3.stoppedByYou.why'])).toBeInTheDocument();
     expect(screen.getByText(STRINGS.en['finish.step3.stopped.why'])).toBeInTheDocument();
   });
 
   it('says it could not read them, rather than implying none is stopped', async () => {
-    fetchMappingDomains.mockRejectedValue(new Error('the status read timed out'));
+    fetchMappingDataTypes.mockRejectedValue(new Error('the status read timed out'));
     renderPerMapping();
     expect(
       await screen.findByText(/Could not read whether a data type is stopped: the status read timed out/),

@@ -1868,6 +1868,14 @@ paths:
         on a migration that does not run). A `domainStatus` row its owner
         stopped carries `stoppedByOwner: true`; one switched off otherwise
         does not.
+
+        `endingChoices` (workplan 0128 T5, slice 7b) lists each data type the
+        migration carries with its ending, as the Finish page offers it:
+        `phase` (`active`, `cutover`, `done` or `continuous`), `stopped`, and
+        `offers`, the presses `…/domains/{domain}/end` and `…/keep` accept now.
+        One rule decides both. End is offered without counting the data
+        type's open failures; the door answers those with a refusal the page
+        can force. Empty while the migration is paused or never started.
       responses:
         '200':
           description: The migration.

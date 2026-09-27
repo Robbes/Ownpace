@@ -18,6 +18,7 @@ import type {
   ItemFailure,
   MigrationStatus,
   MappingLifecycle,
+  PathEndingChoice,
   PathStopChoice,
 } from '@openmig/shared';
 import type { DomainStatusReport, StatusReport, NotificationChannelReport } from '@openmig/shared';
@@ -49,6 +50,11 @@ export interface MappingStatusInput {
    * no stop rather than guessing one.
    */
   readonly stops?: readonly PathStopChoice[];
+  /**
+   * Each data type's ending as the Finish page offers it (0128 T5, slice 7b),
+   * from `pathEndingChoices`. Omitted, as `stops` may be.
+   */
+  readonly endings?: readonly PathEndingChoice[];
 }
 
 /**
@@ -72,7 +78,7 @@ export function buildStatusReport(
     status: 'ok',
     ...(notifications ? { notifications } : {}),
     mappings: inputs.map(
-      ({ mappingId, migrationStatus, sourceType, statuses, failures = [], adopted, stops }) => ({
+      ({ mappingId, migrationStatus, sourceType, statuses, failures = [], adopted, stops, endings }) => ({
         mappingId,
         migrationStatus,
         // Spread, not `sourceType: sourceType`: a caller that did not supply
@@ -85,6 +91,7 @@ export function buildStatusReport(
       // UI reading them saw undefined where this edition served numbers.
         domains: buildDomainStatusReports(statuses, failures, adopted),
         ...(stops === undefined ? {} : { stops }),
+        ...(endings === undefined ? {} : { endings }),
       }),
     ),
   };

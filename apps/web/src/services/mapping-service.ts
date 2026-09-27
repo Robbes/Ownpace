@@ -264,6 +264,21 @@ const StopChoiceSchema = z.object({
 });
 export type StopChoiceView = z.infer<typeof StopChoiceSchema>;
 
+/**
+ * Each data type's ending, as the Finish page offers it (workplan 0128 T5,
+ * slice 7b): `PathEndingChoice` in shared, made by the ending door's own rule.
+ * A press the page has no button for drops, rather than failing the payload.
+ */
+export const EndingChoiceSchema = z.object({
+  domain: DomainEnum,
+  phase: z.string(),
+  stopped: z.boolean(),
+  offers: z
+    .array(z.string())
+    .transform((offers) => offers.filter((o): o is 'end' | 'keep' => o === 'end' || o === 'keep')),
+});
+export type EndingChoiceView = z.infer<typeof EndingChoiceSchema>;
+
 const ConnectionRefSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
@@ -296,6 +311,8 @@ export const MappingSchema = z.object({
   // The same rule for the stops (0128 T4, slice 3c): absent from an API that
   // predates them, and then the page offers no stop at all.
   stopChoices: z.array(StopChoiceSchema).optional().catch(undefined),
+  // And the endings (T5, slice 7b), which the Finish page offers.
+  endingChoices: z.array(EndingChoiceSchema).optional().catch(undefined),
   lastSyncAt: z.string().optional(),
   // When the person who granted through a link took it back (0108 T8 (c)).
   // Optional for a payload from an API that predates it: absent reads as "not
