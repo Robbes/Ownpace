@@ -751,7 +751,7 @@ PROJECT_ID="$(jq -r --arg n "$PROJECT_NAME" '.result[]? | select(.name == $n) | 
 
 if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "null" ]; then
   say "creating it"
-  created="$(api POST /management/v1/projects "$(jq -nc --arg n "$PROJECT_NAME" '{name:$n}')")"
+  created="$(api POST /management/v1/projects "$(jq -nc --arg n "$PROJECT_NAME" '{name:$n, hasProjectCheck:true}')")"
   PROJECT_ID="$(jq -r '.id // empty' <<<"$created")"
   [ -n "$PROJECT_ID" ] || die "the provider accepted POST /management/v1/projects and the
 answer carries no project id:
@@ -760,6 +760,60 @@ else
   say "found it"
 fi
 say "project ${PROJECT_ID}"
+
+# THE PROJECT ADMITS ITS OWN ORGANISATION ONLY (workplan 0135 T2).
+#
+# `hasProjectCheck`: before a user is authenticated, the provider checks that
+# their organisation has been granted this project. The project belongs to the
+# first organisation, and everybody who registers, or arrives through Google,
+# Microsoft, GitHub or Apple, lands in that one, because the web app names no
+# organisation when it asks (`apps/web/src/services/oidc.ts`). So people let in
+# pass, and a user of any other organisation is refused unless that
+# organisation holds a grant on the project, which nothing creates. Without it,
+# an organisation somebody founded could make an account whose address the
+# provider calls verified, and Ownpace binds a grant to exactly that (0135 §1).
+#
+# NOT `projectRoleCheck`: that needs roles at the issuer, which ADR-0042 rules
+# out. The API does not read this setting either. `tenant_member` still decides
+# what a signed-in person may act on; this decides who can get a token for the
+# app at all.
+#
+# A NEW PROJECT IS CREATED WITH IT, above. An existing one is updated, and the
+# update takes the project's settings from the body, the trap the login-policy
+# block below documents, so the other three are copied from what the project
+# answers. protojson leaves out a field that holds its default, so an absent one
+# is written as that default. The read-back decides, never the answer to a write.
+project_check_on() { jq -r '.project.hasProjectCheck // false' <<<"$(api GET "/management/v1/projects/${PROJECT_ID}")"; }
+admit_own_organisation_only() {
+  if [ "$(project_check_on)" = "true" ]; then
+    say "it admits its own organisation only"
+    return 0
+  fi
+  say "it admits users of every organisation: turning the project check on"
+  local project
+  project="$(api GET "/management/v1/projects/${PROJECT_ID}")"
+  api PUT "/management/v1/projects/${PROJECT_ID}" "$(jq -c '.project | {
+      name,
+      projectRoleAssertion: (.projectRoleAssertion // false),
+      projectRoleCheck: (.projectRoleCheck // false),
+      privateLabelingSetting: (.privateLabelingSetting // "PRIVATE_LABELING_SETTING_UNSPECIFIED"),
+      hasProjectCheck: true
+    }' <<<"$project")" >/dev/null
+  [ "$(project_check_on)" = "true" ] || die "could not make the '${PROJECT_NAME}' project admit its own organisation only.
+
+It still reads hasProjectCheck: false, so a user of any organisation on this
+instance can sign in to the app, one somebody founded included.
+
+Read it with:
+
+    curl -sS ${ISSUER}/management/v1/projects/${PROJECT_ID} \\
+      -H \"Authorization: Bearer \$PAT\" | jq .project
+
+The calls that set it by hand, and read it back, are in workplan 0135, §4
+(docs/workplans/0135-the-sign-in-page-is-the-front-door.md)."
+  say "it now admits its own organisation only"
+}
+admit_own_organisation_only
 
 # --------------------------------------------------------------- application --
 
@@ -1564,6 +1618,10 @@ fi
 # queue — `GET /api/me` answers "none" without refusing, and the web app says so
 # in a sentence. Registering gets somebody a password and an explanation.
 #
+# That holds while every account here is in this one organisation. Two settings
+# make it so, and both are read back: the project admits its own organisation
+# only (0135 T2, above), and nobody can found another (0135 T1, below).
+#
 # What binds them to the organisation is the email address, and ONLY when this
 # provider says it verified it (`email_verified`, migration 0006). Which is why
 # the two settings below travel together: self-registration without verified
@@ -1624,7 +1682,8 @@ say "allowing people to register, with a verified email"
 # IdPs already go. This instance serves ONE organisation — the domain-policy
 # block above says so, and nothing creates a second: granting an access request
 # creates an Ownpace tenant, never an org at the provider (ADR-0042's third
-# operative rule forbids us the user-management API that would) — so the
+# operative rule forbids us the user-management API that would), and the form
+# that would let a stranger found one is closed below (0135 T1) — so the
 # instance policy is the only one anybody resolves.
 
 # It follows what is actually configured, rather than being a knob of its own.
@@ -1914,6 +1973,50 @@ fi
 # The default is an opaque token, which the API cannot verify locally — it would
 # have to call the provider's introspection endpoint on every request, which is
 # both slower and exactly the provider-specific coupling ADR-0042 forbids.
+
+# ------------------------------------------ who may found an organisation --
+#
+# NOBODY BUT WHOEVER RUNS THIS INSTANCE (workplan 0135 T1).
+#
+# Upstream serves `/ui/login/register/org` to anybody who can load the sign-in
+# page: a form that founds an organisation of one's own. Its founder owns it,
+# and an organisation's owner can make an account whose address the provider
+# calls verified, with no mail sent at all. Ownpace binds a grant and an
+# invitation to a verified address, so that account could take the place of
+# somebody let in before they first sign in (0135 §1). The self-registration
+# below stays on: it registers people in THIS organisation, and they prove their
+# address by mail.
+#
+# The instance restriction `disallowPublicOrgRegistration` turns the form off:
+# it answers 404, and a post to it 409. `managed.yml` sets it for a FRESH
+# instance, which reads it once, at its first start; this sets it on one that
+# already exists, and reads it back on both. The body carries this one field,
+# and "undefined values don't change the current restriction", so the allowed
+# languages are left as they are. protojson leaves out a `false`, so absent is
+# false here, as `policy_flag` below explains for the login policy.
+org_registration_closed() { jq -r '.disallowPublicOrgRegistration // false' <<<"$(api GET /admin/v1/restrictions)"; }
+close_public_org_registration() {
+  if [ "$(org_registration_closed)" = "true" ]; then
+    say "nobody can found an organisation here but whoever runs it"
+    return 0
+  fi
+  say "anybody who can load the sign-in page can found an organisation here: closing that"
+  api PUT /admin/v1/restrictions '{"disallowPublicOrgRegistration":true}' >/dev/null
+  [ "$(org_registration_closed)" = "true" ] || die "could not close public organisation registration.
+
+The instance restriction disallowPublicOrgRegistration still reads false, so
+${ISSUER}/ui/login/register/org lets anybody found an organisation of their
+own, and make an account there whose address this provider calls verified.
+
+Set it by hand with the provisioning token, and read it back:
+
+    curl -sS -X PUT ${ISSUER}/admin/v1/restrictions -H 'Content-Type: application/json' \\
+      -H \"Authorization: Bearer \$PAT\" -d '{\"disallowPublicOrgRegistration\":true}'
+    curl -sS ${ISSUER}/admin/v1/restrictions -H \"Authorization: Bearer \$PAT\" \\
+      | jq '.disallowPublicOrgRegistration // false'"
+  say "closed: the form that founds one now answers 404"
+}
+close_public_org_registration
 
 # ------------------------------------------------------------------- writing --
 

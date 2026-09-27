@@ -2,7 +2,45 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27, late: T1 and T2 built (0131 §6, group M7, step 1)** on branch
+`claude/mailbox-sync-errors-c2xsw2-an-organisation-a-stranger-could-found`, not merged. T0, the
+owner's hand step and read-backs on each instance, stays the owner's. Once this merges, every
+bring-up sets both settings and reads them back, and the nightly gate does so on the OTA instance.
+
+- **Public organisation registration off (T1).**
+  - `managed.yml` sets `ZITADEL_DEFAULTINSTANCE_RESTRICTIONS_DISALLOWPUBLICORGREGISTRATION: "true"`,
+    which a fresh instance reads once, at its first init. Live's instance never serves the form if
+    the tag it is first brought up from carries this.
+  - `setup-zitadel.sh` reads `GET /admin/v1/restrictions`. Only when the setting is not already
+    true does it send `{"disallowPublicOrgRegistration":true}`, the one field, so T6's allowed
+    languages are left alone. It reads the setting back, and stops with the `curl` lines that set
+    it by hand when it did not take (`close_public_org_registration`).
+  - The smoke fetches `/ui/login/register/org` from the outside, beside the login page it already
+    fetches, and fails unless it answers 404.
+  - The *"NOT AN OPEN DOOR"* and *"ONE organisation"* paragraphs in `setup-zitadel.sh` name what
+    makes them true, and 0095 has a dated line that points here. `docs/managed-bring-up.md` names
+    the two settings under 8b.
+- **The project admits its own organisation only (T2).**
+  - A new project is created with `hasProjectCheck:true`.
+  - For an existing one, the script reads the project. When the check is off, it sends the name
+    and the other three settings copied from that read, with the check on, because the update
+    takes them all from the body. It reads the check back and stops when it did not take
+    (`admit_own_organisation_only`).
+- **Proved.**
+  - `scripts/an-organisation-a-stranger-could-found.unit.test.ts`, 6 cases, the script's own
+    functions run in bash against a stand-in for the provider: an open instance is closed with
+    the one field and read back, a closed one is not written, a write that does not take stops
+    the run, the block runs before `.env` is written, `managed.yml` sets the first-init value,
+    and the smoke fails unless the page answers 404.
+  - `scripts/a-project-for-one-organisation.unit.test.ts`, 6 cases, the same way: the create body
+    carries the check; an existing project is updated with its other settings copied, including
+    a labelling setting it had, and read back; one with the check is not written; an update that
+    does not take stops the run; the check runs once the project is known.
+- **Not yet seen on a running instance.** §3 says the gate's people, created with
+  `POST /v2/users/human` and no organisation named, land in the first organisation and pass the
+  check. This change's pull request runs the managed gate once, on the OTA instance, to see it.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 read the
 identity provider that testers were then to sign in to, Zitadel `v4.17.3` at `id.ota.ownpace.eu`.
@@ -42,8 +80,8 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7) | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
-| T1 Public organisation registration off | 📋 **Proposed**; in place on live before its first invitation (D2, D7) | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
-| T2 The project admits its own organisation only | 📋 **Proposed**; in place on live before its first invitation (D2, D7) | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
+| T1 Public organisation registration off | 🔨 **Built 2026-09-27, not merged**: `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
+| T2 The project admits its own organisation only | 🔨 **Built 2026-09-27, not merged**: created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; the count is 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |

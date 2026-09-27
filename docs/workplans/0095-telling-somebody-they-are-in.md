@@ -2,7 +2,16 @@
 
 > **In one line:** Emailing granted and declined access requesters through `access_granted` and `access_declined` notifier events carrying no link or token, with Zitadel self-registration turned on by `setup-zitadel.sh`, and SPF/DKIM/DMARC for the sending domain.
 
-## Status — 2026-08-22 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: the sentence below that A is *not* a security hole holds only while every account
+at the identity provider is in the project's own organisation.** Workplan 0135 §1 found the
+chain that breaks it: anybody could found an organisation of their own there, and its owner can
+make an account whose address the provider calls verified, which is what a grant is bound to.
+0135 T1 and T2 close it: public organisation registration off, and the project admitting its own
+organisation only, both set and read back by `setup-zitadel.sh` (branch
+`claude/mailbox-sync-errors-c2xsw2-an-organisation-a-stranger-could-found`, not merged).
+Self-registration, T0's choice, stays on.
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -53,6 +62,9 @@ What A is *not* is a security hole. An issuer account with no `tenant_member` ro
 can read nothing: every policy keys on `app.current_tenant` or `app.current_user`,
 and `/api/me` answers "no organisations" without refusing. Registering gets you a
 password and a sentence.
+
+*2026-09-27:* this holds while nobody can found a second organisation at the identity provider.
+See the Status block above, and workplan 0135 T1 and T2.
 
 ## What the email must not contain
 

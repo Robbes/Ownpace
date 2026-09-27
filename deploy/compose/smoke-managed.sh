@@ -1180,6 +1180,26 @@ else
   esac
   rm -f "$login_jar"
 
+  # ---------- the form that founds an organisation, which nobody is served ----------
+  #
+  # FROM THE OUTSIDE, as a stranger would ask (workplan 0135 T1). Upstream serves
+  # `/ui/login/register/org` to anybody who can load the sign-in page, and an
+  # organisation's founder can make an account whose address the provider calls
+  # verified, which is what Ownpace binds a grant to. setup-zitadel.sh closes it
+  # and reads the setting back; this asks the page itself, which answers 404 once
+  # the restriction holds.
+  org_form_code="$(curl -sS "${IDP_RESOLVE[@]}" -m 15 -o /dev/null -w '%{http_code}' \
+    "${STACK_ISSUER%/}/ui/login/register/org" 2>/dev/null || true)"
+  if [ "$org_form_code" = "404" ]; then
+    echo "the form that founds an organisation is not served (404)"
+  else
+    echo "the form that founds an organisation answered HTTP ${org_form_code:-nothing} at ${STACK_ISSUER%/}/ui/login/register/org"
+    echo "  anybody who can load the sign-in page can found an organisation of their own there,"
+    echo "  and make an account whose address the provider calls verified."
+    echo "  setup-zitadel.sh sets disallowPublicOrgRegistration: it has not run here, or it did not take."
+    fail_at
+  fi
+
   # FINALISING AN AUTH REQUEST AGAINST A SESSION NEEDS `IAM_LOGIN_CLIENT`, which
   # is the role Zitadel's own login UI holds — so this is the provider's normal
   # mechanism, not a way round it. Without it CreateCallback answers

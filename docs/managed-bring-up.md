@@ -785,6 +785,15 @@ and a secret shipped to every visitor is not a secret), and writes
 `JWT_ISSUER`, `JWT_AUDIENCE` and the two `VITE_OIDC_*` values back into
 `deploy/compose/.env`. Re-running it is safe; it adopts what already exists.
 
+**Two doors it keeps shut** (workplan 0135 T1 and T2). Nobody can found an
+organisation of their own at the provider: the form at
+`/ui/login/register/org` answers 404. And the project admits its own
+organisation only, so an account in any other organisation gets no token for
+the app. Every run sets both, reads both back, and stops if either did not
+take; a fresh instance has the first from `managed.yml`. Self-registration
+stays on: it registers people in the project's own organisation, and they
+confirm their address by mail.
+
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still
