@@ -868,7 +868,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
   start of the rest never moves one back that was cut over on its own.
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
-  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
+  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so. **For one
+  data type** (amended 2026-09-26, 0128 T5 slice 7a) its own *End* and *Keep copying* decide its
+  `done` or its lane (`endOrKeepPath`, ledger), End by the same rule over its own failures, and
+  the migration's status is its paths' roll-up: `done` once every data type has ended.
 - **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
   what is unknown after a timeout, so no pass runs (FAILED is not a state that copies); `rollback`
   is the explicit undo and resumes the sync.

@@ -83,6 +83,37 @@ async function readTheMigration(
 }
 
 /**
+ * Write the migration's status as its paths' roll-up, and record it when it
+ * moved, in the caller's transaction: after one data type's path moved on its
+ * own. Returns the move, or undefined when the status stood. `forced` marks a
+ * move pressed over open failures, as Finish's record does.
+ */
+export async function writeTheRollUp(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  by: { readonly actor: string; readonly via: MappingStatusVia; readonly forced?: boolean },
+): Promise<{ readonly from: string; readonly to: MappingStatus } | undefined> {
+  const migration = await readTheMigration(db, tenantId, mappingId);
+  if (migration === null) throw new Error(`Mapping ${mappingId} was not found for tenant ${tenantId}.`);
+  const rolled = rollUpPhases([...migration.phases.values()]) as MappingStatus | undefined;
+  if (rolled === undefined || rolled === migration.status) return undefined;
+  await db
+    .update(schemaPg.mailboxMapping)
+    .set({ status: rolled, updatedAt: new Date() })
+    .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)));
+  await recordMappingStatusChange(db, tenantId, {
+    mappingId,
+    from: migration.status,
+    to: rolled,
+    actor: by.actor,
+    via: by.via,
+    ...(by.forced === true ? { forced: true } : {}),
+  });
+  return { from: migration.status, to: rolled };
+}
+
+/**
  * Move one data type's path, write the migration's status as its paths'
  * roll-up, and record both, in one transaction.
  *
@@ -103,22 +134,7 @@ export async function applyPathStatusChange(
     if (change.to === 'active') await store.activate(t, m, change.domain);
     else await store.moveTo(t, m, change.domain, change.to);
 
-    const migration = await readTheMigration(db, tenantId, change.mappingId);
-    if (migration === null) throw new Error(`Mapping ${change.mappingId} was not found for tenant ${tenantId}.`);
-    const rolled = rollUpPhases([...migration.phases.values()]) as MappingStatus | undefined;
-    if (rolled !== undefined && rolled !== migration.status) {
-      await db
-        .update(schemaPg.mailboxMapping)
-        .set({ status: rolled, updatedAt: new Date() })
-        .where(and(eq(schemaPg.mailboxMapping.id, change.mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)));
-      await recordMappingStatusChange(db, tenantId, {
-        mappingId: change.mappingId,
-        from: migration.status,
-        to: rolled,
-        actor: change.actor,
-        via: change.via,
-      });
-    }
+    await writeTheRollUp(db, tenantId, change.mappingId, { actor: change.actor, via: change.via });
     await new PgLedger(db).recordAuditEvent(t, {
       actor: change.actor,
       action: PATH_PHASE_ACTION,

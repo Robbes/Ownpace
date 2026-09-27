@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -3276,6 +3276,66 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${stop ? 'stopped' : 'resumed'} by operator`);
         }
         return sendJson(res, 200, { id, domain, stopped: stop, changed: outcome.changed });
+      }
+
+      // POST /mappings/:id/domains/:domain/end and …/keep — end or keep one data
+      // type where its migration ends (0128 T3, T5 slice 7; D3, D4, D8): the
+      // same choice managed's routes offer, through the ledger's own door. With
+      // every data type ended the migration is done, and this appliance stops
+      // scheduling it and says so once, as its Finish does; a data type kept
+      // copying brings the schedule back.
+      const endingMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/domains\/([^/?]+)\/(end|keep)(?:\?(.*))?$/.exec(req.url)
+          : null;
+      if (endingMatch) {
+        await drain(req);
+        const id = decodeURIComponent(endingMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const domain = decodeURIComponent(endingMatch[2]!);
+        if (!(DISCOVERY_DOMAINS as readonly string[]).includes(domain)) {
+          const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+          return sendJson(res, 400, { error: 'invalid_domain', message: reason, reason });
+        }
+        const ending = endingMatch[3] as PathEnding;
+        const force = new URLSearchParams(endingMatch[4] ?? '').get('force') === 'true';
+        const tenantId = m.config.tenantId as string;
+        const failures =
+          ending === 'end'
+            ? await ledger.listFailures(tenantId as TenantId, m.mailboxMappingId as MappingId, domain as DiscoveryDomain)
+            : [];
+        const outcome = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          endOrKeepPath(tdb, tenantId, {
+            mappingId: m.mailboxMappingId,
+            domain: domain as DiscoveryDomain,
+            ending,
+            actor: 'operator',
+            force,
+            unresolvedFailures: failures.filter((f) => f.needsDecision).length,
+          }),
+        );
+        if ('refused' in outcome) {
+          if (outcome.refused === 'not_found') return sendJson(res, 404, { error: 'unknown mapping' });
+          const reason = pathEndingRefusalReason(outcome, domain as DiscoveryDomain);
+          return sendJson(res, 409, {
+            error: `${ending}_refused`,
+            ...outcome,
+            message: reason,
+            reason,
+            ...(outcome.refused === 'unresolved_failures' ? { forceable: true } : {}),
+          });
+        }
+        if (outcome.changed) {
+          log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${ending === 'end' ? 'ended' : 'kept copying'} by operator`);
+          if (outcome.migration?.to === 'done') {
+            unscheduleMapping(m);
+            await tell({ kind: 'migration_finished', mapping: mappingRef(m.config) });
+          } else if (ending === 'keep') {
+            scheduleMapping(m);
+          }
+        }
+        return sendJson(res, 200, { id, domain, ending, ...outcome });
       }
 
       // PUT /mappings/:id {status: 'continuous'} — the continuous lane's door
