@@ -29,6 +29,7 @@ import { readFileSync } from 'node:fs';
 import {
   REFUSED_RANGES,
   isRefusedAddress,
+  networkInsideRefusedRanges,
   refusedHostShape,
   reachableAddress,
   checkedConnector,
@@ -113,6 +114,36 @@ describe('the refused ranges', () => {
   it('refuses what is not an address at all', () => {
     expect(isRefusedAddress('')).toBe(true);
     expect(isRefusedAddress('dav.example.com')).toBe(true);
+  });
+});
+
+describe('a whole network inside the refused ranges (0136 T1 (b), the bring-up)', () => {
+  it.each([
+    '172.17.0.0/16', // Docker's default bridge
+    '172.18.0.0/16',
+    '192.168.16.0/20',
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '172.31.255.0/24',
+    'fd12:3456:789a::/64',
+    '127.0.0.0/8',
+  ])('%s lies inside', (cidr) => {
+    expect(networkInsideRefusedRanges(cidr)).toBe(true);
+  });
+
+  it.each([
+    ['203.0.113.0/24', 'a public network'],
+    ['172.15.0.0/16', 'just below 172.16.0.0/12'],
+    ['172.32.0.0/16', 'just above it'],
+    ['172.16.0.0/11', 'wider than the range it starts in'],
+    ['0.0.0.0/0', 'everything'],
+    ['2001:db8:1::/64', 'a global IPv6 network'],
+    ['fc00::/6', 'wider than unique-local'],
+    ['172.18.0.0', 'no prefix'],
+    ['172.18.0.0/33', 'a prefix longer than the address'],
+    ['not-a-network/16', 'not an address'],
+  ])('%s does not (%s)', (cidr) => {
+    expect(networkInsideRefusedRanges(cidr)).toBe(false);
   });
 });
 

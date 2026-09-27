@@ -45,9 +45,9 @@ set -euo pipefail
 # TASK RUNTIME ENV VARS — the deployed tasks run in their own containers on
 # the compose network, NOT in the worker container, so they inherit nothing:
 #
-#   DATABASE_URL           through the pooler, at the IN-NETWORK address
+#   DATABASE_URL           the owner, through the pooler, at the IN-NETWORK
+#                          address; every task reads it today (workplan 0138)
 #   APP_DATABASE_URL       the RLS-enforcing app_user role, same address
-#   DIRECT_DATABASE_URL    never the pooler (session-scoped advisory lock)
 #   SECRET_ENCRYPTION_KEY  (same 32-byte key as api/worker)
 #   OAUTH2_* / SMTP_* / NOTIFY_* (optional, as configured)
 #

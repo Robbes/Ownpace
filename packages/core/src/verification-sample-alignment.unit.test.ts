@@ -69,6 +69,8 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps {
     mappingId: 'm' as never,
     config: BASE_CONFIG,
     canVerifyTarget: () => true,
+    // Its target answers every sample with a hash, as one that can hash does.
+    targetCanHash: () => true,
     getSourceCount: async () => LEDGER.length,
     getTargetCount: async () => LEDGER.length,
     getSourceSamples: async (_d, count) => LEDGER.slice(0, count),

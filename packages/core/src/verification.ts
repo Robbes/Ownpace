@@ -132,6 +132,21 @@ export interface VerificationDeps {
    * domain is readable.
    */
   canVerifyTarget?(dataType: VerificationDomain): boolean;
+
+  /**
+   * Can this domain's target be asked for the content it holds? True when its
+   * reindexer offers `contentHashFor` (workplan 0149 T4, the owner's D2).
+   *
+   * It is what tells apart the two ways a content check can compare nothing. A
+   * target with no way to hash, which is JMAP contacts by design, opens the
+   * gate on counts, as it always has. A target that can hash and answered
+   * nothing for any sampled item holds it: that is a fault, and it used to
+   * read as a pass.
+   *
+   * REQUIRED, so that no construction site can leave it out and get an answer
+   * nobody chose.
+   */
+  targetCanHash(dataType: VerificationDomain): boolean;
 }
 
 /** Which domains the config asks to verify. */
@@ -277,8 +292,17 @@ export async function runVerification(
         recorded,
       );
     }
-    return verifyDataType({ ...deps, dataType });
+    const measured = await verifyDataType({ ...deps, dataType });
+    if (measured.contentHeld) contentHeld.add(dataType);
+    return measured.verification;
   };
+
+  // The domains held because nothing was compared on a target that can hash
+  // (workplan 0149 T4). The report says so in each domain's status and
+  // issues; the score and the recommendations below need the fact itself, and
+  // it stays out of the report's shape, which both editions and the screens
+  // compile against.
+  const contentHeld = new Set<VerificationDomain>();
 
   // WALKED, never written out again. Four hand-written calls stood here and
   // `verifyTasks` was already arriving as `true` from `run-cutover.ts`, so the
@@ -299,10 +323,10 @@ export async function runVerification(
   // for the whole of what was migrated rather than for four fifths of it.
   const allVerifications = VERIFICATION_DOMAINS.map((domain) => byDomain[domain]);
   const overallStatus = calculateOverallStatus(allVerifications);
-  const score = calculateVerificationScore(allVerifications);
+  const score = calculateVerificationScore(allVerifications, contentHeld);
   
   // Generate recommendations
-  const recommendations = generateRecommendations(allVerifications, overallStatus);
+  const recommendations = generateRecommendations(allVerifications, overallStatus, contentHeld);
   
   // Calculate totals
   const totalItemsSource = allVerifications.reduce((sum, v) => sum + v.sourceCount, 0);
@@ -339,11 +363,14 @@ export async function runVerification(
 }
 
 /**
- * Verify a single data type
+ * Verify a single data type.
+ *
+ * `contentHeld` is answered beside the result, not in it: see the set of the
+ * same name in `runVerification`.
  */
 async function verifyDataType(
   deps: VerificationDeps & { dataType: VerificationDomain }
-): Promise<DataTypeVerification> {
+): Promise<{ readonly verification: DataTypeVerification; readonly contentHeld: boolean }> {
   const { dataType, config } = deps;
   
   // Get counts
@@ -382,6 +409,9 @@ async function verifyDataType(
   // Samples whose content could not be compared at all because the target does
   // not expose a content hash. NOT a mismatch — see below.
   let checksumUnavailable = 0;
+  // Samples the target answered with a hash, of whichever version: none, from
+  // a target that can hash, holds the gate (0149 T4, below).
+  let hashedByTarget = 0;
 
   // Compare samples by matching naturalKeyHash
   for (const sourceSample of sourceSamples) {
@@ -397,6 +427,7 @@ async function verifyDataType(
       // never counted against the target (workplan 0009 T1: report SKIPPED
       // rather than inventing a verdict).
       if (isComparableContent(targetSample.content)) {
+        hashedByTarget++;
         if (!sameHashAlgorithm(sourceSample.content, targetSample.content)) {
           // The two sides were produced by different algorithm versions — a row
           // recorded before a fingerprint change, compared against a freshly
@@ -441,18 +472,43 @@ async function verifyDataType(
   // report content hashes yields no checksum evidence either way, so the ratio
   // is computed over what was actually comparable. With nothing comparable this
   // is 1 (no contrary evidence) — the counts/missing checks still gate, and
-  // `checksumUnavailable` records that this leg was not exercised.
+  // `checksumUnavailable` records that this leg was not exercised. That is for
+  // a target with no way to hash; one that can hash is held below instead.
   const checksumComparable = checksumMatches + checksumMismatches;
   const checksumMatchPercentage = checksumComparable > 0 ? checksumMatches / checksumComparable : 1;
-  
-  const status = determineVerificationStatus(
-    matchPercentage,
-    checksumMatchPercentage,
-    missingOnTarget.length,
-    extraOnTarget.length,
-    config,
-    sourceCount
-  );
+
+  // NOTHING COMPARED, FROM A TARGET THAT COULD HAVE ANSWERED: THE GATE HOLDS
+  // (workplan 0149 T4, the owner's D2 of 2026-09-24, read as 0009's option 1).
+  //
+  // Until then the ratio above took its fallback of 1 for this domain too, and
+  // `determineVerificationStatus` reads ratios and counts, never `issues`, so
+  // a run in which not one sample came back hashed read PASS, and PASS opens
+  // the gate. Two different things end there, and only one is a fault:
+  //
+  // - a target with no way to hash, which is JMAP contacts by design. The
+  //   counts are real evidence over every recorded item, and holding the gate
+  //   would be a product that can never cut over. Unchanged.
+  // - a target that can hash, where every sample came back empty: the JMAP
+  //   mail writer answers nothing while its session is not resolved, and
+  //   nothing again when a blob download fails. That read as "we checked and
+  //   it was fine" when nothing was checked. Held.
+  //
+  // A sample drawn and hashed by the target, even of another fingerprint
+  // version, is an answer, so this is about the target answering at all. No
+  // sample drawn at all is held too (`CHECKSUM_NOT_SAMPLED_*`, below): nothing
+  // was compared there either.
+  const contentHeld = deps.targetCanHash(dataType) && sourceCount > 0 && hashedByTarget === 0;
+
+  const status = contentHeld
+    ? 'FAIL'
+    : determineVerificationStatus(
+        matchPercentage,
+        checksumMatchPercentage,
+        missingOnTarget.length,
+        extraOnTarget.length,
+        config,
+        sourceCount
+      );
   
   // Generate issues
   const issues: DataTypeVerification['issues'] = [];
@@ -468,21 +524,41 @@ async function verifyDataType(
     // worth closing: an operator reading the §20 report has no way to tell "no
     // content evidence" from "content evidence, all good".
     //
-    // Not reachable through `createVerificationDeps` today — `countItems` and
-    // `getSamples` read the same rows through the same filter, so a non-zero
-    // count yields a non-zero sample. It guards hand-built deps and any future
-    // sample source that is not the ledger, and it costs one comparison.
+    // Not reachable through `createRealVerificationDeps` today — `countItems`
+    // and `getSamples` read the same rows through the same filter, so a
+    // non-zero count yields a non-zero sample. It guards hand-built deps and
+    // any future sample source that is not the ledger, and it costs one
+    // comparison.
+    //
+    // From a target that can hash it holds the gate, as nothing compared does
+    // (0149 T4); from one that cannot, it warns, as it did.
     issues.push({
       id: `CHECKSUM_NOT_SAMPLED_${dataType}`,
-      severity: 'WARNING',
+      severity: contentHeld ? 'ERROR' : 'WARNING',
       message:
         `No ${dataType} item could be sampled for content verification, though ${sourceCount} ` +
         `item(s) are recorded. The checksum half of the gate did not run at all — this is an ` +
-        `ABSENCE of content evidence, not evidence of a match. Count parity still applies.`,
+        `ABSENCE of content evidence, not evidence of a match. ` +
+        (contentHeld
+          ? 'The new system can be asked for content, so the cutover is held. Verify again.'
+          : 'Count parity still applies.'),
+    });
+  } else if (contentHeld) {
+    // Samples were drawn, and the target, which can hash, answered not one of
+    // them with a hash (0149 T4). This takes the place of the warning below,
+    // whose words are about a target that has no way to hash and whose
+    // counts still decide.
+    issues.push({
+      id: `CHECKSUM_NOT_COMPARED_${dataType}`,
+      severity: 'ERROR',
+      message:
+        `The new system can be asked for ${dataType} content, and it answered nothing for any ` +
+        `of the ${sourceSamples.length} sampled item(s), so no content was compared. The ` +
+        `cutover is held. Check the connection to the new system and verify again.`,
     });
   }
 
-  if (checksumUnavailable > 0) {
+  if (checksumUnavailable > 0 && !contentHeld) {
     // Surface, never silently pass (hard rule 9): the operator must know the
     // checksum half of the gate did not actually run for these items.
     issues.push({
@@ -518,7 +594,7 @@ async function verifyDataType(
     });
   }
   
-  return {
+  const verification: DataTypeVerification = {
     dataType,
     status,
     sourceCount,
@@ -542,6 +618,7 @@ async function verifyDataType(
     totalBytesTarget,
     issues,
   };
+  return { verification, contentHeld };
 }
 
 /**
@@ -757,7 +834,11 @@ function calculateOverallStatus(
 /**
  * Calculate overall verification score
  */
-function calculateVerificationScore(verifications: DataTypeVerification[]): number {
+function calculateVerificationScore(
+  verifications: DataTypeVerification[],
+  /** Domains held because nothing was compared on a target that can hash. */
+  contentHeld: ReadonlySet<VerificationDomain>,
+): number {
   // Only domains that were actually measured contribute. A SKIPPED or
   // NOT_VERIFIABLE domain has all-zero counts, which would otherwise score a
   // perfect 1.0 and pull the average UP — three unread domains would drown out
@@ -773,10 +854,15 @@ function calculateVerificationScore(verifications: DataTypeVerification[]): numb
 
   const totalScore = measured.reduce((sum, v) => {
     const matchRatio = v.sourceCount > 0 ? v.matchedCount / v.sourceCount : 1;
-    const checksumRatio = 
+    // Nothing compared scores 1, no contrary evidence, for a target with no
+    // way to hash, and 0 for one that could have answered and did not (0149
+    // T4): the gate holds for that domain, and its score says the same.
+    const checksumRatio =
       (v.checksumMatches + v.checksumMismatches) > 0
         ? v.checksumMatches / (v.checksumMatches + v.checksumMismatches)
-        : 1;
+        : contentHeld.has(v.dataType)
+          ? 0
+          : 1;
     return sum + (matchRatio * 0.7 + checksumRatio * 0.3);
   }, 0);
   
@@ -788,7 +874,9 @@ function calculateVerificationScore(verifications: DataTypeVerification[]): numb
  */
 function generateRecommendations(
   verifications: DataTypeVerification[],
-  overallStatus: 'PASS' | 'WARN' | 'FAIL'
+  overallStatus: 'PASS' | 'WARN' | 'FAIL',
+  /** Domains held because nothing was compared on a target that can hash. */
+  contentHeld: ReadonlySet<VerificationDomain>,
 ): string[] {
   const recommendations: string[] = [];
   
@@ -814,7 +902,14 @@ function generateRecommendations(
       recommendations.push(`${v.dataType} was not verified: ${v.issues[0]?.message ?? 'skipped'}`);
     }
 
-    if (v.checksumUnavailable > 0) {
+    if (contentHeld.has(v.dataType)) {
+      // Not the sentence below: its target has a way to hash, so counts alone
+      // do not decide (0149 T4).
+      recommendations.push(
+        `No ${v.dataType} content was compared, though the new system can be asked for it, so ` +
+          `the cutover is held. Check the connection to the new system and verify again.`,
+      );
+    } else if (v.checksumUnavailable > 0) {
       recommendations.push(
         `${v.checksumUnavailable} sampled ${v.dataType} item(s) could not be content-verified ` +
           `(the target exposes no content hash); only count parity was checked for them.`,
