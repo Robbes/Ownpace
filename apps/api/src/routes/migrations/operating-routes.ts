@@ -47,8 +47,6 @@ import {
   isFailureCategory,
   type DiscoveryDomain,
   type GroupDecisionAccepted,
-  assembleShareAnnouncements,
-  renderShareAnnouncement,
 } from '@openmig/shared';
 import {
   readConfirmedList,
@@ -95,7 +93,7 @@ import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middle
 import { getTriggerClient } from '@openmig/scheduler';
 import { resolveConfirmationJob } from './job-resolution.ts';
 import {
-  NOT_CUT_OVER_REASON,
+  announceByHandShares,
   applyAllOpenShareGrants,
   applyShareGrant,
   applyShareGrantsInFolder,
@@ -107,7 +105,7 @@ import {
 } from '@openmig/core';
 import { SecretStore } from '@openmig/core/secret-store';
 import { createNextcloudShare } from '@openmig/connectors';
-import { PHASES_PAST_A_CUTOVER, type ShareGrantRow } from '@openmig/shared';
+import type { ShareGrantRow } from '@openmig/shared';
 import { resolveMappingMailbox, tenantInventoryScans } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
@@ -745,9 +743,11 @@ router.post(
  * Template-6 digest to each grantee of a BY-HAND share (`done_manual`) —
  * the rows the one-go press could not announce because no API created them.
  * The note is REQUIRED: the "where" must come from the person who carried
- * the shares, or the mail is noise with a subject line. A prior press makes
- * the next one an EXPLICIT resend (`confirmResend`), never a silent
- * duplicate. Per grantee: their items only (§17 — least disclosure).
+ * the shares, or the mail is noise with a subject line. One wave per data
+ * type, at its own cutover, and a data type announced before is mailed again
+ * only on purpose (`confirmResend`), never as a silent duplicate
+ * (`announceByHandShares`, 0128 T5). Per grantee: their items only (§17 —
+ * least disclosure).
  */
 router.post(
   '/:mappingId/sharing/announce',
@@ -767,84 +767,29 @@ router.post(
         });
       }
       const locale: NotificationLocale = body.locale === 'nl' ? 'nl' : 'en';
-      // The shares carried by hand are announced in one wave for the whole
-      // migration, so they wait for every data type's cutover: the status,
-      // which is at or past its cutover once every path is (0128 T5).
-      if (!PHASES_PAST_A_CUTOVER.includes(s.lifecycle)) {
-        return void res.status(409).json({ error: 'not_cut_over', reason: NOT_CUT_OVER_REASON });
-      }
-      if (!channelIsOn()) {
-        return void res.status(409).json({
-          error: 'notifications_off',
-          reason:
-            'No mail channel is configured (SMTP_* / NOTIFY_*), so nobody can be told. ' +
-            'Configure the channel, then press again — nothing was sent.',
-        });
-      }
       const decidedBy = req.userId ?? 'unknown';
+      const isCutOver = await shareGateOf(s);
 
-      const outcome = await withLedger(s.tenantId, async (l) => {
-        const previous = await l.latestAuditEventAt(s.tenantId as TenantId, {
-          action: 'share.announce',
-          mappingId: s.mappingId,
-        });
-        if (previous && body.confirmResend !== true) {
-          return {
-            refused: {
-              error: 'already_announced',
-              reason:
-                `This migration's fallback announcement was already sent on ${previous}. ` +
-                'Sending again mails the same people again — pass confirmResend: true ' +
-                'to do that on purpose.',
-            },
-          } as const;
-        }
+      const outcome = await withLedger(s.tenantId, (l) =>
+        announceByHandShares(
+          {
+            tenantId: s.tenantId as TenantId,
+            mappingId: s.mappingId as MappingId,
+            ledger: l,
+            pressedBy: decidedBy,
+            isCutOver,
+            channelIsOn: channelIsOn(),
+            tell: async (grantee, message) => (await tellMessage(grantee, locale, message)) === 'sent',
+            onError: (m: string, err: unknown) => log.error(m, err),
+          },
+          { note, locale, confirmResend: body.confirmResend === true },
+        ),
+      );
 
-        const rows = await l.listShareGrants(s.tenantId as TenantId, s.mappingId as MappingId);
-        const assembly = assembleShareAnnouncements(rows);
-        const sent: string[] = [];
-        const failed: string[] = [];
-        for (const digest of assembly.digests) {
-          const result = await tellMessage(
-            digest.grantee,
-            locale,
-            renderShareAnnouncement(digest, locale, note),
-          );
-          (result === 'sent' ? sent : failed).push(digest.grantee);
-        }
-        try {
-          await l.recordAuditEvent(s.tenantId as TenantId, {
-            actor: decidedBy,
-            action: 'share.announce',
-            entity: 'share_grant',
-            detail: {
-              mappingId: s.mappingId,
-              grantees: assembly.digests.length,
-              sent: sent.length,
-              failed: failed.length,
-              withoutAddress: assembly.withoutAddress,
-              locale,
-              resend: previous !== undefined,
-            },
-          });
-        } catch (err) {
-          log.error('recording the announce press failed (the mails themselves stand)', err);
-        }
-        return { assembly, sent, failed, wasResend: previous !== undefined } as const;
-      });
-
-      if ('refused' in outcome) {
-        return void res.status(409).json(outcome.refused);
+      if (!outcome.ok) {
+        return void res.status(409).json({ error: outcome.code, reason: outcome.reason });
       }
-      res.json({
-        status: 'ok',
-        pressedBy: decidedBy,
-        sent: outcome.sent,
-        failed: outcome.failed,
-        platformAnnounced: outcome.assembly.platformAnnounced,
-        withoutAddress: outcome.assembly.withoutAddress,
-        resend: outcome.wasResend,
-      });
+      res.json({ status: 'ok', pressedBy: decidedBy, ...outcome });
     } catch (error) {
       serverError(res, 'sharing_announce_failed', 'sending the fallback announcement', error);
     }

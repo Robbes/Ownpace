@@ -1017,7 +1017,12 @@ export class PgLedger implements Ledger {
 
   async latestAuditEventAt(
     tenantId: TenantId,
-    filter: { readonly actor?: string; readonly action: string; readonly mappingId?: string },
+    filter: {
+      readonly actor?: string;
+      readonly action: string;
+      readonly mappingId?: string;
+      readonly subject?: string;
+    },
   ): Promise<string | undefined> {
     const rows = await this.db
       .select({ at: schemaPg.auditLog.at })
@@ -1030,6 +1035,12 @@ export class PgLedger implements Ledger {
           // The mapping lives in the JSON detail, where recordAuditEvent puts it.
           ...(filter.mappingId !== undefined
             ? [sql`${schemaPg.auditLog.detail} ->> 'mappingId' = ${filter.mappingId}`]
+            : []),
+          // A row listing no subjects was pressed for the whole migration.
+          ...(filter.subject !== undefined
+            ? [
+                sql`(${schemaPg.auditLog.detail} -> 'subjects' IS NULL OR ${schemaPg.auditLog.detail} -> 'subjects' @> ${JSON.stringify([filter.subject])}::jsonb)`,
+              ]
             : []),
         ),
       )
