@@ -233,6 +233,10 @@ jobs:
           # glob. The `-setup.md` files stay selected by `docs/*.md`: they are the
           # operator documents now, and other guards still read them.
           #
+          # `SECURITY.md` added 2026-09-27 (workplan 0139 T9):
+          # `one-way-to-report-a-vulnerability.unit.test.ts` holds its channels
+          # to the site's security.txt, so a change to it alone must run tests.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
@@ -242,6 +246,7 @@ jobs:
             README.md
             AGENTS.md
             CONTRIBUTING.md
+            SECURITY.md
             docs/workplans/0117-the-conveyor-belt-not-the-home.md
             **.ts
             **.tsx

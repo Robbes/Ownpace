@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 170 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 171 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -76,6 +76,10 @@ reading a file drops off its entry by itself.
 
 - [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
+
+### `SECURITY.md`
+
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `apps/api/package.json`
 
@@ -1669,6 +1673,7 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
@@ -1680,6 +1685,11 @@ reading a file drops off its entry by itself.
 ### `site/legal/privacy.md`
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+### `site/legal/privacy.nl.md`
+
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `site/legal/terms.md`
 
@@ -1701,6 +1711,14 @@ reading a file drops off its entry by itself.
 
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
+
+### `site/security-txt.mjs`
+
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+### `site/tsconfig.json`
+
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `test/e2e/fixtures/selfhost-restart-resume.mapping.json`
 
@@ -3288,6 +3306,19 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/trigger-version.sh`
+
+### [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts)
+
+ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+Reads:
+
+- `SECURITY.md`
+- `site/build.mjs`
+- `site/legal/privacy.md`
+- `site/legal/privacy.nl.md`
+- `site/security-txt.mjs`
+- `site/tsconfig.json`
 
 ### [package-appliance](../scripts/package-appliance.unit.test.ts)
 

@@ -42,13 +42,19 @@ function getSharedPool() {
 
 // Mount members routes
 router.use('/:tenantId/members', membersRoutes);
-// Schema validation
+/**
+ * What the generic update may change: the name, and nothing else.
+ *
+ * It also took `settings.maxMappings` and `settings.maxUsers`, and nothing
+ * anywhere read either, so an owner could store a limit that limited nothing
+ * (workplan 0143 T2a). The cap on migrations is the deployment's now
+ * (`MAX_MIGRATIONS_PER_ORGANISATION`, `migration-cap.ts`), and a cap on members
+ * belongs with 0131's open question 6 and 0137. Values already stored stay
+ * inert, because nothing reads them. Every other key in `settings` has its own
+ * door (`/contact`, `/notifications`), and zod dropped the rest anyway.
+ */
 const UpdateTenantSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  settings: z.object({
-    maxMappings: z.number().optional(),
-    maxUsers: z.number().optional(),
-  }).optional(),
 });
 
 /** The closed set the digest task understands — nothing else is storable. */
@@ -185,8 +191,8 @@ router.get('/:tenantId', authenticate, async (req: AuthenticatedRequest, res: Re
 
 /**
  * PUT /api/tenants/:tenantId
- * 
- * Update tenant settings
+ *
+ * Rename the organisation. Its settings each have their own door.
  */
 router.put(
   '/:tenantId',
@@ -213,18 +219,13 @@ router.put(
           .select()
           .from(schema.tenant)
           .where(eq(schema.tenant.id, tenantId));
-        const current = existing[0];
         const updateData: Partial<typeof schema.tenant.$inferInsert> = {};
         if (body.name) {
           updateData.name = body.name;
         }
-        if (body.settings) {
-          // MERGED, not replaced. `settings` is shared with everything else
-          // that lives there (the slug, the notification preferences), and a
-          // partial update that replaced the object would silently drop them.
-          updateData.settings = { ...(current?.settings as object ?? {}), ...body.settings };
-        }
-        
+        // Nothing to write is an answer, not an UPDATE with an empty SET.
+        if (Object.keys(updateData).length === 0) return existing;
+
         return await db
           .update(schema.tenant)
           .set(updateData)
