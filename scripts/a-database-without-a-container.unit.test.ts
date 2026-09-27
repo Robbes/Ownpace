@@ -30,9 +30,9 @@
  * was exactly this test.
  */
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -218,8 +218,17 @@ const aFreePort = (): Promise<number> =>
  * command". Both runs failed, and neither failure was about the script.
  */
 describe.skipIf(!hasServer())('and it really does stand one up', () => {
+  // Only for a run that failed before its last line: a directory `down` did not
+  // take. It runs after the test's own assertion that `down` removed it, so it
+  // cannot make a `down` that removed nothing look like one that worked.
+  const made: string[] = [];
+  afterEach(() => {
+    for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
   it('brings up a cluster with both chains on it, then takes it away', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'ownpace-local-pg-selftest-'));
+    made.push(dir);
     const port = await aFreePort();
     const env = {
       ...process.env,
