@@ -4,8 +4,10 @@
  * A UID the collection already held is not a failure.
  *
  * Both writers create with `If-None-Match: *`, and both read the resulting 412
- * correctly: *"not an error — the caller's snapshot was merely stale, and the
- * resource is exactly what we would have written."* That precondition is
+ * as *"not an error"*. (They also read it as *"the resource is exactly what we
+ * would have written"*, and recorded a copy. Since workplan 0149 T1 they ask
+ * who holds the UID, as this refusal does, and adopt only what the server
+ * names: `a-refusal-recorded-as-a-copy.unit.test.ts`.) That precondition is
  * atomic against the HREF.
  *
  * RFC 4791 §5.3.2's uniqueness rule is not on the href. It is on the UID, and
@@ -290,9 +292,9 @@ describe('what the detector will and will not call a UID collision', () => {
   });
 
   it('does not read "already exists" about an HREF as one', () => {
-    // That is the 412 case, and both writers already handle it by returning
-    // the path they were writing to. Reading it here would adopt this item
-    // onto whatever object the by-UID question returned.
+    // That is the 412 case, which both writers handle on its own branch
+    // (workplan 0149 T1). Reading it here would adopt this item onto whatever
+    // object the by-UID question returned, for a refusal that was not one.
     expect(refusalSaysUidAlreadyPresent('<s:message>File already exists</s:message>')).toBe(false);
   });
 });
