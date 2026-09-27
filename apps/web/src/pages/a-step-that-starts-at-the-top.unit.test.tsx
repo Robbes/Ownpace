@@ -24,15 +24,19 @@
  *   preference about motion, and instant otherwise;
  * - a new page, reached by a link or by the app, starts at the top. Back and
  *   Forward do not: there the browser restores the scroll, which is what a
- *   person expects. A new query on the same page is not a new page, and an
- *   address that names a section (`/docs/<guide>#<section>`) is scrolled by
- *   the page that has the section;
+ *   person expects. A new query or a new `#section` on the same page is not a
+ *   new page. An address that names a section on a new page
+ *   (`/docs/<guide>#<section>`) starts at the top too, and the guide then
+ *   scrolls to the section, so the reader lands on it; where the guide has no
+ *   such section, the reader lands at the top and not at the old page's
+ *   offset;
  * - none of this takes focus from the phone menu or gives it back, which is
  *   the menu's own business (T1, `a-menu-that-gives-focus-back`).
  *
  * jsdom has no layout, so `window.scrollTo` is spied and asked what it was
- * told. Whether the page really lands at the top on a phone is 0145 T8 (a) and
- * the walk in T10.
+ * told, and `scrollIntoView`, which jsdom lacks, is stubbed to say which
+ * section it was asked for. Whether the page really lands at the top on a
+ * phone is 0145 T8 (a) and the walk in T10.
  */
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, Link, useNavigate } from 'react-router';
@@ -84,6 +88,7 @@ vi.mock('../services/mapping-service', () => ({
 }));
 
 import CreateMapping from './CreateMapping.tsx';
+import Docs from './Docs.tsx';
 import Layout from '../components/Layout.tsx';
 
 /**
@@ -98,6 +103,14 @@ const media = {
 };
 
 let scrollTo: MockInstance<typeof window.scrollTo>;
+
+/**
+ * Every scroll, in the order it happened: `top` for the page sent to the top,
+ * `section:<id>` for a heading scrolled into view. The order is the point: a
+ * guide scrolls to its section in a passive effect, after the layout's scroll
+ * to the top, and it has to stay that way round.
+ */
+let scrolls: string[] = [];
 
 beforeEach(() => {
   globalThis.sessionStorage.clear();
@@ -120,11 +133,22 @@ beforeEach(() => {
     removeListener: (listener: () => void) => media.listeners.delete(listener),
     dispatchEvent: () => false,
   }));
-  scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  scrolls = [];
+  scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation((...args: unknown[]) => {
+    scrolls.push(toTheTop(args) ? 'top' : 'elsewhere');
+  });
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value(this: Element) {
+      scrolls.push(`section:${this.id}`);
+    },
+  });
 });
 
 afterEach(() => {
   scrollTo.mockRestore();
+  delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   vi.unstubAllGlobals();
   globalThis.localStorage.clear();
 });
@@ -265,7 +289,9 @@ const Page: FC = () => {
       <Link to="/mappings">to-mappings</Link>
       <Link to="/mappings/new">to-wizard</Link>
       <Link to="/dashboard?filter=failed">to-same-page-query</Link>
+      <Link to="/dashboard#later">to-same-page-section</Link>
       <Link to="/docs/google#connect">to-a-section</Link>
+      <Link to="/docs/google#no-such-section">to-a-missing-section</Link>
       <button onClick={() => void navigate(-1)}>history-back</button>
       <button onClick={() => void navigate(1)}>history-forward</button>
     </div>
@@ -277,6 +303,7 @@ const renderLayout = (path = '/dashboard') =>
     path,
     <Route path="/" element={<Layout />}>
       <Route path="mappings/new" element={<CreateMapping />} />
+      <Route path="docs/:slug" element={<Docs />} />
       <Route path="*" element={<Page />} />
     </Route>,
   );
@@ -305,21 +332,33 @@ describe('a new page starts at the top', () => {
     expect(scrollsToTheTop()).toBe(1);
   });
 
-  it('a new query on the same page is not a new page', () => {
+  it('a new query or a new section on the same page is not a new page', () => {
     renderLayout('/dashboard');
     fireEvent.click(screen.getByRole('link', { name: 'to-same-page-query' }));
+    fireEvent.click(screen.getByRole('link', { name: 'to-same-page-section' }));
 
     expect(scrollsToTheTop()).toBe(0);
   });
 
-  it('an address that names a section is left to the page that has it', () => {
-    // The guides scroll to `#section` themselves (`GuideArticle`). Sent to the
-    // top afterwards, a link from the wizard or the checklist to a guide's
-    // section would land on the guide's first line.
+  it('a link to a section of a guide starts at the top, and the guide then scrolls to the section', () => {
+    // The real guide page, whose `GuideArticle` scrolls to `#section` in a
+    // passive effect. The layout's scroll is a layout effect, so it comes
+    // first and the section wins: the reader lands on the section.
     renderLayout('/dashboard');
     fireEvent.click(screen.getByRole('link', { name: 'to-a-section' }));
 
-    expect(scrollsToTheTop()).toBe(0);
+    expect(document.getElementById('connect')).not.toBeNull();
+    expect(scrolls).toEqual(['top', 'section:connect']);
+  });
+
+  it('a link to a section the guide does not have lands at the top, not at the old offset', () => {
+    // A renamed or mistyped anchor: nothing scrolls to the section, so the
+    // new page would otherwise open where the old one was left.
+    renderLayout('/dashboard');
+    fireEvent.click(screen.getByRole('link', { name: 'to-a-missing-section' }));
+
+    expect(document.getElementById('connect')).not.toBeNull();
+    expect(scrolls).toEqual(['top']);
   });
 });
 

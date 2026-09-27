@@ -2,11 +2,18 @@
 /**
  * Stepping through the CreateMapping wizard, for the tests that need to.
  *
- * Test code only; nothing the app imports. It lived inside
+ * Test code only; nothing the app imports. `walkToReview` lived inside
  * `CreateMapping.unit.test.tsx`, unexported, until a second file needed the
  * same walk: `a-step-that-starts-at-the-top` presses Next and Back and asks
  * where the page and the focus went (workplan 0145 T3 (a)). Moved rather than
- * copied, so that a change to what a step demands is made in one place.
+ * copied, so `walkToReview` and `passSourceStep` live in one place.
+ *
+ * Not every walk does. The `walkToDataTypes` helpers in
+ * `CreateMapping.unit.test.tsx` and `a-card-that-says-it-is-unproven`, and the
+ * `nextButton` copies in `CreateMapping.reachability.unit.test.tsx`,
+ * `a-card-that-says-it-is-unproven` and `an-export-in-the-destinations-files`,
+ * still step through the wizard on their own, so a change to what a step
+ * demands is made there too.
  *
  * The Next button is found by its words in the dictionary, so the walk works
  * in Dutch too. The boxes are found by placeholders and labels that are the

@@ -131,21 +131,26 @@ const Layout: React.FC = () => {
    *
    * `BrowserRouter` neither resets nor restores the scroll, so a page opened
    * from further down a list opened part of the way down. Now a new path is
-   * sent to the top, at once, before it is painted. Three cases keep their
+   * sent to the top, at once, before it is painted. Two cases keep their
    * scroll:
    *
    * - Back and Forward (`POP`, which is also the first load): the scroll is
    *   left to the browser's own restoration, which is what a person expects;
-   * - a new query on the same path: not a new page, as `followLink` treats it;
-   * - an address that names a section: the page with the section scrolls to
-   *   it (`GuideArticle` for `/docs/<guide>#<section>`), and the top would
-   *   undo that.
+   * - a new query or a new `#section` on the same path: not a new page, as
+   *   `followLink` treats it. Keyed on the path alone for that reason.
    *
-   * Keyed on the path alone for that reason. Focus is left where it is: on a
-   * new page it is 0145 T3 (b)'s, and the drawer's is T1's, above.
+   * An address that names a section on a new path goes to the top as well.
+   * The page with the section scrolls to it afterwards (`GuideArticle`, for
+   * `/docs/<guide>#<section>`), in a passive effect, and React runs this
+   * layout effect before any passive one of the same commit. So the reader
+   * lands on the section, and on the top where the section is missing, not
+   * at the old page's offset. That order is why this is a layout effect.
+   *
+   * Focus is left where it is: on a new page it is 0145 T3 (b)'s, and the
+   * drawer's is T1's, above.
    */
   React.useLayoutEffect(() => {
-    if (navigationType === 'POP' || location.hash !== '') return;
+    if (navigationType === 'POP') return;
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname]); // the path alone: a new query or hash on the same path is not a new page
   // Following a link closes the drawer. To another page, focus goes to that
