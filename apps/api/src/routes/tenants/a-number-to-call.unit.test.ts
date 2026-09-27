@@ -143,11 +143,14 @@ describe('PUT /api/tenants/:id/contact', () => {
     expect(res.status).toBe(200);
   });
 
-  it('cannot be set through the generic settings update, which keeps its two keys', async () => {
+  it('cannot be set through the generic update, which stores no settings at all', async () => {
     // The dedicated route is the only door, so the only check is its check.
+    // The generic update's own two keys went with 0143 T2a: they limited
+    // nothing (`a-migration-past-the-cap`).
     await request(app)
       .put(`/api/tenants/${TENANT}`)
       .send({ settings: { maxUsers: 5, contactPhone: 'Call IT, they know' } });
     expect(await storedSettings()).not.toHaveProperty('contactPhone');
+    expect(await storedSettings()).not.toHaveProperty('maxUsers');
   });
 });
