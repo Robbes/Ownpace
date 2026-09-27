@@ -511,6 +511,62 @@ indexer said *"Failed to fetch environment variables: Connection error"*.
 - **Still to prove on the machine:** a task deploy with the builder on the host network. A run of
   E2E (managed) on this branch does it before the merge.
 
+**2026-09-27, night: no address in the gate's log (T3's binds), on branch
+`claude/ownpace-public-readiness-y7orc6-no-address-in-the-log`, not merged.** A read-only sweep,
+each finding checked against a public run, found sixteen places where the gate's public log or its
+evidence artifact carries this machine's mesh address, and one where the live-target lane would
+print the `LIVE_*` credentials. T3's binds put the address in more publishes; the sweep found it
+printed long before them too (E2E (managed) #77, #198, #199, #201). None of it is a secret, so
+GitHub hid none of it.
+
+- **Every run, fixed where it is printed.**
+  - `e2e-managed.yml`'s last step ran `docker compose ps`, whose PORTS column names every bind. It
+    prints name, service and status now; `e2e.yml`'s one `ps` too.
+  - `deploy-tasks.sh`: the CLI printed its "View deployment" and "Test tasks" links on the
+    dashboard's origin and appended both to `$GITHUB_ENV`, which the runner prints in the header of
+    every later step (nine more copies a run). It now runs with `GITHUB_ENV` and `GITHUB_OUTPUT`
+    unset, `TRIGGER_DEPLOYMENT_LINK_OUTPUT_DISABLED=1` and `--plain`, checked against 4.5.16's
+    `commands/deploy.js`; `--network host` stays.
+  - `bootstrap-managed.sh`'s `dashboard:` note and the account phase's "Open" line print an origin
+    only when its host is loopback, and otherwise name its key (`shown_origin`).
+    `setup-nextcloud-users.sh`'s "External DAV ready at" and its `000` note do the same.
+- **On a failure.** `load_env`'s refusal of an unquoted value names the line and the key, never
+  the value (#163's line held the address). `explain_failure` filters the container logs and the
+  healthcheck's output before printing them. The smoke filters its own stream before `tee`, so its
+  job log and its evidence file are clean at the source. `redact-evidence.sh` has a second pass for
+  the artifact. The filter is `deploy/compose/own-addresses.sh`: each `*_BIND`,
+  `TRIGGER_TLS_HOST`, the hosts of `TRIGGER_APP_ORIGIN` and `TRIGGER_LOGIN_ORIGIN` and each entry of
+  `NEXTCLOUD_TRUSTED_DOMAINS` becomes the key that holds it (`<MAILPIT_BIND>`), and any address in
+  `100.64.0.0/10` becomes `<mesh-ip>`, which also covers another peer's address in an access log.
+  Loopback, every interface, empty values and compose service names are left alone.
+- **The mask.** A new step right after the `.env` is restored, before anything reads the stack,
+  emits `::add-mask::` for the same values (`own-addresses.sh --mask`). It is the only cover for
+  what no script filters: Docker's own error when an `up` cannot bind an address, and a line
+  nobody has written yet. It does not reach the artifact or a log pasted from a shell by hand.
+- **The credentials.** `e2e-live-target.yml` appended the persisted `LIVE_*` lines to
+  `$GITHUB_ENV`, and the next step's header would have printed them, passwords included. The lane's
+  one step now reads each key with `env_value`, masks the ones that look like a credential, and
+  exports them to its own process. No run was armed yet (the latest said `0 LIVE_* line(s)`), so
+  nothing needs rotating unless an older run's "armed from" line says otherwise. The lane still
+  announces the catch-all's login and IMAP server, a provider's public host
+  (`live-catchall.unit.test.ts` asks for it), and no mesh address.
+- **Guards**, both failing on `origin/main` first:
+  `scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts` (13 cases, 13 red: the mask
+  run against a fixture `.env`, its place in the workflow parsed from the YAML, `ps` in every
+  self-hosted job, the deploy invocation, `shown_origin`, `load_env`, `setup-nextcloud-users.sh`
+  and `explain_failure` run with stubs, the artifact redaction, the smoke's filter) and
+  `scripts/a-credential-the-next-step-printed.unit.test.ts` (5 cases, 4 red; the fifth proves its
+  own pattern is not vacuous; the lane's step is run with a `pnpm` that reports what it was handed).
+  `smoke-managed-verdict.unit.test.ts` now accepts the smoke's `tee` behind the filter.
+- **Docs:** `docs/managed-bring-up.md`, *Which address a port answers on*, says the gate's log is
+  public and what keeps the binds out of it.
+- **Not proved.** A gate run on this branch, its log and artifact searched for the mesh range, is
+  the proof that the runner hides the values, that the CLI in `--plain` prints no link and writes
+  neither file, and that `sed -u` streams. Runs already published keep the address: every run that
+  reached the trigger phase printed it. The owner may delete their logs from each run's page. The
+  address is also in commit messages on `main`, which only a history rewrite removes; that is the
+  owner's to decide.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |

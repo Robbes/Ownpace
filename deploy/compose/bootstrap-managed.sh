@@ -48,6 +48,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # way Compose and `source` would. See deploy/compose/env-read.sh.
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# This machine's own addresses, kept out of what the gate prints: its log is
+# public (shown_origin, and the filter over the container logs below).
+# shellcheck source=deploy/compose/own-addresses.sh
+. "${SCRIPT_DIR}/own-addresses.sh"
 
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
@@ -172,11 +176,16 @@ load_env() {
   # So: find the line, name it, and say the fix. A value with whitespace and no
   # quotes is the only shape that does this, and quoting is always safe — the
   # check is narrow enough to never argue with a legitimate file.
+  #
+  # BY ITS LINE AND ITS KEY, NEVER ITS VALUE. The line #163 tripped on was
+  # NEXTCLOUD_TRUSTED_DOMAINS, which holds this machine's mesh address, and the
+  # gate's log is public. The pattern ends every match's key at its first `=`,
+  # so nothing after that is printed, indented or not.
   local bad
   bad="$(grep -nE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[^"'"'"'#]*[^"'"'"'#[:space:]][[:space:]]+[^#[:space:]]' "$ENV_FILE" || true)"
   if [ -n "$bad" ]; then
     echo "!!! $ENV_FILE has a value with a space in it and no quotes around it." >&2
-    echo "$bad" | sed 's/^/!!!   /' >&2
+    printf '%s\n' "$bad" | cut -d= -f1 | sed -E 's/^([0-9]+):[[:space:]]*/!!!   line \1: /; s/$/=… (value not printed)/' >&2
     echo "!!! Compose accepts that; this script SOURCES the file with bash, which" >&2
     echo "!!! assigns the first word and then tries to run the rest as a command." >&2
     echo '!!! Put the value in quotes — KEY="first second" — in this file and in' >&2
@@ -671,6 +680,12 @@ explain_failure() { # explain_failure <service> [service...]
     # need forgiving.
     local full
     full="$("${COMPOSE[@]}" logs "$svc" 2>&1 || true)"
+    # THROUGH THE ADDRESS FILTER BEFORE ANY OF IT IS PRINTED. The gate's log is
+    # public, and these logs name this machine: the TLS front logs its site
+    # address, TRIGGER_TLS_HOST, at every start and every renewal (E2E
+    # (managed) #77, #199), and an access log names the mesh peers it served.
+    # A here-string, not a pipe, for the reason given below.
+    if [ -n "$full" ]; then full="$(own_address_redact "$ENV_FILE" <<<"$full")"; fi
     local -a lines=()
     # `if`, not `[ … ] && mapfile`: under `set -e` an && list whose left side
     # fails is exempt only by a rule subtle enough that nobody should have to
@@ -745,6 +760,7 @@ explain_failure() { # explain_failure <service> [service...]
         --format '{{if .State.Health}}{{range .State.Health.Log}}--- exit={{.ExitCode}}: {{.Output}}{{end}}{{end}}' \
         2>/dev/null || true)"
       if [ -n "$probe" ]; then
+        probe="$(own_address_redact "$ENV_FILE" <<<"$probe")"
         echo "!!! --- ${svc} — what the HEALTHCHECK said (not in the log above):" >&2
         printf '%s\n' "$probe" | sed 's/^/    /' >&2 || true
       fi
@@ -1192,7 +1208,10 @@ phase_trigger() {
 
   up_wait trigger-supervisor
   note "all Trigger.dev services healthy"
-  note "dashboard: ${TRIGGER_APP_ORIGIN:-https://localhost:3443}  (api: ${TRIGGER_API_ORIGIN:-http://localhost:3090})"
+  # Named, not printed, unless it is loopback: on the reference machine the
+  # dashboard's origin is its mesh address, and this line ran on every gate.
+  note "dashboard: $(shown_origin "${TRIGGER_APP_ORIGIN:-https://localhost:3443}" TRIGGER_APP_ORIGIN)"
+  note "api: $(shown_origin "${TRIGGER_API_ORIGIN:-http://localhost:3090}" TRIGGER_API_ORIGIN)"
 }
 
 # ---------------------------------------------------------------------------
@@ -1227,7 +1246,7 @@ phase_account() {
     This instance has no project yet. It cannot be created without you:
     the self-hosted dashboard signs in by magic link and has no admin API.
 
-    1. Open  ${TRIGGER_APP_ORIGIN:-https://localhost:3443}
+    1. Open  $(shown_origin "${TRIGGER_APP_ORIGIN:-https://localhost:3443}" TRIGGER_APP_ORIGIN)
        It serves a SELF-SIGNED certificate. Accept the warning — this is the
        trigger-tls front, and it exists because the dashboard's session cookie
        is Secure in production mode, so plain http works only from localhost.

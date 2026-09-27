@@ -77,6 +77,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # way Compose and `source` would. See deploy/compose/env-read.sh.
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# shellcheck source=deploy/compose/own-addresses.sh
+. "${SCRIPT_DIR}/own-addresses.sh"
 
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -146,7 +148,24 @@ TARGET_DAV_PASSWORD="${SMOKE_TARGET_DAV_PASSWORD:-tenant_b_target_pw}"
 # which is a state to report, not to paper over.
 BALANCE_TAG=""
 
-exec > >(tee "$OUT") 2>&1
+# THE STREAM IS FILTERED BEFORE IT IS KEPT, because both places it goes are
+# public on the gate: the job log, and this file, which is uploaded as the
+# run's evidence. On a failure this script prints this machine's own addresses
+# without meaning to: "mailpit is not answering at" a URL on MAILPIT_BIND, and
+# curl's own "Failed to connect to <host> port 8083" for every call to
+# Nextcloud on NEXTCLOUD_BIND. Filtering here covers every such line, the ones
+# not written yet included, and a run by hand as much as the gate's
+# (own-addresses.sh; `a-public-log-that-named-the-machine-it-ran-on`). A value
+# becomes the key that holds it, so the line still says which publish failed.
+#
+# A program sed would refuse would take the whole stream with it, so it is
+# tried first, and the range alone stands in for it.
+REDACT_OWN_ADDRESSES="$(own_address_sed "${SCRIPT_DIR}/.env")"
+if ! sed -E -e "$REDACT_OWN_ADDRESSES" </dev/null >/dev/null 2>&1; then
+  echo "[smoke] WARNING: the .env's addresses make a filter sed refuses; filtering the mesh range only" >&2
+  REDACT_OWN_ADDRESSES="$(own_address_sed /dev/null)"
+fi
+exec > >(sed -u -E -e "$REDACT_OWN_ADDRESSES" | tee "$OUT") 2>&1
 echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
 
 fail=0
