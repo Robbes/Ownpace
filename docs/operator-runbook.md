@@ -139,7 +139,9 @@ Set `TRIGGER_TLS_HOST` to the address browsers actually use (e.g. the machine's 
 it is both the certificate's subject and the SNI default for IP-connecting browsers, and
 both rules exist because their absence fails as a silent TLS handshake death, not an HTTP
 error (`trigger-tls.Caddyfile` documents this). The certificate is internally minted, so
-the first visit needs the browser's "accept the risk" step.
+the first visit needs the browser's "accept the risk" step. Set `TRIGGER_TLS_BIND` to the
+same address: the port answers on loopback only until a bind adds another (workplan 0132
+T3; `docs/managed-bring-up.md`, *Which address a port answers on*).
 
 ### Alternative: run apps from source (no image build)
 
@@ -405,6 +407,12 @@ Notes:
   for the managed edition (the appliance's has: `test/e2e/selfhost-backup-restore.e2e.test.ts`).
 
 ## Upgrade
+
+**Once, before the upgrade that brings `WEB_BIND` into `managed.yml`:** every port now answers on loopback unless its
+`*_BIND` adds an address (workplan 0132 T3). On a stack whose public names are routed through
+a front, set `WEB_BIND`, `ZITADEL_BIND` (and `STATUS_BIND` where routed) in `.env`, and
+`WWW_BIND` in the site's, to the address the front connects to, first — or the names stop
+answering. `docs/managed-bring-up.md`, *Which address a port answers on*, has the detail.
 
 1. Back up the DB (above).
 2. Pull the new images / new code.

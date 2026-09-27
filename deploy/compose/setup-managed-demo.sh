@@ -40,6 +40,9 @@ set -euo pipefail
 #     setup-stalwart.sh with managed-specific defaults so this never collides with the
 #     dev/e2e Stalwart instance (deploy/compose/dev.yml + setup-stalwart.sh's own
 #     defaults) if both run on one host.
+#   STALWART_BIND — the address the demo Stalwart's two ports are published on,
+#     forwarded to setup-stalwart.sh. Loopback by default (workplan 0132 T3): the
+#     stack reaches it by name, and the seeder below asks the same address.
 #   STALWART_CLI_URL — forwarded to setup-stalwart.sh. If you're running this from a
 #     Docker-outside-of-Docker sandbox (only reaches Docker via a mounted docker.sock),
 #     127.0.0.1:<published-port> may not be reachable from your own shell even though
@@ -106,6 +109,7 @@ STALWART_CONTAINER="${STALWART_CONTAINER:-ownpace-stalwart}" \
 STALWART_VOLUME="${STALWART_VOLUME:-ownpace-stalwart-data}" \
 STALWART_CONFIG_VOLUME="${STALWART_CONFIG_VOLUME:-ownpace-stalwart-config}" \
 STALWART_NETWORK="${MANAGED_NETWORK}" \
+STALWART_BIND="${STALWART_BIND:-127.0.0.1}" \
 STALWART_JMAP_PORT="${STALWART_JMAP_PORT:-18081}" \
 STALWART_IMAPS_PORT="${STALWART_IMAPS_PORT:-1994}" \
   "${REPO_ROOT}/deploy/selfhost/setup-stalwart.sh"
@@ -179,9 +183,16 @@ DAV_USER=tenant-b-source DAV_PASSWORD=tenant_b_source_pw \
 # would grow the mailbox by SEED_COUNT every single time.
 #
 # Host ports, not service names: this script runs on the HOST, so it reaches
-# Stalwart through the published IMAPS port rather than over $MANAGED_NETWORK.
+# Stalwart through the published IMAPS port rather than over $MANAGED_NETWORK,
+# on the address it is published on (STALWART_BIND; every interface includes
+# loopback). A publish that moved and a seeder that stayed at 127.0.0.1 would
+# report the demo's Stalwart as down.
+case "${STALWART_BIND:-127.0.0.1}" in
+  0.0.0.0) seed_imap_host=127.0.0.1 ;;
+  *) seed_imap_host="${STALWART_BIND:-127.0.0.1}" ;;
+esac
 echo "[setup-managed-demo] Seeding messages into the demo mail source..."
-SEED_IMAP_HOST=127.0.0.1 \
+SEED_IMAP_HOST="$seed_imap_host" \
 SEED_IMAP_PORT="${STALWART_IMAPS_PORT:-1994}" \
 SEED_IMAP_TLS=true \
 SEED_IMAP_USER=source@dev.local \

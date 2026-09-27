@@ -299,10 +299,15 @@ describe('the identity provider is published somewhere it can actually bind', ()
   // made this parser return nothing for that service, and a parser that returns
   // nothing turns every case below green, which is why `read the real compose
   // files` exists.
+  //
+  // A HOST ADDRESS MAY STAND IN FRONT (workplan 0132 T3): `127.0.0.1:` or
+  // `${NAME_BIND:-127.0.0.1}:`, and every port now has both. Reading only the
+  // bare form made this parser find nothing once the addresses arrived; the
+  // same trap as the container side above, one field to the left.
   const publishes = (yaml: string): { variable: string; host: string; container: string }[] => {
     const found: { variable: string; host: string; container: string }[] = [];
     for (const [line, variable, host, containerRaw] of yaml.matchAll(
-      /^\s*-\s*"\$\{([A-Z_]+):-(\d+)\}:(\d+|\$\{[A-Z_]+:-\d+\})"/gm,
+      /^\s*-\s*"(?:(?:127\.0\.0\.1|\$\{[A-Z_]+_BIND:-127\.0\.0\.1\}):)?\$\{([A-Z_]+):-(\d+)\}:(\d+|\$\{[A-Z_]+:-\d+\})"/gm,
     )) {
       // None of the three groups is optional in that pattern, which the
       // compiler cannot see. Defaulting them would invent a port number and
@@ -341,12 +346,15 @@ describe('the identity provider is published somewhere it can actually bind', ()
   it('gives every service on this host a host port of its own', () => {
     // www.yml is a separate file that deliberately runs on the SAME host (its
     // header says so), so its port counts against the same pool.
+    //
+    // One port published on two addresses (loopback, and the address its bind
+    // adds) is ONE port, not a clash: it is the same variable both times.
     const all = [...managedPorts, ...publishes(www)];
     const seen = new Map<string, string>();
     const clashes: string[] = [];
     for (const p of all) {
       const owner = seen.get(p.host);
-      if (owner) clashes.push(`${p.host}: ${owner} and ${p.variable}`);
+      if (owner && owner !== p.variable) clashes.push(`${p.host}: ${owner} and ${p.variable}`);
       else seen.set(p.host, p.variable);
     }
     expect(clashes, 'two services default to the same host port — one of them cannot start').toEqual(

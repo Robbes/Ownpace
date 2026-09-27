@@ -19,7 +19,8 @@
 #
 # Netbird maps the external name to WWW_PORT on this host; externally the name
 # is on 443/https and the port is an internal detail, which is why the redirect
-# URIs registered with Google carry no port.
+# URIs registered with Google carry no port. It reaches that port on the
+# address WWW_BIND publishes it on (see `ports:` below).
 #
 # THE BUILD IS NOT RUN HERE. `site/dist` is generated and mounted read-only
 # rather than baked into an image, so re-publishing is the build command above
@@ -73,7 +74,17 @@ services:
     container_name: ownpace-www
     restart: unless-stopped
     ports:
-      - "${WWW_PORT:-3125}:80"
+      # LOOPBACK, AND THE FRONT'S ADDRESS ONLY WHEN IT IS SET (workplan 0132
+      # T3). This published on every interface before that, which Docker's
+      # own firewall rules keep open whatever the host's say. The site is a
+      # ROUTED port: its public name leads here through the front, so WWW_BIND
+      # is set to the front's address, or the name stops answering. Compose
+      # reads it from the `.env` beside this file, in the checkout this stack
+      # is brought up from. Unset, the second entry renders the same as the
+      # first and Compose keeps one. Never 0.0.0.0.
+      # scripts/a-port-published-on-purpose.unit.test.ts holds the shape.
+      - "127.0.0.1:${WWW_PORT:-3125}:80"
+      - "${WWW_BIND:-127.0.0.1}:${WWW_PORT:-3125}:80"
     volumes:
       - ../../site/dist:/usr/share/nginx/html:ro
       - ./www-nginx.conf:/etc/nginx/conf.d/default.conf:ro
