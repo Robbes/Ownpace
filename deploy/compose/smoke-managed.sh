@@ -48,8 +48,8 @@
 # the repo (the JWT is minted with apps/api's own jsonwebtoken).
 #
 # Everything is overridable via env; defaults match the demo seed:
-#   SMOKE_API (http://localhost:3001)   SMOKE_DB_CONTAINER (ownpace-db)
-#   SMOKE_API_CONTAINER (ownpace-api)
+#   SMOKE_API (http://localhost:3001)   SMOKE_DB_CONTAINER (<project>-db)
+#   SMOKE_API_CONTAINER (<project>-api), <project> being this checkout's stack
 #   SMOKE_VERIFY_TENANT/SUB/MAPPING (demo tenant A, mail)
 #   SMOKE_APPLY_TENANT/SUB/MAPPING  (demo tenant B, DAV)
 #   SMOKE_POLLS (45) SMOKE_POLL_SLEEP (2) SMOKE_OUT (evidence file path)
@@ -100,8 +100,11 @@ smoke_env_value() {   # <key> — the last assignment in .env, or empty
 
 api_port="$(smoke_env_value API_PORT)"
 API="${SMOKE_API:-http://localhost:${api_port:-3001}}"
-DB_CONTAINER="${SMOKE_DB_CONTAINER:-ownpace-db}"
-API_CONTAINER="${SMOKE_API_CONTAINER:-ownpace-api}"
+# This checkout's own stack (workplan 0132 T1): its containers and volumes are
+# named after its compose project, so the smoke reads that stack and no other.
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
+DB_CONTAINER="${SMOKE_DB_CONTAINER:-${COMPOSE_PROJECT}-db}"
+API_CONTAINER="${SMOKE_API_CONTAINER:-${COMPOSE_PROJECT}-api}"
 POLLS="${SMOKE_POLLS:-45}"
 POLL_SLEEP="${SMOKE_POLL_SLEEP:-2}"
 # The prepare phase waits on a whole sync pass (runner start + DAV round trips),
@@ -403,7 +406,7 @@ IDP_SMOKE_APP_NAME="Ownpace Smoke $$"
 # The provisioning token, read off the VOLUME rather than out of the provider —
 # that image has no shell and no coreutils, which cost E2E (managed) #49-#51.
 idp_pat() {
-  docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey:ro \
+  docker run --rm -v ${COMPOSE_PROJECT}_zitadel_machinekey:/machinekey:ro \
     busybox:1.38 cat /machinekey/pat.txt 2>/dev/null | tr -d '\r\n'
 }
 
@@ -819,8 +822,10 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
 (
   # Capture every runner-* container's log stream the moment it appears.
   # The parent's exit ends this watcher via the PID check.
+  # This stack's task runs only: they start on its DOCKER_RUNNER_NETWORKS, and
+  # another stack's runners carry the same `runner-` names (workplan 0132 T1).
   while kill -0 $$ 2>/dev/null; do
-    for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true); do
+    for c in $(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true); do
       if [ ! -f "$RUNNER_LOG_DIR/$c.log" ]; then
         touch "$RUNNER_LOG_DIR/$c.log"
         docker logs -f "$c" >"$RUNNER_LOG_DIR/$c.log" 2>&1 &
@@ -948,7 +953,7 @@ else
   if [ "${#IDP_PAT}" -lt 20 ]; then
     echo "no usable provisioning token on the machinekey volume — cannot sign anybody in."
     echo "  read it by hand with:"
-    echo "    docker run --rm -v ownpace-managed_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt"
+    echo "    docker run --rm -v ${COMPOSE_PROJECT}_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt"
     fail_at
   fi
 
@@ -5312,7 +5317,7 @@ fi
 # then believes the silence: "no queue fired yet" becomes "the queue was
 # drained and still nothing".
 if [ -n "$BALANCE_TAG" ]; then
-  if ! docker exec -u www-data "${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}" php -f /var/www/html/cron.php >/dev/null 2>&1; then
+  if ! docker exec -u www-data "${NEXTCLOUD_CONTAINER:-${COMPOSE_PROJECT}-nextcloud}" php -f /var/www/html/cron.php >/dev/null 2>&1; then
     echo "the queue drain itself failed — the silence below is UN-drained, and a queued"
     echo "mail could still be sitting behind it (docker exec … php -f cron.php)."
     fail_at
