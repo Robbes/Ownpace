@@ -19,6 +19,7 @@
 import { detectCaldavScheduling } from '@openmig/connectors';
 import type { CaldavSchedulingCapability, HttpClient } from '@openmig/connectors';
 import { log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { Ledger, MappingId, TenantId } from '@openmig/shared';
 
 /**
@@ -54,7 +55,7 @@ const SCHEDULING_SENTENCES: Record<CaldavSchedulingCapability, string> = {
 /** The OPTIONS probe wants only status + headers; the body stays unread. */
 const optionsHttpClient: HttpClient = {
   request: async ({ url, method, headers }) => {
-    const response = await fetch(url, { method, headers });
+    const response = await tenantFetch(url, { method, headers });
     return {
       status: response.status,
       body: '',

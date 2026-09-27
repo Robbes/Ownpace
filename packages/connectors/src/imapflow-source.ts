@@ -67,6 +67,7 @@
 
 import { ImapFlow } from 'imapflow';
 import { log } from '@openmig/shared';
+import { reachableHost } from '@openmig/shared/reachable-host';
 import type { SourceConnector, SyncCursor, TokenProvider } from '@openmig/shared';
 import type { MailFolder, MailItem, RawMessage, SpecialUse } from '@openmig/shared';
 import {
@@ -127,6 +128,12 @@ export class ImapFlowSource implements SourceConnector {
    * ends by entering IDLE and then has to break out of it.
    */
   async connect(): Promise<ImapFlow> {
+    // A HOST WE ARE ASKED TO REACH (0136 T1). On managed, the address the typed
+    // host resolves to, checked, with the typed name kept for TLS, and a host
+    // inside our own network refused here, before any socket or token. On the
+    // appliance, the host as typed.
+    const reach = await reachableHost(this.config.host);
+
     let accessToken: string | undefined = this.config.auth.accessToken;
     if (this.tokenProvider && this.config.authType === 'XOAUTH2') {
       const token = await this.tokenProvider.getToken();
@@ -134,7 +141,8 @@ export class ImapFlowSource implements SourceConnector {
     }
 
     const client = new ImapFlow({
-      host: this.config.host,
+      host: reach.host,
+      ...(reach.servername === undefined ? {} : { servername: reach.servername }),
       port: this.config.port,
       secure: this.config.tls,
       auth:

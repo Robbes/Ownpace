@@ -34,6 +34,7 @@ import {
 } from '@openmig/shared';
 import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
 import { davRefusalBody, withFailureCategory } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { payloadDefectNote } from './dav-payload-defects.ts';
 import type { CalendarComponent } from '@openmig/shared';
 import { collectionSlug } from './dav-collection-path.ts';
@@ -1181,7 +1182,7 @@ export interface HttpResponse {
 function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
-      const response = await fetch(options.url, {
+      const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: typeof options.body === 'string' ? options.body : undefined,

@@ -50,6 +50,7 @@ import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, ownershipOf } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 
 /**
  * Configuration for CardDAV target writer
@@ -857,7 +858,7 @@ export interface HttpResponse {
 function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
-      const response = await fetch(options.url, {
+      const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: typeof options.body === 'string' ? options.body : undefined,

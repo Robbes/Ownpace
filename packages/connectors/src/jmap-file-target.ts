@@ -81,6 +81,7 @@ import {
   reconstructFileNodePath,
   fileNodeIndex,
 } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { createHash } from 'node:crypto';
 
 /** See `jmap-target.ts` — same server, same reasoning, same numbers. */
@@ -264,7 +265,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
    */
   private async fetchWithRateLimitRetry(url: string, init: RequestInit): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, init);
+      const response = await tenantFetch(url, init);
       const rateLimited = response.status === 429 || response.status === 503;
       if (!rateLimited || attempt >= RATE_LIMIT_ATTEMPTS - 1) return response;
 
