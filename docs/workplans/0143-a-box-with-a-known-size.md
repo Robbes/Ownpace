@@ -4,6 +4,33 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, late: T5 (c) built (0131 §6, group M4, step 4)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-domain-that-waits-its-turn`, not merged. The owner chose (c)
+the same evening (open question 3).
+
+- **Small first.** `passOrder` (`packages/shared/src/pass-deadline.ts`) takes contacts, calendars
+  and tasks before mail and files, whatever order the mapping or the caller listed them in. A
+  type it does not know goes last, in the order it came.
+- **A fair share of what is left.** `domainDeadline(passDeadline, now, typesLeft)` hands a type
+  `now + (passDeadline − now) ÷ typesLeft`, this type included, and the last one whatever
+  remains. The delta-sync task asks it before each type, so time a small type does not use flows
+  to mail and files, which then share what is left, about half each. No type is handed a moment
+  past the pass's own deadline.
+- **In the pass.** `run-delta-sync.ts` sorts its data types with the first and hands each of the
+  five branches its share from the second, the mail branch included. A type that stops at its
+  share is logged as having stopped *at its share of this pass's time*. Its cursors stay where
+  they are, as at the pass's deadline before.
+- **Proved.**
+  - `packages/shared/src/a-domain-that-waits-its-turn.unit.test.ts`, 7 cases: the order; a subset
+    and an unknown type; the first of two handed no more than half; the last handed the pass's
+    deadline; none past it, whenever asked; and five types in a 50-minute pass where the small
+    three use four minutes, leaving mail 23 minutes and files the rest.
+  - `apps/worker/src/jobs/every-data-type-gets-a-turn.unit.test.ts`, 4 cases, the task body read
+    as text: it sorts with `passOrder`, asks `domainDeadline` once per type inside the loop, and
+    hands every one of the five branches its share and none of them the whole pass.
+- **The line for 0144** below, *"your calendars, contacts and files may not start until the
+  mail's first copy is done"*, is no longer true once this merges.
+
 **2026-09-27, late: T2a built (0131 §6, group M4, step 3)** on branch
 `claude/mailbox-sync-errors-c2xsw2-a-migration-past-the-cap`, not merged. The owner accepted T0's
 provisional numbers the same day (open question 1), five migrations per organisation among them.
@@ -340,7 +367,7 @@ unproved until then:
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27, not merged**: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
-| T5 Every data type of a migration gets a turn in a pass | 📋 **Decided 2026-09-27: (c)** (open question 3) — *was:* 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
+| T5 Every data type of a migration gets a turn in a pass | 🔨 **(c) built 2026-09-27, not merged**: small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
