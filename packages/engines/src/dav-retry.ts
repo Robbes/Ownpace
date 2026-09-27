@@ -22,8 +22,13 @@
  * 423 (WebDAV Locked) and 429 join 5xx: all three mean "come back", not "your
  * request is wrong". Everything else — 401, 403, 412, 415 — returns on the
  * first response, because retrying those only delays the answer. 412 in
- * particular is a create-only precondition doing its job and is a SUCCESS to
- * the caller, never something to repeat.
+ * particular is a create-only precondition doing its job, never something to
+ * repeat. It is not a success either: something is already at that href, and
+ * whose it is nothing in a 412 says. The writers ask the server, and adopt
+ * only what it names (workplan 0149 T1). That includes the one case this
+ * helper makes: a PUT that landed behind a 5xx, whose retry is then refused
+ * with 412. That copy is ours, but it is recorded as adopted, which errs on
+ * the safe side: it is never rewritten and never removed.
  */
 
 /** The minimum an HTTP response needs for a retry decision. */
