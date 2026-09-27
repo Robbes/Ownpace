@@ -31,6 +31,8 @@
  * "default to everything".
  */
 
+// The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
+import './refuse-internal-addresses.ts';
 import { schedules, configure } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import {
@@ -43,7 +45,7 @@ import {
 } from '@openmig/shared';
 import { A_PATH_KEPT_AFTER_A_CUTOVER_WHERE, CUTOVER_STILL_COPIES_WHERE, auditExportOn, pgDriver } from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { readOpenPause, BILLABLE_RUN_KINDS } from '@openmig/managed';
+import { readOpenPause, recordTickBeat, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
 import { enabledDomainsForMappings } from '@openmig/orchestration/enabled-domains';
 import {
@@ -292,6 +294,9 @@ export const managedSyncTick = schedules.task({
           `. ${stillRunning} pass(es) still in flight; the drain is done when that reaches 0.`,
         summary,
       );
+      // It ran, and held: a beat all the same (workplan 0142 T2). The hold is
+      // shown to testers on its own, with the operator's sentence.
+      await recordTickBeat(drizzle(pool), new Date());
       return summary;
     }
 
@@ -441,6 +446,11 @@ export const managedSyncTick = schedules.task({
       );
     }
     log.info('[sync-tick]', summary);
+    // The beat, at the END of a run that completed (workplan 0142 T2): one
+    // written first would say "ran" for a tick that then threw on its
+    // enumeration. A mapping that failed to enqueue is counted above, and does
+    // not stop it.
+    await recordTickBeat(drizzle(pool), new Date());
     return summary;
   },
 });

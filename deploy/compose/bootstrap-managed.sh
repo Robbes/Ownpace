@@ -947,6 +947,32 @@ phase_data() {
   fi
 }
 
+# admit_demo_hosts — the demo's connections name `nextcloud` and `stalwart`,
+# and the rule for a host a tenant gives us refuses both unless they are listed
+# in OWNPACE_REACHABLE_HOSTS (workplan 0136 T1, T2). A demo box is the one
+# place they belong, so this adds whichever is missing and keeps anything else
+# listed. Live never runs the demo phase, so its list stays as its operator
+# wrote it: empty.
+admit_demo_hosts() {
+  local list name missing=()
+  list="$(env_get OWNPACE_REACHABLE_HOSTS)"
+  for name in nextcloud stalwart; do
+    case ",${list// /,}," in
+      *",${name},"*) ;;
+      *) missing+=("$name") ;;
+    esac
+  done
+  if [ "${#missing[@]}" -eq 0 ]; then
+    note "OWNPACE_REACHABLE_HOSTS admits the demo's names: ${list}"
+    return 0
+  fi
+  local added
+  added="$(IFS=,; echo "${missing[*]}")"
+  list="${list:+${list},}${added}"
+  "${SCRIPT_DIR}/env-upsert.sh" "$ENV_FILE" "OWNPACE_REACHABLE_HOSTS=${list}"
+  note "OWNPACE_REACHABLE_HOSTS now admits the demo's names: ${list}"
+}
+
 # ---------------------------------------------------------------------------
 phase_demo() {
   if [ "$WITH_DEMO" -eq 0 ]; then
@@ -954,6 +980,10 @@ phase_demo() {
     return 0
   fi
   say demo "demo mail + DAV backends, and the two demo tenants"
+  load_env
+
+  # Before the api starts and before set-task-env.sh uploads, so both read it.
+  admit_demo_hosts
   load_env
 
   "${SCRIPT_DIR}/setup-managed-demo.sh"
@@ -1525,6 +1555,9 @@ phase_app() {
     "${COMPOSE[@]}" up -d --build --wait "${services[@]}" || explain_failure "${services[@]}"
   note "up and healthy: ${services[*]}"
   note "api: ${API_URL:-http://localhost:3001}   web: ${WEB_URL:-http://localhost:3123}"
+  # What the rule for a host a tenant gives us admits by name (workplan 0136
+  # T2): the demo's targets on the gate's stack, nothing on live.
+  note "hosts inside this network admitted by name (OWNPACE_REACHABLE_HOSTS): $(env_or OWNPACE_REACHABLE_HOSTS none)"
 }
 
 # ---------------------------------------------------------------------------

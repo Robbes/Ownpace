@@ -118,6 +118,12 @@ export const AUDIT_DETAIL_FIELDS = {
   // out as announced before (0128 T5, slice 6): product vocabulary and a count.
   subjects: 'keep',
   alreadyAnnounced: 'keep',
+  // An account closed (0139 T7 (a)): the window before the erasure, a number
+  // of days, and the tester's request the operator acted on, as the operator
+  // names it: a ticket or a date. An address inside it is replaced like any
+  // other.
+  windowDays: 'keep',
+  reference: 'keep',
   // Names and addresses.
   on: 'pseudonym',
   folder: 'pseudonym',

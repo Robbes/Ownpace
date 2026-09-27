@@ -40,6 +40,8 @@
  * Trigger: Manual (user-initiated)
  */
 
+// The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
+import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import { AbortTaskRunError, configure, schemaTask, logger } from '@trigger.dev/sdk';

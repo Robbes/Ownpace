@@ -8,6 +8,8 @@
  * Trigger: Scheduled (cron)
  */
 
+// The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
+import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
 import { Pool } from 'pg';

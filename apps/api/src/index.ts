@@ -55,6 +55,7 @@ import { problemReportRoutes } from './routes/problem-reports.ts';
 import { linkReportRoutes } from './routes/link-reports.ts';
 import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config-guards.ts';
+import { refuseInternalAddressesFromEnv } from '@openmig/shared/reachable-host';
 import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
@@ -314,6 +315,15 @@ if (process.env.NODE_ENV !== 'test') {
   // the erasure sentence name 7 days of backups whether or not any exist. A
   // warning in production; with OWNPACE_STAGE=alpha, a refusal to start.
   assertBackupRetentionConfig((m) => log.warn(m));
+  // The rule for a host a tenant gives us (workplan 0136 T1, T2): a connection
+  // to an address inside this service's own network is refused, in every
+  // managed process, but for the names OWNPACE_REACHABLE_HOSTS admits (the demo
+  // targets on the gate's stack). A list it cannot read stops the start here,
+  // naming the entry. The appliance never calls this.
+  const reachable = refuseInternalAddressesFromEnv();
+  log.info(
+    `[api] refusing hosts inside this service's network; admitted by name: ${reachable.admitted.join(', ') || 'none'}`,
+  );
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

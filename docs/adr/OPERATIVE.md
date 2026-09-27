@@ -255,7 +255,7 @@ live in [README.md](./README.md), the register.
 
 - The ledger is a **rebuildable cache + audit log**, never the source of truth for existence — that fact lives on the target via natural keys.
 - Writes are **create-if-absent by natural key** (target existence check beside the ledger fast-path); an empty ledger can never duplicate.
-- **Reindex/adopt** rehydrates the ledger from the target; auto-runs when the ledger is empty but the target is not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
+- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both editions (`reindex --tenant <t> --mapping <m> --yes`), run by hand, and nothing runs it automatically: the appliance warns at start-up when an active migration's ledger is empty, and the managed edition does not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
 
 ## [ADR-0021: Optional knowledge-enrichment add-in (OKF) — a parallel, opt-in `KnowledgeSink`](./0021-knowledge-enrichment-okf-addin.md)
 

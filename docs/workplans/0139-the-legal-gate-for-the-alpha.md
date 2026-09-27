@@ -26,6 +26,66 @@ docs index lists the page. No code, so no guard, as §3 says.
   owner keeps outside this repository (T8's other two parts). T9 waits on open question 5 (the
   channel) and on the owner's response target and supported versions.
 
+**2026-09-27: T7 (a) built (0131 §6, group M3, step 3)** on branch
+`claude/mailbox-sync-errors-c2xsw2-an-account-a-tester-can-end`, merged as #1237. A tester who asks the
+owner to end their account can now have it ended. The Close button needs the organisation's own
+owner signed in, and the owner is not.
+
+- **One function, two doors.** The Close button and `operator.sh close` both call `closeAccount`
+  (`apps/api/src/close-account.ts`):
+  - in one transaction, in the organisation's context: the kinds it connected, `closeTenant`, an
+    audit row, and the passes in flight;
+  - after the commit, the orchestrator asked to stop each of those passes;
+  - then the dates and the sentences, in both languages.
+- **`operator.sh close <tenant-id> <window-days> --by <subject> --reference <request>`**
+  (`apps/api/src/scripts/operator-close.ts`):
+  - the window is one of `CLOSE_WINDOWS_DAYS`;
+  - `--by` must be an appointed operator's subject;
+  - `--reference` names the tester's request.
+
+  It prints what to tell the tester.
+- **The audit row** is `tenant.closed`. It names the actor (the owner at the button, the operator
+  at the machine), `via` (`screen` or `operator`), the window, and the operator's reference.
+  `tenant_closure.closed_by` names the operator. The audit export keeps `windowDays` and
+  `reference` (`AUDIT_DETAIL_FIELDS`).
+- **Found and fixed: on managed, a close never stopped a pass in flight.** 0085 T8's
+  `stopPassesInFlight` read `run` on the API's pool, as `app_user`, with no organisation set. `run`
+  is under FORCE ROW LEVEL SECURITY, so that read saw no rows, or failed on the emptied setting and
+  logged a warning. Either way the orchestrator was asked to stop nothing, and the purge's quiesce
+  was the only backstop. The read is now in the organisation's own transaction.
+- **The runbook's Tenant offboarding** says how to close a tester's account at the machine. It also
+  gains the identity provider's account after the purge, removed by hand in the console until
+  0135 T8's script exists.
+- **Proved.** `apps/api/src/scripts/an-account-a-tester-can-end.unit.test.ts`, 16 cases, against
+  PGlite. The button runs as `app_user` through the real route, and the command over the owner
+  connection:
+  - for the same organisation, window and moment, the command answers what the button answers;
+  - the printed lines carry both dates and both languages;
+  - the audit rows name the operator and the reference, or the owner and `screen`;
+  - refusals: a window outside the list, or not a number; no subject; no reference; a flag
+    without its value; something that is not a tenant id; an option it does not have;
+  - a subject that is not an appointed operator's writes nothing, and an organisation that is not
+    there says so;
+  - the passes in flight:
+    - each door stops its own organisation's pass and no other's;
+    - as `app_user` with no organisation set, a read of `run` finds none, which is why the old
+      close stopped none;
+    - an orchestrator that does not answer never fails the close.
+  - **Mutations:** 18, all killed:
+    - the passes in flight: never asked to stop; one the orchestrator never took asked; every
+      organisation's read; a queued one skipped; a finished one asked; an orchestrator that does
+      not answer failing the close;
+    - the audit row: missing, without the reference, or always `screen`;
+    - the command: closing under another name, without the operator check, at any window, without
+      a reference, with another retention or at another moment; the printout in English only;
+    - the button: closing under nobody's name, or never asking the orchestrator.
+- **Not in this change:** the self-serve screen (0144, W14 in 0131 §5), and 0135 T8's script.
+
+**2026-09-27: T6's migration-delete revocation built** (0131 §6, group M3, step 1), merged as
+#1229. §1 found that deleting a migration dropped our copy of the credential its own row holds
+and revoked nothing. That credential is `source_secret_ref`, the token a person granted through a
+grant link.
+
 **2026-09-27: T6's task runner's stores checked (0131 §6, group M3, step 4)**, with 0134 T1 (c), on
 branch `claude/mailbox-sync-errors-c2xsw2-what-the-task-runner-keeps`, not merged. The full finding
 is in 0134's Status block. In short:
@@ -101,8 +161,8 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, on branch `claude/mailbox-sync-errors-c2xsw2-a-deleted-migration-revokes-its-grant`, not merged; the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
-| T7 A tester can end their account | 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27, not merged**: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
