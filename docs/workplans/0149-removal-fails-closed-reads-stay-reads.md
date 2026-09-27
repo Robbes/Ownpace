@@ -4,6 +4,32 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T5 built (0131 §6, group M1, step 4), beside T1 to T4 and in its own pull
+request.** Built as §3 has it. The row said *Proposed*; 0131 §6 puts it in M1 and its alpha gate
+lists T1 to T5, so it is built with them.
+
+- **The IMAP source opens every mailbox read-only.** `{ readOnly: true }` is on the INBOX
+  fallback's `mailboxOpen` and on the three `getMailboxLock` calls (measuring, listing,
+  fetching), so imapflow sends EXAMINE. The server then refuses STORE and EXPUNGE, a CLOSE removes
+  nothing, `\Recent` stays, and a fetch that forgot PEEK still sets no `\Seen`. EXAMINE answers
+  with the same UIDVALIDITY, UIDNEXT and count, so nothing is read differently.
+- **Guards.** `imapflow-source.unit.test.ts`'s fake records every open's options, and a case
+  drives all four opens and finds each read-only; it fails on `main`.
+  `scripts/a-source-that-only-reads.unit.test.ts` finds every class in `packages/connectors/src`
+  that implements a source port (fifteen today) and reads it, with the Drive and archive
+  transports, for the checks §3 lists: no HTTP method but GET, HEAD, PROPFIND, REPORT and OPTIONS,
+  Dropbox's POSTs only to the read RPCs and the content download, none of imapflow's fourteen
+  mutators (checked against imapflow's own typings), and every open read-only. Its last check
+  fails on `main`.
+- **Proved.** The two read-only checks fail on `main` and pass here; the guard's other checks pass
+  on both, holding the line the review counted by hand. **Mutations:** 11, all killed: each of the
+  four opens without `readOnly`, a flag written from the fetch, and a write planted in a source
+  of each kind (a WebDAV DELETE, a Graph POST, an MKCOL in the archive store, a PATCH in the Drive
+  transport, a Dropbox RPC that deletes and a Dropbox POST that uploads).
+- **Not run here:** the Stalwart integration (`shadow-pass.integration.test.ts` reads a real
+  Stalwart through `ImapFlowSource` in CI's integration job), and Gmail, which is the owner's
+  pass under 0141 T1. This plan does not claim how Gmail answers EXAMINE.
+
 **2026-09-27: T1 and T2 built, in one pull request (0131 §6, group M1, step 1).** T3, T4 and
 T5 are next in the group, in its order.
 
@@ -81,7 +107,7 @@ OTA stack and the appliances.
 | T2 A lookup that fails is not an absence | ✅ **Built 2026-09-27** (D1), with T1 | §3. The per-item CalDAV REPORT, CardDAV REPORT and WebDAV PROPFIND answer 207 or 404, or they throw (hard rule 9). They go through the retry helper, as the writes do. Guard: `an-absence-that-was-a-failure.unit.test.ts`. **Alpha minimum.** |
 | T3 Removal and rewrite carry the version, and removal refuses without one | 📋 **Decided** (D1 for removal, D3 for a rewrite) | §3. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
 | T4 The cutover gate holds when nothing was compared | 📋 **Decided** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. **Alpha minimum.** |
-| T5 The IMAP source opens folders read-only, and no source can write | 📋 **Proposed** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
+| T5 The IMAP source opens folders read-only, and no source can write | ✅ **Built 2026-09-27** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
 | T6 The words become true | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` and 0144 T4 and T5 once T1 to T3 have landed. This is coordination with 0144, which owns the wording. **After** T3. |
 | T7 Ledgers written before the fix | 📋 **Proposed** | §3. A row recorded `copied` after a 412 cannot be told apart from other rows without a version. The rule is T3's, with D3: no recorded version, no removal, and a source change rewrites the row. `ownpace-live` has none of these rows if the alpha tag carries T1. **After**, for the OTA stack and the appliances. |
 
