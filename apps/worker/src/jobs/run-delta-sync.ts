@@ -458,7 +458,8 @@ export const runDeltaSync = schemaTask({
             deadlinePause?: DeadlinePause;
           };
           if (domain === 'email') {
-            // SECURITY: Build deps with tenant scoping (RLS enforced).
+            // SECURITY: Build deps with tenant scoping: the builder's queries filter by tenant.
+            // Row security does not bind this pool, the owner's (workplan 0138).
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
               const pass = await runShadowPass({
