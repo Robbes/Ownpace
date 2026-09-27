@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { authenticate, getDbPool, withTenantDb } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
-import { activateAddedPath, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
+import { activateAddedPath, endOrKeepDataType, movePathsWithMapping, stopOrResumeDataType } from './path-lifecycle-wiring.ts';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import {
@@ -21,9 +21,13 @@ import {
   RunStore,
   CutoverStore,
   PATH_ADDED_ACTION,
+  pathEndingChoices,
+  pathEndingRefusalReason,
   pathStopRefusalReason,
+  type PathEnding,
   readPathStopFacts,
   pathStopChoices,
+  readGraceEnds,
 } from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
@@ -2490,7 +2494,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts } =
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts, graceEnds } =
       await withTenantDb(
       tenantId,
       pool,
@@ -2514,6 +2518,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             domainStatus: [],
             failures: [],
             stopFacts: undefined,
+            graceEnds: undefined,
           };
         }
 
@@ -2535,7 +2540,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts] =
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts, graceEnds] =
           await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
@@ -2561,6 +2566,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // What the stop door would accept for each data type (0128 T4,
           // slice 3c), read the way the door reads it.
           readPathStopFacts(db, tenantId, mappingId),
+          // When each grace period ended, for the Finish page (0128 D7, T5
+          // slice 7c).
+          readGraceEnds(db, tenantId, mappingId),
         ]);
 
         return {
@@ -2572,6 +2580,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           failures,
           adopted,
           stopFacts,
+          graceEnds,
         };
       },
     );
@@ -2677,8 +2686,11 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       ),
       // Each data type's stop, as the page offers it (0128 T4, slice 3c): the
       // page offers exactly the press `…/stop` or `…/resume` accepts, because
-      // both ask `decidePathStop`.
-      ...(stopFacts === undefined ? {} : { stopChoices: pathStopChoices(stopFacts) }),
+      // both ask `decidePathStop`. Its ending likewise, as the Finish page
+      // offers it (T5, slice 7b), by `decidePathEnding`.
+      ...(stopFacts === undefined
+        ? {}
+        : { stopChoices: pathStopChoices(stopFacts), endingChoices: pathEndingChoices(stopFacts, graceEnds) }),
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,
@@ -3766,5 +3778,69 @@ function stopOrResumeRoute(stop: boolean) {
 
 router.post('/:mappingId/domains/:domain/stop', authenticate, stopOrResumeRoute(true));
 router.post('/:mappingId/domains/:domain/resume', authenticate, stopOrResumeRoute(false));
+
+/**
+ * POST /api/migrations/:mappingId/domains/:domain/end and …/keep — END OR KEEP
+ * ONE DATA TYPE where its migration ends (workplan 0128 T3, T5 slice 7; the
+ * owner's D3 and D8).
+ *
+ * End makes it `done`: its passes stop, its slot is let go, and what is copied
+ * stays. Its own failures still waiting on a decision refuse it unless the
+ * press is forced (`?force=true`), as they refuse the whole migration's
+ * Finish. Keep copying puts it in the continuous lane, holding a slot; from
+ * before its cutover it is recorded as the cutover and then the lane (D3). The
+ * migration's status is then its paths' roll-up: with every data type ended,
+ * it is `done`. The ledger's own door (`endOrKeepPath`) checks, writes and
+ * records in this one transaction, and a slot taken raises the month's peak.
+ */
+function endOrKeepRoute(ending: PathEnding) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { mappingId, domain: rawDomain } = req.params;
+      const tenantId = req.tenantId;
+      if (!mappingId || Array.isArray(mappingId)) return void res.status(400).json({ error: 'mappingId is required' });
+      if (!tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+      const parsed = z.enum(DISCOVERY_DOMAINS).safeParse(rawDomain);
+      if (!parsed.success) {
+        const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+        return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
+      }
+      const domain = parsed.data;
+      const force = String(req.query.force) === 'true';
+
+      const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+        const failures =
+          ending === 'end' ? await new PgLedger(db).listFailures(asTenantId(tenantId), asMappingId(mappingId), domain) : [];
+        return endOrKeepDataType(db, tenantId, {
+          mappingId,
+          domain,
+          ending,
+          actor: req.userId ?? 'unknown',
+          force,
+          unresolvedFailures: failures.filter((f) => f.needsDecision).length,
+        });
+      });
+      if ('refused' in outcome) {
+        if (outcome.refused === 'not_found') {
+          return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        }
+        const reason = pathEndingRefusalReason(outcome, domain);
+        return void res.status(409).json({
+          error: `${ending}_refused`,
+          ...outcome,
+          message: reason,
+          reason,
+          ...(outcome.refused === 'unresolved_failures' ? { forceable: true } : {}),
+        });
+      }
+      res.json({ id: mappingId, domain, ending, ...outcome });
+    } catch (error) {
+      serverFault(res, `${ending}_domain_failed`, `${ending === 'end' ? 'ending' : 'keeping'} a data type`, error);
+    }
+  };
+}
+
+router.post('/:mappingId/domains/:domain/end', authenticate, endOrKeepRoute('end'));
+router.post('/:mappingId/domains/:domain/keep', authenticate, endOrKeepRoute('keep'));
 
 export default router;

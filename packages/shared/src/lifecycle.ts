@@ -169,6 +169,31 @@ export function cutoverStillCopiesAt(window: CutoverWindow | undefined, now: Dat
 }
 
 /**
+ * When a cutover's grace period ended, or null while it has not, or never
+ * began (workplan 0128 D7: the owner is told when a grace period ends and
+ * nobody chose). In `GRACE_PERIOD` it ended once its hours from the start
+ * have passed; in `COMPLETED` it ended when it was closed, or, where no close
+ * was recorded, when the row last changed state, which was its close. Every
+ * other state has no grace period to have ended: not yet executed, still
+ * executing, rolled back or failed.
+ *
+ * Asked whether the migration was copying or not: one paused at execute did
+ * not copy through its grace period, and its owner still has a choice to make
+ * once it is over.
+ */
+export function cutoverGraceEndedAt(
+  window: CutoverWindow & { readonly completedAt?: Date | null },
+  now: Date = new Date(),
+): Date | null {
+  const ranOut = window.graceStartedAt
+    ? new Date(window.graceStartedAt.getTime() + window.graceHours * 3_600_000)
+    : null;
+  if (window.state === 'GRACE_PERIOD') return ranOut !== null && now.getTime() >= ranOut.getTime() ? ranOut : null;
+  if (window.state === 'COMPLETED') return window.completedAt ?? window.enteredAt;
+  return null;
+}
+
+/**
  * The same two, as a value, for the query that cannot call a function.
  *
  * `managed-sync-tick.ts` selects the mappings a tick considers in SQL, and SQL

@@ -4,10 +4,11 @@
  * THE CONTINUOUS LANE ON THE APPLIANCE (workplan 0128 D4 (a)), on the
  * real appliance on PGlite.
  *
- * The Finish page's *Keep copying* sends `PUT /mappings/{id}` with
+ * The Finish page's *Keep copying* sent `PUT /mappings/{id}` with
  * `{"status": "continuous"}` to both editions, and the appliance answered it
  * 404: the owner's D4 said the appliance gets the same choice, and it had no
- * door for it. Now it has one, decided by the rule managed's update door asks
+ * door for it. (Since 0128 T5 slice 7b the page keeps each data type through
+ * its own door; this one stays the whole migration's, for a caller of the API.) Now it has one, decided by the rule managed's update door asks
  * and written through the ledger's own door, entering the lane and nothing
  * else. Ending the lane is Finish's own door, as on managed.
  *
@@ -146,7 +147,12 @@ describe('the continuous lane on the appliance', () => {
       // Finished first, so nothing is scheduled: the lane is entered from
       // `done` as well as from `cutover` (D3: Keep beside End), and entering
       // it must start the passes it runs.
-      expect((await fetch(`${booted.base}/mappings/${MAPPING}/finish`, { method: 'POST' })).status).toBe(200);
+      const finished = await fetch(`${booted.base}/mappings/${MAPPING}/finish`, { method: 'POST' });
+      expect(finished.status).toBe(200);
+      // The way back into copying is Keep copying per data type (0128 T5, slice 7b).
+      expect(((await finished.json()) as { ifYouNeedToResume?: string }).ifYouNeedToResume).toMatch(
+        /^To copy again, keep a data type copying on the Finish page/,
+      );
       const lines: string[] = [];
       const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
         lines.push(args.map(String).join(' '));

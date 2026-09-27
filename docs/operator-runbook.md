@@ -1105,16 +1105,19 @@ The response then reports `leftUnmigrated`, so the choice is on the record.
 Finishing is idempotent — a second call says `alreadyDone` rather than pretending
 to do work. Afterwards the decision queues still return what was outstanding when
 the migration ended, marked `reportingClosed`: kept as a record, no longer a list
-of things to do. To resume, set `mailbox_mapping.status` back to `active` and
-restart the appliance; to retire the mapping for good, remove it from the config
-directory.
+of things to do. To copy again, keep a data type copying on the Finish screen
+(`POST /mappings/{id}/domains/{kind}/keep`): it runs in the continuous lane, where
+deletions at the old provider are no longer mirrored. To take the migration back
+before its cutover, set `mailbox_mapping.status` back to `active` and restart the
+appliance; to retire the mapping for good, remove it from the config directory.
 
 **Keeping copying after the cutover** (workplan 0128 D4). A migration past its
-cutover (`cutover` or `done`) can go on copying in the continuous lane:
-`PUT /mappings/{id}` with `{"status": "continuous"}`, which is what the Finish
-screen's *Keep copying* sends. Deletions at the old provider are no longer
-mirrored there, and the appliance bills nothing for it. The door takes a status
-and nothing else, and enters the lane only:
+cutover (`cutover` or `done`) can go on copying in the continuous lane, all of
+it: `PUT /mappings/{id}` with `{"status": "continuous"}`. Deletions at the old
+provider are no longer mirrored there, and the appliance bills nothing for it.
+The Finish screen keeps each data type on its own instead (see *Ending or
+keeping one data type* below). The door takes a status and nothing else, and
+enters the lane only:
 
 - before a cutover it answers 409 `before_cutover`: the source is still the
   authority there;
@@ -1122,8 +1125,9 @@ and nothing else, and enters the lane only:
   cutover each have their own.
 
 The move is recorded as the operator's. The lane is ended by Finish
-(`POST /mappings/{id}/finish`), which the Finish screen offers beside *Still
-copying*; open failures refuse it unless you force it, as they refuse a finish.
+(`POST /mappings/{id}/finish`), all of it; open failures refuse it unless you
+force it, as they refuse a finish. The Finish screen ends each data type on its
+own.
 
 **A note on the pass in step 3.** `POST /mappings/{id}/run` runs a pass and
 answers when it has finished — useful any time, not just at cutover (after fixing
@@ -1169,6 +1173,39 @@ type stopped this way with `stoppedByOwner: true` beside `stopped`. One the
 file switched off has no such mark, and the page says *switched off* for it.
 
 Each stop and resume is in the audit log as `path.status`, with who pressed it.
+
+**Ending or keeping one data type** (workplan 0128 T3). Where a migration ends,
+each data type can be ended or kept copying on its own:
+`POST /mappings/{id}/domains/{kind}/end` makes it `done` (its passes stop, and
+what is copied stays), and `…/keep` puts it in the continuous lane, where
+deletions at the old provider are no longer mirrored. The managed edition has
+the same pair under `/api/migrations/{id}/domains/{kind}/`. From before its
+cutover either press is its cutover too, so move mail delivery first (step 4
+above). The migration follows its data types:
+
+- with every data type ended it is `done`: the appliance stops scheduling it
+  and says so once, as `finish` does, and a data type kept later brings the
+  schedule back;
+- End refuses while that data type's own items are awaiting a decision, as
+  `finish` does, unless you add `?force=true`; the record then says it was
+  forced;
+- a stopped data type cannot be kept (resume it first), but it can be ended,
+  which clears the stop.
+
+Each move is in the audit log as `path.phase`, with who pressed it, and the
+migration's as `mapping.status` when it moved.
+
+The Finish screen offers the same pair beside each data type (workplan 0128 T5,
+slice 7b): in its last step while the migration is before or in its cutover,
+where step 4, moving mail delivery, is asked for mail only and only mail's
+buttons wait for it; and in *Each data type* once it is `done` or `continuous`.
+`/status` carries what it offers, as each mapping's `endings`: every data type
+with its phase and the presses the door accepts now.
+
+A data type still in its cutover when its grace period ended stopped copying
+then, and waits on its owner (workplan 0128 D7). Its line on the Finish screen
+says when it ended (`graceEndedAt` on its `endings` row), and the digest names
+it until it is ended or kept copying.
 
 ## Health & troubleshooting
 

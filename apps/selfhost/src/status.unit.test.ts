@@ -83,6 +83,17 @@ describe('buildStatusReport', () => {
     expect('stops' in without.mappings[0]!).toBe(false);
   });
 
+  it('carries each ending as the Finish page offers it, and none from a caller that read none (0128 T5, slice 7b)', () => {
+    const endings = [
+      { domain: 'email' as const, phase: 'done', stopped: false, offers: ['keep' as const] },
+      { domain: 'file' as const, phase: 'continuous', stopped: false, offers: ['end' as const] },
+    ];
+    const report = buildStatusReport([{ mappingId: 'm', migrationStatus: 'continuous', statuses: [], endings }]);
+    expect(report.mappings[0]!.endings).toEqual(endings);
+    const without = buildStatusReport([{ mappingId: 'm', migrationStatus: 'continuous', statuses: [] }]);
+    expect('endings' in without.mappings[0]!).toBe(false);
+  });
+
   it('omits lastError/lastSyncedAt when absent', () => {
     const report = buildStatusReport([{ mappingId: 'm', migrationStatus: 'paused', statuses: [status({ state: 'pending' })] }]);
     const d = report.mappings[0]!.domains[0]!;
