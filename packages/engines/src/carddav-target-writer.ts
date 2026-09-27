@@ -274,8 +274,10 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
     // Upload the contact to the address book
     const written = await this.uploadContact(folderId, raw, uid);
-    // The book held this UID after all, under a different href. Nothing was
-    // written, so none of the create-path recording below is true of it.
+    // The book held this UID after all. The server said so by refusing the
+    // create, on the href (412) or on the UID, and named the card when asked.
+    // Nothing was written, so none of the create-path recording below is true
+    // of it.
     if (written.alreadyHeld) {
       (await this.keysIn(folderId))?.set(naturalKey, written.path);
       return adopt(written.path);
@@ -364,7 +366,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
   /**
    * Find a contact by its natural key (UID).
-   * Returns the contact ID if found, undefined otherwise.
+   * Returns the contact ID if found, undefined when the server says it is not
+   * there, and throws when the server gave no answer (workplan 0149 T2).
    *
    * THE FALLBACK PATH, AND IT SPOKE CALDAV. `keysIn` answers this for the
    * whole address book in one REPORT and this runs only where that could not
@@ -403,7 +406,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         ${carddavUidFilter(naturalKey, 'C')}
       </C:addressbook-query>`;
 
-    const response = await this.httpClient.request({
+    // Retried as the writes are (workplan 0149 T2).
+    const response = await this.requestWithRetry({
       method: 'REPORT',
       url: this.buildUrl(folderId),
       body: query,
@@ -423,7 +427,16 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       return href === undefined ? undefined : targetIdRelativeTo(href, this.buildUrl(''));
     }
 
-    return undefined;
+    // 404: the address book is gone, and so is anything that was in it.
+    if (response.status === 404) return undefined;
+
+    // Any other answer is no answer: see the same throw in
+    // caldav-target-writer.ts (workplan 0149 T2, hard rule 9).
+    throw new Error(
+      `addressbook-query REPORT by UID on ${folderId} failed; refusing to treat this as "not ` +
+        'present", because a write or an adoption would then rest on an answer the server never ' +
+        `gave. Cause: status ${response.status}: ${davRefusalBody(response.body)}`,
+    );
   }
 
   /**
@@ -734,17 +747,22 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // Create-only, atomically, UNLESS this is a deliberate rewrite. See
         // the same header in caldav-target-writer.ts: sending the precondition
         // on the update path made the server refuse with 412, which this
-        // method reports as success — a rewrite that silently did nothing
-        // while the pass counted it as updated.
+        // method then reported as success — a rewrite that silently did
+        // nothing while the pass counted it as updated.
         ...(overwrite ? {} : { 'If-None-Match': '*' }),
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
 
-    // 412: something is already there. Not an error — the snapshot was merely
-    // stale, and the resource is exactly what we would have written. On the
-    // overwrite path it means the server refused to replace, which must not be
-    // reported as a successful rewrite.
+    // 412: SOMETHING IS ALREADY AT THIS HREF, AND IT IS NOT OURS (workplan
+    // 0149 T1). See the same branch in caldav-target-writer.ts: this returned
+    // the bare path, and the card the book already had was recorded as one we
+    // wrote, for a source change to overwrite and *apply deletions* to remove.
+    // The book is asked who holds this UID; a card it names is adopted, and
+    // with none named the href holds somebody else's card and the item fails.
+    //
+    // On the overwrite path it means the server refused to replace, which must
+    // not be reported as a successful rewrite.
     if (response.status === 412) {
       if (overwrite) {
         throw new Error(
@@ -752,8 +770,16 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
             'The item was NOT replaced.',
         );
       }
-      // Something was already there, so its version is not ours to claim.
-      return { path: contactPath };
+      const held = await this.findContactByNaturalKey(folderId, uid);
+      if (held !== undefined) return { path: held, alreadyHeld: true };
+      throw withFailureCategory(
+        'target_refused',
+        new Error(
+          `PUT for ${contactPath} was refused with 412: the target already holds something at ` +
+            `that address, and no card in ${folderId} carries this contact's UID, so what is ` +
+            'there is somebody else. Nothing was written, and nothing was recorded.',
+        ),
+      );
     }
 
     if (response.status !== 201 && response.status !== 204) {
