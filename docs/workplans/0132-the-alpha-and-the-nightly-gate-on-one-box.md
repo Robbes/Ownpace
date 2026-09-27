@@ -60,20 +60,25 @@ only `tasks.trigger(` in `apps/api/src`. The eight doors go through it: `/sync`,
 `/confirm` in `operating-routes.ts`. Each door asks after its own refusals, which still stand once
 the hold is lifted. The four that write before they enqueue (*Start*'s activation, the
 verification's row, each apply's receipt and its audit row) ask before the first write, so a held
-press changes nothing. A press that only joins work already under way enqueues nothing and is not
-asked. A hold that cannot be read answers 500, never "no hold" (hard rule 9). When the operator
-typed no sentence, the door says an English default, as this API's other refusals are in English;
-the banner keeps its own default in the reader's language. The OpenAPI spec documents the 409 at
-all eight doors.
+press changes nothing. A press the route itself joins to work already under way enqueues nothing
+and is not asked: a second *Start* on an active migration, a running verification, an apply whose
+receipt is still queued, a running confirmation. Discovery's join is Trigger.dev's idempotency
+key, decided inside the enqueue, so while a hold is open a discovery press is refused even when it
+would only have joined a count begun in the last 15 minutes. A hold that cannot be read answers
+500, never "no hold" (hard rule 9). When the operator typed no sentence, the door says an English
+default, as this API's other refusals are in English; the banner keeps its own default in the
+reader's language. The OpenAPI spec documents the 409 at all eight doors.
 
-*The guard*, `apps/api/src/a-hold-that-holds-every-door.unit.test.ts`, 30 cases. The sweep: the one
-enqueue call is in the function; no other file reaches `getTriggerClient().tasks` or `.batch`, or
-imports the SDK; the function reads the hold before it hands back the enqueue; the doors that call
-it are counted, four in each router, against the table of doors. The doors, over PGlite with both
+*The guard*, `apps/api/src/a-hold-that-holds-every-door.unit.test.ts`, 38 cases since the review
+fixes below (30 at first). The sweep: the one enqueue call is in the function; no other file
+reaches `getTriggerClient().tasks` or `.batch`, or imports the SDK; the function reads the hold
+before it hands back the enqueue; the doors that call it are counted, four in each router, against
+the table of doors. The doors, over PGlite with both
 migration chains: with a Dutch sentence open, each of the eight answers 409 with that sentence,
 enqueues nothing, and the four that write wrote nothing; a hold with no sentence answers the
 default; a hold that cannot be read answers 500 and enqueues nothing; with no hold, each press
-enqueues its task once. The spec: each door's 409 names `PlatformHeld`. On `origin/main`, 14 of the
+enqueues its task once. The spec: each door's 409 names `PlatformHeld` (and, since the review
+fixes, the body each held door sends is valid against it). On `origin/main`, 14 of the
 first 22 cases failed: the four sweep cases, the eight held doors, the default and the unreadable
 hold. The eight presses with no hold passed, which shows the harness reaches every door. The eight
 spec cases, added after, fail against `origin/main`'s spec. Mutations, each red: the confirmation
@@ -86,9 +91,9 @@ Also in the change: four unit tests that press these doors over PGlite now apply
 too, because the hold is a managed table. Two source-reading guards follow the call's new name
 (`the-press-that-answered-202-to-a-closed-ledger.unit.test.ts`,
 `scripts/a-verify-that-measured-a-race.unit.test.ts`). The bring-up's *Draining first* says what
-the hold now refuses. 0131 §1 and its option (a), 0139's containment step, 0142's incident step 3
-and 0143's line on the enqueue sites said a pass started by hand is not held, and now say it is
-refused.
+the hold now refuses. 0131 §1 and its option (a), 0139's containment step, 0142 §1 and its
+incident step 3, and 0143's line on the enqueue sites said a pass started by hand is not held, and
+now say it is refused.
 
 *Departures from §3.* Two additions to *"the eight enqueue sites answer 409 with the hold's
 sentence"*: a door's own refusals come first, and a door that writes asks before it writes. The
@@ -105,10 +110,43 @@ spec is held by the guard too.
   they should is T6's procedure to decide (this plan).
 - A cutover that was already running when the hold began still enqueues its final pass
   (`triggerAndWait` in `run-cutover.ts`). That is work in flight, which a drain lets finish.
-- The web. A screen shows the 409's sentence where it shows the server's message (*Sync now* on the
-  migrations list does). The wizard's *Start* shows the transport's message instead of the body
-  (`ConfirmMigration.tsx`), and its preflight count ignores a refused `discover`; the banner above
-  every screen still carries the sentence. For whoever next works on those screens.
+- The web. Every screen that presses a door shows the 409's sentence, the wizard's *Start*
+  included since the review fixes below. The count the wizard's confirm screen starts by itself
+  (`ConfirmMigration.tsx`) ignores a refused `discover` and says nothing; the banner above every
+  screen carries the sentence. The banner's own line under it (`pause.hold.why`) says new copying
+  starts again by itself, which is true of scheduled passes and not of a refused press, and the
+  support screen's hint does not tell the operator that the sentence also answers the buttons.
+  For whoever next works on those screens; no plan names them yet.
+
+**2026-09-27, later: review fixes to T6 (b), on the same branch.** Five findings, all taken.
+- *The spec.* `/start` and `/sync` documented the 409 as `oneOf: [Error, PlatformHeld]`. `Error`
+  pins no value of `error`, so a held body matched both branches, and `oneOf`, which wants exactly
+  one, refused the answer the door gives. Both are `anyOf` now. The guard's spec cases pressed
+  nothing and only looked for the word `PlatformHeld`; each now presses its door with a hold open
+  and checks the body against the door's 409, with a small checker of the spec's own words (`ajv`
+  is not a dependency of `apps/api`) and two cases proving the checker keeps `oneOf` to one branch.
+  Before the fix, 2 of the 8 failed, `/sync` and `/start`. Mutations, each red: `PlatformHeld`'s
+  `error` pinned to another value (6 doors and both checker cases), the checker's `oneOf` taking any
+  branch (1).
+- *The joins.* The rule "a press that only joins work already under way is not asked" was untrue
+  for discovery, whose join is Trigger.dev's, inside the enqueue. The module comment and the entry
+  above now name the doors whose join the route decides, and say discovery is refused. Six new
+  cases hold it: with a hold open, the five presses the route joins (a second *Start*, a running
+  verification, a queued receipt for each apply, a running confirmation) answer 200 as before and
+  enqueue nothing, and discovery answers 409. They passed on the branch as it was, since only the prose was wrong.
+  Mutation, red: *Start* asking the hold on a migration already active (1).
+- *The wizard's Start.* It showed axios's *Request failed with status code 409*. It now shows the
+  body through `serverMessage`, as the other screens do, which also gives `awaiting_grant` and
+  `grant_withdrawn` their sentences there. Guard: a new case in `ConfirmMigration.unit.test.tsx`,
+  red before the fix (it read *Could not start it: Request failed with status code 409*).
+- *What the operator writes.* The operator's sentence replaces the door's default, which said that
+  nothing was started and to try again. A refused press is not remembered: a *Start* refused before
+  activation leaves the migration unstarted, and a refused verification, confirmation or apply is
+  never queued. So T6 step 2 and the bring-up's *Draining first* now ask for a sentence that says
+  nothing starts until the hold is lifted and to press again after, with a Dutch example, and the
+  bring-up no longer says nothing is owed a retry.
+- *0142 §1* still said a pass started by hand is not held. It keeps that as history and adds that
+  it is refused since T6 (b).
 
 | Task | Status | Notes |
 |---|---|---|
@@ -1166,8 +1204,12 @@ document is changed to mark staged rollout and a backup before migrating as not 
 
 1. Name the tag: a tag on `main` (0146) whose commit the nightly gate ran green on the OTA stack.
    0131 T5 asks for N green scheduled runs of the deployed commit. Record the tag and its hash.
-2. Start the hold on live, with a sentence in Dutch (D6). Testers read it word for word, on the
-   banner and on every button that would start work, which the hold now refuses (T6 (b)).
+2. Start the hold on live, with a sentence in Dutch (D6). Testers read it word for word on the
+   banner, and as the answer to every button that would start work, which the hold now refuses
+   (T6 (b)). The count the wizard's confirm screen starts by itself is refused without a word (see
+   the Status block). A refused press is not remembered, so the sentence says when copying resumes,
+   that nothing starts until then, and to try again after, for example *"We werken het platform
+   bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw."*
 3. Wait for the drain. The tick's log says `N pass(es) still in flight`; wait until N is 0.
 4. If the owner wants a way back, dump live's application database now, and keep the dump until
    the next deploy (open question 4). The runbook's *Backup & restore* recipe dumps it, and since

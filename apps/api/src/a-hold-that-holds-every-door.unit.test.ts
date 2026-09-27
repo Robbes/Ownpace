@@ -29,7 +29,19 @@
  *     A hold with no sentence still says one, and a hold that could not be
  *     read fails the press rather than letting it through (hard rule 9).
  *  3. **The spec.** Each door's entry in `apps/api/docs/openapi.yaml`
- *     documents the 409, so a client knows `platform_held` exists.
+ *     names `PlatformHeld`, so a client knows `platform_held` exists, and the
+ *     body the held door actually sends is valid against that entry. Naming
+ *     it was not enough: `/start` and `/sync` first documented the 409 as
+ *     `oneOf: [Error, PlatformHeld]`, and a held body is an `Error` too
+ *     (`Error` pins no value of `error`), so it matched both branches and
+ *     `oneOf`, which wants exactly one, refused the answer the door gives.
+ *  4. **The joins.** A press the route itself answers by joining work
+ *     already under way enqueues nothing, and is answered as before while a
+ *     hold is open: *Start* on an active migration, a running verification, a
+ *     queued receipt, a running confirmation. Discovery's join is not the
+ *     route's but Trigger.dev's (an idempotency key, applied inside the
+ *     enqueue), so a discovery press is refused even when it would only have
+ *     joined a count begun earlier.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
@@ -425,13 +437,171 @@ describe('a hold that could not be read', () => {
   });
 });
 
-describe('the spec says so at every door', () => {
-  const spec = parse(readFileSync(join(SRC, '..', 'docs', 'openapi.yaml'), 'utf8')) as {
-    paths: Record<string, { post?: { responses?: Record<string, unknown> } }>;
+// ─── 3. The spec ─────────────────────────────────────────────────────────────
+
+type Schema = { readonly [key: string]: unknown };
+
+const SPEC = parse(readFileSync(join(SRC, '..', 'docs', 'openapi.yaml'), 'utf8')) as Schema & {
+  paths: Record<string, { post?: { responses?: Record<string, Schema> } }>;
+};
+
+/** Words that describe a value and do not constrain it. */
+const ANNOTATIONS = new Set(['description', 'examples', 'example', 'format', 'title']);
+/** Words this checker applies. Anything else fails loudly rather than passing unread. */
+const CONSTRAINTS = new Set([
+  '$ref', 'type', 'enum', 'required', 'properties', 'additionalProperties', 'oneOf', 'anyOf', 'allOf',
+]);
+
+/** A `#/…` pointer into the spec. */
+function resolve(ref: string): Schema {
+  let at: unknown = SPEC;
+  for (const part of ref.replace(/^#\//, '').split('/')) at = (at as Schema)[part];
+  if (!at || typeof at !== 'object') throw new Error(`${ref} points at nothing in openapi.yaml`);
+  return at as Schema;
+}
+
+function typeOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number';
+  return typeof value;
+}
+
+/**
+ * Does `value` satisfy `schema`, by JSON Schema's own rules for the words the
+ * spec's 409s use? `oneOf` is exactly one branch, which is the rule the first
+ * spec broke. A dependency-free checker: `ajv` is not a dependency of this
+ * package, and these are the only words it has to know.
+ */
+function satisfies(schema: Schema, value: unknown): boolean {
+  if (typeof schema.$ref === 'string') return satisfies(resolve(schema.$ref), value);
+  for (const word of Object.keys(schema)) {
+    if (!CONSTRAINTS.has(word) && !ANNOTATIONS.has(word)) {
+      throw new Error(`this checker does not apply "${word}"; teach it before trusting its answer`);
+    }
+  }
+  const branches = (word: string) => (schema[word] as Schema[] | undefined)?.filter((b) => satisfies(b, value));
+  if (schema.oneOf && branches('oneOf')!.length !== 1) return false;
+  if (schema.anyOf && branches('anyOf')!.length === 0) return false;
+  if (schema.allOf && branches('allOf')!.length !== (schema.allOf as Schema[]).length) return false;
+  if (typeof schema.type === 'string') {
+    const actual = typeOf(value);
+    if (actual !== schema.type && !(schema.type === 'number' && actual === 'integer')) return false;
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
+  if (typeOf(value) === 'object') {
+    const record = value as Record<string, unknown>;
+    const properties = (schema.properties ?? {}) as Record<string, Schema>;
+    for (const key of (schema.required ?? []) as string[]) if (!(key in record)) return false;
+    for (const [key, v] of Object.entries(record)) {
+      if (properties[key]) {
+        if (!satisfies(properties[key], v)) return false;
+      } else if (schema.additionalProperties === false) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/** The body schema a door's 409 documents, through a shared response when it names one. */
+function refusalSchema(door: Door): { raw: unknown; schema: Schema } {
+  const raw = SPEC.paths[door.spec]?.post?.responses?.['409'];
+  if (!raw) throw new Error(`${door.spec} documents no 409`);
+  const response = typeof raw.$ref === 'string' ? resolve(raw.$ref) : raw;
+  const content = response.content as Record<string, { schema?: Schema }> | undefined;
+  const schema = content?.['application/json']?.schema;
+  if (!schema) throw new Error(`${door.spec}'s 409 has no JSON body`);
+  return { raw, schema };
+}
+
+describe('the checker the spec cases use', () => {
+  // Its own proof, so a checker that answers "valid" to everything cannot
+  // pass the cases below.
+  const held = { error: 'platform_held', message: SENTENCE, reason: SENTENCE, since: '2026-09-27T09:00:00Z' };
+  it('keeps oneOf to exactly one branch, which the first spec at /start and /sync broke', () => {
+    const both = { oneOf: [{ $ref: '#/components/schemas/Error' }, { $ref: '#/components/schemas/PlatformHeld' }] };
+    expect(satisfies(both, held)).toBe(false);
+    expect(satisfies({ anyOf: both.oneOf }, held)).toBe(true);
+  });
+  it('refuses a body PlatformHeld does not describe', () => {
+    const platformHeld = { $ref: '#/components/schemas/PlatformHeld' };
+    expect(satisfies(platformHeld, held)).toBe(true);
+    expect(satisfies(platformHeld, { ...held, error: 'Conflict' })).toBe(false);
+    const withoutSince: Record<string, unknown> = { ...held };
+    delete withoutSince.since;
+    expect(satisfies(platformHeld, withoutSince)).toBe(false);
+  });
+});
+
+describe('the spec describes the answer every held door gives', () => {
+  beforeAll(() => openHold(SENTENCE));
+  afterAll(() => liftHold());
+
+  it.each(DOORS.map((d) => [d.name, d] as const))('%s', async (_name, door) => {
+    const { raw, schema } = refusalSchema(door);
+    expect(JSON.stringify(raw)).toContain('PlatformHeld');
+
+    const res = await press(door);
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(
+      satisfies(schema, res.body),
+      `${door.spec}: the held body ${JSON.stringify(res.body)} is not valid against the 409 the spec documents, ` +
+        `${JSON.stringify(schema)}. A oneOf whose branches overlap refuses a body both describe; use anyOf, ` +
+        'or a branch that pins `error`.',
+    ).toBe(true);
+  });
+});
+
+// ─── 4. The joins ────────────────────────────────────────────────────────────
+
+describe('while a hold is open, a press the route joins to work under way is answered as before', () => {
+  beforeAll(async () => {
+    await openHold(SENTENCE);
+    await sql(`INSERT INTO verification_run (tenant_id, mapping_id, state) VALUES ($1, $2, 'running')`, [TENANT, ACTIVE]);
+    await sql(
+      `INSERT INTO apply_receipt (tenant_id, mapping_id, natural_key_hash, action, state)
+       VALUES ($1, $2, $3, 'deletion', 'queued'), ($1, $2, $3, 'relocation', 'queued')`,
+      [TENANT, ACTIVE, HASH],
+    );
+    await sql(
+      `INSERT INTO run (tenant_id, mapping_id, kind, trigger, status, started_at)
+       VALUES ($1, $2, 'confirm', 'manual', 'running', now())`,
+      [TENANT, ACTIVE],
+    );
+  });
+  afterAll(async () => {
+    await sql('DELETE FROM verification_run WHERE tenant_id = $1', [TENANT]);
+    await sql('DELETE FROM apply_receipt WHERE tenant_id = $1', [TENANT]);
+    await sql(`DELETE FROM run WHERE tenant_id = $1 AND kind = 'confirm'`, [TENANT]);
+    await liftHold();
+  });
+
+  /** A door by its entry in the spec. */
+  const door = (spec: string): Door => {
+    const found = DOORS.find((d) => d.spec === `${M}${spec}`);
+    if (!found) throw new Error(`no door at ${spec}`);
+    return found;
   };
-  it.each(DOORS.map((d) => [d.name, d] as const))('%s', (_name, door) => {
-    const refusal = spec.paths[door.spec]?.post?.responses?.['409'];
-    expect(JSON.stringify(refusal ?? null)).toContain('PlatformHeld');
+
+  it.each([
+    ['Start on a migration already active', { ...door('/start'), path: `/api/migrations/${ACTIVE}/start` }, { activated: false }],
+    ['a verification already running', door('/verify/start'), { started: false }],
+    ['a deletion whose receipt is still queued', door('/deletions/{hash}/apply'), { queued: false }],
+    ['a relocation whose receipt is still queued', door('/moves/{hash}/apply'), { queued: false }],
+    ['a confirmation already running', door('/confirm'), { [ACTIVE]: { started: false } }],
+  ] as const)('%s', async (_name, joiner, joined) => {
+    const res = await press(joiner);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body).toMatchObject(joined);
+    expect(enqueued).toEqual([]);
+  });
+
+  it('a discovery count is refused, because its join is decided inside the enqueue', async () => {
+    const res = await press(door('/discover'));
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe(SENTENCE);
+    expect(enqueued).toEqual([]);
   });
 });
 

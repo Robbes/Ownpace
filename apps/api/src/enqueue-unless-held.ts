@@ -30,9 +30,19 @@
  * removal recorded as ordered that never was. So those doors ask before their
  * first write, and use the enqueue they are handed afterwards. Every door asks
  * after its own refusals (a migration not found, a grant withdrawn, a gate the
- * ledger shuts), because those still stand once the hold is lifted, and a
- * press that is only joined to work already under way enqueues nothing and
- * is not asked at all.
+ * ledger shuts), because those still stand once the hold is lifted.
+ *
+ * ## Joins
+ *
+ * A press the route itself joins to work already under way enqueues nothing
+ * and is not asked: *Start* on a migration already active, a verification
+ * already running, an apply whose receipt is still queued, a confirmation
+ * already running. Discovery is different. Its join is Trigger.dev's (the
+ * idempotency key in `discoveryTriggerOptions`), decided inside the enqueue,
+ * so the door asks first, and while a hold is open a discovery press is
+ * refused even when it would only have joined a count begun in the last
+ * `DISCOVERY_JOIN_WINDOW`. That count still lands; the confirm screen that
+ * starts it ignores the refusal.
  *
  * ## The sentence
  *

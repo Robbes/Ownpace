@@ -206,7 +206,8 @@ aware"* of a breach (`site/legal/dpa.md` §7). 0139 T8 proposes the breach proce
 What exists is the hold. *"While the hold is on, every signed-in customer sees a note at the top
 of every screen with your sentence on it"*, and *"Every hold is kept, with who started it, who
 lifted it and what it said"* (`docs/managed-bring-up.md`, *Draining first, and telling customers
-why*). The hold stops the tick only. A pass a tester starts by hand is not held (0132 §1).
+why*). The hold stopped the tick only. A pass a tester started by hand was not held (0132 §1).
+Since 0132 T6 (b) (2026-09-27) it is refused while the hold is open (`enqueueUnlessHeld`).
 
 ## 2. The owner's decisions (2026-09-24)
 

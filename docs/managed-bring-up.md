@@ -2061,11 +2061,17 @@ read the hold.
 
 The sequence:
 
-1. Start the hold, with a sentence. *"Back in about an hour"* is worth more
-   than the default, because only you know whether this is ten minutes or
-   overnight. Leave it empty and customers get a generic sentence — a hold is
-   never wordless, but it is also never as useful. The banner's generic
-   sentence is in the reader's language; a refused button's is in English.
+1. Start the hold, with a sentence. Say when copying resumes: only you know
+   whether this is ten minutes or overnight. The same sentence is also the
+   whole answer to every button the hold refuses, in place of the default's
+   *"Nothing was started. Try again when copying resumes."*, and a refused
+   press is not remembered. So say that too: nothing starts until then, and
+   to try again after. For the alpha, in Dutch: *"We werken het platform bij
+   en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het
+   daarna opnieuw."* Leave it empty and customers get a generic sentence — a
+   hold is never wordless, but it is also never as useful. The banner's
+   generic sentence is in the reader's language; a refused button's is in
+   English.
 2. Watch the tick's log until the drain is done. Every minute it logs
    `[sync-tick] holding: … N pass(es) still in flight; the drain is done when
    that reaches 0.` A pass ends on its own clock well inside an hour, so this
@@ -2075,8 +2081,11 @@ The sequence:
 
 While the hold is on, every signed-in customer sees a note at the top of every
 screen with your sentence on it and the time it began. Nothing else about their
-migration changes: no cursor moves, nothing is marked failed, and nothing is
-owed a retry.
+migration changes: no cursor moves, nothing is marked failed, and scheduled
+passes start again by themselves. A button a customer pressed while the hold
+was on is the exception, and has to be pressed again: a *Start* refused before
+it began leaves the migration unstarted, and a refused verification or
+confirmation, or a deletion or move to follow through, was never queued.
 
 The hold is platform-wide — there is no per-tenant hold, matching the owner's
 answer of 2026-08-27 on the same question one level up. Every hold is kept,

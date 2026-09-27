@@ -2002,11 +2002,12 @@ paths:
             Nothing was changed. `Conflict`: the migration is past cutover.
             `grant_withdrawn` or `awaiting_grant`: nobody's grant lets a pass
             read the account, with `reason` saying whose. `platform_held`: an
-            operator hold is open (`PlatformHeld`).
+            operator hold is open (`PlatformHeld`). `anyOf`, not `oneOf`: a
+            `PlatformHeld` body is an `Error` too.
           content:
             application/json:
               schema:
-                oneOf:
+                anyOf:
                   - { $ref: '#/components/schemas/Error' }
                   - { $ref: '#/components/schemas/PlatformHeld' }
 
@@ -2296,11 +2297,12 @@ paths:
           description: |
             Nothing was enqueued. The migration is paused (review discovery and
             start it first), its grant was withdrawn (`grant_withdrawn`), or an
-            operator hold is open (`platform_held`, `PlatformHeld`).
+            operator hold is open (`platform_held`, `PlatformHeld`). `anyOf`,
+            not `oneOf`: a `PlatformHeld` body is an `Error` too.
           content:
             application/json:
               schema:
-                oneOf:
+                anyOf:
                   - { $ref: '#/components/schemas/Error' }
                   - { $ref: '#/components/schemas/PlatformHeld' }
 
