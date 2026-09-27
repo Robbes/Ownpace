@@ -64,6 +64,27 @@ owner signed in, and the owner is not.
 and revoked nothing. That credential is `source_secret_ref`, the token a person granted through a
 grant link.
 
+**2026-09-27: T6's task runner's stores checked (0131 §6, group M3, step 4)**, with 0134 T1 (c), on
+branch `claude/mailbox-sync-errors-c2xsw2-what-the-task-runner-keeps`, not merged. The full finding
+is in 0134's Status block. In short:
+
+- **Trigger.dev's own database, `triggerdb`, can hold a tester's personal data.** A failed run's
+  error, `run-discovery`'s output and, probably, the run's logs can name a tester's folders,
+  files and mailboxes, and quote the provider's own words.
+- **Nothing limits how long it is kept, and the erasure never reaches it.** The dumps of it are
+  kept by count, not by age.
+- **ClickHouse and MinIO probably hold none of it on this stack.** Trigger.dev's defaults put a
+  run's small payloads, outputs and log events in `triggerdb`. 0134 lists the checks that settle
+  it on live.
+- **So this bullet of §3 is answered, and the texts cannot say how long yet.** What follows is
+  0134's open question 3: keep the text out of Trigger.dev (recommended), stop the dumps and say
+  how long the run history lives, or prune by age.
+
+**2026-09-27: T6's migration-delete revocation built** (0131 §6, group M3, step 1) on branch
+`claude/mailbox-sync-errors-c2xsw2-a-deleted-migration-revokes-its-grant`, not merged. §1 found
+that deleting a migration dropped our copy of the credential its own row holds and revoked
+nothing. That credential is `source_secret_ref`, the token a person granted through a grant link.
+
 - **The delete now revokes it**, with `revokeCredentialRow`, as the connection delete does:
   after the delete, so nothing is revoked until the row is gone and no network call holds the
   tenant transaction open. The source connection's kind, read in the same transaction, decides
