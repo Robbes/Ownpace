@@ -525,7 +525,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **0** during the alpha, workplan 0134) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
 
@@ -535,11 +535,17 @@ is the kind of false a supervisory authority asks about. Backups are not
 edited retrospectively — nobody surgically edits a backup — they **expire**,
 and the wording says exactly that.
 
-**Set `BACKUP_RETENTION_DAYS` to your own number.** The default is the
-reference deployment's. If your backups are kept for a month, a deployment left
-on the default promises a date it cannot honour. `0` is a valid answer for a
-deployment that takes no backups, and produces different wording rather than
-the same date twice.
+**Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is the
+owner's number for a deployment that takes backups, and it assumes they exist.
+Nothing in this repository backs up the application database yet (see
+[Backup & restore](#backup--restore-221)), and `ownpace-live`, the stack
+testers use, takes no backups during the alpha and sets `0`
+([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)).
+If your backups are kept for a month, a deployment left on the default promises
+a date it cannot honour. `0` is a valid answer for a deployment that takes no
+backups, and produces different wording rather than the same date twice. The
+API warns about a blank value at start in production, and refuses to start
+with one when `OWNPACE_STAGE=alpha`.
 
 ### 2. Purge — runs when the window has passed
 

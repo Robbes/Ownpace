@@ -900,7 +900,11 @@ services:
       STATUS_URL: ${STATUS_URL:-http://gatus:8080}
       # How long a backup of this database is kept. Not a schedule — it is what
       # the close endpoint TELLS a customer about when their erasure actually
-      # completes (0085 T5). Unset means the 7-day default in @openmig/shared.
+      # completes (0085 T5). Unset means the 7-day default in @openmig/shared,
+      # and that default assumes backups exist: nothing in this repository
+      # backs this database up yet. `ownpace-live` sets 0 during the alpha
+      # (workplan 0134). The api warns about a blank value in production, and
+      # with OWNPACE_STAGE=alpha refuses to start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
       # THE MAIL SETTINGS. Absent here until 2026-08-25, which meant this
       # container could not send a single notification no matter what `.env`
