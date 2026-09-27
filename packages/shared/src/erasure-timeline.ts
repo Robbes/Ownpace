@@ -88,8 +88,9 @@ export function backupRetentionDaysFromEnv(raw: string | undefined): number {
   if (!Number.isInteger(n) || n < 0) {
     throw new Error(
       `BACKUP_RETENTION_DAYS must be a whole number of days, zero or more — got ${JSON.stringify(raw)}. ` +
-        `Leave it unset for the default of ${DEFAULT_BACKUP_RETENTION_DAYS} days. ` +
-        `Set it to 0 only if this deployment genuinely takes no backups.`,
+        `Set it to 0 if nothing backs up this deployment's database, or to the number of days its ` +
+        `backups are kept (workplan 0134). Blank reads as ${DEFAULT_BACKUP_RETENTION_DAYS} days, ` +
+        `which assumes backups exist.`,
     );
   }
   return n;

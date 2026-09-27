@@ -12,10 +12,13 @@ the sentence is trusted, is 0131 M3's step 4 and is not built here.
 (a) Seven days is no longer called the reference deployment's retention. `managed.env.example`'s
 *Backups* block, the header of `erasure-timeline.ts` and the comment on
 `DEFAULT_BACKUP_RETENTION_DAYS`, the `managed.yml` comment above `BACKUP_RETENTION_DAYS`, the
-runbook's `backupRetentionDays` row and the paragraph under it, 0085 T5's row and the bring-up's
-*What this does not cover* now say that 7 assumes backups exist, that nothing in this repository
-backs up the application database yet, and that `ownpace-live` sets 0 during the alpha. The
-constant stays 7.
+runbook's `backupRetentionDays` row and the paragraph under it, and 0085 T5's row now say that 7
+assumes backups exist, that nothing in this repository backs up the application database yet, and
+that `ownpace-live` sets 0 during the alpha. The bring-up's *What this does not cover* bullet says
+a stack without backups sets 0, that `ownpace-live` does during the alpha, and points here. The
+refusal `backupRetentionDaysFromEnv` gives a value that is not a whole number no longer says
+*"Leave it unset for the default of 7 days"*: it names the same two answers as the start-up
+check. The constant stays 7.
 
 (b) `describeBackupRetentionProblem` in `apps/api/src/config-guards.ts`, run at start-up by
 `assertBackupRetentionConfig`, which `index.ts` calls next to `assertProductionUrlConfig`. A blank
@@ -25,9 +28,15 @@ honest answers (`0`, or the number of days backups are kept) and this plan. The 
 read by `alphaFrom`, the reader the grant mail uses. A stated number, `0` or `7` or any other, is
 never a problem. **The severity is open question 4, and the owner's answer is still owed.** This
 builds the plan's recommendation: a warning in production, fatal on an alpha stack. If the owner
-chooses a warning only, one line changes in `config-guards.ts`, and the guard's alpha cases with it.
-Until T0 is done, live's API, started with the alpha setting, refuses to start, and the refusal
-names the line to set. That is what the check is for.
+chooses a warning only, `fatal: true` becomes `false` in `describeBackupRetentionProblem`
+(`config-guards.ts`), and its doc comment and alpha message change with it. The guard's alpha
+cases, its header and the alpha `describe` title change too. So does every sentence that says the
+API refuses to start on the alpha: `managed.env.example` (the *Backups* and `OWNPACE_STAGE`
+blocks), the `managed.yml` comment, `erasure-timeline.ts`'s header, the `index.ts` boot comment,
+the runbook paragraph under `backupRetentionDays`, bring-up §8g and 0085 T5's 2026-09-27 note. A
+grep of those files for `refus` finds each one. The `BACKUP_RETENTION_DAYS=0` line in §8g stays
+either way. Until T0 is done, live's API, started with the alpha setting, refuses to start, and
+the refusal names the line to set. That is what the check is for.
 
 The guard is `apps/api/src/a-retention-somebody-stated.unit.test.ts`, with 20 cases. All 20 failed
 on the unchanged code, in a scratch worktree of `origin/main` with only the guard copied in:
@@ -43,9 +52,20 @@ Departures from §3. The test for a blank value is one exported predicate,
 `backupRetentionIsBlank` in `erasure-timeline.ts`, which `backupRetentionDaysFromEnv` and the
 check both use, so the two cannot disagree about which values nobody stated. `UrlConfigProblem`
 is renamed `ConfigProblem`, because it now also describes a problem that is not a URL; nothing
-else imported it. `docs/managed-bring-up.md` §8g and the `OWNPACE_STAGE` block of
-`managed.env.example` gain `BACKUP_RETENTION_DAYS=0` beside `OWNPACE_STAGE=alpha`: an operator who
-followed §8g as it stood would now meet the refusal. §8g also gives T0 step 3's read-back.
+else imported it. §8g of `docs/managed-bring-up.md` gains `BACKUP_RETENTION_DAYS=0` beside
+`OWNPACE_STAGE=alpha`, and the `OWNPACE_STAGE` block of `managed.env.example` says to set it to 0:
+an operator who followed §8g as it stood would now meet the refusal. §8g also gives T0 step 3's
+read-back. §3 names only the header and the constant's comment in `erasure-timeline.ts`; the
+refusal in `backupRetentionDaysFromEnv` changed too, because its *"Leave it unset"* led straight
+into the start-up refusal on the alpha. Its test, and the test title that still called the
+default *the reference deployment's window*, changed with it.
+
+Review fixes, the same day. The refusal test in `erasure-timeline.unit.test.ts` now asks for
+both answers and for no *"Leave it unset"*; it failed on the old message before the message
+changed. The guard's wiring case matched `assertBackupRetentionConfig(` anywhere in the boot
+block, so it still passed with the call commented out; it now matches each call as code at the
+start of a line, and commenting out either call (this one or `assertProductionUrlConfig`) makes
+it fail.
 
 Still open: T0, the owner's (0 in live's `.env`, with 0132 T1b). T1 (c), 0131 M3's. Open question
 4, the owner's. T2 to T5 as the table says.

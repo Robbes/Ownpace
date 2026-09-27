@@ -179,8 +179,12 @@ describe('the API runs the check at start-up', () => {
     const start = index.indexOf("if (process.env.NODE_ENV !== 'test')");
     expect(start, 'no boot block found in apps/api/src/index.ts').toBeGreaterThan(-1);
     const boot = index.slice(start);
-    for (const call of ['assertProductionUrlConfig(', 'assertBackupRetentionConfig(']) {
-      expect(boot.includes(call), `apps/api/src/index.ts never calls ${call}) at start-up`).toBe(true);
+    // As code at the start of a line, so a call commented out with `//` (the
+    // likeliest way a start-up check gets switched off) does not count.
+    for (const name of ['assertProductionUrlConfig', 'assertBackupRetentionConfig']) {
+      expect(boot, `apps/api/src/index.ts never calls ${name}() at start-up`).toMatch(
+        new RegExp(`^\\s*${name}\\(`, 'm'),
+      );
     }
   });
 });
