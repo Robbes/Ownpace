@@ -936,6 +936,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
+- [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 
 ### `docs/release.md`
 
@@ -2708,6 +2709,7 @@ Reads:
 
 - `deploy/compose/gatus.yaml`
 - `docs/incident-runbook.md`
+- `docs/operator-runbook.md`
 
 ### [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts)
 

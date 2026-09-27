@@ -23,6 +23,9 @@
  * - **0142 T3's `box-checks.sh`**, whose messages will need rows too. It does
  *   not exist yet. When it does, this file fails until it is taught to read
  *   them.
+ *
+ * And the operator runbook links it, where an operator already looks when
+ * something is wrong (0142 T6).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -109,6 +112,14 @@ describe("0143 T2d's step for stopping one organisation", () => {
 
   it('writes down what it moved, so each can be put back', () => {
     expect(RUNBOOK).toMatch(/SELECT id, status FROM mailbox_mapping/);
+  });
+});
+
+describe('where the operator finds it', () => {
+  it("is linked from the operator runbook's Health & troubleshooting", () => {
+    const operator = readFileSync(join(ROOT, 'docs/operator-runbook.md'), 'utf8');
+    const section = operator.split(/^## Health & troubleshooting$/m)[1]?.split(/^## /m)[0] ?? '';
+    expect(section).toMatch(/\]\(\.\/incident-runbook\.md\)/);
   });
 });
 

@@ -23,7 +23,9 @@ arrives, or a tester says something happened to their data.
   list first, then `active` → `paused` and `continuous` → `cutover`, never `continuous` →
   `paused`. Steps 4 and 5 hand over to 0139 T8's breach procedure, linked as
   `./breach-procedure.md`, the page #1241 adds.
-- **The guard**, `scripts/a-runbook-for-every-alert.unit.test.ts`, 9 cases. It fails on `main`,
+- **Linked from the operator runbook's *Health & troubleshooting***, where an operator already
+  looks when something is wrong.
+- **The guard**, `scripts/a-runbook-for-every-alert.unit.test.ts`, 10 cases. It fails on `main`,
   where the runbook does not exist.
   - Every row of the page's Ownpace group, and every endpoint with `alerts`, has a row under the
     same name. No endpoint has `alerts` yet, so the Ownpace rows stand in for T1's alerts, and
@@ -34,11 +36,8 @@ arrives, or a tester says something happened to their data.
   - T2d's SQL moves by the lifecycle's table. The guard asks `updateTransition` itself that
     `active` → `paused` and `continuous` → `cutover` apply, and that `continuous` → `paused` is
     refused with `after_cutover`.
-  - The runbook links the breach procedure.
-- **Not in this change:**
-  - the link from the operator runbook, a file the other session's open #1236 changes (0131
-    §6's out-of-turn rule);
-  - T1's alerts, which wait on T0.
+  - The runbook links the breach procedure, and the operator runbook links the runbook.
+- **Not in this change:** T1's alerts, which wait on T0.
 
 **2026-09-27: T2 (a) built (0131 §6, group M4, step 5)**, merged as #1244. The scheduled tick now
 says it ran, and a route reads it.
@@ -127,7 +126,7 @@ watch's issue reaches the owner (0141, 0146).
 | T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
 | T4 What is waiting: queued runs, pooler waits, recorded failures | 📋 **Proposed** | §3. After the first invitation. Queue counts written with T2's heartbeat, `SHOW POOLS`, and a daily count of 0129's recorded failures. |
 | T5 Something off the machine that can say "down" | 📋 **Proposed**; the host is the owner's | §3. After the first invitation. A second copy of the same `gatus.yaml` on a small EU host, watching the public addresses. Until then, testers are the outside probe (§4). |
-| T6 What to do when an alert or a tester says something is wrong | 🔨 **Built 2026-09-27, not merged**: the runbook with a row per status row, 0143 T2d's step and the hand-over to 0139 T8, and its guard; the link from the operator runbook waits on #1236 — *was:* 📋 **Proposed** (D1, D2, D4, D5) | §3. **Alpha minimum.** `docs/incident-runbook.md`: a row for every alert, the steps when a tester reports trouble with their data (with 0143 T2d's step for stopping one organisation), and the hand-over to 0139 T8's breach procedure. |
+| T6 What to do when an alert or a tester says something is wrong | 🔨 **Built 2026-09-27, not merged**: the runbook with a row per status row, 0143 T2d's step and the hand-over to 0139 T8, linked from the operator runbook, and its guard — *was:* 📋 **Proposed** (D1, D2, D4, D5) | §3. **Alpha minimum.** `docs/incident-runbook.md`: a row for every alert, the steps when a tester reports trouble with their data (with 0143 T2d's step for stopping one organisation), and the hand-over to 0139 T8's breach procedure. |
 | T7 A lane that checked nothing is not green | ⛔ **Moved 2026-09-24** to 0141 T13(c) | §3. 0141 plans the same change: an unarmed night shows the lane job as skipped. Kept here as a pointer so the number does not move. |
 | T8 The architecture document says what is watched | 📋 **Proposed** | §3. After the first invitation, with T1. §18 and §19 say what is built and what is not. |
 | T9 Dashboards, alert rules on stalls, auth failures and throttling, SLOs | 🅿️ **Parked (trigger: the first paying customer, or 0143's capacity measurements exist, whichever comes first)** | §3. 0026 row 19 still holds for everything beyond "has it stopped". |

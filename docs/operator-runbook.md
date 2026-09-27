@@ -1328,6 +1328,10 @@ it until it is ended or kept copying.
 
 ## Health & troubleshooting
 
+When a status row goes red, an alert arrives, or a tester says something happened to their
+data, start with [`incident-runbook.md`](./incident-runbook.md): one row per alert, and the
+steps for a tester's report. The items below are causes it points to.
+
 - **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
   and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
   exists). The tasks do not read it yet: they connect with `DATABASE_URL` (workplan 0138).
