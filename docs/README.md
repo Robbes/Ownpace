@@ -55,7 +55,8 @@ user-facing strings), the cutover comms templates
 client), `apple-setup.md`, `dropbox-setup.md`, `box-setup.md` and `archive-setup.md` (export
 archives such as Google Takeout); `non-eu-platform-gaps.md` lists the large platforms not yet
 covered. **Live runs:** `owner-test-runbook.md`, `first-live-run.md`, `soverin-supervised-run.md`,
-`apple-supervised-run.md`. **Operating:** `status-page.md` and `selfhost-ending-the-service.md`.
+`apple-supervised-run.md`. **Operating:** `status-page.md`, `incident-runbook.md` (what to do when
+an alert arrives or a tester says something is wrong) and `selfhost-ending-the-service.md`.
 
 A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.

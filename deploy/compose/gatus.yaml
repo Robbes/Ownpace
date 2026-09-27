@@ -103,6 +103,20 @@ endpoints:
     conditions:
       - "[BODY].signIn == up"
 
+  # THE SYNC TICK, which readiness cannot see (workplan 0142 T2). A tick that
+  # stopped leaves the API ready to serve while no scheduled pass starts, and
+  # nothing else on this page said so. Its own route reads the tick's beat:
+  # `up` while the beat is under five minutes old. Like the two rows above, it
+  # reads the field, not the code: the route answers 200 whatever it says.
+  # On the public page (the owner, 2026-09-27), so that a tester who sees
+  # nothing move can see why.
+  - name: Scheduled syncs
+    group: Ownpace
+    url: "${STATUS_WEB_URL}/api/ready/scheduler"
+    interval: 60s
+    conditions:
+      - "[BODY].scheduler == up"
+
   # THE PROVIDER ITSELF, asked directly — because "Sign-in" above is a field the
   # API computed, not a probe of the identity provider. Reading four rows off
   # one `/api/ready` means the whole group goes dark together the moment the API

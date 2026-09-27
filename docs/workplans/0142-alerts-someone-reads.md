@@ -4,8 +4,66 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27: T2 (a) built (0131 §6, group M4, step 5)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-tick-that-says-it-ran`, not merged. The scheduled tick now
+**2026-09-27: T2's row on the status page built (0131 §6, group M4, step 5's remainder)** on
+branch `claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged. It rides with
+T6's runbook, as 0131 §6 allows a task too small to stand alone, because the runbook already
+carries the row's entry.
+
+- **The row.** *Scheduled syncs*, in the Ownpace group of `gatus.yaml`, reads
+  `[BODY].scheduler == up` off `${STATUS_WEB_URL}/api/ready/scheduler`, on the public page, as
+  open question 3 decided. It reads the field, not the code, because the route answers 200
+  whatever it says. T1's alert on it comes with T1.
+- **`docs/status-page.md`** names the row and says why it has its own route.
+- **`scripts/status-page.unit.test.ts`**: *Scheduled syncs* joins `THROUGH_THE_APP` and the rows
+  that must read the field. The field scan now reads each route's own type: a row asks
+  `/api/ready` only for `Readiness`'s fields, and `/api/ready/scheduler` only for
+  `SchedulerReadiness`'s. It fails on `main`, where the row does not exist.
+
+**2026-09-27, evening: the owner answered open questions 1 and 3.**
+
+- **Open question 1, T0's channel: (a) e-mail**, *"Alert: email"*. Alerts go to `NOTIFY_TO`
+  through 0133's relay, once that relay carries live's mail. Nothing wakes anyone, as D2 says.
+  T1 builds the alerting block with Gatus's e-mail provider. The relay is 0133 T0's, and its
+  sending address is still the owner's to choose (0133 open question 2).
+- **Open question 3, the Scheduled syncs row: the public page**, *"4 public"*, with the plain
+  name, and `/api/ready` left alone. The row is T2's remaining half, and M4 builds it next.
+
+**2026-09-27: T6 built, with 0143 T2d's runbook step (0131 §6, group M4, step 8)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged.
+`docs/incident-runbook.md` says what the operator does when the status page goes red, an alert
+arrives, or a tester says something happened to their data.
+
+- **Who is told, what is promised, and where signals arrive**, from D1, D2 and T6 below.
+- **One row per alert**, under the status page's own names. Each says what the row means, where
+  to look first, and the first thing to do.
+  - *Web app*, *API*, *Database*, *Sign-in*, *Identity provider* and *Website* are the page's
+    Ownpace group today, the rows T1 will alert on. What each means was read in `gatus.yaml` and
+    in the route it asks.
+  - *Scheduled syncs* is ready for T2's row, which open question 3 puts on the public page.
+  - A note first: if every Ownpace row goes red at once, look at the machine and its front,
+    not at a service (T5).
+- **The eight steps when a tester reports trouble with their data**, as T6 below lists them.
+  Step 3 carries 0143 T2d's step for stopping one organisation, as SQL on live's database: the
+  list first, then `active` → `paused` and `continuous` → `cutover`, never `continuous` →
+  `paused`. Steps 4 and 5 hand over to 0139 T8's breach procedure, linked as
+  `./breach-procedure.md`, the page #1241 adds.
+- **Linked from the operator runbook's *Health & troubleshooting***, where an operator already
+  looks when something is wrong.
+- **The guard**, `scripts/a-runbook-for-every-alert.unit.test.ts`, 10 cases. It fails on `main`,
+  where the runbook does not exist.
+  - Every row of the page's Ownpace group, and every endpoint with `alerts`, has a row under the
+    same name. No endpoint has `alerts` yet, so the Ownpace rows stand in for T1's alerts, and
+    the runbook is ready the day they are switched on.
+  - *Scheduled syncs* has its row.
+  - `box-checks.sh` (T3) does not exist yet. The guard fails the day it lands, until it is
+    taught to read that script's messages.
+  - T2d's SQL moves by the lifecycle's table. The guard asks `updateTransition` itself that
+    `active` → `paused` and `continuous` → `cutover` apply, and that `continuous` → `paused` is
+    refused with `after_cutover`.
+  - The runbook links the breach procedure, and the operator runbook links the runbook.
+- **Not in this change:** T1's alerts, which wait on T0.
+
+**2026-09-27: T2 (a) built (0131 §6, group M4, step 5)**, merged as #1244. The scheduled tick now
 says it ran, and a route reads it.
 
 - **The beat.** Managed migration 0030 creates `sync_tick_beat`: one row per scheduled task,
@@ -86,13 +144,13 @@ watch's issue reaches the owner (0141, 0146).
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alert channel, and what the alpha promises | ⏳ **Owner** for the channel; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
+| T0 The alert channel, and what the alpha promises | 📋 the channel **Decided 2026-09-27**: e-mail through 0133's relay (open question 1); ⏳ **Owner** for its settings and the test alert; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
 | T1 The status page tells the owner when an Ownpace row goes red | 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
-| T2 A tick that says it ran | 🔨 **(a) built 2026-09-27, not merged**: the beat and `GET /api/ready/scheduler`; the Gatus row waits on open question 3 — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
+| T2 A tick that says it ran | 🔨 **(a) built 2026-09-27**, merged as #1244: the beat and `GET /api/ready/scheduler`; the Gatus row, on the public page (open question 3), built 2026-09-27, not merged — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
 | T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
 | T4 What is waiting: queued runs, pooler waits, recorded failures | 📋 **Proposed** | §3. After the first invitation. Queue counts written with T2's heartbeat, `SHOW POOLS`, and a daily count of 0129's recorded failures. |
 | T5 Something off the machine that can say "down" | 📋 **Proposed**; the host is the owner's | §3. After the first invitation. A second copy of the same `gatus.yaml` on a small EU host, watching the public addresses. Until then, testers are the outside probe (§4). |
-| T6 What to do when an alert or a tester says something is wrong | 📋 **Proposed** (D1, D2, D4, D5) | §3. **Alpha minimum.** `docs/incident-runbook.md`: a row for every alert, the steps when a tester reports trouble with their data (with 0143 T2d's step for stopping one organisation), and the hand-over to 0139 T8's breach procedure. |
+| T6 What to do when an alert or a tester says something is wrong | 🔨 **Built 2026-09-27, not merged**: the runbook with a row per status row, 0143 T2d's step and the hand-over to 0139 T8, linked from the operator runbook, and its guard — *was:* 📋 **Proposed** (D1, D2, D4, D5) | §3. **Alpha minimum.** `docs/incident-runbook.md`: a row for every alert, the steps when a tester reports trouble with their data (with 0143 T2d's step for stopping one organisation), and the hand-over to 0139 T8's breach procedure. |
 | T7 A lane that checked nothing is not green | ⛔ **Moved 2026-09-24** to 0141 T13(c) | §3. 0141 plans the same change: an unarmed night shows the lane job as skipped. Kept here as a pointer so the number does not move. |
 | T8 The architecture document says what is watched | 📋 **Proposed** | §3. After the first invitation, with T1. §18 and §19 say what is built and what is not. |
 | T9 Dashboards, alert rules on stalls, auth failures and throttling, SLOs | 🅿️ **Parked (trigger: the first paying customer, or 0143's capacity measurements exist, whichever comes first)** | §3. 0026 row 19 still holds for everything beyond "has it stopped". |
@@ -753,7 +811,7 @@ T7 is 0141 T13(c)'s, after the first invitation there too.
 1. **The channel (T0).** (a) E-mail to `NOTIFY_TO` through 0133's relay, which is recommended once
    that relay carries live's mail; or (b) a chat or push webhook hosted in the EU, if the first
    invitation comes first. Alerts can arrive at any hour. Is it acceptable that nothing wakes
-   anyone, as D2 suggests?
+   anyone, as D2 suggests? **Answered 2026-09-27: (a) e-mail**, *"Alert: email"*.
 2. **Are alpha testers "customers" for the 2026-08-22 status page decision** (0094 T0b and T4)? If
    they are, T5 moves into the minimum. The recommendation is no: the testers, writing to an
    address off the machine, are the outside probe for a few weeks.
@@ -761,6 +819,7 @@ T7 is 0141 T13(c)'s, after the first invitation there too.
    moves, or kept to the owner? Unless Gatus v5.36.0 can hide a row from the public page (to be
    checked), "kept to the owner" means T3's script reads the route instead of the page. The
    recommendation is the public page, with the plain name, and with `/api/ready` left alone.
+   **Answered 2026-09-27: the public page**, *"4 public"*.
 4. **The status link on the sign-in page.** On live it points at `status.ownpace.eu`, which 0132
    T1e routes to live's page on the machine. If that name does not answer off the mesh (T0 step
    3), or when the machine is down, the link answers testers with a timeout, which
