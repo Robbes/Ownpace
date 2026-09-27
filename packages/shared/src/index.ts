@@ -58,6 +58,7 @@ export * from './rate-budget.ts';
 export * from './pause-reason.ts';
 export * from './file-body.ts';
 export * from './credential-refusals.ts';
+export * from './link-holder-refusals.ts';
 export * from './grant-withdrawal.ts';
 export * from './failure-category.ts';
 export * from './needs-decision.ts';
@@ -90,3 +91,6 @@ export * from './metrics.ts';
 export * from './probe-outcome.ts';
 export * from './dav-refusal.ts';
 export * from './calendar-scheduling.ts';
+// Not here: the rule for a host a tenant gives us (0136 T1) builds a BlockList
+// and loads undici as it is imported, and the browser bundle loads this index.
+// Node code imports it as `@openmig/shared/reachable-host`.

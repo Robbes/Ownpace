@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    /* `ES2021.Intl` for `Intl.ListFormat` (workplan 0145 T6), which every
+       browser the README supports has had since well before its floor. */
+    "lib": ["ES2020", "ES2021.Intl", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
 

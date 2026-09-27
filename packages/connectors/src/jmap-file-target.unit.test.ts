@@ -626,6 +626,44 @@ describe('the ownership guard', () => {
     ).rejects.toThrow(/Refusing to create one instead/);
   });
 
+  it('refuses a rewrite when the stored node cannot be read (workplan 0149 T3)', async () => {
+    // The read returned undefined on a failure, which the check read as
+    // "cannot tell, go ahead": a failed read let the rewrite through.
+    responders['FileNode/get'] = (args, call) => {
+      if (Array.isArray(args.ids)) throw new Error('the read failed');
+      return treeResponder(tree)(args, call);
+    };
+    responders['FileNode/set'] = () => {
+      throw new Error('a rewrite must not reach the server when the read failed');
+    };
+    await expect(
+      target().upsertFile('', rawFile('report.pdf'), { overwrite: true, expectedTargetVersion: 'v1' }),
+    ).rejects.toThrow(/so it was not rewritten/);
+    expect(uploads).toHaveLength(0);
+  });
+
+  it('refuses a removal when the stored node cannot be read (workplan 0149 T3)', async () => {
+    responders['FileNode/get'] = () => {
+      throw new Error('the read failed');
+    };
+    responders['FileNode/set'] = () => {
+      throw new Error('a removal must not reach the server when the read failed');
+    };
+    await expect(target().removeItem('f1', { expectedTargetVersion: 'v1' })).rejects.toThrow(
+      /so it was not removed/,
+    );
+    expect(calls.some((c) => c.method === 'FileNode/set')).toBe(false);
+  });
+
+  it('removes nothing, and reads nothing, when no version was recorded (workplan 0149 T3)', async () => {
+    responders['FileNode/set'] = () => {
+      throw new Error('a removal must not reach the server without a version');
+    };
+    const result = await target().removeItem('f1');
+    expect(result).toEqual({ unversioned: true });
+    expect(calls).toHaveLength(0);
+  });
+
   it('refuses a removal when the node has moved under us', async () => {
     responders['FileNode/get'] = treeResponder(tree);
     responders['FileNode/set'] = () => {
@@ -642,9 +680,15 @@ describe('the ownership guard', () => {
 // =======================================================================
 
 describe('removeItem', () => {
+  // Every removal carries the version it was written with (workplan 0149 T3).
+  // Here the read finds nothing to compare, so the destroy is what answers.
+  beforeEach(() => {
+    responders['FileNode/get'] = () => ({ list: [] });
+  });
+
   it('reports deleted rather than binned', async () => {
     responders['FileNode/set'] = () => ({ destroyed: ['f1'] });
-    const result = await target().removeItem('f1');
+    const result = await target().removeItem('f1', { expectedTargetVersion: 'v1' });
     // Nothing has established that a JMAP `FileNode/set destroy` lands in a
     // recoverable bin on Stalwart, unlike a Nextcloud WebDAV DELETE.
     // Understating recoverability is the safe direction to be wrong in.
@@ -655,12 +699,14 @@ describe('removeItem', () => {
     responders['FileNode/set'] = () => ({});
     // Neither destroyed nor refused. Reporting success on that would let the
     // ledger tombstone a row for a file still sitting on the target.
-    await expect(target().removeItem('f1')).rejects.toThrow(/neither destroyed nor notDestroyed/);
+    await expect(target().removeItem('f1', { expectedTargetVersion: 'v1' })).rejects.toThrow(
+      /neither destroyed nor notDestroyed/,
+    );
   });
 
   it('surfaces a per-item refusal', async () => {
     responders['FileNode/set'] = () => ({ notDestroyed: { f1: { type: 'forbidden' } } });
-    await expect(target().removeItem('f1')).rejects.toThrow(/forbidden/);
+    await expect(target().removeItem('f1', { expectedTargetVersion: 'v1' })).rejects.toThrow(/forbidden/);
   });
 });
 

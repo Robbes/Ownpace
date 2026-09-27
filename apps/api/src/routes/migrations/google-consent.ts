@@ -38,6 +38,7 @@ import {
   grantSatisfiesAskedScope,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
+import { localeOf, type Bilingual, type RefusalLocale } from '@openmig/shared';
 import type { ProgressPageUrl } from './progress-page-url.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
 
@@ -125,7 +126,18 @@ interface PendingConsent {
     readonly mappingId: string;
     readonly tenantId: string;
   };
+  /**
+   * The language the page that began this consent was in (workplan 0145 T6),
+   * so the ending is rendered in it. Beside `link`, and for the same reason:
+   * the authorize call names it, the server keeps it here, and it never
+   * travels through the redirect, where it would be the browser's to change.
+   * Absent is English, like anything the authorize call did not say as `nl`.
+   */
+  readonly locale?: ConsentLocale;
 }
+
+/** The two languages an ending is written in (ADR-0013). */
+export type ConsentLocale = RefusalLocale;
 
 export const CONSENT_STATE_TTL_MS = 10 * 60_000;
 
@@ -559,13 +571,94 @@ const PAGE_STYLE =
  * progress link they are told to keep, at a fraction of its size. It also had
  * no doctype (quirks mode), no `lang` and no title. `callbackPageHeaders`
  * hashes `<script>` bodies only, so nothing here changes the page's policy.
+ * `lang` is the language the ending is written in (workplan 0145 T6), so a
+ * screen reader reads a Dutch ending with a Dutch voice.
  */
-function shell(body: string): string {
+function shell(body: string, lang: ConsentLocale): string {
   return (
-    '<!doctype html><html lang="en"><head><meta charset="utf-8" />' +
+    `<!doctype html><html lang="${lang}"><head><meta charset="utf-8" />` +
     '<meta name="viewport" content="width=device-width, initial-scale=1" />' +
     `<title>Ownpace</title></head><body>${body}</body></html>`
   );
+}
+
+/** Each provider as its button names it: *Connect with Google* / *Verbinden met Google*. */
+const PROVIDER_NAME: Readonly<Record<'google' | 'dropbox' | 'microsoft', string>> = {
+  google: 'Google',
+  dropbox: 'Dropbox',
+  microsoft: 'Microsoft',
+};
+
+/**
+ * The owner's ending, in both languages (workplan 0145 T6). Beside each other
+ * and typed by locale, so a sentence added to one language and not the other
+ * is a compile error. The owner reads the Dutch before it ships (0144 D1).
+ */
+const OWNER_ENDING: Readonly<
+  Record<
+    ConsentLocale,
+    {
+      readonly failed: string;
+      readonly closeAndRetry: string;
+      readonly received: string;
+      readonly handingBack: string;
+      readonly noOpener: (provider: string) => string;
+      readonly noWebOrigin: string;
+    }
+  >
+> = {
+  en: {
+    failed: 'Consent did not complete',
+    closeAndRetry: 'You can close this window and try again from the wizard.',
+    received: 'Consent received',
+    handingBack: 'Handing the result back to the wizard… you can close this window.',
+    noOpener: (provider) =>
+      'This window was not opened by Ownpace, so the result could not be handed back. ' +
+      `Close it and press Connect with ${provider} again from the same browser tab.`,
+    noWebOrigin:
+      'No web address is configured for this API, so the token could not be handed back ' +
+      'automatically. Copy the refresh token below into the wizard’s Refresh token field:',
+  },
+  nl: {
+    failed: 'Toestemming niet afgerond',
+    closeAndRetry: 'U kunt dit venster sluiten en het opnieuw proberen vanuit de wizard.',
+    received: 'Toestemming ontvangen',
+    handingBack: 'Het resultaat gaat terug naar de wizard… u kunt dit venster sluiten.',
+    noOpener: (provider) =>
+      'Dit venster is niet door Ownpace geopend, dus het resultaat kon niet worden ' +
+      `teruggegeven. Sluit het en druk opnieuw op Verbinden met ${provider}, in hetzelfde ` +
+      'browsertabblad.',
+    noWebOrigin:
+      'Voor deze API is geen webadres ingesteld, dus het token kon niet automatisch worden ' +
+      'teruggegeven. Kopieer het refresh-token hieronder naar het veld Refresh-token in de wizard:',
+  },
+};
+
+/**
+ * What a provider said on the way back to the owner's callback, inside our
+ * frame: `said` (the provider's `error`) and `detail` (its description, when
+ * it gave one) stay exactly as the provider wrote them (workplan 0145 T6).
+ */
+export function providerReported(
+  provider: 'google' | 'dropbox' | 'microsoft',
+  said: string,
+  detail = '',
+): Bilingual {
+  const name = PROVIDER_NAME[provider];
+  const more = detail ? ` ${detail}` : '';
+  return {
+    en: `${name} reported: ${said}.${more} Nothing was granted and nothing was stored.`,
+    nl: `${name} meldde: ${said}.${more} Er is niets toegestaan en niets opgeslagen.`,
+  };
+}
+
+/** A provider came back to the owner's callback with neither a code nor an error. */
+export function noCodeFrom(provider: 'google' | 'dropbox' | 'microsoft'): Bilingual {
+  const name = PROVIDER_NAME[provider];
+  return {
+    en: `${name} sent no authorization code back.`,
+    nl: `${name} heeft geen autorisatiecode teruggestuurd.`,
+  };
 }
 
 /**
@@ -575,6 +668,11 @@ function shell(body: string): string {
  * else might have opened this URL). Without a configured web origin the
  * page degrades to showing the token for the person to paste — their own
  * token, in their own browser, exactly what the Playground used to show.
+ *
+ * In the language the consent began in (`locale`, workplan 0145 T6); anything
+ * else, or nothing, is English. The `reason` of a refusal arrives already in
+ * it where we wrote it; a code exchange's refusal quotes the provider and
+ * names the client, and renders as it was written.
  */
 export function consentResultPage(p: {
   webOrigin?: string;
@@ -583,23 +681,29 @@ export function consentResultPage(p: {
     | { readonly ok: false; readonly reason: string };
   /** Whose consent — decides the message type the wizard listens for. Google unless said. */
   provider?: 'google' | 'dropbox' | 'microsoft';
+  /** The language the consent began in. English unless it is `nl`. */
+  locale?: ConsentLocale;
 }): string {
+  const lang = localeOf(p.locale);
+  const words = OWNER_ENDING[lang];
   if (!p.outcome.ok) {
     return shell(
-      `<main style="${PAGE_STYLE}"><h1>Consent did not complete</h1>` +
+      `<main style="${PAGE_STYLE}"><h1>${words.failed}</h1>` +
         `<p>${esc(p.outcome.reason)}</p>` +
-        '<p>You can close this window and try again from the wizard.</p></main>',
+        `<p>${words.closeAndRetry}</p></main>`,
+      lang,
     );
   }
+  const provider = p.provider ?? 'google';
   const payload = {
-    type: `ownpace-${p.provider ?? 'google'}-consent`,
+    type: `ownpace-${provider}-consent`,
     refreshToken: p.outcome.refreshToken,
     grantedScopes: p.outcome.grantedScopes,
   };
   if (p.webOrigin) {
     return shell(
-      `<main style="${PAGE_STYLE}"><h1>Consent received</h1>` +
-        '<p>Handing the result back to the wizard… you can close this window.</p></main>' +
+      `<main style="${PAGE_STYLE}"><h1>${words.received}</h1>` +
+        `<p>${words.handingBack}</p></main>` +
         '<script>' +
         `const payload = JSON.parse(${jsString(payload)});` +
         `const target = JSON.parse(${jsString(p.webOrigin)});` +
@@ -607,18 +711,20 @@ export function consentResultPage(p: {
         // A window with no opener cannot hand anything back, and a page that
         // says "handing the result back" while nothing arrives is the owner's
         // "it told me it worked" of 2026-09-02. Say what happened, and never
-        // show the token: it belongs to the app, not to a screen.
+        // show the token: it belongs to the app, not to a screen. The sentence
+        // names this provider's own button, and travels as a JSON string so
+        // no word in either language can end the script's string early.
         " else { document.querySelector('p').textContent = " +
-        "'This window was not opened by Ownpace, so the result could not be handed back. " +
-        "Close it and press Connect with Google again from the same browser tab.'; }" +
+        `JSON.parse(${jsString(words.noOpener(PROVIDER_NAME[provider]))}); }` +
         '</script>',
+      lang,
     );
   }
   return shell(
-    `<main style="${PAGE_STYLE}"><h1>Consent received</h1>` +
-      '<p>No web address is configured for this API, so the token could not be handed back ' +
-      'automatically. Copy the refresh token below into the wizard’s Refresh token field:</p>' +
+    `<main style="${PAGE_STYLE}"><h1>${words.received}</h1>` +
+      `<p>${words.noWebOrigin}</p>` +
       `<p><code>${esc(p.outcome.refreshToken)}</code></p></main>`,
+    lang,
   );
 }
 
@@ -657,6 +763,14 @@ export function consentResultPage(p: {
  * Absent when the deployment could not mint one (no `WEB_URL`, or the write
  * failed). The page then reads exactly as it did before 0122 — nothing is
  * claimed that is not there.
+ *
+ * ## In the reader's language (workplan 0145 T6)
+ *
+ * `locale` is the language the grant page was in when its button was pressed,
+ * recorded on the pending consent; anything else, or nothing, is English. The
+ * `reason` of a refusal arrives already in it. *"Bookmark it"* became a
+ * sentence that also works for somebody reading inside another app's browser,
+ * which often cannot keep a bookmark: keep the link, by a bookmark or a copy.
  */
 export function grantResultPage(
   outcome:
@@ -686,52 +800,136 @@ export function grantResultPage(
          */
         readonly link?: 'works' | 'unused';
       },
+  locale?: ConsentLocale,
 ): string {
+  const lang = localeOf(locale);
+  const words = GRANT_ENDING[lang];
   if (!outcome.ok) {
     const after =
       outcome.link === 'works'
-        ? 'Nothing was stored, and your link still works.'
+        ? words.linkWorks
         : outcome.link === 'unused'
-          ? 'Nothing was stored, and your link was not used up, so you can open it again.'
-          : 'Nothing was stored. If you were sent a link, ask the person who sent it for a ' +
-            'fresh one — issuing another takes them a moment.';
+          ? words.linkUnused
+          : words.linkSpent;
     return shell(
-      `<main style="${PAGE_STYLE}"><h1>That did not complete</h1>` +
+      `<main style="${PAGE_STYLE}"><h1>${words.failed}</h1>` +
         `<p>${esc(outcome.reason)}</p><p>${after}</p></main>`,
+      lang,
     );
   }
   // `esc` on a URL this function itself was handed: it goes into an href and
   // into visible text, and a value that cannot be forged is still a value that
   // must not be able to close an attribute.
   const keepThis = outcome.progressUrl
-    ? '<p>Here is your own page for this migration — <strong>keep this one</strong>. It ' +
-      'shows how far along your move is, and nothing from inside your account:</p>' +
+    ? `<p>${words.yourPage}</p>` +
       `<p><a href="${esc(outcome.progressUrl)}">${esc(outcome.progressUrl)}</a></p>` +
-      '<p>Bookmark it. It works for the next 90 days, and the person running the migration ' +
-      'can turn it off at any time.</p>'
+      `<p>${words.keepIt} ${words.howLong}</p>`
     : '';
   // "Read-only" only where Google holds what it recorded to reading (0144 T3
   // (c)). Otherwise what is true of Ownpace, and what is true of the
   // permission, said apart.
-  const access = {
-    'read-only': 'Access is <strong>read-only</strong>: nothing is ever deleted or changed at your end.',
-    'allows-changes':
-      '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. The ' +
-      'permission Google recorded also allows changes; Ownpace makes none.',
-    widened:
-      '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. ' +
-      'Google also added permissions this account had already given the same app, and one of ' +
-      'them allows changes; Ownpace makes none.',
-  }[outcome.permission];
   return shell(
-    `<main style="${PAGE_STYLE}"><h1>Thank you — that is done</h1>` +
-      '<p>Your account is now connected, and the migration can read from it. You do not have ' +
-      'to do anything else, and this link will not work again.</p>' +
+    `<main style="${PAGE_STYLE}"><h1>${words.done}</h1>` +
+      `<p>${words.connected}</p>` +
       keepThis +
-      `<p>${access} You can withdraw it at any time from your Google account’s security ` +
-      'settings, under the third-party apps that have access.</p></main>',
+      `<p>${words.access[outcome.permission]} ${words.withdraw}</p></main>`,
+    lang,
   );
 }
+
+/**
+ * The link holder's ending, in both languages (workplan 0145 T6), typed by
+ * locale so neither can lose a sentence the other has. The Dutch is a
+ * proposal the owner reads before it ships (0144 D1).
+ */
+const GRANT_ENDING: Readonly<
+  Record<
+    ConsentLocale,
+    {
+      readonly failed: string;
+      readonly linkWorks: string;
+      readonly linkUnused: string;
+      readonly linkSpent: string;
+      readonly done: string;
+      readonly connected: string;
+      readonly yourPage: string;
+      readonly keepIt: string;
+      readonly howLong: string;
+      readonly access: Readonly<Record<RecordedPermission, string>>;
+      readonly withdraw: string;
+    }
+  >
+> = {
+  en: {
+    failed: 'That did not complete',
+    linkWorks: 'Nothing was stored, and your link still works.',
+    linkUnused: 'Nothing was stored, and your link was not used up, so you can open it again.',
+    linkSpent:
+      'Nothing was stored. If you were sent a link, ask the person who sent it for a fresh one ' +
+      '— issuing another takes them a moment.',
+    done: 'Thank you — that is done',
+    connected:
+      'Your account is now connected, and the migration can read from it. You do not have to do ' +
+      'anything else, and this link will not work again.',
+    yourPage:
+      'Here is your own page for this migration — <strong>keep this one</strong>. It shows how ' +
+      'far along your move is, and nothing from inside your account:',
+    keepIt:
+      'Keep this link: bookmark it or copy it somewhere safe. If this page opened inside another ' +
+      'app, that app may not keep it for you.',
+    howLong:
+      'It works for the next 90 days, and the person running the migration can turn it off at ' +
+      'any time.',
+    access: {
+      'read-only': 'Access is <strong>read-only</strong>: nothing is ever deleted or changed at your end.',
+      'allows-changes':
+        '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. The ' +
+        'permission Google recorded also allows changes; Ownpace makes none.',
+      widened:
+        '<strong>Ownpace only reads</strong>: nothing is ever deleted or changed at your end. ' +
+        'Google also added permissions this account had already given the same app, and one of ' +
+        'them allows changes; Ownpace makes none.',
+    },
+    withdraw:
+      'You can withdraw it at any time from your Google account’s security settings, under the ' +
+      'third-party apps that have access.',
+  },
+  nl: {
+    failed: 'Dat is niet gelukt',
+    linkWorks: 'Er is niets opgeslagen, en uw link werkt nog.',
+    linkUnused: 'Er is niets opgeslagen, en uw link is niet verbruikt, dus u kunt hem opnieuw openen.',
+    linkSpent:
+      'Er is niets opgeslagen. Hebt u een link gekregen, vraag de persoon die hem stuurde dan om ' +
+      'een nieuwe; die is zo gemaakt.',
+    done: 'Dank u, het is gelukt',
+    connected:
+      'Uw account is nu verbonden, en de migratie kan eruit lezen. U hoeft verder niets te doen, ' +
+      'en deze link werkt niet meer.',
+    yourPage:
+      'Hier is uw eigen pagina voor deze migratie — <strong>bewaar deze</strong>. Die laat zien ' +
+      'hoe ver de migratie is, en niets uit uw account:',
+    keepIt:
+      'Bewaar deze link: zet hem bij uw favorieten of kopieer hem naar een veilige plek. Is deze ' +
+      'pagina in een andere app geopend, dan bewaart die app hem misschien niet.',
+    howLong:
+      'Hij werkt de komende 90 dagen, en wie de migratie uitvoert kan hem op elk moment uitzetten.',
+    access: {
+      'read-only':
+        'De toegang is <strong>alleen-lezen</strong>: aan uw kant wordt nooit iets verwijderd of gewijzigd.',
+      'allows-changes':
+        '<strong>Ownpace leest alleen</strong>: aan uw kant wordt nooit iets verwijderd of ' +
+        'gewijzigd. De toestemming die Google heeft vastgelegd staat ook wijzigingen toe; Ownpace ' +
+        'brengt er geen aan.',
+      widened:
+        '<strong>Ownpace leest alleen</strong>: aan uw kant wordt nooit iets verwijderd of ' +
+        'gewijzigd. Google heeft ook toestemmingen toegevoegd die dit account al aan dezelfde app ' +
+        'had gegeven, en een daarvan staat wijzigingen toe; Ownpace brengt er geen aan.',
+    },
+    withdraw:
+      'U kunt de toegang op elk moment intrekken in de beveiligingsinstellingen van uw ' +
+      'Google-account, bij de apps van derden die toegang hebben.',
+  },
+};
 
 /**
  * THE HEADERS THE CALLBACK PAGE IS SERVED UNDER (2026-09-02).

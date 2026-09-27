@@ -191,7 +191,9 @@ describe('what the doubled prefix would have cost', () => {
     const { writer, calls } = calendarWriter(records);
     await writer.upsertCalendarEvent(COLLECTION, event(ON_TARGET));
 
-    await writer.removeItem(String(records[0]?.targetId));
+    // With a version: a removal without one sends nothing (workplan 0149 T3),
+    // and this is about the URL the DELETE goes to.
+    await writer.removeItem(String(records[0]?.targetId), { expectedTargetVersion: 'v1' });
 
     const deletes = calls.filter((c) => c.method === 'DELETE');
     expect(deletes, 'exactly one DELETE was issued').toHaveLength(1);

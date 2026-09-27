@@ -23,7 +23,7 @@
 process.env.SECRET_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import {
@@ -93,7 +93,9 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
 
 const { default: grantRoutes } = await import('./grant.ts');
 const { default: googleOauthRoutes } = await import('./migrations/google-oauth-routes.ts');
-const { GOOGLE_SOURCE_SCOPES } = await import('./migrations/google-consent.ts');
+const { GOOGLE_SOURCE_SCOPES, rawIpCallbackRefusal, unreachableCallbackRefusal } = await import(
+  './migrations/google-consent.ts'
+);
 const { googleAccountConsent, isRefusal } = await import('./migrations/google-account-consent.ts');
 const { SIGNED_IN_ACCOUNT_SCOPES } = await import('./migrations/signed-in-account.ts');
 
@@ -361,7 +363,9 @@ describe('what the page may know before the button', () => {
     const res = await request(app).get(`/api/grant/${token}`);
     expect(res.status).toBe(200);
     expect(res.body.organisation).toBe('Acme Legal');
-    expect(res.body.reads).toMatch(/your email/);
+    // What is read as data types, which the page words in its own language
+    // (workplan 0145 T6).
+    expect(res.body.domains).toEqual(['email']);
     // The scope AS a scope (ADR-0041), not a paraphrase of one: the data's,
     // and the two that say who signed in, exactly as Google will record them.
     expect(res.body.scope).toBe(`${GOOGLE_SOURCE_SCOPES.gmail} ${WHO}`);
@@ -399,12 +403,12 @@ describe('what the page may know before the button', () => {
     expect(Object.keys(res.body).sort()).toEqual([
       'askedBy',
       'checkedCompany',
+      'domains',
       'expiresAt',
       'from',
       'organisation',
       'organisationPhone',
       'readOnlyAtProvider',
-      'reads',
       'scope',
       'to',
     ]);
@@ -657,7 +661,7 @@ describe("the deployment's client, where the source stores none (0108 T6)", () =
       const { token } = await mintLink(CALENDAR);
       const page = await request(app).get(`/api/grant/${token}`);
       expect(page.status).toBe(200);
-      expect(page.body.reads).toBe('your calendars and their events');
+      expect(page.body.domains).toEqual(['calendar']);
       expect(page.body.scope).toBe(`${GOOGLE_SOURCE_SCOPES['google-calendar']} ${WHO}`);
 
       const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({});
@@ -713,7 +717,7 @@ describe('a link for a Google ACCOUNT (0108 T7)', () => {
       const owners = googleAccountConsent(['calendar', 'task'], {});
       if (isRefusal(owners)) throw new Error(owners.reason);
       expect(page.body.scope).toBe(`${owners.scope} ${WHO}`);
-      expect(page.body.reads).toBe('your calendars and their events and your tasks');
+      expect(page.body.domains).toEqual(['calendar', 'task']);
       // Tasks alone would be read-only at Google; the calendar is not, and one
       // scope that can write makes the grant one that can (0144 T3 (c)).
       expect(page.body.readOnlyAtProvider).toBe(false);
@@ -1323,5 +1327,138 @@ describe('the progress link handed over at the ending', () => {
     const res = await grantThrough(token);
     expect(res.status).toBe(200);
     expect((await mappingRow(MAPPING))?.source_secret_ref).toBeTruthy();
+  });
+});
+
+/**
+ * ONE LANGUAGE THROUGH THE GRANT (workplan 0145 T6), from the route.
+ *
+ * The page names the data types and builds the sentence itself, from its own
+ * dictionary; every refusal carries its Dutch half beside the English one; and
+ * the ending is rendered in the language the button asked for, which the
+ * server records on the pending consent and never sends through the redirect.
+ */
+describe('one language through the grant (0145 T6)', () => {
+  it('names the data types the link reads, and no longer a sentence in one language', async () => {
+    const { token } = await mintLink(MAPPING);
+    const res = await request(app).get(`/api/grant/${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.domains).toEqual(['email']);
+    expect(res.body).not.toHaveProperty('reads');
+  });
+
+  it('a migration that is not ready answers its reason in both languages', async () => {
+    const { token } = await mintLink(NAMELESS);
+    const get = await request(app).get(`/api/grant/${token}`);
+    expect(get.status).toBe(409);
+    expect(get.body.reason).toMatch(/it does not name the Google account it reads/);
+    expect(get.body.reasonNl).toBe(
+      'Deze migratie is nog niet klaar om te verbinden: die noemt niet welk Google-account ze ' +
+        'leest. U kunt dat vanaf hier niet oplossen; laat het de persoon weten die u de link stuurde.',
+    );
+    const post = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+    expect(post.status).toBe(409);
+    expect(post.body.reasonNl).toBe(get.body.reasonNl);
+  });
+
+  it('a link that cannot be used answers in both languages', async () => {
+    const res = await request(app).get('/api/grant/not-a-link');
+    expect(res.status).toBe(401);
+    expect(res.body.messageNl).toMatch(/^Deze link kan niet worden gebruikt\./);
+  });
+
+  it('a grant begun in Dutch ends in Dutch, with the link to keep', async () => {
+    const { token } = await mintLink(MAPPING);
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+    expect(started.status).toBe(200);
+    const url = new URL(started.body.url);
+    expect(url.searchParams.has('locale')).toBe(false);
+    const ended = await request(app)
+      .get('/api/migrations/google/callback')
+      .query({ state: url.searchParams.get('state')!, code: 'auth-code' });
+    expect(ended.status).toBe(200);
+    expect(ended.text).toContain('<html lang="nl">');
+    expect(ended.text).toContain('Bewaar deze link');
+    expect(ended.text).not.toMatch(/Thank you|Bookmark it/);
+  });
+
+  it('another account signing in is told so in Dutch, with both addresses as they are', async () => {
+    const { token } = await mintLink(MAPPING);
+    tokenResponse = () => ({
+      status: 200,
+      body: {
+        refresh_token: REFRESH,
+        scope: GOOGLE_SOURCE_SCOPES.gmail,
+        id_token: idTokenFor('personal@gmail.com'),
+      },
+    });
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+    const ended = await request(app)
+      .get('/api/migrations/google/callback')
+      .query({ state: new URL(started.body.url).searchParams.get('state')!, code: 'auth-code' });
+    expect(ended.status).toBe(403);
+    expect(ended.text).toContain(
+      `U bent bij Google ingelogd als personal@gmail.com, maar deze migratie leest ${NAMED}.`,
+    );
+    expect(ended.text).toContain('Er is niets opgeslagen, en uw link werkt nog.');
+  });
+
+  /**
+   * The two sign-in wrappers (0145 T6, review): the operator's refusal of a
+   * callback address, reached by a person who cannot act on it, wrapped in a
+   * frame they can read and forward. The frame is translated; the operator's
+   * words inside it are the finding and stay verbatim in both halves.
+   */
+  describe('a callback address Google will not take, told in both languages', () => {
+    const DUTCH_FRAME = 'Deze migratie kan nog geen Google-aanmelding gebruiken';
+    let saved: { api: string | undefined; web: string | undefined };
+    beforeEach(() => {
+      saved = { api: process.env.API_URL, web: process.env.WEB_URL };
+    });
+    afterEach(() => {
+      process.env.API_URL = saved.api;
+      process.env.WEB_URL = saved.web;
+    });
+
+    it('a raw IP address', async () => {
+      // A documentation address (RFC 5737): the shape, not a host.
+      process.env.API_URL = 'http://192.0.2.10:3001';
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('raw_ip_callback');
+      expect(res.body.reasonNl.startsWith(DUTCH_FRAME)).toBe(true);
+      const detail = rawIpCallbackRefusal('http://192.0.2.10:3001/api/migrations/google/callback')!;
+      expect(detail).toContain('raw IP address');
+      expect(res.body.reason).toContain(detail);
+      expect(res.body.reasonNl).toContain(detail);
+    });
+
+    it('a loopback address behind a public app', async () => {
+      process.env.API_URL = 'http://localhost:3001';
+      process.env.WEB_URL = 'https://app.example';
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('unreachable_callback');
+      expect(res.body.reasonNl.startsWith(DUTCH_FRAME)).toBe(true);
+      const detail = unreachableCallbackRefusal(
+        'http://localhost:3001/api/migrations/google/callback',
+        'https://app.example',
+      )!;
+      expect(detail).toContain('loopback address');
+      expect(res.body.reason).toContain(detail);
+      expect(res.body.reasonNl).toContain(detail);
+    });
+  });
+
+  it('a grant begun with an unknown language ends in English', async () => {
+    const { token } = await mintLink(MAPPING);
+    const started = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'fr' });
+    const ended = await request(app)
+      .get('/api/migrations/google/callback')
+      .query({ state: new URL(started.body.url).searchParams.get('state')!, error: 'access_denied' });
+    expect(ended.text).toContain('<html lang="en">');
+    expect(ended.text).toContain('Permission was not given at Google.');
   });
 });
