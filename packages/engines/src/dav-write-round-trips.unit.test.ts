@@ -93,6 +93,20 @@ function event(uid: string) {
   return { icalendar: `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:s\r\nEND:VEVENT\r\nEND:VCALENDAR` };
 }
 
+/** A multistatus naming the one object that holds `uid`, as a by-UID REPORT answers. */
+function heldByUid(path: string, element: 'cal:calendar-data' | 'card:address-data', uid: string): string {
+  const data =
+    element === 'cal:calendar-data'
+      ? `BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:${uid}\nEND:VEVENT\nEND:VCALENDAR`
+      : `BEGIN:VCARD\nVERSION:3.0\nUID:${uid}\nFN:n\nEND:VCARD`;
+  return (
+    '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" ' +
+    'xmlns:card="urn:ietf:params:xml:ns:carddav">' +
+    `<d:response><d:href>/remote.php/dav/${path}</d:href><d:propstat><d:prop>` +
+    `<${element}>${data}</${element}></d:prop></d:propstat></d:response></d:multistatus>`
+  );
+}
+
 /**
  * The create-only precondition, and the one case that must not send it.
  *
@@ -250,10 +264,16 @@ describe('CalDAV overwrite', () => {
     // servers vary. The guarantee must not depend on which one a customer runs.
     const recorded: Array<Record<string, unknown>> = [];
     const client = {
-      async request(o: { method: string }) {
+      async request(o: { method: string; body?: unknown }) {
         if (o.method === 'PUT') {
           // The header that was never present in any fixture.
           return { status: 412, body: '', headers: { etag: '"not-ours-7f3"' } };
+        }
+        // Asked who holds the UID, the server names the object (workplan 0149
+        // T1: a 412 is adopted only on the server's word). The listing finds
+        // nothing, so it is the PUT that discovers it.
+        if (o.method === 'REPORT' && String(o.body ?? '').includes('text-match')) {
+          return { status: 207, body: heldByUid('calendars/alice/personal/e1.ics', 'cal:calendar-data', 'e1'), headers: {} };
         }
         return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
       },
@@ -282,6 +302,10 @@ describe('CalDAV overwrite', () => {
       recorded[0]!.targetVersion,
       'the ledger now believes we own bytes the destination already had',
     ).toBeUndefined();
+    // And not a copy either: without this, a row with no version still read
+    // `copied`, for a source change to overwrite and *apply deletions* to remove.
+    expect(result.adopted).toBe(true);
+    expect(recorded[0]!.status).toBe('adopted');
   });
 });
 
@@ -334,9 +358,10 @@ describe('CalDAV write cost', () => {
   });
 
   it('treats the precondition failing as "already there", not as an error', async () => {
-    // Something landed at that href after our snapshot was taken. The resource
-    // exists and is keyed the way we would have keyed it, so this is an
-    // adoption, not a failure — and certainly not something to retry over.
+    // Something landed at that href after our snapshot was taken. Asked, the
+    // server names the object holding this UID, so this is an adoption, not a
+    // failure — and certainly not something to retry over. Nor a copy: the
+    // bytes there are not ours (workplan 0149 T1).
     const { writer, present } = calServer([]);
     const collection = '/calendars/alice/personal/';
     // Populate the server AFTER the snapshot is built.
@@ -345,14 +370,21 @@ describe('CalDAV write cost', () => {
 
     const result = await writer.upsertCalendarEvent(collection, event('racer') as never);
     expect(result.targetId).toContain('racer.ics');
+    expect(result.adopted).toBe(true);
+    expect(result.created).toBe(false);
   });
 
   it('falls back to the per-item check when the collection cannot be listed', async () => {
-    // A target we cannot enumerate must still migrate — just not as fast.
+    // A target we cannot enumerate must still migrate — just not as fast. The
+    // per-item question has to be ANSWERED, though: were it refused as well,
+    // "not there" would be a guess (workplan 0149 T2).
     const calls: Call[] = [];
     const client = {
-      async request(o: { method: string; url: string; headers?: Record<string, string> }) {
+      async request(o: { method: string; url: string; headers?: Record<string, string>; body?: unknown }) {
         calls.push({ method: o.method, url: o.url, headers: o.headers });
+        if (o.method === 'REPORT' && String(o.body ?? '').includes('text-match')) {
+          return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
+        }
         if (o.method === 'REPORT') return { status: 403, body: 'no listing for you', headers: {} };
         if (o.method === 'PUT') return { status: 201, body: '', headers: {} };
         return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
@@ -397,8 +429,16 @@ describe('CardDAV write cost', () => {
     // case for why an ETag lifted off a 412 defeats hard rule 2.
     const recorded: Array<Record<string, unknown>> = [];
     const client = {
-      async request(o: { method: string }) {
+      async request(o: { method: string; body?: unknown }) {
         if (o.method === 'PUT') return { status: 412, body: '', headers: { etag: '"theirs-1"' } };
+        // Asked who holds the UID, the book names the card (workplan 0149 T1).
+        if (o.method === 'REPORT' && String(o.body ?? '').includes('text-match')) {
+          return {
+            status: 207,
+            body: heldByUid('addressbooks/users/alice/contacts/c1.vcf', 'card:address-data', 'c1'),
+            headers: {},
+          };
+        }
         return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
       },
     } as unknown as HttpClient;
@@ -427,6 +467,9 @@ describe('CardDAV write cost', () => {
       recorded[0]!.targetVersion,
       'the ledger now believes we own a contact the destination already had',
     ).toBeUndefined();
+    // And not a copy either — see the CalDAV case.
+    expect(result.adopted).toBe(true);
+    expect(recorded[0]!.status).toBe('adopted');
   });
 
   it('asks the address book once, not once per contact', async () => {
