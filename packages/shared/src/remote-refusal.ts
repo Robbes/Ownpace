@@ -224,6 +224,16 @@ export type WhatHappened =
   | { readonly kind: 'unknown' };
 
 /**
+ * What happened, as the managed API answers it (0136 T3): the parts above,
+ * and the reference the full text is logged under. The API keeps them on the
+ * probe's answer and on the stored face, so a screen can say them in its
+ * reader's language; they hold nothing the English sentence does not. The
+ * reference is what marks the parts as an answer: a result without one, the
+ * appliance's or a row stored before, renders its own text as it always did.
+ */
+export type WhatHappenedAnswer = WhatHappened & { readonly reference?: string };
+
+/**
  * The code the rule's refusal carries (`HostInsideOurNetwork` in
  * `reachable-host.ts`, 0136 T1). Read as a code, not as the class: that module
  * is Node's alone, and this one is in the index the browser imports.
