@@ -1593,11 +1593,15 @@ database and fails in a way that reads like a broken task."*
 **Environment before deploy, deliberately.** Task containers inherit
 **nothing** from compose: a run gets only what the Trigger.dev platform stores
 for the project's environment. `set-task-env.sh` uploads `DATABASE_URL`,
-`APP_DATABASE_URL`, `DIRECT_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the
+`APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the
 optional `OAUTH2_*` / `SMTP_*` / `NOTIFY_*` from `.env`, with `override: true`
 so a stale dashboard value cannot win over a rotated file. The addresses it
-uploads are **in-network** (`pgbouncer:6432`, `postgres:5432`), because runners
+uploads are **in-network** (`pgbouncer:6432` by default), because runners
 join the compose network — `localhost` there would point a task at itself.
+It does not upload `DIRECT_DATABASE_URL` (workplan 0138 T3 step 1): that is the
+database owner straight to Postgres, and no task reads it. A plane that received
+it before that change still holds it; see
+[once, after the pull that stopped uploading it](#once-after-the-pull-that-stopped-uploading-direct_database_url).
 
 `deploy-tasks.sh` re-checks the architecture and refuses on a mismatch, then
 deploys. **Re-run it after every `git pull` that touches `apps/worker`.**
@@ -1702,8 +1706,9 @@ Every mail this stack sends goes to **Mailpit**, a catcher on the compose
 network.
 
 **Two different things send mail, and they are configured separately.** The API
-sends operator notifications — an access request, a grant, a decline, the daily
-digest — and reads `SMTP_HOST` and friends from `.env` via `managed.yml`. The
+sends its notifications — an access request, a grant, a decline — and reads
+`SMTP_HOST` and friends from `.env` via `managed.yml`; the tasks send the digest
+with the same settings, once `set-task-env.sh` has uploaded them (below). The
 **identity provider sends its own**: the verification link on a new account, an
 email-change confirmation, a password reset, the invitation to set a first
 password. None of that goes through the API. `setup-zitadel.sh` configures it
@@ -1839,6 +1844,152 @@ habit of opening it. It now sends `access_requested` to `NOTIFY_TO`, carrying
 the address, organisation and tier — **not** the applicant's note, which stays
 in the database behind authentication where the queue shows it. When no channel
 is configured the API logs, per request, that nobody was told.
+
+### Before a relay: passing mail on by hand
+
+Decided 2026-09-24 (workplan 0133 D2): until the stack testers use sends
+through a real relay, you read each tester's mail in that stack's Mailpit and
+pass on what they need. This is a procedure, not a setting.
+
+**Where it applies.** Only on `ownpace-live`, the stack testers use (0132 D7),
+and only until its `.env` names a relay (0133 T3). If the relay is ready before
+live's first bring-up, the tag live is brought up from carries 0133 T2 (TLS for
+the identity provider), and that tag also carries 0135 T1 and T2 (so live's
+identity provider never offers public organisation registration, and its project
+admits its own organisation only), put the relay in live's `.env` from the start
+and skip this. Without 0133 T2 the identity provider takes its `tls` from
+`SMTP_SECURE`, which stays empty for a relay on 587: it connects in plain text,
+a relay that takes a login only over TLS refuses it, and the identity provider's
+codes reach neither an inbox nor a catcher while the API's mail arrives.
+Otherwise start on the catcher and switch at 0133 T3: live starts with the
+example's `SMTP_HOST=mailpit`, and a Mailpit in live's own project catches its
+mail. That is the recommendation in 0133's open question 5, which the owner has
+not answered yet. The OTA stack's Mailpit never holds a tester's mail: it is the
+nightly gate's, and the smoke reads it every night. On `main`, `managed.yml`
+still pins `name: ownpace-managed` and gives 17 services a fixed
+`container_name`, `ownpace-mailpit` among them, so live cannot run beside the
+OTA stack until 0132 T1 is built.
+
+**Where each mail lands.** With `SMTP_HOST=mailpit`, every mail below lands in
+that stack's Mailpit, whoever it is addressed to, and none reaches an inbox:
+
+- the API's, over the compose network to `mailpit:1025`;
+- the tasks', once `set-task-env.sh` has uploaded the SMTP settings. Task runs
+  join the network `DOCKER_RUNNER_NETWORKS` names, where `mailpit` resolves (on
+  `main` that is the OTA stack's network by name, which 0132 T1 changes).
+  Without the upload the tasks send nothing, and say so in their log;
+- the identity provider's, through the provider `setup-zitadel.sh` made for
+  `mailpit:1025`.
+
+Mailpit keeps what it caught in `mailpit_data`, up to 500 messages. Every send
+reports `sent`, so the access queue says *"We emailed {email}."* although
+nobody outside the box has it. `managed.yml` gives Mailpit no relay, so it
+cannot send anything on: you copy what is needed into a mail from your own
+mailbox.
+
+**Mail addressed to a tester.**
+
+| Mail | Sent by, and when | Carries a code | What you do |
+|---|---|---|---|
+| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the alpha paragraph from the caught mail word for word, in the language it was sent in. |
+| *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
+| Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
+| Password reset | The identity provider, when they ask for one | **Yes** | The same. |
+| Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |
+| Email-change confirmation | The identity provider, to the new address | **Yes** | The same, to the new address. |
+| The digest, *what needs your attention* | The tasks, at 08:00 UTC, daily or weekly as the organisation chooses, to its active owners and admins, and only when something waits | No | Nothing. The tester sees the same on screen. |
+
+Each of the three codes lives one hour. In Zitadel v4.17.3's defaults,
+`EmailVerificationCode` and `PasswordVerificationCode` expire after `1h`, and an
+email change uses the first. `managed.yml` overrides neither; a change made in
+the console would not show here. An account somebody creates for a person in
+the console gets a mail to set a first password instead, and its code lives 72
+hours. Testers register themselves, as the grant mail tells them to.
+
+**Mail addressed to you.** These go to `NOTIFY_TO`, the operator's list, with
+or without a relay:
+
+- *Ownpace — somebody asked for access* (`access_requested`), from the API
+  when somebody sends the request form. Nothing to pass on: the request is in
+  the access queue.
+- *Ownpace — a change needs your decision* (`decision_raised`), from the tasks'
+  daily checks of a source's directory, even when the decision is in a tester's
+  organisation. Nothing to pass on: the tester sees it in the app and in their
+  digest.
+- *Ownpace — the migration was rolled back* (`rollback_finished`), from the
+  `run-rollback` task when you start it with `notifyUsers`. Despite the name, it
+  goes to `NOTIFY_TO`. If the migration is a tester's, tell them yourself.
+
+**Never mailed, relay or not.** An invitation to an organisation that exists:
+`apps/api/src/routes/tenants/members.ts` records it and sends nothing. The
+person finds it on the Invitations page when they sign in with that address,
+verified, so whoever invited them tells them. A grant link: *"You send the
+link. We never do."* ([grant-links.md](grant-links.md)).
+
+**Not sent from any screen today.** The fallback announcement for shares carried
+by hand (0104 T3). `POST /api/migrations/:mappingId/sharing/announce` mails each
+grantee if it is called, and no screen in `apps/web` calls it. (A share applied
+on the *Sharing checklist* is announced by the target's own invite, not by
+Ownpace.)
+
+**The one rule: a code goes by mail, and only to the address it was sent to.**
+A granted organisation and an invitation both bind to an address the identity
+provider verified (`claimRequestedMembership` and `pendingInvitations` in
+`apps/api/src/middleware/auth.ts`). Sent on to that same address, your mail
+still proves the tester reads that mailbox. Sent anywhere else, by chat or by
+text message, it lets whoever receives it verify an address that may not be
+theirs, and take what was meant for its owner.
+
+**Only codes you are expecting.** Pass on a code only for an address you
+granted and are waiting for. Leave any other code in Mailpit. Until public
+organisation registration is closed at live's identity provider (0135 T0, T1),
+such a code may belong to somebody founding an organisation of their own, and
+passing it on completes the step that 0135 §4 says holds that chain back.
+
+**Be there when they register.** Agree a moment with each tester, watch
+Mailpit while they register, and pass the code on within the hour. If it
+lapses, they ask for a new one, and you pass that one on. Do not lengthen the
+lifetimes for this: a longer-lived code is a longer window for anybody who can
+read the catcher.
+
+**Tell them first.** The code will come from your own address, not from
+Ownpace. Say so when you invite them, before they register. A code from an
+unexpected sender looks like phishing, and a careful tester is right to
+distrust it.
+
+**Finding one tester's mail.** Live's `MAILPIT_PORT` is its own, not the OTA
+stack's 3127. A search on an address also finds the `access_requested` notice
+that names it, so keep only the mail addressed to it:
+
+```bash
+# On the box, in live's checkout (loopback, the default bind)
+port="$(grep '^MAILPIT_PORT=' deploy/compose/.env | cut -d= -f2 | cut -d' ' -f1)"
+addr=tester@example.org
+curl -fsS --get "http://localhost:${port:?no MAILPIT_PORT in this .env}/api/v1/search" \
+  --data-urlencode "query=${addr}" \
+  | jq -r --arg a "$addr" '.messages[]? | select([.To[]?.Address] | index($a)) | "\(.Created)  \(.Subject)"'
+```
+
+Read the code itself on Mailpit's web page, through the tunnel above with
+live's port, or at the mesh address if live's `MAILPIT_BIND` names one.
+
+**When it ends.** Once 0133 T3 is done (it waits on T2's TLS for the identity
+provider and on 0135 T0), and T4 has shown a code arriving in an outside inbox,
+the mail reaches testers without you. Then empty live's Mailpit and stop it:
+the codes have expired by then, but it still holds testers' addresses and
+grant mails. From live's checkout, with `port` set as in the recipe above:
+
+```bash
+curl -fsS -X DELETE "http://localhost:${port:?no MAILPIT_PORT in this .env}/api/v1/messages"
+docker compose -p ownpace-live -f deploy/compose/managed.yml stop mailpit
+```
+
+Name live's project (0132 T1). On `main`, `managed.yml` pins
+`name: ownpace-managed`, so the same command without `-p` reaches the OTA
+stack's `ownpace-managed` and stops the catcher the nightly gate reads. Unless
+0133 T3's gating (Mailpit only with `--with-demo` or `SMTP_HOST=mailpit`) has
+been built, every bring-up of live starts it again, empty and idle. Stop it
+again after each one.
 
 ## The CI runner is a different checkout from wherever you did this by hand
 
@@ -2095,6 +2246,62 @@ purely web. When in doubt, run it: it is idempotent and costs a minute.
 inherit nothing from compose, so the environment is uploaded separately — run
 it only when a value in `.env` that the worker reads has changed (see phase 9).
 A code-only pull does not need it.
+
+### Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`
+
+Workplan 0138 T3 step 1 took `DIRECT_DATABASE_URL` out of what `set-task-env.sh`
+uploads. It is the database owner, a superuser, straight to Postgres past the
+pooler, and no task reads it. Leaving it out of the upload does not take it out
+of the store: `upload` sends only the variables it is given, and nothing shows
+the platform removing the others. So a plane that received it before keeps
+handing it to every run until it is deleted once.
+
+It also matters for a later key rotation. `SET_TASK_ENV_FORCE_REWRITE=1`
+deletes and rewrites only the variables the script uploads, so a leftover
+`DIRECT_DATABASE_URL` stays on the old key after a
+[`TRIGGER_ENCRYPTION_KEY` rotation](#rotating-trigger_encryption_key), and one
+unreadable secret is enough to stop every run.
+
+On each stack whose plane received it (the OTA stack in `~/ownpace-managed`,
+and `ownpace-live` if its tasks were set up before this change), from that
+stack's checkout:
+
+```bash
+(
+  set -euo pipefail
+  set -a; . deploy/compose/.env; set +a
+  . deploy/compose/trigger-cli-lib.sh
+  TRIGGER_ENV="$(trigger_env deploy/compose/.env)"
+  cd apps/worker
+  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" TRIGGER_ENV="$TRIGGER_ENV" \
+    node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, process.env.TRIGGER_ENV, "DIRECT_DATABASE_URL").then(() => console.log("deleted DIRECT_DATABASE_URL"), (e) => console.log("delete said:", e && e.message ? e.message : e))'
+)
+./deploy/compose/set-task-env.sh
+```
+
+The parentheses keep a refusal inside them. `trigger_env` is the resolver
+`set-task-env.sh` itself uses, so the delete goes to the same environment the
+upload does, including on a `.env` that still carries the old
+`TRIGGER_ENV_SLUG`; when the two names disagree it refuses, and only the
+subshell exits, not your terminal.
+
+What the delete says is not the check. This repository has seen `envvars.del`
+report a variable missing while its row existed (`deploy/compose/reset-trigger.sh`,
+under a discarded key). The check is the line `set-task-env.sh` prints next,
+`upload OK — env now holds:` and the names in the store: `DIRECT_DATABASE_URL`
+must not be among them. If it is still listed, look for its row in the
+platform's own database (on live, under live's project name):
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T trigger-db \
+  psql -U trigger -d triggerdb -tA -c "SELECT key FROM \"SecretStore\" WHERE key LIKE '%DIRECT_DATABASE_URL%'"
+```
+
+A row there that the delete cannot remove is a secret the current key cannot
+read. `deploy/compose/reset-trigger.sh` says why a reset is then the way out
+and what it destroys, and
+[Rotating `TRIGGER_ENCRYPTION_KEY`](#rotating-trigger_encryption_key) when the
+wipe beats the surgery.
 
 ### Draining first, and telling customers why
 

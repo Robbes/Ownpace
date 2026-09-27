@@ -81,6 +81,7 @@ import {
   reconstructFileNodePath,
   fileNodeIndex,
 } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { createHash } from 'node:crypto';
 
 /** See `jmap-target.ts` — same server, same reasoning, same numbers. */
@@ -264,7 +265,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
    */
   private async fetchWithRateLimitRetry(url: string, init: RequestInit): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
-      const response = await fetch(url, init);
+      const response = await tenantFetch(url, init);
       const rateLimited = response.status === 429 || response.status === 503;
       if (!rateLimited || attempt >= RATE_LIMIT_ATTEMPTS - 1) return response;
 
@@ -686,7 +687,8 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     }
 
     if (expectedTargetVersion !== undefined) {
-      const current = await this.storedNodeVersion(targetId);
+      // A read that fails refuses the rewrite (0149 T3): see `nodeVersionBefore`.
+      const current = await this.nodeVersionBefore('rewritten', targetId);
       if (current !== undefined && current !== expectedTargetVersion) {
         // Someone edited our copy. Not an error and deliberately not thrown:
         // a conflict is a fact about ownership, not a failure to migrate.
@@ -913,24 +915,13 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
    * would report a conflict on every rewrite and quietly stop update
    * propagation working at all.
    *
-   * `undefined` when the node cannot be read, which costs that item its
-   * overwrite protection and nothing else — the caller then rewrites without
-   * the guard, exactly as it would against a server that sent no ETag.
+   * Read back AFTER a write, `undefined` when the node cannot be read, which
+   * costs that item its overwrite protection and nothing else. BEFORE a rewrite
+   * or a removal the same read may not fail quietly: `nodeVersionBefore`.
    */
   private async storedNodeVersion(targetId: string): Promise<string | undefined> {
     try {
-      const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
-        accountId: this.accountId,
-        ids: [targetId],
-        properties: [...NODE_PROPERTIES],
-      });
-      const node = response.list?.[0];
-      if (!node) return undefined;
-      // `id` is excluded: it is the server's handle, not part of what the node
-      // says about its content, and including it would make the fingerprint
-      // agree with itself for the wrong reason.
-      const { id: _id, ...rest } = node;
-      return createHash('sha256').update(canonicalJson(rest)).digest('hex');
+      return await this.fingerprintOf(targetId);
     } catch (err) {
       log.warn(
         `[jmap-files] could not read ${targetId} back to fingerprint it ` +
@@ -939,6 +930,46 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       );
       return undefined;
     }
+  }
+
+  /**
+   * The same read BEFORE a rewrite or a removal, where a failure REFUSES
+   * (workplan 0149 T3).
+   *
+   * It returned `undefined` here too, and the check that followed read that as
+   * "cannot tell, go ahead": so a read that failed let the destroy go ahead,
+   * and the rewrite. JMAP has no condition for one object on `/set`
+   * (`ifInState` covers the whole type in the account, RFC 8620 §5.3), so the
+   * read and the write stay two calls, and what changes is that a read that
+   * failed is not an answer. A file that is simply not there still reads as
+   * `undefined`, and the write that follows says so in its own words.
+   */
+  private async nodeVersionBefore(action: 'removed' | 'rewritten', targetId: string): Promise<string | undefined> {
+    try {
+      return await this.fingerprintOf(targetId);
+    } catch (err) {
+      throw new Error(
+        `Could not read ${targetId} to compare it with the version we recorded, so it was not ` +
+          `${action}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      );
+    }
+  }
+
+  /** The fingerprint itself, with nothing caught: see `storedNodeVersion` for what it is. */
+  private async fingerprintOf(targetId: string): Promise<string | undefined> {
+    const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
+      accountId: this.accountId,
+      ids: [targetId],
+      properties: [...NODE_PROPERTIES],
+    });
+    const node = response.list?.[0];
+    if (!node) return undefined;
+    // `id` is excluded: it is the server's handle, not part of what the node
+    // says about its content, and including it would make the fingerprint
+    // agree with itself for the wrong reason.
+    const { id: _id, ...rest } = node;
+    return createHash('sha256').update(canonicalJson(rest)).digest('hex');
   }
 
   /**
@@ -991,15 +1022,18 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     targetId: string,
     options?: { readonly expectedTargetVersion?: string },
   ): Promise<RemovalResult> {
+    // NO VERSION, NO REMOVAL (workplan 0149 T3, the owner's D1). Every write
+    // records this file's fingerprint, so a row without one cannot say
+    // whether somebody changed the copy since, and a removal cannot be undone.
+    if (options?.expectedTargetVersion === undefined) return { unversioned: true };
+
     await this.ensureConnected();
 
-    if (options?.expectedTargetVersion !== undefined) {
-      // Same guard as the rewrite path, and it matters more here: this is the
-      // one operation that cannot be undone.
-      const current = await this.storedNodeVersion(targetId);
-      if (current !== undefined && current !== options.expectedTargetVersion) {
-        return { conflicted: true };
-      }
+    // Same guard as the rewrite path, and it matters more here: this is the
+    // one operation that cannot be undone. A read that fails refuses.
+    const current = await this.nodeVersionBefore('removed', targetId);
+    if (current !== undefined && current !== options.expectedTargetVersion) {
+      return { conflicted: true };
     }
 
     const response = await this.apiRequest<NodeSetResponse>('FileNode/set', {

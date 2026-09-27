@@ -38,6 +38,7 @@ import {
   resolveGoogleClient,
   type PermissionListing,
 } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import {
   createTokenProvider,
   directoryAvailability,
@@ -64,12 +65,16 @@ import {
 import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { Pool } from 'pg';
 import { serverFault } from '../server-fault.ts';
+import { probeAnswers } from '../probe-answer.ts';
 
 const router = Router();
 
+// One client for Graph and for the organisation's own Nextcloud. The second is
+// a host a tenant gave us, so both go through the rule (0136 T1); Graph's
+// address is public and passes it.
 const httpClient: HttpClient = {
   async request({ url, method, headers }) {
-    const res = await fetch(url, { method, headers });
+    const res = await tenantFetch(url, { method, headers });
     return { status: res.status, body: await res.text(), headers: {} };
   },
 };
@@ -221,7 +226,13 @@ async function tenantTargetConduct(
       username: creds.username ?? '',
       password: creds.password ?? '',
     });
-    if (qualification) return qualificationReportLines(qualification);
+    // The target's address is one the organisation typed, so a face it
+    // refused is said from its parts, as on the Test button (0136 T3).
+    if (qualification) {
+      return qualificationReportLines(
+        probeAnswers('reporting permissions', tenantId).qualification(qualification),
+      );
+    }
     const verdict = await measureTargetScheduling(
       davUrl(config),
       creds.username ?? '',

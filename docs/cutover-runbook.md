@@ -112,7 +112,11 @@ Two legs, both real:
 - **Data completeness — the §20 gate** (blocking): ledger counts vs a target
   reindex with checksum sampling, across all four domains. A domain that
   cannot be read reports `NOT_VERIFIABLE` and **blocks** — a gate that could
-  not run has not passed.
+  not run has not passed. A domain whose target can be asked for content, and
+  that answered nothing for any sampled item, **fails** too
+  (`CHECKSUM_NOT_COMPARED_<domain>`): check the connection to the new system
+  and verify again. A target with no way to hash (JMAP contacts) is judged on
+  its counts, and the report says no content was compared.
 
 On a fully green run the CLI advances `PREPARING → READY_FOR_CUTOVER` itself
 (that is the verification's own outcome, not a `--yes` action). Exit code 0

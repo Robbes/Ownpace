@@ -191,12 +191,13 @@ describe('checksum sampling', () => {
     expect(result.recommendations.join(' ')).toMatch(/could not be content-verified/);
   });
 
-  it('opens the cutover gate on count parity alone when NOTHING could be hashed — the owner\u2019s call', async () => {
+  it('a target that cannot hash (JMAP contacts) still opens the gate on counts', async () => {
     /**
-     * WHAT THIS PINS, AND WHY IT IS NOT AN ASSERTION THAT THE POLICY IS RIGHT.
+     * WHAT THIS PINS: the one case the owner's D2 leaves open (workplan 0149
+     * T4).
      *
-     * The test above proves an all-unavailable checksum leg is REPORTED. It
-     * stops there, and the consequence was left implicit. It is this:
+     * The test above proves an all-unavailable checksum leg is REPORTED. This
+     * one pins what it does to the gate when the target has no way to hash:
      *
      * 1. nothing comparable → `checksumComparable === 0` → the ratio takes its
      *    documented `: 1` fallback, in BOTH `verifyDataType` (which feeds
@@ -204,31 +205,22 @@ describe('checksum sampling', () => {
      * 2. counts match, so `matchPercentage` is 1 and there are no
      *    discrepancies;
      * 3. `determineVerificationStatus` therefore returns PASS — it reads
-     *    percentages and counts, never `issues`, so the WARNING raised above
-     *    cannot move it;
-     * 4. PASS is the first arm of `canProceedToCutover`, so the gate opens on
-     *    a report whose own issue list says *"this is an ABSENCE of content
-     *    evidence, not evidence of a match"*.
+     *    percentages and counts, never `issues`;
+     * 4. PASS is the first arm of `canProceedToCutover`, so the gate opens.
      *
-     * The fallback is DELIBERATE and the trade is real in both directions. A
-     * `JmapContactTarget` has no route back to vCard bytes and omits
-     * `contentHashFor` on purpose; scoring that 0 would put every JMAP-contact
-     * migration permanently below the gate, which is not honesty, it is a
-     * product that cannot cut over. And the counts ARE evidence — parity over
-     * every recorded item, not a sample.
+     * That is deliberate for this case. A `JmapContactTarget` has no route
+     * back to vCard bytes and omits `contentHashFor` on purpose; holding the
+     * gate for it would put every JMAP-contact migration permanently below
+     * it, which is not honesty, it is a product that cannot cut over. And the
+     * counts ARE evidence — parity over every recorded item, not a sample.
      *
-     * But the report cannot presently tell those two apart:
-     *   - a domain whose target CANNOT hash, ever, by design; and
-     *   - a domain whose target CAN hash and failed on every single sample.
-     * Both land on ratio 1, PASS, and an open gate. The first is a known
-     * property of a connector. The second is a fault, and it is the one that
-     * reads as "we checked and it was fine" when nothing was checked.
-     *
-     * Whether that second case should hold the gate shut is a decision about
-     * when somebody may delete their Google account, which is the owner's and
-     * not this test's. Recorded in workplan 0009. What this test does is make
-     * the policy EXPLICIT: it is now stated, so changing it turns this red and
-     * the change is visible rather than silent.
+     * DECIDED 2026-09-24 (0149 D2, read as 0009's option 1). This test used to
+     * speak for every "NOTHING could be hashed" case, and it only ever built
+     * this one. The other, a target that CAN hash and answered nothing for any
+     * sample, is a fault that read as "we checked and it was fine", and it now
+     * holds the gate: the next test. For this case the decision of 2026-09-21
+     * stands: a count-only PASS opens the gate, and `contentEvidence` says
+     * beside it that no content was compared.
      */
     const result = await verify(reindexer(sized([100, 200])));
 
@@ -241,16 +233,51 @@ describe('checksum sampling', () => {
     expect(result.mail.status).toBe('PASS');
     expect(result.overallStatus).toBe('PASS');
     expect(result.canProceedToCutover).toBe(true);
-    // The contradiction, in one place: the gate says proceed, the report says
-    // no content was verified. Both of these must keep being true together,
-    // or the owner has decided something and this test should say so.
+    // Not silently: the report says no content was verified, and the second
+    // axis says it beside the verdict.
     expect(result.mail.issues.map((i) => i.id)).toContain('CHECKSUM_UNAVAILABLE_mail');
-    // ANSWERED 2026-09-21, and this is the line that answers it. The owner's
-    // decision was (b): the gate still opens, and the report stops being
-    // silent about WHY it opened. `contentEvidence` is that second axis — the
-    // verdict above is unchanged, and beside it the report now says the
-    // content leg had nothing.
     expect(result.contentEvidence).toBe('none');
+  });
+
+  it('HOLDS the gate when a target that can hash answered nothing for any sample (D2)', async () => {
+    // Workplan 0149 T4. The JMAP mail writer answers nothing while its session
+    // is not resolved, and nothing again when a blob download fails. Until D2
+    // this read PASS, score 1, ready to cut over, exactly like the case above,
+    // and nothing in the report told the two apart.
+    const result = await verify(reindexer(sized([100, 200]), async () => undefined));
+
+    expect(result.mail.checksumUnavailable).toBe(2);
+    expect(result.mail.status).toBe('FAIL');
+    expect(result.overallStatus).toBe('FAIL');
+    expect(result.canProceedToCutover).toBe(false);
+    // Said as the reason, at ERROR, and not as the warning above, whose words
+    // (a target that exposes no hash, counts still decide) are not this case.
+    const issue = result.mail.issues.find((i) => i.id === 'CHECKSUM_NOT_COMPARED_mail');
+    expect(issue?.severity).toBe('ERROR');
+    expect(issue?.message).toMatch(/answered nothing for any of the 2 sampled item\(s\)/);
+    expect(issue?.message).toMatch(/The cutover is held/);
+    expect(result.mail.issues.map((i) => i.id)).not.toContain('CHECKSUM_UNAVAILABLE_mail');
+    expect(result.recommendations.join(' ')).toMatch(/No mail content was compared.*held/);
+    expect(result.recommendations.join(' ')).not.toMatch(/could not be content-verified/);
+    // The checksum ratio scores 0, not 1: 0.7 for counts that match, and
+    // nothing for content.
+    expect(result.score).toBeCloseTo(0.7);
+    // The second axis is unchanged: it says what was compared.
+    expect(result.contentEvidence).toBe('none');
+  });
+
+  it('counts a hash of another fingerprint version as an answer, not as silence', async () => {
+    // A row recorded before a fingerprint change cannot be compared with a
+    // hash computed now, so the sample is unavailable rather than a mismatch.
+    // But the target did answer. The gate holds for a target that says
+    // nothing, and an upgrade during a migration must not hold every domain
+    // it touched.
+    const result = await verify(reindexer(sized([100, 200]), async () => 'cal1:another-version'));
+
+    expect(result.mail.checksumUnavailable).toBe(2);
+    expect(result.mail.status).toBe('PASS');
+    expect(result.canProceedToCutover).toBe(true);
+    expect(result.mail.issues.map((i) => i.id)).not.toContain('CHECKSUM_NOT_COMPARED_mail');
   });
 
   it('says `checked` when every sampled item really was compared', async () => {

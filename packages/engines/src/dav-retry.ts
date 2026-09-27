@@ -22,13 +22,20 @@
  * 423 (WebDAV Locked) and 429 join 5xx: all three mean "come back", not "your
  * request is wrong". Everything else — 401, 403, 412, 415 — returns on the
  * first response, because retrying those only delays the answer. 412 in
- * particular is a create-only precondition doing its job, never something to
- * repeat. It is not a success either: something is already at that href, and
- * whose it is nothing in a 412 says. The writers ask the server, and adopt
- * only what it names (workplan 0149 T1). That includes the one case this
- * helper makes: a PUT that landed behind a 5xx, whose retry is then refused
- * with 412. That copy is ours, but it is recorded as adopted, which errs on
- * the safe side: it is never rewritten and never removed.
+ * particular is a precondition doing its job, never something to repeat, and
+ * never a success either:
+ *
+ * - on a create (`If-None-Match: *`) something is already at that href, and
+ *   whose it is nothing in a 412 says. The writers ask the server, and adopt
+ *   only what it names (workplan 0149 T1);
+ * - on a rewrite or a removal (`If-Match`) the copy is no longer the version
+ *   we recorded: somebody changed it, and it is theirs (T3).
+ *
+ * The two PUTs share one case this helper makes: a PUT that landed behind a
+ * 5xx, whose retry is then refused with 412. That copy is ours, but it is
+ * recorded as adopted, or the rewrite as a conflict, which errs on the safe
+ * side: it is never rewritten and never removed. A DELETE that landed the same
+ * way reads as already gone, because the HEAD after its 412 finds nothing.
  */
 
 /** The minimum an HTTP response needs for a retry decision. */

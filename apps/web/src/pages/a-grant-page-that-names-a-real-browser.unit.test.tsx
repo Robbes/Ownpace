@@ -117,7 +117,7 @@ const SUBJECT = {
   checkedCompany: null,
   askedBy: 'owner@example.org',
   organisationPhone: null,
-  reads: 'your calendars',
+  domains: ['calendar'],
   scope: 'https://www.googleapis.com/auth/calendar.readonly openid https://www.googleapis.com/auth/userinfo.email',
   readOnlyAtProvider: false,
   from: 'someone@example.invalid',

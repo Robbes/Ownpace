@@ -16,10 +16,12 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
-import { resolveDropboxClient } from '@openmig/shared';
+import { inLocale, localeOf, resolveDropboxClient, type Bilingual } from '@openmig/shared';
 import {
   callbackPageHeaders,
   consentResultPage,
+  noCodeFrom,
+  providerReported,
   rawIpCallbackRefusal,
   unreachableCallbackRefusal,
 } from './google-consent.ts';
@@ -79,6 +81,8 @@ router.post('/dropbox/authorize', authenticate, (req: AuthenticatedRequest, res:
     scope: '',
     redirectUri,
     provider: 'dropbox',
+    // The page's language, for the ending (workplan 0145 T6); never in the redirect.
+    locale: localeOf((req.body as { locale?: unknown } | undefined)?.locale),
   });
   res.json({ url: dropboxConsentUrl({ clientId: client.clientId, redirectUri, state }), redirectUri });
 });
@@ -89,8 +93,18 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
       .status(status)
       .set({ 'Content-Type': 'text/html; charset=utf-8', ...callbackPageHeaders(html) })
       .send(html);
-  const refuse = (status: number, reason: string) =>
-    page(status, consentResultPage({ outcome: { ok: false, reason }, provider: 'dropbox' }));
+  // In the language the consent began in (workplan 0145 T6), once the pending
+  // state says which; a state nobody is waiting for says nothing, so English.
+  let locale = localeOf(undefined);
+  const refuse = (status: number, reason: Bilingual | string) =>
+    page(
+      status,
+      consentResultPage({
+        outcome: { ok: false, reason: typeof reason === 'string' ? reason : inLocale(reason, locale) },
+        provider: 'dropbox',
+        locale,
+      }),
+    );
 
   const state = typeof req.query.state === 'string' ? req.query.state : '';
   const taken = state ? flows.take(state) : undefined;
@@ -102,20 +116,23 @@ router.get('/dropbox/callback', async (req: Request, res: Response) => {
         'it expired (they live ten minutes), or it was not started here.',
     );
   }
+  locale = localeOf(pending.locale);
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
-    const description =
-      typeof req.query.error_description === 'string' ? ` ${req.query.error_description}` : '';
-    return refuse(200, `Dropbox reported: ${req.query.error}.${description} Nothing was granted and nothing was stored.`);
+    const description = typeof req.query.error_description === 'string' ? req.query.error_description : '';
+    return refuse(200, providerReported('dropbox', req.query.error, description));
   }
   const code = typeof req.query.code === 'string' ? req.query.code : '';
-  if (!code) return refuse(400, 'Dropbox sent no authorization code back.');
+  if (!code) return refuse(400, noCodeFrom('dropbox'));
   const outcome = await exchangeDropboxCode({
     code,
     clientId: pending.clientId,
     clientSecret: pending.clientSecret,
     redirectUri: pending.redirectUri,
   });
-  page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'dropbox' }));
+  page(
+    outcome.ok ? 200 : 400,
+    consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'dropbox', locale }),
+  );
 });
 
 export default router;

@@ -34,6 +34,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { JmapFileTarget } from './jmap-file-target.ts';
+import { destroyJmapFixtures } from './__testing__/jmap-fixture-cleanup.ts';
 import type { RawFileItem, TargetEntry } from '@openmig/shared';
 import { fileNaturalKeyHash, fileContentHash } from '@openmig/shared';
 
@@ -99,8 +100,12 @@ if (!BASE || !PASSWORD) {
     afterAll(async () => {
       // Leave the fixture account as we found it. A test that litters makes
       // the NEXT run's "already exists" look like a finding.
-      for (const id of written) await target.removeItem(id).catch(() => undefined);
-      await target.removeItem(dirId).catch(() => undefined);
+      // Straight on the server, not through `removeItem`: since workplan 0149 T3 a
+      // removal needs the version the item was written with, and a cleanup
+      // has none. See `__testing__/jmap-fixture-cleanup.ts`.
+      const fixtures = { baseUrl: BASE!, username: USER, password: PASSWORD!, type: 'FileNode' } as const;
+      await destroyJmapFixtures({ ...fixtures, ids: written }).catch(() => undefined);
+      await destroyJmapFixtures({ ...fixtures, ids: [dirId] }).catch(() => undefined);
     }, 60_000);
 
     it('writes a file and keys it by the reconstructed path', async () => {
@@ -195,7 +200,11 @@ if (!BASE || !PASSWORD) {
     it('removes a file and reports it as deleted rather than binned', async () => {
       const doomedPath = `${root}/doomed.txt`;
       const created = await target.upsertFile(dirId, raw(doomedPath, CONTENT));
-      const removal = await target.removeItem(created.targetId);
+      // With the version it was written with: without one nothing is removed
+      // (workplan 0149 T3).
+      const removal = await target.removeItem(created.targetId, {
+        ...(created.targetVersion !== undefined ? { expectedTargetVersion: created.targetVersion } : {}),
+      });
       // Nothing has established that a JMAP `FileNode/set destroy` lands in a
       // recoverable bin on Stalwart, unlike a Nextcloud WebDAV DELETE.
       expect(removal.kind).toBe('deleted');

@@ -11,6 +11,7 @@ import type {
 } from '@openmig/shared';
 import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
+import type { Locale } from '../i18n/strings.ts';
 
 // Schema definitions
 //
@@ -775,6 +776,14 @@ export interface TestConnectionResult {
   };
 }
 
+/**
+ * The language the page that starts a consent is in (workplan 0145 T6). The
+ * server records it on the pending consent, so the ending the provider sends
+ * the person back to is in it too; it never travels through the redirect.
+ * Absent, the ending is English.
+ */
+type ConsentLanguage = { locale?: Locale };
+
 export const mappingApi = {
   /**
    * Start the authorization-code round-trip against the customer's own
@@ -786,23 +795,23 @@ export const mappingApi = {
    */
   googleAuthorize: async (
     p:
-      | {
+      | ({
           sourceType: 'gmail' | 'google-calendar' | 'google-contacts' | 'google-drive';
           // Both or neither (ADR-0041): absent, the server uses the
           // deployment's own client. Never an empty string — the route's
           // schema refuses one, and rightly.
           clientId?: string;
           clientSecret?: string;
-        }
+        } & ConsentLanguage)
       // The ACCOUNT ask (workplan 0106 T3b): the ticked faces rather than one
       // source type. A union rather than an optional field, so a caller cannot
       // send both and leave the server to pick — the server's schema is a
       // `oneOf` for the same reason.
-      | {
+      | ({
           domains: ReadonlyArray<DiscoveryDomain>;
           clientId?: string;
           clientSecret?: string;
-        },
+        } & ConsentLanguage),
   ): Promise<{
     url: string;
     redirectUri: string;
@@ -825,7 +834,7 @@ export const mappingApi = {
    * URIs before the first consent can work.
    */
   dropboxAuthorize: async (
-    p: { clientId?: string; clientSecret?: string } = {},
+    p: { clientId?: string; clientSecret?: string } & ConsentLanguage = {},
   ): Promise<{ url: string; redirectUri: string }> => {
     const response = await apiClient.post('/migrations/dropbox/authorize', p);
     return response.data as { url: string; redirectUri: string };
@@ -844,12 +853,14 @@ export const mappingApi = {
    * message about the application not being found, which reads like a typo and
    * is not one (0114 T1).
    */
-  microsoftAuthorize: async (p: {
-    domains: ReadonlyArray<string>;
-    clientId?: string;
-    clientSecret?: string;
-    tenantId?: string;
-  }): Promise<{ url: string; redirectUri: string }> => {
+  microsoftAuthorize: async (
+    p: {
+      domains: ReadonlyArray<string>;
+      clientId?: string;
+      clientSecret?: string;
+      tenantId?: string;
+    } & ConsentLanguage,
+  ): Promise<{ url: string; redirectUri: string }> => {
     const response = await apiClient.post('/migrations/microsoft/authorize', p);
     return response.data as { url: string; redirectUri: string };
   },

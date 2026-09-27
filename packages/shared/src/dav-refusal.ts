@@ -110,16 +110,27 @@ function joined(first: string, second: string): string {
   return first && second ? `${first} — ${second}` : first || second;
 }
 
+/**
+ * Google's GData refusal in its own words, or `''` when the body is not one.
+ * For an answer that may carry only a provider's words (workplan 0136 T3).
+ */
+export function gdataRefusalWords(body: string): string {
+  return GDATA_ERRORS.test(body) ? joined(text(body, 'code'), text(body, 'internalReason')) : '';
+}
+
+/** Sabre's refusal in its own words, or `''` when the body is not one (0136 T3). */
+export function sabreRefusalWords(body: string): string {
+  const prefix = SABRE_NS.exec(body)?.[1];
+  return prefix === undefined
+    ? ''
+    : joined(text(body, `${prefix}:exception`), text(body, `${prefix}:message`));
+}
+
 /** The refusal body as a person should read it: the server's reason without its envelope. */
 export function davRefusalBody(body: string): string {
-  if (GDATA_ERRORS.test(body)) {
-    // Better a wall than nothing: a document with neither field readable is
-    // returned as it came, rather than reduced to an empty string.
-    return joined(text(body, 'code'), text(body, 'internalReason')) || body;
-  }
-  const prefix = SABRE_NS.exec(body)?.[1];
-  if (prefix !== undefined) {
-    return joined(text(body, `${prefix}:exception`), text(body, `${prefix}:message`)) || body;
-  }
+  // Better a wall than nothing: a document with neither field readable is
+  // returned as it came, rather than reduced to an empty string.
+  if (GDATA_ERRORS.test(body)) return gdataRefusalWords(body) || body;
+  if (SABRE_NS.test(body)) return sabreRefusalWords(body) || body;
   return body;
 }
