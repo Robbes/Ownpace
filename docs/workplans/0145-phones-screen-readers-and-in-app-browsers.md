@@ -2,7 +2,93 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-09-26 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27, review fixes to T4 on the same branch, not merged.** The review found that an old
+answer could be announced as a new one. The line under *Connect with …* is drawn from the door's
+state, and that state outlives the block that draws the line. When a door was shown again, the
+line came back as a new element with its text already in it. A screen reader announces such an
+element as if it had just happened. So a refusal was heard again although nothing had been
+pressed, and so was *"Consent received — saving and testing this connection."* The review found
+four ways in: *Cancel* and then *Add a connection* again, a row's *Reconnect* fold closed and
+opened, the wizard's card switched away and back, and the wizard's step changed. The build found
+a fifth. In the wizard, a landed consent saves the connection and picks it. Picking *a new
+connection* then drew the block again, with the old line in it.
+
+Now each door clears the line when it is shown again or asks something else:
+
+- the add form, when it opens (`consent.reset()`). *Cancel* and *Close* both lead there;
+- a row's *Reconnect* fold, when it closes or opens (`rotateConsent.reset()`);
+- the wizard, on another card, on the connection picker, and on Next and Back (`forgetConsent`
+  in `CreateMapping.tsx`).
+
+Opening the add form again also clears the ticked faces of a Google or Microsoft account, as
+picking a card already did. What was typed stays.
+
+Two more changes to the guard. It now renders the Connections page itself, not the panel alone.
+So it looks for a live region around the line where the page draws it: in the add form and in a
+row's *Reconnect* fold. It also presses the wizard's Connect twice. Before, only the panel was
+pressed twice, and the wizard could have kept its old line on the page without the guard
+noticing.
+
+One citation is corrected. `Login.tsx`:73 is about two alert elements for one failure. It says
+nothing about a line inside another live region. That reason now stands in its own words, in
+`ConsentNote`, in the guard and below: a live region inside another one can be announced by both,
+so the line would be heard twice.
+
+The guard, `apps/web/src/pages/an-error-that-is-announced.unit.test.tsx`, has 22 cases, 11 in
+English and 11 in Dutch:
+
+- a refused create, pressed twice, with the second refusal a new alert;
+- a duplicate;
+- the wizard's refused consent and then a landed one;
+- the wizard refused twice (new);
+- the wizard's card switched away and back, after a refusal and after a landed consent (new);
+- the wizard's landed consent saved, and then *a new connection* picked (new);
+- the wizard's Next and Back after a refusal (new);
+- *Add a connection*: a refused consent and then a landed one, now on the page;
+- *Add a connection* refused twice, now on the page;
+- *Add a connection* closed and opened, after a refusal and after a landed consent (new);
+- *Reconnect*: a refused consent, the fold closed and opened, then a landed consent, and the fold
+  closed and opened again (new).
+
+The five new reopening cases failed on the unchanged code, in both languages: 10 of the 22. Four
+failed with *"the old refusal came back as a new alert, with nothing pressed"*. The picker case
+failed with *"the old received line came back as a new status"*. The wizard pressed twice and the
+page's own placements passed on the unchanged code, which is right: nothing there was broken. The
+mutations below turn them red. Each mutation made the guard fail:
+
+| Mutation | Cases that failed |
+|---|---|
+| The create failure without `role="alert"` | 4 |
+| `ConsentNote` without its keys | 4 |
+| The landed consent as an alert | 10 |
+| The refusal as a status | 16 |
+| The wizard's note inside an `aria-live` wrapper | 8 |
+| The wizard's root as a live region | 12 |
+| The wizard back on its own plain note | 8 |
+| The panel not clearing its note before it asks again | 2 |
+| The create failure kept on screen while the next attempt is pending | 2 |
+| The add form not clearing the line when it opens | 2 |
+| *Reconnect* not clearing the line when the fold closes or opens | 2 |
+| The wizard not clearing the line on another card | 2 |
+| The wizard not clearing the line on the connection picker | 2 |
+| The wizard clearing the line on neither Next nor Back | 2 |
+| The wizard not clearing its note before it asks again | 2 |
+| The add form's panel inside an `aria-live` wrapper | 6 |
+| The *Reconnect* fold's panel inside an `aria-live` wrapper | 2 |
+| The Connections page's clearing keeping a received line | 4 |
+| The wizard's clearing keeping a received line | 4 |
+
+Next alone or Back alone is enough for the round trip, so the guard fails only when both are
+removed.
+
+Where this differs from §3:
+
+- **A door shown again starts without a line.** §3 does not say so. It follows from "one alert
+  per failure" once the line is an alert.
+
+What stays open is as in the note below.
 
 **2026-09-26, build: T4 outside the grant flow built on branch
 `claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged.** These are §3's lines
@@ -19,8 +105,8 @@ which rewrites them. Two things changed:
   `key`. So when a consent lands after a refusal, a new element takes the refusal's place. Changing
   the role of an element already on the page is not reliably announced.
 
-No copy changed, in either language. Neither line sits inside another live region, so each failure
-is one announcement (`Login.tsx`:73).
+No copy changed, in either language. Each failure is one alert element (`Login.tsx`:73). Neither
+line sits inside another live region, which could announce it a second time.
 
 The guard is `apps/web/src/pages/an-error-that-is-announced.unit.test.tsx`. It has 10 cases, five
 in English and five in Dutch:
@@ -32,19 +118,8 @@ in English and five in Dutch:
 - the panel refused twice.
 
 All 10 failed on the unchanged code, each with *"Unable to find an accessible element with the
-role "alert""*. Nine mutations each made it fail:
-
-| Mutation | Cases that failed |
-|---|---|
-| The create failure without `role="alert"` | 4 |
-| `ConsentNote` without its keys | 4 |
-| The landed consent as an alert | 4 |
-| The refusal as a status | 6 |
-| The wizard's note inside an `aria-live` wrapper | 2 |
-| The wizard's root as a live region | 6 |
-| The wizard back on its own plain note | 2 |
-| The panel not clearing its note before it asks again | 2 |
-| The create failure kept on screen while the next attempt is pending | 2 |
+role "alert""*. Nine mutations each made it fail. The 2026-09-27 note above lists them, with the
+counts for the guard as it is now. The panel's cases now render the Connections page.
 
 Where the build differs from §3:
 
@@ -181,7 +256,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T1 The phone menu takes focus and gives it back | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
-| T4 Errors are announced | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged** (2026-09-26), all but the Grant and View lines; those 📋 **Proposed**, with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
+| T4 Errors are announced | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged** (2026-09-26; review fixes 2026-09-27), all but the Grant and View lines; those 📋 **Proposed**, with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
 | T5 The consent window opens on the press itself | 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. |
 | T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |

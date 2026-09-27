@@ -407,7 +407,12 @@ const Row: React.FC<{
           </button>
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              // Closed or opened, the fold starts without the last consent's
+              // answer (0145 T4). The note outlives the fold, and a panel
+              // drawn again with a refusal already in it is a new alert: a
+              // screen reader would say a failure nobody just caused.
+              rotateConsent.reset();
               setRotating((open) => {
                 // Opening: start from what the connection ALREADY knows
                 // (workplan 0078). Rotating an expired secret used to mean
@@ -417,8 +422,8 @@ const Row: React.FC<{
                 // still, correctly, blank.
                 if (!open) setNewValues({ ...(connection.knownValues ?? {}) });
                 return !open;
-              })
-            }
+              });
+            }}
             className="text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
           >
             {/* NAMED FOR WHAT IT DOES HERE (workplan 0140 T2 (b)). On a row
@@ -750,7 +755,15 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // The form keeps what was typed when it is cancelled, but not the
+          // last consent's answer (0145 T4). A panel drawn again with a
+          // refusal already in it is a new alert, and a screen reader would
+          // say a failure nobody just caused. Cancel and Close both lead
+          // here, so this one reset covers both.
+          consent.reset();
+          setOpen(true);
+        }}
         className="mt-4 text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
       >
         {t('connections.add')}

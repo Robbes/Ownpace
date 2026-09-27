@@ -71,6 +71,11 @@ export interface ProviderConsent {
   readonly facesMissing: boolean;
   readonly accountMissing: boolean;
   readonly start: () => Promise<void>;
+  /**
+   * Forget the ticks and what came back. The door calls it when its question
+   * changes, and when it is shown again, so an old refusal is not drawn (and
+   * announced) as a new one (0145 T4, `ConsentNote`).
+   */
   readonly reset: () => void;
   /** Rises by one each time a token lands, so a SECOND consent submits again. */
   readonly landed: number;
@@ -391,8 +396,17 @@ export function consentLineIds(provider: string | undefined, idBase: string): st
  *   already there, which screen readers do not reliably announce.
  * - Nothing is drawn while there is no note. Both doors clear the note before
  *   they ask again, so a second refusal is a new alert and is heard again.
- * - One element per outcome, and neither door draws it inside another live
- *   region: a line inside one is read twice (`Login.tsx` says why).
+ * - **A door shown again starts without a note.** The note lives in the
+ *   door's state, which outlives the block that draws this line. A line put
+ *   on the page with its text already in it is announced as if it had just
+ *   happened, so a refusal drawn again without a new press is a failure
+ *   nobody just caused. So each door clears the note when it is shown again
+ *   or asks something else: the add form when it opens, a row's
+ *   *Reconnect* fold when it closes or opens, the wizard on another card,
+ *   another stored connection, or another step.
+ * - One alert element per failure (`Login.tsx`:73). Neither door draws the
+ *   line inside another live region: a live region inside another one can be
+ *   announced by both, so the line would be heard twice.
  */
 export const ConsentNote: React.FC<{ readonly note: string | null }> = ({ note }) => {
   const t = useT();

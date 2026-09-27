@@ -780,6 +780,8 @@ const CreateMapping: React.FC = () => {
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
+      // The source step's consent line does not wait for the way back (0145 T4).
+      forgetConsent();
       setCurrentStep(currentStep + 1);
     } else {
       // Submit form. An oauth2/graph source posts its app registration
@@ -1083,6 +1085,8 @@ const CreateMapping: React.FC = () => {
 
   const handleBack = () => {
     if (currentStep > 0) {
+      // Nor does a line that came back while another step was shown (0145 T4).
+      forgetConsent();
       setCurrentStep(currentStep - 1);
     } else {
       if (dirty && !window.confirm(t('wizard.leaveConfirm'))) return;
@@ -1104,6 +1108,18 @@ const CreateMapping: React.FC = () => {
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   /** The callback address the last consent asked Google to return to. */
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
+  /**
+   * FORGET WHAT THE LAST CONSENT SAID (0145 T4) when the block it answered
+   * goes away or asks something else: another card, a stored connection, or
+   * another step. The note outlives the block, and a block drawn again with a
+   * refusal already in it is a new alert, so a screen reader would say a
+   * failure nobody just caused. Called from the handlers that change those
+   * (`onPickSource`, the connection picker, `handleNext`, `handleBack`).
+   */
+  const forgetConsent = () => {
+    setConsentNote(null);
+    setConsentRedirect(null);
+  };
   /**
    * ONE GO (owner remark 2026-09-02, after the first working round trip):
    * "I would expect an automatic save — the app did receive the grant — and
@@ -2194,6 +2210,8 @@ const CreateMapping: React.FC = () => {
       // switch (0073) — it is a statement about a credential
       // this screen no longer asks for.
       forgetProbe('source');
+      // Nor may what its consent said (0145 T4).
+      forgetConsent();
       // A Google credential reads exactly one API, so choosing
       // it also chooses that domain — the same constraint the
       // server refuses by name (sourceDomainRefusal). Setting it
@@ -2375,6 +2393,10 @@ const CreateMapping: React.FC = () => {
               value={formData.sourceConnectionId}
               onChange={(id) => {
                 forgetProbe('source');
+                // A stored row takes the consent block away, and "a new
+                // connection" draws it again: either way without the last
+                // consent's answer (0145 T4).
+                forgetConsent();
                 // Whatever they picked — a stored row or "a new connection" —
                 // is now their answer for this kind, and the default effect
                 // above must not reapply over it.
