@@ -315,6 +315,13 @@ just intended: the RLS suite tries the INSERT and the DELETE and gets
 decided, never erased. An operator who could delete could make a refusal
 disappear, and the queue's whole value as a record is that it cannot.
 
+*2026-09-27, workplan 0139 T6: still true of every person, and a declined request
+now ages out on a stated date.* The owner decided that a declined request is
+deleted 30 days after its decision (0139 open question 2 (a)). The nightly
+retention job does it, over the owner connection; `app_user` still has no DELETE.
+A granted request goes with its organisation, and an open one stays while it is
+open.
+
 ### Granting is three writes or none
 
 A tenant, an owner row, and the request marked granted against that tenant id.

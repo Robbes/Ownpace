@@ -4,6 +4,30 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T6's access requests built (0131 §6, group M3, step 2)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-request-nobody-keeps-forever`, not merged. The owner answered
+open question 2 with (a) the same day.
+
+- **A declined request is deleted 30 days after its decision.** `pruneDeclinedAccessRequests`
+  (`packages/managed/src/access-request-retention.ts`) deletes every request whose state is
+  `declined` and whose `decided_at` is more than 30 days old. The nightly `managed-retention` task
+  runs it over the owner connection and logs the count and the cutoff, never who.
+- **What stays:** an open request, however old, because the owner answers every one; a granted
+  one, which goes with its organisation when offboarding purges it.
+- **0093's rule, for people, is unchanged.** `app_user` still has no DELETE on the table, so
+  neither the operator nor anybody else can make a decision disappear. 0093's rule and the
+  decline route's comment now say it ages out on a stated date.
+- **Proved.**
+  - `packages/managed/src/a-request-nobody-keeps-forever.unit.test.ts`, on PGlite with both chains.
+    The plan names it as an integration test; it is a PGlite unit test like the other managed
+    guards. A request declined 31 days ago goes, and 29 and exactly 30 days ago stay. An open one
+    and a granted one, 90 days old, stay. `app_user` gets *permission denied* on DELETE.
+  - `apps/worker/src/jobs/a-request-nobody-keeps-forever.unit.test.ts` reads the task body as
+    text: it calls the prune, and its log line names only the count and the cutoff.
+  - Both fail on `main`.
+- **Not in this change:** privacy §4 and §9's row for access requests. The texts are the
+  lawyer's pass (T1), and the owner keeps them as they are for now.
+
 **2026-09-27, evening: the owner answered open questions 2 and 5, and keeps T0 and T1 as they
 stand for now.**
 
@@ -18,8 +42,7 @@ stand for now.**
   T9 is the second half of M3's step 6, after this one.
 - **T0 and T1**, *"legal: keep as is for now"*. Nothing in them changes.
 
-**2026-09-27: T8 (a) written (0131 §6, group M3, step 6)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-breach-procedure`, not merged. `docs/breach-procedure.md`
+**2026-09-27: T8 (a) written (0131 §6, group M3, step 6)**, merged as #1241. `docs/breach-procedure.md`
 is the procedure §3 names:
 
 1. **Contain:** the hold, the passes already running cancelled in the Trigger.dev dashboard, a
@@ -175,9 +198,9 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27, not merged** (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
-| T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27, not merged**: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
+| T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release — *was:* 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
