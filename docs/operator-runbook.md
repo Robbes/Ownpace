@@ -150,7 +150,10 @@ Set `TRIGGER_TLS_HOST` to the address browsers actually use (e.g. the machine's 
 it is both the certificate's subject and the SNI default for IP-connecting browsers, and
 both rules exist because their absence fails as a silent TLS handshake death, not an HTTP
 error (`trigger-tls.Caddyfile` documents this). The certificate is internally minted, so
-the first visit needs the browser's "accept the risk" step.
+the first visit needs the browser's "accept the risk" step. Set `TRIGGER_TLS_BIND` to the
+machine's IP address that `TRIGGER_TLS_HOST` names: the port answers on loopback only until a
+bind adds another, and a bind takes an IPv4 address, never a name, even where the host is one
+(workplan 0132 T3; `docs/managed-bring-up.md`, *Which address a port answers on*).
 
 ### Alternative: run apps from source (no image build)
 
@@ -464,6 +467,18 @@ testers a squash is the same as a lost database: the runner refuses the old chai
 with real data is restored from a backup, never dropped.
 
 ## Upgrade
+
+**Once, before the upgrade that brings `WEB_BIND` into `managed.yml`:** every port now answers on
+loopback unless its `*_BIND` adds an address (workplan 0132 T3). On a stack whose public names are
+routed through a front, set `WEB_BIND` and `ZITADEL_BIND` in `.env` to the address the front
+connects to, first, or the names stop answering. `STATUS_BIND` too where a status name is routed
+or the status page is opened over the mesh, and `TRIGGER_TLS_BIND`, the IP address
+`TRIGGER_TLS_HOST` names, for a dashboard opened over the mesh. Each is one IPv4 address, never a
+name. The site is not upgraded with the stack: it keeps its old publish until `WWW_BIND` is set
+in the `.env` beside `www.yml` and `docker compose -f deploy/compose/www.yml up -d` runs from the
+updated checkout. A bind on a mesh address also ties the container's start to that address after a
+reboot. `docs/managed-bring-up.md`, *Which address a port answers on*, has the detail and the
+remedy.
 
 1. Back up the DB (above).
 2. Pull the new images / new code.

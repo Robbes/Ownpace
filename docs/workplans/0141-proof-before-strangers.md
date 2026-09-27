@@ -4,6 +4,43 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, build: T11's minimum (0131 §6, group M6, step 1)** on branch
+`claude/mailbox-sync-errors-c2xsw2-the-microsoft-account-it-has`, not merged. The drift detector,
+group discovery and the permission report find a tenant's Microsoft source by every Microsoft
+kind: `o365` and every kind whose mail face is Graph (`microsoftSourceKinds()`, beside
+`connectionKindsWithFace` in orchestration). They no longer look for `kind = 'o365'` alone. Where
+a tenant has both, the `o365` registration is the one asked, because only it can hold application
+permissions.
+
+- **The reason.** `directoryAvailability` takes the source's kind. A Microsoft account gets
+  `MICROSOFT_ACCOUNT_IS_DELEGATED`, whatever `OAUTH2_*` holds. Its grant is delegated and reads
+  the signed-in person's own data. The directory, other people's mailboxes and calendar sharing
+  are not read with it, and in an organisation they need an administrator's registration. Note
+  them by hand before cutover. The appliance passes no kind, and is unchanged.
+- **The report, for a tester.** For an `o365` source that could not be read, the Finish page's
+  list says this deployment does not yet read a directory with the organisation's own
+  registration. It no longer names this stack's `OAUTH2_*` settings. "No Microsoft source", which
+  picks the Google and Nextcloud sentences, is now read from the row, not from a tenant id, which
+  an account never stores.
+- **Group discovery** gives a Microsoft account that reason, not IMAP's.
+- **Proved.** Three guards, each failing on `main`:
+  - `scripts/a-microsoft-source-found-by-its-faces.unit.test.ts` refuses a query on
+    `kind = 'o365'` and a branch on `kind !== 'o365'` anywhere in `apps/`. On `main` it names
+    `permissions.ts` and `managed-drift-detect.ts` (queries) and `managed-group-discovery.ts`
+    (the branch).
+  - `apps/api/src/routes/a-report-that-knows-the-microsoft-account.unit.test.ts`, through
+    `tenantInventoryScans` with a pool that filters by the kinds each query passes. It covers an
+    account alone, beside a Google account, and beside a registration; a registration alone; and
+    no Microsoft source at all.
+  - `apps/worker/src/jobs/a-detector-that-knows-the-microsoft-account.unit.test.ts`: both tasks'
+    deciding functions with a `microsoft` source, the drift lookup on PGlite, and the task bodies
+    read as text.
+- **Docs.** The owner test runbook's stage 8 step 8 now expects the delegated sentence, and
+  `o365-application-access.md` says what the three features tell a Microsoft account.
+- **Not in this change.** T11's later half, reading with the customer's own registration, waits
+  on open question 7 and an ADR. `OAUTH2_*` staying empty on `ownpace-live` belongs with 0132 T0's
+  step 5.
+
 **2026-09-27, cross-plan sync after 0149 T1 to T3 merged (0131 §6, group M1, step 5).** T8 (c)
 is built: 0149's T1 and T2 merged in #1209 and its T3 in #1210. T8 (c) now says what they do on a
 target we do not run, and what is not yet seen: whether that target records a strong version for
@@ -308,7 +345,7 @@ for the card says so.
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud); ✅ (c) **Built 2026-09-27**, as 0149 T1 to T3 | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
-| T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed** | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
+| T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, not merged | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |

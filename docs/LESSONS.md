@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 167 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 169 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -199,6 +199,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/permissions.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `apps/api/src/routes/platform-status.ts`
@@ -415,11 +416,13 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/managed-drift-detect.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-group-discovery.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-purge-closed.ts`
@@ -492,6 +495,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/bootstrap-managed.sh`
 
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
@@ -547,6 +551,7 @@ reading a file drops off its entry by itself.
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -585,6 +590,7 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -613,6 +619,7 @@ reading a file drops off its entry by itself.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
@@ -701,6 +708,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/setup-managed-demo.sh`
 
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
@@ -787,6 +795,7 @@ reading a file drops off its entry by itself.
 
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -842,6 +851,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/setup-stalwart.sh`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 
 ### `docs/LESSONS.md`
@@ -911,6 +921,7 @@ reading a file drops off its entry by itself.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
+- [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
@@ -2319,6 +2330,16 @@ Reads:
 - `docs/google-workspace-setup.md`
 - `scripts/drive-export-stability.ts`
 
+### [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts)
+
+A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
+
+Reads:
+
+- `apps/api/src/routes/permissions.ts`
+- `apps/worker/src/jobs/managed-drift-detect.ts`
+- `apps/worker/src/jobs/managed-group-discovery.ts`
+
 ### [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts)
 
 A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
@@ -2475,6 +2496,21 @@ A POOL THAT HAD NOT HAPPENED YET.
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
+
+### [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts)
+
+A PORT PUBLISHED ON PURPOSE.
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/compose/setup-managed-demo.sh`
+- `deploy/compose/www.yml`
+- `deploy/selfhost/setup-stalwart.sh`
+- `docs/managed-bring-up.md`
 
 ### [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts)
 

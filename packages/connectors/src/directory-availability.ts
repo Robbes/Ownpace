@@ -35,12 +35,46 @@ export type DirectoryAvailability =
 const DOC = 'see docs/o365-application-access.md';
 
 /**
+ * The one Microsoft kind that carries an administrator's app registration,
+ * and so the one that can ever hold application permissions (0141 T11).
+ */
+const APPLICATION_REGISTRATION_KIND = 'o365';
+
+/**
+ * WHY A MICROSOFT ACCOUNT'S SOURCE CANNOT READ A DIRECTORY (workplan 0141 T11).
+ *
+ * A `microsoft` connection holds one person's refresh token. Before this, the
+ * detectors and the permission report looked for `kind = 'o365'` alone, found
+ * nothing, and told a tenant whose source was exactly that account that it had
+ * no Microsoft 365 source connection. The true reason is the grant, and it
+ * holds whatever this deployment's environment says. A personal account has
+ * no organisation at all, which is why the administrator is conditional.
+ */
+export const MICROSOFT_ACCOUNT_IS_DELEGATED =
+  "this source is a Microsoft account, connected with one person's own sign-in. That grant is " +
+  "delegated: it reads the signed-in person's own data and nothing of anyone else's. The " +
+  "directory, other people's mailboxes and calendar sharing are not read with it; in an " +
+  "organisation they need an administrator's app registration with application permissions. " +
+  'Note them by hand before cutover';
+
+/**
  * @param graphTenantId the O365 tenant on the source connection, if any.
+ * @param sourceKind the stored kind of the Microsoft source the caller found in
+ *   the ledger: `o365`, or an account kind whose mail face is Graph
+ *   (`microsoftSourceKinds()` in orchestration). Every kind but `o365` is a
+ *   delegated grant. The appliance's mapping files name no kind, and pass none.
  */
 export function directoryAvailability(
   env: DirectoryEnv,
   graphTenantId: string | undefined,
+  sourceKind?: string,
 ): DirectoryAvailability {
+  if (sourceKind !== undefined && sourceKind !== APPLICATION_REGISTRATION_KIND) {
+    // First, before the tenant: an account row stores no directory of its own,
+    // so the check below would call it "no Microsoft 365 source connection".
+    return { ok: false, reason: MICROSOFT_ACCOUNT_IS_DELEGATED };
+  }
+
   if (!graphTenantId) {
     // Not a failure — an IMAP-only or DAV-only tenant is a legitimate
     // configuration. It is simply not one whose directory can be listed, and

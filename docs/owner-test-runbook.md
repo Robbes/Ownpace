@@ -466,10 +466,13 @@ one of them.
    rechtenlijst op* / *Get the permission list*, and read the file it downloads.
    **Expect:** every sentence in it is true of that source. For A's Google account, the
    calendar section says *"Google Calendar sharing is not yet read by this tool …"*, which is
-   true. For B's Microsoft 365 account it says *"this tenant has no Microsoft 365 source
-   connection, and only Graph can enumerate a directory"*, which is not: B has one. That is
-   0141 T11, which is not built. Until live's release carries it, B's step 8 is a failure, and
-   the record names T11.
+   true. For B's Microsoft 365 account it says *"this source is a Microsoft account, connected
+   with one person's own sign-in. That grant is delegated …"*, and that the directory, other
+   people's mailboxes and calendar sharing are not read with it and are noted by hand before
+   cutover. That is true too.
+   A release without 0141 T11 says instead *"this tenant has no Microsoft 365 source
+   connection, and only Graph can enumerate a directory"*, which is not: B has one. On such a
+   release, B's step 8 is a failure, and the record names T11.
 
 **Record.** For each step and each person: pass or fail, the date, live's release, and the
 language seen. Never an address, a name or a tenant id. It goes in 0141's Status as a dated

@@ -56,7 +56,11 @@ import {
   buildGoogleDriveSourceFrom,
   STORED_GOOGLE_CREDENTIAL_NAMES,
 } from '@openmig/orchestration/drive-source-factory';
-import { connectionKindsWithFace } from '@openmig/orchestration/source-face-builders';
+import {
+  connectionKindsWithFace,
+  directorySourceOf,
+  microsoftSourceKinds,
+} from '@openmig/orchestration/source-face-builders';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
@@ -169,6 +173,17 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
 
 type Available = Extract<ReturnType<typeof directoryAvailability>, { ok: true }>;
 
+/**
+ * WHY AN `o365` SOURCE'S SHARING WAS NOT READ, for the person on the Finish
+ * page (workplan 0141 T11). The reason `directoryAvailability` gives names this
+ * stack's `OAUTH2_*` settings, and is written for an operator. What is true for
+ * a tester is that this deployment reads a directory with its own settings,
+ * never with the registration the customer stored on the connection.
+ */
+export const O365_NOT_READ_WITH_ITS_OWN_REGISTRATION =
+  "this deployment does not yet read a directory with the organisation's own app registration, " +
+  'so sharing on this Microsoft 365 source was not read. Note it by hand before cutover';
+
 function graphToken(available: Available, graphTenantId: string): () => Promise<string> {
   const provider = createTokenProvider({
     tokenEndpoint: `https://login.microsoftonline.com/${graphTenantId}/oauth2/v2.0/token`,
@@ -272,13 +287,28 @@ export async function tenantInventoryScans(
    */
   delegationReason: string;
 }> {
-  const { rows } = await pool().query<{ config: unknown }>(
-    `SELECT config FROM connection
-      WHERE tenant_id = $1 AND role = 'source' AND kind = 'o365' LIMIT 1`,
-    [tenantId],
+  // EVERY MICROSOFT KIND, not `o365` alone (workplan 0141 T11). A tenant whose
+  // source was a Microsoft account found nothing here, and its calendar section
+  // said the tenant had no Microsoft 365 source connection.
+  const { rows: microsoftRows } = await pool().query<{ kind: string; config: unknown }>(
+    `SELECT kind, config FROM connection
+      WHERE tenant_id = $1 AND role = 'source' AND kind = ANY($2::text[])`,
+    [tenantId, [...microsoftSourceKinds()]],
   );
-  const graphTenantId = (rows[0]?.config as { tenantId?: string } | undefined)?.tenantId;
-  const available = directoryAvailability(process.env, graphTenantId);
+  const microsoftSource = directorySourceOf(microsoftRows);
+  const graphTenantId = (microsoftSource?.config as { tenantId?: string } | undefined)?.tenantId;
+  const available = directoryAvailability(process.env, graphTenantId, microsoftSource?.kind);
+  // What a section says when Graph could not be asked. For a Microsoft source
+  // it is in the tester's words: an account's delegated grant, or, for the
+  // customer's own registration, that this deployment does not use it.
+  const graphUnread = (reason: string): PermissionListing => ({
+    kind: 'not_discoverable',
+    reason: microsoftSource
+      ? permissionsNotDiscoverable(
+          microsoftSource.kind === 'o365' ? O365_NOT_READ_WITH_ITS_OWN_REGISTRATION : reason,
+        )
+      : reason,
+  });
   const scanOptions = { applicationPermissions: true } as const;
   // Asked once, so every caller says the same thing about the drive section
   // whether or not the connection could have made the request anyway.
@@ -325,9 +355,11 @@ export async function tenantInventoryScans(
     // A Google tenant gets Google's sentence. `mailboxDelegations()` names
     // `Get-MailboxPermission` and `Get-RecipientPermission`, which are
     // Exchange Online PowerShell and will never run against a Gmail account —
-    // the same wrong errand the calendar branch below already avoids.
+    // the same wrong errand the calendar branch below already avoids. "No
+    // Microsoft source" is the row, not its tenant id: a Microsoft account
+    // stores none (0141 T11).
     delegationReason:
-      googleDriveConnection && !graphTenantId
+      googleDriveConnection && !microsoftSource
         ? googleMailboxDelegationNotRead()
         : (() => {
             const d = mailboxDelegations();
@@ -343,27 +375,29 @@ export async function tenantInventoryScans(
             httpClient,
             scanOptions,
           )
-        : googleDriveConnection && !graphTenantId
-          ? {
-              // A Google tenant would otherwise get a Graph-worded reason
-              // about an app registration it never had — a wrong errand.
-              kind: 'not_discoverable' as const,
-              reason: permissionsNotDiscoverable(
-                'Google Calendar sharing is not yet read by this tool — the Drive scan ' +
-                  'covers files only. Capture calendar sharing by hand before cutover',
-              ),
-            }
-          : davSourceConnection && !graphTenantId
+        : microsoftSource
+          ? graphUnread(available.reason)
+          : googleDriveConnection
             ? {
-                // Same courtesy for a Nextcloud tenant (0104 T2): the file
-                // share scan covers files; calendar sharing stays by hand.
+                // A Google tenant would otherwise get a Graph-worded reason
+                // about an app registration it never had — a wrong errand.
                 kind: 'not_discoverable' as const,
                 reason: permissionsNotDiscoverable(
-                  'Nextcloud calendar sharing is not yet read by this tool — the share ' +
-                    'scan covers files only. Capture calendar sharing by hand before cutover',
+                  'Google Calendar sharing is not yet read by this tool — the Drive scan ' +
+                    'covers files only. Capture calendar sharing by hand before cutover',
                 ),
               }
-            : { kind: 'not_discoverable' as const, reason: available.reason },
+            : davSourceConnection
+              ? {
+                  // Same courtesy for a Nextcloud tenant (0104 T2): the file
+                  // share scan covers files; calendar sharing stays by hand.
+                  kind: 'not_discoverable' as const,
+                  reason: permissionsNotDiscoverable(
+                    'Nextcloud calendar sharing is not yet read by this tool — the share ' +
+                      'scan covers files only. Capture calendar sharing by hand before cutover',
+                  ),
+                }
+              : { kind: 'not_discoverable' as const, reason: available.reason },
     scanDrive: async () => {
       if (googleDriveConnection) {
         try {
@@ -432,8 +466,7 @@ export async function tenantInventoryScans(
       // credentials say: a deployment without `Files.Read.All` would get a
       // 403 here, and a 403 reads as a fault to fix rather than a choice.
       if (!drive.ok) return { kind: 'not_discoverable' as const, reason: drive.reason };
-      if (!available.ok)
-        return { kind: 'not_discoverable' as const, reason: available.reason };
+      if (!available.ok) return graphUnread(available.reason);
       // `/drives/{id}` is the only addressing the sharing endpoints take, so
       // the drive id is resolved first rather than built by concatenation.
       const token = graphToken(available, graphTenantId!);
