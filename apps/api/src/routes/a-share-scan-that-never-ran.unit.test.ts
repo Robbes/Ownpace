@@ -67,7 +67,8 @@ vi.mock('pg', () => ({
     async query(text: string, values: readonly unknown[] = []) {
       h.queries.push({ text, values });
       const rows = h.connections.filter((c) => {
-        if (text.includes("kind = 'o365'")) return c.kind === 'o365';
+        // The Microsoft source and the Drive source are both kind lists now
+        // (0141 T11); each query's own list decides.
         if (text.includes('kind = ANY($2::text[])'))
           return (values[1] as readonly string[]).includes(c.kind);
         if (text.includes("kind IN ('nextcloud', 'webdav')"))
@@ -137,7 +138,11 @@ describe('the lookup finds the connection the customer actually made', () => {
   it('asks for kinds, not for the wizard word', async () => {
     h.connections.push(accountRow());
     await tenantInventoryScans(TENANT, MAILBOX);
-    const drive = h.queries.find((q) => q.text.includes('kind = ANY($2::text[])'));
+    // The Drive lookup is the kind list that reads a credential: the Microsoft
+    // source's, a kind list too since 0141 T11, reads only its config.
+    const drive = h.queries.find(
+      (q) => q.text.includes('kind = ANY($2::text[])') && q.text.includes('secret_ref'),
+    );
     expect(drive, 'the Drive lookup is no longer a kind list').toBeDefined();
     const kinds = drive!.values[1] as readonly string[];
     expect(kinds).toContain('google');

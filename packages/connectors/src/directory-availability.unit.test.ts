@@ -10,7 +10,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { directoryAvailability } from './directory-availability.ts';
+import {
+  directoryAvailability,
+  MICROSOFT_ACCOUNT_IS_DELEGATED,
+} from './directory-availability.ts';
 
 const TENANT = 'contoso.onmicrosoft.com';
 
@@ -101,5 +104,42 @@ describe('missing application credentials', () => {
       TENANT,
     );
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('a Microsoft account source (workplan 0141 T11)', () => {
+  const APP = { OAUTH2_CLIENT_ID: 'app-id', OAUTH2_CLIENT_SECRET: 'secret' };
+
+  it('is refused for its delegated grant, whatever the environment holds', () => {
+    // An application registration in the environment does not change what one
+    // person's refresh token can read.
+    for (const tenant of [undefined, TENANT]) {
+      const result = directoryAvailability(APP, tenant, 'microsoft');
+      expect(result).toEqual({ ok: false, reason: MICROSOFT_ACCOUNT_IS_DELEGATED });
+    }
+  });
+
+  it('is never told it has no Microsoft 365 source', () => {
+    const result = directoryAvailability({}, undefined, 'microsoft');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).not.toContain('no Microsoft 365 source connection');
+      expect(result.reason).toContain('delegated');
+    }
+  });
+
+  it('leaves an o365 source to the three checks it always had', () => {
+    expect(directoryAvailability(APP, TENANT, 'o365')).toEqual({
+      ok: true,
+      clientId: 'app-id',
+      clientSecret: 'secret',
+    });
+    const noTenant = directoryAvailability(APP, undefined, 'o365');
+    expect(noTenant.ok).toBe(false);
+    if (!noTenant.ok) expect(noTenant.reason).toContain('no Microsoft 365 source connection');
+  });
+
+  it('leaves a caller that names no kind, the appliance, as it was', () => {
+    expect(directoryAvailability(APP, TENANT).ok).toBe(true);
   });
 });

@@ -381,3 +381,14 @@ already run on schedule against every tenant today:
 None of them needs another line of code to become real. **Step 6 is how you
 find that out in thirty seconds** instead of waiting for 06:30 the next morning
 and reading a log.
+
+**A Microsoft 365 account is not an app registration** (workplan 0141 T11). A
+tester who presses *Connect with Microsoft* gets a `microsoft` connection: one
+person's delegated grant. All three features find it as the tenant's Microsoft
+source, and say that its grant cannot read the directory, other people's
+mailboxes or calendar sharing, whatever `OAUTH2_*` holds. Before, they looked
+for an `o365` connection alone, and said the tenant had none. On managed, the
+permission report tells a customer with their own registration (`o365`) that
+this deployment does not yet read a directory with it, rather than naming this
+stack's settings. Reading with the customer's own registration comes after:
+0141's open question 7 chooses the credential model, and an ADR records it.
