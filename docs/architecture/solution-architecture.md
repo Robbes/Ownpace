@@ -1,6 +1,7 @@
 # Solution Architecture — Ownpace
 
-**Version:** 1.7 (2026-09-23) — canonical copy, lives in `docs/architecture/`.
+**Version:** 1.8 (2026-09-27) — canonical copy, lives in `docs/architecture/`.
+**v1.8 change:** §17.1's isolation row says where row security holds today: on the API's request path, not in the Trigger.dev tasks, which connect as the database owner (workplan 0138 T5, step 1).
 **v1.7 change:** mechanical corrections the code and later ADRs already settle — the title carries the one name (ADR-0040); Zitadel is the issuer (ADR-0042), not "Zitadel/Keycloak"; §17's secrets and threat-model rows say what SECURITY.md and ADR-0037 say (AES-256-GCM under `SECRET_ENCRYPTION_KEY`, **no vault**); §22.1's migrations are hand-written SQL in two chains (ADR-0045, ADR-0036), not Drizzle Kit; the adapters row names the sources that exist and drops Proton (ADR-0025, no code); Pattern D sits under *Partial* and Pattern S migrates (0027 T3), as the scope manifest said from 2026-08-04 until 2026-09-25, when Pattern S went back under *Partial* until one is copied (§11.2 #1, §14.1; workplan 0141 T10); the release channels are the ones `images.yml` publishes.
 **v1.6 change:** §13.2's maturity line catches up with what workplan 0031 actually built — JMAP contacts (T2) and JMAP files (T3) ship, JMAP calendars are parked on a Stalwart gap, and the per-domain difference in what §20 can verify is stated rather than left to be discovered.
 **v1.5 change:** §11's mode B (bidirectional) and §20's reverse sync are RETRACTED with dated notes (owner decision 2026-08-03, 0026 T3 rows 7–8) — one-way mirror is the only sync mode, and the source itself is the post-cutover fallback. §3 decision 3 and the §6 functional line carry the same note.
@@ -314,7 +315,7 @@ Tenant = household/SMB; `tenant_id` everywhere + Postgres RLS; per-tenant worksp
 | Threat | Mitigation |
 |---|---|
 | OAuth token theft | AES-256-GCM at rest under `SECRET_ENCRYPTION_KEY` (a vault is NOT built; on managed the key sits in the host's plaintext `deploy/compose/.env` — ADR-0037's named open gap), least-privilege scopes + Application Access Policy, short-lived tokens, revocation |
-| Multi-tenant isolation breach | Postgres RLS, per-tenant secret scope + rate budgets, egress controls |
+| Multi-tenant isolation breach | Postgres RLS, **in force on the API's request path and not in the Trigger.dev tasks**: they connect as the database owner, a superuser whom row security never binds, so there the separation rests on each query's own tenant filter. Two API routes (the permission report and the sharing rescan) read on the owner's connection too. `docs/rls-guide.md`, *Where row security holds today*, lists every connection; workplan 0138 is the fix. Per-tenant rate budgets. Stored credentials sit in each tenant's own rows, under one deployment key that every task run holds. Egress controls: not built (workplan 0136 T7) |
 | Worker sees plaintext during copy | Minimise at-rest staging, encrypt spool + short TTL, TLS everywhere; Proton Bridge local-only |
 | Supply chain (engines/deps) | Pin deps, Dependabot, signed images (cosign keyless), SBOM (CycloneDX) |
 | Self-hosted CI runner RCE (docker+root) | Trusted workflows only; no untrusted fork PRs |

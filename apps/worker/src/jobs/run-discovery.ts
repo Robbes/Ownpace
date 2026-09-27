@@ -4,8 +4,10 @@
  *
  * Read-only, body-free pre-sync counts per domain, persisted to migration_discovery so the wizard
  * can show them before the owner green-lights the migration. Enqueued on demand from the API
- * (POST /api/migrations/:id/discover). Builds each domain's source from the DB under RLS
- * (`buildDomainDepsFromMapping`) and writes counts inside `withTenant` as the non-owner app_user.
+ * (POST /api/migrations/:id/discover). Builds each domain's source from the DB
+ * (`buildDomainDepsFromMapping`) and writes counts inside `withTenant`. Both run on this job's pool,
+ * the owner's `DATABASE_URL`, so row security does not bind them: each query's own tenant filter
+ * does the separating (docs/rls-guide.md, "Where row security holds today"; workplan 0138 T1).
  *
  * Trigger: manual (API-initiated).
  */
@@ -60,9 +62,9 @@ function sizeOf(item: unknown): number | undefined {
 }
 
 /**
- * A DiscoveryStore whose every op runs inside `withTenant` (app_user + tenant context), the way
- * the managed edition enforces RLS. One transaction per op mirrors the migration_status writes in
- * run-delta-sync.
+ * A DiscoveryStore whose every op runs inside `withTenant` (tenant context set). That is the shape
+ * row security needs, and it binds once the pool is `app_user`'s; today it is the owner's (workplan
+ * 0138 T1). One transaction per op mirrors the migration_status writes in run-delta-sync.
  */
 function tenantScopedStore(scopePool: Pool): DiscoveryStore {
   return {
