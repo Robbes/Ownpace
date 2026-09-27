@@ -30,6 +30,20 @@ default:
   of it was the table growing. Fresh database per width, or you measure the
   wrong thing.
 
+## Not measured yet: the managed stack under load (workplan 0143 T9)
+
+Nobody has measured the managed stack under load. `deploy/compose/rehearse-capacity.sh` is the tool
+for it, on a stack brought up with the demo:
+
+- `--seed N M` adds N rehearsal organisations with M migrations each.
+- `--sample` writes a line every 10 seconds: the task containers and their memory, the host's
+  memory, swap and load, PgBouncer's waiting clients and longest wait, and Postgres' connections.
+- `--remove` takes the organisations back, with every row their passes wrote. It takes two runs:
+  the first pauses the rehearsal's migrations, and one a few minutes later removes.
+
+It refuses live's `.env`. After the owner's sitting, the results go in a *Measured: the managed
+stack* section here.
+
 ## Applied in the core (unit-verified, no new deps)
 - **Bounded-concurrency reconcile** — `runShadowPass` processes per-folder items in parallel via
   `mapWithConcurrency` up to `concurrency` (default 4; configurable on `ReconcileDeps` / `MappingConfig`).
