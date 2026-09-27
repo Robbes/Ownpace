@@ -309,10 +309,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // ONE RECORDING, TWO WAYS OF ARRIVING AT IT.
     //
     // The by-UID check below is the ordinary way: we ask first and the server
-    // says yes. The other is `uploadEvent` refusing the write BECAUSE the UID
-    // is already held (RFC 4791 §5.3.2) — the same fact, learned from the
-    // refusal instead of from the question, and it has to be recorded the same
-    // way or the two paths disagree about what the row means.
+    // says yes. The other is the server refusing `uploadEvent`'s create, on
+    // the UID (RFC 4791 §5.3.2) or on the href (412), and naming the object
+    // when asked — the same fact, learned from the refusal instead of from
+    // the question, and it has to be recorded the same way or the two paths
+    // disagree about what the row means.
     const adopt = async (targetId: string): Promise<UpsertResult> => {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
@@ -362,11 +363,12 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
     // Upload the event to the calendar
     const written = await this.uploadEvent(calendarId, raw, uid);
-    // THE COLLECTION HELD THIS UID AFTER ALL, under a different href — the
-    // check above missed it because the listing was stale, or failed, or
-    // because a sibling source handle carrying the same UID was written
-    // earlier in this very pass. Nothing was written, so none of the
-    // create-path recording below is true of it.
+    // THE COLLECTION HELD THIS UID AFTER ALL — the check above missed it
+    // because the listing was stale, or failed, or because a sibling source
+    // handle carrying the same UID was written earlier in this very pass. The
+    // server said so by refusing the create, on the href (412) or on the UID,
+    // and then named the object when asked. Nothing was written, so none of
+    // the create-path recording below is true of it.
     if (written.alreadyHeld) {
       // Keep the snapshot current, exactly as the create path does: a THIRD
       // handle with this UID is then answered from memory rather than by a
@@ -462,7 +464,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
 
   /**
    * Find a calendar event by its natural key (UID).
-   * Returns the event ID if found, undefined otherwise.
+   * Returns the event ID if found, undefined when the server says it is not
+   * there, and throws when the server gave no answer (workplan 0149 T2).
    */
   async findCalendarByNaturalKey(
     calendarId: string,
@@ -505,7 +508,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         </C:filter>
       </C:calendar-query>`;
 
-    const response = await this.httpClient.request({
+    // Retried as the writes are: a busy Nextcloud answers on a later attempt
+    // instead of failing the item (workplan 0149 T2).
+    const response = await this.requestWithRetry({
       method: 'REPORT',
       url: this.buildUrl(calendarId),
       body: query,
@@ -533,7 +538,21 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       return href === undefined ? undefined : targetIdRelativeTo(href, this.buildUrl(''));
     }
 
-    return undefined;
+    // 404: the collection is gone, and so is anything that was in it.
+    if (response.status === 404) return undefined;
+
+    // ANY OTHER ANSWER IS NO ANSWER (workplan 0149 T2, hard rule 9).
+    //
+    // This returned `undefined` for every status but 207, so a busy server's
+    // 500, an expired login's 401 and a refusal's 403 all read as "not on the
+    // target". That answer decides whether to write, and since a 412 is asked
+    // about here, whether to adopt. The JMAP and IMAP lookups have always
+    // refused it; the item fails this pass and is asked again on the next.
+    throw new Error(
+      `calendar-query REPORT by UID on ${calendarId} failed; refusing to treat this as "not ` +
+        'present", because a write or an adoption would then rest on an answer the server never ' +
+        `gave. Cause: status ${response.status}: ${davRefusalBody(response.body)}`,
+    );
   }
 
   /**
@@ -939,8 +958,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // level: the existence check and this write are separate requests, so
         // on its own that pairing is check-then-act, and anything appearing at
         // this href in between would be silently REPLACED. 412 then means
-        // "someone got there first", which is not an error — the resource is
-        // what we would have written.
+        // "someone got there first": what is there is asked about below, and
+        // adopted only on the server's word (workplan 0149 T1).
         //
         // On the update path replacing IS the intent, and the ownership
         // decision was already made upstream against the ledger
@@ -953,8 +972,20 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       },
     });
 
-    // 412: something is already there. Not an error — the caller's snapshot was
-    // merely stale, and the resource is exactly what we would have written.
+    // 412: SOMETHING IS ALREADY AT THIS HREF, AND IT IS NOT OURS (workplan
+    // 0149 T1).
+    //
+    // This returned the bare path, which the caller took for a write: the row
+    // was recorded `copied`, so a source change later overwrote it and *apply
+    // deletions* would remove it — an item the customer already had, treated
+    // as one we wrote. Nothing in a 412 says whose the object is. It may have
+    // appeared since the snapshot, a failed lookup may have hidden it, or our
+    // own PUT may have landed behind a 5xx its retry never saw.
+    //
+    // So the collection is asked who holds this UID, as the refusal of the
+    // UID below is. An object the server names is adopted: never rewritten
+    // and never removed as ours, including, at worst, our own landed copy.
+    // With none named, the href holds something else, and the item fails.
     //
     // Unreachable on the overwrite path, which sends no precondition. If a
     // server returns it anyway, that is a refusal to replace and must not be
@@ -967,8 +998,21 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
             'copy the target does not hold.',
         );
       }
-      // Something was already there, so its version is not ours to claim.
-      return { path: eventPath };
+      const held = await this.uidAlreadyHeldAt(calendarId, raw, uid);
+      if (held !== undefined) return { path: held, alreadyHeld: true };
+      throw withFailureCategory(
+        'target_refused',
+        new Error(
+          `PUT for ${eventPath} was refused with 412: the target already holds something at that ` +
+            'address. ' +
+            (this.ledgerKeyTextFor(raw, uid) !== uid
+              ? 'This is a modified occurrence of a recurring series, and one is never recorded ' +
+                "against what holds its series' UID. "
+              : `No object in ${calendarId} carries this item's UID, so what is there is something ` +
+                'else. ') +
+            'Nothing was written, and nothing was recorded.',
+        ),
+      );
     }
 
     if (response.status !== 201 && response.status !== 204) {
@@ -1018,6 +1062,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
   /**
    * Where the collection is already holding this item's UID — `undefined`
    * when we must not claim what is there.
+   *
+   * Asked after either refusal of a create: the 412 on the href and the
+   * server's refusal of the UID. One rule for both (workplan 0149 T1).
    *
    * KEYED BY THE UID ALONE, OR NOT AT ALL. `naturalKeyForCalendar` appends
    * RECURRENCE-ID for a modified occurrence, so a series and its override are

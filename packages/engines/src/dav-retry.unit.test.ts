@@ -39,8 +39,8 @@ describe('isTransientDavStatus', () => {
     // Busy: the server is asking us to come back.
     for (const s of [500, 502, 503, 423, 429]) expect(isTransientDavStatus(s)).toBe(true);
     // Final: retrying only delays the answer. 412 especially — that is a
-    // create-only precondition working as intended, which the caller reads as
-    // success, not something to repeat.
+    // create-only precondition working as intended, which the caller asks the
+    // server about (workplan 0149 T1), not something to repeat.
     for (const s of [200, 201, 204, 207, 401, 403, 412, 415]) expect(isTransientDavStatus(s)).toBe(false);
   });
 });
