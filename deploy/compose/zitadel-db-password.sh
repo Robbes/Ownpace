@@ -11,10 +11,11 @@
 #
 # WHY EVERY QUERY HERE CARRIES `-h`, AND WHY THAT IS THE WHOLE POINT.
 #
-# `docker exec ownpace-db psql -U zitadel` connects over the UNIX SOCKET, and
-# the official Postgres image's generated pg_hba.conf trusts the socket and
-# 127.0.0.1 outright (`local all all trust`). PGPASSWORD is never sent and
-# never checked: the query succeeds with ANY password, including a wrong one.
+# `psql -U zitadel` run inside the database container connects over the UNIX
+# SOCKET, and the official Postgres image's generated pg_hba.conf trusts the
+# socket and 127.0.0.1 outright (`local all all trust`). PGPASSWORD is never
+# sent and never checked: the query succeeds with ANY password, including a
+# wrong one.
 # Only a connection to the container's real network address matches the
 # appended `host all all all scram-sha-256` line — which is the line Zitadel's
 # own connection, arriving from another container, matches.
@@ -38,7 +39,7 @@
 #
 # The repair is one ALTER ROLE, and the obvious way to hand it over is to print
 # it. But it needs POSTGRES_USER and POSTGRES_PASSWORD, which exist inside
-# `ownpace-db` and NOT in the operator's shell — the exact shape
+# the database container and NOT in the operator's shell — the exact shape
 # `scripts/pasteable-hints.unit.test.ts` was written to refuse, twice over,
 # after operators pasted such a hint and got `role "root" does not exist`. A
 # printed `set -a; . .env; set +a` first would make it work, and would also
@@ -55,11 +56,11 @@
 # reported as an authentication failure for a password nobody changed.
 #
 # BEFORE YOU --sync: if a second `.env` exists on this box (the nightly gate
-# keeps one under ~/.persistent/ownpace-managed/), the role may be matching
+# keeps one under ~/.persistent/<project>/), the role may be matching
 # THAT one, and pointing it at this file breaks the other consumer instead.
 # bootstrap-managed.sh lists any divergence at the top of every phase. The
-# durable fix is one file — see docs/managed-bring-up.md, "One box, one stack,
-# one .env".
+# durable fix is one file — see docs/managed-bring-up.md, "One stack, one
+# .env".
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,7 +71,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/env-read.sh"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
-CONTAINER="${OWNPACE_DB_CONTAINER:-ownpace-db}"
+# This checkout's own database container, named after its compose project, so
+# on a machine with two stacks the check reaches its own (workplan 0132 T1).
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 2
+CONTAINER="${OWNPACE_DB_CONTAINER:-${COMPOSE_PROJECT}-db}"
 # Inside the container Postgres listens on 5432 whatever POSTGRES_PORT publishes
 # on the host. This is a container-to-itself connection, so the published port
 # is not involved.
