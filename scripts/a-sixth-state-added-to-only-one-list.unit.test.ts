@@ -246,7 +246,7 @@ describe('but the DOOR into the lane is deliberately still shut', () => {
     // emptied or reworded past the point of saying it would satisfy a
     // key-exists check and tell nobody anything.
     const strings = read('apps/web/src/i18n/strings.ts');
-    const why = /'lane\.why':\s*([\s\S]*?),\n\s*'lane\.start'/.exec(strings);
+    const why = /'lane\.why':\s*([\s\S]*?),\n\s*'lane\.confirm'/.exec(strings);
     expect(why, 'lane.why is gone — the screen no longer says what entering costs').not.toBeNull();
     expect(why![1]!).toMatch(/tier will not fall/);
     expect(why![1]!).toMatch(/slot/);
@@ -265,13 +265,18 @@ describe('but the DOOR into the lane is deliberately still shut', () => {
     expect(between, 'the exception drifted away from the promise it qualifies').toBeLessThan(4);
   });
 
-  it('offers the switch only where a migration has ended', () => {
-    // `cutover` and `done` are the two states the lane is entered from (§4A).
-    // Offering it on an `active` migration would be offering something that is
-    // already happening, which is how a person ends up in a priced state
-    // believing they changed nothing.
-    const finish = read('apps/web/src/pages/Finish.tsx');
-    expect(finish).toMatch(/m\.lifecycle === 'cutover' \|\| m\.lifecycle === 'done'/);
-    expect(finish).toMatch(/lane\.why/);
+  it('offers the switch only where the door accepts it, and says the price before the press', () => {
+    // Where it is offered moved with the owner's D3 and D8 (0128 T5, slice
+    // 7b). Each data type is kept on its own, and from before its cutover the
+    // press is its cutover too, on step 4's attestation, recorded as the
+    // cutover and then the lane: no longer something already happening, so a
+    // person does not enter a priced state believing they changed nothing.
+    // What must not move: the page offers Keep only where the ending door
+    // accepts it (its choices come from the door's own rule), and the first
+    // press opens the sentence with the price, the second acts.
+    const rows = read('apps/web/src/components/finish/EachDataTypeEnds.tsx');
+    expect(rows).toMatch(/e\.offers\.includes\('keep'\)/);
+    expect(rows).toMatch(/onClick=\{\(\) => setKeepAsked\(e\.domain\)\}/);
+    expect(rows).toMatch(/lane\.why/);
   });
 });
