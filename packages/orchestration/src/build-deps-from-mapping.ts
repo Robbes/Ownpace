@@ -204,12 +204,18 @@ export function sourceCredentialsFor(
  * Build dependencies from database-stored connections with encrypted credentials.
  *
  * This is the job-oriented version that:
- * 1. Loads the source and target connections from the database (with RLS)
+ * 1. Loads the source and target connections from the database, filtered by tenant
  * 2. Decrypts credentials using the secret store
  * 3. Constructs the same ReconcileDeps as buildDeps()
  * 
- * SECURITY: All database operations are wrapped in withTenant() to enforce
- * row-level security. The tenantId must come from an authenticated request.
+ * SECURITY: the queries in this function carry their own `tenantId` filter,
+ * and on the managed tasks that filter is what holds today. The connection
+ * load runs inside withTenant(), which binds row security only when `pool`
+ * connects as `app_user` or drops to it; the managed tasks pass the owner's
+ * pool, a superuser, and the mapping check runs on its own handle outside
+ * withTenant (docs/rls-guide.md, "Where row security holds today"; workplan
+ * 0138 T1).
+ * The tenantId must come from an authenticated request.
  * 
  * @param pool - PostgreSQL pool
  * @param tenantId - The tenant ID (from authenticated API request)
@@ -227,7 +233,9 @@ export async function buildDepsFromMapping(
     throw new Error('tenantId is required and must be a valid UUID');
   }
 
-  // Validate mapping exists and belongs to tenant (RLS-enforced)
+  // Validate mapping exists and belongs to tenant. This query's own tenant_id
+  // filter is the only one: the handle comes from DATABASE_URL, outside
+  // withTenant, so no policy applies here (workplan 0138 T1).
   // Use TEST_DATABASE_URL for integration tests, fall back to DATABASE_URL
   const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -256,9 +264,10 @@ export async function buildDepsFromMapping(
     throw new Error('Mapping not found or access denied');
   }
 
-  // Load connections and credentials WITHIN tenant context (RLS enforced)
+  // Load connections and credentials WITHIN tenant context. Row security binds
+  // here only on an app_user pool; the managed tasks pass the owner's (0138).
   const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
-    // THE MAPPING'S OWN connections, mailbox → connection (RLS-enforced), with
+    // THE MAPPING'S OWN connections, mailbox → connection (tenant-filtered), with
     // the tenant-role row only as a logged fallback for legacy rows whose
     // mailboxes carry no connection id. "The tenant's first source row" was
     // survivable while a tenant could only hold one; the moment the wizard can
@@ -469,7 +478,9 @@ export async function buildDepsFromMapping(
 
 /**
  * Load source + target connection config/credentials/kind — THE MAPPING'S OWN
- * connections, resolved mapping → mailbox → connection (RLS-enforced).
+ * connections, resolved mapping → mailbox → connection, inside withTenant and
+ * filtered by tenant (row security binds only on an app_user pool: see
+ * buildDepsFromMapping).
  *
  * It used to take the tenant's first row per role, with no ORDER BY. One
  * mapping per tenant made that look correct; the moment a tenant has two —
@@ -667,7 +678,9 @@ export function tenantThrottleLimiter(
  * Mail delegates to buildDepsFromMapping (IMAP/JMAP). Calendar/contact/file build
  * the native DAV source connectors + engine target writers from the stored
  * connection config + decrypted credentials — credentials are passed directly
- * (never via env) so the managed path is per-tenant safe. RLS-enforced.
+ * (never via env) so the managed path is per-tenant safe. What separates
+ * tenants here is each query's own tenant filter: row security binds only on an
+ * app_user pool, and the managed tasks do not pass one yet (workplan 0138 T1).
  */
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'mail'): Promise<WithClose<ReconcileDeps>>;
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'calendar'): Promise<WithClose<CalendarSyncDeps>>;

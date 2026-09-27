@@ -22,7 +22,7 @@ import {
 const CLOSED_AT = new Date('2026-08-18T09:30:00.000Z');
 
 describe('backupRetentionDaysFromEnv', () => {
-  it('defaults to the reference deployment’s window when unset', () => {
+  it('falls back to the default, which assumes backups exist, when blank', () => {
     expect(backupRetentionDaysFromEnv(undefined)).toBe(DEFAULT_BACKUP_RETENTION_DAYS);
     expect(backupRetentionDaysFromEnv('')).toBe(DEFAULT_BACKUP_RETENTION_DAYS);
     expect(DEFAULT_BACKUP_RETENTION_DAYS).toBe(7);
@@ -36,8 +36,13 @@ describe('backupRetentionDaysFromEnv', () => {
     expect(() => backupRetentionDaysFromEnv(raw)).toThrow(/BACKUP_RETENTION_DAYS/);
   });
 
-  it('names the default in the refusal, so the fix is in the message', () => {
-    expect(() => backupRetentionDaysFromEnv('later')).toThrow(/default of 7 days/);
+  it('names both honest answers in the refusal, so the fix is in the message', () => {
+    // The same two answers the API's start-up check names (workplan 0134 T1):
+    // 0 when nothing is backed up, the days backups are kept when something
+    // is. Not "leave it unset", which names backups that may not exist.
+    expect(() => backupRetentionDaysFromEnv('later')).toThrow(/Set it to 0 if nothing backs up/);
+    expect(() => backupRetentionDaysFromEnv('later')).toThrow(/number of days its backups are kept/);
+    expect(() => backupRetentionDaysFromEnv('later')).not.toThrow(/[Ll]eave it unset/);
   });
 });
 
