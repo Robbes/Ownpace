@@ -39,6 +39,49 @@ nothing now say what it costs.
   and is not in this change. Neither are T4, the copy off the machine, which is the owner's, nor
   T2's paragraph, which the lawyer reads.
 
+**2026-09-27: T1 (c) checked (0131 §6, group M3, step 4), with 0139 T6's task runner's stores,**
+on branch `claude/mailbox-sync-errors-c2xsw2-what-the-task-runner-keeps`, not merged. Read from
+the repository at `101696e`, and from Trigger.dev's own source at the pinned 4.5.16 where marked
+*[upstream]*. Nothing was run against a stack. **The finding: Trigger.dev's own database,
+`triggerdb`, can hold a tester's personal data, keeps it with no limit, and every dump of it
+carries it.** So open question 3 now has the premise it waited for.
+
+- **What gets in.** The task payloads are ids, fixed values and a hash, and hold no names. Three
+  things carry text that can name a tester's folders, files or mailboxes, a DAV user name (often
+  an address), a Message-ID, or the provider's own words:
+  - `run-discovery`'s output, which keeps each failed data type's error as it was thrown
+    (`packages/orchestration/src/discovery.ts`, returned by `run-discovery.ts`);
+  - the error of any failed run, kept for each attempt. A pass that stops after 25 failures in a
+    row carries the last item's error (`domain-sync.ts`, *"Last error: …"*);
+  - the run's logs. *[upstream]* During a run, Trigger.dev captures `console.*` as the run's log
+    events, and this repository's `log.*` writes to `console.*`; `trigger.config.ts` does not
+    turn that off. Folder paths, file names, collection paths and mailbox names are logged on
+    ordinary paths, not only on errors.
+- **Where it is kept.** *[upstream]* A run's payload, output and error are columns of its row in
+  `triggerdb`. Only a payload of 512 KB or more, or an output of 128 KB or more, goes to the object
+  store, and this repository's are far smaller. Run logs go to `triggerdb`'s `TaskEvent` table by
+  default (`EVENT_REPOSITORY_DEFAULT_STORE`, which `managed.yml` does not set), not to ClickHouse
+  as `managed.yml`'s comments say. So §3's sentence that the task events *"are not in those
+  dumps"* is probably wrong for this stack. The checks below settle it.
+- **For how long.** Nothing in `deploy/compose/` sets a retention for `triggerdb`'s runs or
+  events, for ClickHouse, or for MinIO. *[upstream]* Trigger.dev has no run-row retention
+  setting. The erasure (`packages/managed/src/offboarding.ts`) never reaches Trigger.dev. Only
+  `reset-trigger.sh`, run by hand, removes the run history.
+- **The dumps.** `trigger-version.sh backup` dumps the whole of `triggerdb`, gzipped and not
+  encrypted, on the same machine, and keeps the newest seven by count, not by age
+  (`TRIGGER_BACKUP_KEEP`). The gate's drill takes one on every run, on the OTA stack. On live
+  nothing takes one on a schedule, so a dump taken by hand lives until seven newer ones exist.
+- **So `BACKUP_RETENTION_DAYS=0` is not yet true for live**, once a tester's pass has run and live's
+  `triggerdb` is dumped: that dump is a backup of their data, with no age limit. Nothing is dumped
+  on live yet, and no tester has been let in.
+- **The checks that settle what the upstream defaults leave open, on live:**
+  - in `triggerdb`: `SELECT "taskEventStore", count(*) FROM "TaskRun" GROUP BY 1;` and the row
+    count of `"TaskEvent"`;
+  - in `trigger-api`: `printenv EVENT_REPOSITORY_DEFAULT_STORE RUN_REPLICATION_ENABLED`;
+  - in ClickHouse, the row counts of `trigger_dev.task_events_v1` and `task_runs_v2`;
+  - in MinIO, a listing of the `packets` bucket.
+- **The decision is open question 3, updated below.** Nothing in this change alters code.
+
 **2026-09-27, build: T1 (a) and (b) built on branch
 `claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, merged as #1214.** (a) is the wording and (b) the
 start-up check, as 0131 §6 R1 step 5 names them. (c), the check of the Trigger.dev store before
@@ -130,7 +173,7 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS=0` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
-| T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, not built (0131 M3) — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
+| T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27 on branch `claude/mailbox-sync-errors-c2xsw2-what-the-task-runner-keeps`, not merged: it found tester data, and open question 3 decides what follows — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
 | T3 What a lost machine costs, written down | 🔨 **Built 2026-09-27, not merged**: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
@@ -418,8 +461,9 @@ returns, and what a failed run's error can carry, and confirm that Trigger.dev k
 `triggerdb` (this plan did not check Trigger.dev's own storage). If either can hold a tester's
 personal data (an address, a folder name, a provider's error text), then the dumps of live's
 Trigger.dev store are backups in the erasure sentence's sense. `BACKUP_RETENTION_DAYS` must then cover how long a
-dump lives, or the dumps must stop (open question 3). The task events and large payloads are not
-in those dumps: `managed.yml` describes ClickHouse as the task-event store and MinIO as the store
+dump lives, or the dumps must stop (open question 3). *(2026-09-27: the check found tester data, and
+the next sentence is probably wrong for this stack; see the Status block.)* The task events and
+large payloads are not in those dumps: `managed.yml` describes ClickHouse as the task-event store and MinIO as the store
 for large payloads. They are not backups, but they can outlive an erasure, so the finding on
 them goes to 0139 T6 with the other logs. The findings are written in the Status block.
 
@@ -654,6 +698,19 @@ before the first invitation. T5 waits for its trigger.
    gate never runs on live (0132 T1g), so until 0132 T7's timer runs, a dump of live's store lives
    until someone runs the script against live seven more times. With a daily drill it lives about
    seven days. The OTA stack's dumps hold no tester's data (D6).
+   *2026-09-27: T1's check found tester data* (the Status block): run errors, discovery's output
+   and, probably, the run logs, kept in `triggerdb` with no limit. Three ways to make the sentence
+   true again:
+   - **(a) Keep it out of Trigger.dev.** A failed run's error, discovery's output and the run's
+     logs carry a reference and a category, and the full text goes to `app_event` (a month) and
+     the container output (a month), as the Test button's answer already does (0136 T3). Then the
+     dumps hold nothing of a tester's, keeping them stays harmless, and `0` stays true.
+     *Recommended.* It is a change to the worker and orchestration, M's to build.
+   - **(b) Stop dumping live's `triggerdb` for the alpha**, and say in the privacy text that
+     Trigger.dev keeps a run's error text until the alpha ends and the stack is reset.
+   - **(c) Prune by age.** Dumps kept at most N days, with `BACKUP_RETENTION_DAYS` = N, and a job
+     that deletes Trigger.dev's run history older than a month. It writes into upstream's schema,
+     which changes between Trigger.dev versions.
 4. **T1's start-up check.** A warning in production and fatal on an alpha stack, as proposed? Or
    a warning only? *(2026-09-27: still owed. T1 (b) builds the proposal, on its branch.)*
 5. **An alpha that outgrows D2.** More than 20 people, or a charge, is no longer the alpha D1 was
