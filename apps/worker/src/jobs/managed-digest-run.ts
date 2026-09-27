@@ -39,6 +39,7 @@ import {
   type DeletionRow,
   type MoveRow,
   type FailureRow,
+  type DiscoveryDomain,
 } from '@openmig/shared';
 
 export interface DigestTenant {
@@ -76,6 +77,11 @@ export interface DigestDeps {
   countAutoApplied(tenantId: string, mappingId: string, since: string): Promise<number>;
   /** Open sharing-checklist rows for this mapping (ADR-0032, 0052 T6a). */
   countSharingOpen(tenantId: string, mappingId: string): Promise<number>;
+  /**
+   * The data types whose grace period ended while nobody chose (0128 D7, T5
+   * slice 7c). Optional: a caller that does not ask reports none.
+   */
+  graceEndedWithoutAChoice?(tenantId: string, mappingId: string): Promise<readonly DiscoveryDomain[]>;
   /**
    * When this tenant's digest of this cadence last actually went out;
    * undefined = never. The window "since the last summary" used to be
@@ -146,6 +152,13 @@ async function attentionFor(
     () => deps.countSharingOpen(tenantId, mapping.id),
     0,
   );
+  const graceEnded = deps.graceEndedWithoutAChoice
+    ? await guarded(
+        'the grace periods',
+        () => deps.graceEndedWithoutAChoice!(tenantId, mapping.id),
+        [] as readonly DiscoveryDomain[],
+      )
+    : [];
 
   return summariseQueues(mapping, {
     deletions,
@@ -155,6 +168,7 @@ async function attentionFor(
     status: mapping.status,
     autoApplied,
     sharingOpen,
+    graceEnded,
     blindSpots,
   });
 }

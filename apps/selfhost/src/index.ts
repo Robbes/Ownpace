@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -591,6 +591,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             byId(c).mailboxMappingId as MappingId,
           )
         ).filter((g) => g.state === 'open').length,
+      // A grace period that ended while nobody chose (0128 D7), by the rows
+      // the Finish page offers.
+      graceEndedWithoutAChoice: async (c) => {
+        const m = byId(c);
+        const tenantId = m.config.tenantId as string;
+        const ended = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          readGraceEndedWithoutAChoice(tdb, tenantId, m.mailboxMappingId),
+        );
+        return ended.map((g) => g.domain);
+      },
       countPendingDecisions: async (tenantId) =>
         (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'pending' })).length,
   });
@@ -1579,12 +1589,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
-          // Each data type's stop as the page offers it (0128 T4, slice 3c),
-          // by the rule the stop door itself decides by.
+          // Each data type's stop and ending as the pages offer them (0128 T4,
+          // slice 3c; T5, slice 7b), by the rules the doors themselves decide by.
           const tenantId = m.config.tenantId as string;
-          const facts = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
-            readPathStopFacts(tdb, tenantId, m.mailboxMappingId),
-          );
+          const { facts, graceEnds } = await withTenant(persistenceBackend.driver, tenantId, async (tdb) => ({
+            facts: await readPathStopFacts(tdb, tenantId, m.mailboxMappingId),
+            // When each grace period ended, for the Finish page (0128 D7, T5 slice 7c).
+            graceEnds: await readGraceEnds(tdb, tenantId, m.mailboxMappingId),
+          }));
           inputs.push({
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
@@ -1592,7 +1604,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             statuses,
             failures,
             adopted,
-            ...(facts === undefined ? {} : { stops: pathStopChoices(facts) }),
+            ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts, graceEnds) }),
           });
         }
         // The channel's state travels with the status an owner already polls.
@@ -3278,11 +3290,73 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         return sendJson(res, 200, { id, domain, stopped: stop, changed: outcome.changed });
       }
 
+      // POST /mappings/:id/domains/:domain/end and …/keep — end or keep one data
+      // type where its migration ends (0128 T3, T5 slice 7; D3, D4, D8): the
+      // same choice managed's routes offer, through the ledger's own door. With
+      // every data type ended the migration is done, and this appliance stops
+      // scheduling it and says so once, as its Finish does; a data type kept
+      // copying brings the schedule back.
+      const endingMatch =
+        req.method === 'POST' && req.url
+          ? /^\/mappings\/([^/]+)\/domains\/([^/?]+)\/(end|keep)(?:\?(.*))?$/.exec(req.url)
+          : null;
+      if (endingMatch) {
+        await drain(req);
+        const id = decodeURIComponent(endingMatch[1]!);
+        const m = mappings.find((x) => x.config.mappingId === id);
+        if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
+        const domain = decodeURIComponent(endingMatch[2]!);
+        if (!(DISCOVERY_DOMAINS as readonly string[]).includes(domain)) {
+          const reason = `Name one data type: ${DISCOVERY_DOMAINS.join(', ')}.`;
+          return sendJson(res, 400, { error: 'invalid_domain', message: reason, reason });
+        }
+        const ending = endingMatch[3] as PathEnding;
+        const force = new URLSearchParams(endingMatch[4] ?? '').get('force') === 'true';
+        const tenantId = m.config.tenantId as string;
+        const failures =
+          ending === 'end'
+            ? await ledger.listFailures(tenantId as TenantId, m.mailboxMappingId as MappingId, domain as DiscoveryDomain)
+            : [];
+        const outcome = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          endOrKeepPath(tdb, tenantId, {
+            mappingId: m.mailboxMappingId,
+            domain: domain as DiscoveryDomain,
+            ending,
+            actor: 'operator',
+            force,
+            unresolvedFailures: failures.filter((f) => f.needsDecision).length,
+          }),
+        );
+        if ('refused' in outcome) {
+          if (outcome.refused === 'not_found') return sendJson(res, 404, { error: 'unknown mapping' });
+          const reason = pathEndingRefusalReason(outcome, domain as DiscoveryDomain);
+          return sendJson(res, 409, {
+            error: `${ending}_refused`,
+            ...outcome,
+            message: reason,
+            reason,
+            ...(outcome.refused === 'unresolved_failures' ? { forceable: true } : {}),
+          });
+        }
+        if (outcome.changed) {
+          log.info(`[selfhost] ${m.config.mappingId}: ${domain} ${ending === 'end' ? 'ended' : 'kept copying'} by operator`);
+          if (outcome.migration?.to === 'done') {
+            unscheduleMapping(m);
+            await tell({ kind: 'migration_finished', mapping: mappingRef(m.config) });
+          } else if (ending === 'keep') {
+            scheduleMapping(m);
+          }
+        }
+        return sendJson(res, 200, { id, domain, ending, ...outcome });
+      }
+
       // PUT /mappings/:id {status: 'continuous'} — the continuous lane's door
       // (workplan 0128 D4 (a): the appliance gets the same choice). The Finish
-      // page's *Keep copying* sends the same request to both editions; this
-      // edition answered it 404 until now, so the lane could be chosen only on
-      // managed. Decided by the rule managed's update door asks
+      // page's *Keep copying* sent the same request to both editions, and this
+      // edition answered it 404, so the lane could be chosen only on managed.
+      // The page now keeps each data type through its own door above (0128
+      // T5, slice 7b); this one stays the whole migration's, for a caller of
+      // the API. Decided by the rule managed's update door asks
       // (`updateTransition`), and written through the ledger's own door with
       // its paths and audit record. Only the lane is entered here: every other
       // move has its own door on this edition (Start, Finish, and the operator
@@ -3475,9 +3549,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             'The migration is finished. This mapping no longer syncs, and drift, deletions and ' +
             'moves are no longer reported for it. Nothing was added to or removed from the ' +
             'target — what is there now is what stays.',
+          // Keep copying per data type is the way back into copying (0128 T5,
+          // slice 7b); the hand edit stays the one way back before the cutover.
           ifYouNeedToResume:
-            'Remove the mapping from the config directory to retire it for good, or set its ' +
-            "mailbox_mapping.status back to 'active' and restart the appliance to resume.",
+            'To copy again, keep a data type copying on the Finish page: it runs in the continuous ' +
+            'lane, where deletions at the old provider are no longer mirrored. To retire the mapping ' +
+            "for good, remove it from the config directory. Setting its mailbox_mapping.status back " +
+            "to 'active' and restarting the appliance takes it back before its cutover.",
         };
         return sendJson(res, 200, finished);
       }

@@ -21,8 +21,11 @@
 
 import {
   PgPathLifecycleStore,
+  endOrKeepPath,
   movePathsWithMapping as movePaths,
   stopOrResumePath,
+  type PathEndingChange,
+  type PathEndingOutcome,
   type PathsChange,
   type PathStopChange,
   type PathStopOutcome,
@@ -89,6 +92,24 @@ export async function stopOrResumeDataType(
   change: PathStopChange,
 ): Promise<PathStopOutcome> {
   const outcome = await stopOrResumePath(db, tenantId, change);
+  if ('slotsTaken' in outcome && outcome.slotsTaken) {
+    await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
+  }
+  return outcome;
+}
+
+/**
+ * End or keep one data type (0128 T3, T5 slice 7), through the ledger's own
+ * door, and raise the month's peak when a data type kept in the lane took a
+ * slot it did not hold: same transaction, as every other door that takes
+ * slots.
+ */
+export async function endOrKeepDataType(
+  db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
+  tenantId: string,
+  change: PathEndingChange,
+): Promise<PathEndingOutcome> {
+  const outcome = await endOrKeepPath(db, tenantId, change);
   if ('slotsTaken' in outcome && outcome.slotsTaken) {
     await new PgOccupancyPeakStore(db).recordCurrentOccupancy(tenantId as TenantId);
   }
