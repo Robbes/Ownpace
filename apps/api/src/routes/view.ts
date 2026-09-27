@@ -53,7 +53,9 @@ import { PgLedger, PgMigrationStatusStore } from '@openmig/ledger';
 import { HttpTokenRevoker } from '@openmig/connectors';
 import {
   MAPPING_LIFECYCLES,
+  MIGRATION_GONE,
   buildDomainStatusReports,
+  reasonPair,
   viewGrantFor,
   viewRowFor,
   type MappingLifecycle,
@@ -139,12 +141,9 @@ router.get(
       });
 
       if (!read) {
-        return void res.status(409).json({
-          error: 'not_found',
-          reason:
-            'This migration no longer exists, so there is nothing to show. Nothing you can do ' +
-            'from here will fix that; please tell the person who sent you the link.',
-        });
+        // In both languages (workplan 0145 T6): the page shows the half it
+        // is in, in the same line as a refused link.
+        return void res.status(409).json({ error: 'not_found', ...reasonPair(MIGRATION_GONE) });
       }
 
       const { mapping, domainStatus, failures, adopted } = read;

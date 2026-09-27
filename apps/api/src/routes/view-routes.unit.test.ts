@@ -20,7 +20,8 @@
  *  - revocation lands at the next open, not at the next issue;
  *  - `started: false` is a different answer from five domains of zero;
  *  - the provider's error prose does not reach the payload, from a row that
- *    really carries one.
+ *    really carries one;
+ *  - a migration that is gone is said in both languages (0145 T6).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -36,6 +37,7 @@ import {
   expiryFromDays,
 } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { MIGRATION_GONE } from '@openmig/shared';
 
 // UUID family 6a6a0000-…, unused elsewhere in the repo.
 const TENANT = '6a6a0000-e29b-41d4-a716-446655442201';
@@ -319,6 +321,51 @@ describe('a state the contract has never heard of', () => {
         await q(
           `ALTER TABLE mailbox_mapping ADD CONSTRAINT mailbox_mapping_status_check
            CHECK (status IN ('active','paused','cutover','done','continuous'))`,
+        );
+      });
+    }
+  });
+});
+
+/**
+ * A MIGRATION THAT IS GONE, TOLD IN BOTH LANGUAGES (workplan 0145 T6, review).
+ *
+ * The page shows the half it is in, so the answer has to carry both. The
+ * branch exists for a race: the migration deleted between the link check and
+ * the read. `mapping_link` cascades from `mailbox_mapping`, so outside that
+ * race a deleted migration takes its links with it and the answer is the
+ * link's refusal instead. This case drops the cascade for as long as it runs,
+ * the same way the case above drops the CHECK: a branch no test can reach is
+ * a branch nothing proves.
+ */
+describe('a migration that no longer exists', () => {
+  const GONE = '6a6a0000-e29b-41d4-a716-446655442234';
+
+  it('answers its sentence in both languages', async () => {
+    await withClient(async (q) => {
+      await q(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status)
+         VALUES ($1,$2,$3,'active')`,
+        [GONE, TENANT, BOX],
+      );
+    });
+    const link = await tokenFor(GONE, 'view');
+    await withClient(async (q) => {
+      await q('ALTER TABLE mapping_link DROP CONSTRAINT mapping_link_mapping_id_fkey');
+      await q('DELETE FROM mailbox_mapping WHERE id = $1', [GONE]);
+    });
+    try {
+      const res = await request(app).get(`/api/view/${link.token}`);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('not_found');
+      expect(res.body.reason).toBe(MIGRATION_GONE.en);
+      expect(res.body.reasonNl).toBe(MIGRATION_GONE.nl);
+    } finally {
+      await withClient(async (q) => {
+        await q('DELETE FROM mapping_link WHERE mapping_id = $1', [GONE]);
+        await q(
+          `ALTER TABLE mapping_link ADD CONSTRAINT mapping_link_mapping_id_fkey
+           FOREIGN KEY (mapping_id) REFERENCES mailbox_mapping(id) ON DELETE CASCADE`,
         );
       });
     }

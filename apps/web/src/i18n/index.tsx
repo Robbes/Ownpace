@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { STRINGS, type Locale, type StringKey } from './strings.ts';
-import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency } from './datetime.ts';
+import { formatRelativeToNow, formatDateTime, formatNumber, formatCurrency, formatList } from './datetime.ts';
 
 const STORAGE_KEY = 'ownpace.locale';
 
@@ -139,6 +139,7 @@ export function useFormatters(): {
   dateTime: (when: string | Date) => string;
   number: (n: number) => string;
   currency: (cents: number, currency: string) => string;
+  list: (items: ReadonlyArray<string>) => string;
 } {
   const { locale } = useLocale();
   return React.useMemo(
@@ -147,6 +148,7 @@ export function useFormatters(): {
       dateTime: (when: string | Date) => formatDateTime(when, locale),
       number: (n: number) => formatNumber(n, locale),
       currency: (cents: number, currency: string) => formatCurrency(cents, currency, locale),
+      list: (items: ReadonlyArray<string>) => formatList(items, locale),
     }),
     [locale],
   );
