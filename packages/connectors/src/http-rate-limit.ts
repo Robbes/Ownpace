@@ -67,6 +67,7 @@
  */
 
 import { parseRetryAfterMs, log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 
 /**
  * Total time one request may spend waiting on rate limits before its 429 is
@@ -110,7 +111,7 @@ export async function fetchWithRateLimitRetry(
   let waitedMs = 0;
 
   for (let attempt = 0; ; attempt++) {
-    const response = await fetch(url, init);
+    const response = await tenantFetch(url, init);
     if (!isRateLimited(response.status)) return response;
 
     const remaining = RATE_LIMIT_TOTAL_BUDGET_MS - waitedMs;

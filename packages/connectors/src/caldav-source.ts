@@ -28,6 +28,7 @@ import {
 } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import { caldavComponentFilter, davRefusalBody, log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -1193,7 +1194,7 @@ function createDefaultHttpClient(): HttpClient {
             'request without it, which would empty the resource and report success',
         );
       }
-      const response = await fetch(options.url, {
+      const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: options.body,

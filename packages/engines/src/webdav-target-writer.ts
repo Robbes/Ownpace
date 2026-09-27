@@ -37,6 +37,7 @@ import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 
 /**
  * Configuration for WebDAV target writer
@@ -1254,7 +1255,7 @@ function createDefaultHttpClient(): HttpClient {
        * somewhere it would be easy to delete as noise.
        */
       const streaming = options.body instanceof ReadableStream;
-      const response = await fetch(options.url, {
+      const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: options.body as RequestInit['body'],

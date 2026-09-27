@@ -40,6 +40,7 @@ import {
 import type { MicrosoftFaceSourceBuilder } from './microsoft-account-test.ts';
 import type { ArchiveSource, SourceConfig, ProbeOutcome, ProbeUnit } from '@openmig/shared';
 import { parseArchiveSource } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import { ARCHIVE_CONNECTION_KIND, archiveReaderForLocation } from './archive-source-factory.ts';
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
 import { measureTargetScheduling } from './target-scheduling.ts';
@@ -616,7 +617,7 @@ async function probeTargetNow(
     if (targetType === 'jmap') {
       const baseUrl = String(config.baseUrl ?? '');
       const sessionUrl = `${baseUrl}/.well-known/jmap`;
-      const res = await fetch(sessionUrl, {
+      const res = await tenantFetch(sessionUrl, {
         headers: {
           Authorization: `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`,
           Accept: 'application/json',
