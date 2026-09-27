@@ -29,6 +29,16 @@ export default defineConfig({
   // exactly that point). The deployment's real project was already fixed by
   // the CLI before the indexer runs; the fallback string is never acted on.
   project: process.env.TRIGGER_PROJECT_REF ?? 'proj_ref_set_at_deploy_time',
+  // The Node the task image is built on (workplan 0146 T6). 24 is the images'
+  // Node major (the api and selfhost images run it; the web image builds on
+  // it), and scripts/a-gate-on-a-version-nothing-ships.unit.test.ts holds the
+  // two together. It is set explicitly because without it the CLI takes the
+  // server project's default runtime, or else its own `node`, which in the
+  // 4.5.16 CLI is triggerdotdev/node:21-bookworm: the tasks ran Node 21 until
+  // this line.
+  // For node-24 the CLI builds on triggerdotdev/node:24-bookworm, and a task
+  // deploy's build output names it. A change here takes a task re-deploy.
+  runtime: 'node-24',
   dirs: ['./src/jobs'],
   // Verification counts and samples a real mailbox; an hour is generous
   // headroom, not an expectation.
