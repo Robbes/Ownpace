@@ -1635,8 +1635,9 @@ Every mail this stack sends goes to **Mailpit**, a catcher on the compose
 network.
 
 **Two different things send mail, and they are configured separately.** The API
-sends operator notifications — an access request, a grant, a decline, the daily
-digest — and reads `SMTP_HOST` and friends from `.env` via `managed.yml`. The
+sends its notifications — an access request, a grant, a decline — and reads
+`SMTP_HOST` and friends from `.env` via `managed.yml`; the tasks send the digest
+with the same settings, once `set-task-env.sh` has uploaded them (below). The
 **identity provider sends its own**: the verification link on a new account, an
 email-change confirmation, a password reset, the invitation to set a first
 password. None of that goes through the API. `setup-zitadel.sh` configures it
@@ -1781,14 +1782,22 @@ pass on what they need. This is a procedure, not a setting.
 
 **Where it applies.** Only on `ownpace-live`, the stack testers use (0132 D7),
 and only until its `.env` names a relay (0133 T3). If the relay is ready before
-live's first bring-up, put it in live's `.env` from the start and skip this.
-Otherwise live starts with the example's `SMTP_HOST=mailpit`, and a Mailpit in
-live's own project catches its mail. That is the recommendation in 0133's open
-question 5, which the owner has not answered yet. The OTA stack's Mailpit never
-holds a tester's mail: it is the nightly gate's, and the smoke reads it every
-night. On `main`, `managed.yml` still pins `name: ownpace-managed` and gives 17
-services a fixed `container_name`, `ownpace-mailpit` among them, so live cannot
-run beside the OTA stack until 0132 T1 is built.
+live's first bring-up, the tag live is brought up from carries 0133 T2 (TLS for
+the identity provider), and that tag also carries 0135 T1 and T2 (so live's
+identity provider never offers public organisation registration, and its project
+admits its own organisation only), put the relay in live's `.env` from the start
+and skip this. Without 0133 T2 the identity provider takes its `tls` from
+`SMTP_SECURE`, which stays empty for a relay on 587: it connects in plain text,
+a relay that takes a login only over TLS refuses it, and the identity provider's
+codes reach neither an inbox nor a catcher while the API's mail arrives.
+Otherwise start on the catcher and switch at 0133 T3: live starts with the
+example's `SMTP_HOST=mailpit`, and a Mailpit in live's own project catches its
+mail. That is the recommendation in 0133's open question 5, which the owner has
+not answered yet. The OTA stack's Mailpit never holds a tester's mail: it is the
+nightly gate's, and the smoke reads it every night. On `main`, `managed.yml`
+still pins `name: ownpace-managed` and gives 17 services a fixed
+`container_name`, `ownpace-mailpit` among them, so live cannot run beside the
+OTA stack until 0132 T1 is built.
 
 **Where each mail lands.** With `SMTP_HOST=mailpit`, every mail below lands in
 that stack's Mailpit, whoever it is addressed to, and none reaches an inbox:
@@ -1811,10 +1820,11 @@ mailbox.
 
 | Mail | Sent by, and when | Carries a code | What you do |
 |---|---|---|---|
-| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself: the app's address, the address to register with, and that they must confirm the confirmation mail. |
+| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the alpha paragraph from the caught mail word for word, in the language it was sent in. |
 | *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
 | Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
 | Password reset | The identity provider, when they ask for one | **Yes** | The same. |
+| Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |
 | Email-change confirmation | The identity provider, to the new address | **Yes** | The same, to the new address. |
 | The digest, *what needs your attention* | The tasks, at 08:00 UTC, daily or weekly as the organisation chooses, to its active owners and admins, and only when something waits | No | Nothing. The tester sees the same on screen. |
 
@@ -1843,9 +1853,13 @@ or without a relay:
 `apps/api/src/routes/tenants/members.ts` records it and sends nothing. The
 person finds it on the Invitations page when they sign in with that address,
 verified, so whoever invited them tells them. A grant link: *"You send the
-link. We never do."* ([grant-links.md](grant-links.md)). And the announcement to
-the people a share was given to, which has an API route and no button in the
-web app.
+link. We never do."* ([grant-links.md](grant-links.md)).
+
+**Not sent from any screen today.** The fallback announcement for shares carried
+by hand (0104 T3). `POST /api/migrations/:mappingId/sharing/announce` mails each
+grantee if it is called, and no screen in `apps/web` calls it. (A share applied
+on the *Sharing checklist* is announced by the target's own invite, not by
+Ownpace.)
 
 **The one rule: a code goes by mail, and only to the address it was sent to.**
 A granted organisation and an invitation both bind to an address the identity
@@ -1888,11 +1902,23 @@ curl -fsS --get "http://localhost:${port:?no MAILPIT_PORT in this .env}/api/v1/s
 Read the code itself on Mailpit's web page, through the tunnel above with
 live's port, or at the mesh address if live's `MAILPIT_BIND` names one.
 
-**When it ends.** Once live's `.env` names the relay and the bring-up has
-applied it (0133 T3), the mail reaches testers without you. After one outside
-mailbox has been walked end to end (0133 T4), empty live's Mailpit and stop it:
+**When it ends.** Once 0133 T3 is done (it waits on T2's TLS for the identity
+provider and on 0135 T0), and T4 has shown a code arriving in an outside inbox,
+the mail reaches testers without you. Then empty live's Mailpit and stop it:
 the codes have expired by then, but it still holds testers' addresses and
-grant mails.
+grant mails. From live's checkout, with `port` set as in the recipe above:
+
+```bash
+curl -fsS -X DELETE "http://localhost:${port:?no MAILPIT_PORT in this .env}/api/v1/messages"
+docker compose -p ownpace-live -f deploy/compose/managed.yml stop mailpit
+```
+
+Name live's project (0132 T1). On `main`, `managed.yml` pins
+`name: ownpace-managed`, so the same command without `-p` reaches the OTA
+stack's `ownpace-managed` and stops the catcher the nightly gate reads. Unless
+0133 T3's gating (Mailpit only with `--with-demo` or `SMTP_HOST=mailpit`) has
+been built, every bring-up of live starts it again, empty and idle. Stop it
+again after each one.
 
 ## The CI runner is a different checkout from wherever you did this by hand
 

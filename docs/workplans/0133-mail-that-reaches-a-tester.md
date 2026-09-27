@@ -27,8 +27,8 @@ testers', T4 walks the production names, and T2 item 1 is done.
 on by hand". It says where the procedure applies: on live only, until live's `.env` names the
 relay, with live's own Mailpit. That is open question 5's recommendation, and the subsection says
 the owner has not answered it. It says where each mail lands while `SMTP_HOST=mailpit`, which mail
-is addressed to a tester and what the owner does with each, which mail goes to `NOTIFY_TO`, and
-what is never mailed. Then T1's rules: a code goes by mail, only to the address it was sent to;
+is addressed to a tester and what the owner does with each, which mail goes to `NOTIFY_TO`, what
+is never mailed, and what no screen sends today. Then T1's rules: a code goes by mail, only to the address it was sent to;
 only codes the owner expects; be there within the hour; tell the tester first. It ends with a
 recipe that lists one tester's mail by recipient, and with when the interim ends.
 
@@ -49,24 +49,48 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
   `cmd/defaults.yaml` gives `1h` to `EmailVerificationCode` and `PasswordVerificationCode`, and
   `72h` to `InitializeUserCode` and `InviteCode`. The password reset uses the second
   (`internal/command/instance.go`), and an email change uses the first
-  (`internal/command/user_v2_email.go`).
-- **Departures from §3's table.** Two more mails, and neither goes to the tester, relay or not.
+  (`internal/command/user_v2_email.go`). The *password changed* notice comes from
+  `NotificationPolicy: PasswordChange: true` in the same `cmd/defaults.yaml` and
+  `reducePasswordChanged` in `internal/notification/handlers/user_notifier.go`; neither
+  `managed.yml` nor `setup-zitadel.sh` changes that policy. The alpha paragraph of the grant mail
+  comes from `grantedAlpha` in `notifications.ts`, added when `OWNPACE_STAGE=alpha`
+  (`alphaFrom` in `access-notify.ts`). The stop and delete commands at the end read
+  `phase_app`'s `services=(…)` list in `bootstrap-managed.sh`, which starts `mailpit` on every
+  stack, and `DeleteMessages` in Mailpit v1.31.1's `server/apiv1/messages.go`, which deletes all
+  messages when no IDs are sent.
+- **Departures from §3's table.** The guide lists one more mail to the tester: the identity
+  provider's *password changed* notice after a reset or a change of password. It carries no
+  code, and there is nothing to pass on. And two more mails that never go to the tester, relay or not.
   `decision_raised` (from `managed-group-discovery` and `managed-drift-detect`) and
   `rollback_finished` (from `run-rollback`) go to `NOTIFY_TO` through `notifierFromEnv`. The
   guide lists them as mail to the operator. `run-rollback`'s option is called `notifyUsers`, but
   on managed the notice reaches the operator, and a tester whose migration is rolled back hears
   nothing from the product. **Recorded, not changed**; the guide says to tell them by hand.
 - **§1 corrected by the guide.** §1 says the fallback announcement goes out "on a press".
-  `POST /api/migrations/:mappingId/sharing/announce` exists, but no screen in `apps/web` calls it,
-  so a tester cannot send it. The guide says so.
+  `POST /api/migrations/:mappingId/sharing/announce` exists and mails each by-hand grantee when it
+  is called, but no screen in `apps/web` calls it, so no screen offers it. The guide files it under
+  "Not sent from any screen today", not under what is never mailed, and says that a share applied
+  on the *Sharing checklist* is announced by the target's own invite.
+- **§3 T1 corrected, from review.** §3 T1 said that if T0 is ready before live's first bring-up,
+  the relay goes in live's `.env` from the start. That also needs T2 in the tag live is brought
+  up from, or the identity provider takes `tls` from an empty `SMTP_SECURE` and its codes do not
+  arrive (§1, "No TLS on a 587 relay"), and 0135 T1 and T2, because 0135 §4 advice 3 closes
+  registration before live's mail reaches a relay. §3 T1 and the guide now say both, and the
+  guide's "When it ends" waits on T3 (and so on T2 and 0135 T0) and on T4. §3 T1's grant-mail row
+  and the guide both say to copy the alpha paragraph when writing the grant mail by hand. The
+  guide gives the commands that empty and stop live's Mailpit, with live's project named, and
+  says that until T3's gating is built every bring-up of live starts it again. These fixes are
+  documentation too, so no guard; each new fact was read at `origin/main` and at the pinned
+  Zitadel and Mailpit tags (listed under "No guard").
 - **Live cannot run on `main` yet.** `managed.yml` pins `name: ownpace-managed` and gives 17
   services a fixed `container_name`, `ownpace-mailpit` among them. Also,
   `DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network` would put live's task runs on the OTA
   stack's network, where `mailpit` is the OTA stack's catcher. 0132 T1 comes first (R7), and the
   guide says so.
-- **Noticed, not changed.** The section's first paragraph says the API sends "the daily digest".
-  The tasks send it (`managed-digest.ts`), with the settings `set-task-env.sh` uploads. M5's
-  0133 T2 item 4 edits that section's steps, and the sentence can be fixed there.
+- **Fixed in passing.** The section's second paragraph ("Two different things send mail") said
+  the API sends "the daily digest". The tasks send it (`managed-digest.ts`), weekly by default,
+  with the settings `set-task-env.sh` uploads. The clause now says so, so the section no longer
+  contradicts the new subsection.
 - **Open.** Open questions 1 and 5 are the owner's. So is the passing itself, if testers reach
   live before the relay. 0132 T1 is R7's, and nothing here can run before it.
 
@@ -312,10 +336,15 @@ means:
 ### T1 — until then: the owner passes each mail on by hand (decided, D2, D3; on live only, D5)
 
 **Where it applies.** On `ownpace-live` only, and only until the relay exists. If T0 is ready
-before live's first bring-up, the relay goes in live's `.env` from the start and T1 is never used.
-If it is not, live starts with `SMTP_HOST=mailpit` (§1) and its mail is caught by a Mailpit in
-live's own project, which T3 later empties and stops (open question 5). The OTA stack's Mailpit
-never holds a tester's mail: it is the gate's, and the gate's smoke reads it every night.
+before live's first bring-up, and the tag live is first brought up from carries T2 (TLS for the
+identity provider) and 0135 T1 and T2 (public organisation registration off, and the project
+admitting its own organisation only), the relay goes in live's `.env` from the start and T1 is
+never used. Without T2 the identity provider
+takes `tls` from an empty `SMTP_SECURE` and speaks plain text to a 587 relay (§1), so its codes
+would not arrive. If any of these is missing, live starts with `SMTP_HOST=mailpit` (§1) and its
+mail is caught by a Mailpit in live's own project, which T3 later empties and stops (open
+question 5). The OTA stack's Mailpit never holds a tester's mail: it is the gate's, and the gate's
+smoke reads it every night.
 
 This is a procedure, not a build. It lives in this plan and in one short subsection of
 `docs/managed-bring-up.md`, "Mail: caught, not delivered", titled "Before a relay: passing mail on
@@ -326,7 +355,7 @@ by hand". There is no code, so there is no guard test.
 | Mail | Sent by | To | Carries a code | What the owner does |
 |---|---|---|---|---|
 | Somebody asked for access (`access_requested`) | API | `NOTIFY_TO`, caught | No | Nothing to pass on. The request is in the access queue. |
-| *Ownpace — uw toegang staat klaar* (`access_granted`) | API | the tester | No. The mail says it is safe to forward. | Forward it. Or write the tester yourself with the same three facts: the app address, the address to register with, and that they must confirm the confirmation mail. |
+| *Ownpace — uw toegang staat klaar* (`access_granted`) | API | the tester | No. The mail says it is safe to forward. | Forward it. Or write the tester yourself with the same three facts (the app address, the address to register with, and that they must confirm the confirmation mail), and on live copy the alpha paragraph from the caught mail word for word. |
 | *Ownpace — over uw aanvraag* (`access_declined`) | API | the person who asked | No | Forward it, or untick *"Email them if you decline"* in the queue and write yourself. |
 | Verify your address | identity provider | the tester | **Yes**, a code and a link that carries it. One hour by the default (§1). | Pass it on within the hour, by mail, to the address it was sent to. |
 | Password reset | identity provider | the tester | **Yes**, one hour by the default | The same. |
