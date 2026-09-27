@@ -8,10 +8,13 @@
  * difference between them would be a difference in whether somebody's data is
  * recoverable.
  *
- * SUBTLETY ONE: ownership is re-checked at the last possible moment, by HEADing
- * the resource and comparing ETags, exactly as the overwrite path does. Checking
- * in the caller instead would leave a window between reading the version and
- * deleting, and this is the operation where that window costs the most.
+ * SUBTLETY ONE: ownership is checked by the SERVER, in the DELETE itself
+ * (workplan 0149 T3). The DELETE carries `If-Match` with the version we
+ * recorded, so there is no window between reading the version and deleting,
+ * and this is the operation where that window costs the most. It used to be a
+ * HEAD and a comparison first, with the DELETE a separate request after it.
+ * And a copy with no version recorded, or only a weak one, is not removed at
+ * all: there is no way to tell whether somebody changed it (the owner's D1).
  *
  * SUBTLETY TWO: whether a DELETE is recoverable is a property of the SERVER, not
  * of DAV. Nextcloud moves a deleted file to its trashbin and keeps it for a
@@ -21,7 +24,7 @@
  * gone would tell an operator their mistake is recoverable when it is not.
  */
 
-import { readEtag, ownershipOf } from './dav-target-version.ts';
+import { ifMatchFor } from './dav-target-version.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import type { RemovalResult, RemovalKind } from '@openmig/shared';
 
@@ -73,8 +76,9 @@ export interface RemoveDavResourceDeps {
   readonly authorization: string;
   readonly request: (options: DavRequest) => Promise<DavResponse>;
   /**
-   * The ETag we recorded for our copy. When present, the resource is HEADed and
-   * the removal refused unless the target still reports it.
+   * The version we recorded for our copy. Sent as `If-Match`, so the server
+   * removes nothing unless it still holds that version. Absent, or weak,
+   * nothing is removed and the answer is `unversioned`.
    */
   readonly expectedTargetVersion?: string;
   /**
@@ -117,17 +121,16 @@ export async function removeDavResource(deps: RemoveDavResourceDeps): Promise<Re
   const { url, authorization, request, expectedTargetVersion } = deps;
   const send = (options: DavRequest) => requestWithDavRetry(() => request(options));
 
-  if (expectedTargetVersion !== undefined) {
-    const head = await send({ method: 'HEAD', url, headers: { Authorization: authorization } });
-    // A HEAD that fails tells us nothing about the ETag, and `ownershipOf` treats
-    // two unknowns as "proceed" — which is right for a rewrite and right here too:
-    // the alternative is refusing every removal against a server that answers no
-    // ETag, i.e. a protection that presents as an outage.
-    const current = head.status >= 200 && head.status < 300 ? readEtag(head) : undefined;
-    if (ownershipOf(expectedTargetVersion, current) === 'changed') {
-      return { conflicted: true };
-    }
-  }
+  // NO VERSION, NO REMOVAL (workplan 0149 T3, the owner's D1).
+  //
+  // This used to skip the check when no version was recorded, and remove the
+  // copy anyway. That was a row written before versions existed, a row from a
+  // server that returns no ETag on PUT, and every row a 412 on create recorded
+  // as a copy. With nothing to compare there is no way to tell whether somebody
+  // changed the copy since. A weak version is no better: `If-Match` compares
+  // strongly, so it could never match (D4).
+  const ifMatch = ifMatchFor(expectedTargetVersion);
+  if (ifMatch === undefined) return { unversioned: true };
 
   const response = await send({
     method: 'DELETE',
@@ -139,7 +142,10 @@ export async function removeDavResource(deps: RemoveDavResourceDeps): Promise<Re
     // (0103 T5, ADR-0043). Belt to the writer's SCHEDULE-AGENT=CLIENT
     // braces: either alone silences an honouring server, and a server
     // honouring neither is T3's measurement to expose.
-    headers: { Authorization: authorization, 'Schedule-Reply': 'F' },
+    //
+    // If-Match: the server removes nothing unless it still holds the version
+    // we recorded, decided in this request (workplan 0149 T3).
+    headers: { Authorization: authorization, 'Schedule-Reply': 'F', 'If-Match': ifMatch },
   });
 
   // 404/410 mean it is already gone. Reported as a successful removal rather than
@@ -147,6 +153,21 @@ export async function removeDavResource(deps: RemoveDavResourceDeps): Promise<Re
   // failing here would leave a queue entry nobody can ever close.
   if (response.status === 404 || response.status === 410) {
     return { kind: 'deleted' };
+  }
+
+  // 412: THE OBJECT IS NOT THE ONE WE WROTE — or it is not there at all, since
+  // RFC 9110 §13.1.1 evaluates `If-Match` as false with no current
+  // representation. One HEAD tells which. Gone keeps today's answer; there
+  // means somebody changed it; a HEAD that cannot say throws, and nothing was
+  // removed either way.
+  if (response.status === 412) {
+    const head = await send({ method: 'HEAD', url, headers: { Authorization: authorization } });
+    if (head.status === 404 || head.status === 410) return { kind: 'deleted' };
+    if (head.status >= 200 && head.status < 300) return { conflicted: true };
+    throw new Error(
+      `DELETE ${url} was refused with 412, and the HEAD that should say why failed with ` +
+        `status ${head.status}. Nothing was removed.`,
+    );
   }
   if (response.status < 200 || response.status >= 300) {
     throw new Error(

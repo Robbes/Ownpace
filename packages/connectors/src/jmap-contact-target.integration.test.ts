@@ -36,6 +36,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { JmapContactTarget } from './jmap-contact-target.ts';
+import { destroyJmapFixtures } from './__testing__/jmap-fixture-cleanup.ts';
 import type { RawContact, TargetEntry } from '@openmig/shared';
 import { contactNaturalKeyHash } from '@openmig/shared';
 
@@ -109,7 +110,16 @@ if (!BASE || !PASSWORD) {
     afterAll(async () => {
       // Leave the fixture account as we found it. A test that litters makes the
       // NEXT run's "already exists" look like a finding.
-      for (const id of written) await target.removeItem(id).catch(() => undefined);
+      // Straight on the server, not through `removeItem`: since workplan 0149 T3 a
+      // removal needs the version the item was written with, and a cleanup
+      // has none. See `__testing__/jmap-fixture-cleanup.ts`.
+      await destroyJmapFixtures({
+        baseUrl: BASE!,
+        username: USER,
+        password: PASSWORD!,
+        type: 'ContactCard',
+        ids: written,
+      }).catch(() => undefined);
     }, 60_000);
 
     it('writes a contact and keys it by the vCard UID', async () => {
@@ -233,7 +243,11 @@ if (!BASE || !PASSWORD) {
     it('removes a card and reports it as deleted rather than binned', async () => {
       const doomed = `${uid}-doomed`;
       const created = await target.upsertContact(bookId, raw(doomed));
-      const removal = await target.removeItem(created.targetId);
+      // With the version it was written with: without one nothing is removed
+      // (workplan 0149 T3).
+      const removal = await target.removeItem(created.targetId, {
+        ...(created.targetVersion !== undefined ? { expectedTargetVersion: created.targetVersion } : {}),
+      });
       // JMAP contacts has no trash collection to move a card into, unlike the
       // mail writer's trash mailbox. Understating recoverability is the safe
       // direction to be wrong in.
