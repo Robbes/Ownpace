@@ -189,6 +189,26 @@ describe('what it reports', () => {
   });
 });
 
+describe('a grace period nobody chose at (0128 D7)', () => {
+  it('names the data types, and is reason enough to send on its own', async () => {
+    const [one] = await collectAttention(deps({ graceEndedWithoutAChoice: async () => ['email', 'file'] }));
+    expect(one?.graceEnded).toEqual(['email', 'file']);
+    expect(wantsAttention(one!)).toBe(true);
+  });
+
+  it('turns an unreadable one into a blind spot, not a quiet line', async () => {
+    const [one] = await collectAttention(
+      deps({
+        graceEndedWithoutAChoice: async () => {
+          throw new Error('the ledger is locked');
+        },
+      }),
+    );
+    expect(one?.blindSpots).toEqual(['the grace periods: the ledger is locked']);
+    expect(one && 'graceEnded' in one).toBe(false);
+  });
+});
+
 describe('collectTenantAttention (0043 T4)', () => {
   // The appliance twin of the managed rule. It exists for parity as much as for
   // correctness — hard rule 5 — and these assert the same things in the same

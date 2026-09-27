@@ -41,10 +41,12 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
 });
 
 const { default: migrationRoutes } = await import('./index.ts');
+const { default: attentionRoutes } = await import('../attention.ts');
 
 const app = express();
 app.use(express.json());
 app.use('/api/migrations', migrationRoutes);
+app.use('/api/attention', attentionRoutes);
 
 async function sql(text: string, params: unknown[] = []): Promise<Array<Record<string, unknown>>> {
   const conn = await driver.acquire();
@@ -182,6 +184,28 @@ describe('POST /:mappingId/domains/:domain/end and /keep', () => {
       { domain: 'email', phase: 'done', stopped: false, offers: ['keep'] },
       { domain: 'calendar', phase: 'cutover', stopped: false, offers: ['end', 'keep'] },
     ]);
+  });
+
+  it('tells the Finish page when a grace period ended while nobody chose (slice 7c)', async () => {
+    await sql(
+      `INSERT INTO cutover_state (tenant_id, mapping_id, state, grace_period_hours, copies_through_grace,
+                                  grace_period_started_at)
+       VALUES ($1, $2, 'GRACE_PERIOD', 72, true, now() - interval '73 hours')`,
+      [TENANT, MAPPING],
+    );
+    try {
+      const detail = await request(app).get(`/api/migrations/${MAPPING}`);
+      expect(detail.body.endingChoices).toEqual([
+        expect.objectContaining({ domain: 'email', phase: 'cutover', graceEndedAt: expect.any(String) }),
+        expect.objectContaining({ domain: 'calendar', phase: 'cutover', graceEndedAt: expect.any(String) }),
+      ]);
+      // And the attention screen names them, as the digest does.
+      const attention = await request(app).get('/api/attention');
+      expect(attention.status).toBe(200);
+      expect(attention.body.mappings[0].graceEnded).toEqual(['email', 'calendar']);
+    } finally {
+      await sql(`DELETE FROM cutover_state WHERE mapping_id = $1`, [MAPPING]);
+    }
   });
 
   it('refuses while the migration is not running, in words, and answers what is not there', async () => {

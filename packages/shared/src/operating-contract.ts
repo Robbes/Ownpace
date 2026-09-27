@@ -356,6 +356,12 @@ export interface PathEndingChoice {
   readonly stopped: boolean;
   /** The presses the door accepts now, of `end` and `keep`. */
   readonly offers: ReadonlyArray<'end' | 'keep'>;
+  /**
+   * When its grace period ended while it is still in its cutover: nobody
+   * chose, it no longer copies, and End or Keep copying is its owner's to
+   * press (workplan 0128 D7, T5 slice 7c). Absent otherwise.
+   */
+  readonly graceEndedAt?: string;
 }
 
 /**

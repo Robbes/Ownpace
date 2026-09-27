@@ -25,7 +25,7 @@
  * test.
  */
 
-import type { TenantAttention } from '@openmig/shared';
+import type { DiscoveryDomain, TenantAttention } from '@openmig/shared';
 import {
   summariseQueues,
   reportsToDigest,
@@ -54,6 +54,11 @@ export interface CollectDeps {
   countAutoApplied(mapping: CollectMapping): Promise<number>;
   /** Open sharing-checklist rows for this mapping (ADR-0032, 0052 T6a). */
   countSharingOpen(mapping: CollectMapping): Promise<number>;
+  /**
+   * The data types whose grace period ended while nobody chose (0128 D7, T5
+   * slice 7c). Optional: a caller that does not ask reports none.
+   */
+  graceEndedWithoutAChoice?(mapping: CollectMapping): Promise<readonly DiscoveryDomain[]>;
   countPendingDecisions(tenantId: string): Promise<number>;
 }
 
@@ -95,6 +100,9 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
       () => deps.countSharingOpen(mapping),
       0,
     );
+    const graceEnded = deps.graceEndedWithoutAChoice
+      ? await guarded('the grace periods', () => deps.graceEndedWithoutAChoice!(mapping), [] as readonly DiscoveryDomain[])
+      : [];
 
     // Once per tenant. The FIRST reportable mapping of a tenant carries the
     // count; the rest report zero rather than repeating it.
@@ -117,6 +125,7 @@ export async function collectAttention(deps: CollectDeps): Promise<MappingAttent
         status,
         autoApplied,
         sharingOpen,
+        graceEnded,
         blindSpots,
       }),
     );

@@ -276,6 +276,8 @@ export const EndingChoiceSchema = z.object({
   offers: z
     .array(z.string())
     .transform((offers) => offers.filter((o): o is 'end' | 'keep' => o === 'end' || o === 'keep')),
+  // When its grace period ended while nobody chose (0128 D7, slice 7c).
+  graceEndedAt: z.string().optional().catch(undefined),
 });
 export type EndingChoiceView = z.infer<typeof EndingChoiceSchema>;
 

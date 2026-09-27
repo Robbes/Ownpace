@@ -34,7 +34,7 @@ import { schedules } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgLedger, PgDecisionStore, auditExportOn, pgDriver } from '@openmig/ledger';
+import { PgLedger, PgDecisionStore, auditExportOn, pgDriver, readGraceEndedWithoutAChoice, withTenant } from '@openmig/ledger';
 import { log, createNotifier, asTenantId, asMappingId, setAuditExportSink } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
 import { runDigest, type DigestTenant, type DigestMapping } from './managed-digest-run.ts';
@@ -149,6 +149,12 @@ export const managedDigest = schedules.task({
         (await ledger.listShareGrants(asTenantId(tenantId), asMappingId(mappingId))).filter(
           (g) => g.state === 'open',
         ).length,
+      // A grace period that ended while nobody chose (0128 D7), by the rows
+      // the Finish page offers, in the organisation's own transaction.
+      graceEndedWithoutAChoice: async (tenantId, mappingId) =>
+        (await withTenant(pool, tenantId, (tdb) => readGraceEndedWithoutAChoice(tdb, tenantId, mappingId))).map(
+          (g) => g.domain,
+        ),
       lastDigestSentAt: (tenantId, cadence) =>
         ledger.latestAuditEventAt(asTenantId(tenantId), {
           actor: 'system:digest',
