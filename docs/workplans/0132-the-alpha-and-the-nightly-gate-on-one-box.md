@@ -144,6 +144,16 @@ Every name in `deploy/compose/managed.yml` now follows the compose project.
   container (`docker exec ownpace-db …`) changes to `docker compose … exec postgres …` or to
   `ownpace-managed-db`. T1b to T1g, T2 and T3 can start.
 
+
+**2026-09-27, T1 after 0143 T9 (a) merged (#1235):** `rehearse-capacity.sh` arrived on `main` with
+a `compose_project()` of its own, which shadowed the one reader once `env-read.sh` carries it. It
+now takes the project from `compose_project "${SCRIPT_DIR}"`, like every other compose script, and
+keeps its own check that Compose reports the same project (`compose_reports_project`). The two
+guards that found it, `two-stacks-on-one-box` and `pasteable-hints`, and the rehearsal's own guard
+pass. Left open: `--sample` counts `runner-*` containers from `docker stats`, which lists every
+container on the daemon, so with live running beside the OTA stack its task-container figures
+would include live's. A filter on the stack's runner network belongs with the sitting (0143 T9).
+
 **2026-09-27, later: the review's fixes, on the same branch, not merged.** A review of the T1 build
 found two ways a script could still reach the other stack, and three sentences that said more than
 the code did.
