@@ -213,6 +213,11 @@ Also a target: **JMAP files** (workplan 0031 T3), for files up to 8 MB. A larger
 stream, which this target cannot write yet (0143 T3b): it is refused with a sentence that names the
 file and its size and says a WebDAV target can take it (0143 T3a).
 
+**The largest file, on managed: 10 GB** (`LARGEST_FILE_MB`, workplan 0143 T4). A pass may run an
+hour and a file is copied in one go, so a listed file larger than that is refused before a byte is
+read, and parked for a person with a sentence that names the file and its size and says to copy it
+by hand. The Failures page files it as *too large*. The appliance has no such limit.
+
 **Not a source, and it is a measured no rather than a `?`: iCloud Drive** (`apple`,
 workplan 0115). Apple publishes **no API for iCloud Drive — to anyone**, not just to us:
 there is no endpoint, no scope and no documented protocol a third party could implement.

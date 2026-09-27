@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The same nine failure categories, in the migrated person's words (0122 T4).
+ * The same ten failure categories, in the migrated person's words (0122 T4).
  *
  * ## Why this is not `FAILURE_KEY`
  *
@@ -36,6 +36,7 @@ export const VIEW_FAILURE_KEY: Record<FailureCategory, StringKey> = {
   rate_limited: 'view.failure.rateLimited',
   quota_exceeded: 'view.failure.quotaExceeded',
   policy_refused: 'view.failure.policyRefused',
+  too_large: 'view.failure.tooLarge',
   source_refused: 'view.failure.sourceRefused',
   target_refused: 'view.failure.targetRefused',
   format_refused: 'view.failure.formatRefused',

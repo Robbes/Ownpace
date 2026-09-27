@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, late: T4 (a) built (0131 §6, group M4, step 2)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-file-no-pass-can-carry`, not merged. The owner answered the
+two questions it raised the same evening.
+
+- **The owner's answers, 2026-09-27.**
+  - **The limit is 10 GB, not T0's provisional 2 GB:** *"I however want the limit higher then 2GB
+    per file. Max it at 10 GB per file."*
+  - **A category of its own, `too_large`:** *"yes 'too large' sounds good"*. §3 said
+    `policy_refused`, whose remedy on the Failures page sends the reader to *Export format for
+    Google files*, and whose count the export panel shows as format refusals: wrong for a video
+    on OneDrive. Its remedy, EN and NL, is the one put to the owner: *"Not migrated: larger than
+    this service copies during the alpha. Copy these files by hand, or leave them behind."*
+- **What it does.** A managed file pass carries `largestFileBytes`, from `LARGEST_FILE_MB`
+  (blank is 10240, 10 GB; `packages/orchestration/src/largest-file-setting.ts`), which
+  `set-task-env.sh` uploads. In `runFileSync`'s `fetchRaw`, before `source.fetch`, a listed file
+  above it is refused with §3's sentence (`fileTooLarge`, `packages/core/src/largest-file.ts`):
+  *"<path> is 12.4 GB. During the alpha this service copies files up to 10 GB, because a larger
+  file can take longer than one pass may run. Nothing was copied and nothing was changed; every
+  other file continues. Copy this one by hand."* The error is a decision, parked on first sight,
+  and states `too_large`. A value it cannot read stops the file pass, naming it. The appliance
+  passes no limit.
+  - An already-copied file that has not changed is skipped by the ledger before any fetch, so it
+    is never refused. A changed one above the limit is.
+  - A file whose listing carries no size is copied as before.
+- **What 10 GB asks of the machine.** A pass stops taking new work at 50 minutes and is killed at
+  60, so a 10 GB file needs about 25 to 30 Mbit/s, sustained from source to target. A slower one
+  is killed with its pass and starts again on the next one, every pass, until T4's half after the
+  alpha counts those attempts. T9 measures the rate.
+- **Proved.**
+  - `packages/core/src/a-file-no-pass-can-carry.unit.test.ts`, the real `runFileSync` over a fake
+    source. A 12.4 GB file is refused with the sentence, and its download is never started. Every
+    other file is copied, and the refused one is parked as a `too_large` decision. One byte over
+    is refused, one byte under is copied, and with no limit nothing is refused. The two refusal
+    cases fail on `main`.
+  - `packages/orchestration/src/a-file-no-pass-can-carry.unit.test.ts`: the setting's default and
+    refusals, the managed builder reading it, `set-task-env.sh` uploading it, and the appliance
+    building its pass without it.
+  - The web guards that every category reaches both screens in both languages pass with the
+    tenth.
+- **Where the limit is said.** The feature matrix, under Files. §3 also names the owner's grant
+  step and 0144's known-limitations page; those are the owner's and 0144's.
+- **Not in this change:** the attempts counted for a file under the limit that is still too slow
+  (T4's half after the alpha). The ledger's column comments (migration 0051) still list the nine
+  categories of their day.
+
 **2026-09-27: T3a built (0131 §6, group M4, step 1)** on branch
 `claude/mailbox-sync-errors-c2xsw2-a-file-jmap-could-not-take`, not merged. A file larger than
 8 MB (`STREAM_FILES_LARGER_THAN_BYTES`) reaches a target as a stream, and `JmapFileTarget` cannot
@@ -273,7 +318,7 @@ unproved until then:
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27, not merged**: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
-| T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
+| T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27, not merged**: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |

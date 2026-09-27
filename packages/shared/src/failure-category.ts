@@ -120,9 +120,19 @@
  * and offers one press per group, had them under one button.
  *
  * He was asked whether one category for all thirty or a new one separating the
- * twenty-one, and picked the second. `policy_refused` is the only category in
+ * twenty-one, and picked the second. `policy_refused` was the first category in
  * this list whose cause is US: the source would have handed the item over and
  * the destination was never asked.
+ *
+ * ## The tenth is a limit of this service, and the owner chose it on 2026-09-27
+ *
+ * A managed pass may run an hour, and a file is copied in one go, so a file too
+ * large to move in a pass is refused before a byte is read (workplan 0143 T4).
+ * Its cause is us too, but no setting on the migration changes the answer, and
+ * `policy_refused`'s remedy sends the reader to Google's export formats: wrong
+ * for a video on OneDrive. Asked whether it should be `policy_refused`, a
+ * category of its own, or none, the owner answered *"yes 'too large' sounds
+ * good"*.
  */
 export const FAILURE_CATEGORIES = [
   /** The credential no longer works. Reconnect. By far the most common. */
@@ -141,6 +151,17 @@ export const FAILURE_CATEGORIES = [
    * provider was involved.
    */
   'policy_refused',
+  /**
+   * THIS SERVICE declined it: the file is larger than a pass here may carry
+   * (workplan 0143 T4). The source would have handed it over and the
+   * destination was never asked, as with `policy_refused`, but no setting on
+   * the migration changes the answer. The limit is the deployment's, and the
+   * remedy is to copy the file by hand.
+   *
+   * Never matched from prose: STATED by the code that refused, like
+   * `policy_refused`.
+   */
+  'too_large',
   /**
    * The SOURCE would not hand the item over — so nothing was ever sent, and
    * the destination is not the thing to go and look at.
