@@ -4,6 +4,12 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, cross-plan sync after 0149 T1 to T3 merged (0131 §6, group M1, step 5).** T8 (c)
+is built: 0149's T1 and T2 merged in #1209 and its T3 in #1210. T8 (c) now says what they do on a
+target we do not run, and what is not yet seen: whether that target records a strong version for
+what we write. The appliance nightly's apply legs show it for our own Nextcloud and Stalwart, and
+the rows (b)'s first run writes for a hosted Nextcloud. T8's row says (c) is built. Text only.
+
 **2026-09-27, build review: the stages' fixes, on the same branch
 (`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
 text only: no walk and no sitting has happened. The review read the stages against `origin/main`
@@ -299,7 +305,7 @@ for the card says so.
 | T5 Google Tasks | ⏳ **Owner** | §3. 0126 T8 as written. **Before a tester who ticks Tasks.** |
 | T6 A second Google account, and Drive's open live items | ⏳ **Owner**, with a tester's agreement | §3. **After.** Whole-domain delegation is 🅿️ **Parked (trigger: a Workspace the owner administers, or a tester who asks for it)**. |
 | T7 Soverin as a target | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's corrections, (a)); ⏳ **Owner** (the sitting, and its source: open question 9) — *was:* ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
-| T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud) | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
+| T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud); ✅ (c) **Built 2026-09-27**, as 0149 T1 to T3 | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed** | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
@@ -776,7 +782,21 @@ Until this lands, a tester who wants JMAP for contacts or files is pointed at Ca
 Nextcloud, supervised, with counts only; or the live-target lane armed at a hosted Nextcloud.
 
 **(c) Removal on targets we do not run** (DAV 412 on create, `If-Match` on delete) is W18, now
-0149: its T1 to T3, in its alpha minimum.
+0149: its T1 to T3, in its alpha minimum. **Built 2026-09-27:** 0149's T1 and T2 merged in #1209,
+its T3 in #1210 (0131 §6, group M1).
+
+- A 412 on create is an adoption in all three DAV writers, and a lookup that fails throws instead
+  of reading as an absence.
+- The DAV DELETE and the rewrite PUT carry `If-Match` with the recorded version, so the target's
+  own server refuses to remove or rewrite a copy edited since. That holds on any server that
+  honours `If-Match`, ours or not.
+- With no recorded version, or a weak one, nothing is removed (`version_unknown`). JMAP contacts
+  and files refuse a removal without a version too.
+
+**Not yet seen:** whether a target records a strong version for what we write (0149 D4). The
+appliance nightly's three apply legs show it for our own Nextcloud and Stalwart on their first
+scheduled run after #1210. For a Nextcloud we do not run, the rows (b)'s first run writes show it.
+Until then, a missing or weak version there means nothing is removed: the removal fails closed.
 
 ### T9 — the organiser canary (owner, before the first invitation; the gate's fixture proposed)
 
@@ -1031,7 +1051,7 @@ The numbers and C are written in this block. No code, so there is no guard.
 - A known-limitations page that lists what T1's record says is unproven: 0144.
 - A release name testers can quote, and which commit C was: 0146.
 - In-app guides a tester can use: W15, now 0148.
-- Removal that fails closed on targets: W18, now 0149.
+- Removal that fails closed on targets: W18, now 0149, whose T1 to T3 carry T8 (c).
 
 ## Open questions
 
