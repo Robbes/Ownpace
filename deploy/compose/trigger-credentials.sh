@@ -51,6 +51,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 # shellcheck source=trigger-cli-lib.sh
 . "${SCRIPT_DIR}/trigger-cli-lib.sh"
+# This checkout's own stack (workplan 0132 T1), asked before anything is read
+# or written: the query below runs through Compose, which follows a
+# COMPOSE_PROJECT_NAME exported in the shell, and `--write` puts what it read
+# into this checkout's .env. The reader (env-read.sh, which trigger-cli-lib.sh
+# sources) refuses a shell that names the other stack.
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
 PROJECT_FILTER=""
 WRITE=0
 # The env FILE is passed rather than sourced: this script runs `docker compose
@@ -229,7 +235,10 @@ if [ "$WRITE" -eq 1 ]; then
   #
   # Compared rather than announced unconditionally: a line printed every time
   # is a line nobody reads. This speaks only when the two copies disagree.
-  PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+  #
+  # One persisted directory per stack, named after its compose project, so a
+  # second stack on the machine is compared with its own copy (workplan 0132 T1).
+  PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
   if [ -f "${PERSIST_DIR}/.env" ] && ! cmp -s "$ENV_FILE" "${PERSIST_DIR}/.env"; then
     echo "[trigger-credentials]" >&2
     echo "[trigger-credentials] WARNING: ${PERSIST_DIR}/.env differs and is what CI restores." >&2

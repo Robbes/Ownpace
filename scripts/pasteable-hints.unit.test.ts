@@ -4,8 +4,8 @@
  * A command a script prints for a human to paste is part of its interface, and
  * it is expanded by the OPERATOR'S shell before it ever reaches a container.
  *
- * `$POSTGRES_USER` and `$POSTGRES_DB` are set inside `ownpace-db` and nowhere
- * else. Printed bare they expand to nothing in the operator's shell, `psql`
+ * `$POSTGRES_USER` and `$POSTGRES_DB` are set inside the database container and
+ * nowhere else. Printed bare they expand to nothing in the operator's shell, `psql`
  * falls back to the host username, and the answer is:
  *
  *   psql: error: connection to server on socket "…" failed:
@@ -174,9 +174,9 @@ describe('a psql hint a human is meant to paste', () => {
  * A VOLUME NAME IS PART OF THE REMEDY, AND COMPOSE PREFIXES IT.
  *
  * `docker volume rm compose_zitadel_machinekey` sat in the REPROVISIONING note
- * that `setup-zitadel.sh`'s own 401 refusal points at. The project is
- * `ownpace-managed`, so the volume is `ownpace-managed_zitadel_machinekey` and
- * the printed name matches nothing. `docker volume rm` answers "no such
+ * that `setup-zitadel.sh`'s own 401 refusal points at. The project was
+ * `ownpace-managed`, so the volume was `ownpace-managed_zitadel_machinekey` and
+ * the printed name matched nothing. `docker volume rm` answers "no such
  * volume" — a line an operator working through a four-step recipe reads as
  * "already gone" rather than "you have not done this step".
  *
@@ -185,11 +185,20 @@ describe('a psql hint a human is meant to paste', () => {
  * a token for an instance that no longer exists, and every call is refused
  * with `Errors.Token.Invalid`. E2E (managed) #50 spent a run proving it.
  *
- * Both sides are read from `managed.yml`, so a rename cannot drift past this.
+ * AND THE PREFIX IS THE STACK'S OWN (workplan 0132 T1). With a second stack,
+ * `ownpace-live`, beside the OTA stack on one Docker daemon, a recipe that
+ * spelled the prefix out named the OTA stack's volume on live's box too, and
+ * there `docker volume rm` does not answer "no such volume": it removes the
+ * other stack's state. So a name a script runs or prints is BUILT from the
+ * project its checkout drives, `${COMPOSE_PROJECT}_<volume>`, filled in when
+ * the line runs or prints, and `COMPOSE_PROJECT` comes from `compose_project`
+ * in `env-read.sh`. A comment is filled in by nobody, so there the project is
+ * the placeholder `<project>`, which a paste cannot mistake for a real name.
+ *
+ * The volume half is read from `managed.yml`, so a rename cannot drift past this.
  */
 describe('a docker volume a human is meant to remove', () => {
   const compose = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
-  const project = /^name:\s*(\S+)/m.exec(compose)?.[1];
   // Walked line by line rather than matched as a block: the first draft ended
   // the block with `\Z`, which JavaScript reads as a literal `Z`, so it parsed
   // nothing and every volume name looked invalid. A guard that flags
@@ -206,34 +215,58 @@ describe('a docker volume a human is meant to remove', () => {
     if (m?.[1]) declared.push(m[1]);
   }
 
-  /** Every `docker volume rm <literal-name>` printed by a compose script. */
-  const removals = scripts.flatMap(({ file, text }) =>
+  /**
+   * Every volume a compose script names to `docker volume rm` or to a
+   * `docker run -v`, in code, in a printed recipe or in a comment. A name that
+   * is one whole variable (`"$VOLUME"`) is the script's own business, and
+   * `two-stacks-on-one-box` runs the script that has one.
+   */
+  const named = scripts.flatMap(({ file, text }) =>
     text
       .split('\n')
       .map((line, i) => ({ file, n: i + 1, line }))
-      .flatMap(({ file: f, n, line }) => {
-        const m = /docker volume rm\s+("?)([A-Za-z0-9_.-]+)\1\s*$/.exec(line.trim());
-        // A `$VARIABLE` name is resolved by the script itself, not pasted.
-        return m && !line.includes('$') ? [{ file: f, n, name: m[2] as string, line }] : [];
-      }),
+      .flatMap(({ file: f, n, line }) =>
+        [
+          ...line.matchAll(/docker volume rm(?:\s+-f)?\s+("?)([^\s"]+)\1/g),
+          ...line.matchAll(/docker run\b.*?\s-v\s+("?)([^\s":]+):/g),
+        ]
+          .map((m) => m[2] as string)
+          .filter((name) => !/^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(name))
+          .map((name) => ({ file: f, n, line, name, comment: /^\s*#/.test(line) })),
+      ),
   );
 
-  it('read the project name and its volumes out of managed.yml', () => {
-    expect(project, 'managed.yml no longer declares a project name').toBe('ownpace-managed');
+  it('read the volumes out of managed.yml', () => {
     expect(declared, 'no volumes parsed out of managed.yml').toContain('zitadel_machinekey');
   });
 
   it('found some to check', () => {
-    expect(removals.length, 'no literal `docker volume rm` lines found at all').toBeGreaterThan(0);
+    expect(named.filter((v) => !v.comment).length, 'no printed or run volume names found at all').
+      toBeGreaterThan(2);
   });
 
-  it('names a volume this compose project actually creates', () => {
-    const valid = new Set(declared.map((v) => `${project}_${v}`));
+  it('builds the name from this stack\'s project, for a volume managed.yml declares', () => {
+    const wrong = named.filter(({ name, comment }) => {
+      const m = (comment ? /^<project>_(.+)$/ : /^\$\{COMPOSE_PROJECT\}_(.+)$/).exec(name);
+      return !m || !declared.includes(m[1] as string);
+    });
     expect(
-      removals
-        .filter(({ name }) => !valid.has(name))
-        .map(({ file, n, name }) => `${file}:${n}: '${name}' — no such volume; expected one of ${[...valid].join(', ')}`),
-      'docker volume rm on a name that does not exist reads as "already gone"',
+      wrong.map(
+        ({ file, n, name, comment }) =>
+          `${file}:${n}: '${name}' — expected ${comment ? '<project>' : '${COMPOSE_PROJECT}'}_<one of ${declared.join(', ')}>`,
+      ),
+      'a prefix written out names one stack on every box, and on the other box it is the wrong one',
+    ).toEqual([]);
+  });
+
+  it('sets COMPOSE_PROJECT from the one reader wherever it is used', () => {
+    const users = scripts.filter(({ text }) => /\$\{COMPOSE_PROJECT\}/.test(text));
+    expect(users.length).toBeGreaterThan(0);
+    expect(
+      users
+        .filter(({ text }) => !/^\s*COMPOSE_PROJECT="\$\(compose_project "\$\{SCRIPT_DIR\}"\)"/m.test(text))
+        .map(({ file }) => file),
+      'COMPOSE_PROJECT unset prints `_zitadel_machinekey`, which is "no such volume" again',
     ).toEqual([]);
   });
 });
