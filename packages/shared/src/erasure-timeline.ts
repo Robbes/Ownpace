@@ -23,9 +23,17 @@
  * ## Why the window is configuration and not a constant
  *
  * The number belongs to whoever runs the deployment and their backup schedule,
- * not to this repository. The reference deployment's is **7 days** (owner,
- * 2026-08-18). A self-hoster with monthly tapes has a very different one, and
- * a hardcoded 7 would make them promise something untrue on our authority.
+ * not to this repository. A self-hoster with monthly tapes has a very
+ * different one, and a hardcoded 7 would make them promise something untrue
+ * on our authority.
+ *
+ * **7 days is the owner's number for when backups exist** (owner, 2026-08-18).
+ * Nothing in this repository backs up the managed application database yet,
+ * and `ownpace-live`, the stack testers use, takes no backups during the alpha
+ * and sets 0 (workplan 0134). On a stack without backups a blank value names
+ * backups that do not exist, so the API warns about a blank value at start-up
+ * in production, and refuses to start with one when the alpha setting is on
+ * (`describeBackupRetentionProblem` in `apps/api/src/config-guards.ts`).
  *
  * ## What this does NOT claim
  *
@@ -43,11 +51,26 @@
 import type { RefusalLocale } from './credential-refusals.ts';
 
 /**
- * The reference deployment's backup retention window, in days (owner decision,
- * 2026-08-18). Deployments with a different backup schedule set
- * `BACKUP_RETENTION_DAYS`.
+ * The backup retention window used when `BACKUP_RETENTION_DAYS` is blank, in
+ * days: the owner's number for a deployment that takes backups (owner
+ * decision, 2026-08-18). It assumes backups exist. A deployment with a
+ * different schedule sets its own number, and one with no backups sets 0, as
+ * `ownpace-live` does during the alpha (workplan 0134).
+ *
+ * It stays 7 and not 0 (0134 §3): a deployment that takes backups and is left
+ * on 0 would call an erasure complete while a backup still holds the data,
+ * and that is the worse of the two mistakes.
  */
 export const DEFAULT_BACKUP_RETENTION_DAYS = 7;
+
+/**
+ * Whether a raw `BACKUP_RETENTION_DAYS` is blank, so the window falls back to
+ * the default. The reader below and the API's start-up check both ask this,
+ * so they cannot disagree about which values nobody stated (workplan 0134 T1).
+ */
+export function backupRetentionIsBlank(raw: string | undefined): boolean {
+  return raw === undefined || raw === '';
+}
 
 /**
  * Read the window from the environment, refusing anything that is not a whole
@@ -60,7 +83,7 @@ export const DEFAULT_BACKUP_RETENTION_DAYS = 7;
  * customer that nobody can honour.
  */
 export function backupRetentionDaysFromEnv(raw: string | undefined): number {
-  if (raw === undefined || raw === '') return DEFAULT_BACKUP_RETENTION_DAYS;
+  if (backupRetentionIsBlank(raw)) return DEFAULT_BACKUP_RETENTION_DAYS;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0) {
     throw new Error(

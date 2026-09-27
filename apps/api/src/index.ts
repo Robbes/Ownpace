@@ -54,7 +54,7 @@ import platformPauseRoutes from './routes/platform-pause.ts';
 import { problemReportRoutes } from './routes/problem-reports.ts';
 import { linkReportRoutes } from './routes/link-reports.ts';
 import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
-import { assertProductionUrlConfig } from './config-guards.ts';
+import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config-guards.ts';
 import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
@@ -310,6 +310,10 @@ if (process.env.NODE_ENV !== 'test') {
   // unreachable Mollie webhooks and stranded redirects — refuse at boot,
   // where the operator is looking, not at the first payment.
   assertProductionUrlConfig((m) => log.warn(m));
+  // A retention somebody stated (0134 T1): a blank BACKUP_RETENTION_DAYS makes
+  // the erasure sentence name 7 days of backups whether or not any exist. A
+  // warning in production; with OWNPACE_STAGE=alpha, a refusal to start.
+  assertBackupRetentionConfig((m) => log.warn(m));
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

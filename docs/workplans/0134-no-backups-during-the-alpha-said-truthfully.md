@@ -2,7 +2,53 @@
 
 > **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS=0` so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27, build: T1 (a) and (b) built on branch
+`claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, not merged.** (a) is the wording and (b) the
+start-up check, as 0131 §6 R1 step 5 names them. (c), the check of the Trigger.dev store before
+the sentence is trusted, is 0131 M3's step 4 and is not built here.
+
+(a) Seven days is no longer called the reference deployment's retention. `managed.env.example`'s
+*Backups* block, the header of `erasure-timeline.ts` and the comment on
+`DEFAULT_BACKUP_RETENTION_DAYS`, the `managed.yml` comment above `BACKUP_RETENTION_DAYS`, the
+runbook's `backupRetentionDays` row and the paragraph under it, 0085 T5's row and the bring-up's
+*What this does not cover* now say that 7 assumes backups exist, that nothing in this repository
+backs up the application database yet, and that `ownpace-live` sets 0 during the alpha. The
+constant stays 7.
+
+(b) `describeBackupRetentionProblem` in `apps/api/src/config-guards.ts`, run at start-up by
+`assertBackupRetentionConfig`, which `index.ts` calls next to `assertProductionUrlConfig`. A blank
+`BACKUP_RETENTION_DAYS`, unset or empty, is a warning in production, and fatal with
+`OWNPACE_STAGE=alpha` whatever `NODE_ENV` says. Both messages name `BACKUP_RETENTION_DAYS`, the two
+honest answers (`0`, or the number of days backups are kept) and this plan. The alpha setting is
+read by `alphaFrom`, the reader the grant mail uses. A stated number, `0` or `7` or any other, is
+never a problem. **The severity is open question 4, and the owner's answer is still owed.** This
+builds the plan's recommendation: a warning in production, fatal on an alpha stack. If the owner
+chooses a warning only, one line changes in `config-guards.ts`, and the guard's alpha cases with it.
+Until T0 is done, live's API, started with the alpha setting, refuses to start, and the refusal
+names the line to set. That is what the check is for.
+
+The guard is `apps/api/src/a-retention-somebody-stated.unit.test.ts`, with 20 cases. All 20 failed
+on the unchanged code, in a scratch worktree of `origin/main` with only the guard copied in:
+neither `describeBackupRetentionProblem` nor `assertBackupRetentionConfig` existed (*"is not a
+function"*), and `index.ts` never called the check. Each of eight mutations made at least one case
+fail: the alpha case only
+warning (5 failed), the alpha case waiting for production (3), `index.ts` not calling the check
+(1), an empty line not counted as blank (7), a second reading of the setting that does not trim
+(1), a stated `0` counted as blank (3), the warning without the answer `0` (2), and a warning
+outside production (3).
+
+Departures from §3. The test for a blank value is one exported predicate,
+`backupRetentionIsBlank` in `erasure-timeline.ts`, which `backupRetentionDaysFromEnv` and the
+check both use, so the two cannot disagree about which values nobody stated. `UrlConfigProblem`
+is renamed `ConfigProblem`, because it now also describes a problem that is not a URL; nothing
+else imported it. `docs/managed-bring-up.md` §8g and the `OWNPACE_STAGE` block of
+`managed.env.example` gain `BACKUP_RETENTION_DAYS=0` beside `OWNPACE_STAGE=alpha`: an operator who
+followed §8g as it stood would now meet the refusal. §8g also gives T0 step 3's read-back.
+
+Still open: T0, the owner's (0 in live's `.env`, with 0132 T1b). T1 (c), 0131 M3's. Open question
+4, the owner's. T2 to T5 as the table says.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
 nothing backs up the managed application database, including the identity provider's database
@@ -29,7 +75,7 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS=0` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
-| T1 The erasure sentence says there are no backups | 📋 **Decided 2026-09-24** (D1) for the setting and the wording; the start-up check 📋 **Proposed** | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. |
+| T1 The erasure sentence says there are no backups | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, not merged** (2026-09-27): (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, not built (0131 M3) — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
 | T3 What a lost machine costs, written down | 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
@@ -554,6 +600,6 @@ before the first invitation. T5 waits for its trigger.
    until someone runs the script against live seven more times. With a daily drill it lives about
    seven days. The OTA stack's dumps hold no tester's data (D6).
 4. **T1's start-up check.** A warning in production and fatal on an alpha stack, as proposed? Or
-   a warning only?
+   a warning only? *(2026-09-27: still owed. T1 (b) builds the proposal, on its branch.)*
 5. **An alpha that outgrows D2.** More than 20 people, or a charge, is no longer the alpha D1 was
    answered for. Should that fire T5's trigger as well? Recommended: yes.
