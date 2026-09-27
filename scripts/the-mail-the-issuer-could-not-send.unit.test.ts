@@ -603,4 +603,20 @@ describe('the relay is spoken to over TLS, and the provider follows .env (workpl
     // Refused, it is reported and the bring-up goes on, as the test send does.
     expect(setup).toMatch(/if ! update_out="\$\( \( api PUT/);
   });
+
+  it("the guide's steps say the identity provider takes the same login, and what applies it", () => {
+    // Item 4. The steps a person follows to move to a relay named the API and
+    // the tasks only, and the guide said the script took TLS from SMTP_SECURE.
+    const guide = readFileSync(join(REPO_ROOT, 'docs/managed-bring-up.md'), 'utf8');
+    const steps = guide.split('**For real delivery**')[1]?.split(/\n\n(?!- )/)[0] ?? '';
+    expect(steps, 'the "For real delivery" steps are gone from the guide').not.toBe('');
+    expect(steps).toMatch(/identity provider takes the same/);
+    expect(steps).toMatch(/SMTP_USER/);
+    expect(steps).toMatch(/bootstrap-managed\.sh --only app/);
+    const reads = guide.match(/`setup-zitadel\.sh` configures it\s+from the same ([^.]*)/)?.[1] ?? '';
+    expect(reads).toMatch(/SMTP_HOST/);
+    expect(reads, 'the guide says the script reads SMTP_SECURE, which it no longer does').not.toMatch(
+      /SMTP_SECURE/,
+    );
+  });
 });

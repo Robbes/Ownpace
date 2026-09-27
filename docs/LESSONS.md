@@ -919,6 +919,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
+- [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 
 ### `docs/o365-application-access.md`
 
@@ -3461,6 +3462,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/smoke-managed.sh`
+- `docs/managed-bring-up.md`
 
 ### [the-member-that-moved-inside-an-unchanged-document](../scripts/the-member-that-moved-inside-an-unchanged-document.unit.test.ts)
 

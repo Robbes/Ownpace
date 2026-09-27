@@ -4,7 +4,7 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27: T2 items 2 and 3 built (0131 §6, group M5, step 3, which calls it T2 (b))** on
+**2026-09-27: T2 items 2 to 4 built (0131 §6, group M5, step 3, which calls it T2 (b))** on
 branch `claude/mailbox-sync-errors-c2xsw2-the-issuers-relay-over-tls`, not merged. Both are in
 `setup-zitadel.sh`'s "mail this instance sends" section, which the other session's #1233 (0132 T1)
 also changed; it merged first.
@@ -47,9 +47,17 @@ also changed; it merged first.
     a relay; any provider, or an HTTP one, taken as the stack's; no preference for the active one;
     the password always sent, or never; "already configured" again; no update sent; and the
     chosen provider named among the others.
-- **Not in this change:** item 4, the guide's "For real delivery" steps, because the other
-  session's #1236 also changes `docs/managed-bring-up.md` (0131 §6's out-of-turn rule). The guide's
-  sentence that the script reads `SMTP_SECURE` is corrected with it.
+- **Item 4, the guide**, once the other session's #1236, which also changed
+  `docs/managed-bring-up.md`, had merged (0131 §6's out-of-turn rule):
+  - its "For real delivery" steps say that the identity provider takes the same relay, login and
+    sender, with TLS whatever `SMTP_SECURE` says, and that `bootstrap-managed.sh --only app`
+    applies it, beside `set-task-env.sh` for the tasks;
+  - "Two different things send mail" no longer says the script reads `SMTP_SECURE`, and says
+    where the identity provider's TLS comes from;
+  - the paragraph that said the script only creates a provider says it updates the stack's own.
+
+  A fifth new case in the guard reads the steps and the list of settings the script reads. It
+  fails on `main`.
 
 **2026-09-27: T2 item 5 built (0131 §6, group M5, step 1, which calls it T2 (c))** on branch
 `claude/mailbox-sync-errors-c2xsw2-a-login-never-sent-in-the-clear`, merged as #1245. The API's half
@@ -164,7 +172,7 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 |---|---|---|
 | T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
 | T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself stays ⏳ the owner's. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
-| T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 and 3 🔨 built 2026-09-27, not merged (TLS for any relay but the catcher, one provider updated in place) | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
+| T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 to 4 🔨 built 2026-09-27, not merged (TLS for any relay but the catcher, one provider updated in place, the guide) | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
 | T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3 | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
 | T5 The relay named as a sub-processor | 📋 **Proposed**; carried by 0139 | §3. Fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` in three legal pages. |
