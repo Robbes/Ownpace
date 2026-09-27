@@ -4,6 +4,25 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T2 item 5 built (0131 §6, group M5, step 1, which calls it T2 (c))** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-login-never-sent-in-the-clear`, not merged. The API's half
+of the rule that a login is never sent without TLS. `smtpTransport`
+(`packages/connectors/src/smtp-transport.ts`) sets nodemailer's `requireTLS` when a login is set
+and `secure` (implicit TLS) is not. Before, nodemailer upgraded to STARTTLS when a relay offered
+it, and sent the login over plain SMTP when it did not. The catcher, with no login, is untouched,
+and so is a login on implicit TLS. The transport is shared, so the appliance's mail follows the
+same rule.
+
+- **Proved.** `packages/connectors/src/a-login-sent-in-the-clear.unit.test.ts` reads the options
+  the transport creates nodemailer with: a login on 587 insists on STARTTLS, and so does a user
+  name alone; a login on 465 needs nothing more; the catcher has neither `requireTLS` nor a login.
+  The first two fail on `main`. That a relay accepts the login is T4's test send.
+  - **Mutations:** 4, all killed: no `requireTLS` with a login; `requireTLS` on implicit TLS too,
+    or for the catcher; `requireTLS` only when a password is set.
+- **Not in this change:** items 2 to 4, in `setup-zitadel.sh` and the guide, which the other
+  session's #1233 also changes; they wait for it (0131 §6's out-of-turn rule). Item 5 needs no
+  relay, so it does not wait on T0.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that no
 mail leaves the OTA stack. The API's mail and the identity provider's mail both go to Mailpit, a
 catcher on the compose network. A tester who registers with an email address cannot finish
@@ -98,7 +117,7 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 |---|---|---|
 | T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
 | T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself stays ⏳ the owner's. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
-| T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24 | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
+| T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 🔨 built 2026-09-27, not merged (`requireTLS` with a login) | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
 | T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3 | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
 | T5 The relay named as a sub-processor | 📋 **Proposed**; carried by 0139 | §3. Fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` in three legal pages. |
