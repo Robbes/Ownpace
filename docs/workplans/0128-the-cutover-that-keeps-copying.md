@@ -4,6 +4,14 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, evening: the owner answered D9; D10 is explained again and still open.** D9 is
+decided as built: a rollback of the whole migration leaves a data type that was kept on its
+own in the lane (*"D9: keep copying"*). For D10 the owner asked what it is and which to
+choose. The answer given: (a), as built, because ending mail on its own is a choice about that
+data type, usually because its source is going away, and one press on the whole migration
+should not undo it and start copying from a mailbox that is closing. A data type that ended
+has its own *Keep copying*. Nothing in the code changes for either.
+
 **2026-09-27: T5's seventh slice, third part (7c): a grace period that ended while nobody
 chose is said, on the Finish page and in the digest (D7).** Copying stopped then (T2); the
 owner is now told. With it, slice 7 is built, and so are T3 and T5.
@@ -722,7 +730,7 @@ its test.
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
 | T3 The ending is a choice: end, or keep copying which data types | ✅ **Built 2026-09-27** (D3, D5, D7; T5 slice 7): its doors per data type (7a), the Finish page's (7b), and a grace period's end said (7c) | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | ✅ **Built 2026-09-25** (D2 (c), D4, D5, D6; T5 slice 3) | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | ✅ **Built 2026-09-27** (D8): all seven slices; D9 and D10 are open, and built as their recommended (a) | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | ✅ **Built 2026-09-27** (D8): all seven slices; D9 decided 2026-09-27 as built (a), and D10 open, built as its recommended (a) | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -1034,7 +1042,7 @@ type's cutover. Mail carries no shares. So the moment is the one the owner choos
 type, and never a trickle.
 
 **D9 — a rollback of the whole migration, after a data type was kept on its own (T3, T5)?**
-**Open**, asked 2026-09-26. After the whole migration's cutover, files are kept copying in the
+**Decided 2026-09-27: (a)**, *"D9: keep copying"*. Asked 2026-09-26. After the whole migration's cutover, files are kept copying in the
 lane (`continuous`) while mail is still in its cutover; then the operator rolls the whole
 migration back (the CLI's `rollback`), which takes it back before its cutover.
 
@@ -1046,7 +1054,7 @@ migration back (the CLI's `rollback`), which takes it back before its cutover.
   the owner made separately.
 
 **D10 — the whole migration's *Keep copying*, after a data type was ended on its own (T3, T5)?**
-**Open**, asked 2026-09-26. After the whole migration's cutover, mail is ended (`done`) while
+**Open**, asked 2026-09-26, and explained again on 2026-09-27 with (a) recommended. After the whole migration's cutover, mail is ended (`done`) while
 calendars and files are still in their cutover; then the owner presses the whole migration's
 *Keep copying*.
 

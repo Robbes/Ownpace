@@ -4,8 +4,15 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27: T3 built (0131 §6, group M3, step 5)** on branch
-`claude/mailbox-sync-errors-c2xsw2-what-a-lost-machine-costs`, not merged. What a lost machine
+**2026-09-27, evening: the owner answered open question 3: (a)**, *"1a"*. What a failed run,
+discovery and a run's logs would leave in Trigger.dev's own database carries a reference and a
+category instead, and the full text goes to `app_event` and the container output, a month each,
+as the Test button's answer already does (0136 T3). Then the dumps of live's `triggerdb` hold
+nothing of a tester's, keeping them stays harmless, and `BACKUP_RETENTION_DAYS=0` stays true. It
+is a change to the worker and orchestration, M's to build next. Until it lands, the store can
+still hold that text, as T1 (c) found.
+
+**2026-09-27: T3 built (0131 §6, group M3, step 5)**, merged as #1238. What a lost machine
 costs is written where the owner will look for it, and two texts that said a lost database costs
 nothing now say what it costs.
 
@@ -40,7 +47,7 @@ nothing now say what it costs.
   T2's paragraph, which the lawyer reads.
 
 **2026-09-27: T1 (c) checked (0131 §6, group M3, step 4), with 0139 T6's task runner's stores,**
-on branch `claude/mailbox-sync-errors-c2xsw2-what-the-task-runner-keeps`, not merged. Read from
+merged as #1240. Read from
 the repository at `101696e`, and from Trigger.dev's own source at the pinned 4.5.16 where marked
 *[upstream]*. Nothing was run against a stack. **The finding: Trigger.dev's own database,
 `triggerdb`, can hold a tester's personal data, keeps it with no limit, and every dump of it
@@ -173,9 +180,9 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS=0` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
-| T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27 on branch `claude/mailbox-sync-errors-c2xsw2-what-the-task-runner-keeps`, not merged: it found tester data, and open question 3 decides what follows — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
+| T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
-| T3 What a lost machine costs, written down | 🔨 **Built 2026-09-27, not merged**: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
+| T3 What a lost machine costs, written down | ✅ **done** in #1238, merged 2026-09-27: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
 | T5 Backups of both databases, encrypted, off the machine, drilled | 🅿️ **Parked (trigger: before the first paying customer, or when the alpha ends, whichever comes first)** | §3. Both databases and the roles, one retention number for the pruning and the erasure sentence, a restore drill in the managed gate and on live's timer (0132 T7), a dump before each migrating deploy of live (0132 T6), a stated RPO and RTO. |
 
@@ -706,6 +713,7 @@ before the first invitation. T5 waits for its trigger.
      the container output (a month), as the Test button's answer already does (0136 T3). Then the
      dumps hold nothing of a tester's, keeping them stays harmless, and `0` stays true.
      *Recommended.* It is a change to the worker and orchestration, M's to build.
+     **Answered 2026-09-27: (a)**, *"1a"*.
    - **(b) Stop dumping live's `triggerdb` for the alpha**, and say in the privacy text that
      Trigger.dev keeps a run's error text until the alpha ends and the stack is reset.
    - **(c) Prune by age.** Dumps kept at most N days, with `BACKUP_RETENTION_DAYS` = N, and a job

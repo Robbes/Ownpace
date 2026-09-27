@@ -4,8 +4,20 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27, build: T11's minimum (0131 §6, group M6, step 1)** on branch
-`claude/mailbox-sync-errors-c2xsw2-the-microsoft-account-it-has`, not merged. The drift detector,
+**2026-09-27, evening: the owner answered open questions 6 and 7.**
+
+- **N is two nights** (*"two nights"*), counted on scheduled runs only, as recommended; the
+  review's number was 5. T14's rule then asks for the managed gate's last two scheduled runs
+  to be green, the newest on the commit that is tagged, and for the appliance nightly's runs
+  over the same two nights, four since each of its two schedules counts as a run. It takes at
+  least two nights from the first green scheduled run. 0132 T6 step 1 reads the same N from
+  here.
+- **The credential model for directory reads is parked** (*"later / park"*). T11's minimum
+  stands: a `microsoft` connection is told its grant is delegated, and an `o365` one that could
+  not be read is told this deployment does not yet read with the organisation's own
+  registration.
+
+**2026-09-27, build: T11's minimum (0131 §6, group M6, step 1)**, merged as #1246. The drift detector,
 group discovery and the permission report find a tenant's Microsoft source by every Microsoft
 kind: `o365` and every kind whose mail face is Graph (`microsoftSourceKinds()`, beside
 `connectionKindsWithFace` in orchestration). They no longer look for `kind = 'o365'` alone. Where
@@ -345,10 +357,10 @@ for the card says so.
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud); ✅ (c) **Built 2026-09-27**, as 0149 T1 to T3 | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
-| T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, not merged | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
+| T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
-| T14 The nightly managed gate's readiness rule | ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
+| T14 The nightly managed gate's readiness rule | 📋 **Decided 2026-09-27**: two nights, scheduled runs only — *was:* ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
 
@@ -1024,17 +1036,18 @@ repository settings that the `O365_*` secrets exist for the flow the owner wants
 
 When either lane goes red, someone has to be told. That is 0142.
 
-### T14 — the nightly managed gate's readiness rule (owner names N; before the first invitation)
+### T14 — the nightly managed gate's readiness rule (two nights, the owner's; before the first invitation)
 
-**The rule (proposed).** Live's first deploy is from a tag whose commit C (0132 T6 step 1) meets
+**The rule (decided 2026-09-27: N is two nights).** Live's first deploy is from a tag whose commit C (0132 T6 step 1) meets
 both of these:
 
 - **The managed gate.** The last N *scheduled* runs of `e2e-managed.yml` on `main` are green, and
   the newest of them ran C.
   - Dispatched runs do not count, because somebody chose their moment.
   - A failed or cancelled scheduled run resets the count.
-- **The appliance nightly.** At the same time, the last N scheduled runs of `e2e.yml` are green.
-  Each of its two nightly schedules counts as a run.
+- **The appliance nightly.** At the same time, its scheduled runs of `e2e.yml` over the same N
+  nights are green. Each of its two nightly schedules counts as a run, so two nights are four
+  runs.
 
 The live-target lane is not part of the rule until it is armed (T13).
 
@@ -1044,7 +1057,7 @@ dispatched.
 **The order, with 0132.** Under 0132 D7 the gate is not switched off: it keeps running on the OTA
 stack every night, before and during the alpha (0132 T0, T1g). So the count builds on its own. The
 owner reads it before live's first bring-up from a tag (0132 T0 step 3), or accepts fewer in
-writing (0131 T5's rule). With N = 5 and one scheduled run a night, that takes at least five
+writing (0131 T5's rule). With N = 2 and one scheduled run a night, that takes at least two
 nights from the first green scheduled run. #1137, merged 2026-09-24, asks for one dispatched run
 of the gate first, for Node 24. That run is a precondition, not part of the count.
 
@@ -1054,9 +1067,9 @@ accepts fewer in writing. Either way it is written in 0132's deploy log (0132 T6
 **Reading it:**
 
 ```bash
-gh run list --workflow e2e-managed.yml --event schedule --branch main --limit 5 \
+gh run list --workflow e2e-managed.yml --event schedule --branch main --limit 2 \
   --json number,conclusion,headSha,createdAt
-gh run list --workflow e2e.yml --event schedule --branch main --limit 5 \
+gh run list --workflow e2e.yml --event schedule --branch main --limit 4 \
   --json number,conclusion,headSha,createdAt
 ```
 
@@ -1112,12 +1125,14 @@ The numbers and C are written in this block. No code, so there is no guard.
 5. **The O365 runner.** Add the `spark` label to the runner, or drop it from the workflow? Are the
    `O365_*` secrets set?
 6. **N, and dispatched runs.** Recommended: N = 5, the review's number, and scheduled runs only.
-   0132 T6 step 1 reads the same N.
+   0132 T6 step 1 reads the same N. **Answered 2026-09-27: two nights**, *"two nights"*, on
+   scheduled runs only: the managed gate's last two, and the appliance nightly's four.
 7. **The credential model for directory reads on managed** (T11, after). Each tenant's stored
    registration, or the deployment's app with an administrator's consent in each tenant (0140 T4)?
    0026 row 14 records the owner's decision of 2026-08-09 that *"per-customer app registration is
    the model"*, which points at the first. Recommended: the first, for the `oauth2` and `graph`
    cards, while the `microsoft` card keeps the delegated reason from T11's minimum.
+   **Parked 2026-09-27**, *"later / park"*.
 8. **A tester's pass as a proof.** With the tester's agreement, counts only, recorded as "a
    tester's, supervised"? Recommended: yes. It is the only route for Box, and the natural one for a
    second Google account.
