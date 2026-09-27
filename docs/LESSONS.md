@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 170 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 171 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -585,6 +585,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/gatus.yaml`
 
+- [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [status-page](../scripts/status-page.unit.test.ts) — The status page's configuration says what we think it says (workplan 0094).
@@ -895,6 +896,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/breach-procedure.md`
+
+- [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+
 ### `docs/dav-sync.md`
 
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
@@ -915,6 +920,10 @@ reading a file drops off its entry by itself.
 ### `docs/guides/en/box.md`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `docs/incident-runbook.md`
+
+- [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 
 ### `docs/managed-bring-up.md`
 
@@ -939,6 +948,7 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
+- [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 
 ### `docs/release.md`
 
@@ -2722,6 +2732,17 @@ A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
 Reads:
 
 - `.github/workflows/ci.yml`
+
+### [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts)
+
+AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+
+Reads:
+
+- `deploy/compose/gatus.yaml`
+- `docs/breach-procedure.md`
+- `docs/incident-runbook.md`
+- `docs/operator-runbook.md`
 
 ### [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts)
 

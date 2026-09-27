@@ -53,7 +53,7 @@ has one is news in itself.
 
 | Group | What a red light means |
 |---|---|
-| **Ownpace** | Something of ours. `Web app` and `API` are liveness; `Database` and `Sign-in` read the two fields of `/api/ready` that can genuinely fail; `Identity provider` asks the provider itself; `Website` is the public marketing site, off unless configured. |
+| **Ownpace** | Something of ours. `Web app` and `API` are liveness; `Database` and `Sign-in` read the two fields of `/api/ready` that can genuinely fail; `Scheduled syncs` asks whether the sync tick ran in the last five minutes; `Identity provider` asks the provider itself; `Website` is the public marketing site, off unless configured. |
 | **Sources** | Somebody else's service that migrations read FROM. Nothing is wrong with Ownpace; migrations out of that provider will be stalled until it returns. |
 | **Targets** | A destination we RECOMMEND (ADR-0011). Self-hosted targets are not listed: those are the customer's to operate, and reporting on infrastructure we do not run would be claiming a responsibility we explicitly decline. |
 
@@ -69,6 +69,15 @@ is the one that can say no.
 `Sign-in` checks read `[BODY].database == up` rather than the status code. A
 load balancer that pulled the API out of rotation because sign-in was unwell
 would turn a partial problem into a total one.
+
+**`Scheduled syncs` has its own route.** `/api/ready` answers whether the service
+can serve a customer, and a sync tick that stopped does not stop that: it stops
+every scheduled pass, and nothing else on the page said so. The row reads
+`[BODY].scheduler` off `/api/ready/scheduler`, which answers `up` while the
+tick's last run is under five minutes old, and 200 whatever it says, like
+readiness. It is on the public page (workplan 0142, open question 3), so a
+tester who sees nothing move can see why. A pass started by hand still runs
+while it is red.
 
 **Provider checks use unauthenticated discovery documents.** Stable, public, no
 rate limits, no credential. A status check that has to hold a customer's token
