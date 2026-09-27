@@ -572,7 +572,8 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
    *   not guessed — guessing INBOX would remove message number N from the inbox
    *   because number N in some other folder was deleted on the source.
    * - It is **only valid under one UIDVALIDITY**. If the mailbox was recreated
-   *   since we wrote, every UID we hold names a different message.
+   *   since we wrote, every UID we hold names a different message. A row that
+   *   recorded none is refused, `unversioned` (workplan 0149 T3).
    */
   async removeItem(
     targetId: string,
@@ -597,9 +598,16 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
       );
     }
 
-    const uidValidity = await this.uidValidityOf(mailbox);
+    // NO UIDVALIDITY RECORDED, NO REMOVAL (workplan 0149 T3, the owner's D1).
+    // This compared only when one was recorded, and removed without one. But
+    // a UID alone cannot be trusted to name the message we wrote: every write
+    // records the mailbox's UIDVALIDITY, so a row without it cannot say
+    // whether the mailbox was recreated since.
     const expected = options?.expectedTargetVersion;
-    if (expected !== undefined && expected !== uidValidity) {
+    if (expected === undefined) return { unversioned: true };
+
+    const uidValidity = await this.uidValidityOf(mailbox);
+    if (expected !== uidValidity) {
       // Thrown rather than reported as `conflicted`: `conflicted` tells the
       // operator "somebody edited your copy", a specific and here FALSE
       // explanation. This is a stale handle, and saying so is the only honest

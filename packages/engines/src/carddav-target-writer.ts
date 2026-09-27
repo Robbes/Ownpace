@@ -47,7 +47,7 @@ import {
   sizeOf,
 } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
-import { readEtag, ownershipOf } from './dav-target-version.ts';
+import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
@@ -729,10 +729,13 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     const filename = `${uid}.vcf`;
     const contactPath = `${folderId}${filename}`;
 
-    // Ownership, re-checked at the last possible moment. See the same guard in
-    // caldav-target-writer.ts: the ledger's status records that we WROTE these
-    // bytes, not that they are still the bytes we wrote.
-    if (overwrite && expectedTargetVersion !== undefined) {
+    // Ownership, checked by the server in the PUT itself when our version is
+    // strong, and by a read and a comparison when it is weak (workplan 0149
+    // T3). See the same guard in caldav-target-writer.ts: the ledger's status
+    // records that we WROTE these bytes, not that they are still the bytes we
+    // wrote.
+    const ifMatch = overwrite ? ifMatchFor(expectedTargetVersion) : undefined;
+    if (overwrite && expectedTargetVersion !== undefined && ifMatch === undefined) {
       const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(contactPath));
       if (verdict === 'changed') {
         return { path: contactPath, conflicted: true };
@@ -749,8 +752,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
         // the same header in caldav-target-writer.ts: sending the precondition
         // on the update path made the server refuse with 412, which this
         // method then reported as success — a rewrite that silently did
-        // nothing while the pass counted it as updated.
-        ...(overwrite ? {} : { 'If-None-Match': '*' }),
+        // nothing while the pass counted it as updated. The update path's
+        // precondition is `If-Match` with our version, when it is strong.
+        ...(overwrite ? (ifMatch !== undefined ? { 'If-Match': ifMatch } : {}) : { 'If-None-Match': '*' }),
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
@@ -762,15 +766,11 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     // The book is asked who holds this UID; a card it names is adopted, and
     // with none named the href holds somebody else's card and the item fails.
     //
-    // On the overwrite path it means the server refused to replace, which must
-    // not be reported as a successful rewrite.
+    // On the overwrite path it is `If-Match` refusing (workplan 0149 T3): the
+    // card is no longer the one we wrote, so nothing was written and it is the
+    // owner's now. A refusal with no precondition sent is answered the same.
     if (response.status === 412) {
-      if (overwrite) {
-        throw new Error(
-          `PUT for ${contactPath} was refused with 412 on a deliberate rewrite. ` +
-            'The item was NOT replaced.',
-        );
-      }
+      if (overwrite) return { path: contactPath, conflicted: true };
       const held = await this.findContactByNaturalKey(folderId, uid);
       if (held !== undefined) return { path: held, alreadyHeld: true };
       throw withFailureCategory(
@@ -812,10 +812,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       );
     }
 
-    return {
-      path: contactPath,
-      ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
-    };
+    // `readVersion`, not `readEtag`: a weak ETag is recorded as weak (0149 T3).
+    const version = readVersion(response);
+    return { path: contactPath, ...(version !== undefined ? { etag: version } : {}) };
   }
 
   private escapeXml(str: string): string {

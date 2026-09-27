@@ -34,7 +34,7 @@ import {
 import { davRefusalBody, withFailureCategory } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
-import { readEtag, ownershipOf } from './dav-target-version.ts';
+import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
@@ -856,11 +856,20 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
 
-    // Ownership, re-checked at the last possible moment. See the same guard in
-    // caldav-target-writer.ts. It sits ahead of the chunked branch too: a large
-    // file the owner has edited in the new system is no more ours to replace
-    // than a small one.
-    if (overwrite && expectedTargetVersion !== undefined) {
+    // Ownership, checked by the server in the PUT itself when our version is
+    // strong, and by a read and a comparison when it is weak (workplan 0149
+    // T3). See the same guard in caldav-target-writer.ts. It covers the chunked
+    // branch too: a large file the owner has edited in the new system is no
+    // more ours to replace than a small one. Chunks cannot carry `If-Match`,
+    // since each is a PUT of its own and the precondition would refuse the
+    // second, so a chunked rewrite keeps the read and the comparison.
+    const chunked =
+      !raw.body &&
+      this.config.chunkedUploads === true &&
+      raw.content !== undefined &&
+      raw.content.length > (this.config.chunkSize || 10 * 1024 * 1024);
+    const ifMatch = overwrite && !chunked ? ifMatchFor(expectedTargetVersion) : undefined;
+    if (overwrite && expectedTargetVersion !== undefined && ifMatch === undefined) {
       const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(filePath));
       if (verdict === 'changed') {
         return { path: filePath, conflicted: true };
@@ -900,14 +909,11 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
      * provider's limit for one file.
      */
     if (raw.body) {
-      return this.uploadStreamed(filePath, raw, overwrite);
+      return this.uploadStreamed(filePath, raw, overwrite, ifMatch);
     }
 
-    // Check if file is large and should use chunked upload
-    const useChunked = this.config.chunkedUploads &&
-                      raw.content && raw.content.length > (this.config.chunkSize || 10 * 1024 * 1024);
-
-    if (useChunked && raw.content) {
+    // Check if file is large and should use chunked upload (`chunked`, above)
+    if (chunked && raw.content) {
       // No ETag from this path: the last chunk's response describes a chunk,
       // not the assembled file. The item simply has no overwrite protection
       // until something rewrites it in one piece, which is honest — inventing a
@@ -940,23 +946,19 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
           // decision was made upstream against the ledger. Sending the
           // precondition anyway made the server answer 412, which the branch
           // below then reported as success — the rewrite silently did nothing
-          // while the pass counted `updated: 1`.
-          ...(overwrite ? {} : { 'If-None-Match': '*' }),
+          // while the pass counted `updated: 1`. The update path's
+          // precondition is `If-Match` with our version, when it is strong.
+          ...(overwrite ? (ifMatch !== undefined ? { 'If-Match': ifMatch } : {}) : { 'If-None-Match': '*' }),
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
       // 412: something is already at this path, and it is not ours
-      // (`heldAtPath`, workplan 0149 T1). Unreachable on the overwrite path,
-      // which sends no precondition; if a server returns it anyway that is a
-      // refusal to replace, and reporting it as a successful rewrite would
-      // record a copy the target does not hold.
+      // (`heldAtPath`, workplan 0149 T1). On the overwrite path it is
+      // `If-Match` refusing (T3): the file is no longer the one we wrote, so
+      // nothing was written and it is the owner's now. A refusal with no
+      // precondition sent is answered the same.
       if (response.status === 412) {
-        if (overwrite) {
-          throw new Error(
-            `PUT for ${filePath} was refused with 412 on a deliberate rewrite. ` +
-              'The file was NOT replaced.',
-          );
-        }
+        if (overwrite) return { path: filePath, conflicted: true };
         return this.heldAtPath(filePath);
       }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
@@ -966,10 +968,9 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       if (response.status !== 201 && response.status !== 204) {
         throw new Error(`PUT failed for ${filePath} with status ${response.status}: ${davRefusalBody(response.body)}`);
       }
-      return {
-        path: filePath,
-        ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
-      };
+      // `readVersion`, not `readEtag`: a weak ETag is recorded as weak (0149 T3).
+      const version = readVersion(response);
+      return { path: filePath, ...(version !== undefined ? { etag: version } : {}) };
     }
 
     return { path: filePath };
@@ -989,6 +990,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     filePath: string,
     raw: RawFileItem,
     overwrite: boolean,
+    /** Our version as `If-Match`, when this is a rewrite and it is strong (0149 T3). */
+    ifMatch?: string,
   ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string; alreadyHeld?: boolean }> {
     const body = raw.body!;
     if (this.config.chunkedUploads && body.sizeBytes > (this.config.chunkSize || 10 * 1024 * 1024)) {
@@ -1014,21 +1017,17 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
           // transfer-encoded, which some DAV servers refuse outright and others
           // accept while reporting a size of zero afterwards.
           'Content-Length': String(body.sizeBytes),
-          ...(overwrite ? {} : { 'If-None-Match': '*' }),
+          ...(overwrite ? (ifMatch !== undefined ? { 'If-Match': ifMatch } : {}) : { 'If-None-Match': '*' }),
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       };
     });
     if (response.status === 412) {
-      if (overwrite) {
-        throw new Error(
-          `PUT for ${filePath} was refused with 412 on a deliberate rewrite. ` +
-            'The file was NOT replaced.',
-        );
-      }
-      // The same answer as the buffered PUT's. No digest: the server refused
-      // the bytes, so the hasher saw a body the target does not hold, and the
-      // adoption hashes the source instead.
+      // The same answers as the buffered PUT's: a rewrite refused by
+      // `If-Match` is the owner's file now (0149 T3), and a create is asked
+      // about. No digest: the server refused the bytes, so the hasher saw a
+      // body the target does not hold, and the adoption hashes the source.
+      if (overwrite) return { path: filePath, conflicted: true };
       return this.heldAtPath(filePath);
     }
     if (response.status !== 201 && response.status !== 204) {
@@ -1041,7 +1040,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     return {
       path: filePath,
       contentHash: hasher.digest(),
-      ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}),
+      ...(readVersion(response) !== undefined ? { etag: readVersion(response) } : {}),
     };
   }
 

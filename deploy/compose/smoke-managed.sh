@@ -1455,7 +1455,13 @@ fi
 # `--fresh` seed. Fixed fixtures are `openmig-demo-<type>-<n>.<ext>`; fresh ones
 # carry a tag between the type and the index, so "digits immediately followed by
 # the extension" identifies exactly the fixtures and nothing else.
-ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''"
+#
+# AND A RECORDED VERSION (workplan 0149 T3). A removal without one is refused
+# (`version_unknown`, the owner's D1): there is no way to tell whether somebody
+# changed the copy. Picking such a row would make the apply half prove a
+# refusal instead of a removal, and a refused receipt passes this gate (the
+# verdict below accepts `refused`). So eligibility asks for the version too.
+ELIGIBLE="status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> '' AND target_version IS NOT NULL"
 #
 # `task` JOINED THAT LIST ON 2026-09-09, and its absence was an oversight with a
 # permanent cost. This regex was written on 2026-08-20; the task domain seeded
@@ -2136,6 +2142,7 @@ if [ -z "$HASH" ]; then
   # The precondition is nobody's accident: seed-managed.ts creates tenants,
   # connections and mappings but NO items. Only a real sync produces one.
   echo "no eligible item (status 'copied' or 'updated' with a target_ref id) on this mapping."
+  echo "(and a recorded version: a removal without one is refused as version_unknown, 0149 T3)"
   echo "FAILING rather than skipping: an apply half that never ran proves nothing"
   echo "about the path it exists to cover, and a pass here would make this script"
   echo "the very thing it was written to catch."
@@ -2149,7 +2156,10 @@ if [ -z "$HASH" ]; then
   echo "what IS on this mapping:"
   TOTAL="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'")"
   COPIED="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated')")"
-  q "SELECT domain, status, count(*), count(*) FILTER (WHERE coalesce(target_ref->>'id','') <> '') AS with_target_id FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' GROUP BY 1,2 ORDER BY 1,2" \
+  # Ours, with a handle, and no version: the one way to have nothing eligible
+  # that 0149 T3 added. Told apart below, because its fix is not the sync's.
+  HANDLED="$(q "SELECT count(*) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND status IN ('copied','updated') AND coalesce(target_ref->>'id','') <> ''")"
+  q "SELECT domain, status, count(*), count(*) FILTER (WHERE coalesce(target_ref->>'id','') <> '') AS with_target_id, count(*) FILTER (WHERE target_version IS NOT NULL) AS with_version FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' GROUP BY 1,2 ORDER BY 1,2" \
     | sed 's/^/  /'
   echo "  (total ${TOTAL:-0}, eligible ${COPIED:-0} — status copied or updated)"
   # Told apart from a copy failure, because the fixes have nothing in common.
@@ -2217,6 +2227,12 @@ if [ -z "$HASH" ]; then
     echo "   WHERE tenant_id='$APPLY_TENANT'"
     echo "   ORDER BY at DESC LIMIT 20;"
     echo "SQL"
+  elif [ "${HANDLED:-0}" != "0" ]; then
+    echo "DIAGNOSIS: ${HANDLED} items are ours to remove and carry a target_ref id, but"
+    echo "none recorded a version from the target. A removal without one is refused as"
+    echo "version_unknown (workplan 0149 T3): nothing could tell whether somebody changed"
+    echo "the copy since. Either the target returned no ETag on PUT, or these rows were"
+    echo "written before versions were recorded; with_version above says which domains."
   else
     echo "DIAGNOSIS: there ARE eligible items, but none carries a target_ref id."
     echo "Something wrote the ledger row without the handle the target returned,"

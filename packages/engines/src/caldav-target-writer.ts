@@ -51,7 +51,7 @@ import {
   sizeOf,
 } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
-import { readEtag, ownershipOf } from './dav-target-version.ts';
+import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
 
@@ -926,14 +926,22 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
 
-    // OWNERSHIP, re-checked at the last possible moment.
+    // OWNERSHIP, checked at the last possible moment: by the server, in the
+    // PUT itself (workplan 0149 T3).
     //
     // `classifyKnownItem` decided this item is ours to replace from the ledger's
     // status — which records that we WROTE these bytes, not that they are still
     // the bytes we wrote. Shadow migration invites the owner into the new system
     // before cutover; if they corrected this event there, overwriting it now
     // destroys their work silently and counts it as a success.
-    if (overwrite && expectedTargetVersion !== undefined) {
+    //
+    // A strong version goes as `If-Match` on the PUT below, so the server
+    // refuses the write if the copy changed, with no gap between checking and
+    // writing. A weak one cannot be matched that way (D4) and keeps the read
+    // and comparison every rewrite used to make. With no version at all the
+    // rewrite goes ahead unchecked, as it always has (D3).
+    const ifMatch = overwrite ? ifMatchFor(expectedTargetVersion) : undefined;
+    if (overwrite && expectedTargetVersion !== undefined && ifMatch === undefined) {
       const verdict = ownershipOf(expectedTargetVersion, await this.currentEtag(eventPath));
       if (verdict === 'changed') {
         return { path: eventPath, conflicted: true };
@@ -966,9 +974,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // decision was already made upstream against the ledger
         // (`classifyKnownItem`: only an item we copied ourselves, never one the
         // destination already had). Sending the precondition anyway made the
-        // server refuse with 412, which this method reports as success — so the
-        // rewrite silently did nothing while the pass counted `updated: 1`.
-        ...(overwrite ? {} : { 'If-None-Match': '*' }),
+        // server refuse with 412, which this method then reported as success —
+        // so the rewrite silently did nothing while the pass counted
+        // `updated: 1`. The update path's precondition is the other one:
+        // `If-Match` with the version we recorded, when it is strong (above).
+        ...(overwrite ? (ifMatch !== undefined ? { 'If-Match': ifMatch } : {}) : { 'If-None-Match': '*' }),
         Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
       },
     });
@@ -988,17 +998,13 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // and never removed as ours, including, at worst, our own landed copy.
     // With none named, the href holds something else, and the item fails.
     //
-    // Unreachable on the overwrite path, which sends no precondition. If a
-    // server returns it anyway, that is a refusal to replace and must not be
-    // reported as a successful rewrite.
+    // On the overwrite path it is `If-Match` refusing (workplan 0149 T3): the
+    // copy is no longer the one we wrote, so nothing was written and it is the
+    // owner's now (hard rule 2). A server that refuses to replace with no
+    // precondition sent gets the same answer: not written, and not reported as
+    // a rewrite.
     if (response.status === 412) {
-      if (overwrite) {
-        throw new Error(
-          `PUT for ${eventPath} was refused with 412 on a deliberate rewrite. ` +
-            'The item was NOT replaced; reporting it as updated would record a ' +
-            'copy the target does not hold.',
-        );
-      }
+      if (overwrite) return { path: eventPath, conflicted: true };
       const held = await this.uidAlreadyHeldAt(calendarId, raw, uid);
       if (held !== undefined) return { path: held, alreadyHeld: true };
       throw withFailureCategory(
@@ -1057,7 +1063,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // What the server says this object is now. Recorded so a later pass can
     // tell whether the copy is still the one we made; absent is fine and simply
     // costs this item its overwrite protection.
-    return { path: eventPath, ...(readEtag(response) !== undefined ? { etag: readEtag(response) } : {}) };
+    // `readVersion`, not `readEtag`: a weak ETag is recorded as weak (0149 T3).
+    const version = readVersion(response);
+    return { path: eventPath, ...(version !== undefined ? { etag: version } : {}) };
   }
 
   /**
