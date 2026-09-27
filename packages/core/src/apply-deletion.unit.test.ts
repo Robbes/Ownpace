@@ -424,6 +424,30 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     expect(target.calls).toEqual([{ targetId: 'target-path-1', collection: 'Archive/2024' }]);
   });
 
+  it('reports version_unknown when the writer removed nothing for want of a version, and records nothing', async () => {
+    // Workplan 0149 T3, the owner's D1. The writer answers `unversioned`: no
+    // version was recorded, so it could not tell whether somebody changed the
+    // copy, and it removed nothing. Read BEFORE the `!removal.kind` branch, or
+    // this would read as a target that cannot remove at all.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));
+    const target = fakeRemover({ unversioned: true });
+
+    const outcome = await applyDeletion(
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true },
+      'nk-1',
+    );
+
+    expect(outcome).toEqual({
+      ok: false,
+      code: 'version_unknown',
+      reason: expect.stringContaining('written without a version'),
+    });
+    const row = await ledger.find(TENANT, MAPPING, 'calendar', 'nk-1');
+    expect(row?.status).toBe('copied');
+    expect(row?.deletionAppliedAt).toBeUndefined();
+  });
+
   it('omits expectedTargetVersion when the row never recorded one', async () => {
     const ledger = new MemoryLedger();
     await ledger.recordIfAbsent(baseRow({ deletionReportedAt: new Date().toISOString() }));

@@ -2,7 +2,63 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T1 (a), first slice built (0131 §6, group M2, step 1).** The rule, in
+`packages/shared/src/reachable-host.ts`, and nothing calls it yet, so nothing behaves differently.
+T1 (a) comes in three pull requests: this one; the clients that reach a tenant's host going
+through it; and the managed API and tasks switching it on, with the doors' answer.
+
+- **The ranges.** Node's `BlockList` holds §3's list: loopback, `0.0.0.0/8` and `::`,
+  private, link-local, CGNAT, unique-local, multicast and reserved. An IPv4-mapped IPv6 address is
+  judged as the IPv4 inside it, which `BlockList` does itself. A single-label name and a host
+  field that is not a host are refused before any lookup.
+- **After resolution, on the address used.** `reachableAddress` checks every address a name
+  resolves to, not only the first. `checkedConnector` opens each socket to the checked address
+  and passes the typed `name:port` on as `host`, from which undici takes the TLS server name, so
+  the certificate is verified for the name that was typed. A redirect, a CalDAV server's absolute
+  href on another host, and a second socket in a keep-alive pool all go through it.
+- **Redirects, where the build differs from §3.** §3 had redirects become `redirect: 'manual'`,
+  with each `Location` checked before it is followed. The check sits in the connector instead.
+  Every hop opens its connection through it, so a redirect meets the same check as the first
+  request, on the address actually used, and no client changes how it follows one. `fetch`'s own
+  limit stays the bound on hops: it follows 20 and then fails.
+- **`undici`, the build's first decision.** 7.29.1, the 7 line that Node 24 bundles and that
+  also runs on the task runtime's Node 21 (0146 §1); 7.30.0 was inside the workspace's
+  three-day release-age window. Its `Agent` and `buildConnector` are imported by path, not
+  through its index: importing the index installs undici's own Agent as the process's global
+  dispatcher, which Node's built-in `fetch` reads, so every other request in the process would
+  change client. The two modules carry no such side effect; the appliance bundle was checked and
+  holds no part of undici's global dispatcher.
+- **Not a global dispatcher.** The same processes call their own services by compose name
+  (Trigger.dev at `trigger-api:3000`, the identity provider, the status page, the tasks' OTEL
+  endpoint), and those must keep working. So the rule rides only the requests to a host a tenant
+  gave us: `tenantFetch` is the global `fetch` until a process calls `refuseInternalAddresses`,
+  and with it on, a refusal comes back as `HostInsideOurNetwork`, not as `fetch failed`.
+  `reachableHost` is the same for a client that opens its own socket: the checked address, with
+  the typed name as `servername`. imapflow takes both (`host` and `servername`, imapflow
+  2.0.5's `dist/esm/imap-flow.js`:186 and :1893-1897), so IMAP needs no host rule of T4's to
+  stand in.
+- **Its own path, not the package's index.** The browser bundle loads `@openmig/shared` from its
+  index, and this module builds a `BlockList` and loads undici as it is imported. Exported from
+  the index, it was type-checked by the web app's own build, which failed, and
+  `scripts/ui-build-output.unit.test.ts` caught it. So Node code imports it as
+  `@openmig/shared/reachable-host`, and the guard pins that the index does not carry it.
+- **The refusal** names the host as typed and never the address, in English, with the code
+  `host_inside_our_network`. The Dutch sentence on the screens waits for R's pull requests that
+  change `strings.ts` and `Connections.tsx` (0131 §6's out-of-turn rule).
+- **Proved.** `a-host-we-are-asked-to-reach.unit.test.ts` (73 cases): one address inside each
+  range, and the first address past each prefix, so a range removed or widened turns it red; the
+  shapes; every answer checked; the connector's address and TLS name; and through a real server
+  on 127.0.0.1, a redirect and a hop to another name meeting the same check as the first request,
+  a streamed body carried, and the global `fetch` unchanged with the rule off; and the module
+  kept out of the package's index.
+  **Mutations:** 22, all killed: ranges dropped, widened and narrowed, and the prefix
+  ignored; the shapes; an address literal unchecked; only the first answer checked; the allowed
+  list admitting too much; the socket sent to the typed host, or the typed name lost for TLS; the
+  rule not carried by `tenantFetch`, or its refusal left as `fetch failed`; IMAP unchecked or
+  without its `servername`; the sentence not naming the host; and the module put back in the
+  index.
 
 **2026-09-24, T5 built** on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`,
 not merged. On the managed API an export archive whose `where` is absent or `disk` is refused
@@ -114,7 +170,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 📋 **Proposed**, advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **First slice built 2026-09-27** (the rule, not yet called); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |

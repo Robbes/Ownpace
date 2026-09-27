@@ -46,6 +46,7 @@ export const aliases = {
   '@openmig/ledger/db': resolve(rootDir, 'packages/ledger/src/db.ts'),
   '@openmig/managed/schema-managed': resolve(rootDir, 'packages/managed/src/schema-managed.ts'),
   '@openmig/scheduler/in-process': resolve(rootDir, 'packages/scheduler/src/scheduler.ts'),
+  '@openmig/shared/reachable-host': resolve(rootDir, 'packages/shared/src/reachable-host.ts'),
   '@openmig/connectors/caldav-source': resolve(rootDir, 'packages/connectors/src/caldav-source.ts'),
   '@openmig/connectors/caldav-source.types': resolve(rootDir, 'packages/connectors/src/caldav-source.types.ts'),
   '@openmig/connectors/carddav-source': resolve(rootDir, 'packages/connectors/src/carddav-source.ts'),

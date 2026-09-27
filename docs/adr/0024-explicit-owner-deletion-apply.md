@@ -11,7 +11,8 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - `apply` is the **only destructive code path**, per item, owner-called, never automatic (relocations gained a second caller under ADR-0030/0031 — same function, same gates).
-- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (ETag; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
+- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (`If-Match` with the recorded ETag on DAV, checked by the server in the DELETE itself; a read that must succeed on JMAP contacts and files; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
+- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3): a row without one, or with only a weak ETag, cannot say whether somebody changed the copy. JMAP mail, which records no version by design, is the one target this does not apply to.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never re-copied**; outcomes state `kind: binned|deleted`, understating recoverability.
 
 ## Context
@@ -53,3 +54,30 @@ Seven gates stand in front of every call, enforced in `applyDeletion` and re-che
 - **Bulk/batch apply.** Rejected for this slice. A batch action is easier to fire by accident and harder to reason about per-item; per-item calls, one at a time, keep the blast radius of any single mistake to one item. Revisit if operators need it for large cleanups, but only alongside stronger confirmation (e.g. requiring the caller to state an expected count).
 - **Act on `inferred` evidence once confirmed (i.e., after `DELETION_CONFIRMATIONS` passes).** Rejected — absence is never strong enough on its own, however many times it repeats; more repetitions of a weak signal do not make it a strong one.
 - **No mass-deletion breaker.** Rejected — the other six gates all reason about a single item in isolation, and none of them would catch a systemic misread (a wrong account, an outage) that made many items look deletable at once. The breaker is the one gate that reasons about the queue as a whole.
+
+## Amendment, 2026-09-27: the server checks the version, and without one nothing is removed
+
+Workplan 0149 T3, from the owner's D1: *apply deletions* is offered to testers, so removal has
+to fail closed. Gate 5 did not, in two ways.
+
+- **The check had a gap.** The writer HEADed the copy, compared ETags, and then sent the DELETE
+  as a separate request; an edit that landed between the two was removed. A HEAD that failed
+  meant "proceed". The DELETE now carries `If-Match` with the recorded version, so the server
+  decides in the request itself. A 412 is read with one HEAD: gone is already removed, present
+  is `edited_on_target`, and a HEAD that cannot say throws with nothing removed. The rewrite PUT
+  carries the same condition, and a 412 there is a conflict, counted and left alone.
+- **No version meant no check.** A row written before versions existed, from a server that
+  returns no ETag on PUT, or recorded `copied` after a 412 on create (0149 T1), was removed with
+  nothing compared. Such a removal now sends nothing: the writer answers `unversioned`, and core
+  refuses with a new code, `version_unknown` (the closed set above gains one). A weak ETag counts
+  as none, because `If-Match` compares strongly and could never match; the writers record a weak
+  one with its `W/` so they can tell (D4).
+
+On JMAP contacts and files there is no condition for one object on `/set`, so the read and the
+destroy stay two calls, and what changes is that a read that fails refuses instead of proceeding.
+On IMAP a row without UIDVALIDITY is refused the same way. JMAP mail is unchanged: it records no
+version, because JMAP gives no per-message ETag and a message is immutable apart from its flags.
+
+A **rewrite** without a version still goes ahead, as the owner kept it (0149 D3): refusing would
+stop source changes from reaching every such row. What changed for rewrites is how the check is
+made, not which rows are rewritten.

@@ -67,6 +67,13 @@ describe('ownershipOf', () => {
     expect(ownershipOf('v1', 'v2')).toBe('changed');
   });
 
+  it('compares a weak recorded version by its value (workplan 0149 T3)', () => {
+    // A weak ETag is recorded with its W/ so it is never sent as If-Match; the
+    // read-and-compare check it keeps compares the value, as `readEtag` reads it.
+    expect(ownershipOf('W/v1', 'v1')).toBe('ours');
+    expect(ownershipOf('W/v1', 'v2')).toBe('changed');
+  });
+
   it('proceeds whenever either side is unknown', () => {
     // Both unknowns are ordinary, not suspicious: rows written before migration
     // 0023 have no recorded version, and plenty of servers answer HEAD without
@@ -81,29 +88,52 @@ describe('ownershipOf', () => {
 interface Call {
   method: string;
   url: string;
+  headers?: Record<string, string>;
+  /** What the server answered: a refused PUT is not a write. */
+  status?: number;
 }
 
 /**
  * A DAV target that reports `currentEtag` for everything and stamps
  * `putEtag` on whatever it accepts.
+ *
+ * It honours `If-Match` as a real server does (RFC 9110 §13.1.1): a PUT that
+ * names another version, or any version when the target reports none, is
+ * refused with 412. Since workplan 0149 T3 that is where a rewrite over an
+ * edited copy is stopped, so a stub that accepted every PUT would prove
+ * nothing.
  */
 function server(currentEtag: string | undefined, putEtag = 'after-our-write') {
   const calls: Call[] = [];
   const client: HttpClient = {
     async request(o) {
-      calls.push({ method: o.method, url: o.url });
+      const call: Call = { method: o.method, url: o.url, ...(o.headers ? { headers: o.headers } : {}) };
+      calls.push(call);
       if (o.method === 'HEAD') {
         const headers: Record<string, string> = {};
         if (currentEtag !== undefined) headers.etag = `"${currentEtag}"`;
         return { status: 200, body: '', headers };
       }
       if (o.method === 'PUT') {
+        const ifMatch = o.headers?.['If-Match'];
+        if (ifMatch !== undefined && ifMatch !== `"${currentEtag}"`) {
+          call.status = 412;
+          return { status: 412, body: '', headers: {} };
+        }
+        call.status = 204;
         return { status: 204, body: '', headers: { etag: `"${putEtag}"` } };
       }
       return { status: 207, body: '<d:multistatus xmlns:d="DAV:"></d:multistatus>', headers: {} };
     },
   };
-  return { calls, client, puts: () => calls.filter((c) => c.method === 'PUT') };
+  return {
+    calls,
+    client,
+    /** The PUTs the server ACCEPTED: the writes that happened. */
+    puts: () => calls.filter((c) => c.method === 'PUT' && c.status === 204),
+    /** Every PUT sent, accepted or refused. */
+    sent: () => calls.filter((c) => c.method === 'PUT'),
+  };
 }
 
 const ICS = 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Corrected\r\nEND:VEVENT\r\nEND:VCALENDAR';
@@ -131,6 +161,10 @@ describe('a rewrite whose target copy has been edited', () => {
     expect(result.conflicted).toBe(true);
     expect(result.updated).toBeUndefined();
     expect(s.puts(), 'the customer edit must survive').toHaveLength(0);
+    // The server refused it, on the version we recorded, in the write itself
+    // (workplan 0149 T3): no read first, and no gap between the two.
+    expect(s.sent()[0]?.headers?.['If-Match']).toBe('"the-version-we-wrote"');
+    expect(s.calls.filter((c) => c.method === 'HEAD')).toHaveLength(0);
   });
 
   it('rewrites normally when the target still holds our version', async () => {
@@ -166,10 +200,12 @@ describe('a rewrite whose target copy has been edited', () => {
     expect(s.calls.filter((c) => c.method === 'HEAD'), 'no version to check against').toHaveLength(0);
   });
 
-  it('does not block when the target reports no version now', async () => {
-    // We have nothing to compare against. Treating silence as evidence of an
-    // edit would be inventing a fact, and would freeze every item on any server
-    // that does not answer HEAD with an ETag.
+  it('is refused when the target reports no version for the copy now', async () => {
+    // It went ahead: nothing to compare, and silence is not evidence of an
+    // edit. Since workplan 0149 T3 the server does the comparing, and
+    // `If-Match` with our version cannot match a copy that has none, so the
+    // server refuses and the rewrite is a conflict. The row then stays as it is
+    // on the target, which errs on the side of the owner's data.
     const s = server(undefined);
     const result = await calWriter(s.client).upsertCalendarEvent(
       '/calendars/alice/personal/',
@@ -177,8 +213,21 @@ describe('a rewrite whose target copy has been edited', () => {
       { overwrite: true, expectedTargetVersion: 'the-version-we-wrote' },
     );
 
+    expect(result.conflicted).toBe(true);
+    expect(s.puts()).toHaveLength(0);
+  });
+
+  it('keeps a read and a comparison for a WEAK version, which If-Match cannot carry (D4)', async () => {
+    const s = server('the-version-we-wrote');
+    const result = await calWriter(s.client).upsertCalendarEvent(
+      '/calendars/alice/personal/',
+      { item: { uid: 'evt-1', type: 'event', summary: 'Corrected', start: '', etag: 'e2', sourcePath: '', icalendar: ICS }, icalendar: ICS },
+      { overwrite: true, expectedTargetVersion: 'W/the-version-we-wrote' },
+    );
+
     expect(result.updated).toBe(true);
-    expect(s.puts()).toHaveLength(1);
+    expect(s.calls.filter((c) => c.method === 'HEAD'), 'the read it keeps').toHaveLength(1);
+    expect(s.sent()[0]?.headers?.['If-Match'], 'never sent: it could not match').toBeUndefined();
   });
 });
 
