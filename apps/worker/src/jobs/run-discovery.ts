@@ -5,9 +5,10 @@
  * Read-only, body-free pre-sync counts per domain, persisted to migration_discovery so the wizard
  * can show them before the owner green-lights the migration. Enqueued on demand from the API
  * (POST /api/migrations/:id/discover). Builds each domain's source from the DB
- * (`buildDomainDepsFromMapping`) and writes counts inside `withTenant`. Both run on this job's pool,
- * the owner's `DATABASE_URL`, so row security does not bind them: each query's own tenant filter
- * does the separating (docs/rls-guide.md, "Where row security holds today"; workplan 0138 T1).
+ * (`buildDomainDepsFromMapping`) and writes counts inside `withTenant`. Both run as the owner: on
+ * this job's pool and on the handle the builder opens itself from `DATABASE_URL`. Row security does
+ * not bind them; each query's own tenant filter does the separating (docs/rls-guide.md, "Where row
+ * security holds today"; workplan 0138 T1).
  *
  * Trigger: manual (API-initiated).
  */

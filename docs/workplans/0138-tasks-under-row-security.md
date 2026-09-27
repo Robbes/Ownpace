@@ -46,9 +46,9 @@ changed. What changed:
   (was `0009`), `set-task-env.sh` is no longer called *"the tasks' own migration connection"*, and a
   new bullet says the tasks do not use `APP_DATABASE_URL` yet. The troubleshooting line had the
   same two errors and is corrected too.
-- **`deploy/compose/managed.env.example`**: the owner's comment names every holder, the tasks
-  among them, and the `APP_DB_*` comment says the API connects as `app_user` and the tasks do not
-  yet.
+- **`deploy/compose/managed.env.example`**: the owner's comment names the tasks among its holders
+  (not every holder: several deploy scripts hold it too, and the guide's §2 lists those), and the
+  `APP_DB_*` comment says the API connects as `app_user` and the tasks do not yet.
 - **`README.md`** and **`SECURITY.md`**: tenant isolation is enforced in the API, bar two routes,
   and not yet in the tasks. `SECURITY.md`'s *"per-tenant secret scope"* is replaced by what is
   there: each organisation's credentials in its own rows, all under the one
@@ -70,7 +70,9 @@ and restoring them turned it green). Every fact written was checked instead, aga
 
 - *The tasks connect as the owner.* All fourteen files in `apps/worker/src/jobs/` that build a pool
   read `process.env.DATABASE_URL`; no file in `apps/worker/src` or `packages/*/src` reads
-  `APP_DATABASE_URL` or `DIRECT_DATABASE_URL`; no job gives `pgDriver` a role; no task calls
+  `APP_DATABASE_URL` or `DIRECT_DATABASE_URL`, except `migrationConnectionString` and
+  `poolerInFront` (`packages/ledger/src/direct-url.ts`), pure functions of an env their caller
+  passes, whose callers are the API and the seed; no job gives `pgDriver` a role; no task calls
   `runMigrations` or `migrationConnectionString`. `set-task-env.sh` uploads all three URLs.
 - *The owner is a superuser and `withTenant` on its connection does nothing.* Asked of the
   database: with two organisations in `tenant`, the owner counted 2 with no tenant set, and 2
@@ -79,7 +81,7 @@ and restoring them turned it green). Every fact written was checked instead, aga
 - *The API's request path is `app_user`.* `getDbPool()` reads `APP_DATABASE_URL` first, and
   `managed.yml` gives the API the `app_user` URL. Every pool in `apps/api/src` was listed: the rest
   are `getDbPool()`, the audit key's pool (reads `deployment_key` only), the seed and the operator
-  script, and one more (next point).
+  script, and one more (below, *Found here, and not in §1*).
 - *Which tables have policies.* 43 tables, every one `FORCE`d: 28 from the ledger chain and 15
   from the managed chain, listed by name in the guide. The guide's old list named 29 and missed
   14, and four of the names it gave as *"from migrations 0001–0004"* are in the managed chain now.
@@ -124,6 +126,40 @@ with T4, or waits for T1 is for whoever builds R6 step 3, with the owner.
 Not changed, and why: `deploy-tasks.sh`'s header and `docs/managed-bring-up.md` list the uploaded
 variables correctly; T3 step 1 changes them with the upload. The legal texts' sentence goes to 0139.
 **Still open:** T0 (the owner); T5 step 2 (after T1 to T3); the permission report's pool (above).
+
+**2026-09-27, later: the review's twelve findings fixed,** on the same branch, in one more commit.
+Documentation and comments only, as before, and no guard, for the reason above. Each fact was asked
+again of the code, or of a Postgres 16 with both chains applied (`scripts/local-pg.sh`):
+
+- *The owner URL is the request path for two routes.* The runbook's *"Never the API's request
+  path"* and the guide's §2 *"Never the request path"* now say it is meant never to be, and name
+  the two routes. So does the API service's comment in `managed.yml`, which also said RLS is
+  *"ALWAYS enforced"*.
+- *No tenant set is not always zero rows.* Asked of `pg_policies`: 32 tables (126 policies) use the
+  plain `::uuid` form and 7 the `NULLIF` form. As `app_user` on one connection, a plain-form table
+  (`connection`) counted 0 before any tenant transaction and raised
+  `invalid input syntax for type uuid: ""` after one; a `NULLIF` table (`mapping_link`) counted 0
+  both times. The guide's *Policies* says so now, and points at managed migration `0004`. Nothing
+  leaks either way.
+- *Also corrected, because they said the same wrong thing:* the root `.env.example` (*"The
+  API/worker connect through … app_user … so row-level security is always enforced"*), the API
+  service's comment in `managed.yml`, and three comments outside §1's list: two in
+  `apps/api/src/routes/migrations/job-resolution.ts` and one in
+  `packages/orchestration/src/discovery.ts`. `run-discovery.ts`'s header now says the builder also
+  opens its own handle from `DATABASE_URL`.
+- *The guide's table lists every connection now.* It gains the API's migrations beside the audit
+  key's pool, and a row for the commands an operator runs with their own `DATABASE_URL`: the
+  cutover CLI, the standalone config-file worker, the appliance's `forget-me` and the two Drive
+  measurement scripts. Every `new Pool(`, `createPgDb(` and `createPgliteDb(` outside tests in
+  `apps/*/src`, `packages/*/src` and `scripts/` falls in one of its rows.
+- *§16 of the architecture document* loses *"secret scope"* too, and says where row security
+  holds, so it no longer contradicts §17.1; v1.8's note names both changes and §17.1's egress
+  mark. 0136 §1 quotes §16 as it was; its T7 still applies to *"egress controls"*, which stays.
+- Smaller: §17.1 names `SECRET_ENCRYPTION_KEY` rather than *"one deployment key"*, which read as the
+  `deployment_key` table; the guide names both FORCE tests, the managed chain's too; the env
+  example's owner comment adds Zitadel's database setup and the API, and the bullet above no longer
+  says it names every holder; the one package reader of `DIRECT_DATABASE_URL` is named above; a
+  cross-reference is fixed.
 
 | Task | Status | Notes |
 |---|---|---|
