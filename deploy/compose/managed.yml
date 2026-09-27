@@ -1181,6 +1181,23 @@ services:
       # itself in the failure if the switch is turned on without an address.
       STATUS_SITE_ENABLED: ${STATUS_SITE_ENABLED:-false}
       STATUS_SITE_URL: ${STATUS_SITE_URL:-http://status-site-url-is-not-set.invalid}
+      # WHO IS TOLD WHEN AN OWNPACE ROW GOES RED (workplan 0142 T1): the owner,
+      # by e-mail, and only where ALERT_ENABLED is true. It defaults to false,
+      # and it has to: gatus counts an alert with no value as ON. Live's .env
+      # turns it on; the OTA stack leaves it off.
+      #
+      # ONE RELAY LOGIN SERVES BOTH. Each setting falls back to the product's
+      # own (SMTP_*, NOTIFY_FROM, NOTIFY_TO), and past those to a placeholder
+      # nobody owns, so a stack with no relay loads the page exactly as before
+      # and sends nothing. The port stays a number: gatus reads it as one, and a
+      # word there would stop the page loading.
+      ALERT_ENABLED: ${ALERT_ENABLED:-false}
+      ALERT_SMTP_HOST: ${ALERT_SMTP_HOST:-${SMTP_HOST:-alert-smtp-host-is-not-set.invalid}}
+      ALERT_SMTP_PORT: ${ALERT_SMTP_PORT:-${SMTP_PORT:-587}}
+      ALERT_SMTP_USER: ${ALERT_SMTP_USER:-${SMTP_USER:-}}
+      ALERT_SMTP_PASSWORD: ${ALERT_SMTP_PASSWORD:-${SMTP_PASSWORD:-}}
+      ALERT_FROM: ${ALERT_FROM:-${NOTIFY_FROM:-status-page@alert-from-is-not-set.invalid}}
+      ALERT_TO: ${ALERT_TO:-${NOTIFY_TO:-owner@alert-to-is-not-set.invalid}}
       GATUS_CONFIG_PATH: /config/config.yaml
     volumes:
       - ./gatus.yaml:/config/config.yaml:ro
