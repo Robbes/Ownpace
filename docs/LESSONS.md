@@ -889,6 +889,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `docs/breach-procedure.md`
+
+- [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+
 ### `docs/dav-sync.md`
 
 - [the-mail-nobody-should-get](../scripts/the-mail-nobody-should-get.unit.test.ts) — THE MAIL NOBODY SHOULD GET (workplan 0103 T2, ADR-0043).
@@ -927,6 +931,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
+- [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 
 ### `docs/o365-application-access.md`
 
@@ -2708,6 +2713,7 @@ AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan
 Reads:
 
 - `deploy/compose/gatus.yaml`
+- `docs/breach-procedure.md`
 - `docs/incident-runbook.md`
 - `docs/operator-runbook.md`
 
@@ -3490,6 +3496,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/smoke-managed.sh`
+- `docs/managed-bring-up.md`
 
 ### [the-member-that-moved-inside-an-unchanged-document](../scripts/the-member-that-moved-inside-an-unchanged-document.unit.test.ts)
 

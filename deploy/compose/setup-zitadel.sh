@@ -949,7 +949,18 @@ fi
 SMTP_RELAY="$(read_env SMTP_HOST '')"
 SMTP_RELAY_PORT="$(read_env SMTP_PORT 1025)"
 SMTP_SENDER="$(read_env NOTIFY_FROM '')"
-SMTP_TLS="$(read_env SMTP_SECURE false)"
+# TLS FOR EVERY RELAY BUT THE CATCHER (workplan 0133 T2, item 2). This read
+# SMTP_SECURE, which the example leaves empty for 587, the usual relay port.
+# Zitadel v4.17.3 with TLS off makes a plain connection and never tries
+# STARTTLS, so it sent the relay's login in the clear, or failed where the
+# API's mail went through. With TLS on it tries implicit TLS and falls back to
+# STARTTLS, which covers 465 and 587 alike. Only the catcher speaks plain SMTP,
+# on 1025, and a login is never sent without TLS.
+if [ "$SMTP_RELAY" = "mailpit" ]; then
+  SMTP_TLS=false
+else
+  SMTP_TLS=true
+fi
 # The relay's credentials, the same pair managed.yml hands the API. Empty for
 # an open relay such as the catcher, which is what the provider was given
 # before they were read at all.
@@ -987,24 +998,62 @@ else
     }' <<<"$DOMAIN_POLICY")" >/dev/null
   fi
 
-  # Idempotent the same way trusted_domains is: read first, write only what is
-  # missing. Matched on the RELAY ADDRESS rather than on "is there any provider",
-  # so changing SMTP_HOST in .env and re-running actually moves the mail.
+  # ONE PROVIDER, UPDATED IN PLACE (workplan 0133 T2, item 3). Found by its
+  # description, which is this stack's name, and not by its relay address.
+  # Matched on the address, a changed SMTP_HOST added a second provider and a
+  # changed login, sender or TLS reached none: the one found was reported as
+  # "already configured" and left as it was. On ownpace-live that is how a
+  # rotated relay login would never reach the identity provider.
+  #
+  # Several can carry the name, left by an SMTP_HOST changed before this: the
+  # active one is updated, and the others are named for removal in the console.
   PROVIDERS="$(api POST /admin/v1/email/_search '{}')"
-  SMTP_ID="$(jq -r --arg h "$SMTP_ADDR" \
-    'first(.result[]? | select(.smtp.host == $h) | .id) // empty' <<<"$PROVIDERS")"
+  MINE="$(jq -c --arg d "$COMPOSE_PROJECT" \
+    '[.result[]? | select(.description == $d and .smtp != null)]' <<<"$PROVIDERS")"
+  SMTP_ID="$(jq -r '(map(select(.state == "EMAIL_PROVIDER_ACTIVE")) + .)[0].id // empty' <<<"$MINE")"
 
   if [ -n "$SMTP_ID" ]; then
-    say "already configured (${SMTP_ID})"
+    say "updating it (${SMTP_ID}) to what ${ENV_FILE} says"
+    # PUT /admin/v1/email/smtp/{id}: declared in v4.17.3's admin.proto AND
+    # implemented, as `UpdateEmailProviderSMTP` in internal/api/grpc/admin/
+    # email.go, whose name matches the proto's (the test verb's does not; see
+    # below). An update that changes nothing is accepted and records nothing.
+    #
+    # THE PASSWORD ONLY WHEN ONE IS SET. It cannot be read back to compare, so
+    # it is sent on every run that has one, and recorded as a change each time.
+    # Sent without one, the update keeps the stored password
+    # (`smtpPlainAuthChanges` at that tag), so an empty SMTP_PASSWORD never
+    # wipes it.
+    #
+    # NOT FATAL, by the rule the test send below follows: a refused update is
+    # reported, and the bring-up goes on with the provider as it was.
+    if ! update_out="$( ( api PUT "/admin/v1/email/smtp/${SMTP_ID}" "$(jq -nc \
+        --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "$SMTP_TLS" \
+        --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" --arg stack "$COMPOSE_PROJECT" '{
+          senderAddress: $from,
+          senderName: "Ownpace",
+          host: $host,
+          tls: $tls,
+          user: $user,
+          description: $stack
+        } + (if $pw == "" then {} else {password: $pw} end)')" >/dev/null ) 2>&1 )"; then
+      say "  the provider REFUSED the update, so it still holds what it held before:"
+      say "  ${update_out}"
+    fi
+    while IFS= read -r other; do
+      if [ -n "$other" ]; then
+        say "  another provider carries this stack's name, left by an earlier SMTP_HOST:"
+        say "    ${other} — remove it in the console"
+      fi
+    done <<<"$(jq -r --arg id "$SMTP_ID" '.[] | select(.id != $id) | "\(.id) at \(.smtp.host)"' <<<"$MINE")"
   else
     say "adding it"
     # `/email/smtp`, not `/smtp`: the latter is marked deprecated in this
     # version's admin.proto in favour of the email-provider endpoints.
-    # The description names the stack, so the provider's console says which
-    # stack's relay this is. It is a label only: the provider is found by its
-    # host above, so an older one described otherwise is still found.
+    # The description names the stack: the provider's console says which
+    # stack's relay this is, and the next run finds it by that name above.
     CREATED="$(api POST /admin/v1/email/smtp "$(jq -nc \
-      --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "${SMTP_TLS:-false}" \
+      --arg from "$SMTP_SENDER" --arg host "$SMTP_ADDR" --argjson tls "$SMTP_TLS" \
       --arg user "$SMTP_AUTH_USER" --arg pw "$SMTP_AUTH_PASSWORD" --arg stack "$COMPOSE_PROJECT" '{
         senderAddress: $from,
         senderName: "Ownpace",

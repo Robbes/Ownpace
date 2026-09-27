@@ -31,7 +31,8 @@ Operational how-tos already live at the docs root: the runbooks (`operator-runbo
 `cutover-runbook.md`, `selfhost-quickstart.md`, `managed-bring-up.md` (standing the
 managed edition up on a new machine — the executable half is
 `deploy/compose/bootstrap-managed.sh`), `windows-appliance-runbook.md`,
-`release.md`, `test-tenant.md`, `TROUBLESHOOTING.md`), connector guides
+`release.md`, `test-tenant.md`, `TROUBLESHOOTING.md`, `breach-procedure.md` (what the
+operator does when a tester's personal data may have leaked)), connector guides
 (`dav-sync.md` — CalDAV, CardDAV and WebDAV in one), `o365-setup.md`,
 `o365-application-access.md` (the admin-consent + Application Access Policy steps
 that let the source read a mailbox other than the signed-in user's) and
