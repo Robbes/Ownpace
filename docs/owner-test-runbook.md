@@ -442,16 +442,18 @@ one of them.
    ([`grant-links.md`](./grant-links.md), *Issuing one*).
    - Open it in a private window, press *Doorgaan met Google*, and at Google sign in with the
      second Google account (*Before you start*).
-     **Expect:** it is refused. The page after Google names both addresses and says *"Nothing
-     was stored, and your link still works."* If Google's own screen stops the account first, it
-     is not on the test-user list: add it and try again. That is not a result for this step.
+     **Expect:** it is refused. The page after Google names both addresses and says *"Er is
+     niets opgeslagen, en uw link werkt nog."* / *"Nothing was stored, and your link still
+     works."* If Google's own screen stops the account first, it is not on the test-user list:
+     add it and try again. That is not a result for this step.
    - Open it again and sign in as A. **Expect:** it is accepted.
-   - Open it a third time. **Expect:** it cannot be used. The grant page says *"This link cannot
-     be used. It may have been used already, …"*, and on the migration page the link reads *"Op …
-     is toegang gegeven. Deze link is verbruikt."*
+   - Open it a third time. **Expect:** it cannot be used. The grant page says *"Deze link kan
+     niet worden gebruikt. Misschien is hij al gebruikt, …"* / *"This link cannot be used. It may
+     have been used already, …"*, and on the migration page the link reads *"Op … is toegang
+     gegeven. Deze link is verbruikt."*
 
-   That refusal and the page after Google are English on `main`, even for A. 0145 T6 puts them
-   in the reader's language. Write down the language each came in.
+   Since #1208 (0145 T6), that refusal and the page after Google come in the language the grant
+   page was in. Write down the language each came in.
 7. **Report a problem.** Look in the menu for *Een probleem melden* / *Report a problem*.
    **Expect:** where live has a helpdesk (0130), the menu has it. Open it, describe anything, and
    press *Melding versturen* / *Send the report*. The page answers *"Verstuurd. Uw melding heeft
@@ -518,7 +520,7 @@ partly there:
 | T1, the phone menu takes focus and gives it back | 3 | Yes, since #1169 (`Layout.tsx`) |
 | T3 (a), each wizard step starts at the top and says which it is | 5 | Yes, since #1206 (`CreateMapping.tsx`, `Layout.tsx`) |
 | T5 with T7 (a), the consent window opens on the press, and a greyed-out button says why | 4 | No |
-| T6, the grant page and the consent endings in one language | 6 | No |
+| T6, the grant page and the consent endings in one language | 6 | Yes, since #1208 |
 
 A step whose task is not in live's release is recorded as *not in this release*, not as a
 failure.

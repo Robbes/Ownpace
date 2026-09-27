@@ -208,7 +208,10 @@ describe('the second fact the screen could not see (ADR-0041, owner decision 202
     // the value. One pair for both providers' consents.
     const wizard = read(WIZARD);
     const consent = wizard.slice(wizard.indexOf('const startConsent'));
-    expect(consent).toContain('mappingApi.dropboxAuthorize(ownClientPair)');
+    // The page's language rides beside the pair since workplan 0145 T6, so
+    // the ending after the provider is in it; the pair itself is still
+    // spread whole, never rebuilt field by field.
+    expect(consent).toContain('mappingApi.dropboxAuthorize({ ...ownClientPair, locale })');
     expect(consent).toContain('...ownClientPair');
     expect(consent.slice(0, consent.indexOf('mappingApi.googleAuthorize('))).not.toContain(
       'clientId: formData.sourceClientId,',

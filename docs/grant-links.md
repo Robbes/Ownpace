@@ -113,6 +113,14 @@ also allows changes. When the link asked only for Drive or Tasks and Google's an
 more, because the same account had already given the same app a broader permission, the page
 says that too.
 
+**In English or Dutch, as they choose** (workplan 0145 T6). The page opens in their browser's
+language and has two buttons, EN and NL, in its top corner; the progress page has the same two.
+What will be read, the refusals of the link and of the migration, and the page after Google are
+in that language. Taking the access back and reporting the link still answer in English for now
+(workplan 0145 T6). The page after Google follows the language the grant page was in when they
+pressed the button. It asks them to keep their progress link, by a bookmark or a copy, because a
+page opened inside another app may not keep a bookmark.
+
 ### Only the account the page names
 
 The account the page shows under **From** is a condition, not a label. Google tells Ownpace

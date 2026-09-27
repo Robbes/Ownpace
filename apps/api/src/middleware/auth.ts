@@ -20,12 +20,11 @@ import {
   withSubjectAndTenant as ledgerWithSubjectAndTenant,
   tenant as tenantTable,
   verifyMappingLink,
-  MAPPING_LINK_REFUSAL,
   type LedgerDriver,
   type PgDatabase,
 } from '@openmig/ledger';
 import { platformOperator, tenantMember } from '@openmig/managed/schema-managed';
-import { log } from '@openmig/shared';
+import { LINK_CHECK_UNAVAILABLE, LINK_REFUSAL, log } from '@openmig/shared';
 import { serverFault } from '../server-fault.ts';
 
 export interface JwtPayload {
@@ -1144,8 +1143,14 @@ export function authenticateMappingLink(
     // 401, not 403: this is "we do not accept this credential", which is
     // exactly what the status means. There is nothing to log in to, so no
     // WWW-Authenticate challenge is offered.
+    //
+    // The Dutch half rides beside the English one (workplan 0145 T6), and the
+    // page shows the one in its own language: the reader of a link has no
+    // account, so no setting of theirs could choose it here.
     const refuse = () =>
-      void res.status(401).json({ error: 'link_unusable', message: MAPPING_LINK_REFUSAL });
+      void res
+        .status(401)
+        .json({ error: 'link_unusable', message: LINK_REFUSAL.en, messageNl: LINK_REFUSAL.nl });
 
     const token = req.params.link;
     if (typeof token !== 'string' || token.length === 0) return refuse();
@@ -1160,9 +1165,8 @@ export function authenticateMappingLink(
       log.error('[mapping-link] verification failed', error);
       return void res.status(503).json({
         error: 'link_check_unavailable',
-        message:
-          'We could not check this link just now. Nothing is wrong with it as far as we know — ' +
-          'please try again in a moment.',
+        message: LINK_CHECK_UNAVAILABLE.en,
+        messageNl: LINK_CHECK_UNAVAILABLE.nl,
       });
     }
 

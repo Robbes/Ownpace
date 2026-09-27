@@ -1211,14 +1211,16 @@ const CreateMapping: React.FC = () => {
       // anything that was not Dropbox — so a third provider would not have
       // failed to compile, it would have asked the wrong company for a consent
       // and reported success.
+      // Each ask names the page's language, so the ending the provider sends
+      // the person back to is in it too (workplan 0145 T6).
       const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
-        dropbox: () => mappingApi.dropboxAuthorize(ownClientPair),
+        dropbox: () => mappingApi.dropboxAuthorize({ ...ownClientPair, locale }),
         microsoft: () =>
-          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair }),
+          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair, locale }),
         google: () =>
           mappingApi.googleAuthorize(
             isGoogleAccountSource
-              ? { domains: formData.domains, ...ownClientPair }
+              ? { domains: formData.domains, ...ownClientPair, locale }
               : {
                   sourceType: formData.sourceType as
                     | 'gmail'
@@ -1226,6 +1228,7 @@ const CreateMapping: React.FC = () => {
                     | 'google-contacts'
                     | 'google-drive',
                   ...ownClientPair,
+                  locale,
                 },
           ),
       };
