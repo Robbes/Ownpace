@@ -1,10 +1,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { LogIn } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store.ts';
-import { useT } from '../i18n/index.tsx';
+import { useLocale } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 import { fetchAuthMode, type AuthMode } from '../services/auth-mode.ts';
 import { fetchMe } from '../services/session.ts';
@@ -66,7 +66,7 @@ export function decodeTokenClaims(token: string): TokenClaims | null {
  * API call, where it is signature-verified server-side.
  */
 const Login: React.FC = () => {
-  const t = useT();
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
   const loginToStore = useAuthStore((s) => s.login);
   const [token, setToken] = useState('');
@@ -311,6 +311,33 @@ const Login: React.FC = () => {
                 {oidcError !== null && (
                   <p role="alert" className="text-sm text-red-600">
                     {oidcError}
+                  </p>
+                )}
+                {/* A DOOR FOR SOMEBODY WITHOUT AN ACCOUNT (workplan 0144 T7).
+                    Before this, the only way from the app to the request page
+                    was the callback page, after a sign-in that worked and found
+                    no organisation. It carries the reader's language, which the
+                    request page reads, so the request and its answer are in it.
+                    Only here, under the button: a granted request is taken up
+                    at the first sign-in only when the issuer verified the
+                    address (`claimRequestedMembership`), so a stack without an
+                    issuer has nowhere to lead. That is the API's issuer, not
+                    the bundle's: `acceptsSeedToken: false` is the API saying it
+                    has one, the same reading as `login.providerNotBuilt` below.
+                    Where the bundle has an issuer and the API has none, the
+                    button is drawn and nothing verifies what the issuer says
+                    about the address, so there is no link. And only on managed,
+                    by the route table: `/login` and `/request-access` are both
+                    `ManagedOnly` in AppRoutes.
+                    Guarded by a-door-from-the-sign-in-page.unit.test.tsx. */}
+                {!authMode.acceptsSeedToken && (
+                  <p className="text-center text-sm">
+                    <Link
+                      to={`/request-access?locale=${locale}`}
+                      className="text-blue-600 hover:text-blue-500"
+                    >
+                      {t('login.requestAccess')}
+                    </Link>
                   </p>
                 )}
               </div>
