@@ -48,7 +48,7 @@ import {
   type QualificationReason,
 } from '@openmig/shared';
 import { whatHappened } from '@openmig/shared';
-import type { DiscoveryDomain, ProbeUnit, WhatHappened } from '@openmig/shared';
+import type { DiscoveryDomain, ProbeUnit, WhatHappened, WhatHappenedAnswer } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
 import { davEndpointFromCreds, davUrlIsTyped, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
@@ -126,11 +126,13 @@ export interface QualifiedDomain {
    * WHAT HAPPENED, IN PARTS, on a face that was refused at an address the
    * tester typed (workplan 0136 T3): the server's status and its words only
    * when they came as an error document we know, or a socket failure by its
-   * category. `detail` holds the full text, the remote's bytes included; the
-   * managed API rewrites `detail` from this and drops the field before the
-   * record is stored or returned. Absent on every other face.
+   * category. Here `detail` holds the full text, the remote's bytes included.
+   * The managed API rewrites `detail` from these parts, adds the reference the
+   * full text is logged under, and keeps them on the record it stores and
+   * returns, so a screen says them in its reader's language. Absent on every
+   * other face.
    */
-  readonly said?: WhatHappened;
+  readonly said?: WhatHappenedAnswer;
 }
 
 /** A face's volume, as data — a screen words and formats it. */

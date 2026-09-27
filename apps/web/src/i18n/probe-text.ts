@@ -32,6 +32,7 @@ import {
   type QualificationKey,
   type QualificationReason,
   type RefusalLocale,
+  type WhatHappenedAnswer,
   reasonEarnsASentence,
 } from '@openmig/shared';
 import type { StringKey } from './strings.ts';
@@ -69,6 +70,12 @@ interface QualifiedFace {
     readonly unreadable?: number;
     readonly failed?: string;
   };
+  /**
+   * What happened at an address the tester typed, in parts, with the
+   * reference the full text is under (0136 T3). `detail` is the server's
+   * English for the same thing; `saidText` says it in the reader's language.
+   */
+  readonly said?: WhatHappenedAnswer;
 }
 
 /**
@@ -116,6 +123,56 @@ function unitWord(t: Translate, unit: ProbeUnit, count: number): string {
   return t(`probe.unit.${unit}.${suffix}` as StringKey);
 }
 
+/** A sentence ends with a stop, so the reference after it reads as its own. */
+function stopped(sentence: string): string {
+  return /[.!?…]$/.test(sentence) ? sentence : `${sentence}.`;
+}
+
+/**
+ * WHAT HAPPENED AT AN ADDRESS THE TESTER TYPED, in the reader's language
+ * (workplan 0136 T3).
+ *
+ * The managed API answers a Test at a typed address from its parts: a status,
+ * a server's own words only when they came as an error document we know, or
+ * what kind of failure it was. It keeps the parts beside its English sentence,
+ * with the reference that finds the full text in its log, and this says the
+ * same thing in the reader's language. The server's words stay as they came
+ * (rule 9); the sentence around them is ours.
+ *
+ * Null without a reference: the parts are then not an answer of the managed
+ * API's (the appliance, whose owner reads the full text, or a record stored
+ * before), and the caller shows the text it has, as before.
+ */
+export function saidText(t: Translate, said: WhatHappenedAnswer | undefined): string | null {
+  if (!said?.reference) return null;
+  const sentence = ((): string => {
+    switch (said.kind) {
+      case 'answered': {
+        const who = said.protocol === 'imap' ? t('probe.said.mailServer') : t('probe.said.server');
+        if (said.providerWords !== undefined) {
+          return stopped(
+            said.status === undefined
+              ? t('probe.said.answeredWordsNoStatus', { who, words: said.providerWords })
+              : t('probe.said.answeredWords', { who, status: said.status, words: said.providerWords }),
+          );
+        }
+        return said.status === undefined
+          ? t('probe.said.answeredOtherNoStatus', { who })
+          : t('probe.said.answeredOther', { who, status: said.status });
+      }
+      case 'unreachable':
+        return t('probe.said.unreachable');
+      case 'certificate':
+        return t('probe.said.certificate');
+      case 'insideOurNetwork':
+        return t('probe.said.insideOurNetwork');
+      case 'unknown':
+        return t('probe.said.unknown');
+    }
+  })();
+  return `${sentence} ${t('probe.said.reference', { reference: said.reference })}`;
+}
+
 /**
  * The sentence to show for a probe result.
  *
@@ -128,7 +185,12 @@ export function probeText(
   outcome: ProbeOutcome | undefined,
   fallback: string,
   locale: RefusalLocale = 'en',
+  said?: WhatHappenedAnswer,
 ): string {
+  // An address the tester typed, answered from its parts (0136 T3): ours,
+  // whatever code the outcome carries, and said before the code is read.
+  const fromParts = saidText(t, said);
+  if (fromParts !== null) return fromParts;
   if (!outcome) return fallback;
   switch (outcome.code) {
     case 'connected':
@@ -257,7 +319,14 @@ export function qualificationEvidence(
     // A face that answered needs no explanation for not answering; only its
     // measure can still have failed, which the second arm covers.
     if (d.answer !== 'yes' && d.detail && reasonEarnsASentence(d.reason)) {
-      lines.push(`${t(faceLabel(domain))}: ${d.detail}`);
+      // Refused at an address the tester typed (0136 T3): said from its
+      // parts, in the reader's language, as the server's `detail` says it.
+      const fromParts = saidText(t, d.said);
+      const said =
+        fromParts === null
+          ? d.detail
+          : t('probe.said.unmeasured', { sentence: `${fromParts.charAt(0).toLowerCase()}${fromParts.slice(1)}` });
+      lines.push(`${t(faceLabel(domain))}: ${said}`);
     } else if (measures && d.volume?.failed) {
       lines.push(`${t(faceLabel(domain))} — ${t('probe.measured.failed')}: ${d.volume.failed}`);
     }
