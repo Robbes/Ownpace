@@ -27,6 +27,8 @@
  * of its runs and none of anybody else's.
  */
 
+// The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
+import './refuse-internal-addresses.ts';
 import { schedules } from '@trigger.dev/sdk';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';

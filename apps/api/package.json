@@ -9,6 +9,7 @@
     "operator:add": "node src/scripts/operator.ts add",
     "operator:check": "node src/scripts/operator.ts check",
     "operator:clean": "node src/scripts/operator.ts clean",
+    "operator:close": "node src/scripts/operator.ts close",
     "operator:leave": "node src/scripts/operator.ts leave",
     "operator:links": "node src/scripts/operator.ts links",
     "operator:list": "node src/scripts/operator.ts list",

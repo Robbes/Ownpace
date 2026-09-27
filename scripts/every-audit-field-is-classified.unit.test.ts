@@ -17,10 +17,10 @@
  * lines at its output: the API, the appliance, the worker, and every task file
  * that opens the database, because Trigger.dev runs each task run in a
  * container of its own, so each task is a process nothing else sets up. The
- * three commands an operator types at a terminal (the worker's cutover CLI,
- * `operator.sh leave` and `operator.sh links`) print no line: their output is
- * a terminal, not a stream a collector reads, and T4's download serves their
- * rows.
+ * four commands an operator types at a terminal (the worker's cutover CLI,
+ * `operator.sh leave`, `operator.sh links` and `operator.sh close`) print no
+ * line: their output is a terminal, not a stream a collector reads, and T4's
+ * download serves their rows.
  */
 
 import { describe, it, expect } from 'vitest';

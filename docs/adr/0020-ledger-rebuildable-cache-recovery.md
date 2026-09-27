@@ -1,6 +1,6 @@
 # ADR-0020: The ledger is a rebuildable cache — recovery via target reindex (natural-key adoption)
 
-- **Status:** Accepted
+- **Status:** Accepted — **amended 2026-09-27**: the operative rules say what is built. The reindex is the worker's command in both editions, run by hand; the appliance warns at start-up; nothing runs it automatically (workplan 0134 T3). See the amendment at the end.
 - **Date:** 2026-06-21
 - **Relates to:** ADR-0005 (idempotency via ledger, non-destructive), ADR-0015 (backup scope), ADR-0016 (ledger schema), ADR-0018 (JMAP/DAV targets).
 
@@ -12,7 +12,7 @@
 
 - The ledger is a **rebuildable cache + audit log**, never the source of truth for existence — that fact lives on the target via natural keys.
 - Writes are **create-if-absent by natural key** (target existence check beside the ledger fast-path); an empty ledger can never duplicate.
-- **Reindex/adopt** rehydrates the ledger from the target; auto-runs when the ledger is empty but the target is not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
+- **Reindex/adopt** rehydrates the ledger from the target. It is the worker's command in both editions (`reindex --tenant <t> --mapping <m> --yes`), run by hand, and nothing runs it automatically: the appliance warns at start-up when an active migration's ledger is empty, and the managed edition does not. Content-hash fallback for Message-ID-less items; cursors are non-authoritative; backups are the fast path, not the safety net.
 
 ## Context
 A self-host user can lose their install (disk failure, no backup) and **reinstall fresh with an empty ledger**, pointing at the same O365 source and the same target. If migration relied solely on the local ledger to know what was already migrated, a fresh install would re-copy everything and risk **duplicating** it on the target. Correctness must survive ledger loss.
@@ -41,3 +41,26 @@ Mark items we wrote with a **non-destructive, client-invisible target-side marke
 - **Ledger-only (rely on local state / backups):** rejected — a lost ledger would duplicate everything; backups alone are not a correctness guarantee.
 - **Always full re-copy and let the target dedupe:** rejected — most targets do not dedupe by Message-ID on `APPEND`/import, so this produces duplicates.
 - **Marker-only (no natural-key match):** rejected as the primary mechanism — fails for items migrated before the marker existed or by other tools; kept only as an optional optimization.
+
+## Amendment, 2026-09-27: what is built, not what was planned (workplan 0134 T3)
+
+Decision 3 said the reindex *"auto-runs when the ledger is empty but the target is non-empty
+(detected on startup)"*, and the operative rule repeated it. It was never built that way: 0026 T1
+item 5 built the command and a warning, not an automatic run.
+
+- The reindex is the worker's command-line tool, `reindex --tenant <t> --mapping <m> --yes` in
+  `apps/worker/src/cli/index.ts`, run on the host with the database URL and the key, in both
+  editions. No API route or screen offers it.
+- The appliance warns at start-up when an active migration has an empty ledger, and names the
+  command (`lostLedgerWarning` in `apps/selfhost/src/index.ts`).
+- The managed edition neither warns nor runs it.
+
+A lost ledger still duplicates nothing, because a pass adopts what the target already holds
+(decision 2). The operative rule above now says what is built. Decision 3 stays as written: an
+automatic run would be a later decision's to build.
+
+**The ledger is a rebuildable cache; the database it lives in is not.** On the managed edition the
+same database holds the organisations, their connections and stored credentials, the migrations
+and the audit log, and no target rebuilds those. The migration runner's downgrade refusal said
+*"nothing irreplaceable lives here"*. It now says that a database holding real data is restored
+from a backup, never dropped (`packages/ledger/src/migrate.ts`).

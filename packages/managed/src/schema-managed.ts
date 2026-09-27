@@ -492,3 +492,16 @@ export const platformPause = pgTable('platform_pause', {
     startedBy: text('started_by').notNull(),
     endedBy: text('ended_by'),
 });
+
+/**
+ * When each scheduled task last completed a run (workplan 0142 T2, managed
+ * migration 0030). The sync tick writes its row at the end of every run, over
+ * the owner connection; `GET /api/ready/scheduler` reads it as `app_user`,
+ * which may SELECT and nothing else. No row security, and no personal data:
+ * the migration says why where the table is created.
+ */
+export const syncTickBeat = pgTable('sync_tick_beat', {
+    /** The task's id, held to a name's shape by the migration's CHECK. */
+    task: text('task').primaryKey(),
+    beatAt: timestamp('beat_at', { withTimezone: true }).notNull(),
+});

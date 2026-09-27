@@ -1014,6 +1014,13 @@ services:
       # off, which is every deployment but the one testers use.
       # `scripts/an-alpha-both-halves-know-about.unit.test.ts`.
       OWNPACE_STAGE: ${OWNPACE_STAGE:-}
+      # THE RULE FOR A HOST A TENANT GIVES US (workplan 0136 T1, T2): the API
+      # refuses to connect to an address inside this service's own network, but
+      # for these exact names. The gate's stack names its demo targets
+      # (`nextcloud,stalwart`); live leaves it empty. set-task-env.sh uploads
+      # the same list to the tasks. A list the API cannot read stops its start.
+      # `scripts/a-rule-nothing-switched-on.unit.test.ts`.
+      OWNPACE_REACHABLE_HOSTS: ${OWNPACE_REACHABLE_HOSTS:-}
     ports:
       # It serves an unauthenticated `/metrics`, and the web app reaches it by
       # name, so API_BIND stays empty on a real box. See the header.

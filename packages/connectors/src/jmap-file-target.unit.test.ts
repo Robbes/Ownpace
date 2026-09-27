@@ -543,6 +543,63 @@ describe('upsertFile', () => {
   });
 });
 
+describe('a file too large to hold is refused in words a tester can act on (workplan 0143 T3a)', () => {
+  // A source hands over a file larger than `STREAM_FILES_LARGER_THAN_BYTES`
+  // as a stream (`body`), with no `content`. This target cannot write a stream
+  // yet (0143 T3b). It said "No content for …", which reads as an empty file,
+  // and told the tester nothing they could do.
+  const TWELVE_AND_A_BIT_MB = 13_002_342;
+  const streamed = (path: string, sizeBytes = TWELVE_AND_A_BIT_MB): RawFileItem => ({
+    item: {
+      path,
+      isDirectory: false,
+      size: sizeBytes,
+      modifiedAt: '2026-08-06T10:00:00.000Z',
+      mimeType: 'video/quicktime',
+      sourceRef: `/dav/files/${path}`,
+    },
+    body: {
+      sizeBytes,
+      open: async () => {
+        throw new Error('the body must not be read: this target cannot write it');
+      },
+    },
+  });
+  const SENTENCE =
+    'holiday.mov is 12.4 MB. A JMAP target cannot take a file larger than 8 MB yet. ' +
+    'Nothing was copied and nothing was changed; every other file continues. ' +
+    'A WebDAV target, such as Nextcloud, can take it.';
+
+  it('names the file, its size, the limit and where it can go, and writes nothing', async () => {
+    responders['FileNode/get'] = () => ({ list: [] });
+    responders['FileNode/set'] = () => {
+      throw new Error('nothing may be written for a file this target cannot take');
+    };
+
+    await expect(target().upsertFile('', streamed('holiday.mov'))).rejects.toThrow(SENTENCE);
+    expect(uploads).toHaveLength(0);
+    expect(calls.map((c) => c.method)).not.toContain('FileNode/set');
+  });
+
+  it('says the same when it would rewrite a copy already there', async () => {
+    responders['FileNode/get'] = treeResponder([fileNode('f1', 'holiday.mov', null)]);
+    responders['FileNode/set'] = () => {
+      throw new Error('a copy must not be blanked for a file this target cannot take');
+    };
+
+    await expect(
+      target().upsertFile('', streamed('holiday.mov'), { overwrite: true }),
+    ).rejects.toThrow(SENTENCE);
+    expect(uploads).toHaveLength(0);
+  });
+
+  it('still calls a file with neither bytes nor a body a file with no content', async () => {
+    responders['FileNode/get'] = () => ({ list: [] });
+    const { body: _none, ...nothing } = streamed('holiday.mov');
+    await expect(target().upsertFile('', nothing)).rejects.toThrow(/^No content for holiday\.mov/);
+  });
+});
+
 // =======================================================================
 // 5. Ownership: the rewrite and removal guards
 // =======================================================================
