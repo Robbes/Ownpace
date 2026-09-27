@@ -595,8 +595,9 @@ outside the list, and the audit row names the operator and the reference.
 procedure holds no secrets, so it belongs in the public repository. It covers:
 
 1. **Contain.** The operator hold (managed migration 0023) stops the sync tick from starting new
-   passes (`readOpenPause` in `managed-sync-tick.ts`). A pass a tester starts by hand is not
-   checked against it (0131 §1), so the page also says how to stop those. The nightly gate
+   passes (`readOpenPause` in `managed-sync-tick.ts`). Since 0132 T6 (b) (2026-09-27) a pass a
+   tester starts by hand is refused while it is open too (0131 §1). A pass already running
+   finishes, so the page also says how to stop those. The nightly gate
    rebuilds only the OTA stack and never touches live (0132 D-new, T1g), so it destroys no
    evidence on live. If a breach reaches the OTA stack too, pause the gate first, because a
    rebuild there destroys evidence.

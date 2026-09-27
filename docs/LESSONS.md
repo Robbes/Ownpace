@@ -89,6 +89,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/api/src/enqueue-unless-held.ts`
+
+- [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+
 ### `apps/api/src/index.ts`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
@@ -2453,6 +2457,7 @@ A verify that measured a race, and reported the race as a result.
 
 Reads:
 
+- `apps/api/src/enqueue-unless-held.ts`
 - `apps/api/src/routes/migrations/index.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `deploy/compose/seed-demo-dav-content.sh`

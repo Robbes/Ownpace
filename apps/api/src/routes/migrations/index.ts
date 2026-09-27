@@ -48,7 +48,7 @@ import {
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
-import { getTriggerClient } from '@openmig/scheduler';
+import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
 import type {
   GoogleNativeFilePolicy,
   MappingId,
@@ -3095,10 +3095,14 @@ router.post(
         return;
       }
 
+      // An operator hold stops this press as it stops the tick (0132 T6 (b)).
+      const enqueue = await enqueueUnlessHeld(res, tenantId, pool);
+      if (!enqueue) return;
+
       // Enqueue the real Trigger.dev task with an id-only, tenant-scoped payload
       // (the mapping was just verified to belong to this tenant above).
       const { taskId, payload } = resolveSyncJob(tenantId, mappingId, body);
-      const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+      const run = await enqueue(taskId, payload, {
         // One running pass per mapping: the partition run-delta-sync's queue
         // relies on, and the one the sync tick and /start set. Without it this
         // run lands on the base `delta-sync` queue (limit 1, shared by every
@@ -3246,9 +3250,14 @@ router.post(
               revokesApproval: decision.from === 'APPROVED',
             };
 
+      // After every refusal of the ledger's own, which still stand once a hold
+      // is lifted: then the operator hold (0132 T6 (b)).
+      const enqueue = await enqueueUnlessHeld(res, tenantId, pool);
+      if (!enqueue) return;
+
       // Enqueue the real Trigger.dev cutover task (id-only, tenant-scoped payload).
       const { taskId, payload } = resolveCutoverJob(tenantId, mappingId, body);
-      const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+      const run = await enqueue(taskId, payload, {
         tags: [`tenant:${tenantId}`, `mapping:${mappingId}`, 'type:cutover'],
       });
 
@@ -3418,9 +3427,11 @@ router.post('/:mappingId/discover', authenticate, async (req: AuthenticatedReque
     // `run-delta-sync`. See `resolveDiscoveryJob` for the Email row that
     // naming all five here put on a migration whose owner had switched mail
     // off, and what it said.
+    const enqueue = await enqueueUnlessHeld(res, tenantId, getSharedPool());
+    if (!enqueue) return;
     const { taskId, payload } = resolveDiscoveryJob(tenantId, mappingId, body);
     // One count per migration, and a reload joins it: see the function.
-    const run = await getTriggerClient().tasks.trigger(
+    const run = await enqueue(
       taskId,
       payload,
       discoveryTriggerOptions(tenantId, mappingId, {
@@ -3548,6 +3559,13 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     }
 
     const activated = mapping.status !== 'active';
+    // Activating runs the first pass, which an operator hold stops, so the
+    // hold is asked BEFORE the migration is activated: a held press changes
+    // nothing, rather than leaving an active migration whose first pass was
+    // refused (0132 T6 (b)). A second press on an active migration enqueues
+    // nothing and is not asked.
+    const enqueue = activated ? await enqueueUnlessHeld(res, tenantId, getSharedPool()) : undefined;
+    if (enqueue === null) return;
     if (activated) {
       await withTenantDb(tenantId, getSharedPool(), async (db) => {
         await db
@@ -3577,14 +3595,15 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     // rides back on the answer to the request that caused it, which is the
     // same shape every other enqueue call site here uses.
     let firstRun: { queued: true; runId: string } | { queued: false; reason: string } | undefined;
-    if (activated) {
+    // `enqueue` is there exactly when `activated` is.
+    if (enqueue) {
       // No `domains`: `run-delta-sync` resolves the mapping's own
       // scope_selection when the payload omits them, which is the one place
       // that decision belongs. Naming them here would let a stale copy of the
       // scope sync a domain the owner had switched off.
       const { taskId, payload } = resolveSyncJob(tenantId, mappingId, {});
       try {
-        const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+        const run = await enqueue(taskId, payload, {
           tags: [`tenant:${tenantId}`, `mapping:${mappingId}`],
           concurrencyKey: mappingId,
         });

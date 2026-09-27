@@ -593,10 +593,10 @@ do. For example:
    not have been; something in the wrong place or the wrong organisation; or a credential.
 3. **Stop it spreading.** If other testers could be touched, or anything could be removed, start
    the hold on live with a Dutch sentence. It stops scheduled passes and is shown to every
-   signed-in tester. It does not stop a pass started by hand (0132 T6 proposes that it should). So
-   ask the affected tester to pause the migration (*Pauzeren*, *Pause* in English, on the
-   migrations list or the migration's page) and not to press *Synchroniseer nu* (*Trigger sync*)
-   until told. If one organisation's migrations have to stop at once, use 0143 T2d's step, which
+   signed-in tester. Since 0132 T6 (b) (2026-09-27) it also refuses a pass started by hand, until
+   it is lifted. So that nothing starts again when it is lifted, ask the affected tester to pause
+   the migration (*Pauzeren*, *Pause* in English, on the migrations list or the migration's page)
+   and not to press *Synchroniseer nu* (*Trigger sync*) until told. If one organisation's migrations have to stop at once, use 0143 T2d's step, which
    this runbook carries: as the database owner, write down the id and state of each of its
    migrations in a state that runs passes (`active` or `continuous`), then move each by the
    lifecycle's own table, an `active` one to `paused` and a `continuous` one to `cutover`. Never a

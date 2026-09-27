@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import type { LedgerDriver } from '@openmig/ledger';
 
 // UUID family 5c0a2409-…, unused elsewhere in the repo.
@@ -76,6 +77,9 @@ async function sql(text: string, params: unknown[] = []): Promise<void> {
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: every door that enqueues asks the operator hold
+  // first, and `platform_pause` is a managed table (0132 T6 (b)).
+  await runManagedMigrations({ driver, logger: () => {} });
   await sql('INSERT INTO tenant (id, name) VALUES ($1,$2)', [TENANT, 'sync now']);
   await sql(
     `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
