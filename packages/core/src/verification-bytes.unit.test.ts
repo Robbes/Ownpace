@@ -34,6 +34,9 @@ function baseDeps(overrides: Partial<VerificationDeps> = {}): VerificationDeps {
     getTargetCount: async () => 10,
     getSourceSamples: async () => [],
     getTargetSamples: async () => [],
+    // No hasher, as its empty samples say: these tests are about bytes, and
+    // the content leg the owner's D2 holds is not what they measure (0149 T4).
+    targetCanHash: () => false,
     findMissingOnTarget: async () => [],
     findExtraOnTarget: async () => [],
     getTotalBytesSource: async () => 1234,

@@ -64,6 +64,9 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps {
     getTargetCount: async () => 0,
     getSourceSamples: async () => [],
     getTargetSamples: async () => [],
+    // No hasher, as its empty samples say: what these tests measure is a
+    // domain with nothing recorded, not the content leg (0149 T4).
+    targetCanHash: () => false,
     findMissingOnTarget: async () => [],
     findExtraOnTarget: async () => [],
     getTotalBytesSource: async () => 0,

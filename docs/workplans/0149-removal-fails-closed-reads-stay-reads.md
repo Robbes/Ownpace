@@ -2,7 +2,42 @@
 
 > **In one line:** Apply deletions fails closed: CalDAV, CardDAV or WebDAV 412 on create recorded as adopted, failed lookups throw, removal needs a recorded version and `If-Match`, cutover gate fails with no hash compared, IMAP source uses EXAMINE.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T4 built (0131 §6, group M1, step 3), beside T1 to T3 and in its own pull
+request.** The cutover gate holds when a target that can hash compared nothing (D2, 0009's option
+1):
+
+- **The rule.** `VerificationDeps` has a required `targetCanHash(dataType)`, which
+  `createRealVerificationDeps` answers from whether the domain's reindexer offers
+  `contentHashFor`. A domain whose target can hash, from which not one sampled item came back
+  with a hash, is FAIL, with the ERROR issue `CHECKSUM_NOT_COMPARED_<domain>` in §3's words. Its
+  checksum ratio scores 0, not 1, and its recommendation says to check the connection and verify
+  again. A hash of another fingerprint version counts as an answer, so an upgrade during a
+  migration does not hold the gate.
+- **Also held:** nothing sampled at all from such a target. `CHECKSUM_NOT_SAMPLED_*` is then an
+  ERROR that says the cutover is held. From a target that cannot hash it stays a warning.
+- **Unchanged:** a target with no way to hash (JMAP contacts), whose counts still open the gate
+  with `CHECKSUM_UNAVAILABLE_*` beside them; a domain where some samples were compared; and
+  `contentEvidence`. The report's shape does not change: the held fact reaches the score and the
+  recommendations beside it, not in it.
+- **The pinned test changed because the owner decided.** It is now *"a target that cannot hash
+  (JMAP contacts) still opens the gate on counts"*, with its assertions as they were and its
+  comment saying D2. Beside it: a target that can hash and answered nothing holds the gate (it
+  fails on `main`), and a hash of another version does not. `verification-sample-size`'s case
+  for nothing sampled changes with it, and gains the warning's case for a target that cannot
+  hash. Four hand-built fixtures with empty samples say their target has no hasher.
+- **Words:** the comments in `verification-report.ts`, `Verify.tsx` and `Verify.unit.test.tsx`,
+  the cutover runbook's gate paragraph, and 0009's Status, its T13 row and its section headed
+  T9, which now record both decisions.
+- **Proved.** The held case fails on `main` and passes here, as does the sample-size case for
+  nothing sampled; the cases for what stays the same pass on both. **Mutations:** 14, all killed:
+  whether a target can hash, in core and in `createRealVerificationDeps`; what counts as an
+  answer; and each consequence of a hold, which are the FAIL, the score, the issue, the warning it
+  replaces, the severity and words for nothing sampled, and the recommendation.
+- **Not run here:** the appliance nightly, which asserts `canProceedToCutover`. After T4 a night
+  on which a target that can hash compares nothing goes red, which is the signal the owner asked
+  for.
 
 **2026-09-24, later: the owner answered open questions 1 and 2.** *"1) 0159, gate answer: a"*
 confirms D2's reading, 0009's option 1. There is no plan 0159, so "0159" is read as 0149.
@@ -49,7 +84,7 @@ OTA stack and the appliances.
 | T1 A 412 on create is an adoption, in all three DAV writers | 📋 **Decided** (D1) | §3. CalDAV, CardDAV, and WebDAV with its streamed twin. The row is `adopted`, and it is never rewritten or removed as Ownpace's. The JMAP mail writer is the model. A guard fails without it. **Alpha minimum.** |
 | T2 A lookup that fails is not an absence | 📋 **Decided** (D1) | §3. The per-item CalDAV REPORT, CardDAV REPORT and WebDAV PROPFIND answer 207 or 404, or they throw (hard rule 9). They go through the retry helper, as the writes do. **Alpha minimum.** |
 | T3 Removal and rewrite carry the version, and removal refuses without one | 📋 **Decided** (D1 for removal, D3 for a rewrite) | §3. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
-| T4 The cutover gate holds when nothing was compared | 📋 **Decided** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. **Alpha minimum.** |
+| T4 The cutover gate holds when nothing was compared | ✅ **Built 2026-09-27** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. Guard: the held case beside the pinned test in `verification-bytes-and-checksums.unit.test.ts`. **Alpha minimum.** |
 | T5 The IMAP source opens folders read-only, and no source can write | 📋 **Proposed** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
 | T6 The words become true | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` and 0144 T4 and T5 once T1 to T3 have landed. This is coordination with 0144, which owns the wording. **After** T3. |
 | T7 Ledgers written before the fix | 📋 **Proposed** | §3. A row recorded `copied` after a 412 cannot be told apart from other rows without a version. The rule is T3's, with D3: no recorded version, no removal, and a source change rewrites the row. `ownpace-live` has none of these rows if the alpha tag carries T1. **After**, for the OTA stack and the appliances. |
