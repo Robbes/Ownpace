@@ -90,7 +90,7 @@ import type {
   NotificationLocale,
 } from '@openmig/shared';
 import { authenticate, getDbPool, requireRole, withTenantDb } from '../../middleware/auth.ts';
-import { getTriggerClient } from '@openmig/scheduler';
+import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
 import { resolveConfirmationJob } from './job-resolution.ts';
 import {
   announceByHandShares,
@@ -1200,6 +1200,11 @@ router.post('/:mappingId/verify/start', authenticate, async (req: AuthenticatedR
       return void res.status(200).json(body);
     }
 
+    // Asked before the row is opened: a held press must not leave a row
+    // saying `running` with no scan behind it (0132 T6 (b)).
+    const enqueue = await enqueueUnlessHeld(res, s.tenantId, pool());
+    if (!enqueue) return;
+
     const inserted = await withTenantDb(s.tenantId, pool(), (db) =>
       db
         .insert(schema.verificationRun)
@@ -1209,7 +1214,7 @@ router.post('/:mappingId/verify/start', authenticate, async (req: AuthenticatedR
     const run = inserted[0]!;
 
     try {
-      await getTriggerClient().tasks.trigger(
+      await enqueue(
         'run-verification',
         { tenantId: s.tenantId, mappingId: s.mappingId, runId: run.id },
         { tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`] },
@@ -1433,10 +1438,15 @@ router.post(
         return void res.status(status).json({ error: verdict.code, reason: verdict.reason });
       }
 
+      // Asked before the receipt and the record of who ordered it are
+      // written: a held press orders nothing (0132 T6 (b)).
+      const enqueue = await enqueueUnlessHeld(res, s.tenantId, pool());
+      if (!enqueue) return;
+
       const receipt = await queueApply(s, req.userId ?? 'unknown', hash, 'deletion');
 
       try {
-        await getTriggerClient().tasks.trigger(
+        await enqueue(
           'run-apply-deletion',
           { tenantId: s.tenantId, mappingId: s.mappingId, naturalKeyHash: hash, receiptId: receipt.id },
           { tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`] },
@@ -1563,10 +1573,14 @@ router.post(
         return void res.status(status).json({ error: verdict.code, reason: verdict.reason });
       }
 
+      // As the deletion's: asked before anything is written (0132 T6 (b)).
+      const enqueue = await enqueueUnlessHeld(res, s.tenantId, pool());
+      if (!enqueue) return;
+
       const receipt = await queueApply(s, req.userId ?? 'unknown', hash, 'relocation');
 
       try {
-        await getTriggerClient().tasks.trigger(
+        await enqueue(
           'run-apply-relocation',
           { tenantId: s.tenantId, mappingId: s.mappingId, naturalKeyHash: hash, receiptId: receipt.id },
           { tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`] },
@@ -1761,9 +1775,12 @@ router.post('/:mappingId/confirm', authenticate, async (req: AuthenticatedReques
       return void res.status(200).json(joined);
     }
 
+    const enqueue = await enqueueUnlessHeld(res, s.tenantId, pool());
+    if (!enqueue) return;
+
     try {
       const { taskId, payload } = resolveConfirmationJob(s.tenantId, s.mappingId);
-      const run = await getTriggerClient().tasks.trigger(taskId, payload, {
+      const run = await enqueue(taskId, payload, {
         tags: [`tenant:${s.tenantId}`, `mapping:${s.mappingId}`],
         concurrencyKey: `confirm:${s.mappingId}`,
       });

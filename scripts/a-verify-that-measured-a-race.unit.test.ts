@@ -74,6 +74,8 @@ const SMOKE_PATH = 'deploy/compose/smoke-managed.sh';
 const SEEDER_PATH = 'deploy/compose/seed-demo-dav-content.sh';
 const WORKER_PATH = 'apps/worker/src/jobs/run-delta-sync.ts';
 const ROUTE_PATH = 'apps/api/src/routes/migrations/index.ts';
+/** The one function every enqueue in the API goes through (workplan 0132 T6 (b)). */
+const ENQUEUE_PATH = 'apps/api/src/enqueue-unless-held.ts';
 
 const smoke = read(SMOKE_PATH);
 const seeder = read(SEEDER_PATH);
@@ -257,7 +259,10 @@ describe('it waits for the pass, rather than enqueuing and hoping', () => {
     // worker writes THAT id onto the ledger row it opens. Either half going
     // quiet would leave a poll matching nothing until its budget ran out —
     // every run, silently, and reported as "still running".
-    expect(syncRoute).toContain('tasks.trigger(');
+    // The route's `run` is what the one enqueue hands back, and that is the
+    // SDK's own trigger: the orchestrator's run handle, not a copy of it.
+    expect(syncRoute).toContain('const run = await enqueue(');
+    expect(read(ENQUEUE_PATH)).toContain('getTriggerClient().tasks.trigger(');
     expect(syncRoute).toContain('runId: run.id');
     expect(startRunCall).toContain('orchestratorRef');
     expect(syncCode).toContain(".runId // empty");

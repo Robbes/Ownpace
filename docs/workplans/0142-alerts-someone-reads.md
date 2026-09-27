@@ -206,7 +206,8 @@ aware"* of a breach (`site/legal/dpa.md` §7). 0139 T8 proposes the breach proce
 What exists is the hold. *"While the hold is on, every signed-in customer sees a note at the top
 of every screen with your sentence on it"*, and *"Every hold is kept, with who started it, who
 lifted it and what it said"* (`docs/managed-bring-up.md`, *Draining first, and telling customers
-why*). The hold stops the tick only. A pass a tester starts by hand is not held (0132 §1).
+why*). The hold stopped the tick only. A pass a tester started by hand was not held (0132 §1).
+Since 0132 T6 (b) (2026-09-27) it is refused while the hold is open (`enqueueUnlessHeld`).
 
 ## 2. The owner's decisions (2026-09-24)
 
@@ -593,10 +594,10 @@ do. For example:
    not have been; something in the wrong place or the wrong organisation; or a credential.
 3. **Stop it spreading.** If other testers could be touched, or anything could be removed, start
    the hold on live with a Dutch sentence. It stops scheduled passes and is shown to every
-   signed-in tester. It does not stop a pass started by hand (0132 T6 proposes that it should). So
-   ask the affected tester to pause the migration (*Pauzeren*, *Pause* in English, on the
-   migrations list or the migration's page) and not to press *Synchroniseer nu* (*Trigger sync*)
-   until told. If one organisation's migrations have to stop at once, use 0143 T2d's step, which
+   signed-in tester. Since 0132 T6 (b) (2026-09-27) it also refuses a pass started by hand, until
+   it is lifted. So that nothing starts again when it is lifted, ask the affected tester to pause
+   the migration (*Pauzeren*, *Pause* in English, on the migrations list or the migration's page)
+   and not to press *Synchroniseer nu* (*Trigger sync*) until told. If one organisation's migrations have to stop at once, use 0143 T2d's step, which
    this runbook carries: as the database owner, write down the id and state of each of its
    migrations in a state that runs passes (`active` or `continuous`), then move each by the
    lifecycle's own table, an `active` one to `paused` and a `continuous` one to `cutover`. Never a
