@@ -85,7 +85,12 @@ describe("a pass that could not read what it needs for moves and deletions", () 
     ]);
     const lines = said.mock.calls.map((c) => c.join(' ')).join('\n');
     expect(lines).toContain(`[ref ${events[0]!.reference}]`);
-    expect(JSON.stringify(events)).not.toContain('503');
+    // The error's own words stay in the container's output. The reference is
+    // eight random hex digits, which can hold "503" by chance, so it is
+    // checked by its form and left out of the search.
+    const { reference, ...rest } = events[0]!;
+    expect(reference).toMatch(/^[0-9a-f]{8}$/);
+    expect(JSON.stringify(rest)).not.toContain('503');
   });
 
   it('records nothing when both could be read', async () => {
