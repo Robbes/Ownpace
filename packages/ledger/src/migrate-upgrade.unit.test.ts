@@ -212,13 +212,14 @@ async function indexFingerprint(driver: LedgerDriver): Promise<string> {
  *
  * ## What an operator does instead
  *
- * Nothing, or recreate the database — the same remedy `migrate.ts`'s downgrade
- * guard already prescribes for a squash, for the same reason: **the ledger is a
- * rebuildable cache (ADR-0020), and a pre-release schema break is fixed by
- * dropping it, not by migrating through it.** Left alone, the leftovers are
- * four empty tables an appliance never reads. `v0.1.0-rc.1` is a release
- * CANDIDATE with no known installs, which is what makes that acceptable — and
- * what would make the same shrug unacceptable after a real release.
+ * Nothing, or recreate the appliance's database: **its ledger is a rebuildable
+ * cache (ADR-0020), and a pre-release schema break is fixed by dropping it, not
+ * by migrating through it.** `migrate.ts`'s downgrade guard no longer advises a
+ * drop for a squash (workplan 0134 T3): a managed database holds organisations
+ * and credentials beside the ledger, which no target rebuilds. Left alone, the
+ * leftovers are four empty tables an appliance never reads. `v0.1.0-rc.1` is a
+ * release CANDIDATE with no known installs, which is what makes that acceptable
+ * — and what would make the same shrug unacceptable after a real release.
  *
  * THE EXCEPTION IS ONE-DIRECTIONAL AND NAMED. An upgraded database may carry
  * these and nothing else; it may never LACK anything a fresh install has. That
@@ -403,4 +404,39 @@ describe(`upgrading from ${FROM_REF} (§22.1 N-1 -> N gate)`, () => {
       runMigrations({ driver: upgraded, migrationsDir: releasedDir, logger: () => {} }),
     ).rejects.toThrow(/newer than this build understands/);
   });
+});
+
+describe('the downgrade refusal never advises a drop (workplan 0134 T3)', () => {
+  it('names the backup, and never "nothing irreplaceable", on every checkout', async () => {
+    // Assertion 4 above needs the release's tag and a migration it lacks. This
+    // needs neither: a database that records a version this build does not
+    // ship is refused anywhere. The advice is read at the worst moment, and it
+    // said to drop the database because "nothing irreplaceable lives here".
+    // That is true of the ledger's items. On a managed stack the same database
+    // holds every organisation, connection and audit row, and no target
+    // rebuilds those.
+    const driver = pgliteDriver();
+    try {
+      await runMigrations({ driver, logger: () => {} });
+      const conn = await driver.acquire();
+      try {
+        await conn.query('INSERT INTO schema_migrations (version) VALUES ($1)', [
+          '9999_from_the_future.sql',
+        ]);
+      } finally {
+        await conn.release();
+      }
+      const refusal = await runMigrations({ driver, logger: () => {} }).then(
+        () => '',
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      );
+      expect(refusal).toMatch(/newer than this build understands/);
+      expect(refusal).toMatch(/Do not drop this database/);
+      expect(refusal).toMatch(/restored from a backup, never dropped/);
+      expect(refusal).not.toMatch(/nothing irreplaceable/i);
+      expect(refusal).not.toMatch(/drop and recreate/i);
+    } finally {
+      await driver.end();
+    }
+  }, 120_000);
 });

@@ -38,6 +38,13 @@
 #                        notice are OFF — honestly, with the reason in the task
 #                        log — because a task container inherits nothing from
 #                        compose and would otherwise never see them.
+#   OWNPACE_REACHABLE_HOSTS — the names the rule for a host a tenant gives us
+#                        admits although they resolve inward (workplan 0136
+#                        T2): the demo targets on the gate's stack, empty on
+#                        live. Uploaded when set. When empty it is DELETED from
+#                        the store, unlike the others: it admits hosts, so an
+#                        emptied list must take effect in the next run rather
+#                        than leave the old names admitted.
 #
 # NOT DIRECT_DATABASE_URL, and not by accident (workplan 0138 T3 step 1). This
 # script uploaded it until that step: the owner again, straight to
@@ -228,6 +235,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   LEDGER_RUN_RETENTION_DAYS="${LEDGER_RUN_RETENTION_DAYS:-}" \
   TRIGGER_API_URL_IN_NETWORK="${TRIGGER_API_URL_IN_NETWORK:-}" \
   LOG_LEVEL="${LOG_LEVEL:-}" \
+  OWNPACE_REACHABLE_HOSTS="${OWNPACE_REACHABLE_HOSTS:-}" \
   FORCE_REWRITE="${SET_TASK_ENV_FORCE_REWRITE:-0}" \
   node -e '
 const { envvars } = require("@trigger.dev/sdk");
@@ -281,9 +289,22 @@ const { envvars } = require("@trigger.dev/sdk");
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
     "LEDGER_RETENTION_DAYS", "LEDGER_RUN_RETENTION_DAYS",
     "TRIGGER_API_URL_IN_NETWORK", "LOG_LEVEL",
+    // The rule for a host a tenant gives us admits these names (workplan
+    // 0136 T2). Emptied, it is deleted below rather than left as it was.
+    "OWNPACE_REACHABLE_HOSTS",
   ]) {
     const value = process.env[name];
     if (value) variables[name] = value;
+  }
+  // An empty allow list takes effect: a name left out of the upload stays in
+  // the store (see the header), and this one admits hosts, so it goes.
+  if (!process.env.OWNPACE_REACHABLE_HOSTS) {
+    try {
+      await envvars.del(ref, slug, "OWNPACE_REACHABLE_HOSTS");
+      console.log("[set-task-env] deleted OWNPACE_REACHABLE_HOSTS: the list is empty, so the rule admits no name");
+    } catch (e) {
+      // Absent is the desired state.
+    }
   }
   // See FORCE_REWRITE in the header of this file.
   //
