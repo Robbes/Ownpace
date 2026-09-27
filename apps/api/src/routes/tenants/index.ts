@@ -13,18 +13,10 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import membersRoutes from './members.ts';
 import { serverFault } from '../../server-fault.ts';
+import { closeAccount } from '../../close-account.ts';
 import type { PgDatabase } from '@openmig/ledger';
-import { closeTenant, reopenTenant, isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
-import {
-  standingGrantReminders,
-  accessThatOutlivesErasure,
-  backupRetentionDaysFromEnv,
-  erasureTimeline,
-  erasureTimelineText,
-  erasureScopeText,
-  erasureNeverTouches,
-  log,
-} from '@openmig/shared';
+import { reopenTenant, isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
+import { backupRetentionDaysFromEnv, erasureScopeText } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
 import { getTriggerClient } from '@openmig/scheduler';
 import * as schema from '@openmig/ledger/schema-pg';
@@ -469,60 +461,6 @@ router.delete(
 );
 
 /**
- * Ask the orchestrator to stop every pass this tenant still has in flight
- * (workplan 0085 T8).
- *
- * Closing already stops the scheduler STARTING passes — the mapping is no
- * longer `active`. What it did not do is stop the ones already running, and
- * "waited out rather than stopped" is how a pass that never ends holds a
- * promised erasure open for ever.
- *
- * Two things this deliberately does NOT do.
- *
- * It does not mark the run rows cancelled. A cancellation is a REQUEST; the
- * pass may still be mid-write when it is acknowledged. Landing the row here
- * would tell the purge nothing is in flight while something still is, which is
- * precisely the state that duplicates a leaving customer's mail into their own
- * target. The row is landed by whoever actually finishes it — the worker, or
- * the purge's quiesce once the orchestrator confirms it stopped.
- *
- * And it never fails the close. Somebody ending their relationship with us must
- * not be blocked because our orchestrator is unreachable; the purge-time
- * quiesce is the backstop, and it is the one that enforces the safety rule.
- */
-async function stopPassesInFlight(tenantId: string): Promise<number> {
-  let asked = 0;
-  try {
-    const live = await getSharedPool().query<{ id: string; orchestrator_ref: string | null }>(
-      `SELECT id, orchestrator_ref FROM run
-        WHERE tenant_id = $1 AND status IN ('running', 'queued')`,
-      [tenantId],
-    );
-    const client = getTriggerClient();
-    for (const row of live.rows) {
-      if (!row.orchestrator_ref) continue;
-      try {
-        await client.runs.cancel(row.orchestrator_ref);
-        asked++;
-      } catch (error) {
-        log.warn(
-          `[close] could not ask the orchestrator to cancel run ${row.id} ` +
-            `(${row.orchestrator_ref}): ${error instanceof Error ? error.message : String(error)}. ` +
-            'The erasure quiesce will deal with it before any purge runs.',
-        );
-      }
-    }
-  } catch (error) {
-    log.warn(
-      `[close] could not stop passes in flight for ${tenantId}: ` +
-        `${error instanceof Error ? error.message : String(error)}. The close stands; the purge ` +
-        'will not proceed until they are quiesced.',
-    );
-  }
-  return asked;
-}
-
-/**
  * POST /api/tenants/:tenantId/close — end the service (workplan 0085 T2).
  *
  * Stops syncs and billing now; schedules the erasure for the window the
@@ -554,89 +492,22 @@ router.post(
         return;
       }
 
-      const pool = getSharedPool();
-
-      // The grants only THEY can remove (0085 T4b) — read BEFORE closing, from
-      // the kinds this tenant actually connected, so the answer names their
-      // providers rather than every provider we support.
-      const kinds = await withTenantDb(req.tenantId, pool, async (tdb) =>
-        (await tdb.select({ kind: schema.connection.kind }).from(schema.connection)).map(
-          (r) => r.kind,
-        ),
-      );
-
-      // INSIDE withTenantDb, and the first version was not — which is how
-      // this was found, as a 500 in the integration tier. `tenant` is FORCE
-      // ROW LEVEL SECURITY with an UPDATE policy on `app.current_tenant`, and
-      // the API connects as `app_user`, so without the tenant context the
-      // UPDATE matches zero rows and close reports a tenant that does not
-      // exist.
-      //
-      // The reasoning that put it outside sounded right and was backwards:
-      // `erasure_record` must outlive the tenant, so it felt like it had to be
-      // written outside the tenant's transaction. But it has no RLS policies
-      // at all — outliving the tenant is about the absence of a foreign key,
-      // not about the transaction — so writing it here is unrestricted, while
-      // the tenant UPDATE genuinely REQUIRES the context.
-      const closedAt = new Date();
-      const backupRetentionDays = backupRetentionDaysFromEnv(process.env.BACKUP_RETENTION_DAYS);
-      const result = await withTenantDb(req.tenantId, pool, (tdb) =>
-        closeTenant(
-          tdb as unknown as PgDatabase,
-          req.tenantId!,
+      // One function, which `operator.sh close` calls too (0139 T7 (a)): the
+      // same close, the same answer, and the passes in flight read in this
+      // organisation's own context.
+      const answer = await closeAccount(
+        getSharedPool(),
+        {
+          tenantId: req.tenantId,
           windowDays,
-          req.userId ?? 'unknown',
-          closedAt,
-          backupRetentionDays,
-        ),
+          closedBy: req.userId ?? 'unknown',
+          via: 'screen',
+          closedAt: new Date(),
+          backupRetentionDays: backupRetentionDaysFromEnv(process.env.BACKUP_RETENTION_DAYS),
+        },
+        { cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)) },
       );
-
-      // Stop what is already running. Best effort, and never a reason to fail
-      // the close — see the helper.
-      const passesStopped = await stopPassesInFlight(req.tenantId);
-
-      // Both dates, and the sentence that explains them. `purgeAfter` alone
-      // would be a true statement that reads as a false one: the live database
-      // stops holding it that day, and the backups do not (0085 T5).
-      const timeline = erasureTimeline({ closedAt, windowDays, backupRetentionDays });
-      res.json({
-        status: 'closed',
-        purgeAfter: result.purgeAfter.toISOString(),
-        windowDays: result.windowDays,
-        backupsExpireAt: result.backupsExpireAt.toISOString(),
-        backupRetentionDays: result.backupRetentionDays,
-        erasureCompletesText: {
-          en: erasureTimelineText(timeline, 'en'),
-          nl: erasureTimelineText(timeline, 'nl'),
-        },
-        canReopenUntil: result.windowDays > 0 ? result.purgeAfter.toISOString() : null,
-        // How many in-flight passes we asked to stop. Not how many stopped —
-        // that is the orchestrator's to confirm, and the purge checks it.
-        passesStopped,
-        // Kept for callers that already read it. `outlivingAccess` supersedes
-        // it and is what new callers should render.
-        standingGrants: standingGrantReminders(kinds, 'en'),
-        // Everything that keeps working after we have forgotten them: the
-        // consents in their providers' consoles AND the app passwords sitting
-        // in their own accounts (owner, 2026-08-18 — "not leave credentials
-        // wandering around"). Credentials first: a consent is a permission
-        // sitting unused, a live app password is a working way in.
-        outlivingAccess: {
-          en: accessThatOutlivesErasure(kinds, 'en'),
-          nl: accessThatOutlivesErasure(kinds, 'nl'),
-        },
-        // What erasure will NOT do (0085 T6). Sent at close rather than only in
-        // the completion report, because this is the moment the customer is
-        // deciding — and "delete my data" is the one phrase they could
-        // reasonably read as meaning we take the migrated mail back out of
-        // their new mailbox. Answering that after the purge would be answering
-        // it too late to be reassurance.
-        neverTouched: {
-          en: erasureScopeText('en'),
-          nl: erasureScopeText('nl'),
-          boundaries: erasureNeverTouches('en'),
-        },
-      });
+      res.json(answer);
     } catch (error) {
       serverFault(res, 'close_failed', 'closing this account', error);
     }

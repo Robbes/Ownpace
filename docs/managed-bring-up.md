@@ -1042,9 +1042,9 @@ journalctl -o cat --since today | grep '"ownpace.audit.id"'
 Ownpace sends these lines nowhere itself. The pseudonyms are made with a key in
 `deployment_key`, which only the database owner can read and which every
 backup of the database carries, so keep backups as private as the database.
-Three commands typed at a terminal print no line: the worker's cutover CLI,
-`operator.sh leave` and `operator.sh links`. Their events are in `audit_log`
-like any other, and the download below serves them.
+Four commands typed at a terminal print no line: the worker's cutover CLI,
+`operator.sh leave`, `operator.sh links` and `operator.sh close`. Their events
+are in `audit_log` like any other, and the download below serves them.
 
 **Lines your log store missed** (0129 T4). A collector that was down, or output
 rotated away before it was read, does not lose an event: it is still in

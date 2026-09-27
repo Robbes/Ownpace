@@ -91,6 +91,7 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh clean <kind> [--confirm]" >&2
   echo "  ./deploy/compose/operator.sh secrets" >&2
   echo "  ./deploy/compose/operator.sh links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]" >&2
+  echo "  ./deploy/compose/operator.sh close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>" >&2
   exit 1
 fi
 
