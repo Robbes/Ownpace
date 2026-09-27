@@ -3126,9 +3126,17 @@ paths:
         ever notified anybody. The note is REQUIRED: the "where" comes from
         the person who did the carrying. Rows the one-go press applied need
         nothing here (the platform already spoke); rows without an address
-        (links) are counted, never silently dropped. A prior press makes the
-        next one an explicit resend (`confirmResend: true`), never a silent
-        duplicate. Per grantee: their items only.
+        (links) are counted, never silently dropped. Per grantee: their items
+        only.
+
+        One wave per data type (workplan 0128 T5, slice 6): a press announces
+        the shares carried by hand of each data type at or past its own
+        cutover, and leaves the others, counted in `waitingForCutover`, for
+        the press at theirs; with none of them cut over it is refused, naming
+        the data types that wait. Each data type is announced once: one
+        announced before is left out, counted in `alreadyAnnounced`, and is
+        mailed again only on purpose (`confirmResend: true`), never as a
+        silent duplicate.
       parameters:
         - { name: mappingId, in: path, required: true, schema: { type: string } }
       requestBody:
@@ -3141,7 +3149,7 @@ paths:
               properties:
                 note: { type: string, maxLength: 1000, description: Where things live now, in the presser's own words — carried in the mail body. }
                 locale: { type: string, enum: [en, nl] }
-                confirmResend: { type: boolean, description: Required true when an announcement was already sent for this migration. }
+                confirmResend: { type: boolean, description: True to mail the data types announced before again, on purpose. }
       responses:
         '200':
           description: Who was told, who could not be.
@@ -3156,11 +3164,13 @@ paths:
                   failed: { type: array, items: { type: string } }
                   platformAnnounced: { type: integer }
                   withoutAddress: { type: integer }
-                  resend: { type: boolean }
+                  resend: { type: boolean, description: Whether this press mailed a data type announced before. }
+                  waitingForCutover: { type: integer, description: Shares carried by hand left for their own data type's cutover. }
+                  alreadyAnnounced: { type: integer, description: Shares carried by hand left out because their data type was announced before. }
         '400': { description: The note is missing — the announcement must say where. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
-        '409': { description: Not cut over, no mail channel, or already announced without confirmResend. }
+        '409': { description: 'Nothing it may announce is cut over (`not_cut_over`), no mail channel (`notifications_off`), or every data type that may go was announced before and confirmResend is not set (`already_announced`).' }
   /api/migrations/{mappingId}/sharing/apply-all:
     post:
       tags: [Migrations]
@@ -3213,6 +3223,7 @@ paths:
                     properties:
                       links: { type: integer }
                       manual: { type: integer }
+                  waitingForCutover: { type: integer, description: Rows left open for their own data type's cutover (workplan 0128 T5, slice 6). }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
         '409': { description: Not cut over yet — the press refuses with the reason. }
