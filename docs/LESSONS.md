@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 160 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 162 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -389,46 +389,88 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/cli/index.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/index.ts`
 
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
+### `apps/worker/src/jobs/cutover-gate.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-digest.ts`
 
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
 ### `apps/worker/src/jobs/managed-drift-detect.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-group-discovery.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/managed-purge-closed.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/managed-retention.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/managed-sync-tick.ts`
 
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/run-apply-deletion.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/run-apply-relocation.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/run-confirmation.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/run-cutover.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/run-delta-sync.ts`
 
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-full-sync-that-only-did-the-mail](../scripts/a-full-sync-that-only-did-the-mail.unit.test.ts) — One job runs passes, a full scan is an option on it, and EVERY domain honours that option.
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 
 ### `apps/worker/src/jobs/run-discovery.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/src/jobs/run-rollback.ts`
 
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
 ### `apps/worker/src/jobs/run-verification.ts`
 
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `apps/worker/src/jobs/stopping-a-pass.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `apps/worker/trigger.config.ts`
 
@@ -614,6 +656,7 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
@@ -814,6 +857,7 @@ reading a file drops off its entry by itself.
 - [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 
@@ -834,6 +878,8 @@ reading a file drops off its entry by itself.
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
 ### `docs/selfhost-quickstart.md`
@@ -1067,6 +1113,10 @@ reading a file drops off its entry by itself.
 
 - [a-fifth-domain-the-database-would-refuse](../scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts) — No domain the product knows may be one the database refuses (workplan 0113 T2).
 
+### `packages/ledger/src/direct-url.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
 ### `packages/ledger/src/mapping-status-audit.ts`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
@@ -1143,6 +1193,11 @@ reading a file drops off its entry by itself.
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+### `packages/orchestration/src/build-deps.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 
 ### `packages/orchestration/src/build-reindexers.ts`
 
@@ -1175,6 +1230,7 @@ reading a file drops off its entry by itself.
 - [a-domain-the-dispatchers-forgot](../scripts/a-domain-the-dispatchers-forgot.unit.test.ts) — A catch-all `else` that ran the wrong sync and called it a success.
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 
 ### `packages/orchestration/src/probe-connection.ts`
@@ -1391,6 +1447,10 @@ reading a file drops off its entry by itself.
 
 - [a-domain-the-fan-outs-forgot](../scripts/a-domain-the-fan-outs-forgot.unit.test.ts) — Every place that asks "is this domain switched on?" asks it about EVERY domain (workplan 0113 T5).
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
+
+- [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
 
@@ -2261,6 +2321,36 @@ Reads:
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/e2e.yml`
 
+### [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts)
+
+A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+
+Reads:
+
+- `apps/worker/src/cli/index.ts`
+- `apps/worker/src/index.ts`
+- `apps/worker/src/jobs/cutover-gate.ts`
+- `apps/worker/src/jobs/managed-digest.ts`
+- `apps/worker/src/jobs/managed-drift-detect.ts`
+- `apps/worker/src/jobs/managed-group-discovery.ts`
+- `apps/worker/src/jobs/managed-purge-closed.ts`
+- `apps/worker/src/jobs/managed-retention.ts`
+- `apps/worker/src/jobs/managed-sync-tick.ts`
+- `apps/worker/src/jobs/run-apply-deletion.ts`
+- `apps/worker/src/jobs/run-apply-relocation.ts`
+- `apps/worker/src/jobs/run-confirmation.ts`
+- `apps/worker/src/jobs/run-cutover.ts`
+- `apps/worker/src/jobs/run-delta-sync.ts`
+- `apps/worker/src/jobs/run-discovery.ts`
+- `apps/worker/src/jobs/run-rollback.ts`
+- `apps/worker/src/jobs/run-verification.ts`
+- `apps/worker/src/jobs/stopping-a-pass.ts`
+- `docs/rls-guide.md`
+- `packages/ledger/src/direct-url.ts`
+- `packages/orchestration/src/build-deps-from-mapping.ts`
+- `packages/orchestration/src/build-deps.ts`
+- `packages/orchestration/src/orchestration.ts`
+
 ### [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts)
 
 A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
@@ -2438,6 +2528,17 @@ A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER CHECK
 Reads:
 
 - `deploy/compose/smoke-managed.sh`
+
+### [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts)
+
+A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
+
+Reads:
+
+- `deploy/compose/set-task-env.sh`
+- `docs/managed-bring-up.md`
+- `docs/rls-guide.md`
+- `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
 
 ### [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts)
 

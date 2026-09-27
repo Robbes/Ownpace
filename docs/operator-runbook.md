@@ -69,13 +69,16 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   the permission report and the sharing rescan read on their own owner pool. If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
 - **The deployed Trigger.dev tasks do not use `APP_DATABASE_URL` yet.** `set-task-env.sh` uploads
-  three URLs, and every run receives all three: `DATABASE_URL` (the owner, through the pooler),
-  which every task connects with, for tenant data too; `APP_DATABASE_URL`, which no task reads; and
-  `DIRECT_DATABASE_URL` (the owner, straight to `postgres:5432`), which no task reads either, since
-  no task runs migrations. So row security does not bind the tasks: there, what keeps one
-  organisation's rows from another is each query's own tenant filter. Workplan 0138 moves the
-  per-tenant tasks to `app_user`; `docs/rls-guide.md`, "Where row security holds today", lists
-  every connection and whether the policies bind it.
+  two URLs, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both:
+  `DATABASE_URL` (the owner, through the pooler), which every task connects with, for tenant data
+  too; and `APP_DATABASE_URL`, which no task reads. So row security does not bind the tasks:
+  there, what keeps one organisation's rows from another is each query's own tenant filter.
+  Workplan 0138 moves the per-tenant tasks to `app_user`; `docs/rls-guide.md`, "Where row security
+  holds today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
+  `set-task-env.sh` uploaded a third, `DIRECT_DATABASE_URL` (the owner, straight to
+  `postgres:5432`), which no task read, since no task runs migrations. It no longer does, but a
+  plane that stored it keeps it until it is deleted once: `docs/managed-bring-up.md`, "Once, after
+  the pull that stopped uploading `DIRECT_DATABASE_URL`".
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
 rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
