@@ -2,7 +2,13 @@
 
 > **In one line:** Shortens the web UI's English and Dutch copy to one-line hints and intros, folding the rest under Why? or More via the `Hint` component, with the `words-that-fit-on-one-line` guard enforcing word budgets on hints, intros, placeholders and titles (no generic cap since 2026-09-25).
 
-## Status — 2026-09-25 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: the review of what each screen folds comes after the first invitation (owner).**
+Asked when to review, the owner answered *"yes, later"*. The review is still the next step: a
+list, screen by screen, of the folds made to fit the removed cap, each marked *show* or *keep
+folded* by the owner. The first to review are the ones T1 to T4b's rows name, as the entry
+below says.
 
 **2026-09-25: the generic cap is gone (owner).** *"remove the generic 15-word cap rule and
 enforcement, it forces you to hide additional text. We will have to work on what text to actually
