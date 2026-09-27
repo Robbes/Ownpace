@@ -2032,7 +2032,12 @@ paths:
     post:
       tags: [Migrations]
       summary: Green-light a paused migration
-      description: The owner's go-ahead after reviewing discovery. Until this, syncs are refused with `409`.
+      description: |
+        The owner's go-ahead after reviewing discovery. Until this, syncs are
+        refused with `409`. Activating also enqueues the first pass, so while
+        an operator hold is open the press is refused BEFORE the migration is
+        activated, and nothing changes (`PlatformHeld`). A second press on an
+        active migration enqueues nothing and is answered `activated: false`.
       responses:
         '200':
           description: Started.
@@ -2041,6 +2046,19 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            Nothing was changed. `Conflict`: the migration is past cutover.
+            `grant_withdrawn` or `awaiting_grant`: nobody's grant lets a pass
+            read the account, with `reason` saying whose. `platform_held`: an
+            operator hold is open (`PlatformHeld`). `anyOf`, not `oneOf`: a
+            `PlatformHeld` body is an `Error` too.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Error' }
+                  - { $ref: '#/components/schemas/PlatformHeld' }
 
   /api/migrations/{mappingId}/domains:
     parameters:
@@ -2325,10 +2343,17 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: The migration is paused — review discovery and start it first.
+          description: |
+            Nothing was enqueued. The migration is paused (review discovery and
+            start it first), its grant was withdrawn (`grant_withdrawn`), or an
+            operator hold is open (`platform_held`, `PlatformHeld`). `anyOf`,
+            not `oneOf`: a `PlatformHeld` body is an `Error` too.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Error' }
+                  - { $ref: '#/components/schemas/PlatformHeld' }
 
   /api/migrations/{mappingId}/cutover:
     parameters:
@@ -2409,16 +2434,21 @@ paths:
             that one, or roll it back first), `not_a_path` (the migration does
             not carry the `domain` named). `state` names the ledger state that
             refused, where one did.
+
+            `platform_held`: the ledger would allow it, and an operator hold is
+            open (`PlatformHeld`). Nothing was enqueued.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error: { type: string, enum: [cutover_refused] }
-                  message: { type: string }
-                  hint: { type: string }
-                  code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path] }
-                  state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
+                oneOf:
+                  - type: object
+                    properties:
+                      error: { type: string, enum: [cutover_refused] }
+                      message: { type: string }
+                      hint: { type: string }
+                      code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path] }
+                      state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
+                  - { $ref: '#/components/schemas/PlatformHeld' }
 
   /api/migrations/{mappingId}/runs:
     parameters:
@@ -2458,6 +2488,7 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PlatformHeld' }
 
   /api/migrations/{mappingId}/discovery:
     parameters:
@@ -3233,6 +3264,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PlatformHeld' }
 
   /api/migrations/{mappingId}/deletions/{hash}/receipt:
     parameters:
@@ -3680,6 +3712,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PlatformHeld' }
 
   /api/migrations/{mappingId}/moves/{hash}/receipt:
     parameters:
@@ -3827,6 +3860,7 @@ paths:
               schema: { $ref: '#/components/schemas/ConfirmStartResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PlatformHeld' }
         '502':
           description: The pass could not be enqueued; nothing was written, so nothing is left claiming to run.
           content:
@@ -4026,6 +4060,7 @@ paths:
                   report: { $ref: '#/components/schemas/VerificationRunReport' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PlatformHeld' }
         '502':
           description: The scan could not be enqueued; the run row is landed as failed with the reason.
           content:
@@ -5506,6 +5541,14 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    PlatformHeld:
+      description: |
+        `platform_held`: an operator hold is open (managed migration 0023), so
+        nothing was started and nothing was written. Every door that enqueues
+        a task answers this while a hold is open (workplan 0132 T6 (b)).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/PlatformHeld' }
     TooManyTests:
       description: |
         More tests than one member makes by hand: sixty an hour, shared by the
@@ -5823,6 +5866,20 @@ components:
           type: string
           examples: ['Mapping is paused — review the discovery counts and start it first (POST /start).']
       required: [error, message]
+
+    PlatformHeld:
+      type: object
+      description: |
+        A door that enqueues a task, while an operator hold is open. `message`
+        and `reason` carry the same sentence: the operator's own words,
+        verbatim, or a default when they typed none. Nothing was started and
+        nothing was written; press again once the hold is lifted.
+      properties:
+        error: { type: string, enum: [platform_held] }
+        message: { type: string }
+        reason: { type: string }
+        since: { type: string, format: date-time, description: When the hold began. }
+      required: [error, message, reason, since]
 
     ConnectionDeleted:
       type: object

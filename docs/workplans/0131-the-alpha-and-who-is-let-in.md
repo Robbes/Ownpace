@@ -411,8 +411,9 @@ nothing, even when the row holds a credential (`apps/api/src/routes/migrations/i
 
 For a stop across the whole platform there is the operator hold (managed migration 0023). It
 stops the sync tick from starting new passes (`readOpenPause` in `managed-sync-tick.ts`) and
-shows every signed-in customer a sentence. A pass a customer starts by hand is not checked
-against it: the manual sync route does not read the hold.
+shows every signed-in customer a sentence. A pass a customer started by hand was not checked
+against it: the manual sync route did not read the hold. Since 0132 T6 (b) (2026-09-27) every
+enqueue in the API asks it first and answers 409 with its sentence (`enqueueUnlessHeld`).
 
 **Language.** The app has English and Dutch (`nl` is typed against the English keys), and it
 picks Dutch for a Dutch browser. The in-app guides do not have Dutch: `Docs.tsx` serves
@@ -693,7 +694,7 @@ tester, and the source account, which no connector writes to.
 **The options.**
 
 - **(a) Everything ends.** The owner starts the operator hold, which stops scheduled passes, and
-  its sentence says the alpha has ended. A pass a tester starts by hand is not held (§1). Each
+  its sentence says the alpha has ended. A pass a tester asks for by hand is refused too (§1). Each
   organisation is then closed with a 0-day or short window. The close route stops that
   organisation's passes in flight (`stopPassesInFlight`), and erasure revokes its stored
   credentials when the window ends. The owner deletes each tester's identity at

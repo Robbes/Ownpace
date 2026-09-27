@@ -23,6 +23,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import type { LedgerDriver } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 
@@ -105,6 +106,9 @@ async function statusOf(mappingId: string): Promise<string> {
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // The managed chain too: every door that enqueues asks the operator hold
+  // first, and `platform_pause` is a managed table (0132 T6 (b)).
+  await runManagedMigrations({ driver, logger: () => {} });
 
   const conn = await driver.acquire();
   try {
