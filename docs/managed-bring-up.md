@@ -2721,7 +2721,7 @@ Deletion needs no plaintext. To repair a single variable by hand:
 cd apps/worker
 TRIGGER_API_URL=http://localhost:3090 TRIGGER_SECRET_KEY=… TRIGGER_PROJECT_REF=… \
   node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, "prod", "SECRET_ENCRYPTION_KEY").then(()=>console.log("deleted"))'
-cd .. && ./deploy/compose/set-task-env.sh
+cd ../.. && ./deploy/compose/set-task-env.sh
 ```
 
 The order that works:
