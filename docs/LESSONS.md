@@ -1712,7 +1712,11 @@ reading a file drops off its entry by itself.
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
 
-### `site/site.unit.test.ts`
+### `site/security-txt.mjs`
+
+- [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+### `site/tsconfig.json`
 
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
@@ -3313,7 +3317,8 @@ Reads:
 - `site/build.mjs`
 - `site/legal/privacy.md`
 - `site/legal/privacy.nl.md`
-- `site/site.unit.test.ts`
+- `site/security-txt.mjs`
+- `site/tsconfig.json`
 
 ### [package-appliance](../scripts/package-appliance.unit.test.ts)
 
