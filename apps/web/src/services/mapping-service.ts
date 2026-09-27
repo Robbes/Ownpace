@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import apiClient from './api.ts';
 import { z } from 'zod';
-import type { ProbeOutcome } from '@openmig/shared';
+import type { ProbeOutcome, WhatHappenedAnswer } from '@openmig/shared';
 import { DOMAIN_STATES, FAILURE_CATEGORIES, FAILURE_SIDES, MAPPING_LIFECYCLES } from '@openmig/shared';
 import type {
   DiscoveryRecord,
@@ -721,6 +721,13 @@ export interface TestConnectionResult {
    */
   outcome?: ProbeOutcome;
   /**
+   * What happened at an address the tester typed, in parts, with the
+   * reference the full text is logged under (0136 T3). The managed API keeps
+   * them beside its English `reason`, so a screen says them in its reader's
+   * language (`saidText`). Absent on every other answer.
+   */
+  said?: WhatHappenedAnswer;
+  /**
    * The door answered before the qualification finished (2026-09-02): the
    * measuring goes on into the row, and the next refresh shows it. A screen
    * says "still measuring" rather than showing nothing.
@@ -769,6 +776,8 @@ export interface TestConnectionResult {
           /** Why the face answered but could not be measured. */
           failed?: string;
         };
+        /** Refused at an address the tester typed: the parts and the reference (0136 T3). */
+        said?: WhatHappenedAnswer;
       }
     >
     >;

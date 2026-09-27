@@ -33,13 +33,26 @@
  * parts ends with it. One request, one reference, however many of its answers
  * were said this way.
  *
+ * THE PARTS STAY ON THE ANSWER, with the reference: on the probe's result and
+ * on each face, in the record the connection doors store. The English sentence
+ * is said from them, and so a screen can say them in its reader's language
+ * (the web's `probe-text.ts`). They hold nothing the sentence does not: a
+ * status, a protocol, and an error document's words.
+ *
  * A provider's fixed hosts (Graph, Google, Dropbox, Box, Apple's published
  * roots) carry no `said`, and their words render verbatim as before (workplan
  * 0080). The appliance does not come here: its only user is its owner, who
  * reads the full text.
  */
 
-import { log, newAppEvent, recordAppEvent, type ProbeOutcome, type WhatHappened } from '@openmig/shared';
+import {
+  log,
+  newAppEvent,
+  recordAppEvent,
+  type ProbeOutcome,
+  type WhatHappened,
+  type WhatHappenedAnswer,
+} from '@openmig/shared';
 import type { ProbeResult } from '@openmig/orchestration/probe-connection';
 import type {
   AccountQualification,
@@ -96,6 +109,11 @@ function outcomeFor(said: WhatHappened): ProbeOutcome | undefined {
   return undefined;
 }
 
+/** The parts as they are answered: what happened, and the reference the full text is under. */
+function answered(said: WhatHappened, reference: string): WhatHappenedAnswer {
+  return { ...said, reference };
+}
+
 /** The answers to one request, said from the parts under one reference. */
 export interface ProbeAnswers {
   /** The probe's result as the tester is answered. */
@@ -142,6 +160,7 @@ export function probeAnswers(doing: string, tenantId?: string): ProbeAnswers {
     return {
       ...rest,
       detail: `Unmeasured — ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)} Reference ${ref}.`,
+      said: answered(said, ref),
     };
   };
 
@@ -155,6 +174,7 @@ export function probeAnswers(doing: string, tenantId?: string): ProbeAnswers {
         ...rest,
         reason: `${whatHappenedSentence(said)} Reference ${ref}.`,
         outcome: outcomeFor(said) ?? rest.outcome,
+        said: answered(said, ref),
       };
     },
     qualification(qualification) {
