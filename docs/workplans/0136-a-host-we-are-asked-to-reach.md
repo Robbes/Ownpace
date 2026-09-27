@@ -44,6 +44,49 @@ limit on tests is the next pull request, and the failures route is T3's second s
   switched on, which needs the clients going through it (T1 (a)'s second slice); and the JMAP
   file and contact targets' upload refusals, which a pass writes and a Test never reaches.
 
+**2026-09-27: T1 (a), second slice built (0131 §6, group M2, step 1).** Every client that reaches
+a host a tenant typed now goes through the rule. The rule is still off in every process, so
+nothing behaves differently until the third slice switches it on.
+
+- **HTTP, through `tenantFetch`:**
+  - the CalDAV, CardDAV and WebDAV sources, and the three DAV writers;
+  - the JMAP clients: the session and the mail target through `http-rate-limit.ts`, and the file
+    and contact targets;
+  - the Test button's JMAP session and scheduling question, and the qualification's JMAP session;
+  - the API's two clients for an organisation's Nextcloud. The permissions report's also carries
+    Graph, whose public address passes the rule.
+- **IMAP, through `reachableHost`.** `ImapFlowSource` and `ImapFlowDavMailTarget` resolve and
+  check the typed host before anything is opened, and on the source before a token is fetched.
+  They then hand imapflow the checked address as `host`, with the typed name as `servername`.
+- **What stays on Node's own `fetch`,** each use named with its host in the guard:
+  - our own services: the identity provider, the status page and Zammad;
+  - the providers' fixed hosts: Graph, Google, Dropbox, Box and their token endpoints, Moneybird,
+    VIES and three DNS-over-HTTPS resolvers.
+
+  The provider clients' base URLs are constants. The doors store no base URL for a provider
+  connection: `sourceConfig` has no such field, and zod drops a key it does not know.
+- **Not changed:** `apps/selfhost`, the appliance's own server, where the rule is never on.
+- **The appliance bundle** now carries the rule, and undici's `Agent` and connector through the
+  connectors, and not undici's `lib/global.js`: checked on the bundle built with the packaging
+  script's own esbuild flags. A small entry bundled with the same flags ran the rule against a
+  local server. An admitted name was reached and `127.0.0.1` refused, and the process's global
+  dispatcher was the same object before and after. That global is Node's own: an ES module
+  `import` of `node:http` installs it, in any process.
+- **Proved.**
+  - `scripts/a-client-that-reaches-a-tenant-host.unit.test.ts` reads the server code, parsed. It
+    holds three lines: every use of Node's own `fetch` is listed with its host and its count;
+    every client of a tenant's host calls `tenantFetch`; and every IMAP client is built on what
+    `reachableHost` answered, with its `servername`.
+  - `packages/orchestration/src/a-host-we-are-asked-to-reach.unit.test.ts` is §3's probe test.
+    With the rule on, a CalDAV, CardDAV, WebDAV and JMAP target admitted by name is reached, and
+    its redirect to `127.0.0.1` is not followed. An IMAP host typed as `127.0.0.1` is refused
+    before a socket opens. The same probes with the rule off follow the redirect and connect,
+    which is the control.
+  - The IMAP source's and target's own tests pin the address, the `servername` and the refusal.
+  - **Mutations:** 19, all killed: each of the fourteen clients put back on Node's own
+    `fetch`; each IMAP client sent to the typed host, or without its `servername`; and the IMAP
+    source fetching its token before the check.
+
 **2026-09-27: T1 (a), first slice built (0131 §6, group M2, step 1).** The rule, in
 `packages/shared/src/reachable-host.ts`, and nothing calls it yet, so nothing behaves differently.
 T1 (a) comes in three pull requests: this one; the clients that reach a tenant's host going
@@ -210,7 +253,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **First slice built 2026-09-27** (the rule, not yet called); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **Two slices built 2026-09-27** (the rule, and every client of a tenant's host going through it; not yet switched on); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, not merged**; the limit and the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
