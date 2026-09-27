@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, readGraceEnds, readGraceEndedWithoutAChoice, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -591,6 +591,16 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             byId(c).mailboxMappingId as MappingId,
           )
         ).filter((g) => g.state === 'open').length,
+      // A grace period that ended while nobody chose (0128 D7), by the rows
+      // the Finish page offers.
+      graceEndedWithoutAChoice: async (c) => {
+        const m = byId(c);
+        const tenantId = m.config.tenantId as string;
+        const ended = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
+          readGraceEndedWithoutAChoice(tdb, tenantId, m.mailboxMappingId),
+        );
+        return ended.map((g) => g.domain);
+      },
       countPendingDecisions: async (tenantId) =>
         (await new PgDecisionStore(db).list(tenantId as TenantId, { status: 'pending' })).length,
   });
@@ -1582,9 +1592,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           // Each data type's stop and ending as the pages offer them (0128 T4,
           // slice 3c; T5, slice 7b), by the rules the doors themselves decide by.
           const tenantId = m.config.tenantId as string;
-          const facts = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
-            readPathStopFacts(tdb, tenantId, m.mailboxMappingId),
-          );
+          const { facts, graceEnds } = await withTenant(persistenceBackend.driver, tenantId, async (tdb) => ({
+            facts: await readPathStopFacts(tdb, tenantId, m.mailboxMappingId),
+            // When each grace period ended, for the Finish page (0128 D7, T5 slice 7c).
+            graceEnds: await readGraceEnds(tdb, tenantId, m.mailboxMappingId),
+          }));
           inputs.push({
             mappingId: m.config.mappingId,
             migrationStatus: await mappingStatus(m),
@@ -1592,7 +1604,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             statuses,
             failures,
             adopted,
-            ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts) }),
+            ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts, graceEnds) }),
           });
         }
         // The channel's state travels with the status an owner already polls.

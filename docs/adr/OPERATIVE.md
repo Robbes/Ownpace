@@ -844,7 +844,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
 - **A migration that was `active` at `execute` keeps being copied until the grace period ends**
   (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
   slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is
-  mirrored, and no slot is held. Then no pass runs. One that was `paused` stays stopped. `execute`
+  mirrored, and no slot is held. Then no pass runs, and a data type still in its cutover when
+  its grace period ended, which nobody ended or kept, is said so on the Finish page and in the
+  digest (amended 2026-09-27, 0128 D7, T5 slice 7c: `cutoverGraceEndedAt`). One that was `paused`
+  stays stopped. `execute`
   records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
   gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
   managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the

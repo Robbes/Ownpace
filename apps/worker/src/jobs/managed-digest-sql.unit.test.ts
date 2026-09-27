@@ -86,3 +86,20 @@ describe('what the digest knows about each migration', () => {
     expect(DIGEST_MAPPINGS_SQL).toMatch(/tenant_id\s*=\s*\$1/);
   });
 });
+
+/**
+ * ONE MORE THING IN IT THAT IS NOT MERELY WIRING (workplan 0128 D7, T5 slice
+ * 7c): the digest's line for a grace period nobody chose at. `runDigest` asks
+ * it only when this module hands it the read, so a module that stopped handing
+ * it over would leave every `runDigest` test green while no managed owner was
+ * told again. Read as text, for the import's side effects above.
+ */
+describe('the grace periods nobody chose at are asked of the ledger', () => {
+  it('hands the digest the read, in the organisation\'s own transaction', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./managed-digest.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(
+      /graceEndedWithoutAChoice: async \(tenantId, mappingId\) =>\s*\(await withTenant\(pool, tenantId, \(tdb\) => readGraceEndedWithoutAChoice\(tdb, tenantId, mappingId\)\)\)/,
+    );
+  });
+});

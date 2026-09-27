@@ -200,5 +200,31 @@ describe('a data type ended or kept on the appliance', () => {
     expect(await asTheDatabase(dataDir, `SELECT DISTINCT actor FROM audit_log WHERE action = 'path.phase'`)).toEqual([
       { actor: 'operator' },
     ]);
+
+    // In its cutover, with its grace period over and nobody choosing (0128 D7,
+    // slice 7c): `/status` tells the Finish page so, for each data type.
+    await asTheDatabase(dataDir, `UPDATE mailbox_mapping SET status = 'cutover' WHERE id = $1`, [ROW]);
+    await asTheDatabase(dataDir, `UPDATE path_lifecycle SET state = 'cutover' WHERE mapping_id = $1`, [ROW]);
+    await asTheDatabase(
+      dataDir,
+      `INSERT INTO cutover_state (tenant_id, mapping_id, state, grace_period_hours, copies_through_grace,
+                                  grace_period_started_at)
+       VALUES ($1, $2, 'GRACE_PERIOD', 72, true, now() - interval '73 hours')`,
+      [TENANT, ROW],
+    );
+    booted = await boot(cfg, dataDir);
+    try {
+      expect(await endings(booted.base)).toEqual([
+        expect.objectContaining({ domain: 'calendar', phase: 'cutover', graceEndedAt: expect.any(String) }),
+        expect.objectContaining({ domain: 'file', phase: 'cutover', graceEndedAt: expect.any(String) }),
+      ]);
+      // And the digest's own collector names them, as the attention screen shows it.
+      const attention = (await (await fetch(`${booted.base}/attention`)).json()) as {
+        mappings: Array<{ mappingId: string; graceEnded?: string[] }>;
+      };
+      expect(attention.mappings.find((m) => m.mappingId === MAPPING)?.graceEnded).toEqual(['calendar', 'file']);
+    } finally {
+      await booted.handle.stop();
+    }
   }, 180_000);
 });

@@ -27,6 +27,12 @@
  * has: a data type kept copying holds its slot, so the tier does not fall
  * the way ending makes it fall, and somebody has to meet that sentence before
  * they enter (ADR-0014's amendment). The appliance bills nothing, and says so.
+ *
+ * ## A grace period that ended says so (D7)
+ *
+ * A data type still in its cutover when its grace period ended stopped
+ * copying then, and nobody chose. Its row says when, beside the two presses
+ * that are its owner's to make (slice 7c); the digest says the same.
  */
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -35,7 +41,7 @@ import type { PathEndingChoice } from '@openmig/shared';
 import { endOrKeepDataType, PathEndingRefusedError } from '../../services/operating-service.ts';
 import { serverMessage } from '../../services/api.ts';
 import { isSelfHost } from '../../services/edition.ts';
-import { useT, type StringKey } from '../../i18n/index.tsx';
+import { useFormatters, useT, type StringKey } from '../../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
 import { Hint } from '../Hint.tsx';
 
@@ -62,6 +68,7 @@ const EachDataTypeEnds: React.FC<{
   deliveryMoved: boolean;
 }> = ({ mappingId, endings, deliveryMoved }) => {
   const t = useT();
+  const { dateTime } = useFormatters();
   const queryClient = useQueryClient();
   const [said, setSaid] = React.useState<Readonly<Record<string, Said>>>({});
   const [keepAsked, setKeepAsked] = React.useState<string | null>(null);
@@ -133,6 +140,13 @@ const EachDataTypeEnds: React.FC<{
                 )}
               </span>
             </div>
+
+            {/* Its grace period ended and nobody chose: it no longer copies (D7). */}
+            {e.graceEndedAt && (
+              <p className="mt-1 text-sm text-amber-800">
+                {t('finish.ending.graceEnded', { kind, date: dateTime(e.graceEndedAt) })}
+              </p>
+            )}
 
             {/* Stopped by its owner: ended, or kept once it is resumed. */}
             {e.stopped && !e.offers.includes('keep') && (

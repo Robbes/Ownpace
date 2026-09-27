@@ -50,6 +50,7 @@ import { PgLedger } from './ledger.ts';
 import { holdsASlot, PgPathLifecycleStore, type PathState } from './path-lifecycle-store.ts';
 import { readPathStopFacts, type PathStopFacts } from './a-stop-per-data-type.ts';
 import { PATH_PHASE_ACTION, writeTheRollUp } from './a-cutover-of-one-data-type.ts';
+import { readGraceEnds, type GraceEnds } from './cutover-grace.ts';
 import type { MappingStatus, MappingStatusVia } from './mapping-status-audit.ts';
 
 /** The two endings a data type is given at the Finish checklist's last step. */
@@ -228,18 +229,60 @@ export async function endOrKeepPath(
  * End is offered without counting the data type's open failures, which the
  * door answers with a refusal the page can force. None while the migration is
  * paused or never started: the page says where the migration is.
+ *
+ * With `graceEnds`, a data type still in its cutover whose grace period
+ * ended carries when (`graceEndedAt`, slice 7c): nobody chose, and it no
+ * longer copies (D7).
  */
-export function pathEndingChoices(facts: PathStopFacts): PathEndingChoice[] {
+export function pathEndingChoices(facts: PathStopFacts, graceEnds?: GraceEnds): PathEndingChoice[] {
   if (!PHASES_A_DATA_TYPE_ENDS_FROM.includes(facts.status)) return [];
-  return facts.carried.map((path) => ({
-    domain: path.domain,
-    phase: believedPhase(facts, path),
-    stopped: path.stopped,
-    offers: (['end', 'keep'] as const).filter((ending) => {
-      const decision = decidePathEnding(facts, path.domain, ending, { unresolvedFailures: 0 });
-      return 'changes' in decision && decision.changes;
-    }),
-  }));
+  return facts.carried.map((path) => {
+    const phase = believedPhase(facts, path);
+    const graceEnded = phase === 'cutover' ? (graceEnds?.of(path.domain) ?? null) : null;
+    return {
+      domain: path.domain,
+      phase,
+      stopped: path.stopped,
+      offers: (['end', 'keep'] as const).filter((ending) => {
+        const decision = decidePathEnding(facts, path.domain, ending, { unresolvedFailures: 0 });
+        return 'changes' in decision && decision.changes;
+      }),
+      ...(graceEnded === null ? {} : { graceEndedAt: graceEnded.toISOString() }),
+    };
+  });
+}
+
+/**
+ * Each data type's ending as the Finish page offers it, read in the caller's
+ * tenant transaction: the facts the door decides by, and when each grace
+ * period ended. Empty for a migration that is gone.
+ */
+export async function readPathEndingChoices(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  now: Date = new Date(),
+): Promise<PathEndingChoice[]> {
+  const facts = await readPathStopFacts(db, tenantId, mappingId);
+  if (facts === undefined) return [];
+  return pathEndingChoices(facts, await readGraceEnds(db, tenantId, mappingId, now));
+}
+
+/**
+ * The data types whose grace period ended while nobody chose (0128 D7, T5
+ * slice 7c): each still in its cutover, no longer copying, and waiting on its
+ * owner's End or Keep copying. What the digest names, from the rows the
+ * Finish page offers.
+ */
+export async function readGraceEndedWithoutAChoice(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  now: Date = new Date(),
+): Promise<Array<{ readonly domain: DiscoveryDomain; readonly endedAt: string }>> {
+  return (await readPathEndingChoices(db, tenantId, mappingId, now)).flatMap((c) =>
+    c.graceEndedAt === undefined ? [] : [{ domain: c.domain, endedAt: c.graceEndedAt }],
+  );
 }
 
 /**

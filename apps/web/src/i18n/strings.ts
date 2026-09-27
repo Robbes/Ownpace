@@ -1865,6 +1865,9 @@ const en = {
   'finish.ending.stopped':
     'You stopped {kind}. End it, or resume it on the migration\'s page to keep copying it.',
   'finish.ending.failed': 'That did not go through:',
+  // The grace period's end, when nobody chose (0128 D7, slice 7c).
+  'finish.ending.graceEnded':
+    'The grace period of {kind} ended on {date}, and nobody chose, so it no longer copies. End it, or keep it copying.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
     'Who can sign in to this organization and what they may do; changes apply immediately.',
@@ -1937,6 +1940,8 @@ const en = {
   'attention.moves': 'moves to acknowledge',
   'attention.failures': 'items that could not be copied',
   'attention.readyForCutover': 'checked and ready to finish',
+  // A grace period that ended while nobody chose (0128 D7, T5 slice 7c).
+  'attention.graceEnded': 'grace period over and nobody chose, so no longer copying: {kinds}',
   'attention.sharingOpen': 'rows open on the sharing checklist',
   'attention.couldNotRead': 'One queue could not be read, so these numbers may be low.',
   'attention.couldNotRead.why':
@@ -3806,6 +3811,8 @@ const nl: Record<keyof typeof en, string> = {
   'finish.ending.stopped':
     'U hebt {kind} gestopt. Beëindig het, of hervat het op de pagina van de migratie om het te blijven kopiëren.',
   'finish.ending.failed': 'Dat is niet gelukt:',
+  'finish.ending.graceEnded':
+    'De overgangsperiode van {kind} liep af op {date} en er is niets gekozen, dus het kopieert niet meer. Beëindig het, of laat het blijven kopiëren.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
     'Wie zich bij deze organisatie kan aanmelden en wat ze mogen doen; wijzigingen gelden direct.',
@@ -3877,6 +3884,7 @@ const nl: Record<keyof typeof en, string> = {
   'attention.moves': 'verplaatsingen om te bevestigen',
   'attention.failures': 'items die niet gekopieerd konden worden',
   'attention.readyForCutover': 'gecontroleerd en klaar om af te ronden',
+  'attention.graceEnded': 'overgangsperiode voorbij en niets gekozen, dus kopieert niet meer: {kinds}',
   'attention.sharingOpen': 'regels open op de deel-checklist',
   'attention.couldNotRead': 'Eén wachtrij kon niet gelezen worden; deze aantallen kunnen te laag zijn.',
   'attention.couldNotRead.why':

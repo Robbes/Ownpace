@@ -27,6 +27,7 @@ import {
   type PathEnding,
   readPathStopFacts,
   pathStopChoices,
+  readGraceEnds,
 } from '@openmig/ledger';
 import {
   ARCHIVE_PROVIDERS,
@@ -2493,7 +2494,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
     // Previously this handler returned hardcoded placeholder data (imap.example.com,
     // a fixed lastSyncAt, domains: ['email']) regardless of the mapping's actual
     // config or sync state — this is the real fix, not a Docker/environment issue.
-    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts } =
+    const { mapping, sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts, graceEnds } =
       await withTenantDb(
       tenantId,
       pool,
@@ -2517,6 +2518,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             domainStatus: [],
             failures: [],
             stopFacts: undefined,
+            graceEnds: undefined,
           };
         }
 
@@ -2538,7 +2540,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
             .where(and(eq(schema.mailbox.id, mailboxId), eq(schema.mailbox.tenantId, tenantId)));
           return rows[0]?.connection ?? null;
         };
-        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts] =
+        const [sourceConn, targetConn, scopeRows, domainStatus, failures, adopted, stopFacts, graceEnds] =
           await Promise.all([
           connectionOf(mapping.sourceMailboxId),
           connectionOf(mapping.targetMailboxId),
@@ -2564,6 +2566,9 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           // What the stop door would accept for each data type (0128 T4,
           // slice 3c), read the way the door reads it.
           readPathStopFacts(db, tenantId, mappingId),
+          // When each grace period ended, for the Finish page (0128 D7, T5
+          // slice 7c).
+          readGraceEnds(db, tenantId, mappingId),
         ]);
 
         return {
@@ -2575,6 +2580,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
           failures,
           adopted,
           stopFacts,
+          graceEnds,
         };
       },
     );
@@ -2684,7 +2690,7 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // offers it (T5, slice 7b), by `decidePathEnding`.
       ...(stopFacts === undefined
         ? {}
-        : { stopChoices: pathStopChoices(stopFacts), endingChoices: pathEndingChoices(stopFacts) }),
+        : { stopChoices: pathStopChoices(stopFacts), endingChoices: pathEndingChoices(stopFacts, graceEnds) }),
       status: mapping.status,
       mode: mapping.mode,
       pattern: mapping.pattern,

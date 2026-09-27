@@ -1202,6 +1202,11 @@ buttons wait for it; and in *Each data type* once it is `done` or `continuous`.
 `/status` carries what it offers, as each mapping's `endings`: every data type
 with its phase and the presses the door accepts now.
 
+A data type still in its cutover when its grace period ended stopped copying
+then, and waits on its owner (workplan 0128 D7). Its line on the Finish screen
+says when it ended (`graceEndedAt` on its `endings` row), and the digest names
+it until it is ended or kept copying.
+
 ## Health & troubleshooting
 
 - **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and

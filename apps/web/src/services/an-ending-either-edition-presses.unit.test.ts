@@ -151,6 +151,13 @@ describe('the choices, from each edition’s payload', () => {
     expect(await fetchMappingDataTypes('acme-mail')).toEqual({ domains: [] });
   });
 
+  it('keeps when a grace period ended, which the page says (0128 D7)', async () => {
+    edition.selfhost = false;
+    const ended = { domain: 'email', phase: 'cutover', stopped: false, offers: ['end', 'keep'], graceEndedAt: '2026-09-23T10:00:00.000Z' };
+    getMock.mockResolvedValue({ data: { id: 'acme-mail', domainStatus: [], endingChoices: [ended] } });
+    expect((await fetchMappingDataTypes('acme-mail')).endings).toEqual([ended]);
+  });
+
   it('keeps them on managed’s detail schema, which strips what it does not name', () => {
     const detail = {
       id: 'm-1',

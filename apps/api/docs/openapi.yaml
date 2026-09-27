@@ -1876,6 +1876,9 @@ paths:
         One rule decides both. End is offered without counting the data
         type's open failures; the door answers those with a refusal the page
         can force. Empty while the migration is paused or never started.
+        On a data type still in its cutover, `graceEndedAt` says when its
+        grace period ended while nobody chose: it no longer copies (D7, slice
+        7c).
       responses:
         '200':
           description: The migration.
@@ -3994,6 +3997,10 @@ paths:
 
         Auto-applied relocations are reported as zero: they are news the digest
         bounds by its own window, not a queue anybody can act on.
+
+        `graceEnded` names the data types whose grace period ended while nobody
+        chose (workplan 0128 D7): still in their cutover, no longer copying,
+        and waiting on End or Keep copying on the Finish page. Absent when none.
 
         A migration whose status is `done` is omitted entirely — a finished
         migration keeps its history and stops nagging. A queue that could not

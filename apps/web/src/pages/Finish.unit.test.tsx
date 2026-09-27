@@ -265,6 +265,32 @@ describe('the cutover order', () => {
   });
 });
 
+describe('a grace period that ended while nobody chose (0128 D7)', () => {
+  it('says so on the data type it ended for, beside its two presses', async () => {
+    fetchStatus.mockResolvedValue(
+      statusReport('cutover', 0, [
+        {
+          domain: 'email',
+          phase: 'cutover',
+          stopped: false,
+          offers: ['end', 'keep'],
+          graceEndedAt: '2026-09-23T10:00:00.000Z',
+        },
+        { domain: 'calendar', phase: 'cutover', stopped: false, offers: ['end', 'keep'] },
+      ]),
+    );
+    renderScreen();
+
+    expect(
+      await screen.findByText(
+        /^The grace period of Email ended on .+, and nobody chose, so it no longer copies\. End it, or keep it copying\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/The grace period of Calendar/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: END_MAIL })).toBeEnabled();
+  });
+});
+
 describe('the failure queue', () => {
   it('warns about unresolved items before anything is clicked', async () => {
     // The server would refuse anyway, but discovering the count only after a
