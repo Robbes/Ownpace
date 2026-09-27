@@ -11,6 +11,7 @@ import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
+import { serverMessage } from '../services/api.ts';
 import { useT } from '../i18n/index.tsx';
 
 export interface ConfirmMigrationProps {
@@ -169,11 +170,14 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       {/* Scope manifest (§11.2) */}
       {scoped && <ScopeManifestPanel manifest={scoped} />}
 
+      {/* The server's sentence, not the transport's: a refused Start (an
+          operator hold, 0132 T6 (b), or a grant still awaited or withdrawn)
+          carries its reason in the body. */}
       {startMutation.isError && (
         <p className="text-sm text-red-600" role="alert">
           {t('confirm.startError')}{' '}
           {startMutation.error instanceof Error
-            ? startMutation.error.message
+            ? serverMessage(startMutation.error)
             : t('confirm.startErrorFallback')}
         </p>
       )}

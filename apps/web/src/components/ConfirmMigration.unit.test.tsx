@@ -45,6 +45,7 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
+import { AxiosError, AxiosHeaders } from 'axios';
 import { ConfirmMigration } from './ConfirmMigration.tsx';
 import { mappingApi, type Mapping } from '../services/mapping-service.ts';
 
@@ -190,5 +191,39 @@ describe('the start tells both screens (owner, 2026-09-17)', () => {
     // The page the navigation lands on reads `active`, and the list — which
     // nothing on this screen is watching — is marked for its next read.
     expect(atNavigation).toEqual({ status: 'active', listForgotten: true });
+  });
+});
+
+describe('a refused Start says the server’s sentence (0132 T6 (b))', () => {
+  /**
+   * While the operator holds the platform, *Start* answers 409 with the
+   * operator's own sentence, and so do `awaiting_grant` and `grant_withdrawn`
+   * with theirs. This screen showed axios's transport text instead, *Request
+   * failed with status code 409*, which says neither that nothing started nor
+   * why. Every other screen that presses these doors shows the body
+   * (`serverMessage`).
+   */
+  const SENTENCE = 'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets.';
+
+  it('shows the operator’s sentence, not the transport’s', async () => {
+    const refused = new AxiosError('Request failed with status code 409');
+    refused.response = {
+      status: 409,
+      statusText: 'Conflict',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'platform_held', message: SENTENCE, reason: SENTENCE, since: '2026-09-27T09:00:00Z' },
+    };
+    vi.mocked(mappingApi.start).mockRejectedValueOnce(refused);
+    const onStarted = vi.fn();
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={onStarted} />);
+    await screen.findByText('Email');
+    fireEvent.click(screen.getByRole('button', { name: /start migration/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(SENTENCE);
+    expect(alert).not.toHaveTextContent(/status code 409/);
+    expect(onStarted).not.toHaveBeenCalled();
   });
 });
