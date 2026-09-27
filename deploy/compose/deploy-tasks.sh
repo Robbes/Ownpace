@@ -13,7 +13,8 @@ set -euo pipefail
 #   1. The stack is up:  docker compose -f deploy/compose/managed.yml up -d
 #   2. Create your account + org + project in the instance's dashboard
 #      (http://<host>:${TRIGGER_PORT:-3090} — magic-link login; with no mail
-#      server configured, the link is printed in `docker logs trigger-api`).
+#      server configured, the link is printed in the trigger-api service's log:
+#      ./deploy/compose/trigger-magic-link.sh finds it).
 #   3. From the project's settings/API-keys pages, put into deploy/compose/.env:
 #        TRIGGER_PROJECT_REF=proj_…      (project settings)
 #        TRIGGER_SECRET_KEY=tr_prod_…    (the PROD environment's secret key —

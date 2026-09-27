@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 159 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 160 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -466,9 +466,11 @@ reading a file drops off its entry by itself.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/env-upsert.sh`
 
@@ -481,6 +483,7 @@ reading a file drops off its entry by itself.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/gatus.yaml`
 
@@ -548,6 +551,7 @@ reading a file drops off its entry by itself.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 - [the-state-that-lived-in-a-nameless-volume](../scripts/the-state-that-lived-in-a-nameless-volume.unit.test.ts) — STATE IN A NAMELESS VOLUME IS STATE NOBODY CAN FIND AGAIN.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 - [zitadel-image-matches-postgres](../scripts/zitadel-image-matches-postgres.unit.test.ts) — The identity provider and the database it initialises into are pinned in the same file, and they are not independent.
 
@@ -561,6 +565,10 @@ reading a file drops off its entry by itself.
 
 - [redact-evidence](../scripts/redact-evidence.unit.test.ts) — The redactor, tested against the log it actually has to clean (workplan 0084 T5).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
+
+### `deploy/compose/reset-trigger.sh`
+
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/seed-demo-dav-content.sh`
 
@@ -2846,6 +2854,7 @@ A command a script prints for a human to paste is part of its interface, and it 
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/seed-demo-dav-content.sh`
@@ -3131,6 +3140,17 @@ Reads:
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/zitadel-db-password.sh`
+
+### [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts)
+
+TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
+
+Reads:
+
+- `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/reset-trigger.sh`
 
 ### [ui-build-output](../scripts/ui-build-output.unit.test.ts)
 

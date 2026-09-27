@@ -52,6 +52,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# The compose project this checkout drives: COMPOSE_PROJECT_NAME, else
+# managed.yml's `name:`. Two stacks share the reference machine's Docker daemon
+# (workplan 0132 D7), so every volume name or persisted path this prints is
+# built from it and names this stack's own. See compose_project in env-read.sh.
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 # How long the identity provider gets to finish its own setup. A FIRST init
 # applies every migration from scratch; #47 took roughly two minutes on the
 # Spark, and a machine with slower disk will take longer.
@@ -235,12 +240,12 @@ up_wait() { # up_wait <service> [service...]
 
 # TWO .env FILES DESCRIBING ONE STACK.
 #
-# The Spark runs a SINGLE managed stack — `managed.yml` pins
-# `name: ownpace-managed` and every service has a fixed `container_name`, both
-# of which are global to the host — and drives it from two checkouts: the
-# operator's, and the nightly gate's. The gate's cannot keep a `.env` at all
-# (`actions/checkout` deletes ignored files before every run), so the workflow
-# restores one from ~/.persistent/ownpace-managed/. That restore is a
+# The Spark drives the OTA stack — managed.yml's default project — from two
+# checkouts: the operator's, and the nightly gate's. The gate's cannot keep a
+# `.env` at all (`actions/checkout` deletes ignored files before every run), so
+# the workflow restores one from ~/.persistent/<project>/. (A second stack,
+# `ownpace-live`, has a checkout, a `.env` and a persisted directory of its own,
+# and the gate never touches it: workplan 0132 D7.) That restore is a
 # workaround for a checkout that cannot hold secrets. It is not a second
 # configuration, and the day it became one cost an afternoon (0099):
 #
@@ -263,7 +268,7 @@ note_env_divergence() {
   [ "$ENV_DIVERGENCE_REPORTED" = "1" ] && return 0
   ENV_DIVERGENCE_REPORTED=1
 
-  local persisted="${MANAGED_ENV_PERSIST_DIR:-${HOME}/.persistent/ownpace-managed}/.env"
+  local persisted="${MANAGED_ENV_PERSIST_DIR:-${HOME}/.persistent/${COMPOSE_PROJECT}}/.env"
   [ -f "$persisted" ] || return 0
   # Already one file, by link or by bind mount: nothing to diverge.
   [ -L "$ENV_FILE" ] && return 0
@@ -629,7 +634,7 @@ explain_failure() { # explain_failure <service> [service...]
         # having shipped in #511 the same afternoon. Single quotes defer the
         # expansion to the container, which HAS the variable. IF EXISTS so a
         # second paste is not an error.
-        echo "!!!   docker exec -i ownpace-db sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'" >&2
+        echo "!!!   ${COMPOSE[*]} exec -T postgres sh -c 'psql -U \"\$POSTGRES_USER\" -d postgres -c \"DROP DATABASE IF EXISTS zitadel WITH (FORCE)\"'" >&2
         # THE DELETION AND THE REBUILD ARE PRINTED TOGETHER, and the second one
         # is not optional. Deleting the volume leaves Docker to recreate it
         # owned by root, while this image declares a USER — so first init dies
@@ -639,7 +644,7 @@ explain_failure() { # explain_failure <service> [service...]
         # the cause. prepare_machinekey_volume, in phase_app, is the only thing
         # in this repository that chowns it. Found 2026-09-01, on a recipe that
         # stopped one line short of working.
-        echo "!!!   docker volume rm ownpace-managed_zitadel_machinekey" >&2
+        echo "!!!   docker volume rm ${COMPOSE_PROJECT}_zitadel_machinekey" >&2
         echo "!!!   ./deploy/compose/bootstrap-managed.sh --only app" >&2
         ;;
     esac
@@ -993,7 +998,7 @@ phase_trigger() {
     if [ "$waited" -ge 60 ]; then
       echo "!!! trigger-api has not written /home/node/shared/worker_token after ${waited}s." >&2
       echo "!!! The supervisor cannot start without it. Check that bootstrap is on:" >&2
-      echo "!!!   docker logs trigger-api 2>&1 | grep -i bootstrap" >&2
+      echo "!!!   ${COMPOSE[*]} logs --no-color trigger-api 2>&1 | grep -i bootstrap" >&2
       exit 1
     fi
     sleep 3
@@ -1237,7 +1242,7 @@ prepare_machinekey_volume() {
     The machinekey volume is prepared by a busybox container, and \`chown\` there
     can only resolve numbers — a name from another image is not in its passwd.
     Find the uid and prepare the volume by hand, then re-run:
-      docker run --rm -v ownpace-managed_zitadel_machinekey:/machinekey busybox:1.38 \\
+      docker run --rm -v ${COMPOSE_PROJECT}_zitadel_machinekey:/machinekey busybox:1.38 \\
         sh -c 'mkdir -p /machinekey && chown <uid> /machinekey && chmod 700 /machinekey'"
       note "$image runs as '${user}', which is uid ${resolved} in its own /etc/passwd"
       user="$resolved"
@@ -1404,7 +1409,7 @@ phase_app() {
     # "starts with everything else", and its own status-page.md — and it was
     # named NOWHERE in this script, so no bring-up had ever started it. Exactly
     # what happened to zitadel above, discovered the same way: a `docker ps` on
-    # the Spark with no `ownpace-status` in it.
+    # the Spark with no status page container in it.
     #
     # It has no `depends_on` by design — "a status page that will not start
     # until the thing it is watching is healthy is a status page that is never

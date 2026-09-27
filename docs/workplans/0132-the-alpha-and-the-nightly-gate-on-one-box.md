@@ -2,7 +2,7 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found three
 things about the stack testers would use. The nightly managed gate rebuilds it from `main` and
@@ -50,10 +50,103 @@ only if its T10 keeps a Google sign-in, because ADR-0041's decision gives produc
 URI. All three say so now. The same message's answers on W15 and W18 are 0148 and 0149, which
 change nothing in this plan.
 
+**2026-09-27: T1 built on branch `claude/ownpace-public-readiness-y7orc6-a-stack-named-by-its-project`, not merged.**
+Every name in `deploy/compose/managed.yml` now follows the compose project.
+
+- **The names.** The 17 `container_name` values are derived, not dropped:
+  `${COMPOSE_PROJECT_NAME}-db`, `-pgbouncer`, `-idp`, `-api`, `-web`, `-status`, `-mailpit`,
+  `-nextcloud`, and `-trigger-db` to `-trigger-tls` for the nine Trigger.dev services. So the OTA
+  stack's database is `ownpace-managed-db` and live's is `ownpace-live-db`. `name: ownpace-managed`
+  stays as the default. `DOCKER_RUNNER_NETWORKS` is `${COMPOSE_PROJECT_NAME}_ownpace-network`.
+- **One reader for the project.** `compose_project` in `deploy/compose/env-read.sh` takes it the
+  way Compose does: `COMPOSE_PROJECT_NAME` from the environment, then from the `.env` beside
+  `managed.yml`, then `name:`. It refuses a name Compose refuses. It also refuses when the shell's
+  `COMPOSE_PROJECT_NAME` and the checkout's `.env` disagree, because Compose follows the shell, even
+  an empty value, and would then act on the other stack. That refusal is not in §3; it closes the
+  trap of `set -a; . deploy/compose/.env` in one checkout followed by a script in the other.
+- **The 13 `ownpace-managed_` lines in six files** are built from the project: the runner network
+  and a comment in `managed.yml`, `reset-trigger.sh`'s volume, `setup-managed-demo.sh`'s network
+  default and two comments, three recipes in `setup-zitadel.sh`, two in `bootstrap-managed.sh`, two
+  in `smoke-managed.sh`. A recipe is printed with the project filled in; a comment says
+  `<project>`, which nothing fills in and nobody can mistake for a real name.
+- **The scripts.** Printed recipes reach the database with
+  `docker compose -f …/managed.yml exec -T postgres`, never `docker exec ownpace-db`
+  (`bootstrap-managed.sh`, `setup-zitadel.sh`, `seed-managed.sh`, `seed-demo-dav-content.sh`).
+  Scripts that `docker exec` a container take its name from the project (`smoke-managed.sh`,
+  `zitadel-db-password.sh`, `trigger-version.sh`, `seed-demo-dav-content.sh`,
+  `setup-managed-demo.sh`). `trigger-magic-link.sh` reads `docker compose logs trigger-api`. The
+  persisted `.env` and the dump directory default to `~/.persistent/<project>` in
+  `bootstrap-managed.sh`, `trigger-credentials.sh`, `trigger-version.sh`, `setup-zitadel.sh`'s hint,
+  `e2e-managed.yml` (three steps) and `e2e-live-target.yml`. For the gate this is still
+  `~/.persistent/ownpace-managed`, because its checkout sets no `COMPOSE_PROJECT_NAME`. T1b step 2's
+  interim `MANAGED_ENV_PERSIST_DIR` is not needed once this is merged. `setup-zitadel.sh` labels a
+  new mail relay with the project instead of `ownpace-managed`; it finds an existing one by host, so
+  the OTA stack's is kept.
+- **Docs.** `docs/managed-bring-up.md` has a new section, *Which stack a command reaches*: the
+  naming table, the two ways a command reaches a stack, how to ask Compose for the project, and
+  *one shell, one stack*. Its commands use `docker compose … exec|logs`, or `<project>`. *One box,
+  one stack, one `.env`* is now *One stack, one `.env`*. The runbook's five `psql` recipes,
+  `docs/dav-sync.md`'s one, `AGENTS.md` and `managed.env.example` (a comment on
+  `COMPOSE_PROJECT_NAME`, deliberately with no empty key line) follow.
+- **The guards, and that they failed first.** `scripts/two-stacks-on-one-box.unit.test.ts`, both
+  halves. The first half reads `managed.yml`, every shell script under `deploy/compose/` and every
+  workflow. The second renders `managed.yml` under `ownpace-managed` and `ownpace-live` with a port
+  set each, runs `compose_project` in twelve situations, and runs `reset-trigger.sh` with a stub
+  `docker` in each stack's checkout. On `main` it failed 14 of its 23 cases: the 17
+  `container_name` values, the 13 `ownpace-managed_` lines, 33 more lines naming
+  `ownpace-managed`, 41 uses of an old container name in 13 files, 13 lines with
+  `~/.persistent/ownpace-managed`, 17 shared container names, the shared runner network,
+  live's task runs on the OTA stack's network, the missing reader, and `reset-trigger.sh` removing
+  `ownpace-managed_trigger_db_data` from live's checkout. `scripts/idp-wiring.unit.test.ts` now
+  expects `${COMPOSE_PROJECT}_zitadel_machinekey` and the reader's assignment in
+  `bootstrap-managed.sh`, and failed first on the literal. `scripts/pasteable-hints.unit.test.ts`
+  now checks every volume a script runs or prints, `${COMPOSE_PROJECT}_<volume>` in code and
+  `<project>_<volume>` in a comment, and that `COMPOSE_PROJECT` comes from the reader; it failed
+  first on 2 cases. Thirteen mutations each turned a guard red: a fixed `container_name`, the runner
+  literal, a fixed host port, `reset-trigger.sh`'s literal volume, the reader treating an empty
+  shell value as unset, the reader following a disagreeing shell, `trigger-version.sh`'s fixed
+  container, a workflow naming `ownpace-live`, `bootstrap-managed.sh`'s literal recipe and a
+  project not from the reader (idp-wiring), and a literal prefix, a project not from the reader and
+  a variable in a comment (pasteable-hints). `a-jit-that-compiled-a-crash` and
+  `seed-demo-dav-content` pinned the old names and were moved to the new ones.
+- **Checked with Compose itself** (5.1.1, here, not on the machine), with a throwaway `.env` that
+  fills every required key with a placeholder:
+  `docker compose -p ownpace-live -f deploy/compose/managed.yml --env-file <that file> config`
+  names the 17 containers `ownpace-live-*`, the runner network `ownpace-live_ownpace-network`, the
+  networks `ownpace-live_ownpace-network` and `ownpace-live_status-probe`, and every volume
+  `ownpace-live_…`. Under `-p ownpace-managed` it shares none of the 17 names. Without `-p` it gives
+  `ownpace-managed-db` and `ownpace-managed_ownpace-network`. A `COMPOSE_PROJECT_NAME=ownpace-live`
+  line in the `.env` beside a copy of the file gives the same as `-p`, and `compose_project` agrees.
+- **Departures from §3.** The names are derived rather than dropped, so a script can build one
+  without asking Docker. `reset-trigger.sh` takes the volume's name from the shared reader rather
+  than from `docker compose config`; the guard runs it in both stacks' shoes. The guard renders the
+  YAML itself (the unit tier has no Compose); the render with Compose is the check above. The
+  reader's refusal of a disagreeing shell is new.
+- **PR #1210 (0149 T3), open in another session,** also edits `smoke-managed.sh`, at other lines
+  (around 1455 and 2136 to 2230). The edits here are five small hunks near the top, at the token
+  reader and at the Nextcloud cron line, so the two merge cleanly in either order.
+- **On the machine, when this merges.** The next nightly gate run, or
+  `./deploy/compose/bootstrap-managed.sh --from data --with-demo` from `~/ownpace-managed`,
+  recreates the OTA stack's containers under the new names (`ownpace-managed-db`,
+  `ownpace-managed-trigger-api`, …). Compose finds the old containers by their labels and replaces
+  them. The volumes and networks keep their names, because the project does not change, so no data
+  moves. The demo Stalwart (`ownpace-stalwart`, started outside Compose) keeps its name and its
+  network.
+- **Open, and whose.** The owner's, as T0 says: step 1, check with `docker ps` that the OTA
+  containers carry `ownpace-managed-*` names after the first run, and
+  `docker volume ls --filter name=ownpace-managed_` that the volumes are the same ones; and step 5,
+  run the D9 network checks on the machine, including that
+  `docker compose -f deploy/compose/managed.yml config | grep DOCKER_RUNNER_NETWORKS` renders the
+  project there (the machine's Compose version is not visible from here; one that does not supply
+  `COMPOSE_PROJECT_NAME` fails on the container names rather than running with wrong ones). Also
+  the owner's: any habit, note or job on the machine outside this repository that names an old
+  container (`docker exec ownpace-db …`) changes to `docker compose … exec postgres …` or to
+  `ownpace-managed-db`. T1b to T1g, T2 and T3 can start.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
-| T1 Container names, networks and scripts take the stack from the project name | 📋 **Decided 2026-09-24** (D7, D9); the code 📋 **Proposed** | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS`, the network task runs join), `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9, and `ownpace-managed_` volume or network names on 13 lines in six files (that network literal and `reset-trigger.sh`'s volume among them). Compose's own two networks already follow the project (D9). A guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. The old options A, B and C are ⛔ superseded and kept in §3. |
+| T1 Container names, networks and scripts take the stack from the project name | 📋 **Decided 2026-09-24** (D7, D9); the code 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-stack-named-by-its-project`, not merged** (2026-09-27) | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS`, the network task runs join), `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9, and `ownpace-managed_` volume or network names on 13 lines in six files (that network literal and `reset-trigger.sh`'s volume among them). Compose's own two networks already follow the project (D9). A guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. The old options A, B and C are ⛔ superseded and kept in §3. |
 | T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | 📋 **Decided 2026-09-24** (D7, D8) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values, never `--with-demo`. The owner sets the four database passwords in live's `.env` before the first bring-up (D8). `ensure-env-secrets.sh` still does not generate them, and `trigger-db`'s still waits for T2's code. |
 | T1c Its own Trigger.dev plane | 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |

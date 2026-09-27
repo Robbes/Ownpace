@@ -229,7 +229,11 @@ if [ "$WRITE" -eq 1 ]; then
   #
   # Compared rather than announced unconditionally: a line printed every time
   # is a line nobody reads. This speaks only when the two copies disagree.
-  PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}"
+  #
+  # One persisted directory per stack, named after its compose project, so a
+  # second stack on the machine is compared with its own copy (workplan 0132 T1).
+  COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
+  PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
   if [ -f "${PERSIST_DIR}/.env" ] && ! cmp -s "$ENV_FILE" "${PERSIST_DIR}/.env"; then
     echo "[trigger-credentials]" >&2
     echo "[trigger-credentials] WARNING: ${PERSIST_DIR}/.env differs and is what CI restores." >&2

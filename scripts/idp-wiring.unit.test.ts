@@ -473,7 +473,14 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
     // by whoever happens to hold it.
     expect(prepare).toMatch(/not in the image's own \/etc\/passwd/);
     expect(prepare, 'a refusal that does not say what to do next is half a refusal').
-      toMatch(/docker run --rm -v ownpace-managed_zitadel_machinekey/);
+      toMatch(/docker run --rm -v \$\{COMPOSE_PROJECT\}_zitadel_machinekey:\/machinekey/);
+    // THE VOLUME IS THIS STACK'S, NOT THE OTA STACK'S (workplan 0132 T1). The
+    // recipe used to name `ownpace-managed_zitadel_machinekey` outright, so on
+    // live's box it prepared the OTA stack's token directory and left live's
+    // as it was. The name is printed with the project the checkout drives
+    // filled in, and that project comes from the one reader every script uses.
+    expect(BOOTSTRAP, 'the recipe names a project nothing in the script sets').
+      toMatch(/^COMPOSE_PROJECT="\$\(compose_project "\$\{SCRIPT_DIR\}"\)"$/m);
   });
 
   it('the init service is kept out of `up` and writes only the one directory', () => {

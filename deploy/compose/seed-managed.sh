@@ -78,7 +78,7 @@ DIRECT="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhos
 # THE CHECK IS THE SEED'S OWN CONNECTION, not a probe beside it — and that is a
 # correction, not a shortcut. A probe would have to reach Postgres the way this
 # seed does, from the host through the published port, because the tempting
-# `docker exec ownpace-db psql -h 127.0.0.1` is answered by pg_hba's `trust`
+# `psql -h 127.0.0.1` inside the database container is answered by pg_hba's `trust`
 # line and succeeds with ANY password, wrong ones included. That vacuous check
 # has been shipped here once already; the first draft of this block wrote it
 # again, and scripts/the-check-postgres-never-made.unit.test.ts refused it.
@@ -118,7 +118,7 @@ if [ "$seed_rc" -ne 0 ]; then
       echo
       cat <<'REMEDY'
 export NEWPG="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | head -1)"
-docker exec -i -e NEWPG ownpace-db psql -U openmigrate -d openmigrate <<'SQL'
+docker compose -f managed.yml exec -T -e NEWPG postgres psql -U openmigrate -d openmigrate <<'SQL'
 \set pw `printf '%s' "$NEWPG"`
 ALTER ROLE openmigrate PASSWORD :'pw';
 SQL

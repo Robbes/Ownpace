@@ -102,7 +102,8 @@
 #   ./deploy/compose/seed-demo-dav-content.sh --big-sha256 T  # the large file's sha256, one line
 #
 # Env overrides:
-#   NEXTCLOUD_CONTAINER  (default ownpace-nextcloud, matches managed.yml)
+#   NEXTCLOUD_CONTAINER  (default <project>-nextcloud, matches managed.yml;
+#                        <project> is this checkout's compose project)
 #   DAV_TASK_COLLECTION  the VTODO-only collection's name under calendars/
 #                        (default openmig-tasks). Its own name rather than
 #                        `personal`, because the point is a collection that
@@ -130,7 +131,13 @@
 # the host that happened to work.
 set -uo pipefail
 
-NC="${NEXTCLOUD_CONTAINER:-ownpace-nextcloud}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+# This checkout's own stack's Nextcloud: container names follow the compose
+# project, so a second stack on the machine is never the one seeded (0132 T1).
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
+NC="${NEXTCLOUD_CONTAINER:-${COMPOSE_PROJECT}-nextcloud}"
 DAVUSER="${DAV_USER:-tenant-b-source}"
 PASS="${DAV_PASSWORD:-tenant_b_source_pw}"
 VERIFY_ONLY=0
@@ -716,7 +723,7 @@ cat <<'NEXT'
   2. That pass writes `item` rows with status='copied' and a target_ref id.
   3. Only then does smoke-managed.sh's apply half have an eligible item.
 Watch it land (the scheduler ticks every minute, so give it one):
-  docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+  docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
   SELECT domain, status, count(*) FROM item
    WHERE mapping_id='b0000000-0000-4000-8000-0000000000d1'
    GROUP BY 1,2;
