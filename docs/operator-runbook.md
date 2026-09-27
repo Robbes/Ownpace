@@ -32,6 +32,14 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 
 ## Prerequisites
 
+- The right checkout. Every command here acts on the stack whose checkout you run it
+  from: on the reference machine, `~/ownpace-managed` for the OTA stack, and
+  `~/ownpace-live` for testers' tenants once that stack stands (workplan 0132 D7, T1b).
+  The `docker compose -f deploy/compose/managed.yml …` commands, the `psql` recipes and
+  the scripts all take the stack from that checkout's `deploy/compose/.env`. Run from the
+  other checkout, a query answers for the other stack's tenants, and a change such as
+  revoking a link finds nothing to change there. See
+  [Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches).
 - Docker + Docker Compose v2 on the host.
 - `pnpm install` run in the repo (the seed, the deploy CLI wrapper and the env-var/smoke
   scripts use workspace `node_modules`).
@@ -312,7 +320,7 @@ amount on every invoice until somebody checked the bank.
 **Read what one tenant actually pays:**
 
 ```bash
-docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
   "SELECT t.id, t.name, p.pricing, p.agreed_at
      FROM tenant t LEFT JOIN tenant_pricing p ON p.tenant_id = t.id
     ORDER BY t.created_at;"
@@ -326,7 +334,7 @@ simply absent cannot be misread that way.
 **Re-price ONE existing tenant** — deliberate, per customer, after you have agreed it with them:
 
 ```bash
-docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
   "INSERT INTO tenant_pricing (tenant_id, pricing) VALUES ('<tenant-uuid>', jsonb_build_object(
        'baseFee', 1250, 'storagePricePerGB', 10,
        'egressPricePerGB', 20, 'computePricePerHour', 5))
@@ -425,7 +433,7 @@ row's own. The owner, on 2026-09-23: *"yes, all those, so auditline, limit and r
 where to start when somebody reports a link they did not expect.
 
 ```bash
-docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
   "SELECT at, tenant_id, action, detail
      FROM audit_log
     WHERE action IN ('mapping.granted', 'mapping.grant_refused', 'mapping.grant_withdrawn')
@@ -474,7 +482,7 @@ report is about, so a line break in any of them is written as a space.
 What happened with that link is in the rows above:
 
 ```bash
-docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
   "SELECT at, action, detail FROM audit_log
     WHERE detail->>'mappingId' = '<migration id>' ORDER BY at;"
 ```
@@ -484,7 +492,7 @@ migration's **Grant links** list, so ask them first. When it looks like abuse an
 reached, switch a live link off at the database, which is what **Revoke** does:
 
 ```bash
-docker exec ownpace-db psql -U openmigrate -d openmigrate -c \
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
   "UPDATE mapping_link SET revoked_at = now() WHERE id = '<link id>' AND revoked_at IS NULL;"
 ```
 

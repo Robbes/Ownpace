@@ -99,6 +99,14 @@ fi
   echo "FATAL: $ENV_FILE not found — run ./deploy/compose/bootstrap-managed.sh --only env" >&2
   exit 1
 }
+# This checkout's own stack (workplan 0132 T1). Compose finds Postgres's port
+# below, and it follows a COMPOSE_PROJECT_NAME exported in the shell over this
+# checkout's .env, so the reader refuses a shell that names the other stack.
+# Asked before the .env is sourced, which would hide the mismatch when the file
+# names a project.
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+compose_project "${SCRIPT_DIR}" >/dev/null || exit 1
 set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
