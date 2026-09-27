@@ -47,6 +47,9 @@ import {
   parseArchiveSource,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
+import { HttpTokenRevoker } from '@openmig/connectors';
+import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-credentials';
+import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { getTriggerClient } from '@openmig/scheduler';
 import type {
@@ -2975,9 +2978,32 @@ router.put(
 );
 
 /**
+ * The one revoker both editions use (0085 T4a/T9), built lazily and once, as
+ * the connection delete builds it: it reads the global `fetch` at call time,
+ * which is the seam the guard stubs.
+ */
+let revoker: TokenRevoker | undefined;
+const tokenRevoker = (): TokenRevoker => (revoker ??= new HttpTokenRevoker());
+
+/**
  * DELETE /api/mappings/:mappingId
- * 
- * Delete a mapping
+ *
+ * Delete a mapping, and revoke the credential its own row holds (workplan
+ * 0139 T6). Privacy §9 says credentials are destroyed when the migration is
+ * deleted. The row's own credential is `source_secret_ref`, the token a
+ * person granted through a grant link (`grant-ending.ts`), which reaches their
+ * own mailbox. Until now the delete dropped our copy and left the grant live
+ * at Google, with nobody holding it.
+ *
+ * Only that one. The organisation's credential lives on the connection, which
+ * outlives this migration and may serve others, so it is never touched here.
+ *
+ * AFTER the delete, for the connection delete's two reasons: nothing may be
+ * revoked until the row is actually gone, and a network call must not hold the
+ * tenant transaction open. The source connection's kind decides how a token is
+ * revoked, and is read in the same transaction as the delete. Best effort,
+ * never a refusal: `revocation` says what happened, and `failed` means the
+ * person has to withdraw it themselves.
  */
 router.delete(
   '/:mappingId',
@@ -3003,16 +3029,19 @@ router.delete(
       const pool = getSharedPool();
 
       // Delete mapping from database with RLS enforcement via withTenantDb
-      const [deleted] = await withTenantDb(tenantId, pool, async (db) => {
-        return await db
-          .delete(schema.mailboxMapping)
-          .where(
-            and(
-              eq(schema.mailboxMapping.id, mappingId),
-              eq(schema.mailboxMapping.tenantId, tenantId)
-            )
-          )
-          .returning();
+      const deleted = await withTenantDb(tenantId, pool, async (db) => {
+        const thisMapping = and(
+          eq(schema.mailboxMapping.id, mappingId),
+          eq(schema.mailboxMapping.tenantId, tenantId)
+        );
+        const [source] = await db
+          .select({ kind: schema.connection.kind })
+          .from(schema.mailboxMapping)
+          .leftJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+          .leftJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+          .where(thisMapping);
+        const [row] = await db.delete(schema.mailboxMapping).where(thisMapping).returning();
+        return row ? { secretRef: row.sourceSecretRef, sourceKind: source?.kind ?? '' } : undefined;
       });
 
       if (!deleted) {
@@ -3023,9 +3052,17 @@ router.delete(
         return;
       }
 
+      const revocation = deleted.secretRef
+        ? await revokeCredentialRow(
+            { kind: deleted.sourceKind, secret_ref: deleted.secretRef, legacy_credentials: null },
+            tokenRevoker(),
+          )
+        : undefined;
+
       res.json({
         success: true,
         message: 'Mapping deleted successfully',
+        ...(revocation ? { revocation } : {}),
       });
     } catch (error) {
       serverFault(res, 'delete_failed', 'deleting this migration', error);

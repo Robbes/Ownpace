@@ -2011,7 +2011,18 @@ paths:
         operator type the migration's own name; the API itself does not
         second-guess a deliberate call.
       responses:
-        '200': { description: Deleted. }
+        '200':
+          description: |
+            Deleted. When the migration's own row held a credential, the token
+            a person granted through a grant link, it was revoked where the
+            provider supports it, after the delete, and `revocation` says what
+            happened (workplan 0139 T6). The organisation's credential, on the
+            connection, is never touched. A migration without a credential of
+            its own answers without `revocation`. Until 2026-09-27 this revoked
+            nothing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationDeleted' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -5822,6 +5833,17 @@ components:
         displayName: { type: string }
         revocation: { $ref: '#/components/schemas/RevocationOutcome' }
       required: [deleted, id, revocation]
+
+    MigrationDeleted:
+      type: object
+      description: |
+        The answer to a migration delete that went through, with what happened
+        to the grant its own row held, when it held one.
+      properties:
+        success: { type: boolean, enum: [true] }
+        message: { type: string }
+        revocation: { $ref: '#/components/schemas/RevocationOutcome' }
+      required: [success, message]
 
     RevocationOutcome:
       type: object
