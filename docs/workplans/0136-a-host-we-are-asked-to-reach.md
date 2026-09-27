@@ -78,7 +78,65 @@ on a stack.
 - **Not yet:**
   - the proof on a stack, which is the next E2E (managed) run: the gate's bring-up admits the two
     names, and the smoke's Test and migration reach the demo Nextcloud through the rule;
-  - the screens' Dutch for `insideOurNetwork`, in T3's web half.
+  - the screens' Dutch for `insideOurNetwork`, in T3's web half, since merged as #1234.
+
+**2026-09-27, T3's screens built** (0131 §6, group M2, step 3) on branch
+`claude/mailbox-sync-errors-c2xsw2-the-answer-in-the-readers-language`, merged as #1234. The answer
+(#1227) put its English in the result's `reason` and each refused face's `detail`. The screens
+render `reason` for a code they do not know, so a Dutch tester read it in English.
+
+- **The parts, kept.** The managed API keeps the parts beside its sentence, as `said`, with the
+  reference its full text is logged under (`WhatHappenedAnswer` in `remote-refusal.ts`). They ride
+  on the Test result and on each refused face, in the record the connection doors store. They hold
+  nothing the sentence does not: a status, a protocol, and an error document's words.
+- **The screens say them** in both languages, ending with the reference (`saidText` in
+  `apps/web/src/i18n/probe-text.ts`). That covers the Test panels of the Connections page and of
+  the wizard, and the refused faces on the connection card and in the panels.
+  - The server's words stay verbatim inside our sentence.
+  - The parts win over the outcome code, which for a server that answered is still the probe's
+    own.
+  - Parts without a reference, such as a record stored before, render the text as served.
+- **The limit on tests** (#1228's 429 `too_many_tests`) reads in the reader's language: at the
+  Connections page's Test, add and rotate, and in the wizard.
+- **`docs/i18n-prose-boundary.md`** says where the screen words the `reason` itself, and
+  `openapi.yaml` documents `said`.
+- **Not changed:**
+  - the permission report, a Markdown document the server writes in English;
+  - the appliance, whose server has no Test door that answers from the parts.
+- **Proved.**
+  - `apps/web/src/i18n/an-answer-a-dutch-tester-read-in-english.unit.test.ts`, 16 cases:
+    - every kind in English and in Dutch, with the reference;
+    - a server's words verbatim;
+    - the parts over the outcome code;
+    - without a reference, the text as served;
+    - a refused face in both languages;
+    - the 429 recognised, and nothing else as it.
+  - `scripts/a-sentence-the-screen-and-the-api-word-apart.unit.test.ts`, 16 cases. For each kind,
+    through the real `probeAnswers`, the screen's English is the API's `reason`, and the screen's
+    face line is the API's `detail`.
+  - The page tests, in the page's language:
+    - `Connections.unit.test.tsx` gains two cases in Dutch: a Test answered from the parts, with a
+      refused face, and the 429;
+    - `CreateMapping.unit.test.tsx` gains two in the wizard: the parts, and the 429.
+  - The answer's own tests now hold that the parts stay with the reference:
+    `probe-answer.unit.test.ts`, and the doors' guard (`a-probe-that-does-not-read-aloud`), which
+    reads them off the stored faces.
+  - **Mutations:** 21, all killed:
+    - in the API: the parts dropped again from the result or from the face, or kept without the
+      reference;
+    - in `saidText`: parts without a reference said, the reference dropped, a mail server called
+      the server, a server's words not stopped, or dropped, and the status dropped;
+    - the parts never read by `probeText`, or by a refused face; a face's sentence keeping its
+      capital;
+    - the Connections card or the wizard passing no parts;
+    - the limit said in the server's sentence at the card's Test, not known to the page's
+      refusals or to the wizard, and any 429, or any `too_many_tests`, read as the limit;
+    - the Dutch for an address inside our network left in English, and the screen's English
+      drifting from the API's.
+- **T6 (a), M2's last step, rides with this.** Every pull request of T1, T2 and T3 carries the
+  guard §3 names for it, and its entry here the mutations run and killed: T1 (a) #1216, #1223 and
+  #1230, T1 (b) #1224, T2 #1230, T3 #1227, #1228 and this one.
+- **Not yet:** the failures route, T3's second step.
 
 **2026-09-27, T3's limit on tests built** (0131 §6, group M2, step 3) on branch
 `claude/mailbox-sync-errors-c2xsw2-a-limit-on-tests`, merged as #1228. The answer merged as #1227.
@@ -385,12 +443,12 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **Built 2026-09-27**: (a)'s three slices (the rule; every client of a tenant's host going through it; the rule switched on in the managed API and tasks, not merged) and (b) (the bring-up's network check); the refusal's Dutch comes with T3's web half; advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **Built 2026-09-27**: (a)'s three slices (the rule; every client of a tenant's host going through it; the rule switched on in the managed API and tasks, not merged) and (b) (the bring-up's network check); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; *was:* 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, merged as #1227; the limit merged as #1228**; the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, merged as #1227; the limit merged as #1228; the screens' half merged as #1234**; the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
-| T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
+| T6 Guard tests for each | 🔨 **(a) with each task, 2026-09-27** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 (#1230) not merged, T3's screens merged as #1234; *was:* 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today

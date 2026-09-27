@@ -1684,6 +1684,49 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     expect(await screen.findByText(/Still measuring what this account can carry/)).toBeTruthy();
   });
 
+  /** The Dropbox walk's Test press, up to the door answering. */
+  const pressTest = async () => {
+    renderWizard();
+    pickDropbox();
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+      target: { value: 'owner@example.invalid' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('1//…'), { target: { value: 'dbx-refresh' } });
+    fireEvent.click(screen.getByRole('button', { name: /Test and save connections/ }));
+    await waitFor(() => expect(addMock).toHaveBeenCalled());
+  };
+
+  it('says an answer from its parts, not the sentence the server served (0136 T3)', async () => {
+    // The kind of connection does not matter here: the panel reads the parts
+    // whenever a door kept them. The served sentence is a stand-in, so the
+    // screen can only show the dictionary's by reading the parts.
+    addMock.mockResolvedValue({
+      ok: false,
+      id: 'conn-dropbox',
+      reason: 'the served sentence, which the panel does not need',
+      outcome: { code: 'unreachable' },
+      said: { kind: 'unreachable', reference: '1a2b3c4d' },
+    } as never);
+    await pressTest();
+    expect(await screen.findByText(/^Nothing answered at that address: .* Reference 1a2b3c4d\.$/)).toBeTruthy();
+    expect(screen.queryByText(/the served sentence/)).toBeNull();
+  });
+
+  it('says the limit on tests from the dictionary, not the server’s sentence (0136 T3)', async () => {
+    const err = new AxiosError('Request failed with status code 429');
+    err.response = {
+      status: 429,
+      statusText: 'Too Many Requests',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'too_many_tests', reason: 'the served sentence, which the panel does not need' },
+    };
+    addMock.mockRejectedValue(err);
+    await pressTest();
+    expect(await screen.findByText(STRINGS.en['probe.tooManyTests'])).toBeTruthy();
+    expect(screen.queryByText(/the served sentence/)).toBeNull();
+  });
+
   it('the folder browse works on the token alone, and sends no empty pair', async () => {
     // The browse behind rootPath gated on the pair and its route demanded
     // all three, so behind the fold it stayed dead — the Drive browse's

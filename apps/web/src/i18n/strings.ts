@@ -2150,6 +2150,34 @@ const en = {
   // measured no — the owner's answer of 2026-09-20.
   'probe.countedAtPreflight':
     'This export is in the migration\'s file target; it is counted at the preflight.',
+  // WHAT HAPPENED AT AN ADDRESS THE TESTER TYPED (0136 T3), said from its
+  // parts: a status, and a server's own words only when it sent an error
+  // document we know. `{words}` is the server's and stays as it came, in both
+  // languages (rule 9, docs/i18n-prose-boundary.md); the rest is ours. Every
+  // sentence ends with the reference the full text is logged under.
+  'probe.said.server': 'The server',
+  'probe.said.mailServer': 'The mail server',
+  'probe.said.answeredWords': '{who} answered {status}: {words}',
+  'probe.said.answeredWordsNoStatus': '{who} answered: {words}',
+  'probe.said.answeredOther':
+    '{who} answered {status} with something that is not a DAV, JMAP or IMAP error.',
+  'probe.said.answeredOtherNoStatus':
+    '{who} answered with something that is not a DAV, JMAP or IMAP error.',
+  'probe.said.unreachable':
+    'Nothing answered at that address: the name did not resolve, the connection was refused, or no answer came in time. Check the host name and the port.',
+  'probe.said.certificate':
+    'The server\'s certificate did not verify for that name, or it has expired, so the test stopped before signing in.',
+  'probe.said.insideOurNetwork':
+    'That address is inside this service\'s own network, or the server sent the test on to one that is, so we did not connect to it. Give the address the server has on the internet.',
+  'probe.said.unknown':
+    'The test failed, and what came back is not shown here. Check the address and the port.',
+  'probe.said.reference': 'Reference {reference}.',
+  // A face the test could not measure, said the same way (0136 T3).
+  'probe.said.unmeasured': 'Unmeasured — {sentence}',
+  // The limit on tests (0136 T3): sixty an hour per member, across the doors
+  // that connect to an address somebody typed.
+  'probe.tooManyTests':
+    'You have tested a lot of connections in the last hour. Wait a little, then test again.',
   'probe.measuring': 'Still measuring what this account can carry — refresh in a minute.',
   // A listing that stopped at its cap saw AT LEAST this many. It used to say
   // so in the headline; the headline no longer carries a count, so it says so
@@ -4110,6 +4138,26 @@ const nl: Record<keyof typeof en, string> = {
     'Geen antwoord binnen {seconds} seconden; toch bewaard, dus test later opnieuw of verklein de hoofdmap.',
   'probe.countedAtPreflight':
     'Deze export staat in het bestandsdoel van de migratie en wordt bij de preflight geteld.',
+  'probe.said.server': 'De server',
+  'probe.said.mailServer': 'De mailserver',
+  'probe.said.answeredWords': '{who} antwoordde {status}: {words}',
+  'probe.said.answeredWordsNoStatus': '{who} antwoordde: {words}',
+  'probe.said.answeredOther':
+    '{who} antwoordde {status} met iets dat geen DAV-, JMAP- of IMAP-foutmelding is.',
+  'probe.said.answeredOtherNoStatus':
+    '{who} antwoordde met iets dat geen DAV-, JMAP- of IMAP-foutmelding is.',
+  'probe.said.unreachable':
+    'Op dat adres antwoordde niets: de naam werd niet gevonden, de verbinding werd geweigerd, of er kwam niet op tijd antwoord. Controleer de hostnaam en de poort.',
+  'probe.said.certificate':
+    'Het certificaat van de server klopte niet voor die naam, of het is verlopen, dus de test stopte voordat er werd ingelogd.',
+  'probe.said.insideOurNetwork':
+    'Dat adres ligt binnen het eigen netwerk van deze dienst, of de server stuurde de test door naar een adres dat daar ligt, dus we hebben er geen verbinding mee gemaakt. Geef het adres dat de server op internet heeft.',
+  'probe.said.unknown':
+    'De test mislukte, en wat terugkwam wordt hier niet getoond. Controleer het adres en de poort.',
+  'probe.said.reference': 'Referentie {reference}.',
+  'probe.said.unmeasured': 'Niet gemeten — {sentence}',
+  'probe.tooManyTests':
+    'U hebt het afgelopen uur veel verbindingen getest. Wacht even en test dan opnieuw.',
   'probe.measuring': 'Er wordt nog gemeten wat dit account kan dragen — ververs over een minuut.',
   'probe.measured.atLeast': 'ten minste {count} {unit}',
   'probe.unit.folder.one': 'map',
