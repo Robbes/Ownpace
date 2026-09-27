@@ -258,6 +258,43 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Readiness' }
 
+  /api/ready/scheduler:
+    get:
+      tags: [Service]
+      summary: Did the sync tick run lately
+      description: |
+        A sibling of `/api/ready`, not a field of it (workplan 0142 T2). A tick
+        that stopped does not stop this service serving a customer; it stops
+        every migration from moving, and nothing else says so.
+
+        `up` when `managed-sync-tick` completed a run in the last five minutes,
+        `down` when it did not or its beat cannot be read, and `off` where no
+        orchestrator is configured, so no tick runs. States, never reasons: the
+        reason goes to the log. Always `200`, because the API is serving; a page
+        reads the body. Also served at `/ready/scheduler`.
+      security: []
+      responses:
+        '200':
+          description: The tick's state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulerReadiness' }
+
+  /ready/scheduler:
+    get:
+      tags: [Service]
+      summary: Did the sync tick run lately (unprefixed path)
+      description: |
+        Identical to `/api/ready/scheduler`, served beside `/ready` for the same
+        reason `/ready` is.
+      security: []
+      responses:
+        '200':
+          description: The tick's state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulerReadiness' }
+
   /api/me:
     get:
       tags: [Account]
@@ -5979,6 +6016,14 @@ components:
         database: { $ref: '#/components/schemas/CheckState' }
         signIn: { $ref: '#/components/schemas/CheckState' }
       required: [status, database, signIn]
+
+    SchedulerReadiness:
+      type: object
+      description: One field, a state and never a reason (workplan 0142 T2).
+      properties:
+        scheduler: { $ref: '#/components/schemas/CheckState' }
+      required: [scheduler]
+      additionalProperties: false
 
     Membership:
       type: object

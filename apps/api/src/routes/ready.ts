@@ -42,7 +42,9 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { log } from '@openmig/shared';
+import { readTickBeat } from '@openmig/managed';
 import { getDbPool } from '../middleware/auth.ts';
 
 const router = Router();
@@ -164,6 +166,34 @@ export async function readiness(): Promise<Readiness> {
   return { status: rollUp(checks), ...checks };
 }
 
+/** The scheduler's answer: one field (workplan 0142 T2). */
+export interface SchedulerReadiness {
+  readonly scheduler: CheckState;
+}
+
+/**
+ * DID THE SYNC TICK RUN LATELY (workplan 0142 T2)?
+ *
+ * A sibling of `/api/ready`, not a field of it. `/api/ready` answers whether
+ * this service can serve a customer, and a tick that stopped does not stop
+ * that: it stops every migration from moving, and nothing else said so. The
+ * same rule holds here: `up`, `down` or `off`, and the reason goes to the log.
+ *
+ * `up` when the tick's beat is under five minutes old (`readTickBeat`); `down`
+ * when it is older, missing, or cannot be read. `off` is "not configured
+ * here": a deployment with no orchestrator (`TRIGGER_SECRET_KEY` unset) runs no
+ * tick, and its beat would never come.
+ */
+export async function schedulerReadiness(now: Date = new Date()): Promise<SchedulerReadiness> {
+  if (!process.env.TRIGGER_SECRET_KEY?.trim()) return { scheduler: 'off' };
+  try {
+    return { scheduler: await readTickBeat(drizzle(pool()), now) };
+  } catch (error) {
+    log.error("[ready] the sync tick's beat could not be read:", error);
+    return { scheduler: 'down' };
+  }
+}
+
 const handler = async (_req: Request, res: Response): Promise<void> => {
   const body = await readiness();
   // 503 only when nothing can be served. `degraded` is a 200 on purpose: the
@@ -173,6 +203,13 @@ const handler = async (_req: Request, res: Response): Promise<void> => {
 };
 
 router.get('/', handler);
+
+const schedulerHandler = async (_req: Request, res: Response): Promise<void> => {
+  // A 200 whatever it says: the API is serving, and the page reads the body.
+  res.json(await schedulerReadiness());
+};
+
+router.get('/scheduler', schedulerHandler);
 
 export default router;
 export { handler as readyHandler };

@@ -2,7 +2,48 @@
 
 > **In one line:** Telling the operator when `ownpace-live` fails: an alert channel, Gatus alerts on the Ownpace status rows, a `managed-sync-tick` heartbeat, disk, queue and PgBouncer watches, an off-machine probe and `docs/incident-runbook.md`.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T2 (a) built (0131 §6, group M4, step 5)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-tick-that-says-it-ran`, not merged. The scheduled tick now
+says it ran, and a route reads it.
+
+- **The beat.** Managed migration 0030 creates `sync_tick_beat`: one row per scheduled task,
+  keyed by the task's id and holding `beat_at`, so the daily and hourly tasks can beat later
+  without another migration. It has no row security, and the migration says so in the words
+  `app_event` uses. `app_user` may SELECT it and nothing else, so no request can forge a beat.
+- **`recordTickBeat` and `readTickBeat`**, in `@openmig/managed` (`tick-beat.ts`).
+  - `recordTickBeat` never throws: a beat that could not be written is logged, and the tick's
+    work stands.
+  - `readTickBeat` answers `up` when the beat is under five minutes old (`TICK_LATE_AFTER_MS`),
+    and `down` when it is older or missing. The age is compared in the database, so a driver's
+    timestamp type cannot change the answer.
+- **The tick beats at the end of each run**: on the hold's early return, and after the enqueue
+  phase. Never before the enumeration.
+- **`GET /api/ready/scheduler`** answers `{ "scheduler": "up" | "down" | "off" }`. `off` is a
+  deployment with no orchestrator (`TRIGGER_SECRET_KEY` unset). A read that fails answers `down`,
+  and the reason goes to the log. `/api/ready` is unchanged. The OpenAPI spec documents the
+  route at both of its paths.
+- **Proved.** Three guards, each failing on `main`:
+  - `packages/managed/src/a-tick-that-says-it-ran.unit.test.ts`, on PGlite with both chains: one
+    row per task, replaced by the next beat; `up` at 30 seconds and at the edge, `down` just
+    past it, at six minutes and with no beat; the application role reads it and cannot insert,
+    update or delete; a task id holds a name's shape; a beat the role cannot write answers
+    `false` and does not throw;
+  - `apps/worker/src/jobs/a-tick-that-says-it-ran.unit.test.ts` reads the task's body as text:
+    one beat on the hold's return, one after the enqueue phase, none before the enumeration;
+  - `apps/api/src/routes/a-tick-that-says-it-ran.unit.test.ts`, through Express: the body's one
+    field, `off` without reading, `down` with the reason in the log and not in the body, and
+    `/api/ready` unchanged.
+  - **Mutations:** 11, all killed:
+    - the tick: the hold returning without a beat, the normal path returning without one, a beat
+      before the enumeration;
+    - the beat: one that cannot be written throwing, no beat read as `up`, ten minutes before a
+      beat is late, a second beat not replacing the first, the request path allowed to write one;
+    - the route: `off` ignored, a failed read saying why in the body, `/api/ready` growing the
+      field.
+- **Not in this change: the Gatus row.** Whether *Scheduled syncs* is on the public page or kept
+  to the owner is open question 3, the owner's. Its alert is T1's, which waits on T0.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
 nobody is told when the stack, the scheduled tick, the disk, a pass or a nightly gate fails.
@@ -47,7 +88,7 @@ watch's issue reaches the owner (0141, 0146).
 |---|---|---|
 | T0 The alert channel, and what the alpha promises | ⏳ **Owner** for the channel; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
 | T1 The status page tells the owner when an Ownpace row goes red | 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
-| T2 A tick that says it ran | 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
+| T2 A tick that says it ran | 🔨 **(a) built 2026-09-27, not merged**: the beat and `GET /api/ready/scheduler`; the Gatus row waits on open question 3 — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
 | T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
 | T4 What is waiting: queued runs, pooler waits, recorded failures | 📋 **Proposed** | §3. After the first invitation. Queue counts written with T2's heartbeat, `SHOW POOLS`, and a daily count of 0129's recorded failures. |
 | T5 Something off the machine that can say "down" | 📋 **Proposed**; the host is the owner's | §3. After the first invitation. A second copy of the same `gatus.yaml` on a small EU host, watching the public addresses. Until then, testers are the outside probe (§4). |
