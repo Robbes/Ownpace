@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 162 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 163 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -2613,6 +2613,10 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/setup-zitadel.sh`
 - `docs/managed-bring-up.md`
+
+### [a-sentence-the-screen-and-the-api-word-apart](../scripts/a-sentence-the-screen-and-the-api-word-apart.unit.test.ts)
+
+A SENTENCE THE SCREEN AND THE API WORD APART (workplan 0136 T3).
 
 ### [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts)
 

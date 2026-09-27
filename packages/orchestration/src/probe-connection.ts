@@ -28,7 +28,7 @@ import {
   microsoftFaceScope,
   whatHappened,
   type ProviderClientEnv,
-  type WhatHappened,
+  type WhatHappenedAnswer,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
 import {
@@ -117,12 +117,14 @@ export type ProbeResult =
        * WHAT HAPPENED, IN PARTS, when the probe reached a host the tester typed
        * (workplan 0136 T3): a DAV, IMAP or JMAP server's status and its words
        * only when they came as an error document we know, or a socket failure
-       * by its category. `reason` above is the full text and still holds the
-       * remote's bytes; the managed API answers from this instead and logs
-       * `reason` under a reference. Absent for a provider's fixed hosts, whose
-       * words render verbatim (workplan 0080), and for every refusal of ours.
+       * by its category. Here `reason` above is the full text and still holds
+       * the remote's bytes. The managed API answers from these parts instead,
+       * logs `reason` under a reference, and keeps the parts on its answer with
+       * that reference, so a screen says them in its reader's language. Absent
+       * for a provider's fixed hosts, whose words render verbatim (workplan
+       * 0080), and for every refusal of ours.
        */
-      readonly said?: WhatHappened;
+      readonly said?: WhatHappenedAnswer;
     };
 
 /** The English `detail` for a successful listing — the fallback, not the UI. */
