@@ -44,6 +44,7 @@ import {
   firstMonth,
 } from './prices.mjs';
 import { freeTier as free } from './calculator.mjs';
+import { securityTxt } from './security-txt.mjs';
 import { LOCALES, DEFAULT_LOCALE, localeRoot, COPY } from './copy.mjs';
 import { CUSTOMER_TYPES, INDICATIVE_PROFILES, OBJECT_TYPES, PROFILES_VERSION } from './profiles.mjs';
 
@@ -1041,6 +1042,10 @@ if (runDirectly && process.argv.includes('--check')) {
     join(DIST, 'robots.txt'),
     PUBLIC ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n',
   );
+  // Where a vulnerability is reported (0139 T9): the channel SECURITY.md
+  // names, in the same order, with an Expires the RFC requires.
+  mkdirSync(join(DIST, '.well-known'), { recursive: true });
+  writeFileSync(join(DIST, '.well-known', 'security.txt'), securityTxt({ now: new Date(), isPublic: PUBLIC }));
   for (const p of rendered) console.log(`[site] wrote dist/${p.file}`);
   console.log(
     PUBLIC
