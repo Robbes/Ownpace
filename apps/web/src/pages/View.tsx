@@ -304,7 +304,7 @@ const View: React.FC = () => {
         // to be forwarded to the person who sent the link, and rewording
         // either would lose that half.
         <p role="alert" className="mt-4 text-sm text-amber-800">
-          {linkRefusal(view.error, locale)}
+          {linkRefusal(view.error, locale, t)}
         </p>
       )}
 

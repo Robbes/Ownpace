@@ -60,7 +60,9 @@
  *
  * **In one language, which the reader chooses** (workplan 0145 T6). The page
  * is outside `Layout`, so it carries its own switch, the same two buttons.
- * A refusal shows the half the server sent in the page's language, and the
+ * A refusal shows the half the server sent in the page's language; a failure
+ * the server wrote no sentence for (no connection, a subject this page cannot
+ * read) is the page's own sentence (`link-refusal.ts`), and the
  * button tells the server which language the ending after Google should be
  * in. A refusal is announced (`role="alert"`) and the waiting line is a
  * status, which 0145 T4 left to this change.
@@ -176,7 +178,7 @@ const Grant: React.FC = () => {
         // the link, and rewording it would lose the half that says what to
         // tell them. An alert, because it replaces the whole page.
         <p role="alert" className="mt-4 text-sm text-amber-800">
-          {linkRefusal(subject.error, locale)}
+          {linkRefusal(subject.error, locale, t)}
         </p>
       )}
 
@@ -288,7 +290,7 @@ const Grant: React.FC = () => {
 
           {failure != null && (
             <p role="alert" className="mt-3 text-sm text-amber-800">
-              {linkRefusal(failure, locale)}
+              {linkRefusal(failure, locale, t)}
             </p>
           )}
 

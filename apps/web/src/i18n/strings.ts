@@ -1037,6 +1037,13 @@ const en = {
   'grant.terms': 'Terms',
   'grant.withdraw':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
+  // A failure on the grant or progress page that the server wrote no sentence
+  // for (workplan 0145 T6, review): the page's own words, in its language,
+  // rather than the transport's English or a parser's JSON. The server's own
+  // refusals come in pairs from `@openmig/shared` and are not these.
+  'link.unreachable': 'This page could not reach the server. Check your connection and try again.',
+  'link.unreadable':
+    'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -3319,6 +3326,9 @@ const nl: Record<keyof typeof en, string> = {
   'grant.terms': 'Voorwaarden',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
+  'link.unreachable': 'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.',
+  'link.unreadable':
+    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} verhuist uw account naar een nieuwe provider.',

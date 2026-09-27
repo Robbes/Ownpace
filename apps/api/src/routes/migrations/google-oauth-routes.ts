@@ -296,7 +296,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   });
 
   if (!link) {
-    // The owner's ending, exactly as it shipped in 0089 T1.
+    // The owner's ending (0089 T1), in the language the consent began in (0145 T6).
     return page(outcome.ok ? 200 : 400, consentResultPage({ webOrigin: webOrigin(), outcome, locale }));
   }
 

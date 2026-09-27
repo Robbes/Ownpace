@@ -10,30 +10,42 @@
  * the English one, under the same name with `Nl` added (`reason` and
  * `reasonNl`, or `message` and `messageNl` for the link check itself).
  *
- * Under `nl` this reads the Dutch half OF THE SENTENCE `serverMessage` would
- * show, so the two languages can never be two different refusals: `message`
- * first, then `reason`, in `serverMessage`'s own order. Anything without a
- * Dutch half (an older server, a fault, a sentence nobody has paired yet)
- * falls back to `serverMessage`, the English as served, rather than to nothing.
+ * The English is the sentence `serverMessage` would show, `message` first and
+ * then `reason`, in its own order. Under `nl` this reads the Dutch half OF THAT
+ * SENTENCE, so the two languages can never be two different refusals. A
+ * server sentence without a Dutch half (an older server, a fault, a sentence
+ * nobody has paired yet) is shown in the English as served, rather than as
+ * nothing.
+ *
+ * A failure the server wrote no sentence for is the page's own, from the
+ * dictionary, in the page's language (0145 T6, review). Until then it fell
+ * back to the error's own message: zod's JSON dump of its issues for a
+ * subject this page could not read, axios's English *Network Error* for a
+ * connection that dropped, or *Request failed with status code 502* for a
+ * proxy's HTML. None of those is a sentence, and none is in the page's
+ * language. The failure is still shown as one: which sentence, not whether.
  */
 
 import axios from 'axios';
-import type { Locale } from '../i18n/strings.ts';
-import { serverMessage } from './api.ts';
+import type { Locale, StringKey } from '../i18n/strings.ts';
 
 const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== '';
 
-export function linkRefusal(err: unknown, locale: Locale): string {
-  if (locale === 'nl' && axios.isAxiosError(err)) {
-    const data: unknown = err.response?.data;
-    if (data && typeof data === 'object') {
-      const d = data as { message?: unknown; messageNl?: unknown; reason?: unknown; reasonNl?: unknown };
-      if (nonEmpty(d.message)) {
-        if (nonEmpty(d.messageNl)) return d.messageNl;
-      } else if (nonEmpty(d.reason) && nonEmpty(d.reasonNl)) {
-        return d.reasonNl;
-      }
-    }
+export function linkRefusal(err: unknown, locale: Locale, t: (key: StringKey) => string): string {
+  if (!axios.isAxiosError(err)) {
+    // Not a request that failed: a subject or an answer this page could not
+    // read, which is a bug or a newer server, and nothing the reader can fix.
+    return t('link.unreadable');
   }
-  return serverMessage(err);
+  // No answer at all: the connection dropped, or the request timed out.
+  if (!err.response) return t('link.unreachable');
+  const data: unknown = err.response.data;
+  if (data && typeof data === 'object') {
+    const d = data as { message?: unknown; messageNl?: unknown; reason?: unknown; reasonNl?: unknown };
+    if (nonEmpty(d.message)) return locale === 'nl' && nonEmpty(d.messageNl) ? d.messageNl : d.message;
+    if (nonEmpty(d.reason)) return locale === 'nl' && nonEmpty(d.reasonNl) ? d.reasonNl : d.reason;
+  }
+  // An answer with no sentence in it: a proxy's page, or a body that names
+  // only a code.
+  return t('link.unreadable');
 }

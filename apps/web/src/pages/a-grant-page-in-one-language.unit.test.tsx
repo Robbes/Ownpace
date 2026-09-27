@@ -19,6 +19,9 @@
  * - a refusal shows the half in the page's language, the one the server sends
  *   beside it (`messageNl`, `reasonNl`), and is announced (`role="alert"`,
  *   which 0145 T4 leaves to this task); the waiting line is a status;
+ * - a failure the server wrote no sentence for (no connection, a timeout, a
+ *   subject the page cannot read, a proxy's page) is the page's own sentence
+ *   in its language, never the transport's English or a parser's JSON;
  * - both pages carry the same two language buttons `Layout` has, with
  *   `aria-pressed`, and pressing one changes the sentence and the refusal;
  * - the button asks for the ending in the page's language.
@@ -30,6 +33,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
+import { z } from 'zod';
 import { LocaleProvider } from '../i18n/index.tsx';
 
 const { readMock, authorizeMock, viewReadMock, assignMock } = vi.hoisted(() => ({
@@ -199,6 +203,77 @@ describe('a refusal in the page’s language, announced', () => {
     inLocale('nl');
     renderAt('/grant/abc.def');
     expect(await screen.findByRole('status')).toHaveTextContent('Een moment…');
+  });
+});
+
+/**
+ * A failure the server wrote no sentence for (0145 T6, review).
+ *
+ * Until then everything that was not a server body fell back to the error's
+ * own message, inside the alert: zod's JSON dump of its issues for a subject
+ * this page could not read (a data type it has no words for, after a sixth one
+ * ships), and axios's English for a network that dropped, which a phone in a
+ * chat app's browser meets often. Neither is a sentence, and neither is in the
+ * page's language.
+ */
+describe('a failure with no sentence from the server', () => {
+  const UNREACHABLE_NL =
+    'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.';
+  const UNREADABLE_NL =
+    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan ' +
+    'de persoon weten die u de link stuurde.';
+  const UNREACHABLE_EN = 'This page could not reach the server. Check your connection and try again.';
+
+  /** What the subject's parse throws for a data type this page has no words for. */
+  function unreadableSubject(): unknown {
+    const parsed = z
+      .object({ domains: z.array(z.enum(['email', 'calendar', 'contact', 'file', 'task'])).min(1) })
+      .safeParse({ domains: ['photos'] });
+    if (parsed.success) throw new Error('the schema was meant to refuse this');
+    return parsed.error;
+  }
+
+  it('a subject the page cannot read says so in Dutch, with none of the parser’s words', async () => {
+    readMock.mockRejectedValue(unreadableSubject());
+    inLocale('nl');
+    renderAt('/grant/abc.def');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(UNREADABLE_NL);
+    expect(alert.textContent).not.toContain('"code"');
+  });
+
+  it('a server that cannot be reached says so in Dutch, not in the transport’s words', async () => {
+    readMock.mockRejectedValue(new AxiosError('Network Error', AxiosError.ERR_NETWORK));
+    inLocale('nl');
+    renderAt('/grant/abc.def');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(UNREACHABLE_NL);
+    expect(alert.textContent).not.toContain('Network Error');
+  });
+
+  it('a timeout after the button is the page’s own sentence, in English too', async () => {
+    authorizeMock.mockRejectedValue(new AxiosError('timeout of 30000ms exceeded', AxiosError.ECONNABORTED));
+    renderAt('/grant/abc.def');
+    await userEvent.click(await screen.findByRole('button', { name: 'Continue with Google' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(UNREACHABLE_EN);
+    expect(alert.textContent).not.toContain('timeout');
+  });
+
+  it('an answer with no sentence in it is the page’s own sentence, not the status line', async () => {
+    readMock.mockRejectedValue(refusal(502, '<html><body>Bad Gateway</body></html>'));
+    inLocale('nl');
+    renderAt('/grant/abc.def');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(UNREADABLE_NL);
+    expect(alert.textContent).not.toContain('status code');
+  });
+
+  it('the view page says the same', async () => {
+    viewReadMock.mockRejectedValue(new AxiosError('Network Error', AxiosError.ERR_NETWORK));
+    inLocale('nl');
+    renderAt('/view/abc.def');
+    expect(await screen.findByRole('alert')).toHaveTextContent(UNREACHABLE_NL);
   });
 });
 

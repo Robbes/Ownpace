@@ -115,10 +115,11 @@ says that too.
 
 **In English or Dutch, as they choose** (workplan 0145 T6). The page opens in their browser's
 language and has two buttons, EN and NL, in its top corner; the progress page has the same two.
-What will be read, every refusal, and the page after Google are in that language. The page
-after Google follows the language the grant page was in when they pressed the button. It asks
-them to keep their progress link, by a bookmark or a copy, because a page opened inside another
-app may not keep a bookmark.
+What will be read, the refusals of the link and of the migration, and the page after Google are
+in that language. Taking the access back and reporting the link still answer in English for now
+(workplan 0145 T6). The page after Google follows the language the grant page was in when they
+pressed the button. It asks them to keep their progress link, by a bookmark or a copy, because a
+page opened inside another app may not keep a bookmark.
 
 ### Only the account the page names
 

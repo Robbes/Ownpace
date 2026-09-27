@@ -23,7 +23,7 @@
 process.env.SECRET_ENCRYPTION_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import {
@@ -93,7 +93,9 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
 
 const { default: grantRoutes } = await import('./grant.ts');
 const { default: googleOauthRoutes } = await import('./migrations/google-oauth-routes.ts');
-const { GOOGLE_SOURCE_SCOPES } = await import('./migrations/google-consent.ts');
+const { GOOGLE_SOURCE_SCOPES, rawIpCallbackRefusal, unreachableCallbackRefusal } = await import(
+  './migrations/google-consent.ts'
+);
 const { googleAccountConsent, isRefusal } = await import('./migrations/google-account-consent.ts');
 const { SIGNED_IN_ACCOUNT_SCOPES } = await import('./migrations/signed-in-account.ts');
 
@@ -1399,6 +1401,55 @@ describe('one language through the grant (0145 T6)', () => {
       `U bent bij Google ingelogd als personal@gmail.com, maar deze migratie leest ${NAMED}.`,
     );
     expect(ended.text).toContain('Er is niets opgeslagen, en uw link werkt nog.');
+  });
+
+  /**
+   * The two sign-in wrappers (0145 T6, review): the operator's refusal of a
+   * callback address, reached by a person who cannot act on it, wrapped in a
+   * frame they can read and forward. The frame is translated; the operator's
+   * words inside it are the finding and stay verbatim in both halves.
+   */
+  describe('a callback address Google will not take, told in both languages', () => {
+    const DUTCH_FRAME = 'Deze migratie kan nog geen Google-aanmelding gebruiken';
+    let saved: { api: string | undefined; web: string | undefined };
+    beforeEach(() => {
+      saved = { api: process.env.API_URL, web: process.env.WEB_URL };
+    });
+    afterEach(() => {
+      process.env.API_URL = saved.api;
+      process.env.WEB_URL = saved.web;
+    });
+
+    it('a raw IP address', async () => {
+      // A documentation address (RFC 5737): the shape, not a host.
+      process.env.API_URL = 'http://192.0.2.10:3001';
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('raw_ip_callback');
+      expect(res.body.reasonNl.startsWith(DUTCH_FRAME)).toBe(true);
+      const detail = rawIpCallbackRefusal('http://192.0.2.10:3001/api/migrations/google/callback')!;
+      expect(detail).toContain('raw IP address');
+      expect(res.body.reason).toContain(detail);
+      expect(res.body.reasonNl).toContain(detail);
+    });
+
+    it('a loopback address behind a public app', async () => {
+      process.env.API_URL = 'http://localhost:3001';
+      process.env.WEB_URL = 'https://app.example';
+      const { token } = await mintLink(MAPPING);
+      const res = await request(app).post(`/api/grant/${token}/google/authorize`).send({ locale: 'nl' });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('unreachable_callback');
+      expect(res.body.reasonNl.startsWith(DUTCH_FRAME)).toBe(true);
+      const detail = unreachableCallbackRefusal(
+        'http://localhost:3001/api/migrations/google/callback',
+        'https://app.example',
+      )!;
+      expect(detail).toContain('loopback address');
+      expect(res.body.reason).toContain(detail);
+      expect(res.body.reasonNl).toContain(detail);
+    });
   });
 
   it('a grant begun with an unknown language ends in English', async () => {
