@@ -2,7 +2,38 @@
 
 > **In one line:** Apply deletions fails closed: CalDAV, CardDAV or WebDAV 412 on create recorded as adopted, failed lookups throw, removal needs a recorded version and `If-Match`, cutover gate fails with no hash compared, IMAP source uses EXAMINE.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T1 and T2 built, in one pull request (0131 §6, group M1, step 1).** T3, T4 and
+T5 are next in the group, in its order.
+
+- **T2.** The three per-item lookups answer 207 as before (and 200, for WebDAV), a 404 as
+  absent, and throw on anything else, after the retries a write gets. WebDAV's catch-all is
+  gone, so a transport error propagates. They refuse in the JMAP and IMAP lookups' words,
+  *refusing to treat this as "not present"*, and end on the server's status, so the failure
+  categories read them as they read a write's: a 401 is `auth_expired`, and a 403 or a lasting
+  500 is `target_refused`.
+- **T1.** A 412 on create is asked about, never recorded as a copy. CalDAV and CardDAV ask who
+  holds the UID. CalDAV asks through the helper its UID refusal uses, so a modified occurrence
+  is never adopted onto what holds its series. An href the server names is adopted; with none
+  named, the item fails as `target_refused` and nothing is recorded. WebDAV adopts at the path
+  through one adoption for both existence paths, buffered and streamed. It asks first what is
+  there, which §3 did not say: a 412 answers for a directory too, and a directory is never
+  adopted as a file, on this path as on the others. `dav-retry.ts`'s header no longer calls a
+  412 a success.
+- **Proved.** Two guards, `packages/engines/src/a-refusal-recorded-as-a-copy.unit.test.ts` (11
+  cases) and `an-absence-that-was-a-failure.unit.test.ts` (16); ten of each fail against the
+  writers on `main`. Four existing tests changed with D1, not to make CI pass: the two 412
+  round trips (their lookups now name the object, and each asserts `adopted`, which they
+  lacked), the per-item fallback (the listing is refused and the lookup answers, where both
+  were refused), and the CardDAV lookup that read a 400 as "not there".
+  `move-detection.unit.test.ts` pins that an adopted arrival is counted as adopted, not
+  created, and is never the arriving half of a move. 29 mutations of the three writers and
+  the loop, all killed.
+- **What it costs, as §3 said.** A PUT that landed behind a 5xx, whose retry got a 412, is
+  recorded `adopted`: never rewritten, never removed. And where the listing fails and the
+  per-item lookup is refused too, those items now fail each pass instead of being written
+  unchecked.
 
 **2026-09-24, later: the owner answered open questions 1 and 2.** *"1) 0159, gate answer: a"*
 confirms D2's reading, 0009's option 1. There is no plan 0159, so "0159" is read as 0149.
@@ -46,8 +77,8 @@ OTA stack and the appliances.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 A 412 on create is an adoption, in all three DAV writers | 📋 **Decided** (D1) | §3. CalDAV, CardDAV, and WebDAV with its streamed twin. The row is `adopted`, and it is never rewritten or removed as Ownpace's. The JMAP mail writer is the model. A guard fails without it. **Alpha minimum.** |
-| T2 A lookup that fails is not an absence | 📋 **Decided** (D1) | §3. The per-item CalDAV REPORT, CardDAV REPORT and WebDAV PROPFIND answer 207 or 404, or they throw (hard rule 9). They go through the retry helper, as the writes do. **Alpha minimum.** |
+| T1 A 412 on create is an adoption, in all three DAV writers | ✅ **Built 2026-09-27** (D1), with T2 | §3. CalDAV, CardDAV, and WebDAV with its streamed twin. The row is `adopted`, and it is never rewritten or removed as Ownpace's. The JMAP mail writer is the model. WebDAV asks what is at the path first, so a directory stays a conflict. Guard: `a-refusal-recorded-as-a-copy.unit.test.ts`. **Alpha minimum.** |
+| T2 A lookup that fails is not an absence | ✅ **Built 2026-09-27** (D1), with T1 | §3. The per-item CalDAV REPORT, CardDAV REPORT and WebDAV PROPFIND answer 207 or 404, or they throw (hard rule 9). They go through the retry helper, as the writes do. Guard: `an-absence-that-was-a-failure.unit.test.ts`. **Alpha minimum.** |
 | T3 Removal and rewrite carry the version, and removal refuses without one | 📋 **Decided** (D1 for removal, D3 for a rewrite) | §3. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
 | T4 The cutover gate holds when nothing was compared | 📋 **Decided** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. **Alpha minimum.** |
 | T5 The IMAP source opens folders read-only, and no source can write | 📋 **Proposed** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
