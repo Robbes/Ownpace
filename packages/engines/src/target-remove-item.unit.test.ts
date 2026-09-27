@@ -47,7 +47,7 @@ describe('CalDAVTargetWriter.removeItem', () => {
       { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
-    const result = await writer.removeItem('calendars/alice/personal/evt-1.ics');
+    const result = await writer.removeItem('calendars/alice/personal/evt-1.ics', { expectedTargetVersion: 'v1' });
 
     expect(result).toEqual({ kind: 'deleted' });
     const deletes = c.calls.filter((call) => call.method === 'DELETE');
@@ -68,7 +68,7 @@ describe('CalDAVTargetWriter.removeItem', () => {
       { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
-    const result = await writer.removeItem('files/alice/evt-1.ics');
+    const result = await writer.removeItem('files/alice/evt-1.ics', { expectedTargetVersion: 'v1' });
     expect(result).toEqual({ kind: 'deleted' });
   });
 });
@@ -81,7 +81,7 @@ describe('CardDAVTargetWriter.removeItem', () => {
       { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
-    const result = await writer.removeItem('addressbooks/alice/contacts/card-1.vcf');
+    const result = await writer.removeItem('addressbooks/alice/contacts/card-1.vcf', { expectedTargetVersion: 'v1' });
 
     expect(result).toEqual({ kind: 'deleted' });
     expect(c.calls.filter((call) => call.method === 'DELETE')).toHaveLength(1);
@@ -96,7 +96,7 @@ describe('WebDAVTargetWriter.removeItem', () => {
       { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
-    const result = await writer.removeItem('report.pdf');
+    const result = await writer.removeItem('report.pdf', { expectedTargetVersion: 'v1' });
 
     expect(result).toEqual({ kind: 'binned' });
     const deletes = c.calls.filter((call) => call.method === 'DELETE');
@@ -111,16 +111,21 @@ describe('WebDAVTargetWriter.removeItem', () => {
       { ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
-    const result = await writer.removeItem('report.pdf');
+    const result = await writer.removeItem('report.pdf', { expectedTargetVersion: 'v1' });
     expect(result).toEqual({ kind: 'deleted' });
   });
 
-  it('refuses when the target has been edited, checking the ETag first', async () => {
+  it('refuses when the target has been edited: the server checks the version it is sent', async () => {
+    // A server that honours If-Match, as a real one does, holding somebody
+    // else's edit. The DELETE goes out with our version and is refused
+    // (workplan 0149 T3); it used to be a HEAD and a comparison first.
     const calls: Call[] = [];
+    const current = '"someone-elses-edit"';
     const httpClient: HttpClient = {
       async request(o): Promise<{ status: number; body: string; headers: Record<string, string> }> {
-        calls.push({ method: o.method, url: o.url });
-        if (o.method === 'HEAD') return { status: 200, body: '', headers: { etag: '"someone-elses-edit"' } };
+        calls.push({ method: o.method, url: o.url, headers: o.headers });
+        if (o.method === 'HEAD') return { status: 200, body: '', headers: { etag: current } };
+        if (o.headers?.['If-Match'] !== current) return { status: 412, body: '', headers: {} };
         return { status: 204, body: '', headers: {} };
       },
     };
@@ -132,7 +137,7 @@ describe('WebDAVTargetWriter.removeItem', () => {
     const result = await writer.removeItem('report.pdf', { expectedTargetVersion: 'our-etag' });
 
     expect(result).toEqual({ conflicted: true });
-    expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(0);
+    expect(calls.find((c) => c.method === 'DELETE')?.headers?.['If-Match']).toBe('"our-etag"');
   });
 });
 
@@ -144,6 +149,6 @@ describe('all three refuse nothing silently on a real failure', () => {
       { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: c.httpClient },
     );
 
-    await expect(writer.removeItem('calendars/alice/personal/evt-1.ics')).rejects.toThrow();
+    await expect(writer.removeItem('calendars/alice/personal/evt-1.ics', { expectedTargetVersion: 'v1' })).rejects.toThrow();
   });
 });

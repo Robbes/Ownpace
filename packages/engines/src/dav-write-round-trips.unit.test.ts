@@ -231,6 +231,9 @@ describe('CalDAV overwrite', () => {
     // A server that answers 412 even with no precondition has NOT replaced the
     // item. Returning success here would record a copy the target does not
     // hold — the same false-green shape as the original bug, one layer down.
+    // It threw; since workplan 0149 T3 a 412 on a rewrite is the owner's copy
+    // refusing to be replaced, whether `If-Match` asked or not: `conflicted`,
+    // which the sync loop counts and never writes over.
     const client = {
       async request() {
         return { status: 412, body: '', headers: {} };
@@ -241,9 +244,9 @@ describe('CalDAV overwrite', () => {
       { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
     );
 
-    await expect(
-      writer.upsertCalendarEvent(collection, event('e1') as never, { overwrite: true }),
-    ).rejects.toThrow(/refused with 412/);
+    const result = await writer.upsertCalendarEvent(collection, event('e1') as never, { overwrite: true });
+    expect(result.conflicted).toBe(true);
+    expect(result.updated, 'a rewrite the server refused is not an update').toBeUndefined();
   });
 
   it('never claims the version of an object it did not write', async () => {

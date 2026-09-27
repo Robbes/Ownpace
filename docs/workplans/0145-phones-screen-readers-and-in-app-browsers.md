@@ -4,6 +4,370 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, build review: Stage 9's fixes, on the same branch
+(`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
+text only. Step 6 now issues a fresh grant link for each app on each phone, because a link that
+has been accepted is spent (*"Deze link is verbruikt."*). The in-app browser table gains the
+*Language seen* column T10 asks for. T1's row is marked merged: #1169 (`41c77a01`, `144c6f69`),
+on `main` since 2026-09-25, all but the skip link. Stage 9's table of the minimum names it. No
+guard: the facts were read at `origin/main` (`eba2d10`). 0141's Status has the rest of the review.
+
+**2026-09-27, build: T10's runbook stage, on branch
+`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged.** This is 0131 §6's R5 step 3. It is
+text only: the walk has not happened, and nothing here records one.
+
+- **The stage.** `docs/owner-test-runbook.md` gains *"Stage 9 — the same walk on two phones"*,
+  after 0141 T12's Stage 8. It has T10's phones, both set to Dutch, the two screen-reader passes
+  over steps 3 to 5, and T10's eight steps, each with what to expect. It has the in-app browser
+  table, with the columns T10 names.
+- **What to record, and where.** For each step, phone and pass: pass, fail or *not in this
+  release*, the date, live's release from the build stamp, the phone and its OS version, the
+  browser and the language, never an address. The rows and the table go in this block. The grant
+  link's in-app rows also go to 0140 T3. A browser where neither the window nor the link comes back
+  goes to T5, whose same-tab fallback waits for one. A sign-in page that does not fit goes to 0135.
+- **How each fact was checked.** Every label and route the stage quotes was read at `origin/main`
+  (`eba2d10`). *Toegang aanvragen* is `ctaOrder` in `site/copy.mjs`, and `orderHref` in
+  `site/build.mjs` adds `?locale=nl`. *Menu*, *Sluiten*, *Verbinden met Google* and *Volgende* are
+  in `strings.ts`. The four step names, *Bron*, *Doel*, *Migratie* and *Controleren*, are
+  `CreateMapping.tsx`'s. The build stamp shows in `Layout.tsx` and on the pages outside it
+  (`Login.tsx`, `RequestAccess.tsx`, `Invitations.tsx`, `Grant.tsx`, `View.tsx`).
+- **Which of the minimum is on `main`.** T1 is, T3 (a) is since #1206, and T6 since #1208. T5
+  with T7 (a) is not. So the stage has a table of which task each step waits for, and a step whose
+  task is not in live's release is recorded as *not in this release*, not as a failure.
+
+**No guard.** T10 is the owner's walk, and the stage is documentation. Each fact was checked
+against the code instead.
+
+**Departures from §3.**
+
+- The heading *"Stap 2 van 4: Doel"* is T3 (a)'s proposal. The step names in it are the wizard's
+  own.
+- Step 3 closes the menu with its close button and with its backdrop, because a phone has no
+  Escape key.
+- Step 8 asks for 200% page zoom in Safari, without naming Safari's control for it.
+
+**Open, and whose.** The walk is the owner's, after 0141's Stage 8, once live runs a release that
+carries the minimum. T9 (a) is written from it after.
+
+**2026-09-27, review fixes: T6's branch, not merged.** The owner's reading of all the Dutch is
+still owed before it merges (0144 D1), and two answers are still the owner's: the grant half is
+built ahead of 0140's open question 2, and the switch follows this plan's open question 2 as
+recommended. What the review found, and what changed:
+
+- **A failure with no sentence from the server is the page's own.** `linkRefusal` now takes the
+  page's translator. A connection that dropped or timed out shows `link.unreachable`, and a
+  subject or answer the page cannot read (zod's refusal of a data type it has no words for, a
+  proxy's HTML) shows `link.unreadable`, in the page's language. Until then the alert showed
+  zod's JSON dump of its issues, axios's *Network Error* or *Request failed with status code
+  502*. The server's own sentences are shown as before. Both keys are new Dutch for the owner's
+  reading.
+- **The owner's three consent buttons are tested in Dutch.** Every earlier case ran in English,
+  which is also the page's language when nothing chose one, so a literal `locale: 'en'` at either
+  call site would have passed them all.
+- **The spec follows the wire.** `apps/api/docs/openapi.yaml` documents `domains` in place of
+  `reads`, `locale` on the four authorize bodies, and the Dutch half each link refusal carries.
+- **Three bilingual answers are held by a route test**: View's `not_found`, and the grant
+  authorize's `raw_ip_callback` and `unreachable_callback`.
+- **Two docs said more than the code does.** `docs/i18n-prose-boundary.md` class 4 and
+  `docs/grant-links.md` now name what is paired and what still answers in English (withdrawing
+  access, reporting a link, an unknown or expired consent state).
+- A comment in `google-oauth-routes.ts` said the owner's ending was exactly as 0089 T1 shipped it.
+
+The guards, each run first against the unfixed branch and each mutation turning it red:
+
+- `apps/web/src/pages/a-grant-page-in-one-language.unit.test.tsx`, five new cases, 19 in all: a
+  subject the page cannot read (a real `ZodError`), no connection, a timeout after the button, a
+  502 with an HTML body, and no connection on View. All five failed on the branch, showing zod's
+  JSON, *Network Error*, *timeout of 30000ms exceeded* and *Request failed with status code 502*.
+  Mutations: no connection read as unreadable (3 failed); a non-request error shown as its own
+  message (1).
+- `apps/web/src/pages/Connections.unit.test.tsx` and `CreateMapping.unit.test.tsx`, three cases
+  each: *Verbinden met Google*, *Dropbox* and *Microsoft* under `nl` send `locale: 'nl'`. They
+  pass on the branch, which was right; a literal `'en'` in `ProviderConsent.tsx`, and in
+  `CreateMapping.tsx`, turned all three red in each file.
+- `apps/api/src/openapi-spec.unit.test.ts`, 15 new cases: the subject documents `domains` with
+  `DISCOVERY_DOMAINS` and no `reads`; each route that reads `locale` off the body documents it;
+  each 401, 409 and 503 on the grant and view pages names its Dutch half. 14 failed against the
+  branch's spec. The fifteenth finds the routes that read `locale` by the line that reads it, so
+  a fifth cannot arrive unlisted; it reads the code, not the spec, and passed there too.
+- `apps/api/src/routes/grant.unit.test.ts`, two cases: a raw-IP callback and a loopback callback
+  behind a public app answer their code, a Dutch frame, and the operator's sentence verbatim in
+  both halves. Mutation: the English in both fields, and no `reasonNl` (both failed).
+- `Grant.unit.test.tsx` and `View.unit.test.tsx` refused with a bare `Error` and a mocked
+  `serverMessage`, a shape the server never sends. They now refuse with the server's body. One of
+  them still passed with the fix in place, only because `link.unreadable` also says *tell the
+  person who sent you the link*, which is what it searched for.
+- `apps/api/src/routes/view-routes.unit.test.ts`, one case: a migration gone between the link
+  check and the read answers `MIGRATION_GONE` in both languages. The cascade from
+  `mailbox_mapping` makes that branch a race, so the case drops it while it runs, as the case
+  before it drops a CHECK. Mutation: the English in both fields (failed).
+
+For the owner's reading, beside the rest of the Dutch:
+
+- **What will be read, when it names mail and something else.** §3's phrases joined by
+  `Intl.ListFormat` read *"U staat op het punt toegang te geven tot uw e-mail: berichten, mappen
+  en labels en uw agenda’s en de afspraken erin."*, where everything after the colon reads as
+  what the e-mail contains. The English has the same fault after its dash. The alternative is to
+  close the inner list: *"uw e-mail (berichten, mappen en labels)"* and *"your email (messages,
+  folders and labels)"*. The branch keeps §3's words until the owner chooses. If the owner takes
+  the alternative, both `grant.reads.email` entries in `strings.ts` change, with the three
+  expected sentences in `a-grant-page-in-one-language.unit.test.tsx`.
+- `link.unreachable` and `link.unreadable`, new with this round.
+
+**2026-09-26, build: T6 built on branch
+`claude/ownpace-public-readiness-y7orc6-one-language-through-the-grant`, not merged, both halves.
+The owner's reading of all the Dutch is owed before it merges (0144 D1).** The link refusal's
+Dutch, the five *reads* phrases and the keep-this-link sentence are §3's proposals; the rest of
+the Dutch is this build's. The grant half is built ahead of 0140's open question 2, and the
+switch follows this plan's open question 2 as recommended; both answers are still the owner's.
+
+- **What will be read comes from the dictionary.** `GET /api/grant/:link` answers `domains` in
+  place of `reads`, and `READS` and `listed` are gone from `grant.ts`. `Grant.tsx` words each
+  code from `grant.reads.email` … `grant.reads.task` and joins them with `Intl.ListFormat`
+  (`useFormatters().list`). The web client refuses a subject with no data type, or with one it
+  has no words for, rather than name less than will be read.
+- **Refusals come in pairs.** `packages/shared/src/link-holder-refusals.ts` holds each sentence
+  written for a link holder in EN and NL (class 4 of `docs/i18n-prose-boundary.md`):
+  `LINK_REFUSAL`, whose English half the ledger's `MAPPING_LINK_REFUSAL` now is; the link check
+  that could not run; the migration that is gone; the *"not ready"* frame and its seven reasons;
+  the two sign-in wrappers; the five exchange refusals; Google's own stop; nothing sent back;
+  the grant that was not kept; the spent link; and the three signed-in-account refusals. The JSON
+  answers carry `reason` and `reasonNl`, or `message` and `messageNl` from the link check.
+  `apps/web/src/services/link-refusal.ts` shows the Dutch half of the sentence the English
+  would show, and the English as served when there is no Dutch half. The word Google sent back,
+  the addresses and the operator's refusal of a callback address stay verbatim in both halves.
+- **The endings are in the page's language.** The grant page's authorize call and the owner's
+  three (Google, Dropbox, Microsoft, from the wizard and from the Connections panel) send
+  `locale`. The server records it on `PendingConsent` beside `link` and never puts it in the
+  redirect. The callback reads it from there, not from the query. `grantResultPage`,
+  `consentResultPage` and `shell()` take it, and anything but `nl`, or nothing, is English.
+  *"Bookmark it"* is §3's new sentence, in both languages.
+- **Grant and View have a switch.** `apps/web/src/components/LanguageSwitch.tsx` is `Layout`'s
+  two text buttons with `aria-pressed`, in a group named *Language* / *Taal*, in the top corner.
+  The page keeps a refusal rather than its sentence, so switching after it arrived shows its
+  other half.
+- **T4's Grant and View lines.** The refusal and the failure after the button on Grant, and the
+  refusal on View, are `role="alert"`. Both waiting lines are `role="status"`.
+- #1195's in-app browser line (`grant.inAppBrowser`) stays as it is.
+
+The guards, each run first against a scratch worktree of `origin/main` at `d1922cf2` with only
+the guard files copied in:
+
+- `packages/shared/src/a-refusal-the-link-holder-can-read.unit.test.ts`, 15 cases. It finds
+  every `{ en, nl }` the module exports rather than listing them. Each has both halves, they
+  differ, and the Dutch half has none of the English frame's words. Every exported function is
+  called, and a finding passed in comes through verbatim in both halves. `LINK_REFUSAL` keeps
+  the ledger's English and §3's Dutch, and `localeOf` is `nl` only for exactly `nl`. On `main`
+  the file fails to load, because the module does not exist. Each mutation made it fail: the
+  link refusal's Dutch set to its English (3 cases), `cannotSignInYet` dropping the detail from
+  its Dutch (1), one not-ready reason left in English (3), an exported function nobody checks
+  (1), and `localeOf` taking `nl-NL` (1).
+- `apps/api/src/routes/migrations/a-consent-ending-in-the-readers-language.unit.test.ts`, 33
+  cases. Both endings with `nl` are Dutch and carry `<html lang="nl">`, with the new
+  keep-the-link sentence in both languages, and each provider's no-opener sentence names its
+  own button. The callbacks of all three providers, and of a grant link, render the language
+  the authorize call recorded. The language is not in the redirect, the query cannot choose it,
+  and an unknown language or none renders English. 23 cases failed on `main`. The 10 that
+  passed are the English fallbacks and *"not in the redirect"*, which `main` already met. Each
+  mutation made it fail: `lang="en"` back in `shell()` (22), *Bookmark it.* back in the Dutch
+  (3), the no-opener sentence left in English (3), Google's owner authorize not recording the
+  language (2), Dropbox's callback reading it from the query (2), Google's callback preferring
+  the query (1), a grant link's refusal always in English (5), and `localeOf` defaulting to
+  Dutch (7).
+- `apps/web/src/pages/a-grant-page-in-one-language.unit.test.tsx`, 14 cases. Under `nl`, with
+  `domains: ['email', 'calendar']`, the sentence is all Dutch and has none of the old `READS`
+  phrases, and under `en` the list is joined as English joins one. A refused link and a
+  failure after the button show their Dutch half as an alert, a refusal with no Dutch half
+  shows its English, and the Dutch shown belongs to the sentence the English would show. The
+  waiting lines are statuses. Both pages have the switch with `aria-pressed`, and it changes
+  the sentence and the refusal. The button asks for the ending in the page's language. All 14
+  failed on `main`. Each mutation made it fail: the list joined with `' and '` (4), the refusal
+  ignoring the page's language (4), no alert on the link refusal (4) or on the failure after
+  the button (1), the button sending `en` (1), no `aria-pressed` (3), no switch on View (1), no
+  status on either waiting line (1 each), the Dutch taken from whichever field has one (1), and
+  one Dutch *reads* phrase left in English (2).
+
+`grant.unit.test.ts` has six new route cases, five of which failed on `main`; the sixth, an
+unknown language ending in English, passed there too. `mapping-link-auth.unit.test.ts` checks
+`messageNl`.
+
+Where the build differs from §3:
+
+- **The view page's refusals are paired too**: a migration that is gone (`MIGRATION_GONE`) and
+  the link check that could not run. The view page gets the switch, so its refusals come with
+  it.
+- **The owner's ending names each provider's own button** (*Verbinden met Dropbox*). The English
+  said *Connect with Google* for all three.
+- **English lists take the serial comma** (*a, b, and c*): that is what `Intl.ListFormat` does
+  in English. The server's `listed` did not.
+- **`ES2021.Intl` is added to `apps/web/tsconfig.json`**, for `Intl.ListFormat`. Safari has had
+  it since 14.1, below the README's floor.
+
+What stays open:
+
+- the owner's reading of the Dutch, before merge;
+- the owner's exchange refusals (`exchangeCode` and its Dropbox and Microsoft siblings) and
+  Microsoft's consent sentences (`microsoft-consent.ts`) render in English inside the Dutch
+  frame. They name the client and quote the provider, for the owner to act on;
+- a consent state that is unknown or expired ends in English, since nothing recorded a
+  language for it;
+- the withdrawal refusals (`withdraw-grant.ts`) and the report-a-link refusals
+  (`link-reports.ts`) are still English only. Both files were written after §1 was checked, and
+  they are the next pairs. Their lines on View and in `ReportThisLink` are T4's;
+- Grant and View still start from the browser's language, with no `?locale=`;
+- walking it on a phone is T10's.
+
+**2026-09-27, review fixes to T4 on the same branch, not merged.** The review found that an old
+answer could be announced as a new one. The line under *Connect with …* is drawn from the door's
+state, and that state outlives the block that draws the line. When a door was shown again, the
+line came back as a new element with its text already in it. A screen reader announces such an
+element as if it had just happened. So a refusal was heard again although nothing had been
+pressed, and so was *"Consent received — saving and testing this connection."* The review found
+four ways in: *Cancel* and then *Add a connection* again, a row's *Reconnect* fold closed and
+opened, the wizard's card switched away and back, and the wizard's step changed. The build found
+a fifth. In the wizard, a landed consent saves the connection and picks it. Picking *a new
+connection* then drew the block again, with the old line in it.
+
+Now each door clears the line when it is shown again or asks something else:
+
+- the add form, when it opens (`consent.reset()`). *Cancel* and *Close* both lead there;
+- a row's *Reconnect* fold, when it closes or opens (`rotateConsent.reset()`);
+- the wizard, on another card, on the connection picker, and on Next and Back (`forgetConsent`
+  in `CreateMapping.tsx`).
+
+Opening the add form again also clears the ticked faces of a Google or Microsoft account, as
+picking a card already did. What was typed stays.
+
+Two more changes to the guard. It now renders the Connections page itself, not the panel alone.
+So it looks for a live region around the line where the page draws it: in the add form and in a
+row's *Reconnect* fold. It also presses the wizard's Connect twice. Before, only the panel was
+pressed twice, and the wizard could have kept its old line on the page without the guard
+noticing.
+
+One citation is corrected. `Login.tsx`:73 is about two alert elements for one failure. It says
+nothing about a line inside another live region. That reason now stands in its own words, in
+`ConsentNote`, in the guard and below: a live region inside another one can be announced by both,
+so the line would be heard twice.
+
+The guard, `apps/web/src/pages/an-error-that-is-announced.unit.test.tsx`, has 22 cases, 11 in
+English and 11 in Dutch:
+
+- a refused create, pressed twice, with the second refusal a new alert;
+- a duplicate;
+- the wizard's refused consent and then a landed one;
+- the wizard refused twice (new);
+- the wizard's card switched away and back, after a refusal and after a landed consent (new);
+- the wizard's landed consent saved, and then *a new connection* picked (new);
+- the wizard's Next and Back after a refusal (new);
+- *Add a connection*: a refused consent and then a landed one, now on the page;
+- *Add a connection* refused twice, now on the page;
+- *Add a connection* closed and opened, after a refusal and after a landed consent (new);
+- *Reconnect*: a refused consent, the fold closed and opened, then a landed consent, and the fold
+  closed and opened again (new).
+
+The five new reopening cases failed on the unchanged code, in both languages: 10 of the 22. Four
+failed with *"the old refusal came back as a new alert, with nothing pressed"*. The picker case
+failed with *"the old received line came back as a new status"*. The wizard pressed twice and the
+page's own placements passed on the unchanged code, which is right: nothing there was broken. The
+mutations below turn them red. Each mutation made the guard fail:
+
+| Mutation | Cases that failed |
+|---|---|
+| The create failure without `role="alert"` | 4 |
+| `ConsentNote` without its keys | 4 |
+| The landed consent as an alert | 10 |
+| The refusal as a status | 16 |
+| The wizard's note inside an `aria-live` wrapper | 8 |
+| The wizard's root as a live region | 12 |
+| The wizard back on its own plain note | 8 |
+| The panel not clearing its note before it asks again | 2 |
+| The create failure kept on screen while the next attempt is pending | 2 |
+| The add form not clearing the line when it opens | 2 |
+| *Reconnect* not clearing the line when the fold closes or opens | 2 |
+| The wizard not clearing the line on another card | 2 |
+| The wizard not clearing the line on the connection picker | 2 |
+| The wizard clearing the line on neither Next nor Back | 2 |
+| The wizard not clearing its note before it asks again | 2 |
+| The add form's panel inside an `aria-live` wrapper | 6 |
+| The *Reconnect* fold's panel inside an `aria-live` wrapper | 2 |
+| The Connections page's clearing keeping a received line | 4 |
+| The wizard's clearing keeping a received line | 4 |
+
+Next alone or Back alone is enough for the round trip, so the guard fails only when both are
+removed.
+
+Where this differs from §3:
+
+- **A door shown again starts without a line.** §3 does not say so. It follows from "one alert
+  per failure" once the line is an alert.
+
+What stays open is as in the note below.
+
+**2026-09-26, build: T4 outside the grant flow built on branch
+`claude/ownpace-public-readiness-y7orc6-errors-said-out-loud`, not merged.** These are §3's lines
+that are not on the Grant and View pages. Those pages' refusals and waiting lines go in with T6,
+which rewrites them. Two things changed:
+
+- **The wizard's create failure is an alert.** Both kinds are covered: the server's refusal, and
+  the duplicate with its link to the migration that already exists. The alert leaves the page
+  while the next attempt is pending, so a second refusal is heard again.
+- **The consent line under *Connect with …* speaks in both doors.** A refusal is an alert. A
+  consent that landed is a status. The line is now one component, `ConsentNote` in
+  `apps/web/src/components/ProviderConsent.tsx`, which the wizard's source step and the
+  Connections page's panel both draw. Before, each door had its own copy. Each outcome has its own
+  `key`. So when a consent lands after a refusal, a new element takes the refusal's place. Changing
+  the role of an element already on the page is not reliably announced.
+
+No copy changed, in either language. Each failure is one alert element (`Login.tsx`:73). Neither
+line sits inside another live region, which could announce it a second time.
+
+The guard is `apps/web/src/pages/an-error-that-is-announced.unit.test.tsx`. It has 10 cases, five
+in English and five in Dutch:
+
+- a refused create, pressed twice, with the second refusal a new alert;
+- a duplicate;
+- the wizard's refused consent and then a landed one;
+- the panel's refused consent and then a landed one;
+- the panel refused twice.
+
+All 10 failed on the unchanged code, each with *"Unable to find an accessible element with the
+role "alert""*. Nine mutations each made it fail. The 2026-09-27 note above lists them, with the
+counts for the guard as it is now. The panel's cases now render the Connections page.
+
+Where the build differs from §3:
+
+- **One component for both doors.** §3 asks for roles only. The wizard's copy of the line would
+  have needed the same roles and keys a second time, so it now draws the panel's component.
+- **A new element for each outcome**, by `key`, as above. §3 does not ask for it.
+- **The wizard's walk is local to the guard.** T3 (a) moves `walkToReview` out of
+  `CreateMapping.unit.test.tsx` into a shared file. Once both have landed, the guard should use
+  that file.
+
+What stays open:
+
+- **Grant and View go in with T6.** Their cases join this guard then.
+- **The wizard's landed consent may be cut short.** A landed consent saves and tests the
+  connection at once. A saved connection takes the consent block off the step, and the status with
+  it. So a screen reader may hear the line for only as long as the save takes. The Test result
+  that follows has no role.
+- **Other lines outside §3 have no role either.** A search of `apps/web/src` found these. They
+  appear after a press and have no role:
+  - the wizard's Test result and its shared-drive and Dropbox-folder browse errors;
+  - the result of a Connections row's Test or replace;
+  - `MappingDetail`'s pause failure;
+  - `Tenants`' rename, phone, notification and invite errors;
+  - `MappingLinksPanel`'s issue error;
+  - `Billing`'s VAT check and save failures;
+  - `Decisions`' preset error;
+  - the `Refused` lines in `Sharing` and `ApplyDeletionsPanel`;
+  - `PermissionsHandover`'s error;
+  - `CompletionReportDownload`'s failure;
+  - the shared-addresses runbook's failure.
+
+  The waiting lines outside the grant flow have no `role="status"` either, for example Login's
+  *checking* line and the pages' *loading* lines. §3 names none of these lines, so none was
+  changed. Whether they belong to T4 is a question for the next pass of this plan.
+
 **2026-09-26, build, with review fixes on 2026-09-27: T3 (a) built on branch
 `claude/ownpace-public-readiness-y7orc6-each-step-starts-at-the-top`, not merged. T1 is merged, in
 #1169 on 2026-09-25.** In `apps/web/src/pages/CreateMapping.tsx`, every step card now opens with
@@ -169,16 +533,18 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | Task | Status | Notes |
 |---|---|---|
 | T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 is built. |
+| T1 The phone menu takes focus and gives it back | ✅ **done** in #1169, merged 2026-09-25 (`41c77a01`, `144c6f69`), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
+
 | T1 The phone menu takes focus and gives it back | 🔨 **Built**, merged in #1169 (2026-09-25), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
-| T3 A new step or page starts at the top and says where you are | (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-each-step-starts-at-the-top`, not merged** (2026-09-26); (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
-| T4 Errors are announced | 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
+| T3 A new step or page starts at the top and says where you are | (a) ✅ **done** in #1206, merged 2026-09-27; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
+| T4 Errors are announced | ✅ **done** in #1207, merged 2026-09-27, all but the Grant and View lines; those 🔨 **Built on T6's branch** (2026-09-26), with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
 | T5 The consent window opens on the press itself | 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
-| T6 The grant flow and the consent endings in one language | 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. |
+| T6 The grant flow and the consent endings in one language | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-one-language-through-the-grant`, not merged** (2026-09-26, review fixes 2026-09-27), both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
 | T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
-| T10 The walk on two phones | ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
+| T10 The walk on two phones | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
 ## 1. What there is today
 
@@ -861,7 +1227,8 @@ phone, the OS version, the browser and the language. It never records an address
 2. **The grant reader's language (T6).** Adding a language switch to the grant and view pages is
    recommended over carrying the issuer's language in the link. The reader of a grant link is not
    the person who made it, and that person's language says nothing about the reader's. The Dutch
-   wording on this page asks people to trust it, so the owner reads it first.
+   wording on this page asks people to trust it, so the owner reads it first. (Built as
+   recommended on T6's branch, 2026-09-26; the owner's answer is still owed.)
 3. **The same-tab fallback (T5).** Park it as proposed, until T0 or T10 finds a browser where
    neither the window nor the link comes back? Or build the server-held result for the owner's
    consent now? Parking is recommended: nothing so far shows the window and the link both failing.

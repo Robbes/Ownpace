@@ -39,6 +39,7 @@
  */
 
 import { fetchWithRateLimitRetry } from './http-rate-limit.ts';
+import { RemoteRefusal, jmapRefusalBody, jmapRefusalParts } from '@openmig/shared';
 
 /** The fields every caller here reads off a session. */
 export interface JmapSessionLike {
@@ -95,10 +96,17 @@ export async function loadJmapSession(
     // Read as TEXT first. A proxy or a rate limiter answers with HTML, and
     // `response.json()` would then throw a parse error saying nothing about the
     // status the server actually returned (hard rule 9).
+    //
+    // The body goes through `jmapRefusalBody`, as a DAV refusal's goes through
+    // `davRefusalBody`: a JMAP problem document is read for its type and
+    // detail, anything else is the first 300 characters as before. Beside the
+    // message, the parts (0136 T3): the status, and the words only when the
+    // body was a problem document.
     const body = await response.text().catch(() => '');
-    throw new Error(
+    throw new RemoteRefusal(
       `${describeStatus(response.status)} JMAP session request to ${sessionUrl} returned ` +
-        `HTTP ${response.status}${body ? ` - ${body.slice(0, 300)}` : ''}`,
+        `HTTP ${response.status}${body ? ` - ${jmapRefusalBody(body)}` : ''}`,
+      jmapRefusalParts({ status: response.status, body }),
     );
   }
 

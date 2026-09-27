@@ -49,11 +49,13 @@ const STATUS_STYLE: Record<DataTypeVerificationStatus, { icon: React.ReactNode; 
  *
  * `determineVerificationStatus` is handed percentages and counts and never the
  * issue list, so a run in which NOT ONE item's content could be compared still
- * reads PASS on count parity — and the owner's decision is that it should keep
- * opening the gate. What it must not do is look identical to a run that
- * compared everything. So the word sits next to the status, and `counts only`
- * is amber even beside a green PASS: nothing is wrong, and something was not
- * done.
+ * reads PASS on count parity when the target has no way to hash (JMAP
+ * contacts), and the owner's decision is that it keeps opening the gate there.
+ * A target that CAN hash and answered nothing fails the domain instead (the
+ * owner's D2 of 2026-09-24, workplan 0149 T4). What an open gate on counts
+ * must not do is look identical to a run that compared everything. So the word
+ * sits next to the status, and `counts only` is amber even beside a green
+ * PASS: nothing is wrong, and something was not done.
  */
 const EVIDENCE_STYLE: Record<ContentEvidence, { className: string; labelKey: StringKey; helpKey: StringKey }> = {
   checked: {

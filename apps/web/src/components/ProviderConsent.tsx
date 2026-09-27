@@ -45,7 +45,7 @@ import {
   providerAccountsApi,
   providerClientsApi,
 } from '../services/mapping-service.ts';
-import { useT, type StringKey } from '../i18n/index.tsx';
+import { useLocale, useT, type StringKey } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
 
 export interface ProviderConsent {
@@ -71,6 +71,11 @@ export interface ProviderConsent {
   readonly facesMissing: boolean;
   readonly accountMissing: boolean;
   readonly start: () => Promise<void>;
+  /**
+   * Forget the ticks and what came back. The door calls it when its question
+   * changes, and when it is shown again, so an old refusal is not drawn (and
+   * announced) as a new one (0145 T4, `ConsentNote`).
+   */
   readonly reset: () => void;
   /** Rises by one each time a token lands, so a SECOND consent submits again. */
   readonly landed: number;
@@ -100,7 +105,7 @@ export function useProviderConsent(opts: {
   readonly refusalText: (err: unknown) => string;
 }): ProviderConsent {
   const { role, type, fields, values, onToken, refusalText } = opts;
-  const t = useT();
+  const { t, locale } = useLocale();
 
   const provider = role === 'source' ? fields.find((f) => f.key === 'refreshToken')?.consent : undefined;
   const isGrantKind = provider !== undefined;
@@ -187,16 +192,18 @@ export function useProviderConsent(opts: {
       // was not Dropbox — so a third provider would not have failed to
       // compile, it would have asked the wrong company for a consent and
       // reported success.
+      // Each ask names the page's language, so the ending the provider sends
+      // the person back to is in it too (workplan 0145 T6).
       const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
-        dropbox: () => mappingApi.dropboxAuthorize(ownPair),
+        dropbox: () => mappingApi.dropboxAuthorize({ ...ownPair, locale }),
         // The ACCOUNT asks for exactly the faces ticked, so the consent screen
         // and the ticks cannot disagree; the single-purpose kinds ask for
         // their own one scope.
-        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair }),
+        microsoft: () => mappingApi.microsoftAuthorize({ domains, ...ownPair, locale }),
         google: () =>
           mappingApi.googleAuthorize(
             isAccountKind
-              ? { domains, ...ownPair }
+              ? { domains, ...ownPair, locale }
               : {
                   sourceType: type as
                     | 'gmail'
@@ -204,6 +211,7 @@ export function useProviderConsent(opts: {
                     | 'google-contacts'
                     | 'google-drive',
                   ...ownPair,
+                  locale,
                 },
           ),
       };
@@ -375,6 +383,49 @@ export function consentLineIds(provider: string | undefined, idBase: string): st
 }
 
 /**
+ * WHAT CAME BACK FROM A CONSENT, SAID OUT LOUD (workplan 0145 T4), for both
+ * doors.
+ *
+ * `note` is the door's own state: null before anything came back, `'received'`
+ * when the popup handed a token over, and otherwise the refusal's sentence.
+ * The line used to be plain text, so a person using a screen reader pressed
+ * *Connect with …* and heard nothing, whether the server refused or the
+ * consent landed.
+ *
+ * - A refusal is an alert. A consent that landed is a status: good news is
+ *   said, but not as an alarm.
+ * - Each has its own `key`. When a consent lands after a refusal, React then
+ *   puts a new element on the page instead of changing the role of the one
+ *   already there, which screen readers do not reliably announce.
+ * - Nothing is drawn while there is no note. Both doors clear the note before
+ *   they ask again, so a second refusal is a new alert and is heard again.
+ * - **A door shown again starts without a note.** The note lives in the
+ *   door's state, which outlives the block that draws this line. A line put
+ *   on the page with its text already in it is announced as if it had just
+ *   happened, so a refusal drawn again without a new press is a failure
+ *   nobody just caused. So each door clears the note when it is shown again
+ *   or asks something else: the add form when it opens, a row's
+ *   *Reconnect* fold when it closes or opens, the wizard on another card,
+ *   another stored connection, or another step.
+ * - One alert element per failure (`Login.tsx`:73). Neither door draws the
+ *   line inside another live region: a live region inside another one can be
+ *   announced by both, so the line would be heard twice.
+ */
+export const ConsentNote: React.FC<{ readonly note: string | null }> = ({ note }) => {
+  const t = useT();
+  if (!note) return null;
+  return note === 'received' ? (
+    <p key="received" role="status" className="mt-1 text-sm text-green-700">
+      {t('wizard.consent.received')}
+    </p>
+  ) : (
+    <p key="refused" role="alert" className="mt-1 text-sm text-amber-800">
+      {note}
+    </p>
+  );
+};
+
+/**
  * The faces to ask for, the button, and what came back — in the provider's own
  * words. Renders nothing for a kind whose descriptor names no consent.
  */
@@ -430,11 +481,7 @@ export const ProviderConsentPanel: React.FC<{
         {words('connect')}
       </button>
       <ConsentLines provider={consent.provider} asked={consent.asked} idBase={linesId} />
-      {consent.note && (
-        <p className={`mt-1 text-sm ${consent.note === 'received' ? 'text-green-700' : 'text-amber-800'}`}>
-          {consent.note === 'received' ? t('wizard.consent.received') : consent.note}
-        </p>
-      )}
+      <ConsentNote note={consent.note} />
       {consent.redirect && consent.note !== 'received' && (
         <p className="mt-1 text-sm text-gray-500">
           {words('redirectUri')}{' '}

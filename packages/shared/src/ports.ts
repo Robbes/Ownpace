@@ -477,8 +477,9 @@ export interface UpsertResult {
    * The target's own version marker for what we just wrote — a DAV ETag.
    *
    * Persisted so a LATER pass can tell whether the copy is still the one we
-   * made. Absent when the server returns none, which costs that item its
-   * overwrite protection and nothing else.
+   * made. A weak ETag keeps its `W/`, because only a strong one can be sent
+   * back as `If-Match` (workplan 0149 T3). Absent when the server returns none:
+   * a rewrite then goes ahead unchecked (D3), and a removal is refused (D1).
    */
   readonly targetVersion?: string;
   /**
@@ -558,10 +559,17 @@ export interface UpsertOptions {
    * not that they are still ours. An owner who edits a migrated item in the new
    * system silently loses that edit the next time the source changes.
    *
+   * Where the target can check it in the write itself, it does: DAV sends it as
+   * `If-Match`, so there is no gap between reading and writing (workplan 0149
+   * T3). A weak version cannot be matched that way, and keeps a read and a
+   * comparison (D4).
+   *
    * Absent means no check, which is the behaviour every row written before
    * migration 0023 gets, and any server that returns no ETag on PUT. Failing
    * closed instead would refuse every source change until each row had been
-   * rewritten once — a protection that presents as an outage.
+   * rewritten once — a protection that presents as an outage. The owner kept
+   * that trade-off for rewrites (0149 D3); a REMOVAL without a version is
+   * refused (`RemovalResult.unversioned`).
    */
   readonly expectedTargetVersion?: string;
   /**
@@ -699,6 +707,18 @@ export interface RemovalResult {
    * where the ETag is, which is the only place it can be done without a race.
    */
   readonly conflicted?: boolean;
+  /**
+   * No version was recorded for this copy, so nothing was removed (workplan
+   * 0149 T3, the owner's D1).
+   *
+   * Without one there is no way to tell whether somebody has changed the copy
+   * in the new system since we wrote it, and removal is the one operation that
+   * cannot be undone, so it fails closed. A weak version counts as none: it
+   * can never match an `If-Match` (RFC 9110 §13.1.1). Answered by a writer
+   * whose target records versions; one that records none by design (JMAP mail)
+   * never says it.
+   */
+  readonly unversioned?: boolean;
 }
 
 /**
@@ -719,7 +739,9 @@ export interface TargetRemover {
    * `expectedTargetVersion` is the version marker we recorded when we wrote the
    * item. When supplied, the writer must remove NOTHING and answer
    * `conflicted: true` if the target reports anything else — the mirror of the
-   * overwrite protection on `UpsertOptions`.
+   * overwrite protection on `UpsertOptions`. When absent, a writer whose target
+   * records versions must remove nothing and answer `unversioned: true`
+   * (workplan 0149 T3).
    *
    * `collection` is the collection recorded on the ledger row, passed because
    * NOT EVERY TARGET ID IS GLOBALLY UNIQUE. A JMAP Email id and a DAV href both
@@ -1010,7 +1032,8 @@ export interface LedgerRecord {
    * sent for reasons that have nothing to do with anyone editing it. The ETag
    * is minted after any normalisation.
    *
-   * Absent means "not known", and never blocks a write. See migration 0023.
+   * Absent means "not known": it never blocks a write (0149 D3), and it always
+   * blocks a removal (D1, `RemovalResult.unversioned`). See migration 0023.
    */
   readonly targetVersion?: string;
   /**

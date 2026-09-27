@@ -61,7 +61,7 @@ import {
   type LedgerDriver,
 } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { log, type TenantId } from '@openmig/shared';
+import { LINK_SPENT, log, reasonPair, type TenantId } from '@openmig/shared';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
@@ -111,6 +111,8 @@ export type GrantStoreResult =
   | {
       ok: false;
       reason: string;
+      /** The same sentence in Dutch (workplan 0145 T6); the ending shows the one it is in. */
+      reasonNl: string;
       /** True when the link was left unspent, so the SAME link can be used again. */
       linkStillWorks?: boolean;
     };
@@ -176,14 +178,7 @@ export async function storeGrantedToken(
         tenantId: target.tenantId,
         linkId: target.linkId,
       });
-      if (!spent) {
-        return {
-          ok: false as const,
-          reason:
-            'This link can no longer be used — it may have been used already, it may have ' +
-            'expired, or the person who sent it may have withdrawn it. Nothing was stored.',
-        };
-      }
+      if (!spent) return { ok: false as const, ...reasonPair(LINK_SPENT) };
 
       const rows = await readGrantRows(db, target.tenantId, target.mappingId);
       const refusal = signedInAccountRefusal(rows ? namedAccount(rows) : null, granted.signedInAs);
@@ -236,7 +231,12 @@ export async function storeGrantedToken(
     // fault, and goes on up as one.
     if (error instanceof AnotherAccountSignedIn) {
       await recordRefusedSignIn(source, target, error.refusal.code);
-      return { ok: false, reason: error.refusal.reason, linkStillWorks: true };
+      return {
+        ok: false,
+        reason: error.refusal.reason,
+        reasonNl: error.refusal.reasonNl,
+        linkStillWorks: true,
+      };
     }
     throw error;
   }

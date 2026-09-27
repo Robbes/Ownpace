@@ -91,20 +91,28 @@ function reader(
   } as unknown as LedgerVerificationReader;
 }
 
-/** A target holding all `itemCount` messages, with hashes that all match. */
+/**
+ * A target holding all `itemCount` messages, with hashes that all match. Not
+ * `hashable`, it has no way to hash at all: the JMAP-contacts shape, which is
+ * the one a content leg that compared nothing leaves the gate open for (0149
+ * T4). A target that could hash and answered nothing would hold it.
+ */
 function reindexer(itemCount: number, hashable = true): TargetReindexer {
   const entries = IDS.slice(0, itemCount).map(
     (id, i) => ({ naturalKey: id, targetId: `t${i}`, mailboxId: 'INBOX' }) as TargetEntry,
   );
-  return {
+  const listing = {
     async *listEntries(): AsyncIterable<TargetEntry> {
       for (const e of entries) yield e;
     },
+  };
+  if (!hashable) return listing as unknown as TargetReindexer;
+  return {
+    ...listing,
     // Matching the ledger's `src-${i}`, so these samples COMPARE rather than
     // landing in `checksumUnavailable` — the counters only add up to something
     // interesting if the comparison actually happens.
-    contentHashFor: async (entry: TargetEntry) =>
-      hashable ? `src-${IDS.indexOf(entry.naturalKey)}` : undefined,
+    contentHashFor: async (entry: TargetEntry) => `src-${IDS.indexOf(entry.naturalKey)}`,
   } as unknown as TargetReindexer;
 }
 
@@ -224,21 +232,38 @@ describe('a deps implementation that returns less than it was asked for', () => 
     expect(mail.checksumMatches).toBe(2);
   });
 
-  it('WARNS when nothing at all could be sampled from a domain that holds items', async () => {
+  it('HOLDS the gate when nothing at all could be sampled, from a target that can hash (D2)', async () => {
     // A checksum leg that never ran otherwise scores exactly like one that ran
     // and found nothing wrong: `checksumMatchPercentage` falls back to 1 for
     // want of contrary evidence, and `checksumUnavailable` is 0 so the
     // neighbouring warning stays silent too. The operator reading the §20
     // report could not tell "no content evidence" from "content evidence, all
     // good".
+    //
+    // It warned. Since the owner's D2 (workplan 0149 T4) it holds the gate
+    // when the target can hash: nothing was compared, as when a target that
+    // can hash answers nothing.
     const { mail } = await verify(8, {}, { shortfall: 0 });
 
     expect(mail.checksumSampleSize).toBe(0);
+    expect(mail.status).toBe('FAIL');
     const issue = mail.issues.find((i) => i.id === 'CHECKSUM_NOT_SAMPLED_mail');
-    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe('ERROR');
     expect(issue!.message).toMatch(/did not run at all/);
     expect(issue!.message).toMatch(/ABSENCE of content evidence/);
+    expect(issue!.message).toMatch(/the cutover is held/);
     // The count is named so the reader can see it is not an empty domain.
     expect(issue!.message).toMatch(/8 item\(s\) are recorded/);
+  });
+
+  it('only WARNS when nothing could be sampled from a target that has no way to hash', async () => {
+    // The case D2 leaves open: with no way to hash, sampling would have
+    // compared nothing either, and counts decide as they always have.
+    const { mail } = await verify(8, {}, { shortfall: 0, hashable: false });
+
+    expect(mail.status).toBe('PASS');
+    const issue = mail.issues.find((i) => i.id === 'CHECKSUM_NOT_SAMPLED_mail');
+    expect(issue?.severity).toBe('WARNING');
+    expect(issue!.message).toMatch(/Count parity still applies/);
   });
 });

@@ -50,6 +50,7 @@ describe('removeDavResource', () => {
       url: 'https://cloud.example.com/remote.php/dav/files/alice/report.pdf',
       authorization: 'Basic xyz',
       request,
+      expectedTargetVersion: 'v1',
     });
 
     expect(result).toEqual({ kind: 'binned' });
@@ -62,6 +63,7 @@ describe('removeDavResource', () => {
       url: 'https://dav.example.com/webdav/report.pdf',
       authorization: 'Basic xyz',
       request,
+      expectedTargetVersion: 'v1',
     });
 
     expect(result).toEqual({ kind: 'deleted' });
@@ -78,6 +80,7 @@ describe('removeDavResource', () => {
       authorization: 'Basic xyz',
       request,
       kind: 'deleted',
+      expectedTargetVersion: 'v1',
     });
 
     expect(result).toEqual({ kind: 'deleted' });
@@ -92,6 +95,7 @@ describe('removeDavResource', () => {
         url: 'https://dav.example.com/webdav/gone.pdf',
         authorization: 'Basic xyz',
         request,
+        expectedTargetVersion: 'v1',
       });
       expect(result).toEqual({ kind: 'deleted' });
     }
@@ -105,33 +109,35 @@ describe('removeDavResource', () => {
         url: 'https://dav.example.com/webdav/report.pdf',
         authorization: 'Basic xyz',
         request,
+        expectedTargetVersion: 'v1',
       }),
     ).rejects.toThrow(/500/);
   });
 
-  it('does NOT check ownership when no expectedTargetVersion was given', async () => {
-    let headCalled = false;
-    const request = client((opts) => {
-      if (opts.method === 'HEAD') headCalled = true;
-      return { status: 204, headers: {}, body: '' };
-    });
+  it('removes NOTHING when no version was recorded, and says so (workplan 0149 T3)', async () => {
+    // It skipped the check and removed the copy anyway. With nothing to compare
+    // there is no way to tell whether somebody changed it since, and a removal
+    // cannot be undone (the owner's D1).
+    const request = client(() => ({ status: 204, headers: {}, body: '' }));
 
-    await removeDavResource({
+    const result = await removeDavResource({
       url: 'https://dav.example.com/webdav/report.pdf',
       authorization: 'Basic xyz',
       request,
     });
 
-    expect(headCalled).toBe(false);
+    expect(result).toEqual({ unversioned: true });
+    expect(request, 'not a DELETE, and not a HEAD either').not.toHaveBeenCalled();
   });
 
-  describe('ownership re-check', () => {
-    it('HEADs first and refuses the DELETE when the ETag has changed', async () => {
-      let deleteCalled = false;
+  describe('ownership, checked by the server (workplan 0149 T3)', () => {
+    it('refuses when the server says the copy changed, and removes nothing', async () => {
+      // The DELETE carries If-Match, so a changed copy is refused in the same
+      // request: 412. It used to be a HEAD and a comparison first, with a gap
+      // between them and the DELETE.
       const request = client((opts): FakeDavResponse => {
         if (opts.method === 'HEAD') return { status: 200, headers: { etag: '"changed"' }, body: '' };
-        deleteCalled = true;
-        return { status: 204, headers: {}, body: '' };
+        return { status: 412, headers: {}, body: '' };
       });
 
       const result = await removeDavResource({
@@ -142,8 +148,7 @@ describe('removeDavResource', () => {
       });
 
       expect(result).toEqual({ conflicted: true });
-      // The DELETE must never even be sent once ownership looks wrong.
-      expect(deleteCalled).toBe(false);
+      expect(request.mock.calls.map(([o]) => o.method)).toEqual(['DELETE', 'HEAD']);
     });
 
     it('proceeds when the ETag still matches', async () => {
@@ -164,25 +169,20 @@ describe('removeDavResource', () => {
       expect(result).toEqual({ kind: 'deleted' });
     });
 
-    it('proceeds when the HEAD fails — an unknown ETag is not a known mismatch', async () => {
-      // The alternative — refusing whenever HEAD fails — would block every
-      // removal against a server that answers no ETag at all, which is a
-      // protection that presents as an outage.
-      const request = client(
-        (opts): FakeDavResponse =>
-          opts.method === 'HEAD'
-            ? { status: 404, headers: {}, body: '' }
-            : { status: 204, headers: {}, body: '' },
-      );
+    it('asks nothing before the DELETE: the server does the checking', async () => {
+      // A HEAD first was the gap between reading and acting that If-Match
+      // closes, and when it failed the removal went ahead. Now there is no HEAD
+      // unless the DELETE itself is refused.
+      const request = client(() => ({ status: 204, headers: {}, body: '' }));
 
-      const result = await removeDavResource({
+      await removeDavResource({
         url: 'https://dav.example.com/webdav/report.pdf',
         authorization: 'Basic xyz',
         request,
         expectedTargetVersion: 'original',
       });
 
-      expect(result).toEqual({ kind: 'deleted' });
+      expect(request.mock.calls.map(([o]) => o.method)).toEqual(['DELETE']);
     });
   });
 });
@@ -203,6 +203,7 @@ describe('the removal tells the server to tell nobody', () => {
         seen.push({ method: o.method, headers: o.headers });
         return { status: 204, headers: {}, body: '' };
       },
+      expectedTargetVersion: 'v1',
     });
     const del = seen.find((c) => c.method === 'DELETE');
     expect(del, 'no DELETE was issued').toBeTruthy();

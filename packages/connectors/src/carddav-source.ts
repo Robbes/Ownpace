@@ -18,6 +18,7 @@
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
 import { carddavMatchAllFilter, davRefusalBody, log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -26,6 +27,7 @@ import {
   isSendableAsText,
 } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
+import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
 
 /**
  * CardDAV source connector implementation.
@@ -208,7 +210,10 @@ export class CarddavSource implements ContactSource {
       const baseUrl = this.config.url.replace(/\/$/, '');
       this.addressBookHomeSet = `${baseUrl}/addressbooks/users/${this.config.username}/`;
     } else {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
   }
 
@@ -275,7 +280,10 @@ export class CarddavSource implements ContactSource {
     }
 
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
 
     return this.parseCollectionsResponse(response.body, homeSet);
@@ -416,7 +424,10 @@ export class CarddavSource implements ContactSource {
     });
 
     if (response.status !== 207) {
-      throw new Error(`addressbook-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `addressbook-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
 
     const { objects } = this.parseSyncCollectionResponse(response.body);
@@ -1201,7 +1212,7 @@ function createDefaultHttpClient(): HttpClient {
             'request without it, which would empty the resource and report success',
         );
       }
-      const response = await fetch(options.url, {
+      const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: options.body,

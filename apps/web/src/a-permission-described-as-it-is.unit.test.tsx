@@ -123,7 +123,7 @@ const SUBJECT = {
   checkedCompany: null,
   askedBy: 'owner@example.org',
   organisationPhone: null,
-  reads: 'your email — messages, folders and labels',
+  domains: ['email'],
   scope: 'https://mail.google.com/ openid https://www.googleapis.com/auth/userinfo.email',
   from: 'someone@example.invalid',
   to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest@example.org' },
@@ -165,7 +165,7 @@ describe('the grant page says "read-only" only where Google enforces it (0144 T3
     it(`${locale}: a grant Google holds to reading keeps "Read-only", which is then true`, async () => {
       readMock.mockResolvedValue({
         ...SUBJECT,
-        reads: 'your tasks',
+        domains: ['task'],
         scope: 'https://www.googleapis.com/auth/tasks.readonly openid https://www.googleapis.com/auth/userinfo.email',
         readOnlyAtProvider: true,
       });

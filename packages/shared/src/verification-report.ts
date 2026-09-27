@@ -170,10 +170,13 @@ export interface VerificationResult extends Record<VerificationDomain, DataTypeV
    * run that checked everything. This field is the difference, in the report
    * rather than buried in `issues`.
    *
-   * It deliberately does NOT close the gate: the owner's decision is that a
-   * count-only PASS still opens it, because both targets in use can fail to
-   * hash for ordinary operational reasons and refusing would block nearly
-   * everyone. What it removes is the silence.
+   * It does not close the gate itself. The owner decided on 2026-09-21 that
+   * a count-only PASS still opens it, and on 2026-09-24 narrowed that
+   * (workplan 0149 D2, T4): a domain whose target CAN hash, and from which not
+   * one sampled item came back hashed, now FAILs. So `none` beside a ready
+   * verdict means a target with no way to hash, which is JMAP contacts by
+   * design, and there the counts decide. What this field removes is the
+   * silence.
    */
   contentEvidence: ContentEvidence;
   score: number; // 0.0 to 1.0

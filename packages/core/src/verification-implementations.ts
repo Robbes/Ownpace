@@ -76,6 +76,12 @@ export function createRealVerificationDeps(
     // getTargetCount quietly returned the LEDGER count (perfect parity, never
     // measured) while findMissingOnTarget declared every item missing.
     canVerifyTarget: (dataType) => reindexerFor(dataType) !== undefined,
+    // Whether the target can be asked for content at all, which is whether its
+    // reindexer offers `contentHashFor` (0149 T4). The reindexer is the target
+    // object itself (`asReindexer` in the orchestration package), so this is
+    // the target's own answer and no wrapper's. JMAP contacts leaves it out on
+    // purpose, and its gate still opens on counts.
+    targetCanHash: (dataType) => reindexerFor(dataType)?.contentHashFor !== undefined,
     getSourceCount: (dataType) =>
       getSourceCountFromLedger(verificationReader, tenantId, mappingId, dataType),
     getTargetCount: (dataType) =>
