@@ -59,6 +59,48 @@ limit on tests is the next pull request, and the failures route is T3's second s
   the other session's pull requests on the same files); and the JMAP file and contact targets'
   upload refusals, which a pass writes and a Test never reaches.
 
+**2026-09-27: T1 (b) built (0131 §6, group M2, step 4), beside T1 (a).** Before the API comes up,
+the bring-up checks that every Docker network on the machine lies inside the rule's ranges, and
+refuses to go on when one does not.
+
+- **Every network, not this project's.** `check_docker_networks` in `bootstrap-managed.sh`
+  lists every network the daemon has (`docker network ls -q`, with no filter) and inspects them
+  all: this stack's, the other stack's on the same daemon (D6), and Docker's own.
+- **The rule's own list decides.** `scripts/networks-inside-the-rule.ts`, run by the repo's
+  tsx, reads each subnet and gateway:
+  - `networkInsideRefusedRanges`, new in `reachable-host.ts`, answers whether a whole network
+    lies inside one refused range: its prefix no shorter than the range's, and its address in it;
+  - `isRefusedAddress` answers for a gateway.
+- **The refusal** names the network, its compose project, and the subnet or gateway outside. It
+  says why that matters, and names the fix: the daemon's `default-address-pools` inside
+  `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16`, or the network removed. The bring-up exits 1.
+  A failed `docker network inspect`, or an answer that is not its JSON, stops the bring-up too,
+  saying so rather than calling it a network outside.
+- **Where it runs:** at the start of `phase_app`, before the API and the tasks, which connect to
+  hosts a tester types. `phase_data` has created this stack's network by then.
+- **Which case the reference machine is in** is what the check's first run on it says, as §3
+  has it. Nothing here read that machine's daemon.
+- **Not yet:** the failure table in `docs/managed-bring-up.md` gets its row with the switch-on.
+  The other session's pull requests that change that document (#1214, #1217, #1219) come first,
+  by 0131 §6's out-of-turn rule.
+- **Proved.**
+  - `scripts/bootstrap-managed.unit.test.ts`, ten cases. The function is lifted from the script
+    and run in bash against a `docker` that answers from a fixture, with the real check behind
+    it. The fixture is shaped as `docker network inspect` prints it; it was written, not
+    recorded, since this environment has no Docker daemon. The fake honours a project filter, so
+    a check that asked only for its own project's networks would miss the other stack's.
+  - Two stacks inside pass, and the count is said. The other stack's network outside is refused
+    and named, and so are this stack's IPv6 network outside, a gateway outside, and a network
+    wider than the range it starts in. A failed inspect, an unreadable answer and an empty list
+    each stop the bring-up.
+  - `a-host-we-are-asked-to-reach.unit.test.ts` gains eighteen cases for
+    `networkInsideRefusedRanges`.
+  - **Mutations:** 12, all killed: only this project's networks asked for; the check never
+    called; a network outside let through; a failed inspect ignored; an empty list passed; an
+    unreadable answer read as a network outside; gateways, or subnets, not checked; the check
+    exiting 0 on a network outside; a wider network passing; no prefix read as a network; and a
+    prefix past the address's length passing.
+
 **2026-09-27: T1 (a), second slice built (0131 §6, group M2, step 1).** Every client that reaches
 a host a tenant typed now goes through the rule. The rule is still off in every process, so
 nothing behaves differently until the third slice switches it on.
@@ -268,7 +310,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **Two slices built 2026-09-27** (the rule, and every client of a tenant's host going through it; not yet switched on); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **(a)'s two slices and (b) built 2026-09-27** (the rule, and every client of a tenant's host going through it, not yet switched on; the bring-up's network check); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer and the limit built 2026-09-27, not merged**; the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |

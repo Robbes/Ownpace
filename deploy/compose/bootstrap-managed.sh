@@ -436,6 +436,44 @@ note_site_row_half_configured() {
 # timeout. Two copies of a question is how a wrong answer gets given twice:
 # fixing one would have left the other lying. There is now one, and it is the
 # same script the refusal below tells you to run.
+# EVERY DOCKER NETWORK ON THIS MACHINE LIES INSIDE THE RULE'S RANGES (workplan
+# 0136 T1 (b)). The managed API and tasks refuse a host a tester types when it
+# resolves inside the ranges in packages/shared/src/reachable-host.ts, and that
+# rule holds no range of its own for Docker's networks: with Docker's built-in
+# address pools they lie inside the private ranges. A daemon set to hand out
+# other pools puts a network outside them, and a container reaches its
+# network's gateway, which is this machine. So a host resolving there would be
+# let through, to whatever this machine publishes.
+#
+# EVERY network, not this project's: the other stack on the same daemon (0136
+# D6) has networks of its own, and a filter on this project's label would never
+# see them. The check itself is the rule's own list, run by the repo's tsx.
+check_docker_networks() {
+  local ids inspected verdict status=0
+  ids="$(docker network ls -q)"
+  [ -n "$ids" ] || die "docker network ls listed no networks, so there was nothing to check."
+  # shellcheck disable=SC2086 # one argument per network id
+  inspected="$(docker network inspect $ids)" ||
+    die "docker network inspect failed, so the networks on this machine could not be checked."
+  verdict="$(printf '%s' "$inspected" |
+    "${REPO_ROOT}/node_modules/.bin/tsx" "${REPO_ROOT}/scripts/networks-inside-the-rule.ts" 2>&1)" || status=$?
+  case "$status" in
+    0) note "$(printf '%s\n' "$verdict" | tail -1)" ;;
+    1)
+      printf '%s\n' "$verdict" >&2
+      echo "!!! A Docker network on this machine lies outside the ranges a tester's host is refused in." >&2
+      echo "!!! A host that resolves there would reach this machine through that network's gateway." >&2
+      echo "!!! Set the daemon's default-address-pools inside 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16" >&2
+      echo "!!! and recreate the network, or remove it if nothing uses it (workplan 0136 T1)." >&2
+      exit 1
+      ;;
+    *)
+      printf '%s\n' "$verdict" >&2
+      die "the Docker networks on this machine could not be checked (the check exited ${status})."
+      ;;
+  esac
+}
+
 assert_zitadel_role_password() {
   local user pass out rc=0
   user="$(env_get ZITADEL_DB_USER)"; user="${user:-zitadel}"
@@ -1374,6 +1412,8 @@ check_idp_console_config() {
 phase_app() {
   say app "api, web, and anything else not yet running"
   load_env
+  # Before the API and the tasks, which connect to hosts a tester types.
+  check_docker_networks
   # Nextcloud is in managed.yml for the demo only, and a bare `up -d` would
   # start it — publishing an admin panel whose password is `change-me-…` by
   # default. So without --with-demo the services are named explicitly rather

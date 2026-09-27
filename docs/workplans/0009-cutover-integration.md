@@ -4,12 +4,20 @@
 
 ## Status — 2026-09-20 (update this block at the end of every session)
 
+> **2026-09-27: T13 built, by workplan 0149 T4** (0131 §6, group M1, step 3). A domain whose
+> target can hash (its reindexer offers `contentHashFor`), from which not one sampled item came
+> back with a hash, is now FAIL, with the ERROR issue `CHECKSUM_NOT_COMPARED_<domain>`; nothing
+> sampled at all from such a target is held too. A target with no way to hash, JMAP contacts, is
+> unchanged: its counts still open the gate, and `contentEvidence` still says `none` beside the
+> verdict. The pinned test is named for the case it builds, *"a target that cannot hash (JMAP
+> contacts) still opens the gate on counts"*, and the held case sits beside it.
+>
 > **2026-09-24: T9 decided — option 1** (the section *"T9: a PASS that hashed nothing"*, not the
 > table's T9). The owner: *"… And do hold the cutover-gate when nothing was compared."* For the
 > cases it covers, this replaces the answer of 2026-09-21 that only the code records
 > (`contentEvidence` in `packages/shared/src/verification-report.ts`: a count-only PASS still
 > opens the gate). Workplan 0149 reads it as option 1 (its D2), a reading the owner confirmed the
-> same day (0149 §2), and builds it as its T4. Nothing is built yet.
+> same day (0149 §2), and builds it as its T4. It was built on 2026-09-27 (above).
 >
 > **Done.** T1/T2/T3/T5/T6 all done and tested. A doc audit on 2026-07-27 found T2's `--yes`
 > approval gate had been marked done while absent; it is now genuinely implemented and unit-tested
@@ -35,7 +43,7 @@
 | T10 The press that answered 202 to a closed ledger | ✅ **Done 2026-09-20** (owner: "ok, build the 409") | `POST /api/migrations/{id}/cutover` enqueued the preparation without reading `cutover_state`: a press on a cutover under way or a finished ledger was answered 202 with a promise the job broke minutes later in a run nobody watched, and a press on an `APPROVED` cutover revoked the approval behind a 202 that said nothing. Now the door asks `prepareTransition` — the job's own rule, one level up, the way ADR-0049 made the update door ask — after the mapping check and before anything is enqueued: 409 `cutover_refused` with the reason, the hint, the stable `code` (`under_way`, `closed`) and the `state`; 202 otherwise, carrying `preparation` (the ledger state found, whether it resets to `PREPARING`, whether an approval is revoked). The read is through the tenant-scoped database; the job re-reads and stays the authority. Source guard (six tests) and an integration test through the real Express app on Postgres with the Trigger.dev client mocked; OpenAPI carries the 409 and the 202's fields. **Found on the way:** `cutover_state` and `cutover_event` carry no row-level-security policy, unlike every other tenant table — fixed in T11. |
 | T11 The two tables the policies missed | ✅ **Done 2026-09-20** (owner: "Do build the row-level-security policy") | Migration `0055_the_two_tables_the_policies_missed.sql`: `ENABLE` + `FORCE ROW LEVEL SECURITY` and the four NULL-safe tenant policies on `cutover_state` and `cutover_event`, in the form `0004` established and `0035` last used. Why it was invisible: every reader — the cutover job, the rollback job, the operator CLI — went through `DATABASE_URL`, a superuser on the bundled deployments, and the guard in `force-rls.unit.test.ts` asked "which RLS tables are not FORCEd", a question a table with no RLS never appears in; it now also asks "which tables with a `tenant_id` have no row security" (would have returned exactly these two). `tenantCutoverStore(source, tenantId)` in the ledger runs every store call inside `withTenant`, bound to one tenant and refusing another before any query; the three callers use it, so on hard rule 5's shape (an ordinary owner on the operator's own Postgres) the cutover ledger keeps answering, and a `transitionState` now lands in one transaction. Proof on a real Postgres as `app_user`: catalogs (RLS on, FORCEd, eight policies), fail-closed with no context, own tenant only with it, a write that lands, a foreign-tenant write refused by the store and by `WITH CHECK`. |
 | T12 A cutover the gate never pressed | ✅ **Done 2026-09-20** (owner: "start with what was unblocked for you") | No gate had ever pressed the cutover: the appliance has no door for it (ADR-0026 — the Finish page is a checklist), so the managed smoke is the one place the chain runs for real. A section on the demo MAIL mapping (the VERIFY half finds it fit to cut over; the DAV mapping verifies FAIL on the long-lived stack and would land FAILED by the job's own rule): the door answers 202 with `preparation.from: null` and the run-cutover task lands `READY_FOR_CUTOVER` (one entry into PREPARING, one READY verified by the job); a second press answers 202 with `resetsToPreparing: true` and the job converges — `READY_FOR_CUTOVER → PREPARING` recorded as attempt 2 by the job, `READY_FOR_CUTOVER` again, the first attempt kept on the trail (T9); `CUTOVER_IN_PROGRESS` and `COMPLETED`, set as fixtures (the transitions into them are the CLI's), are refused 409 `cutover_refused` with `under_way` / `closed`, no run, the ledger untouched (T10); on the real Postgres `SET ROLE app_user` sees nothing in either table without a tenant context and the tenant's row with it, the owner sees it regardless (T11). Net zero: the ledger is taken back at the end and a leftover from an aborted run is cleared first, because one ledger per mapping on a stack that lives from night to night is otherwise tomorrow's failure. Guard: `scripts/a-cutover-the-gate-never-pressed.unit.test.ts` reads the section from the real script. Stage 7 of `docs/owner-test-runbook.md` names the one thing only real data can answer: whether the §20 gate passes over the owner's own mapping (start-cutover + verify, no DNS touched, nothing stopped). |
-| T13 A PASS that hashed nothing (the section headed "T9", not the table's T9) | 📋 **Decided 2026-09-24** (owner: *"And do hold the cutover-gate when nothing was compared."*) | Answered in the code only on 2026-09-21 (a count-only PASS opens the gate), then by the owner on 2026-09-24: hold the gate, read as option 1 and confirmed (workplan 0149 D2). Built by 0149 T4, not here. Row added by 0147 T3 (a). |
+| T13 A PASS that hashed nothing (the section headed "T9", not the table's T9) | ✅ **Built 2026-09-27** by 0149 T4 (decided 2026-09-24, owner: *"And do hold the cutover-gate when nothing was compared."*) | Answered in the code only on 2026-09-21 (a count-only PASS opens the gate), then by the owner on 2026-09-24: hold the gate, read as option 1 and confirmed (workplan 0149 D2). Built by 0149 T4, not here: a domain whose target can hash and answered nothing for any sample is FAIL (`CHECKSUM_NOT_COMPARED_*`); a target with no way to hash keeps the answer of 2026-09-21. Row added by 0147 T3 (a). |
 
 > Read `AGENTS.md`, the arch doc (§11 shadow & cutover, §20 verification & rollback) and
 > workplan 0004 first. **Depends on:** 0007 (verification should count all domains, but a
@@ -158,6 +166,16 @@ the report should still have read PASS.
 Option 1 is the one I would propose, because it separates the two cases using a distinction the
 code already makes and changes nothing for JMAP contacts. Not taken: when somebody may delete
 their Google account is not a call to make while the owner is asleep.
+
+**Answered twice.** On 2026-09-21, in the code only: a count-only PASS opens the gate, and
+`contentEvidence` says beside the verdict that no content was compared (the comment on
+`VerificationResult.contentEvidence`). On 2026-09-24, by the owner: *"And do hold the
+cutover-gate when nothing was compared"*, read as option 1 and confirmed (workplan 0149 D2).
+Built on 2026-09-27 by 0149 T4: a domain whose target can hash, from which not one sampled item
+came back with a hash, is FAIL with `CHECKSUM_NOT_COMPARED_<domain>`, and its checksum ratio
+scores 0. A target with no way to hash keeps the answer of 2026-09-21. The pinned test named
+above now carries the name of the case it builds, *"a target that cannot hash (JMAP contacts)
+still opens the gate on counts"*, and the held case sits beside it.
 
 ## Definition of Done (the gate)
 A complete cutover lifecycle runs against the dev stack, driven through the worker: shadow →
