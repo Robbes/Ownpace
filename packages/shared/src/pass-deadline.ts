@@ -142,3 +142,45 @@ export function passClock(clock: PassClock): PassClock {
     ...(clock.now ? { now: clock.now } : {}),
   };
 }
+
+/**
+ * EVERY DATA TYPE GETS A TURN (workplan 0143 T5, the owner's choice (c)).
+ *
+ * The pass handed every data type the same deadline, in the order the mapping
+ * listed them. A first copy of a large mailbox then took the whole pass, and the
+ * contacts, calendars and files behind it did not start until the mail's first
+ * copy was done, which for a large Microsoft 365 mailbox is days.
+ *
+ * So the small, bounded ones go first, and each type is handed a fair share of
+ * what is left rather than all of it. Contacts, calendars and tasks usually
+ * finish in minutes; mail and files then share what remains, about half each.
+ * A type that is not listed here goes last, in the order it came.
+ */
+export const PASS_ORDER = ['contact', 'calendar', 'task', 'email', 'file'] as const;
+
+/** The data types of one pass, in the order it takes them. */
+export function passOrder<D extends string>(domains: readonly D[]): D[] {
+  const rank = (domain: string): number => {
+    const at = (PASS_ORDER as readonly string[]).indexOf(domain);
+    return at < 0 ? PASS_ORDER.length : at;
+  };
+  // A stable sort, so types of equal rank keep the order they came in.
+  return [...domains].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * The moment a data type starting at `now` must stop taking new work: its
+ * share of the time left, `now + (passDeadline − now) ÷ typesLeft`, where
+ * `typesLeft` counts this type and every one after it. The last type gets
+ * whatever remains.
+ *
+ * Asked again before each type, so time a type does not use flows to the ones
+ * after it. It is never later than the pass's own deadline, so the rule above
+ * still holds: five data types each handed the whole budget would be five
+ * times the budget, and the runner's kill does not care how the time was
+ * divided.
+ */
+export function domainDeadline(passDeadline: number, now: number, typesLeft: number): number {
+  if (!(typesLeft > 1) || now >= passDeadline) return passDeadline;
+  return now + Math.floor((passDeadline - now) / typesLeft);
+}
