@@ -638,6 +638,9 @@ const en = {
   // finding no writer behind it.
   'wizard.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
   'wizard.title': 'Create Migration',
+  // The heading every step card opens with (workplan 0145 T3 (a)). It takes
+  // focus on Next and Back, so it is what a screen reader says for a new step.
+  'wizard.stepHeading': 'Step {n} of {total}: {step}',
   'wizard.step.source': 'Source',
   'wizard.step.target': 'Target',
   // "Name & credentials", because the step LEADS with — and gates on — the
@@ -3036,6 +3039,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
   'wizard.title': 'Migratie aanmaken',
+  'wizard.stepHeading': 'Stap {n} van {total}: {step}',
   'wizard.step.source': 'Bron',
   'wizard.step.target': 'Doel',
   'wizard.step.credentials': 'Naam & inloggegevens',
