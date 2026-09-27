@@ -36,6 +36,8 @@
  * them.
  */
 
+import type { DiscoveryDomain } from './discovery.ts';
+
 /** The two languages the UI speaks; the same pair, deliberately. */
 export type NotificationLocale = 'en' | 'nl';
 
@@ -168,6 +170,12 @@ export interface MappingAttention {
    */
   readonly sharingOpen: number;
   /**
+   * The data types whose grace period ended while nobody chose (workplan 0128
+   * D7, T5 slice 7c): still in their cutover, no longer copying, and waiting
+   * on their owner's End or Keep copying on the Finish page. Absent when none.
+   */
+  readonly graceEnded?: readonly DiscoveryDomain[];
+  /**
    * Anything this summary could NOT read, in the server's own words.
    *
    * Present means the digest is INCOMPLETE, and rule 2 above makes that
@@ -223,6 +231,8 @@ export interface QueueReads {
   readonly autoApplied?: number;
   /** Open sharing-checklist rows; absent = zero. */
   readonly sharingOpen?: number;
+  /** The data types whose grace period ended while nobody chose (0128 D7); absent = none. */
+  readonly graceEnded?: readonly DiscoveryDomain[];
   /** Whatever could not be read, in the server's own words. */
   readonly blindSpots: readonly string[];
 }
@@ -288,6 +298,7 @@ export function summariseQueues(mapping: MappingRef, reads: QueueReads): Mapping
     readyForCutover: reads.status === 'cutover',
     autoApplied: reads.autoApplied ?? 0,
     sharingOpen: reads.sharingOpen ?? 0,
+    ...(reads.graceEnded !== undefined && reads.graceEnded.length > 0 ? { graceEnded: reads.graceEnded } : {}),
     ...(reads.blindSpots.length > 0 ? { blindSpots: reads.blindSpots } : {}),
   };
 }
@@ -304,6 +315,8 @@ export function wantsAttention(m: MappingAttention): boolean {
     // only news is "3 old copies removed automatically" must receive it.
     m.autoApplied > 0 ||
     m.sharingOpen > 0 ||
+    // D7: a grace period that ended while nobody chose is said, by itself.
+    (m.graceEnded?.length ?? 0) > 0 ||
     (m.blindSpots?.length ?? 0) > 0
   );
 }
@@ -351,9 +364,20 @@ interface DigestLines {
   readonly readyForCutover: string;
   readonly autoApplied: string;
   readonly sharingOpen: string;
+  readonly graceEnded: string;
   readonly couldNotRead: string;
   readonly footer: string;
 }
+
+/**
+ * Each data type in words, as the UI names it (the web's `domain.*`).
+ * Total over the data types, so one added is a compile error here rather
+ * than a digest line with a code in it.
+ */
+const DATA_TYPE_WORD: Record<NotificationLocale, Record<DiscoveryDomain, string>> = {
+  en: { email: 'Email', calendar: 'Calendar', contact: 'Contacts', file: 'Files', task: 'Tasks' },
+  nl: { email: 'E-mail', calendar: 'Agenda', contact: 'Contacten', file: 'Bestanden', task: 'Taken' },
+};
 
 const LINE: Record<NotificationLocale, DigestLines> = {
   en: {
@@ -367,6 +391,8 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     autoApplied:
       'old copies of moved or renamed files removed automatically (auto-apply — each is recorded)',
     sharingOpen: 'rows open on the sharing checklist',
+    graceEnded:
+      'grace period over and nobody chose, so no longer copying (end each, or keep it copying, on the Finish page):',
     couldNotRead: 'COULD NOT BE READ — this summary is incomplete:',
     footer:
       'You are receiving this because Ownpace is configured to send you a summary. ' +
@@ -383,6 +409,8 @@ const LINE: Record<NotificationLocale, DigestLines> = {
     autoApplied:
       'oude kopieën van verplaatste of hernoemde bestanden automatisch verwijderd (automatisch toepassen — elk is vastgelegd)',
     sharingOpen: 'regels open op de deel-checklist',
+    graceEnded:
+      'overgangsperiode voorbij en niets gekozen, dus kopieert niet meer (beëindig elk, of laat het blijven kopiëren, op de afrondpagina):',
     couldNotRead: 'KON NIET GELEZEN WORDEN — deze samenvatting is onvolledig:',
     footer:
       'U ontvangt dit omdat Ownpace is ingesteld om u een samenvatting te sturen. ' +
@@ -450,6 +478,9 @@ export function renderDigest(
     if (m.readyForCutover) lines.push(`  - ${t.readyForCutover}`);
     if (m.autoApplied > 0) lines.push(`  - ${m.autoApplied} ${t.autoApplied}`);
     if (m.sharingOpen > 0) lines.push(`  - ${m.sharingOpen} ${t.sharingOpen}`);
+    if (m.graceEnded !== undefined && m.graceEnded.length > 0) {
+      lines.push(`  - ${t.graceEnded} ${m.graceEnded.map((d) => DATA_TYPE_WORD[locale][d]).join(', ')}`);
+    }
     for (const blind of m.blindSpots ?? []) {
       // Verbatim: this is the server's own reason, and paraphrasing the one
       // line that says "I could not look" would defeat its purpose.

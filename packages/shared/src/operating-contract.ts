@@ -334,6 +334,37 @@ export interface PathStopChoice {
 }
 
 /**
+ * ONE DATA TYPE'S ENDING, AS THE FINISH PAGE OFFERS IT (workplan 0128 T3,
+ * T5 slice 7b; the owner's D3 and D8): where it is, and the presses the
+ * ending door accepts now.
+ *
+ * Made by the door's own rule (`pathEndingChoices`, ledger), so the page
+ * cannot offer a press the door refuses. End is offered without counting the
+ * data type's open failures: the door answers those with a refusal the page
+ * can force. Served by both editions: managed on `GET /migrations/{id}` as
+ * `endingChoices`, the appliance on `/status` as each mapping's `endings`.
+ * Empty while the migration is paused or never started.
+ */
+export interface PathEndingChoice {
+  readonly domain: DiscoveryDomain;
+  /**
+   * Its phase as the reader believes it: `active` (still before its cutover),
+   * `cutover`, `done` (ended) or `continuous` (kept copying).
+   */
+  readonly phase: string;
+  /** Its owner stopped it: it can be ended, and kept only once it is resumed. */
+  readonly stopped: boolean;
+  /** The presses the door accepts now, of `end` and `keep`. */
+  readonly offers: ReadonlyArray<'end' | 'keep'>;
+  /**
+   * When its grace period ended while it is still in its cutover: nobody
+   * chose, it no longer copies, and End or Keep copying is its owner's to
+   * press (workplan 0128 D7, T5 slice 7c). Absent otherwise.
+   */
+  readonly graceEndedAt?: string;
+}
+
+/**
  * Build `DomainStatusReport` rows from ledger rows — the ONE place the
  * derivation lives (0033 T5).
  *
@@ -454,6 +485,12 @@ export interface StatusReport {
      * offers no stop rather than guessing one.
      */
     readonly stops?: readonly PathStopChoice[];
+    /**
+     * Each data type's ending, as the Finish page offers it (workplan 0128
+     * T5, slice 7b). Optional, as `stops` is: a payload built before it omits
+     * it, and the page then offers no ending rather than guessing one.
+     */
+    readonly endings?: readonly PathEndingChoice[];
   }>;
 }
 

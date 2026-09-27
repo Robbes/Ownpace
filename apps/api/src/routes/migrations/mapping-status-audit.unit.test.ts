@@ -237,6 +237,9 @@ describe('finishing a mapping records it too — the transition T1 named', () =>
       via: 'finish',
     });
     expect(rows[1]?.actor).toBe('pat');
+    // The way back into copying is Keep copying per data type (0128 T5, slice
+    // 7b): a status set back to `active` is a move the update door refuses.
+    expect(res.body.ifYouNeedToResume).toMatch(/^To copy again, keep a data type copying on the Finish page/);
   });
 
   it('finishing an already-finished mapping records nothing more', async () => {

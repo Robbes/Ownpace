@@ -36,6 +36,7 @@ import { Link } from 'react-router';
 import type { MappingAttention, TenantAttention } from '@openmig/shared';
 import { queueScreenPath } from '../services/edition.ts';
 import { useT } from '../i18n/index.tsx';
+import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { Hint } from './Hint.tsx';
 
 /**
@@ -54,6 +55,7 @@ export function wantsSomeone(m: MappingAttention): boolean {
     m.failuresWaiting > 0 ||
     m.readyForCutover ||
     m.sharingOpen > 0 ||
+    (m.graceEnded?.length ?? 0) > 0 ||
     (m.blindSpots?.length ?? 0) > 0
   );
 }
@@ -190,6 +192,20 @@ export const AttentionSummary: React.FC<{
                       className="text-blue-700 hover:underline"
                     >
                       {t('attention.readyForCutover')}
+                    </Link>
+                  </li>
+                )}
+                {/* A grace period that ended while nobody chose (0128 D7):
+                    the digest's line, to the page where the choice is made. */}
+                {(m.graceEnded?.length ?? 0) > 0 && (
+                  <li>
+                    <Link
+                      to={`/mappings/${encodeURIComponent(m.mappingId)}/finish`}
+                      className="text-blue-700 hover:underline"
+                    >
+                      {t('attention.graceEnded', {
+                        kinds: m.graceEnded!.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
+                      })}
                     </Link>
                   </li>
                 )}

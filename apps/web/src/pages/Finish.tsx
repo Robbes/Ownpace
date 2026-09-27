@@ -27,24 +27,30 @@
  * queue envelopes themselves, the links stay inside the mapping, and the
  * final-pass button speaks each edition's temporal shape (the appliance runs
  * the pass and answers when it finishes; managed queues the job and says so).
+ *
+ * THE ENDING IS CHOSEN PER DATA TYPE (workplan 0128 T3, T5 slice 7b; the
+ * owner's D3 and D8). The last step lists the migration's data types, each
+ * with its own *End* and *Keep copying*, where one button for the whole
+ * migration stood: mail can end on the day the old mailbox closes while the
+ * files keep copying. Step 4 asks for mail only, and only mail waits for it.
+ * Past its cutover (`done` or `continuous`) the same list is where a data
+ * type ended is kept copying again, or one kept is ended; the migration is
+ * done once every data type has ended.
  */
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
-import { AlertCircle, AlertTriangle, Check, Flag, Loader2, Circle } from 'lucide-react';
-import type { DomainStatusReport, FinishAccepted, MappingLifecycle } from '@openmig/shared';
+import { AlertCircle, AlertTriangle, Check, Loader2, Circle } from 'lucide-react';
+import type { DomainStatusReport, MappingLifecycle, PathEndingChoice } from '@openmig/shared';
 import {
   fetchDeletions,
   fetchFailures,
-  fetchMappingDomains,
+  fetchMappingDataTypes,
   fetchMoves,
   fetchStatus,
   fetchVerifyReport,
-  finishMigration,
-  keepCopyingAfterCutover,
   requestFinalPass,
-  FinishRefusedError,
 } from '../services/operating-service.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { formatNumber } from '../i18n/datetime.ts';
@@ -53,20 +59,9 @@ import { Hint } from '../components/Hint.tsx';
 import MappingHubLink from '../components/MappingHubLink.tsx';
 import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
+import EachDataTypeEnds from '../components/finish/EachDataTypeEnds.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
-import { isSelfHost } from '../services/edition.ts';
-
-type Outcome =
-  | { readonly state: 'pending' }
-  | { readonly state: 'done'; readonly result: FinishAccepted }
-  /** The SERVER refused and said why; force renders only when the refusal is
-   *  one force can satisfy (0038 T1). */
-  | { readonly state: 'refused'; readonly error: string; readonly hint?: string; readonly forceable: boolean }
-  /** Transport/unknown failure — a plain error and a plain retry, never force:
-   *  clicking force after a timeout could silently skip the one gate the
-   *  refusal design exists to make informed. */
-  | { readonly state: 'failed'; readonly error: string };
 
 type PassState = 'running' | 'finished' | 'queued' | { readonly failed: string };
 
@@ -115,6 +110,11 @@ interface FinishRow {
    * its copies stay as they were, and the final pass leaves it out.
    */
   readonly stopped: ReadonlyArray<Pick<DomainStatusReport, 'domain' | 'itemsSynced' | 'stoppedByOwner'>>;
+  /**
+   * Each data type's ending as the last step offers it (0128 T5, slice 7b),
+   * or undefined when the server sent none: then no ending is offered.
+   */
+  readonly endings: ReadonlyArray<PathEndingChoice> | undefined;
 }
 
 const stoppedIn = (domains: readonly DomainStatusReport[] | undefined) =>
@@ -126,7 +126,6 @@ const Finish: React.FC = () => {
   const { dateTime } = useFormatters();
   const { locale } = useLocale();
   const { mappingId: routeMappingId } = useParams<{ mappingId: string }>();
-  const [outcomes, setOutcomes] = React.useState<Record<string, Outcome>>({});
   const [deliveryMoved, setDeliveryMoved] = React.useState<Record<string, boolean>>({});
   const [pass, setPass] = React.useState<Record<string, PassState>>({});
 
@@ -155,11 +154,12 @@ const Finish: React.FC = () => {
     queryFn: () => fetchDeletions(routeMappingId),
   });
   // Per-mapping mode only: this migration's data types, from whichever payload
-  // its edition serves them on, so step 3 can name a stopped one (0125 T7).
-  // The whole-appliance mode already has them, in `/status`.
+  // its edition serves them on, so step 3 can name a stopped one (0125 T7) and
+  // the last step can end or keep each (0128 T5, slice 7b). The
+  // whole-appliance mode already has them, in `/status`.
   const mappingDomains = useQuery({
     queryKey: ['mapping-domains', routeMappingId],
-    queryFn: () => fetchMappingDomains(routeMappingId!),
+    queryFn: () => fetchMappingDataTypes(routeMappingId!),
     enabled: Boolean(routeMappingId),
     refetchOnWindowFocus: true,
   });
@@ -171,70 +171,6 @@ const Finish: React.FC = () => {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
-
-  // THE DOOR INTO THE CONTINUOUS LANE (workplan 0117 T1 slice 3).
-  //
-  // Two presses, not one. The first opens the sentence; the second acts. That
-  // is not friction for its own sake: ADR-0014's amendment gives this act a
-  // price — a continuous path keeps its capacity slot, so the tier does not
-  // fall the way finishing makes it fall — and the whole condition on building
-  // this door was that somebody is TOLD before they enter. A single button with
-  // the explanation beside it would let a fast reader enter without meeting it.
-  const [laneAsked, setLaneAsked] = React.useState<Record<string, boolean>>({});
-  // A failure keeps the server's own sentence (0128 D4): the appliance answered
-  // this press 404 for as long as it had no lane door, and "could not switch
-  // it on" alone gave nobody a reason to look further.
-  const [laneState, setLaneState] = React.useState<Record<string, 'pending' | { failed: string }>>({});
-
-  const keepCopying = (mappingId: string) => {
-    setLaneState((l) => ({ ...l, [mappingId]: 'pending' }));
-    void keepCopyingAfterCutover(mappingId)
-      .then(() => {
-        setLaneAsked((a) => ({ ...a, [mappingId]: false }));
-        setLaneState((l) => {
-          const { [mappingId]: _gone, ...rest } = l;
-          return rest;
-        });
-        void queryClient.invalidateQueries();
-      })
-      .catch((err: unknown) => {
-        setLaneState((l) => ({ ...l, [mappingId]: { failed: serverMessage(err) } }));
-      });
-  };
-
-  const finish = (mappingId: string, force: boolean) => {
-    setOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
-    void finishMigration(mappingId, force)
-      .then((result) => {
-        setOutcomes((o) => ({ ...o, [mappingId]: { state: 'done', result } }));
-        void queryClient.invalidateQueries();
-      })
-      .catch((err: unknown) => {
-        if (err instanceof FinishRefusedError) {
-          setOutcomes((o) => ({
-            ...o,
-            [mappingId]: {
-              state: 'refused',
-              error: err.refusal.error,
-              ...(err.refusal.hint ? { hint: err.refusal.hint } : {}),
-              // The stable discriminant, not sentence-matching: only the
-              // unresolved-failures refusal is one force can satisfy. The
-              // paused refusal gets no force button — force cannot start a
-              // migration, so offering it would lie about what force does.
-              forceable: err.refusal.code === 'unresolved_failures',
-            },
-          }));
-          return;
-        }
-        setOutcomes((o) => ({
-          ...o,
-          [mappingId]: {
-            state: 'failed',
-            error: serverMessage(err),
-          },
-        }));
-      });
-  };
 
   const doPass = (mappingId: string) => {
     setPass((p) => ({ ...p, [mappingId]: 'running' }));
@@ -273,7 +209,8 @@ const Finish: React.FC = () => {
           id: routeMappingId!,
           lifecycle: env.migrationStatus,
           needingDecision: env.needsDecision.length,
-          stopped: stoppedIn(mappingDomains.data),
+          stopped: stoppedIn(mappingDomains.data?.domains),
+          endings: mappingDomains.data?.endings,
         },
       ];
     }
@@ -283,6 +220,7 @@ const Finish: React.FC = () => {
       lifecycle: m.migrationStatus,
       needingDecision: m.domains.reduce((n, d) => n + d.itemsNeedingDecision, 0),
       stopped: stoppedIn(m.domains),
+      endings: m.endings,
     }));
   }
 
@@ -334,8 +272,10 @@ const Finish: React.FC = () => {
 
       {rows.map((m) => {
         const id = m.id;
-        const outcome = outcomes[id];
         const finishable = m.lifecycle === 'active' || m.lifecycle === 'cutover';
+        // Step 4 is asked for mail only, while mail is before its cutover:
+        // either of its presses is its cutover (D3, D8).
+        const mailWaits = m.endings?.some((e) => e.domain === 'email' && e.phase === 'active') ?? false;
         const needingDecision = m.needingDecision;
         const openMoves = moves.data?.[id]?.open.length ?? 0;
         const openDeletions = deletions.data?.[id]?.confirmed.length ?? 0;
@@ -363,7 +303,7 @@ const Finish: React.FC = () => {
                 handover names the post-cutover Monday morning as its purpose,
                 and until now it VANISHED the moment the migration reached
                 'done' — including on a reload right after success. */}
-            {(m.lifecycle === 'done' || outcome?.state === 'done') && (
+            {m.lifecycle === 'done' && (
               <div className="mt-3">
                 <PermissionsHandover mappingId={id} />
                 <div className="mt-3 text-sm">
@@ -393,131 +333,18 @@ const Finish: React.FC = () => {
               </div>
             )}
 
-            {/* THE LANE, offered where a migration ends and only there.
-                `cutover` and `done` are the two states it is entered from
-                (0117 §4A); an `active` migration has not finished, so "keep
-                copying after cutover" would be offering something that is
-                already happening. */}
-            {(m.lifecycle === 'cutover' || m.lifecycle === 'done') && (
+            {/* PAST ITS CUTOVER, EACH DATA TYPE (0128 T5, slice 7b): where the
+                lane's Keep and its End stood for the whole migration, each data
+                type ended can be kept copying again, and each kept can be
+                ended. The migration is done once every one has ended. */}
+            {(m.lifecycle === 'done' || m.lifecycle === 'continuous') && m.endings && m.endings.length > 0 && (
               <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded">
-                <p className="text-sm font-medium text-gray-900">{t('lane.title')}</p>
-                {/* The appliance bills nothing, so its lane says nothing of a
-                    tier (0128 D4: the same choice, on its own terms). */}
-                <Hint
-                  text={t('lane.intro')}
-                  why={t(isSelfHost() ? 'lane.selfhost.why' : 'lane.why')}
-                  tone="body"
-                  open={laneAsked[id]}
-                />
-                {typeof laneState[id] === 'object' && (
-                  <p className="mt-2 text-sm text-amber-800">
-                    {t('lane.failed')} {laneState[id].failed}
-                  </p>
-                )}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {laneAsked[id] ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={laneState[id] === 'pending'}
-                        onClick={() => keepCopying(id)}
-                        className="px-3 py-1.5 text-sm rounded bg-blue-700 text-white disabled:opacity-50"
-                      >
-                        {t(isSelfHost() ? 'lane.selfhost.confirm' : 'lane.confirm')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLaneAsked((a) => ({ ...a, [id]: false }))}
-                        className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700"
-                      >
-                        {t('lane.cancel')}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setLaneAsked((a) => ({ ...a, [id]: true }))}
-                      className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700"
-                    >
-                      {t('lane.start')}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            {/* THE LANE'S END (0128 D3). This line promised "end it whenever you
-                like" with nothing to press: the checklist below is for a
-                migration that has not finished, and a lane migration had no
-                Finish at all. Ending is the same door as finishing (both
-                editions' `/finish`, `finishTransition`), and its refusal is the
-                same: open failures, which only force passes. */}
-            {m.lifecycle === 'continuous' && (
-              <div className="mt-3 text-sm">
-                <p className="text-gray-600">{t('lane.running')}</p>
-                {outcome?.state === 'done' ? (
-                  <p className="mt-2 flex items-start gap-2 text-emerald-700">
-                    <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    {outcome.result.effect}
-                  </p>
-                ) : outcome?.state === 'refused' ? (
-                  <div className="mt-2">
-                    <p className="flex items-start gap-2 text-amber-800">
-                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      {outcome.error}
-                    </p>
-                    {outcome.hint && <p className="mt-1 text-gray-600">{outcome.hint}</p>}
-                    {outcome.forceable && (
-                      <button
-                        onClick={() => finish(id, true)}
-                        className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50"
-                      >
-                        <Flag className="w-3 h-3" />
-                        {t('finish.forceButton')}
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {outcome?.state === 'failed' && (
-                      <p className="mt-2 flex items-start gap-2 text-red-800">
-                        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        {outcome.error}
-                      </p>
-                    )}
-                    <button
-                      onClick={() => finish(id, false)}
-                      disabled={outcome?.state === 'pending'}
-                      className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 disabled:opacity-50"
-                    >
-                      {outcome?.state === 'pending' ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Flag className="w-4 h-4" />
-                      )}
-                      {t('lane.end')}
-                    </button>
-                  </>
-                )}
+                <p className="text-sm font-medium text-gray-900">{t('finish.each.title')}</p>
+                <EachDataTypeEnds mappingId={id} endings={m.endings} deliveryMoved />
               </div>
             )}
 
-            {!finishable ? null : outcome?.state === 'done' ? (
-              <div className="mt-3 text-sm">
-                <p className="flex items-start gap-2 text-emerald-700">
-                  <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  {outcome.result.effect}
-                </p>
-                {outcome.result.leftUnmigrated !== undefined && (
-                  <p className="mt-1 text-amber-800">
-                    {outcome.result.leftUnmigrated}{' '}
-                    {outcome.result.leftUnmigrated === 1 ? t('finish.left.one') : t('finish.left.many')}
-                  </p>
-                )}
-                {outcome.result.ifYouNeedToResume && (
-                  <p className="mt-1 text-gray-600">{outcome.result.ifYouNeedToResume}</p>
-                )}
-              </div>
-            ) : (
+            {!finishable ? null : (
               <>
               {/*
                 A PANEL, not a numbered step (workplan 0029 T4). The numbered
@@ -718,6 +545,7 @@ const Finish: React.FC = () => {
                   asked rather than verified, and the consequence is spelled out
                   instead of assumed understood.
                 */}
+                {mailWaits && (
                 <Step n={4} title={t('finish.step4.title')} done={deliveryMoved[id]}>
                   <Hint className="" tone="body" label="more" text={t('finish.step4.body')} why={t('finish.step4.more')} />
                   <p className="mt-1 text-amber-800">
@@ -735,60 +563,14 @@ const Finish: React.FC = () => {
                     {t('finish.step4.checkbox')}
                   </label>
                 </Step>
+                )}
 
-                <Step n={5} title={t('finish.step5.title')}>
+                <Step n={mailWaits ? 5 : 4} title={t('finish.step5.title')}>
                   <p className="mb-2">
                     <b>{t('finish.step5.nothingChanges.pre')}</b>
                     {t('finish.step5.nothingChanges.post')}
                   </p>
-
-                  {outcome?.state === 'refused' ? (
-                    <div>
-                      <p className="flex items-start gap-2 text-amber-800">
-                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        {outcome.error}
-                      </p>
-                      {outcome.hint && <p className="mt-1 text-gray-600">{outcome.hint}</p>}
-                      {/*
-                        Offered only after the refusal has said what it costs —
-                        and only for the refusal force can SATISFY (0038 T1).
-                        The paused refusal renders its hint without this
-                        button: force cannot start a migration. A transport
-                        failure never reaches this branch at all.
-                      */}
-                      {outcome.forceable && (
-                        <button
-                          onClick={() => finish(id, true)}
-                          className="mt-2 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-amber-600 text-amber-800 hover:bg-amber-50"
-                        >
-                          <Flag className="w-3 h-3" />
-                          {t('finish.forceButton')}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                    {outcome?.state === 'failed' && (
-                      <p className="mb-2 flex items-start gap-2 text-red-800">
-                        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        {outcome.error}
-                      </p>
-                    )}
-                    <button
-                      onClick={() => finish(id, false)}
-                      disabled={!deliveryMoved[id] || outcome?.state === 'pending'}
-                      title={deliveryMoved[id] ? undefined : t('finish.button.disabledTitle')}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {outcome?.state === 'pending' ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Flag className="w-4 h-4" />
-                      )}
-                      {outcome?.state === 'failed' ? t('finish.retryButton') : t('finish.button')}
-                    </button>
-                    </>
-                  )}
+                  <EachDataTypeEnds mappingId={id} endings={m.endings} deliveryMoved={deliveryMoved[id] ?? false} />
                 </Step>
               </ol>
               </>
