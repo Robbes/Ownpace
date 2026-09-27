@@ -34,6 +34,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { z } from 'zod';
+import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import { LocaleProvider } from '../i18n/index.tsx';
 
 const { readMock, authorizeMock, viewReadMock, assignMock } = vi.hoisted(() => ({
@@ -227,7 +228,7 @@ describe('a failure with no sentence from the server', () => {
   /** What the subject's parse throws for a data type this page has no words for. */
   function unreadableSubject(): unknown {
     const parsed = z
-      .object({ domains: z.array(z.enum(['email', 'calendar', 'contact', 'file', 'task'])).min(1) })
+      .object({ domains: z.array(z.enum(DISCOVERY_DOMAINS as unknown as [DiscoveryDomain, ...DiscoveryDomain[]])).min(1) })
       .safeParse({ domains: ['photos'] });
     if (parsed.success) throw new Error('the schema was meant to refuse this');
     return parsed.error;
