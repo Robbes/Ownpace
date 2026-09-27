@@ -35,9 +35,26 @@
  * what a writer that trimmed it returns, minus the readability, against every
  * server that does not answer in GData XML. That is the whole failure mode.
  *
+ * ## Widened by workplan 0136 T3: the parts, and the JMAP session loader
+ *
+ * The managed Test button answers from a refusal's PARTS, not its message: the
+ * status, and the provider's words only when they came as an error document
+ * we know (`packages/shared/src/remote-refusal.ts`). A source's refusal that
+ * is a plain `Error` has no parts, and on managed it would be answered as a
+ * failure nobody can explain. So every DAV refusal a SOURCE throws is a
+ * `RemoteRefusal` built with `davRefusalParts`, the class of connector the
+ * Test button uses on every DAV address a tester types. The writers in
+ * `@openmig/engines` are not asked: a pass writes, a Test never does, and
+ * their messages go to the operator's ledger whole.
+ *
+ * And the JMAP session loader put the first 300 characters of any refusing
+ * body into its message raw. It goes through `jmapRefusalBody`, which reads a
+ * JMAP problem document for its type and detail, and it carries its parts.
+ *
  * ROOT-LEVEL, SO VITEST AND NODE BUILTINS ONLY (AGENTS.md). The helper's own
  * behaviour — which envelopes it unwraps, what passes through untouched — is
- * tested beside it in `packages/shared/src/dav-refusal.unit.test.ts`.
+ * tested beside it in `packages/shared/src/dav-refusal.unit.test.ts`, and the
+ * parts in `packages/shared/src/remote-refusal.unit.test.ts`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -104,5 +121,59 @@ describe("a provider's refusal reaches a person without its envelope", () => {
     ).not.toContain('@openmig/connectors');
     const shared = readFileSync(join(ROOT, 'packages/shared/src/index.ts'), 'utf8');
     expect(shared, 'shared no longer exports the trimmer').toContain('dav-refusal');
+  });
+});
+
+/** Every `throw new X(…);` in a file, with its class and its arguments. */
+function throwsIn(text: string): Array<{ line: number; cls: string; args: string }> {
+  const out: Array<{ line: number; cls: string; args: string }> = [];
+  for (const m of text.matchAll(/throw new (\w+)\(([\s\S]*?)\);\n/g)) {
+    out.push({ line: text.slice(0, m.index).split('\n').length, cls: m[1] ?? '', args: m[2] ?? '' });
+  }
+  return out;
+}
+
+describe('a DAV source refuses with its parts (workplan 0136 T3)', () => {
+  const sources = davSources().filter((f) => f.file.startsWith('packages/connectors/src/'));
+
+  it('finds the three DAV sources', () => {
+    expect(sources.map((f) => f.file).sort()).toEqual([
+      'packages/connectors/src/caldav-source.ts',
+      'packages/connectors/src/carddav-source.ts',
+      'packages/connectors/src/webdav-source.ts',
+    ]);
+  });
+
+  it.each(sources.map((f) => [f.file, f.text]))('%s throws every DAV refusal as a RemoteRefusal with its parts', (_file, text) => {
+    const refusals = throwsIn(String(text)).filter((t) => t.args.includes('davRefusalBody('));
+    expect(refusals.length, 'no DAV refusal found to check').toBeGreaterThan(0);
+    const bare = refusals
+      .filter((t) => t.cls !== 'RemoteRefusal' || !t.args.includes('davRefusalParts(response)'))
+      .map((t) => `line ${t.line}: throw new ${t.cls}(…)`);
+    expect(
+      bare,
+      'a DAV refusal thrown without its parts: the managed Test button would have nothing but ' +
+        'the message, and the message carries the body',
+    ).toEqual([]);
+  });
+});
+
+describe('the JMAP session loader does not paste the body raw (workplan 0136 T3)', () => {
+  const text = readFileSync(join(ROOT, 'packages/connectors/src/jmap-session.ts'), 'utf8');
+
+  it('puts no slice of the body into a refusal', () => {
+    const raw = text
+      .split('\n')
+      .map((line, i) => ({ n: i + 1, line }))
+      .filter(({ line }) => /\$\{\s*body\.slice\(/.test(line))
+      .map(({ n, line }) => `line ${n}: ${line.trim()}`);
+    expect(raw, 'the session loader pastes the body raw; wrap it in `jmapRefusalBody(...)`').toEqual([]);
+  });
+
+  it('refuses through the helper, with its parts', () => {
+    const refusals = throwsIn(text).filter((t) => t.args.includes('returned ') && t.args.includes('HTTP ${response.status}'));
+    expect(refusals.map((t) => t.cls)).toEqual(['RemoteRefusal']);
+    expect(refusals[0]?.args).toContain('jmapRefusalBody(body)');
+    expect(refusals[0]?.args).toContain('jmapRefusalParts(');
   });
 });

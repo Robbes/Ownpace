@@ -39,6 +39,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
+import { DISCOVERY_DOMAINS } from '@openmig/shared';
 import { GOOGLE_ACCOUNT_CONSENT_DOMAINS } from './routes/migrations/google-account-consent.ts';
 import { MICROSOFT_CONSENT_DOMAINS } from './routes/migrations/microsoft-consent.ts';
 
@@ -447,4 +448,81 @@ describe('each consent door documents what its route does', () => {
       });
     });
   }
+});
+
+/**
+ * THE LINK PAGES' WIRE, AS IT IS SINCE WORKPLAN 0145 T6.
+ *
+ * T6 changed three things a generated client reads and left the spec behind:
+ * the grant page's subject names data types (`domains`) where it sent an
+ * English sentence (`reads`); four authorize routes read a `locale` from the
+ * body, which none of them documented; and every refusal a link holder reads
+ * carries its Dutch half beside the English one. The paths check above stayed
+ * green through all three, because it reads paths and methods only.
+ */
+describe('the link pages’ wire (0145 T6)', () => {
+  interface Documented {
+    requestBody?: { content?: Record<string, { schema?: { properties?: Record<string, unknown> } }> };
+    responses?: Record<
+      string,
+      {
+        description?: string;
+        content?: Record<string, { schema?: { properties?: Record<string, { items?: { enum?: string[] } }> } }>;
+      }
+    >;
+  }
+  const op = (path: string, method: 'get' | 'post') => spec.paths?.[path]?.[method] as Documented | undefined;
+
+  it('the grant page’s subject names the data types, not a sentence', () => {
+    const subject = op('/api/grant/{link}', 'get')?.responses?.['200']?.content?.['application/json']?.schema
+      ?.properties;
+    expect(subject, 'the subject schema should be found').toBeDefined();
+    expect(subject).not.toHaveProperty('reads');
+    expect([...(subject?.domains?.items?.enum ?? [])].sort()).toEqual([...DISCOVERY_DOMAINS].sort());
+  });
+
+  // Each route that reads the page's language off the body, found by the
+  // line that reads it, so a fifth cannot arrive undocumented.
+  const LANGUAGE_DOORS = [
+    { path: '/api/grant/{link}/google/authorize', handler: 'src/routes/grant.ts' },
+    { path: '/api/migrations/google/authorize', handler: 'src/routes/migrations/google-oauth-routes.ts' },
+    { path: '/api/migrations/dropbox/authorize', handler: 'src/routes/migrations/dropbox-oauth-routes.ts' },
+    { path: '/api/migrations/microsoft/authorize', handler: 'src/routes/migrations/microsoft-oauth-routes.ts' },
+  ] as const;
+  const READS_LOCALE = /localeOf\(\(req\.body as \{ locale\?: unknown \} \| undefined\)\?\.locale\)/;
+
+  it('finds every route that reads the language off the body', () => {
+    const readers = [
+      'src/routes/grant.ts',
+      ...MOUNTS.flatMap((m) => m.files).filter((f) => f.startsWith('src/routes/migrations/')),
+    ].filter((f, i, all) => all.indexOf(f) === i && READS_LOCALE.test(read(f)));
+    expect(readers.sort()).toEqual(LANGUAGE_DOORS.map((d) => d.handler).sort());
+  });
+
+  for (const door of LANGUAGE_DOORS) {
+    it(`${door.path} documents the language it records`, () => {
+      expect(read(door.handler)).toMatch(READS_LOCALE);
+      const locale = op(door.path, 'post')?.requestBody?.content?.['application/json']?.schema?.properties
+        ?.locale as { enum?: string[] } | undefined;
+      expect(locale, `${door.path} should document \`locale\` in its body`).toBeDefined();
+      expect([...(locale?.enum ?? [])].sort()).toEqual(['en', 'nl']);
+    });
+  }
+
+  // Which Dutch half each link refusal carries: the link check's own answers
+  // are `message`, a migration's are `reason`.
+  const PAIRED: ReadonlyArray<{ path: string; method: 'get' | 'post'; status: string; half: string }> = [
+    { path: '/api/grant/{link}', method: 'get', status: '401', half: 'messageNl' },
+    { path: '/api/grant/{link}', method: 'get', status: '409', half: 'reasonNl' },
+    { path: '/api/grant/{link}', method: 'get', status: '503', half: 'messageNl' },
+    { path: '/api/grant/{link}/google/authorize', method: 'post', status: '401', half: 'messageNl' },
+    { path: '/api/grant/{link}/google/authorize', method: 'post', status: '409', half: 'reasonNl' },
+    { path: '/api/grant/{link}/google/authorize', method: 'post', status: '503', half: 'messageNl' },
+    { path: '/api/view/{link}', method: 'get', status: '401', half: 'messageNl' },
+    { path: '/api/view/{link}', method: 'get', status: '409', half: 'reasonNl' },
+    { path: '/api/view/{link}', method: 'get', status: '503', half: 'messageNl' },
+  ];
+  it.each(PAIRED)('$method $path $status says it carries $half', ({ path, method, status, half }) => {
+    expect(op(path, method)?.responses?.[status]?.description ?? '').toContain(half);
+  });
 });

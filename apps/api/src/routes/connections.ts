@@ -94,6 +94,8 @@ import {
   targetConnectionConfig,
 } from './migrations/index.ts';
 import { serverFault } from '../server-fault.ts';
+import { probeAnswers, type ProbeAnswers } from '../probe-answer.ts';
+import { refusedOverTestLimit } from '../probe-limit.ts';
 import { withinBudget } from './within-budget.ts';
 import { archiveOnServerRefusal } from './archive-on-the-server.ts';
 
@@ -144,6 +146,8 @@ async function qualifyAndRemember(
   creds: Record<string, string>,
   actor: string,
   deadlineAt: number,
+  /** The request's answers, so a refused face is stored said from its parts (0136 T3). */
+  answers: ProbeAnswers,
 ): Promise<AccountQualification | 'pending' | undefined> {
   // EVERY KIND THAT HAS A QUALIFIER, and this list is the whole reason the
   // dispatch below can be trusted. It is also where 0116 T7 was briefly
@@ -173,7 +177,7 @@ async function qualifyAndRemember(
     return undefined;
   }
   return withinBudget(
-    qualifyAndRememberNow(tenantId, connectionId, kind, config, creds, actor),
+    qualifyAndRememberNow(tenantId, connectionId, kind, config, creds, actor, answers),
     Math.max(QUALIFICATION_FLOOR_MS, deadlineAt - Date.now()),
   );
 }
@@ -185,6 +189,7 @@ async function qualifyAndRememberNow(
   config: Record<string, unknown>,
   creds: Record<string, string>,
   actor: string,
+  answers: ProbeAnswers,
 ): Promise<AccountQualification | undefined> {
   try {
     // Probe-qualified for the Basic-auth families; grant-qualified for the
@@ -216,10 +221,14 @@ async function qualifyAndRememberNow(
       (await qualifyDropbox(kind, config, creds)) ??
       (await qualifyArchive(kind, config));
     if (!qualification) return undefined;
+    // STORED AS IT IS ANSWERED (0136 T3): a face refused at an address the
+    // tester typed is said from its parts, and the row keeps that, not the
+    // remote's bytes. The full text is in the log under the reference.
+    const answered = answers.qualification(qualification);
     await withTenantDb(tenantId, pool(), async (db) => {
       await db
         .update(schema.connection)
-        .set({ qualification, updatedAt: new Date() })
+        .set({ qualification: answered, updatedAt: new Date() })
         .where(
           and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId)),
         );
@@ -243,7 +252,7 @@ async function qualifyAndRememberNow(
         log.error('recording the qualification failed (the row itself is updated)', err);
       }
     });
-    return qualification;
+    return answered;
   } catch (err) {
     log.error('[qualify] the account could not be qualified; the test result stands', err);
     return undefined;
@@ -707,7 +716,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
         : { username: values.username ?? '', password: values.password ?? '' };
 
-    const probe =
+    // One test against the member's limit, now that it will connect (0136 T3).
+    if (refusedOverTestLimit(req, res)) return;
+    // What a host the tester typed said is answered from its parts (0136 T3).
+    const answers = probeAnswers('adding a connection', tenantId);
+    const probe = answers.result(
       role === 'target'
         ? await probeTargetConnection(
             (TARGET_KINDS as ReadonlyArray<string>).includes(type) ? (type as TargetKind) : 'webdav',
@@ -718,7 +731,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             sourceKindFor(type as never),
             config,
             creds as Record<string, string>,
-          );
+          ),
+    );
 
     const inserted = await withTenantDb(tenantId, pool(), (db) =>
       db
@@ -747,6 +761,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       creds as Record<string, string>,
       req.userId ?? 'unknown',
       startedAt + DOOR_BUDGET_MS,
+      answers,
     );
 
     res.status(201).json({
@@ -809,7 +824,9 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
 
     const creds = SecretStore.decryptCredentials(row.secretRef);
     const config = (row.config ?? {}) as Record<string, unknown>;
-    const result =
+    if (refusedOverTestLimit(req, res)) return;
+    const answers = probeAnswers('testing a connection', tenantId);
+    const result = answers.result(
       row.role === 'target'
         ? await probeTargetConnection(
             (TARGET_KINDS as ReadonlyArray<string>).includes(row.kind)
@@ -818,7 +835,8 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
             config,
             creds,
           )
-        : await probeSourceConnection(row.kind, config, creds);
+        : await probeSourceConnection(row.kind, config, creds),
+    );
 
     // Record what the probe found, so the list says what was last true rather
     // than what was true when the connection was created.
@@ -840,6 +858,7 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
       creds,
       req.userId ?? 'unknown',
       startedAt + DOOR_BUDGET_MS,
+      answers,
     );
 
     res.json({ ...result, ...qualificationField(qualification) });
@@ -942,7 +961,9 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     // The CONFIG is deliberately left alone: rotation replaces a secret, not
     // where the migration is rooted. Changing both here would let a rotation
     // silently re-point a mapping at a different folder.
-    const probe =
+    if (refusedOverTestLimit(req, res)) return;
+    const answers = probeAnswers('replacing credentials', tenantId);
+    const probe = answers.result(
       row.role === 'target'
         ? await probeTargetConnection(
             (TARGET_KINDS as ReadonlyArray<string>).includes(row.kind)
@@ -955,7 +976,8 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
             row.kind,
             (row.config ?? {}) as Record<string, unknown>,
             creds as Record<string, string>,
-          );
+          ),
+    );
 
     if (!probe.ok) {
       // The old credentials stay. Every mapping on this connection keeps
@@ -987,6 +1009,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       creds as Record<string, string>,
       req.userId ?? 'unknown',
       startedAt + DOOR_BUDGET_MS,
+      answers,
     );
 
     res.json({ ...probe, rotated: true, ...qualificationField(qualification) });

@@ -18,9 +18,14 @@
  * removed.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TargetEntry, RawMessage } from '@openmig/shared';
 import { contentHash } from '@openmig/shared';
+import {
+  HostInsideOurNetwork,
+  refuseInternalAddresses,
+  type ResolveAll,
+} from '@openmig/shared/reachable-host';
 
 /** One message in the fake server. */
 interface FakeMsg {
@@ -62,6 +67,8 @@ let failFetch: Error | null;
 let searchNonAnswer: { value: false | undefined; afterCalls: number } | null;
 /** What `exists` was when each mailbox was first SELECTed — see getMailboxLock. */
 let selectedExists: Map<string, number>;
+/** The options the LAST client was built with: where it connects, and its TLS name. */
+let lastOptions: Record<string, unknown> | undefined;
 
 vi.mock('imapflow', () => {
   class FakeImapFlow {
@@ -70,6 +77,7 @@ vi.mock('imapflow', () => {
     public readonly options: Record<string, unknown>;
     constructor(options: Record<string, unknown>) {
       this.options = options;
+      lastOptions = options;
     }
     on(event: string, handler: (err: Error) => void): void {
       calls.push(`on(${event})`);
@@ -233,6 +241,7 @@ beforeEach(() => {
   connectError = null;
   lastErrorHandler = undefined;
   selectedExists = new Map();
+  lastOptions = undefined;
 });
 
 // =======================================================================
@@ -248,7 +257,7 @@ describe('removal never widens into a bare EXPUNGE', () => {
     capabilities = new Set(); // no UIDPLUS
     // No \Trash mailbox either, so expunge is the only route — and it is closed.
     await expect(
-      target().removeItem('7', { collection: 'INBOX' }),
+      target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' }),
     ).rejects.toThrow(/does not support UIDPLUS/);
 
     // THE ASSERTION THAT MATTERS. imapflow's `messageDelete` would have issued
@@ -262,7 +271,7 @@ describe('removal never widens into a bare EXPUNGE', () => {
   });
 
   it('expunges by UID when the server supports UIDPLUS', async () => {
-    const result = await target().removeItem('7', { collection: 'INBOX' });
+    const result = await target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' });
     expect(result.kind).toBe('deleted');
     expect(calls).toContain('messageDelete(7)');
     expect(boxes.get('INBOX')).toHaveLength(0);
@@ -276,7 +285,7 @@ describe('removal never widens into a bare EXPUNGE', () => {
     boxes.set('Prullenbak', []);
     mailboxFlags.set('Prullenbak', new Set(['\\Trash']));
 
-    const result = await target().removeItem('7', { collection: 'INBOX' });
+    const result = await target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' });
     expect(result.kind).toBe('binned');
     expect(calls).toContain('messageMove(7->Prullenbak)');
     expect(boxes.get('Prullenbak')).toHaveLength(1);
@@ -296,7 +305,7 @@ describe('a refused removal is never recorded as a success', () => {
     boxes.set('Trash', []);
     mailboxFlags.set('Trash', new Set(['\\Trash']));
     moveSucceeds = false;
-    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(/refused to move/);
+    await expect(target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' })).rejects.toThrow(/refused to move/);
   });
 
   it('surfaces an EXPUNGE the server refused', async () => {
@@ -304,7 +313,7 @@ describe('a refused removal is never recorded as a success', () => {
     // returns false. A caller that ignores that records a removal that never
     // happened.
     deleteSucceeds = false;
-    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+    await expect(target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' })).rejects.toThrow(
       /refused to expunge/,
     );
   });
@@ -317,7 +326,7 @@ describe('a refused removal is never recorded as a success', () => {
     boxes.set('Trash', []);
     mailboxFlags.set('Trash', new Set(['\\Trash']));
     removalIsALie = true;
-    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+    await expect(target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' })).rejects.toThrow(
       /accepted but the message is still there/,
     );
   });
@@ -332,7 +341,7 @@ describe('a refused removal is never recorded as a success', () => {
     // returning `undefined` here, so a `=== false` guard fell through to
     // `undefined.includes` and threw an unreadable TypeError instead.
     searchNonAnswer = { value: undefined, afterCalls: 0 };
-    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+    await expect(target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' })).rejects.toThrow(
       /UID search in INBOX was refused, so presence could not be checked/,
     );
     expect(calls.some((c) => c.startsWith('messageMove') || c.startsWith('messageDelete'))).toBe(
@@ -342,7 +351,7 @@ describe('a refused removal is never recorded as a success', () => {
 
   it('refuses when the SEARCH came back empty-handed, and removes nothing', async () => {
     searchNonAnswer = { value: false, afterCalls: 0 };
-    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+    await expect(target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' })).rejects.toThrow(
       /UID search in INBOX was refused, so presence could not be checked/,
     );
     expect(calls.some((c) => c.startsWith('messageMove') || c.startsWith('messageDelete'))).toBe(
@@ -355,7 +364,7 @@ describe('a refused removal is never recorded as a success', () => {
     // cannot say whether the message left. Recording a tombstone on that is the
     // same silent, permanent loss the read-back exists to prevent.
     searchNonAnswer = { value: undefined, afterCalls: 1 };
-    await expect(target().removeItem('7', { collection: 'INBOX' })).rejects.toThrow(
+    await expect(target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' })).rejects.toThrow(
       /UID search in INBOX was refused, so presence could not be checked/,
     );
     expect(calls.some((c) => c.startsWith('messageDelete'))).toBe(true);
@@ -422,9 +431,23 @@ describe('the guards around a UID', () => {
     expect(boxes.get('INBOX')).toHaveLength(1);
   });
 
+  it('removes nothing for a row that recorded no UIDVALIDITY (workplan 0149 T3)', async () => {
+    // It compared only when one was recorded, and removed without one. A UID
+    // alone cannot be trusted to name the message we wrote: without the
+    // UIDVALIDITY it was issued under, a recreated mailbox is invisible.
+    const result = await target().removeItem('7', { collection: 'INBOX' });
+
+    expect(result).toEqual({ unversioned: true });
+    expect(boxes.get('INBOX')).toHaveLength(1);
+    expect(
+      calls.filter((c) => c.startsWith('messageMove') || c.startsWith('messageDelete')),
+      'nothing moved to the bin, nothing expunged',
+    ).toHaveLength(0);
+  });
+
   it('reports no removal — not a success — for a UID that is already gone', async () => {
     boxes.set('INBOX', []);
-    const result = await target().removeItem('7', { collection: 'INBOX' });
+    const result = await target().removeItem('7', { collection: 'INBOX', expectedTargetVersion: '42' });
     // The ledger row then still says the item is on the target, which §20
     // surfaces as `missingOnTarget`. Loud and correctable beats a tombstone
     // recorded for something this never touched.
@@ -733,5 +756,46 @@ describe('a container is not a mailbox to write into', () => {
     boxes.set('Archive', []);
     await target().ensureMailbox({ path: 'Archive', name: 'Archive', specialUse: 'normal' });
     expect(calls).not.toContain('mailboxCreate(Archive)');
+  });
+});
+
+// =======================================================================
+// A host we are asked to reach (0136 T1)
+// =======================================================================
+
+describe('a host we are asked to reach (0136 T1)', () => {
+  /**
+   * The same as the IMAP source's: on managed, the typed host is resolved and
+   * checked before anything is opened, and the writer connects to the checked
+   * address with the typed name kept for TLS. With the rule off, as on the
+   * appliance, the host goes through as typed.
+   */
+  let release: (() => void) | undefined;
+  afterEach(() => {
+    release?.();
+    release = undefined;
+  });
+  const resolveTo =
+    (address: string): ResolveAll =>
+    async () => [{ address, family: 4 }];
+
+  it('connects to the host as typed while the rule is off, as the appliance does', async () => {
+    await target().connect();
+    expect(lastOptions?.host).toBe('imap.test');
+    expect(lastOptions).not.toHaveProperty('servername');
+  });
+
+  it('connects to the checked address, with the typed name kept for TLS', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('203.0.113.20') });
+    await target().connect();
+    expect(lastOptions?.host).toBe('203.0.113.20');
+    expect(lastOptions?.servername).toBe('imap.test');
+  });
+
+  it('refuses a name that resolves inside our network, before any socket', async () => {
+    release = refuseInternalAddresses({ resolve: resolveTo('192.168.7.7') });
+    await expect(target().connect()).rejects.toBeInstanceOf(HostInsideOurNetwork);
+    expect(lastOptions).toBeUndefined();
+    expect(calls).not.toContain('connect');
   });
 });

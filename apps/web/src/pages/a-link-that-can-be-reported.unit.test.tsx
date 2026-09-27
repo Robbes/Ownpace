@@ -50,7 +50,7 @@ const SUBJECT = {
   checkedCompany: null,
   askedBy: 'owner@example.org',
   organisationPhone: null,
-  reads: 'your email — messages, folders and labels',
+  domains: ['email'],
   scope: 'https://mail.google.com/',
   from: 'someone@example.invalid',
   to: { provider: 'nextcloud', host: 'cloud.example.org', account: 'dest@example.org' },

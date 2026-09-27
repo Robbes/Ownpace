@@ -44,6 +44,15 @@
  * arrives with something in a URL", and unifying them would give one of the
  * two the wrong half of the other's machinery.
  *
+ * ## In the reader's language (workplan 0145 T6)
+ *
+ * The page chooses its language, and nothing here does. What will be read goes
+ * out as data-type codes, which the page words from its own dictionary, and
+ * every refusal carries its Dutch beside its English (`reason`, `reasonNl`),
+ * from the pairs in `@openmig/shared`. The authorize call names the page's
+ * language, and it is recorded on the pending consent so the ending after
+ * Google is in it too.
+ *
  * ## The owner's secret never leaves the server
  *
  * `POST /api/grant/:link/google/authorize` reads the client id and secret out
@@ -58,7 +67,16 @@
 
 import { Router } from 'express';
 import type { RequestHandler, Response } from 'express';
-import { googleDeploymentClient, type DiscoveryDomain } from '@openmig/shared';
+import {
+  NOT_READY_BECAUSE,
+  cannotSignInYet,
+  googleDeploymentClient,
+  localeOf,
+  notReady as notReadyBecause,
+  reasonPair,
+  type Bilingual,
+  type DiscoveryDomain,
+} from '@openmig/shared';
 import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { MappingLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
@@ -102,32 +120,19 @@ function pool() {
 const linkAuth: RequestHandler = (req, res, next) =>
   authenticateMappingLink('grant', pool())(req, res, next);
 
-/**
- * What each data type reads, in the words a person would use about their own
- * account — beside the scope, never instead of it (ADR-0041's operative rule:
- * the scopes are shown AS scopes). Keyed by data type since a Google ACCOUNT
- * link can ask for several (0108 T7).
- */
-const READS: Readonly<Record<DiscoveryDomain, string>> = {
-  email: 'your email — messages, folders and labels',
-  calendar: 'your calendars and their events',
-  contact: 'your contacts',
-  file: 'your files in Google Drive',
-  task: 'your tasks',
-};
-
-/** `a`, `a and b`, `a, b and c`: a list as a sentence says it. */
-function listed(items: ReadonlyArray<string>): string {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
-
 interface GrantSubject extends WhereFromAndTo {
   /** Never null here: a migration that names no account is not ready (T8 (b)). */
   readonly from: string;
   readonly organisation: string;
   readonly organisationPhone: string | null;
-  readonly reads: string;
+  /**
+   * The data types this link reads, as codes (workplan 0145 T6). The page
+   * says them in its own words, from its dictionary, in the reader's
+   * language: until then this was a sentence built here in English only, and
+   * a Dutch reader met it inside a Dutch frame. Keyed by data type since a
+   * Google ACCOUNT link can ask for several (0108 T7).
+   */
+  readonly domains: ReadonlyArray<DiscoveryDomain>;
   readonly scope: string;
   /**
    * Whether every data scope this link asks for is one Google holds to reading
@@ -144,16 +149,12 @@ interface GrantSubject extends WhereFromAndTo {
  * Each refusal `grantLinkAsk` can give, as the link holder should hear it. The
  * owner was told the remedy when issuing; this reader cannot act on any of
  * them, so each says only what is wrong, and `notReady` says whom to tell.
+ *
+ * In both languages, beside each other in `@openmig/shared` (workplan 0145
+ * T6). Typed by this file's codes, so a refusal `grantLinkAsk` learns to give
+ * is a compile error here until it has both halves.
  */
-const FOR_THE_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, string>> = {
-  no_source_connection: 'it no longer exists',
-  source_not_google: 'it does not connect to a Google account',
-  no_named_account: 'it does not name the Google account it reads',
-  no_target: 'it has no destination to copy to',
-  nothing_to_ask: 'it has nothing to copy at the moment',
-  client_not_configured: 'its Google application is not set up yet',
-  restricted_scope: 'its Google application may not ask for mail or files',
-};
+const FOR_THE_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, Bilingual>> = NOT_READY_BECAUSE;
 
 /**
  * Everything the grant flow needs about one mapping, read in one place.
@@ -167,17 +168,12 @@ const FOR_THE_LINK_HOLDER: Readonly<Record<GrantLinkAskRefusalCode, string>> = {
 async function loadSubject(
   tenantId: string,
   mappingId: string,
-): Promise<{ ok: true; subject: GrantSubject } | { ok: false; reason: string }> {
+): Promise<{ ok: true; subject: GrantSubject } | { ok: false; reason: Bilingual }> {
   const rows = await withTenantDb(tenantId, pool(), (db) => readGrantRows(db, tenantId, mappingId));
   // Every one of these is somebody else's mistake, so the sentence is written
   // to be forwarded: it tells the reader what to say to the person who sent
   // them here, rather than what to fix themselves.
-  const notReady = (what: string) => ({
-    ok: false as const,
-    reason:
-      `This migration is not ready to be connected — ${what}. Nothing you can do from here ` +
-      'will fix that; please tell the person who sent you the link.',
-  });
+  const notReady = (what: Bilingual) => ({ ok: false as const, reason: notReadyBecause(what) });
   if (!rows) return notReady(FOR_THE_LINK_HOLDER.no_source_connection);
 
   const decided = grantLinkAsk(grantReadiness(rows));
@@ -207,7 +203,7 @@ async function loadSubject(
     subject: {
       organisation: rows.organisation,
       organisationPhone: rows.organisationPhone,
-      reads: listed(decided.ask.domains.map((d) => READS[d])),
+      domains: decided.ask.domains,
       scope: decided.ask.scope,
       readOnlyAtProvider: decided.ask.readOnlyAtProvider,
       from,
@@ -239,7 +235,7 @@ router.get(
     try {
       const { linkId, tenantId, mappingId, expiresAt } = req.mappingLink!;
       const loaded = await loadSubject(tenantId, mappingId);
-      if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', reason: loaded.reason });
+      if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(loaded.reason) });
       const { askedBy, checkedCompany } = await withTenantDb(tenantId, pool(), async (db) => ({
         askedBy: await readAskedBy(db, tenantId, linkId),
         checkedCompany: await readCheckedCompany(db, tenantId),
@@ -255,7 +251,9 @@ router.get(
         // owner's decision of 2026-09-23.
         askedBy,
         organisationPhone: loaded.subject.organisationPhone,
-        reads: loaded.subject.reads,
+        // Which data types, never a sentence: the page says them in the
+        // reader's language (workplan 0145 T6).
+        domains: loaded.subject.domains,
         // The scope in Google's own words, beside the plain sentence rather
         // than behind it: a person consenting is entitled to the exact string
         // their account will record (ADR-0041).
@@ -294,7 +292,7 @@ router.post(
     try {
       const { linkId, tenantId, mappingId } = req.mappingLink!;
       const loaded = await loadSubject(tenantId, mappingId);
-      if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', reason: loaded.reason });
+      if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(loaded.reason) });
 
       const redirectUri = callbackUri(req);
       const ipRefusal = rawIpCallbackRefusal(redirectUri);
@@ -304,9 +302,7 @@ router.post(
         // owner will need it when this gets forwarded to them.
         return void res.status(409).json({
           error: 'raw_ip_callback',
-          reason:
-            'This migration cannot use a Google sign-in yet, because of how the server is ' +
-            `reached. Please forward this to the person who sent you the link: ${ipRefusal}`,
+          ...reasonPair(cannotSignInYet(ipRefusal)),
         });
       }
       // The same wrapping for the loopback split (2026-09-01). The migrator can
@@ -317,9 +313,7 @@ router.post(
       if (unreachable) {
         return void res.status(409).json({
           error: 'unreachable_callback',
-          reason:
-            'This migration cannot use a Google sign-in yet, because of how the server is ' +
-            `reached. Please forward this to the person who sent you the link: ${unreachable}`,
+          ...reasonPair(cannotSignInYet(unreachable)),
         });
       }
 
@@ -331,6 +325,10 @@ router.post(
         // What makes this the LINK ending at the callback. Recorded server-side
         // on the pending state, never round-tripped through the browser.
         link: { linkId, mappingId, tenantId },
+        // The language the page was in, so the ending is in it too (workplan
+        // 0145 T6). Beside the link and for the same reason: a redirect is the
+        // browser's to change. Anything but `nl`, or nothing, is English.
+        locale: localeOf((req.body as { locale?: unknown } | undefined)?.locale),
       });
 
       res.json({

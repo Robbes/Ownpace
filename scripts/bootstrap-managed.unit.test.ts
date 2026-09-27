@@ -1328,3 +1328,200 @@ describe('bootstrap-managed.sh — the env it refuses to write into', () => {
     expect(script).toContain('managed.env.example');
   });
 });
+
+// ---------------------------------------------------------------------------
+/**
+ * EVERY DOCKER NETWORK ON THE MACHINE LIES INSIDE THE RULE'S RANGES (workplan
+ * 0136 T1 (b)).
+ *
+ * The managed API and tasks refuse a host a tester types when it resolves
+ * inside the rule's ranges, and the rule holds none of its own for Docker's
+ * networks: with Docker's built-in pools they lie inside the private ranges.
+ * The bring-up checks that they do, for every network the daemon has made,
+ * this stack's and the other stack's alike (0136 D6), before the API comes up.
+ *
+ * RUN, not read: the function is lifted from the script and run in bash against
+ * a `docker` that answers from a fixture, and the real check behind it runs
+ * under the repo's tsx. The fixture is shaped as `docker network inspect`
+ * prints it; it was written, not recorded, as this test runs without a daemon.
+ * The fake honours a project filter, so a check that asked only for its own
+ * project's networks would miss the other stack's and pass what it should not.
+ */
+describe('bootstrap-managed.sh — every Docker network lies inside the rule (0136 T1 b)', () => {
+  const script = readFileSync(join(REPO_ROOT, 'deploy/compose/bootstrap-managed.sh'), 'utf8');
+  const lift = (name: string): string => {
+    const at = script.indexOf(`${name}() {`);
+    return at < 0 ? '' : script.slice(at, script.indexOf('\n}\n', at) + 3);
+  };
+
+  interface Net {
+    Name: string;
+    Id: string;
+    Driver: string;
+    Scope: string;
+    EnableIPv6: boolean;
+    IPAM: { Driver: string; Options: Record<string, string>; Config: Array<{ Subnet?: string; Gateway?: string }> };
+    Internal: boolean;
+    Labels: Record<string, string>;
+  }
+  const net = (name: string, id: string, project: string | undefined, config: Net['IPAM']['Config']): Net => ({
+    Name: name,
+    Id: id,
+    Driver: name === 'host' || name === 'none' ? name : 'bridge',
+    Scope: 'local',
+    EnableIPv6: config.some((c) => (c.Subnet ?? '').includes(':')),
+    IPAM: { Driver: 'default', Options: {}, Config: config },
+    Internal: false,
+    Labels: project ? { 'com.docker.compose.network': 'ownpace-network', 'com.docker.compose.project': project } : {},
+  });
+
+  /** Two stacks on one daemon, with Docker's own three networks. */
+  const machine = (): Net[] => [
+    net('bridge', 'b0', undefined, [{ Subnet: '172.17.0.0/16', Gateway: '172.17.0.1' }]),
+    net('host', 'h0', undefined, []),
+    net('none', 'n0', undefined, []),
+    net('ownpace-managed_ownpace-network', 'm1', 'ownpace-managed', [{ Subnet: '172.18.0.0/16', Gateway: '172.18.0.1' }]),
+    net('ownpace-managed_status-probe', 'm2', 'ownpace-managed', [{ Subnet: '192.168.16.0/20', Gateway: '192.168.16.1' }]),
+    net('ownpace-live_ownpace-network', 'l1', 'ownpace-live', [
+      { Subnet: '172.19.0.0/16', Gateway: '172.19.0.1' },
+      { Subnet: 'fd12:3456:789a::/64', Gateway: 'fd12:3456:789a::1' },
+    ]),
+  ];
+
+  /** A `docker` that answers `network ls` and `network inspect` from the fixture, and logs what it was asked. */
+  const FAKE_DOCKER = `#!/usr/bin/env node
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(process.env.FAKE_DOCKER_LOG, argv.join(' ') + '\\n');
+const all = JSON.parse(fs.readFileSync(process.env.FAKE_DOCKER_NETWORKS, 'utf8'));
+if (argv[0] === 'network' && argv[1] === 'ls') {
+  const label = argv.map((a, i) => (a === '--filter' || a === '-f' ? argv[i + 1] : a.startsWith('--filter=') ? a.slice(9) : ''))
+    .find((f) => f && f.startsWith('label=com.docker.compose.project='));
+  const project = label ? label.split('=').slice(2).join('=') : undefined;
+  const listed = project ? all.filter((n) => (n.Labels || {})['com.docker.compose.project'] === project) : all;
+  process.stdout.write(listed.map((n) => n.Id).join('\\n') + (listed.length ? '\\n' : ''));
+} else if (argv[0] === 'network' && argv[1] === 'inspect') {
+  if (process.env.FAKE_DOCKER_INSPECT === 'fails') { process.stderr.write('Error: No such network\\n'); process.exit(1); }
+  if (process.env.FAKE_DOCKER_INSPECT === 'garbage') { process.stdout.write('this is not JSON\\n'); process.exit(0); }
+  const wanted = argv.slice(2);
+  process.stdout.write(JSON.stringify(wanted.map((w) => all.find((n) => n.Id === w || n.Name === w)).filter(Boolean), null, 4) + '\\n');
+} else {
+  process.stderr.write('fake docker: not faked: ' + argv.join(' ') + '\\n');
+  process.exit(1);
+}
+`;
+
+  function check(networks: Net[], inspect?: 'fails' | 'garbage'): { status: number; out: string; asked: string[] } {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'docker'), FAKE_DOCKER);
+    chmodSync(join(bin, 'docker'), 0o755);
+    writeFileSync(join(dir, 'networks.json'), JSON.stringify(networks));
+    const log = join(dir, 'docker.log');
+    writeFileSync(log, '');
+    const program = [
+      'set -euo pipefail',
+      `REPO_ROOT="${REPO_ROOT}"`,
+      'note() { echo "    $*"; }',
+      'die() { echo "!!! $*" >&2; exit 1; }',
+      lift('check_docker_networks'),
+      'check_docker_networks',
+    ].join('\n');
+    const r = spawnSync('bash', ['-c', program], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH ?? ''}`,
+        FAKE_DOCKER_NETWORKS: join(dir, 'networks.json'),
+        FAKE_DOCKER_LOG: log,
+        ...(inspect ? { FAKE_DOCKER_INSPECT: inspect } : {}),
+      },
+    });
+    return {
+      status: r.status ?? -1,
+      out: `${r.stdout ?? ''}${r.stderr ?? ''}`,
+      asked: readFileSync(log, 'utf8').split('\n').filter(Boolean),
+    };
+  }
+
+  it('is in the script, and runs before the API and the tasks come up', () => {
+    expect(lift('check_docker_networks'), 'the function was not found').toContain('docker network ls -q');
+    const app = lift('phase_app');
+    expect(app, 'phase_app does not run the check').toMatch(/^ {2}check_docker_networks$/m);
+    expect(app.indexOf('check_docker_networks')).toBeLessThan(app.indexOf('local services=('));
+  });
+
+  it('passes a machine whose networks all lie inside, and says how many it read', () => {
+    const r = check(machine());
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('all 6 Docker networks lie inside the ranges the rule refuses');
+  });
+
+  it('asks the daemon for every network, not for one project', () => {
+    const r = check(machine());
+    expect(r.asked[0]).toBe('network ls -q');
+    expect(r.asked[1]?.split(' ').slice(2).sort()).toEqual(['b0', 'h0', 'l1', 'm1', 'm2', 'n0']);
+  });
+
+  it("refuses when the OTHER stack's network lies outside, and names it", () => {
+    const networks = machine();
+    networks[5] = net('ownpace-live_ownpace-network', 'l1', 'ownpace-live', [
+      { Subnet: '203.0.113.0/24', Gateway: '203.0.113.1' },
+    ]);
+    const r = check(networks);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('OUTSIDE ownpace-live_ownpace-network (compose project ownpace-live): subnet 203.0.113.0/24');
+    expect(r.out).toContain("lies outside the ranges a tester's host is refused in");
+    expect(r.out).toContain('default-address-pools');
+  });
+
+  it("refuses when this stack's network lies outside, IPv6 included", () => {
+    const networks = machine();
+    networks[3] = net('ownpace-managed_ownpace-network', 'm1', 'ownpace-managed', [
+      { Subnet: '172.18.0.0/16', Gateway: '172.18.0.1' },
+      { Subnet: '2001:db8:1::/64', Gateway: '2001:db8:1::1' },
+    ]);
+    const r = check(networks);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('OUTSIDE ownpace-managed_ownpace-network (compose project ownpace-managed): subnet 2001:db8:1::/64');
+  });
+
+  it('refuses a gateway outside, though its subnet lies inside', () => {
+    const networks = machine();
+    networks[4] = net('ownpace-managed_status-probe', 'm2', 'ownpace-managed', [
+      { Subnet: '192.168.16.0/20', Gateway: '198.51.100.1' },
+    ]);
+    const r = check(networks);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('gateway 198.51.100.1');
+  });
+
+  it('refuses a network wider than the range it starts in', () => {
+    const networks = machine();
+    networks[0] = net('bridge', 'b0', undefined, [{ Subnet: '172.16.0.0/11', Gateway: '172.16.0.1' }]);
+    const r = check(networks);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('OUTSIDE bridge: subnet 172.16.0.0/11');
+  });
+
+  it('stops, and says so, when the daemon cannot inspect its networks', () => {
+    const r = check(machine(), 'fails');
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('docker network inspect failed');
+    expect(r.out, 'a failed inspect read as a network outside').not.toContain('lies outside');
+  });
+
+  it('stops when what it read is not what docker network inspect prints', () => {
+    const r = check(machine(), 'garbage');
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('cannot read the networks');
+    expect(r.out).toContain('could not be checked');
+    expect(r.out, 'an unreadable answer read as a network outside').not.toContain('lies outside');
+  });
+
+  it('stops when the daemon lists no networks, rather than passing nothing', () => {
+    const r = check([]);
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('listed no networks');
+  });
+});

@@ -62,7 +62,7 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { ConsentLines, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
+import { ConsentLines, ConsentNote, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import {
@@ -791,6 +791,8 @@ const CreateMapping: React.FC = () => {
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
+      // The source step's consent line does not wait for the way back (0145 T4).
+      forgetConsent();
       setCurrentStep(currentStep + 1);
     } else {
       // Submit form. An oauth2/graph source posts its app registration
@@ -1118,6 +1120,8 @@ const CreateMapping: React.FC = () => {
 
   const handleBack = () => {
     if (currentStep > 0) {
+      // Nor does a line that came back while another step was shown (0145 T4).
+      forgetConsent();
       setCurrentStep(currentStep - 1);
     } else {
       if (dirty && !window.confirm(t('wizard.leaveConfirm'))) return;
@@ -1139,6 +1143,18 @@ const CreateMapping: React.FC = () => {
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   /** The callback address the last consent asked Google to return to. */
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
+  /**
+   * FORGET WHAT THE LAST CONSENT SAID (0145 T4) when the block it answered
+   * goes away or asks something else: another card, a stored connection, or
+   * another step. The note outlives the block, and a block drawn again with a
+   * refusal already in it is a new alert, so a screen reader would say a
+   * failure nobody just caused. Called from the handlers that change those
+   * (`onPickSource`, the connection picker, `handleNext`, `handleBack`).
+   */
+  const forgetConsent = () => {
+    setConsentNote(null);
+    setConsentRedirect(null);
+  };
   /**
    * ONE GO (owner remark 2026-09-02, after the first working round trip):
    * "I would expect an automatic save — the app did receive the grant — and
@@ -1195,14 +1211,16 @@ const CreateMapping: React.FC = () => {
       // anything that was not Dropbox — so a third provider would not have
       // failed to compile, it would have asked the wrong company for a consent
       // and reported success.
+      // Each ask names the page's language, so the ending the provider sends
+      // the person back to is in it too (workplan 0145 T6).
       const beginConsent: Record<string, () => Promise<{ url: string; redirectUri?: string }>> = {
-        dropbox: () => mappingApi.dropboxAuthorize(ownClientPair),
+        dropbox: () => mappingApi.dropboxAuthorize({ ...ownClientPair, locale }),
         microsoft: () =>
-          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair }),
+          mappingApi.microsoftAuthorize({ domains: formData.domains, ...ownClientPair, locale }),
         google: () =>
           mappingApi.googleAuthorize(
             isGoogleAccountSource
-              ? { domains: formData.domains, ...ownClientPair }
+              ? { domains: formData.domains, ...ownClientPair, locale }
               : {
                   sourceType: formData.sourceType as
                     | 'gmail'
@@ -1210,6 +1228,7 @@ const CreateMapping: React.FC = () => {
                     | 'google-contacts'
                     | 'google-drive',
                   ...ownClientPair,
+                  locale,
                 },
           ),
       };
@@ -2229,6 +2248,8 @@ const CreateMapping: React.FC = () => {
       // switch (0073) — it is a statement about a credential
       // this screen no longer asks for.
       forgetProbe('source');
+      // Nor may what its consent said (0145 T4).
+      forgetConsent();
       // A Google credential reads exactly one API, so choosing
       // it also chooses that domain — the same constraint the
       // server refuses by name (sourceDomainRefusal). Setting it
@@ -2410,6 +2431,10 @@ const CreateMapping: React.FC = () => {
               value={formData.sourceConnectionId}
               onChange={(id) => {
                 forgetProbe('source');
+                // A stored row takes the consent block away, and "a new
+                // connection" draws it again: either way without the last
+                // consent's answer (0145 T4).
+                forgetConsent();
                 // Whatever they picked — a stored row or "a new connection" —
                 // is now their answer for this kind, and the default effect
                 // above must not reapply over it.
@@ -2504,15 +2529,9 @@ const CreateMapping: React.FC = () => {
                     asked={consentAsks(formData.sourceType, formData.domains, sourceAllowed)}
                     idBase={consentLinesId}
                   />
-                  {consentNote && (
-                    <p
-                      className={`mt-1 text-sm ${
-                        consentNote === 'received' ? 'text-green-700' : 'text-amber-800'
-                      }`}
-                    >
-                      {consentNote === 'received' ? t('wizard.consent.received') : consentNote}
-                    </p>
-                  )}
+                  {/* A refusal is an alert, a consent that landed a status:
+                      the Connections door's line, one component (0145 T4). */}
+                  <ConsentNote note={consentNote} />
                   {consentRedirect && consentNote !== 'received' && (
                     <p className="mt-1 text-sm text-gray-500">
                       {ps('redirectUri')}{' '}
@@ -2882,9 +2901,11 @@ const CreateMapping: React.FC = () => {
           this block, createMutation.isError rendered nothing anywhere: the
           operator clicked "Create Migration" and the button simply returned
           to rest. The form stays — no data loss — and the message names what
-          the server refused. */}
+          the server refused. It is an alert (0145 T4), so a screen reader
+          hears it without going to look. It leaves the page while the next
+          attempt is pending, so a second refusal is heard again. */}
       {createMutation.isError && (
-        <div className="mt-6 flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
+        <div role="alert" className="mt-6 flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           {/* A duplicate is a REFUSAL with a way out, not a fault (0071 T6):
               the existing migration's name is the server's finding and the

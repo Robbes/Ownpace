@@ -20,6 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Request, Response } from 'express';
 import { pgliteDriver, runMigrations, withTenant, issueMappingLink, MAPPING_LINK_REFUSAL } from '@openmig/ledger';
+import { LINK_CHECK_UNAVAILABLE, LINK_REFUSAL } from '@openmig/shared';
 import type { LedgerDriver } from '@openmig/ledger';
 import { authenticateMappingLink } from './auth.ts';
 import type { MappingLinkRequest } from '../types/api.ts';
@@ -130,7 +131,13 @@ describe('what it answers', () => {
     await mw(x.req, x.res, x.next);
     expect(x.wasAllowed()).toBe(false);
     expect(x.sent.status).toBe(401);
-    expect(x.sent.body).toEqual({ error: 'link_unusable', message: MAPPING_LINK_REFUSAL });
+    expect(x.sent.body).toEqual({
+      error: 'link_unusable',
+      message: MAPPING_LINK_REFUSAL,
+      // Its Dutch half beside it (workplan 0145 T6): the grant and view pages
+      // show the one in their own language.
+      messageNl: LINK_REFUSAL.nl,
+    });
   });
 
   it('answers 503, NOT 401, when the check itself cannot run', async () => {
@@ -148,6 +155,7 @@ describe('what it answers', () => {
     expect(x.wasAllowed()).toBe(false);
     expect(x.sent.status).toBe(503);
     expect((x.sent.body as { error: string }).error).toBe('link_check_unavailable');
+    expect((x.sent.body as { messageNl?: string }).messageNl).toBe(LINK_CHECK_UNAVAILABLE.nl);
   });
 
   it('refuses a link issued for another purpose', async () => {

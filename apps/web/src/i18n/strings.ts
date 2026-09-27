@@ -173,6 +173,9 @@ const en = {
   'login.pasteFallback':
     'This deployment’s API uses no identity provider; it accepts a token from the seed script.',
   'login.oidcFailed': 'We could not reach the sign-in service.',
+  // Under the sign-in button (workplan 0144 T7): the way to the request page
+  // for somebody who has no account yet. The mirror of `access.backToSignIn`.
+  'login.requestAccess': 'No account yet? Request access.',
   // ---- Asking the API what it accepts, before offering it (workplan 0102 T1) ----
   'login.checking': 'Checking how this deployment signs people in…',
   // Not a fallback to the paste box: on a managed stack that box is refused
@@ -997,6 +1000,14 @@ const en = {
   'grant.loading': 'One moment…',
   'grant.asking': '{organisation} is moving your account to a new provider, and needs your permission to read what is in it.',
   'grant.reads': 'You are about to give access to {reads}.',
+  // What each data type reads, in the words a person would use about their
+  // own account, joined into `grant.reads` as the page's language joins a list
+  // (workplan 0145 T6). The server names the data types; the words are ours.
+  'grant.reads.email': 'your email — messages, folders and labels',
+  'grant.reads.calendar': 'your calendars and their events',
+  'grant.reads.contact': 'your contacts',
+  'grant.reads.file': 'your files in Google Drive',
+  'grant.reads.task': 'your tasks',
   // Where from and where to (workplan 0108 T8a): what lets a person tell their
   // own migration from a stranger's, whose every other screen is genuine.
   'grant.company': 'Company',
@@ -1032,6 +1043,13 @@ const en = {
   'grant.terms': 'Terms',
   'grant.withdraw':
     'You can withdraw this access at any time: on the progress page you get once you have granted it, or in your Google account’s security settings, under the apps that have access.',
+  // A failure on the grant or progress page that the server wrote no sentence
+  // for (workplan 0145 T6, review): the page's own words, in its language,
+  // rather than the transport's English or a parser's JSON. The server's own
+  // refusals come in pairs from `@openmig/shared` and are not these.
+  'link.unreachable': 'This page could not reach the server. Check your connection and try again.',
+  'link.unreadable':
+    'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -2712,6 +2730,7 @@ const nl: Record<keyof typeof en, string> = {
   'login.pasteFallback':
     'Deze API gebruikt geen identiteitsprovider en accepteert dus een token uit het seedscript.',
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
+  'login.requestAccess': 'Nog geen account? Vraag toegang aan.',
   // ---- De API vragen wat zij accepteert (workplan 0102 T1) — zie het Engelse blok. ----
   'login.checking': 'Bezig met controleren hoe deze omgeving mensen aanmeldt…',
   'login.modeUnavailable':
@@ -3336,6 +3355,11 @@ const nl: Record<keyof typeof en, string> = {
   'grant.loading': 'Een moment…',
   'grant.asking': '{organisation} verhuist uw account naar een nieuwe provider en heeft uw toestemming nodig om te lezen wat erin zit.',
   'grant.reads': 'U staat op het punt toegang te geven tot {reads}.',
+  'grant.reads.email': 'uw e-mail: berichten, mappen en labels',
+  'grant.reads.calendar': 'uw agenda’s en de afspraken erin',
+  'grant.reads.contact': 'uw contactpersonen',
+  'grant.reads.file': 'uw bestanden in Google Drive',
+  'grant.reads.task': 'uw taken',
   'grant.company': 'Bedrijf',
   'grant.companyChecked': 'Gecontroleerd in het EU-btw-register (VIES).',
   'grant.askedBy': 'Gevraagd door',
@@ -3360,6 +3384,9 @@ const nl: Record<keyof typeof en, string> = {
   'grant.terms': 'Voorwaarden',
   'grant.withdraw':
     'U kunt deze toegang op elk moment intrekken: op de voortgangspagina die u krijgt zodra u toegang hebt gegeven, of via de beveiligingsinstellingen van uw Google-account, bij de apps die toegang hebben.',
+  'link.unreachable': 'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.',
+  'link.unreadable':
+    'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} verhuist uw account naar een nieuwe provider.',

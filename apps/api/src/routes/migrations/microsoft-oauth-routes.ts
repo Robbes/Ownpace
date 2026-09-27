@@ -36,13 +36,18 @@ import { z } from 'zod';
 import { authenticate } from '../../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
+  inLocale,
+  localeOf,
   microsoftDeploymentClient,
   resolveMicrosoftClient,
   microsoftTenant,
+  type Bilingual,
 } from '@openmig/shared';
 import {
   callbackPageHeaders,
   consentResultPage,
+  noCodeFrom,
+  providerReported,
   rawIpCallbackRefusal,
   unreachableCallbackRefusal,
 } from './google-consent.ts';
@@ -124,6 +129,8 @@ router.post('/microsoft/authorize', authenticate, (req: AuthenticatedRequest, re
     redirectUri,
     provider: 'microsoft',
     tenant,
+    // The page's language, for the ending (workplan 0145 T6); never in the redirect.
+    locale: localeOf((req.body as { locale?: unknown } | undefined)?.locale),
   });
   res.json({
     url: microsoftConsentUrl({
@@ -155,8 +162,18 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
       .status(status)
       .set({ 'Content-Type': 'text/html; charset=utf-8', ...callbackPageHeaders(html) })
       .send(html);
-  const refuse = (status: number, reason: string) =>
-    page(status, consentResultPage({ outcome: { ok: false, reason }, provider: 'microsoft' }));
+  // In the language the consent began in (workplan 0145 T6), once the pending
+  // state says which; a state nobody is waiting for says nothing, so English.
+  let locale = localeOf(undefined);
+  const refuse = (status: number, reason: Bilingual | string) =>
+    page(
+      status,
+      consentResultPage({
+        outcome: { ok: false, reason: typeof reason === 'string' ? reason : inLocale(reason, locale) },
+        provider: 'microsoft',
+        locale,
+      }),
+    );
 
   const state = typeof req.query.state === 'string' ? req.query.state : '';
   const taken = state ? flows.take(state) : undefined;
@@ -168,6 +185,7 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
         'it expired (they live ten minutes), or it was not started here.',
     );
   }
+  locale = localeOf(pending.locale);
   if (typeof req.query.error === 'string' && req.query.error.length > 0) {
     const description =
       typeof req.query.error_description === 'string' ? req.query.error_description : '';
@@ -177,15 +195,10 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
     // send them searching for it (0114 T6's treatment, and #722's for
     // Google's accessNotConfigured).
     const sentence = microsoftConsentRefusal(description, whoseRegistration(pending.clientId));
-    return refuse(
-      200,
-      sentence ??
-        `Microsoft reported: ${req.query.error}.${description ? ` ${description}` : ''} ` +
-          'Nothing was granted and nothing was stored.',
-    );
+    return refuse(200, sentence ?? providerReported('microsoft', req.query.error, description));
   }
   const code = typeof req.query.code === 'string' ? req.query.code : '';
-  if (!code) return refuse(400, 'Microsoft sent no authorization code back.');
+  if (!code) return refuse(400, noCodeFrom('microsoft'));
   const outcome = await exchangeMicrosoftCode({
     code,
     clientId: pending.clientId,
@@ -197,7 +210,7 @@ router.get('/microsoft/callback', async (req: Request, res: Response) => {
   });
   page(
     outcome.ok ? 200 : 400,
-    consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'microsoft' }),
+    consentResultPage({ webOrigin: webOrigin(), outcome, provider: 'microsoft', locale }),
   );
 });
 
