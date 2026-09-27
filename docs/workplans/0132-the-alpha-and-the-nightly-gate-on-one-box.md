@@ -484,6 +484,33 @@ spec is held by the guard too.
 - *0142 §1* still said a pass started by hand is not held. It keeps that as history and adds that
   it is refused since T6 (b).
 
+
+**2026-09-27, evening: the task deploy after T3 (a), repaired (M's session, at the owner's ask), on
+branch `claude/mailbox-sync-errors-c2xsw2-a-build-that-reached-for-the-lan`, not merged.** E2E
+(managed) #201, dispatched on a branch carrying #1236, stopped in the task image's build: the
+indexer said *"Failed to fetch environment variables: Connection error"*.
+
+- **Why.** The deploy CLI hands its image build the API origin the server advertises. Trigger.dev's
+  CLI 4.5.16 rewrites an origin naming `localhost` to `host.docker.internal` and maps that name to
+  the machine's first non-loopback IPv4 address (`normalizeApiUrlForBuild`, `getAddHost`). The
+  API port answered there while it was published on every interface. Since T3 (a) it answers on
+  loopback only, as the guide says it should.
+- **The fix, which publishes nothing more.**
+  - `managed.yml` advertises `http://127.0.0.1:<TRIGGER_PORT>`, which the CLI leaves alone. It is
+    no longer read from `TRIGGER_API_ORIGIN`, so an existing `.env` naming `localhost` cannot put
+    the failure back, and no `.env` needs editing.
+  - `deploy-tasks.sh` builds with `--network host`, the CLI's own option for the network of a
+    local build's RUN steps (hidden from its help in 4.5.16): the build shares the machine's
+    network, where 127.0.0.1 is the API. The CLI recreates its `trigger` builder on the host
+    network the first time.
+  - `TRIGGER_BIND` stays empty. Setting it to the address the CLI picks would have worked, and
+    would have put the API on the machine's LAN.
+- **Guard:** `scripts/a-build-that-reached-for-the-lan.unit.test.ts`. It fails on `main`.
+- **Docs:** the guide's origin paragraph and a failure-table row, the operator runbook's origin
+  rule, and the env example.
+- **Still to prove on the machine:** a task deploy with the builder on the host network. A run of
+  E2E (managed) on this branch does it before the merge.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
