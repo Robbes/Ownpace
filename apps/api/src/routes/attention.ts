@@ -56,7 +56,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
-import { PgLedger, PgDecisionStore } from '@openmig/ledger';
+import { PgLedger, PgDecisionStore, readGraceEndedWithoutAChoice } from '@openmig/ledger';
 import {
   asTenantId,
   asMappingId,
@@ -68,6 +68,7 @@ import {
   type MoveRow,
   type TenantAttention,
   type FailureRow,
+  type DiscoveryDomain,
 } from '@openmig/shared';
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
@@ -104,6 +105,12 @@ export interface AttentionReaders {
   moves(mappingId: string): Promise<readonly MoveRow[]>;
   failures(mappingId: string): Promise<readonly FailureRow[]>;
   sharingOpen(mappingId: string): Promise<number>;
+  /**
+   * The data types whose grace period ended while nobody chose (0128 D7, T5
+   * slice 7c), as the digest names them. Optional: a caller that does not ask
+   * reports none.
+   */
+  graceEnded?(mappingId: string): Promise<readonly DiscoveryDomain[]>;
   /** Tenant-wide, and asked ONCE per answer whether or not a mapping reports. */
   pendingDecisions(): Promise<number>;
 }
@@ -174,6 +181,9 @@ export async function collectTenantAttention(
     const moves = await guarded('the moves queue', () => read.moves(row.id), []);
     const failures = await guarded('the failures queue', () => read.failures(row.id), []);
     const sharingOpen = await guarded('the sharing checklist', () => read.sharingOpen(row.id), 0);
+    const graceEnded = read.graceEnded
+      ? await guarded('the grace periods', () => read.graceEnded!(row.id), [] as readonly DiscoveryDomain[])
+      : [];
 
     // A drift decision about a new mailbox belongs to no mapping yet, so every
     // mapping claiming it would multiply one decision by however many
@@ -196,6 +206,7 @@ export async function collectTenantAttention(
           // Not a queue — see this file's header.
           autoApplied: 0,
           sharingOpen,
+          graceEnded,
           blindSpots,
         },
       ),
@@ -262,6 +273,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         sharingOpen: async (id) =>
           (await ledger.listShareGrants(tenant, asMappingId(id))).filter((g) => g.state === 'open')
             .length,
+        graceEnded: async (id) => (await readGraceEndedWithoutAChoice(db, tenantId, id)).map((g) => g.domain),
         pendingDecisions: async () =>
           (await decisions.list(tenant, { status: 'pending' })).length,
       });

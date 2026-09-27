@@ -1775,9 +1775,7 @@ const en = {
   'finish.note.done':
     'Finished. This mapping no longer syncs and nothing is being reported for it.',
   'finish.note.continuous':
-    'Continuous. It keeps copying after cutover. Finishing stops it; copies already made stay.',
-  'finish.left.one': 'item left unmigrated.',
-  'finish.left.many': 'items left unmigrated.',
+    'Continuous. It keeps copying after cutover. Ending each data type stops it; copies already made stay.',
   'finish.step1.title': 'Check the copy is complete',
   'finish.step1.pre': 'Compare the two systems and sample the contents.',
   'finish.step1.link': 'Run the check',
@@ -1792,7 +1790,6 @@ const en = {
   'finish.step2.notSameAsClear': '— not the same as clear.',
   'finish.step3.failedFramed':
     'The request failed; a pass may still be running, so re-check the queues shortly.',
-  'finish.retryButton': 'Try finishing again',
   // THE DOOR INTO THE CONTINUOUS LANE (workplan 0117 T1 slice 3), and the
   // sentence that had to exist before it (T5, owner's words 2026-09-10).
   //
@@ -1802,25 +1799,19 @@ const en = {
   // "finishing lowers your bill", because somebody who believes the price ends
   // when the migration ends and finds a tier still charging has a fair
   // complaint. `.why` is unbudgeted (0118) and carries the whole of it.
-  'lane.title': 'Keep copying after cutover',
   'lane.intro': 'The old account keeps feeding the new one, and nothing is deleted.',
   'lane.why':
     'Your tier will not fall while this runs: the path keeps its slot until you end it, ' +
     'the same as a migration that has not finished. Deletions at the old provider stop ' +
     'being mirrored — anything you remove there stays in your new home. We will not bill ' +
     'past twelve months without asking you again.',
-  'lane.start': 'Keep copying',
   'lane.confirm': 'Keep copying, and keep the tier',
   'lane.cancel': 'Not now',
-  'lane.running': 'Still copying. End it whenever you like.',
-  'lane.failed': 'Could not switch it on.',
   // The lane on the appliance (0128 D4): the same choice, and no tier to keep.
   'lane.selfhost.why':
     'Deletions at the old provider stop being mirrored — anything you remove there stays in ' +
     'your new home. It runs on this appliance until you end it.',
   'lane.selfhost.confirm': 'Keep copying',
-  // The lane's end (0128 D3): the same door as finishing, from the lane.
-  'lane.end': 'End copying',
   'finish.aftermath.title': 'What remains available',
   'finish.aftermath.verify': 'Verification report',
   'finish.aftermath.runs': 'Run history (on the migration page)',
@@ -1857,14 +1848,29 @@ const en = {
   'finish.step4.warn.post':
     ', anything that arrives on the old system afterwards will not be copied, and nothing will report it — the tool has stopped watching.',
   'finish.step4.checkbox': 'Delivery now goes to the new system.',
-  'finish.step5.title': 'Finish',
+  'finish.step5.title': 'End or keep copying each data type',
   'finish.step5.nothingChanges.pre': 'Nothing is added to or removed from either system.',
   'finish.step5.nothingChanges.post':
     ' What is on the new system stays exactly as it is — this only stops the tool watching the old one.',
-  'finish.forceButton': 'Finish anyway, leaving them behind',
-  'finish.button': 'Finish this migration',
   'finish.button.disabledTitle':
     'Confirm step 4 first — finishing before delivery has moved loses anything that arrives afterwards.',
+  // Each data type ended or kept copying on its own (workplan 0128 T3, T5
+  // slice 7b; the owner's D3 and D8). The phase is the data type's own, as
+  // the ending door believes it.
+  'finish.each.title': 'Each data type',
+  'finish.ending.phase.active': 'Copying; not cut over yet',
+  'finish.ending.phase.cutover': 'In its cutover',
+  'finish.ending.phase.done': 'Ended',
+  'finish.ending.phase.continuous': 'Keeps copying after its cutover',
+  'finish.ending.end': 'End {kind}',
+  'finish.ending.keep': 'Keep copying {kind}',
+  'finish.ending.forceButton': 'End {kind} anyway, leaving them behind',
+  'finish.ending.stopped':
+    'You stopped {kind}. End it, or resume it on the migration\'s page to keep copying it.',
+  'finish.ending.failed': 'That did not go through:',
+  // The grace period's end, when nobody chose (0128 D7, slice 7c).
+  'finish.ending.graceEnded':
+    'The grace period of {kind} ended on {date}, and nobody chose, so it no longer copies. End it, or keep it copying.',
   'tenants.title': 'Team & organization',
   'tenants.intro':
     'Who can sign in to this organization and what they may do; changes apply immediately.',
@@ -1937,6 +1943,8 @@ const en = {
   'attention.moves': 'moves to acknowledge',
   'attention.failures': 'items that could not be copied',
   'attention.readyForCutover': 'checked and ready to finish',
+  // A grace period that ended while nobody chose (0128 D7, T5 slice 7c).
+  'attention.graceEnded': 'grace period over and nobody chose, so no longer copying: {kinds}',
   'attention.sharingOpen': 'rows open on the sharing checklist',
   'attention.couldNotRead': 'One queue could not be read, so these numbers may be low.',
   'attention.couldNotRead.why':
@@ -3727,9 +3735,7 @@ const nl: Record<keyof typeof en, string> = {
   'finish.note.done':
     'Afgerond. Deze migratie synchroniseert niet meer en er wordt niets meer voor gerapporteerd.',
   'finish.note.continuous':
-    'Doorlopend. Blijft kopiëren na de cutover. Afronden stopt dat; kopieën blijven staan.',
-  'finish.left.one': 'item niet gemigreerd achtergelaten.',
-  'finish.left.many': 'items niet gemigreerd achtergelaten.',
+    'Doorlopend. Blijft kopiëren na de cutover. Elk gegevenstype beëindigen stopt dat; kopieën blijven staan.',
   'finish.step1.title': 'Controleer of de kopie volledig is',
   'finish.step1.pre': 'Vergelijk de twee systemen en controleer steekproeven van de inhoud.',
   'finish.step1.link': 'Voer de controle uit',
@@ -3745,24 +3751,18 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step2.notSameAsClear': '— niet hetzelfde als leeg.',
   'finish.step3.failedFramed':
     'Het verzoek is mislukt; mogelijk loopt er nog een ronde, controleer de wachtrijen straks opnieuw.',
-  'finish.retryButton': 'Probeer opnieuw af te ronden',
-  'lane.title': 'Blijven kopiëren na de overstap',
   'lane.intro': 'Het oude account blijft het nieuwe voeden en er wordt niets verwijderd.',
   'lane.why':
     'Uw tarief daalt niet zolang dit loopt: het pad houdt zijn plek tot u het beëindigt, ' +
     'net als een migratie die nog niet klaar is. Verwijderingen bij de oude aanbieder ' +
     'worden niet meer gespiegeld — wat u daar weghaalt blijft in uw nieuwe huis staan. ' +
     'We factureren niet langer dan twaalf maanden zonder het opnieuw te vragen.',
-  'lane.start': 'Blijven kopiëren',
   'lane.confirm': 'Blijven kopiëren, tarief blijft',
   'lane.cancel': 'Nu niet',
-  'lane.running': 'Kopieert nog. U kunt het altijd beëindigen.',
-  'lane.failed': 'Kon dit niet inschakelen.',
   'lane.selfhost.why':
     'Verwijderingen bij de oude aanbieder worden niet meer gespiegeld — wat u daar weghaalt ' +
     'blijft in uw nieuwe huis staan. Het loopt op dit apparaat door tot u het beëindigt.',
   'lane.selfhost.confirm': 'Blijven kopiëren',
-  'lane.end': 'Kopiëren beëindigen',
   'finish.aftermath.title': 'Wat beschikbaar blijft',
   'finish.aftermath.verify': 'Verificatierapport',
   'finish.aftermath.runs': 'Uitvoeringsgeschiedenis (op de migratiepagina)',
@@ -3797,15 +3797,26 @@ const nl: Record<keyof typeof en, string> = {
   'finish.step4.warn.post':
     ', wordt alles wat daarna op het oude systeem binnenkomt niet gekopieerd, en niets zal het melden — het programma kijkt niet meer mee.',
   'finish.step4.checkbox': 'Nieuwe e-mail komt nu aan op het nieuwe systeem.',
-  'finish.step5.title': 'Afronden',
+  'finish.step5.title': 'Beëindig of blijf kopiëren, per gegevenstype',
   'finish.step5.nothingChanges.pre':
     'Er wordt aan geen van beide systemen iets toegevoegd of verwijderd.',
   'finish.step5.nothingChanges.post':
     ' Wat op het nieuwe systeem staat, blijft precies zoals het is — dit stopt alleen het meekijken met het oude.',
-  'finish.forceButton': 'Rond toch af en laat ze achter',
-  'finish.button': 'Rond deze migratie af',
   'finish.button.disabledTitle':
     'Bevestig eerst stap 4; afronden voordat de bezorging is omgezet, verliest alles wat daarna binnenkomt.',
+  'finish.each.title': 'Per gegevenstype',
+  'finish.ending.phase.active': 'Kopieert; nog niet overgestapt',
+  'finish.ending.phase.cutover': 'In de overstap',
+  'finish.ending.phase.done': 'Beëindigd',
+  'finish.ending.phase.continuous': 'Blijft kopiëren na de overstap',
+  'finish.ending.end': '{kind} beëindigen',
+  'finish.ending.keep': '{kind} blijven kopiëren',
+  'finish.ending.forceButton': '{kind} toch beëindigen en ze achterlaten',
+  'finish.ending.stopped':
+    'U hebt {kind} gestopt. Beëindig het, of hervat het op de pagina van de migratie om het te blijven kopiëren.',
+  'finish.ending.failed': 'Dat is niet gelukt:',
+  'finish.ending.graceEnded':
+    'De overgangsperiode van {kind} liep af op {date} en er is niets gekozen, dus het kopieert niet meer. Beëindig het, of laat het blijven kopiëren.',
   'tenants.title': 'Team & organisatie',
   'tenants.intro':
     'Wie zich bij deze organisatie kan aanmelden en wat ze mogen doen; wijzigingen gelden direct.',
@@ -3877,6 +3888,7 @@ const nl: Record<keyof typeof en, string> = {
   'attention.moves': 'verplaatsingen om te bevestigen',
   'attention.failures': 'items die niet gekopieerd konden worden',
   'attention.readyForCutover': 'gecontroleerd en klaar om af te ronden',
+  'attention.graceEnded': 'overgangsperiode voorbij en niets gekozen, dus kopieert niet meer: {kinds}',
   'attention.sharingOpen': 'regels open op de deel-checklist',
   'attention.couldNotRead': 'Eén wachtrij kon niet gelezen worden; deze aantallen kunnen te laag zijn.',
   'attention.couldNotRead.why':

@@ -844,7 +844,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
 - **A migration that was `active` at `execute` keeps being copied until the grace period ends**
   (amended 2026-09-24, workplan 0128 T2, the owner's D1 (a): "bounded by the grace period, and
   slotless"), under the after-cutover rules: what is new or changed is copied, no deletion is
-  mirrored, and no slot is held. Then no pass runs. One that was `paused` stays stopped. `execute`
+  mirrored, and no slot is held. Then no pass runs, and a data type still in its cutover when
+  its grace period ended, which nobody ended or kept, is said so on the Finish page and in the
+  digest (amended 2026-09-27, 0128 D7, T5 slice 7c: `cutoverGraceEndedAt`). One that was `paused`
+  stays stopped. `execute`
   records the answer on the ledger row (`copies_through_grace`, ledger migration 0064), and every
   gate asks `runsPassesNow` with the ledger's window: `CUTOVER_STILL_COPIES_WHERE` in SQL (the
   managed tick, the appliance), `cutoverStillCopiesAt` in TypeScript. Since 0128 T5 slice 2b the
@@ -868,7 +871,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
   start of the rest never moves one back that was cut over on its own.
 - **`complete` closes the ledger, not the migration.** `done` is the end of the shadow sync, decided
   by `finishTransition` with its rule about unresolved failures, and it stays where that rule
-  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so.
+  lives — the Finish page. After `complete` the mapping is `cutover` and the CLI says so. **For one
+  data type** (amended 2026-09-26, 0128 T5 slice 7a) its own *End* and *Keep copying* decide its
+  `done` or its lane (`endOrKeepPath`, ledger), End by the same rule over its own failures, and
+  the migration's status is its paths' roll-up: `done` once every data type has ended.
 - **A propagation timeout leaves the mapping `cutover`.** Whether the MX record moved is exactly
   what is unknown after a timeout, so no pass runs (FAILED is not a state that copies); `rollback`
   is the explicit undo and resumes the sync.
@@ -892,8 +898,11 @@ Nothing in this amendment is built. It records the decision the three tasks in
 - What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
   (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
   the status a mapping already has is a request, not a transition: 200, nothing recorded.
-- **The Finish page's lane switch sends `PUT`**, the verb this path is served by. A web test pins
-  the verb.
+- **The lane's switch is `PUT`**, the verb this path is served by, for a caller of the API. The
+  Finish page no longer sends it (amended 2026-09-26, workplan 0128 T5 slice 7b): it keeps each
+  data type copying through that data type's own door (`POST …/domains/{domain}/keep`, ADR-0048's
+  amendment of that day), and ends each through `…/end`, so the web's verb pin went with the
+  call it pinned.
 - **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
   `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
   reaches them once it exists, through the cutover, Finish and Keep copying.
