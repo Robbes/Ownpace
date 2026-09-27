@@ -201,9 +201,16 @@ dashboard answers on the machine only, whatever `TRIGGER_TLS_HOST` says. It is
 the IP address the host names, never a name, even where `TRIGGER_TLS_HOST` is
 one (*Which address a port answers on*, below).
 
-Leave `TRIGGER_API_ORIGIN=http://localhost:3090` alone. The deploy CLI follows
-the server-advertised API origin and must not meet a self-signed certificate on
-the way — when it did, deploys died with a bare `Connection error`.
+The API origin the server advertises is fixed in `managed.yml` to
+`http://127.0.0.1:<TRIGGER_PORT>`, and `.env` does not change it. The deploy CLI
+follows that origin after it logs in, so it must not meet a self-signed
+certificate on the way: when it did, deploys died with a bare `Connection
+error`. Its image build reaches it on loopback, because `deploy-tasks.sh` builds
+on the host's network (`--network host`). So `TRIGGER_BIND` stays empty.
+`localhost` would not do: the CLI rewrites that to `host.docker.internal` for the
+build, the machine's first non-loopback address, where the port does not answer.
+`TRIGGER_API_ORIGIN` in `.env` is only the address the scripts log the CLI in
+with: `http://127.0.0.1:3090`.
 
 ### Which address a port answers on
 
@@ -2324,6 +2331,7 @@ let a credential obtained once survive to the next run.
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
 | Dashboard loads but the login never completes | `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` do not match the address the browser is using; the `Secure` cookie is dropped | Set both (and `TRIGGER_TLS_HOST`) to the real address, then `--from trigger` |
 | `npx trigger.dev deploy` dies with a bare `Connection error` | The CLI was pointed at the https front | Log in against `http://localhost:3090` |
+| `deploy` stops in the image build: `[indexer 2/2]` says *Failed to index deployment* and *Failed to fetch environment variables: Connection error* | The build cannot reach the Trigger.dev API. The CLI hands the build the origin the server advertises; it rewrites a `localhost` origin to `host.docker.internal`, the machine's first non-loopback IPv4 address, and the API answers on loopback only (workplan 0132 T3). E2E (managed) #201 stopped here | Fixed on `main` (2026-09-27): `managed.yml` advertises `http://127.0.0.1:<TRIGGER_PORT>`, and `deploy-tasks.sh` builds with `--network host`. On an older checkout, pull, then `docker compose -f deploy/compose/managed.yml up -d trigger-api` and deploy again. Never set `TRIGGER_BIND` for this: it would put the API on that address for everyone who can reach it |
 | `deploy` says `Invalid or Missing Access Token` right after a successful login | `TRIGGER_ACCESS_TOKEN` was set without `TRIGGER_API_URL`, so the CLI validated a self-hosted token against the SaaS cloud | Fixed in `deploy-tasks.sh` (2026-09-03) — it now sets the URL from `TRIGGER_API_ORIGIN` on the deploy itself. On an older checkout: `TRIGGER_API_URL=http://localhost:3090 ./deploy/compose/deploy-tasks.sh` |
 | `git status` shows `apps/worker/package.json` modified after a deploy | The Trigger.dev CLI rewrites the file — usually only stripping its trailing newline | `git diff` it; discard unless it is a real SDK bump. `deploy-tasks.sh` now says so rather than leaving you to find it |
 | `Seed failed: DATABASE_URL, JWT_SECRET, SECRET_ENCRYPTION_KEY are not set` | The seed runs on the host and inherits nothing; nothing in `apps/api` loads a dotenv file | The refusal now names it: `./deploy/compose/seed-managed.sh`, which reads `.env` and asks compose for the published port. This row is the historical spelling — until 2026-08-25 the message named one variable and no remedy, which is how it reached this table instead of the operator |
