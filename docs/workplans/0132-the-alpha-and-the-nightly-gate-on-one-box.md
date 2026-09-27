@@ -59,7 +59,7 @@ change nothing in this plan.
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 📋 **Decided 2026-09-24** (D7), carried by T3 | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. |
-| T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. |
+| T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
@@ -603,8 +603,10 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
    (T6, step 1).
 2. **A `.env` of its own.** Seed `~/.persistent/ownpace-live/.env` from `managed.env.example` and
    link it: `ln -sfn ~/.persistent/ownpace-live/.env deploy/compose/.env`. Set
-   `COMPOSE_PROJECT_NAME=ownpace-live` (T1). Until T1 derives the default, also set
-   `MANAGED_ENV_PERSIST_DIR` to the live directory. Otherwise `bootstrap-managed.sh`,
+   `COMPOSE_PROJECT_NAME=ownpace-live` (T1), and `STACK_KIND=production`, live's marker (T1g,
+   named in `deploy/compose/stack-kind.sh`). The rehearsal script (0143 T9) refuses a `.env` that
+   carries the marker, so the line has to be there from the first bring-up. Until T1 derives the
+   default, also set `MANAGED_ENV_PERSIST_DIR` to the live directory. Otherwise `bootstrap-managed.sh`,
    `trigger-credentials.sh` and `trigger-version.sh` look in the OTA stack's.
 3. **Ports of its own.** Every `*_PORT` variable gets a value the OTA stack does not use:
    `POSTGRES_PORT`, `TRIGGER_PORT`, `TRIGGER_TLS_PORT`, `ZITADEL_PORT`, `API_PORT`, `WEB_PORT`,
@@ -726,8 +728,15 @@ the other stack's containers.
   demo, as §1 describes. That is what proves a commit before live gets it.
 - **Live moves only by hand, from a tag.** T6 is the procedure, and 0146 decides how tags are
   cut. Nothing scheduled deploys live.
+- **The marker is defined once (2026-09-27).** `deploy/compose/stack-kind.sh` holds
+  `STACK_KIND_KEY=STACK_KIND` and `STACK_KIND_LIVE=production`. It also holds `stack_is_live
+  <env-file>`, which reads the file with `env_value` and ignores quotes and case. It was built with
+  0143 T9's script, `rehearse-capacity.sh`, which already refuses live's `.env` with it (0143,
+  Status 2026-09-27). The gate's refusal below, T5's refusal of `--with-demo` and T6's
+  `deploy-live.sh` source that file rather than spelling the marker out. A shell step in a
+  workflow sources it the same way, from the checkout.
 - **The code half makes an accident harmless.** Live's `.env` carries a marker saying that the
-  stack holds people's data (working name `STACK_KIND=production`). Straight after the restore,
+  stack holds people's data (`STACK_KIND=production`, above). Straight after the restore,
   the gate refuses a `.env` that carries the marker, before `ensure-env-secrets.sh`, the backfill
   or the copy-back can write anything. So a `MANAGED_ENV_PERSIST_DIR` pointed at live's directory
   by mistake stops at once. This is option A's code half, kept, and keyed on the marker instead of

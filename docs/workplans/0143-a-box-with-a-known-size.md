@@ -2,7 +2,7 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that
 nobody knows how much the reference machine can carry. No task says which machine it needs, and
@@ -47,6 +47,123 @@ T2d's step now stops a `continuous` migration by the lifecycle's own move rather
 `paused`, which the lifecycle refuses after a cutover (§3). T1's preset now names the tasks that
 copy or list. And the multi-connection `PgRateBudget` test that §1 called missing exists (0083).
 
+**2026-09-27, build: T9's script built on branch
+`claude/ownpace-public-readiness-y7orc6-a-rehearsal-that-cleans-up`, not merged** (0131 §6 R7,
+step 10). The sitting is still the owner's, and nothing has been measured.
+
+`deploy/compose/rehearse-capacity.sh` has three modes.
+
+- **`--seed N M`** writes N organisations in one transaction, N and M from 1 to 99. Every id
+  starts with `ca9a0000-0000-4000-8000-`, a family nothing else in the repository uses.
+  - Each organisation gets a copy of demo tenant A's mail pair: the demo IMAP mailbox as the
+    source, the demo Stalwart over JMAP as the target. When M is 2 or more it also gets demo
+    tenant B's Nextcloud pair. The copies carry the demo's sealed credentials as they are, so the
+    script needs no key.
+  - It writes M migrations on `*/15 * * * *`. Odd ones copy mail, even ones copy files. Each one
+    writes under a folder of its own, `capacity-rehearsal-<UTC minute>-oNN-mNN`.
+  - A migration that never ran is due at once (`sync-due.ts`), so every first pass starts on the
+    next tick.
+  - It refuses when an earlier rehearsal is still there, and when the demo rows are missing (the
+    refusal names `--with-demo`). It also refuses when its role is not a superuser.
+- **`--sample [--count K]`** prints a line every 10 seconds. It also appends the line to
+  `samples-<UTC time>.log` under `<persisted directory>/rehearsal/`. The persisted directory is
+  `~/.persistent/<project>`, with the project Compose reports. The line holds:
+  - the runner containers on the Docker daemon, both stacks', and each one's memory
+    (`docker stats`);
+  - the host's available and total memory, the swap in use and the load (`/proc`);
+  - PgBouncer's `SHOW POOLS`: the clients waiting, summed over the pools, and the longest wait,
+    read by column name;
+  - Postgres' `numbackends`, summed over the stack's Postgres server.
+
+  A value it could not read is written as `?`, never as 0.
+- **`--remove`** deletes every row whose organisation carries the prefix, then the organisations.
+  That covers the seed's rows and everything the passes wrote under those organisations since. It
+  reads the tables with a `tenant_id` from the schema, counts each one, checks that nothing is
+  left, and does all of this in one transaction.
+  - While a pass of the rehearsal is still running, it pauses the rehearsal's migrations and
+    removes nothing. A pass counts as running while its run row is younger than the tick's
+    staleness window (2 hours).
+  - A second `--remove` finds nothing and says so.
+
+**Live's marker is named once.** `deploy/compose/stack-kind.sh` holds `STACK_KIND_KEY=STACK_KIND`,
+`STACK_KIND_LIVE=production` and `stack_is_live <env-file>`. So 0132 T1g's working name,
+`STACK_KIND=production`, is now the name. `stack_is_live` reads the file with `env_value`. Quotes,
+an `export` and the case of the value make no difference. The script refuses in every mode, before
+any `docker` call, in three cases:
+
+- the marker is in the `.env`;
+- the marker is exported into the shell;
+- the shell has a `COMPOSE_PROJECT_NAME` that the checkout's `.env` does not choose.
+
+0132 T1g records that its gate refusal, T5's `--with-demo` refusal and T6's `deploy-live.sh` are
+to source the same file. Live's `.env` has to carry the line from its first bring-up (0132 T1b,
+step 2).
+
+**The guard, and that it failed first.** `scripts/a-rehearsal-that-cleans-up.unit.test.ts` has 21
+cases, with stubbed `docker` and `psql`.
+
+- The `docker` stub runs `compose exec … sh -c` locally, so the script's own psql command line is
+  what runs.
+- The `psql` stub runs the SQL on PGlite, with both migration chains applied and the demo rows in
+  place. So seed-then-remove is checked against the real schema.
+- The rows a pass writes (runs, events, items, a rate budget) are added by hand between the seed
+  and the removal. Afterwards no table with a `tenant_id` holds a rehearsal row, and the demo's rows
+  are all still there.
+- Other cases: the refusals before any `docker` call, the in-flight pause, the second seed and the
+  missing demo, and every field of the sample line, with `?` when the pooler or `docker stats`
+  cannot be read.
+
+On the unchanged code: 13 failed and 8 skipped, every case on `ENOENT`, because neither
+`rehearse-capacity.sh` nor `stack-kind.sh` existed. Each of these mutations turns it red:
+
+- the `.env` check removed;
+- the marker compared with its case, or with its double quotes;
+- the marker spelled out in the script;
+- the shell's `COMPOSE_PROJECT_NAME` check removed;
+- the organisations not deleted;
+- the removal limited to the seed's four tables;
+- no wait for a pass in flight;
+- the staleness window moved off the tick's;
+- the tick's default schedule instead of `*/15`;
+- one folder per organisation;
+- the unreadable pooler written as 0;
+- every container counted as a task;
+- `maxwait_us` ignored.
+
+**Departures from §3.**
+
+1. **A mail migration adopts; it does not copy.** The JMAP target adopts a message found anywhere
+   in the account by its Message-ID (`targetKeys` in `jmap-target.ts`, ADR-0020). Demo tenant A
+   has already filed the demo mailbox's messages in that account. So the folder prefix keeps each
+   file migration a first copy, but not a mail migration. A rehearsal mail migration is still a
+   real pass: a container, an IMAP listing and the target's enumeration. But it adopts. The mail
+   load that counts is step 3's large mailbox. §3's sentence is corrected below.
+2. **`--remove` takes back rows, not copies.** The copies the passes wrote into the demo target
+   accounts stay, and the removal names their folders. The Trigger.dev plane's records of the
+   runs stay too (T7). Each seed's folders carry its own UTC minute, so a later seed never adopts
+   an earlier seed's files. The owner's large drive and mailbox (step 3) are not the script's.
+3. **No member rows.** Nothing in a pass reads one, and the daily digest mails members.
+4. **Task containers are counted on the whole daemon**, as the containers whose names start with
+   `runner-` (the ones `smoke-managed.sh` watches). So the count is both stacks'. It is the
+   machine that is measured.
+
+**Not checked, because it needs the machine.** The script has never run against a real stack. Its
+first real run is the sitting. The guard checks the script against stubs, and three things are
+unproved until then:
+
+- the exact `docker stats` output;
+- the `SHOW POOLS` columns of the pinned PgBouncer;
+- that `-h pgbouncer` resolves inside the PgBouncer container.
+
+**Open, and whose.**
+
+- The sitting and T0's numbers: the owner's.
+- 0132 T1g's, T5's and T6's refusals sourcing `stack-kind.sh`: those tasks' builds.
+- Taking back the copies in the demo targets: not built. It is the owner's call whether it matters
+  on the demo stack.
+- Real first copies of mail, for example with a JMAP target account per organisation: open, if
+  the sitting shows the mail passes matter beside step 3's mailbox.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
@@ -58,7 +175,7 @@ copy or list. And the multi-connection `PgRateBudget` test that §1 called missi
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
-| T9 One measured rehearsal of the alpha's shape | 📋 **Proposed** (the script); ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
+| T9 One measured rehearsal of the alpha's shape | 🔨 **The script built on branch `claude/ownpace-public-readiness-y7orc6-a-rehearsal-that-cleans-up`, not merged** (2026-09-27) — *was:* 📋 Proposed. ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
 | T10 What the providers let every tester do together | 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
 
 ## 1. What there is today
@@ -791,7 +908,10 @@ gives the growth per day and the runway (§4).
   with M migrations on `*/15`. The sources are the demo IMAP mailbox and the demo Nextcloud's
   files (`seed-demo-dav-content.sh`). The targets are the demo Stalwart and Nextcloud. Each
   migration writes under its own `targetFolderPrefix`, so none adopts another's copies and every
-  one does a real first copy.
+  one does a real first copy. *(2026-09-27, found in the build: true of the file migrations only.
+  The JMAP target adopts a message found anywhere in the account by its Message-ID, and demo
+  tenant A has filed the demo mailbox's messages there already, so a mail migration adopts. See
+  the Status block.)*
 - `--sample` appends one line every 10 seconds to a file under the persisted directory:
   - each task container's memory;
   - the number of task containers;
@@ -799,14 +919,16 @@ gives the growth per day and the runway (§4).
   - PgBouncer's `SHOW POOLS` (`cl_waiting`, `maxwait`);
   - Postgres' `numbackends`.
 - `--remove` takes back everything `--seed` made and counts what it removed, the way
-  `seed-demo-dav-content.sh --remove <tag>` takes back one `--fresh <tag>` set.
-- It refuses a `.env` that carries live's marker (0132 T1g, working name `STACK_KIND=production`),
-  as 0132 T5's refusal of `--with-demo` does. Rehearsal organisations never reach the stack testers
-  use.
+  `seed-demo-dav-content.sh --remove <tag>` takes back one `--fresh <tag>` set. *(As built,
+  2026-09-27: every row of the rehearsal's organisations, the passes' rows included. The copies in
+  the demo targets stay, and it names their folders.)*
+- It refuses a `.env` that carries live's marker (0132 T1g: `STACK_KIND=production`, named once in
+  `deploy/compose/stack-kind.sh` since 2026-09-27), as 0132 T5's refusal of `--with-demo` does.
+  Rehearsal organisations never reach the stack testers use.
 - **Guard:** `scripts/a-rehearsal-that-cleans-up.unit.test.ts` drives it with a stubbed `docker`
   and `psql`. Every id `--seed` creates is one `--remove` deletes, the sample line has the fields
-  above, and a `.env` with live's marker is refused before anything is written. It fails today,
-  because there is no script.
+  above, and a `.env` with live's marker is refused before anything is written. It failed while
+  there was no script, and passes with it (2026-09-27, Status block).
 
 **The sitting.** It happens on the reference machine, on the OTA stack, after 0132 T0's step 3
 (live stood up), so that the machine carries both stacks while it is measured. The rehearsal needs
