@@ -151,6 +151,28 @@ const ASK_TEST: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   'unknown',
 ]);
 
+/**
+ * The stored kinds that more than one card saves as, where those cards'
+ * checklists differ (workplan 0148 T5 (a)).
+ *
+ * *Via IMAP* and *Via the Graph API* both store `o365` with the same fields,
+ * and nothing on a stored row says which card made it.
+ * `wizardTypeForConnectionKind` answers `graph`, which is right for the fields
+ * and wrong for a Via IMAP connection's checklist: its token needs Office 365
+ * Exchange Online's `IMAP.AccessAsApp`, and Graph's recipe says `Mail.Read`
+ * and nothing else. So the row links both checklists, each by its card's
+ * name, and the person picks the card they used.
+ */
+const CARDS_OF_ONE_KIND: ReadonlyMap<string, ReadonlyArray<{ type: string; nameKey: StringKey }>> = new Map([
+  [
+    'o365',
+    [
+      { type: 'oauth2', nameKey: 'wizard.m365.viaImap' },
+      { type: 'graph', nameKey: 'wizard.m365.viaGraph' },
+    ],
+  ],
+]);
+
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
   if (status === 'error') return <XCircle className="w-4 h-4 text-red-600" />;
@@ -174,6 +196,8 @@ const Row: React.FC<{
   const [result, setResult] = React.useState<TestConnectionResult | null>(null);
   const [rotating, setRotating] = React.useState(false);
   const [newValues, setNewValues] = React.useState<Record<string, string>>({});
+  // Where one link to a checklist would pick a card for the person (0148 T5 (a)).
+  const cardsOfThisKind = CARDS_OF_ONE_KIND.get(connection.kind);
 
   /**
    * Every field the rotate ROUTE requires, plus the secrets (workplan 0071).
@@ -384,18 +408,37 @@ const Row: React.FC<{
         <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2 sm:gap-3">
           {/* The prerequisites for this provider, in case the answer is
               "somebody has to re-authorise the app". */}
-          <Link
-            // BY WIZARD TYPE, not by kind: the profiles are keyed the wizard's
-            // way, and looking one up by kind answers an empty checklist that
-            // reads as "nothing to set up" (workplan 0065).
-            to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
-            // Say where this link came FROM, so the checklist's back link
-            // returns here instead of to a wizard nobody opened (0074).
-            state={{ from: '/connections' }}
-            className="text-sm text-blue-700 hover:underline"
-          >
-            {t('connections.setupSteps')}
-          </Link>
+          {cardsOfThisKind ? (
+            // A kind two cards store as, whose checklists differ: one link per
+            // card, by the card's name, rather than one of them picked for the
+            // person (0148 T5 (a)). Both say where they came from, as below.
+            <span className="text-sm text-gray-700 inline-flex flex-wrap items-center gap-x-2">
+              <span>{t('connections.setupSteps')}:</span>
+              {cardsOfThisKind.map((card) => (
+                <Link
+                  key={card.type}
+                  to={`/setup/${connection.role}/${card.type}`}
+                  state={{ from: '/connections' }}
+                  className="text-blue-700 hover:underline"
+                >
+                  {t(card.nameKey)}
+                </Link>
+              ))}
+            </span>
+          ) : (
+            <Link
+              // BY WIZARD TYPE, not by kind: the profiles are keyed the wizard's
+              // way, and looking one up by kind answers an empty checklist that
+              // reads as "nothing to set up" (workplan 0065).
+              to={`/setup/${connection.role}/${wizardTypeForConnectionKind(connection.kind)}`}
+              // Say where this link came FROM, so the checklist's back link
+              // returns here instead of to a wizard nobody opened (0074).
+              state={{ from: '/connections' }}
+              className="text-sm text-blue-700 hover:underline"
+            >
+              {t('connections.setupSteps')}
+            </Link>
+          )}
           <button
             type="button"
             onClick={test}
