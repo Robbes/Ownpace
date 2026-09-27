@@ -4,6 +4,12 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, evening: 0131 T5's row follows T6 (a).** #1231 merged T6 (a) on 2026-09-27, so
+the row's *Today* cell no longer says the tasks run Node 21. It says `trigger.config.ts` names
+`runtime: 'node-24'` since #1231, and that `ownpace-live`, whose deploy output the minimum reads, is
+not stood up (0132 T1b). T6's task row reads ✅ **done** in #1231 for (a); Guard 2 is still not
+built. The note below keeps *not merged*, which held when it was written.
+
 **2026-09-27, build: T6 (a), the setting and Guard 1, built on branch
 `claude/ownpace-public-readiness-y7orc6-tasks-on-node-24`, not merged (0131 §6, group R7, step
 5).** Guard 2, the pull-request check that the task bundle loads, comes after the first
@@ -119,7 +125,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
-| T6 The tasks run the Node the images run | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-tasks-on-node-24`, not merged** (2026-09-27): (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
+| T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
 | T8 A watch on the pinned images Dependabot leaves alone | 📋 **Proposed** | §3. After the first invitation. Extends 0135 T7's job (the identity provider) to Trigger.dev, ClickHouse, MinIO and the task base image. |
 
