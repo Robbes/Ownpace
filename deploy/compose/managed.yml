@@ -208,7 +208,16 @@ services:
       # Origins
       APP_ORIGIN: ${TRIGGER_APP_ORIGIN:-http://localhost:3090}
       LOGIN_ORIGIN: ${TRIGGER_LOGIN_ORIGIN:-http://localhost:3090}
-      API_ORIGIN: ${TRIGGER_API_ORIGIN:-http://localhost:3090}
+      # The API origin the server ADVERTISES, and the deploy CLI follows it for
+      # every call after login, its image build's indexer included. Loopback by
+      # number, never `localhost`: the CLI (4.5.16, normalizeApiUrlForBuild)
+      # rewrites `localhost` to host.docker.internal for the build and maps that
+      # name to the machine's first non-loopback IPv4 address, where this port
+      # does not answer (0132 T3 (a) publishes it on 127.0.0.1). The build runs
+      # on the host's network (deploy-tasks.sh, `--network host`), so 127.0.0.1
+      # is this port. Not read from .env: no stack deploys from anywhere else,
+      # and an old `.env` naming localhost must not put the failure back.
+      API_ORIGIN: http://127.0.0.1:${TRIGGER_PORT:-3090}
       # Redis
       REDIS_HOST: trigger-redis
       REDIS_PORT: 6379
@@ -252,8 +261,9 @@ services:
       PORT: 3000
       APP_LOG_LEVEL: info
     ports:
-      # Plain HTTP, and the deploy CLI asks it on localhost (TRIGGER_API_ORIGIN),
-      # so TRIGGER_BIND stays empty on a real box. See the header.
+      # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
+      # (API_ORIGIN above), so TRIGGER_BIND stays empty on a real box. See the
+      # header.
       - "127.0.0.1:${TRIGGER_PORT:-3090}:3000"
       - "${TRIGGER_BIND:-127.0.0.1}:${TRIGGER_PORT:-3090}:3000"
     volumes:
@@ -504,8 +514,8 @@ services:
   # production-mode Secure cookies make login unusable over plain http from
   # anything but localhost, so browsers go through this https front:
   #   TRIGGER_APP_ORIGIN / TRIGGER_LOGIN_ORIGIN = https://<TRIGGER_TLS_HOST>:<TRIGGER_TLS_PORT>
-  # while TRIGGER_API_ORIGIN stays http://localhost:3090 — the deploy CLI
-  # follows the server-advertised API origin and must not hit a self-signed
+  # while the API origin the server advertises stays plain http on
+  # 127.0.0.1 — the deploy CLI follows it and must not hit a self-signed
   # certificate (deploys died with a bare "Connection error" when it did).
   # The two rules baked into trigger-tls.Caddyfile: a concrete host as the
   # site address (else Caddy has no certificate to present) and default_sni
