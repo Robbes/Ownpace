@@ -6,16 +6,55 @@
 > its table list was stale. Everything below is written against the code:
 > `packages/ledger/src/db.ts` (`withTenant`), `packages/ledger/src/driver.ts`
 > (`LedgerDriver.role`), and migrations `0001`–`0004`.
+>
+> Updated 2026-09-27 ([workplan 0138](./workplans/0138-tasks-under-row-security.md)
+> T5, step 1): which connections row security binds today and which it does
+> not, the task plane among the second, and the table list asked of the catalog.
 
 ## What RLS buys here
 
 Row-Level Security is the Postgres feature that filters every query by a
 session predicate. In this stack it is the **tenancy boundary of the managed
-edition**: Tenant A can never read or write Tenant B's rows, even through a
-bug in application-level filtering, because the database itself refuses. The
-self-host appliance runs the **same schema, same policies, same code path**
-(single-tenant, but the filter is never skipped) — an RLS bug cannot hide in
-one edition only.
+edition**: on a connection it binds, Tenant A can never read or write Tenant
+B's rows, even through a bug in application-level filtering, because the
+database itself refuses. **It binds only some of the connections today**: the
+API's request path, yes; the managed edition's Trigger.dev tasks, no. The next
+section says which, and [workplan 0138](./workplans/0138-tasks-under-row-security.md)
+is the way to close the gap. The self-host appliance runs the **same schema and
+the same policies**, and its `withTenant` scopes drop to `app_user`, but its
+ledger and cursor stores run outside them (the next section).
+
+## Where row security holds today
+
+Checked against the code and against a database with both migration chains
+applied, 2026-09-27. Postgres never applies row security to a superuser,
+`FORCE` or not, and the managed edition's database owner is a superuser (§2).
+On an owner connection, `withTenant` still sets `app.current_tenant`, but
+nothing reads it: asked inside such a transaction with tenant A set, a
+`SELECT count(*) FROM tenant` on the owner's connection counted both
+organisations, and the same question as `app_user` counted one.
+
+| path | connects as | row security |
+| --- | --- | --- |
+| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb` | `app_user` | **in force** |
+| The API's permission report (`GET /api/permissions/report`) and sharing rescan (`POST /api/migrations/:id/sharing/rescan`): `apps/api/src/routes/permissions.ts` opens its own pool on `DATABASE_URL` and reads `connection`, `mailbox_mapping` and `mailbox` there | the owner, a superuser on managed | **not in force**: each query's own `tenant_id = $1` is the only filter |
+| The API's operator screens: the `support_*` views (managed migrations `0009` onward) | `app_user`, but a view runs with its owner's rights, and its owner is the owner | **passed by design**: the operator check written into each view is the only net, and `packages/managed/src/support-views.unit.test.ts` checks every view has it |
+| The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
+| **Every managed Trigger.dev task**: the eight per-tenant jobs (`run-delta-sync`, `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`, `run-cutover`, `run-rollback`) and the six scheduled ones (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`, `managed-digest`, `managed-drift-detect`, `managed-group-discovery`), and the builders they call (`buildDepsFromMapping`, `buildDomainDepsFromMapping`, `createLedgerVerificationReader`) | the owner, a superuser: each builds its pool from `DATABASE_URL`, and none gives `withTenant` a role | **not in force**: the separation between organisations rests on each query's own tenant filter |
+| The appliance's `withTenant` scopes (`apps/selfhost/src/index.ts`) | the bundled image's owner or PGlite's `postgres`, dropping to `app_user` with `SET LOCAL ROLE` | **in force** |
+| The appliance's `PgLedger` and `PgCursorStore`, over `persistenceBackend.db` | the bundled image's owner or PGlite's `postgres`, both superusers | not in force; the appliance holds one organisation, so there is nothing to separate |
+| The scripts in §2's table | the owner | not in force, by nature: they act across tenants at the machine |
+| The commands an operator runs with their own `DATABASE_URL`: the cutover CLI (`apps/worker/src/cli/index.ts`), the standalone config-file worker (`apps/worker/src/index.ts`), the appliance's `forget-me` (`apps/selfhost/src/forget-me.ts`), and the two Drive measurements (`scripts/drive-export-stability.ts`, `scripts/drive-share-inheritance.ts`) | whatever that URL names (`forget-me` on PGlite: PGlite's `postgres`); none of them sets a role | **not in force** on a superuser's URL (the managed owner, the bundled image's owner, PGlite's `postgres`): each query's own filter, on a tenant or on one connection's id, is what separates. On an ordinary owner the `FORCE`d policies do apply, which is why the CLI calls the cutover store inside `withTenant` |
+
+What that means in the managed edition: the database stops a query that forgets
+its tenant in the API, and nothing stops one in a task. The task queries that
+workplan 0138 read do carry their tenant filters; nobody has audited them all.
+Every task run also holds `SECRET_ENCRYPTION_KEY`, so a task query that crossed
+organisations could reach another organisation's stored credentials and the key
+to decrypt them. Workplan 0138 T1 to T4 are the plan to move the per-tenant
+tasks to `app_user` and keep the owner's reach to the jobs that span tenants;
+none of them is built yet. The permission report's pool is not in 0138's task
+table yet (its Status block, 2026-09-27).
 
 ## The enforcement model — three parts, all load-bearing
 
@@ -49,19 +88,26 @@ migration creates it explicitly) with table grants but no ownership and no
 superuser bit. The deployment contract (see `operator-runbook.md`, "The two
 database roles"):
 
-- `APP_DATABASE_URL` → `app_user`. **The request path, always.** The API and
-  the deployed Trigger.dev tasks read and write tenant data through this, so
-  row security is in force on every query that serves somebody.
-- `DATABASE_URL` → the DB owner. **Never the request path.** It is for the acts
-  performed AT THE MACHINE by whoever runs the deployment — the ones that by
-  their nature span tenants, or precede one existing:
+- `APP_DATABASE_URL` → `app_user`. **The request path, always.** The API reads
+  and writes tenant data through this, so row security is in force on its
+  queries, with the permission report's own pool, which two routes use, as the
+  one exception ("Where row security holds today"). **The deployed Trigger.dev tasks do not use it yet.**
+  `set-task-env.sh` uploads it and no task reads it: every task connects with
+  `DATABASE_URL`, the owner, so row security does not bind them (workplan 0138).
+- `DATABASE_URL` → the DB owner. **Meant never to be the request path.** Today
+  two API routes open a pool on it, the permission report and the sharing
+  rescan (`apps/api/src/routes/permissions.ts`; "Where row security holds
+  today"). It is for the acts performed AT THE MACHINE by whoever runs the
+  deployment — the ones that by their nature span tenants, or precede one
+  existing — and, until workplan 0138 lands, for every Trigger.dev task as
+  well:
 
 | who holds it | what for |
 | --- | --- |
 | `deploy/compose/bootstrap-managed.sh` | applies the migrations, and creates the `pgbouncer_auth` role |
 | `deploy/compose/seed-managed.sh` | writes the demo tenants |
 | `deploy/compose/operator.sh` | appoints operators, manages their memberships, and runs `check` / `clean` — all of which ask questions that span every tenant, which is why they are scripts and not routes (see `apps/api/src/scripts/operator.ts`) |
-| `deploy/compose/set-task-env.sh` | uploads `TASK_DIRECT_DATABASE_URL` into the Trigger.dev task environment, because the tasks run migrations at boot and `pg_advisory_lock` is session-scoped, so it must bypass the pooler (`packages/ledger/src/direct-url.ts`). The same upload carries `TASK_APP_DATABASE_URL`, which is what the tasks use for tenant data |
+| `deploy/compose/set-task-env.sh` | uploads three database URLs into the Trigger.dev task environment, and every run of every task receives all three. `DATABASE_URL` is the owner through the pooler: **every task connects with it today**, for tenant data too. `DIRECT_DATABASE_URL` is the owner straight to `postgres:5432`: no task reads it, and no task runs migrations (the API and the seed do); 0138 T3's first step is to stop uploading it. `APP_DATABASE_URL` is `app_user`: no task reads it yet; 0138 T1 is to move the per-tenant tasks onto it |
 
 **That list is checked, not maintained by hand.**
 `scripts/a-connection-the-docs-did-not-know-about.unit.test.ts` fails if a
@@ -70,7 +116,9 @@ It used to read *"migrations and the demo seed only"*, which stopped being true
 the day `operator.sh` was written (workplan 0093 T6) and stayed wrong because a
 sentence in a document has nothing checking it.
 
-Point the APP at the owner URL and tenant isolation silently disappears.
+Point the APP at the owner URL and tenant isolation silently disappears. That
+is where the managed tasks are today ("Where row security holds today"): what
+keeps one organisation's rows from another there is each query's own `WHERE`.
 
 ### 3. `LedgerDriver.role` + `withTenant()` — the gate on the shipped path
 
@@ -103,34 +151,81 @@ yourself writing `SET app.current_tenant` outside `withTenant`, stop.
 
 ## Policies
 
-Every RLS table carries four policies (SELECT / INSERT / UPDATE / DELETE),
-each with the same predicate:
+Most RLS tables carry four policies (SELECT / INSERT / UPDATE / DELETE), each
+with the same tenant predicate:
 
 ```sql
-tenant_id = current_setting('app.current_tenant')::uuid
+tenant_id = (current_setting('app.current_tenant', true))::uuid
 ```
 
-No context set → the predicate fails → zero rows (fail-closed), not an error.
+The newer migrations wrap the setting in `NULLIF(…, '')`, and `tenant` compares
+its own `id`. Asked of `pg_policies` on 2026-09-27: 32 tables (126 policies)
+still use the plain form above, 7 the `NULLIF` form.
+
+No context set → no rows leak either way. On the `NULLIF` form it is zero rows.
+On the plain form it is zero rows on a connection that never held a tenant,
+and `invalid input syntax for type uuid: ""` on one that did: after a
+transaction-local `set_config`, the setting reverts to the empty string, not to
+unset (managed migration `0004` explains why, and converted `tenant_member`
+for that reason).
+
+Some tables also carry, or only carry, policies keyed on something other than
+the tenant, each set transaction-locally by its own helper in `db.ts`:
+
+- **the signed-in person** (`app.current_user`, `app.current_email`, set by
+  `withSubject` and `withSubjectAndTenant`): `tenant_member` (your own
+  memberships and invitations), `tenant` (an organisation you were invited to),
+  `platform_operator` (your own operator row) and `support_read` (an operator's
+  own reads);
+- **an operator's row in `platform_operator`**: `access_request` and
+  `platform_pause`, which also let anyone ask (`access_request`) and anyone read
+  an open hold (`platform_pause`);
+- **a grant link** (`app.current_link`, set by `withMappingLink`):
+  `mapping_link`.
+
+`grant_link_allowance` has one policy for every command, on the tenant, and
+`vat_consultation` has SELECT and INSERT only. Read the policies themselves in
+`pg_policies`; this paragraph is a map, not the contract.
+
+None of this binds a superuser. "Where row security holds today" says which
+connections are one.
 
 ## The RLS tables (all FORCEd)
 
-From migrations `0001`–`0004`:
+Asked of `pg_class` on 2026-09-27, with both chains applied: 43 tables, every
+one `FORCE`d. `force-rls.unit.test.ts` (ledger chain) and
+`force-rls-managed.unit.test.ts` (managed chain) ask the same catalog, so this
+list is a snapshot and those tests are the check.
 
-`audit_log`, `apply_receipt`, `backup_target`, `collection_mapping`,
-`connection`, `cursor`, `cutover`, `decision`, `group_def`, `invoice`,
-`item`, `mailbox`, `mailbox_mapping`, `migration_discovery`,
-`migration_status`, `payment_method`, `policy_preset`, `run`, `run_event`,
-`scope_selection`, `sync_checkpoint`, `tenant`, `tenant_member`,
-`usage_metric`, `verification`, `verification_run`.
+**The ledger chain** (`packages/ledger/migrations`, both editions), 28:
+`apply_receipt`, `audit_log`, `backup_target`, `collection_mapping`,
+`connection`, `cursor`, `cutover`, `cutover_event`, `cutover_state`,
+`decision`, `group_def`, `item`, `mailbox`, `mailbox_mapping`, `mapping_link`,
+`migration_discovery`, `migration_status`, `path_lifecycle`, `policy_preset`,
+`run`, `run_event`, `scope_selection`, `setup_step`, `share_grant`,
+`sync_checkpoint`, `tenant`, `verification`, `verification_run`.
 
-Since: `path_lifecycle` (`0035`), and `cutover_state` and `cutover_event`
-(`0055`). The cutover job, the rollback job and the operator CLI read those two
-through `tenantCutoverStore` (`packages/ledger/src/cutover-store.ts`), which
-runs every call inside `withTenant`; the API's cutover door reads them through
-`withTenantDb`.
+**The managed chain** (`packages/managed/migrations`, managed only), 15:
+`access_request`, `billing_party`, `bytes_moved`, `grant_link_allowance`,
+`invoice`, `occupancy_peak`, `payment_method`, `platform_operator`,
+`platform_pause`, `support_read`, `tenant_closure`, `tenant_member`,
+`tenant_pricing`, `usage_metric`, `vat_consultation`.
+
+`cutover_state` and `cutover_event` came under row security in `0055`. The
+cutover job, the rollback job and the operator CLI read those two through
+`tenantCutoverStore` (`packages/ledger/src/cutover-store.ts`), which runs every
+call inside `withTenant`; the API's cutover door reads them through
+`withTenantDb`. Inside `withTenant` is not the same as under the policies: the
+jobs' `withTenant` runs on the owner's connection ("Where row security holds
+today").
+
+Two tables have no row security and no `tenant_id`: `deployment_key` (ledger
+`0062`, the audit export's key, which `app_user` may not read at all) and
+`erasure_record` (managed chain).
 
 A future migration that adds an RLS table and forgets `FORCE` fails
-`force-rls.unit.test.ts` **by name** — the test reads
+`force-rls.unit.test.ts` (or, in the managed chain,
+`force-rls-managed.unit.test.ts`) **by name** — the test reads
 `pg_class.relforcerowsecurity` for every RLS table rather than keeping its
 own list. The same file asks the question that check could not: **which table
 with a `tenant_id` column has no row security at all** (`pg_class.relrowsecurity`
@@ -210,7 +305,8 @@ ROLLBACK;
   connection path, add the in-force proof for it.
 - **The owner URL in the request path.** Everything works, nothing is
   isolated. `APP_DATABASE_URL` exists so this is a configuration you can
-  grep for.
+  grep for. The managed Trigger.dev tasks and the permission report's pool
+  are in this state today ("Where row security holds today").
 - **Session-level context.** `SET app.current_tenant` without `LOCAL`
   survives the transaction and rides the pooled connection into another
   request. `withTenant` uses transaction-local everything; keep it that way.

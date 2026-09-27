@@ -1475,10 +1475,11 @@ stack testers use:
 
 ```
 OWNPACE_STAGE=alpha
+BACKUP_RETENTION_DAYS=0
 ```
 
-The web bundle bakes it in at build time and the API reads it at start, so
-rebuild and recreate both:
+The web bundle bakes the stage in at build time and the API reads both at
+start, so rebuild and recreate both:
 
 ```bash
 GIT_SHA=$(git rev-parse --short HEAD) \
@@ -1487,6 +1488,16 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
+
+The second line is the alpha's other half. The alpha takes no backups
+(workplan 0134), and a blank `BACKUP_RETENTION_DAYS` would make the erasure
+sentence name seven days of them. With `OWNPACE_STAGE=alpha` the API refuses
+to start while it is blank, and the refusal names it. Read it back; this
+prints `0`:
+
+```bash
+docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
+```
 
 ### 9. `tasks` — the task environment, then the deploy
 
@@ -2494,7 +2505,12 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   — including the identity provider's tables, which after 8b hold the only copy
   of who can sign in. (Trigger.dev's own `triggerdb` IS covered, by
   `trigger-version.sh backup`, and its restore is drilled on every managed gate
-  run. The same treatment for `ownpace-db` is not built.)
+  run. The same treatment for `ownpace-db` is not built.) A stack without
+  backups sets `BACKUP_RETENTION_DAYS=0`, so the erasure sentence names none:
+  `ownpace-live`, the stack testers use, takes none during the alpha (§8g).
+  [Workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
+  is that decision. It parks building the backups (its T5) until before the
+  first paying customer, or the end of the alpha, whichever comes first.
 - **Anybody's first account.** `setup-zitadel.sh` stands the provider up; it
   does not create people. People are let in through the access-request queue
   (§8c; workplan 0093 T6/T7, done): once an operator is appointed as §8c
