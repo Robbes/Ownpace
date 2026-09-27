@@ -27,6 +27,7 @@ import {
   isSendableAsText,
 } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
+import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
 
 /**
  * CardDAV source connector implementation.
@@ -209,7 +210,10 @@ export class CarddavSource implements ContactSource {
       const baseUrl = this.config.url.replace(/\/$/, '');
       this.addressBookHomeSet = `${baseUrl}/addressbooks/users/${this.config.username}/`;
     } else {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
   }
 
@@ -276,7 +280,10 @@ export class CarddavSource implements ContactSource {
     }
 
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
 
     return this.parseCollectionsResponse(response.body, homeSet);
@@ -417,7 +424,10 @@ export class CarddavSource implements ContactSource {
     });
 
     if (response.status !== 207) {
-      throw new Error(`addressbook-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `addressbook-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
 
     const { objects } = this.parseSyncCollectionResponse(response.body);

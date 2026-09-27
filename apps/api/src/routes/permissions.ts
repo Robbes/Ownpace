@@ -65,6 +65,7 @@ import {
 import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { Pool } from 'pg';
 import { serverFault } from '../server-fault.ts';
+import { probeAnswers } from '../probe-answer.ts';
 
 const router = Router();
 
@@ -225,7 +226,13 @@ async function tenantTargetConduct(
       username: creds.username ?? '',
       password: creds.password ?? '',
     });
-    if (qualification) return qualificationReportLines(qualification);
+    // The target's address is one the organisation typed, so a face it
+    // refused is said from its parts, as on the Test button (0136 T3).
+    if (qualification) {
+      return qualificationReportLines(
+        probeAnswers('reporting permissions', tenantId).qualification(qualification),
+      );
+    }
     const verdict = await measureTargetScheduling(
       davUrl(config),
       creds.username ?? '',

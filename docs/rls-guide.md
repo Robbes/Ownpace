@@ -10,6 +10,8 @@
 > Updated 2026-09-27 ([workplan 0138](./workplans/0138-tasks-under-row-security.md)
 > T5, step 1): which connections row security binds today and which it does
 > not, the task plane among the second, and the table list asked of the catalog.
+> Then, the same day, for 0138 T3 step 1: the task upload no longer carries
+> `DIRECT_DATABASE_URL` (§2's `set-task-env.sh` row).
 
 ## What RLS buys here
 
@@ -52,9 +54,15 @@ workplan 0138 read do carry their tenant filters; nobody has audited them all.
 Every task run also holds `SECRET_ENCRYPTION_KEY`, so a task query that crossed
 organisations could reach another organisation's stored credentials and the key
 to decrypt them. Workplan 0138 T1 to T4 are the plan to move the per-tenant
-tasks to `app_user` and keep the owner's reach to the jobs that span tenants;
-none of them is built yet. The permission report's pool is not in 0138's task
-table yet (its Status block, 2026-09-27).
+tasks to `app_user` and keep the owner's reach to the jobs that span tenants.
+Of them only T3's first step and T4 are built, and neither changes the role a
+task connects as: a run no longer receives `DIRECT_DATABASE_URL` (§2's
+`set-task-env.sh` row), and `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
+fails if a file in `apps/worker/src` or `packages/*/src` that is not on its
+lists reads a database URL other than `APP_DATABASE_URL`, with today's
+per-tenant readers on a list that may only shrink and T1 empties. The
+permission report's pool is not in 0138's task table yet (its Status block,
+2026-09-27), and that guard does not read `apps/api`.
 
 ## The enforcement model — three parts, all load-bearing
 
@@ -107,7 +115,7 @@ database roles"):
 | `deploy/compose/bootstrap-managed.sh` | applies the migrations, and creates the `pgbouncer_auth` role |
 | `deploy/compose/seed-managed.sh` | writes the demo tenants |
 | `deploy/compose/operator.sh` | appoints operators, manages their memberships, and runs `check` / `clean` — all of which ask questions that span every tenant, which is why they are scripts and not routes (see `apps/api/src/scripts/operator.ts`) |
-| `deploy/compose/set-task-env.sh` | uploads three database URLs into the Trigger.dev task environment, and every run of every task receives all three. `DATABASE_URL` is the owner through the pooler: **every task connects with it today**, for tenant data too. `DIRECT_DATABASE_URL` is the owner straight to `postgres:5432`: no task reads it, and no task runs migrations (the API and the seed do); 0138 T3's first step is to stop uploading it. `APP_DATABASE_URL` is `app_user`: no task reads it yet; 0138 T1 is to move the per-tenant tasks onto it |
+| `deploy/compose/set-task-env.sh` | uploads two database URLs into the Trigger.dev task environment, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run of every task receives both. `DATABASE_URL` (composed as `TASK_DATABASE_URL`) is the owner through the pooler: **every task connects with it today**, for tenant data too. `APP_DATABASE_URL` is `app_user`: no task reads it yet; 0138 T1 is to move the per-tenant tasks onto it. Until 0138 T3 step 1 it uploaded a third, `DIRECT_DATABASE_URL`, the owner straight to `postgres:5432`; no task read it, and no task runs migrations (the API and the seed do), so it no longer does. A plane that stored it keeps it until it is deleted once (`docs/managed-bring-up.md`, "Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`") |
 
 **That list is checked, not maintained by hand.**
 `scripts/a-connection-the-docs-did-not-know-about.unit.test.ts` fails if a

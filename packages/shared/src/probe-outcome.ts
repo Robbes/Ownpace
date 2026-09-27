@@ -50,8 +50,28 @@ export type ProbeOutcome =
   | { readonly code: 'targetStatus'; readonly url: string; readonly status: number }
   /** No probe is wired for this kind — a gap in us, not in the credential. */
   | { readonly code: 'noProbe'; readonly kind: string }
-  /** The accompanying sentence is the PROVIDER's. Render it verbatim. */
+  /**
+   * The accompanying sentence is the PROVIDER's. Render it verbatim.
+   *
+   * For an address a tester typed, the managed API's sentence is ours instead
+   * (workplan 0136 T3), built from the refusal's parts: its status, and the
+   * provider's words only when they came as an error document we recognise.
+   * It still renders verbatim; what changed is who wrote it.
+   */
   | { readonly code: 'providerRefused' }
+  /**
+   * Nothing usable answered at an address a tester typed: the connection was
+   * refused, the name did not resolve, or no answer came (workplan 0136 T3).
+   * Ours, and without the address the socket tried.
+   */
+  | { readonly code: 'unreachable' }
+  /**
+   * The rule for a host a tenant gives us refused the address, as typed or as
+   * a redirect named it (workplan 0136 T1): it is inside this service's own
+   * network. Ours, and without any host, so a screen can say it in its
+   * reader's language.
+   */
+  | { readonly code: 'insideOurNetwork' }
   /**
    * A credential refusal WE wrote, in both languages (workplan 0083).
    *

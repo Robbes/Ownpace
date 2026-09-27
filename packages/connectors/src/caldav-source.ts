@@ -25,6 +25,8 @@ import {
   COMPONENT_ITEM_TYPES,
   collectionCarries,
   componentOfIcalendar,
+  davRefusalParts,
+  RemoteRefusal,
 } from '@openmig/shared';
 import type { CalDAVSourceConfig, CalDAVSyncToken, CalDAVCalendarObject } from './caldav-source.types.ts';
 import { caldavComponentFilter, davRefusalBody, log } from '@openmig/shared';
@@ -232,7 +234,10 @@ export class CalDAVSource implements CalendarSource {
       const baseUrl = this.config.url.replace(/\/$/, '');
       this.calendarHomeSet = `${baseUrl}/calendars/${this.config.username}/`;
     } else {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
   }
 
@@ -300,7 +305,10 @@ export class CalDAVSource implements CalendarSource {
     }
 
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
 
     return this.parseCollectionsResponse(response.body, homeSet);
@@ -470,8 +478,9 @@ export class CalDAVSource implements CalendarSource {
     });
 
     if (response.status !== 207) {
-      throw new Error(
+      throw new RemoteRefusal(
         `calendar-query REPORT failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
       );
     }
 
