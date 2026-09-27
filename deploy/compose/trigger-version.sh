@@ -30,14 +30,21 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# The compose project this checkout drives. Its containers and its persisted
+# directory are named after it, so on a machine with two stacks this dumps,
+# drills and restores its own Trigger.dev and keeps the dumps apart (workplan
+# 0132 T1). See compose_project in env-read.sh.
+COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 
 # The same place the gate persists .env: OUTSIDE the checkout, because
 # actions/checkout cleans ignored files before every run and would take the
-# backups with them.
-BACKUP_DIR="${MANAGED_BACKUP_DIR:-${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/ownpace-managed}/trigger-backups}"
+# backups with them. One directory per stack.
+BACKUP_DIR="${MANAGED_BACKUP_DIR:-${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}/trigger-backups}"
 
 # HOW MANY DUMPS TO KEEP. The gate drills on every pass, and each drill takes
 # a real backup — 14MB compressed on the reference machine. Unbounded that is
@@ -47,7 +54,8 @@ BACKUP_DIR="${MANAGED_BACKUP_DIR:-${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/o
 # everything deliberately.
 BACKUP_KEEP="${TRIGGER_BACKUP_KEEP:-7}"
 
-DB_CONTAINER="${TRIGGER_DB_CONTAINER:-trigger-db}"
+DB_CONTAINER="${TRIGGER_DB_CONTAINER:-${COMPOSE_PROJECT}-trigger-db}"
+API_CONTAINER="${COMPOSE_PROJECT}-trigger-api"
 DB_USER="${TRIGGER_DB_USER:-trigger}"
 DB_NAME="${TRIGGER_DB_NAME:-triggerdb}"
 
@@ -79,7 +87,7 @@ repo_tag() {
 }
 
 running_tag() { # what is ACTUALLY running, which is the only thing that is not a claim
-  docker inspect --format '{{.Config.Image}}' trigger-api 2>/dev/null | sed 's/.*://' || true
+  docker inspect --format '{{.Config.Image}}' "$API_CONTAINER" 2>/dev/null | sed 's/.*://' || true
 }
 
 # ------------------------------------------------------------------ list --
@@ -365,7 +373,7 @@ EOF
   fi
 
   # Refuse while the webapp is up, rather than half-replacing a live database.
-  if [ "$(docker inspect --format '{{.State.Running}}' trigger-api 2>/dev/null || echo false)" = "true" ]; then
+  if [ "$(docker inspect --format '{{.State.Running}}' "$API_CONTAINER" 2>/dev/null || echo false)" = "true" ]; then
     die "trigger-api is still running. Stop it first:
     ${COMPOSE[*]} stop trigger-api trigger-supervisor"
   fi
