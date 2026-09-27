@@ -185,6 +185,14 @@ const NARROWER_ON_PURPOSE: Record<string, { privileges: string[]; why: string }>
       'because an operator who could appoint another one would take the decision away from the ' +
       'person whose deployment it is. See operator-under-rls.unit.test.ts.',
   },
+  sync_tick_beat: {
+    privileges: ['SELECT'],
+    why:
+      'When each scheduled task last completed a run (workplan 0142 T2, managed migration 0030). ' +
+      'The tick writes its beat over the owner connection, and the readiness route reads it as ' +
+      'the request path. SELECT only, so no request can forge a beat that says the tick ran. No ' +
+      'row security and no personal data, and its migration says so where it is created.',
+  },
 };
 
 describe('the Drizzle schema and the migrations describe the same database', () => {
