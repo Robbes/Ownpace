@@ -14,10 +14,12 @@ name: E2E (self-hosted)
 #      for this repo (see docs/stalwart-integration-fix.md; plain `docker compose
 #      up` cannot express Stalwart's two-phase requirement for one service, which
 #      is why this is a script, not a dev.yml service). Publishes JMAP + IMAPS on
-#      the host so the appliance can reach them via host.docker.internal, and also
-#      joins ownpace_dev-network under the alias "stalwart" — so a sandboxed agent
-#      that joins that same network (see the doc's DooD section) can reach it by
-#      name instead, with no published ports involved at all.
+#      the host's loopback (STALWART_BIND, workplan 0132 T3), where the seed steps
+#      below ask them, and joins ownpace_dev-network under the alias "stalwart" —
+#      which is how the appliance reaches it (the mapping step points the mail
+#      source and target at that name), and how a sandboxed agent that joins
+#      that same network (see the doc's DooD section) reaches it, with no
+#      published port at all.
 #   1b. Bring up Nextcloud (deploy/compose/dev.yml's `nextcloud` service) on the
 #      same ownpace_dev-network, then provision TWO accounts on it — e2e-source and
 #      e2e-target (deploy/selfhost/setup-nextcloud-users.sh) — so calendar/contacts/

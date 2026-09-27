@@ -150,23 +150,26 @@ default is wrong**. The script fixes this for you from `uname -m`; it is
 mentioned here because it is the single setting whose failure looks like
 nothing at all.
 
-**Ports** published on the host, all overridable in `.env`:
+**Ports** published on the host, all overridable in `.env`. Every one of them
+answers on `127.0.0.1`. The last column is the setting that adds an address
+(see *Which address a port answers on*, below):
 
-| Port | Service | Notes |
-| --- | --- | --- |
-| 3001 | API | `API_PORT` |
-| 3123 | web | `WEB_PORT` |
-| 5432 | Postgres | `POSTGRES_PORT` — the host-run seed and migrations need it |
-| 3090 | Trigger.dev API (http) | `TRIGGER_PORT` — what the **deploy CLI** talks to |
-| 3443 | Trigger.dev dashboard (https) | `TRIGGER_TLS_PORT` — what your **browser** talks to |
-| 5000 | task image registry | `REGISTRY_PORT`, bound to loopback |
-| 3124 | status page (Gatus) | `STATUS_PORT` |
-| 3126 | identity provider (Zitadel) | `ZITADEL_PORT` — the same number inside and out |
-| 3127 | Mailpit (web UI) | `MAILPIT_PORT`, bound to loopback unless `MAILPIT_BIND` says otherwise |
-| 8083 | Nextcloud | `NEXTCLOUD_PORT`, bound to loopback unless `NEXTCLOUD_BIND` says otherwise; demo backend only |
+| Port | Service | Notes | Adds an address |
+| --- | --- | --- | --- |
+| 3001 | API | `API_PORT` | `API_BIND`, leave it empty |
+| 3123 | web | `WEB_PORT` — **routed**: the app's public name leads here | `WEB_BIND` |
+| 5432 | Postgres | `POSTGRES_PORT` — the host-run seed and migrations need it | `POSTGRES_BIND`, leave it empty |
+| 3090 | Trigger.dev API (http) | `TRIGGER_PORT` — what the **deploy CLI** talks to | `TRIGGER_BIND`, leave it empty |
+| 3443 | Trigger.dev dashboard (https) | `TRIGGER_TLS_PORT` — what your **browser** talks to | `TRIGGER_TLS_BIND` |
+| 5000 | task image registry | `REGISTRY_PORT` | none: loopback only |
+| 3124 | status page (Gatus) | `STATUS_PORT` — **routed** where a status name leads here | `STATUS_BIND` |
+| 3126 | identity provider (Zitadel) | `ZITADEL_PORT` — the same number inside and out; **routed**: its public name leads here | `ZITADEL_BIND` |
+| 3127 | Mailpit (web UI) | `MAILPIT_PORT` | `MAILPIT_BIND` **replaces** loopback, and the smoke follows it |
+| 8083 | Nextcloud | `NEXTCLOUD_PORT`; demo backend only | `NEXTCLOUD_BIND` **replaces** loopback, and its callers follow it |
 
-Ports not marked loopback are published on **every interface**: compose's
-default host address is `0.0.0.0`.
+The public site's `www.yml` does the same with `WWW_PORT` (3125, **routed**)
+and `WWW_BIND`. The demo's Stalwart (`setup-stalwart.sh`) publishes on
+`STALWART_BIND`, loopback by default.
 
 PgBouncer is deliberately **not** published: it is reached over the compose
 network by name. That is why anything running on the host (the seed, the
@@ -188,13 +191,123 @@ To reach it from your laptop, before the `trigger` phase set:
 ```bash
 ./deploy/compose/env-upsert.sh deploy/compose/.env \
   TRIGGER_TLS_HOST=10.0.0.5 \
+  TRIGGER_TLS_BIND=10.0.0.5 \
   TRIGGER_APP_ORIGIN=https://10.0.0.5:3443 \
   TRIGGER_LOGIN_ORIGIN=https://10.0.0.5:3443
 ```
 
+`TRIGGER_TLS_BIND` publishes the port on that address; without it the
+dashboard answers on the machine only, whatever `TRIGGER_TLS_HOST` says. It is
+the IP address the host names, never a name, even where `TRIGGER_TLS_HOST` is
+one (*Which address a port answers on*, below).
+
 Leave `TRIGGER_API_ORIGIN=http://localhost:3090` alone. The deploy CLI follows
 the server-advertised API origin and must not meet a self-signed certificate on
 the way — when it did, deploys died with a bare `Connection error`.
+
+### Which address a port answers on
+
+Before workplan 0132 T3 seven of these ports, and the site's, had no host address, so
+Docker published them on **every interface** (`0.0.0.0`). Docker writes its own
+firewall rules for a published port, so a host firewall's input rules do not
+close it. And a container reaches every port its host publishes through its
+network's gateway, so on a machine with two stacks each stack's containers
+could reach the other's database (workplan 0132 T1f).
+
+Now each port has two entries in `managed.yml`: `127.0.0.1`, fixed, and
+`${<NAME>_BIND:-127.0.0.1}`. Empty, the bind renders the same as the first
+entry and Compose keeps one. Set, it adds that address, and loopback stays,
+because the bring-up, the smoke, the deploy CLI and the seed ask these ports on
+localhost. `scripts/a-port-published-on-purpose.unit.test.ts` holds every
+`ports:` entry to that shape.
+
+**A bind is one IPv4 address of this machine.** Never a name: Compose refuses
+the whole file with `invalid IP address`, so every compose command fails, the
+gate's bring-up and teardown included. Never `0.0.0.0` or `::`: that is every
+interface again, and beside the fixed loopback publish of the same port the
+container cannot bind at all. `bootstrap-managed.sh` refuses both before
+Compose reads the file, and names the key, not the value.
+
+- **A routed port needs its bind.** A public name reaches the machine through a
+  front (on the reference machine, a mesh provider's ingress), and the front
+  connects to the port on one of the machine's addresses. Set `WEB_BIND`,
+  `ZITADEL_BIND` and, where a status name is routed, `STATUS_BIND` to that
+  address in the stack's `.env`, and `WWW_BIND` in the `.env` the site is
+  brought up with. Without it, the name stops answering. The API reaches its
+  issuer by the provider's public name too, so sign-in stops with it, and the
+  status page's lamps go red.
+- **A page you open from a laptop over the mesh** takes the machine's mesh
+  address the same way: `TRIGGER_TLS_BIND` for the dashboard (*Addressing the
+  dashboard*, above), and `STATUS_BIND` for a status page reached over the mesh
+  even where no name is routed to it. The OTA stack's status page is reached
+  that way (workplan 0142).
+- **Leave `POSTGRES_BIND`, `API_BIND` and `TRIGGER_BIND` empty.** Nothing off the
+  machine needs the database, the API with its unauthenticated `/metrics`, or
+  the Trigger.dev API.
+
+```bash
+# deploy/compose/.env — 100.64.0.1 is the SHAPE of a mesh address, not yours
+WEB_BIND=100.64.0.1
+ZITADEL_BIND=100.64.0.1
+```
+
+Then recreate the services whose binds you set, for example
+`docker compose -f deploy/compose/managed.yml up -d web zitadel` (the status
+page's service is `gatus`, the dashboard's `trigger-tls`). `docker ps --format
+'{{.Names}} {{.Ports}}'` names every address each container answers on.
+
+**The site is recreated by hand, and only by hand.** No workflow and no script
+runs `www.yml`; the bring-up does not start the site (*The public site*,
+below). So a change to its publish, or to `WWW_BIND`, reaches the machine at the
+next `docker compose -f deploy/compose/www.yml up -d` from an updated checkout,
+and not before. Until then `docker ps` shows the site's old publish, and its
+name keeps answering whatever `WWW_BIND` says.
+
+**A bind on a mesh address ties the container's start to that address.**
+Docker binds the address when it starts the container, and the address has to
+exist then. After a reboot where Docker starts before the mesh client has its
+address, the container fails with `bind: cannot assign requested address`, and
+its loopback publish goes with it, because it is the same container. A restart
+policy does not reliably retry a start that failed while the daemon was
+restoring containers. A publish on every interface never had this dependency.
+The same holds for `MAILPIT_BIND`, `NEXTCLOUD_BIND` and `STALWART_BIND` on a
+mesh address. Either let the machine bind an address it does not have yet:
+
+```bash
+# /etc/sysctl.d/90-bind-before-the-mesh.conf, then: sudo sysctl --system
+net.ipv4.ip_nonlocal_bind = 1
+```
+
+or give `docker.service` a drop-in ordered `After=` the mesh client's unit, with
+an `ExecStartPre=` that waits until the address is assigned: a mesh unit that
+reports started has not always got its address yet. Either way, check it once
+after a reboot: `docker ps --format '{{.Names}} {{.Ports}}'` lists every
+container with a bind on the mesh address, up, on `127.0.0.1` and that address.
+
+> **Before a stack that is already fronted takes this change** (the pull that
+> brings `WEB_BIND` into `managed.yml`), its `.env` must carry the routed binds,
+> or the change moves those ports to loopback and the public names stop
+> answering. A key the running `managed.yml` does not read yet changes nothing,
+> so setting them first is safe. On the reference machine, in two parts:
+>
+> 1. **The OTA stack, before the merge.** The nightly gate deploys `main` by
+>    itself, so the first gate run after the merge brings the change. Its `.env`
+>    is `~/.persistent/ownpace-managed/.env`, which the gate restores and the
+>    operator's checkout links to. It carries `WEB_BIND` and `ZITADEL_BIND`;
+>    `STATUS_BIND` where a status name is routed there **or the status page is
+>    opened from a laptop over the mesh** (the OTA stack's is); and
+>    `TRIGGER_TLS_BIND`, the IP address `TRIGGER_TLS_HOST` names, if the
+>    dashboard is opened over the mesh.
+> 2. **The site, before it is next recreated.** No gate run touches the site,
+>    so it keeps its old publish, on every interface, until somebody runs
+>    `docker compose -f deploy/compose/www.yml up -d` from an updated checkout.
+>    Set `WWW_BIND` in the `.env` beside `www.yml` in that checkout, then run
+>    it, then check that `docker ps --format '{{.Names}} {{.Ports}}'` shows
+>    `ownpace-www` on `127.0.0.1` and the front's address, and that the site's
+>    name answers.
+>
+> Workplan 0132's Status block records this as the change's merge
+> precondition.
 
 ---
 
@@ -331,6 +444,12 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   and names what is missing.
 - `OAUTH2_*` — only for a stack with a Microsoft Graph source or 0028's drift
   detector. An IMAP-only stack needs none of it.
+- `*_BIND` — the address a port answers on besides `127.0.0.1`. Empty is
+  loopback only, which is right for a machine nothing is routed to. A public
+  name routed here needs `WEB_BIND` and `ZITADEL_BIND` (and `STATUS_BIND`), and
+  a dashboard opened from a laptop `TRIGGER_TLS_BIND`: see *Which address a port
+  answers on*. Every phase that runs Compose refuses a bind that is a name,
+  `0.0.0.0` or a comment, naming the key.
 - `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty. The API and
   every task run refuse to connect to a host a tester typed when it resolves
   inside this service's own network, except for the exact names this lists
@@ -2243,6 +2362,18 @@ let a credential obtained once survive to the next run.
 ---
 
 ## Updating a running deployment
+
+> **The pull that brings `WEB_BIND` into `managed.yml` moves every port to
+> loopback** (workplan 0132 T3). On a stack whose names are routed through a
+> front, set `WEB_BIND` and `ZITADEL_BIND` to the address the front connects
+> to, in `.env`, **before** the pull. `STATUS_BIND` too where a status name is
+> routed **or the status page is opened from a laptop over the mesh**, and
+> `TRIGGER_TLS_BIND`, the IP address `TRIGGER_TLS_HOST` names, for a dashboard
+> opened over the mesh. Each is an IPv4 address, never a name. **The site is
+> not part of this pull**: it keeps its old publish until you set `WWW_BIND` in
+> the `.env` beside `www.yml` and run `docker compose -f deploy/compose/www.yml
+> up -d` from the updated checkout. See *Which address a port answers on*, under
+> the ports table in *Before you start*.
 
 A stack that is already up takes a pull, a rebuild of the two images that carry
 code, and — **sometimes** — a re-deploy of the tasks:

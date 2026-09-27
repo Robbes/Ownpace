@@ -269,15 +269,19 @@ Stalwart you provisioned first was wasted effort.
 ### For the Phase 3 shutdown test, over NetBird
 
 Keep Stalwart (and Nextcloud, if you want the DAV domains) **on the Spark**,
-started the way they already are — `deploy/selfhost/setup-stalwart.sh` is
-idempotent — and run the appliance on the laptop, pointing its mapping at the
-Spark's NetBird address.
+started with `deploy/selfhost/setup-stalwart.sh` (idempotent), and run the
+appliance on the laptop, pointing its mapping at the Spark's NetBird address.
 
-That works without any change to the setup scripts, and it is worth knowing why:
-`setup-stalwart.sh` publishes with `-p "${JMAP_PORT}:8080"` and
-`-p "${IMAPS_PORT}:993"` and **no bind address**, so Docker publishes on
-`0.0.0.0` and both are already reachable from the NetBird network. Nothing to
-re-bind, nothing to open.
+**Publish it on that address, because the default is loopback.** Since
+workplan 0132 T3, `setup-stalwart.sh` publishes both ports on `STALWART_BIND`,
+which is `127.0.0.1` unless set: its accounts and passwords are in this
+repository. Before that it published with no bind address, on every interface.
+Run it on the Spark with the NetBird address, and the script asks that same
+address when it provisions:
+
+```bash
+STALWART_BIND=<spark-netbird-ip> ./deploy/selfhost/setup-stalwart.sh
+```
 
 - JMAP: `http://<spark-netbird-ip>:18080/.well-known/jmap`
 - IMAPS: `<spark-netbird-ip>:1993` (TLS, self-signed)

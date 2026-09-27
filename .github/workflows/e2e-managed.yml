@@ -404,6 +404,12 @@ jobs:
         # down: `append` is an append, so an unguarded re-run would leave the
         # source a few messages larger every night. The gate wants this mailbox
         # non-empty, not growing.
+        #
+        # 127.0.0.1 because the demo Stalwart publishes on STALWART_BIND,
+        # loopback unless set (workplan 0132 T3), and this step does not read
+        # the `.env`. So the OTA stack's `.env` leaves STALWART_BIND unset: set,
+        # the publish would move and this step would report the demo Stalwart
+        # as down (`setup-managed-demo.sh`'s own seeder follows it).
         env:
           SEED_IMAP_HOST: 127.0.0.1
           SEED_IMAP_PORT: ${{ vars.MANAGED_STALWART_IMAPS_PORT || '1994' }}
