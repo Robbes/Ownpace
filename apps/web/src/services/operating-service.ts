@@ -24,8 +24,6 @@ import type {
   GroupDecisionAccepted,
   DeletionsResponse,
   FailuresResponse,
-  FinishAccepted,
-  FinishRefused,
   MovesResponse,
   DiscoveryRecord,
   ScopeManifest,
@@ -41,6 +39,7 @@ import type {
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
+import { EndingChoiceSchema, type EndingChoiceView } from './mapping-service.ts';
 
 const client: AxiosInstance = axios.create({
   baseURL: operatingBaseUrl(),
@@ -649,24 +648,105 @@ export async function stopOrResumeDataType(
   ).data;
 }
 
+/** One migration's data types, as the Finish page reads them. */
+export interface MappingDataTypes {
+  /** Each data type's pass row (`buildDomainStatusReports`). */
+  readonly domains: readonly DomainStatusReport[];
+  /**
+   * Each data type's ending as the page offers it (0128 T5, slice 7b), or
+   * undefined when the server sent none: the page then offers no ending
+   * rather than guessing one.
+   */
+  readonly endings?: readonly EndingChoiceView[];
+}
+
+/** Endings as the page offers them, or undefined when there are none it can read. */
+function readEndings(raw: unknown): readonly EndingChoiceView[] | undefined {
+  const parsed = EndingChoiceSchema.array().safeParse(raw);
+  return parsed.success ? parsed.data : undefined;
+}
+
 /**
- * One migration's per-data-type rows, from whichever payload this edition
- * serves them on (0125 T7): the appliance's `/status`, filtered to this
- * mapping, or managed's `GET /migrations/{id}`. Both are
- * `buildDomainStatusReports` rows, which is what lets one screen read either
- * without an edition fork.
+ * One migration's data types, from whichever payload this edition serves
+ * them on (0125 T7): the appliance's `/status`, filtered to this mapping, or
+ * managed's `GET /migrations/{id}`. Both carry `buildDomainStatusReports`
+ * rows, which is what lets one screen read either without an edition fork,
+ * and each data type's ending by one rule (0128 T5, slice 7b): the
+ * appliance's `endings`, managed's `endingChoices`.
  */
-export async function fetchMappingDomains(
-  mappingId: string,
-): Promise<readonly DomainStatusReport[]> {
+export async function fetchMappingDataTypes(mappingId: string): Promise<MappingDataTypes> {
   if (isSelfHost()) {
     const status = await fetchStatus();
-    return status.mappings.find((m) => m.mappingId === mappingId)?.domains ?? [];
+    const mapping = status.mappings.find((m) => m.mappingId === mappingId);
+    const endings = readEndings(mapping?.endings);
+    return { domains: mapping?.domains ?? [], ...(endings === undefined ? {} : { endings }) };
   }
   const detail = (
-    await client.get<{ domainStatus?: DomainStatusReport[] }>(mappingPath(mappingId))
+    await client.get<{ domainStatus?: DomainStatusReport[]; endingChoices?: unknown }>(mappingPath(mappingId))
   ).data;
-  return detail.domainStatus ?? [];
+  const endings = readEndings(detail.endingChoices);
+  return { domains: detail.domainStatus ?? [], ...(endings === undefined ? {} : { endings }) };
+}
+
+/** Why the ending door refused, as it said it (0128 T5, slice 7a). */
+export interface PathEndingRefusal {
+  /** `end_refused` or `keep_refused`. */
+  readonly error: string;
+  /** The code: `not_running`, `not_a_path`, `stopped` or `unresolved_failures`. */
+  readonly refused: string;
+  /** The door's own sentence. */
+  readonly message: string;
+  /** Only the open failures' refusal is one a forced End goes over. */
+  readonly forceable?: true;
+  /** How many of the data type's items wait on a decision, for that refusal. */
+  readonly count?: number;
+}
+
+/** A refusal to end or keep a data type, kept distinct from a transport failure. */
+export class PathEndingRefusedError extends Error {
+  readonly refusal: PathEndingRefusal;
+  constructor(refusal: PathEndingRefusal) {
+    super(refusal.message);
+    this.refusal = refusal;
+    this.name = 'PathEndingRefusedError';
+  }
+}
+
+/**
+ * END OR KEEP ONE DATA TYPE (workplan 0128 T3, T5 slices 7a and 7b): the one
+ * press both editions take, at `…/domains/{domain}/end` or `…/keep` under the
+ * mapping's own path. End makes the data type `done`; Keep copying puts it in
+ * the continuous lane. `force` ends it over its own items still awaiting a
+ * decision, knowingly.
+ *
+ * Offered exactly where the page's ending choices say so; a refusal is a 409
+ * whose `message` is the door's sentence, thrown as `PathEndingRefusedError`
+ * so the page can offer the force where the door said it is forceable.
+ */
+export async function endOrKeepDataType(
+  mappingId: string,
+  domain: string,
+  ending: 'end' | 'keep',
+  force = false,
+): Promise<{ changed: boolean; migration?: { from: string; to: string } }> {
+  const path =
+    `${mappingPath(mappingId)}/domains/${encodeURIComponent(domain)}/${ending}` +
+    (force && ending === 'end' ? '?force=true' : '');
+  try {
+    return (await client.post<{ changed: boolean; migration?: { from: string; to: string } }>(path)).data;
+  } catch (err) {
+    const res = (err as { response?: { status: number; data?: Partial<PathEndingRefusal> } }).response;
+    if (res?.status === 409 && typeof res.data?.refused === 'string') {
+      throw new PathEndingRefusedError({
+        error: res.data.error ?? `${ending}_refused`,
+        refused: res.data.refused,
+        message: res.data.message ?? res.data.refused,
+        ...(res.data.forceable === true ? { forceable: true as const } : {}),
+        ...(typeof res.data.count === 'number' ? { count: res.data.count } : {}),
+      });
+    }
+    throw err;
+  }
 }
 
 /**
@@ -813,63 +893,3 @@ export async function requestFinalPass(mappingId: string): Promise<'finished' | 
   return 'queued';
 }
 
-/** A refusal to finish, kept distinct from a transport failure — see `DecisionRefusedError`. */
-export class FinishRefusedError extends Error {
-  readonly refusal: FinishRefused;
-  readonly httpStatus: number;
-  constructor(
-    refusal: FinishRefused,
-    httpStatus: number,
-  ) {
-    super(refusal.error);
-    this.refusal = refusal;
-    this.httpStatus = httpStatus;
-    this.name = 'FinishRefusedError';
-  }
-}
-
-/**
- * End a migration: stop syncing, stop reporting.
- *
- * Nothing changes on either side — this is a statement about what the tool does
- * next. `force` proceeds over items still awaiting a decision in the failure
- * queue, and exists so that choice is explicit and on the record rather than
- * something the operator discovers afterwards.
- */
-export async function finishMigration(
-  mappingId: string,
-  force = false,
-): Promise<FinishAccepted> {
-  const path = `${mappingPath(mappingId)}/finish${force ? '?force=true' : ''}`;
-  try {
-    return (await client.post<FinishAccepted>(path)).data;
-  } catch (err) {
-    const res = (err as { response?: { status: number; data?: FinishRefused } }).response;
-    if (res?.data?.error) throw new FinishRefusedError(res.data, res.status);
-    throw err;
-  }
-}
-
-/**
- * Enter the continuous lane: keep copying after cutover, delete nothing.
- *
- * A status update rather than its own verb, because entering the lane IS a
- * change of the mapping's lifecycle and nothing else — no new object, no job
- * to enqueue, and the appliance's own `runsPasses` picks the mapping up on the
- * next tick (0117 T1 slice 2).
- *
- * A PUT, because that is the verb the API serves on this path — `PUT
- * /api/migrations/:id`, the same call `pause` makes. From 2026-09-10 to
- * 2026-09-20 this was a PATCH, which no route answered: the lane could be
- * entered from a curl and never from the Finish page, and the page's own
- * "failed" state was all anybody saw. `a-verb-no-route-answered` pins the verb.
- *
- * The price is the reason this has a screen rather than being a toggle: a
- * continuous path holds its capacity slot (ADR-0014, amended 2026-09-10), so
- * the tier does NOT fall the way finishing makes it fall. `lane.why` says so
- * where the switch is, and `pricing.md` says it beside "finishing lowers your
- * bill". This function is the last step of that telling, not the whole of it.
- */
-export async function keepCopyingAfterCutover(mappingId: string): Promise<void> {
-  await client.put(mappingPath(mappingId), { status: 'continuous' });
-}
