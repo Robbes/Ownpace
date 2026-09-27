@@ -61,7 +61,7 @@ database roles"):
 | `deploy/compose/bootstrap-managed.sh` | applies the migrations, and creates the `pgbouncer_auth` role |
 | `deploy/compose/seed-managed.sh` | writes the demo tenants |
 | `deploy/compose/operator.sh` | appoints operators, manages their memberships, and runs `check` / `clean` — all of which ask questions that span every tenant, which is why they are scripts and not routes (see `apps/api/src/scripts/operator.ts`) |
-| `deploy/compose/set-task-env.sh` | uploads `TASK_DIRECT_DATABASE_URL` into the Trigger.dev task environment, because the tasks run migrations at boot and `pg_advisory_lock` is session-scoped, so it must bypass the pooler (`packages/ledger/src/direct-url.ts`). The same upload carries `TASK_APP_DATABASE_URL`, which is what the tasks use for tenant data |
+| `deploy/compose/set-task-env.sh` | uploads `TASK_DATABASE_URL`, the owner URL through the pooler, into the Trigger.dev task environment as `DATABASE_URL`, and every task connects with it today (workplan 0138). The same upload carries `TASK_APP_DATABASE_URL`, which no task reads yet. It no longer uploads `TASK_DIRECT_DATABASE_URL` (0138 T3 step 1): the tasks do not run migrations, so no task read it |
 
 **That list is checked, not maintained by hand.**
 `scripts/a-connection-the-docs-did-not-know-about.unit.test.ts` fails if a

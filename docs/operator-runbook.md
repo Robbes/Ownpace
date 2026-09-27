@@ -57,8 +57,8 @@ Migration `0009` creates a **non-owner `app_user`** role. RLS is enforced throug
   **superuser**, which **bypasses RLS even under FORCE**. Never the request path. It is held by the
   scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh` (the demo
   tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and `set-task-env.sh` (the
-  tasks' own migration connection). `docs/rls-guide.md` §2 carries the full table, and a guard fails
-  if a script composes an owner URL without appearing in it.
+  owner URL every task connects with today, workplan 0138). `docs/rls-guide.md` §2 carries the full
+  table, and a guard fails if a script composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API and the deployed Trigger.dev tasks
   connect through this for all tenant data, so row-level security is always in force (workplan
   0011 T1; `set-task-env.sh` uploads both URLs into the task env). If you ever point the app at

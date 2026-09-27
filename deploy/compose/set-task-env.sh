@@ -11,9 +11,11 @@
 # run this, redeploy if needed.
 #
 # Reads deploy/compose/.env (the same file the stack runs on) and uploads:
-#   DATABASE_URL       — owner role, at the IN-NETWORK address (postgres:5432;
+#   DATABASE_URL       — owner role, at the IN-NETWORK address (the pooler;
 #                        runners join the compose network, so `localhost` here
-#                        would point a task at itself)
+#                        would point a task at itself). Every task reads this
+#                        today, as a superuser row security never binds;
+#                        workplan 0138 T1 to T3 move them off it.
 #   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address
 #   SECRET_ENCRYPTION_KEY — must equal the api/worker containers' value or
 #                        stored connection credentials cannot be decrypted
@@ -36,6 +38,26 @@
 #                        notice are OFF — honestly, with the reason in the task
 #                        log — because a task container inherits nothing from
 #                        compose and would otherwise never see them.
+#
+# NOT DIRECT_DATABASE_URL, and not by accident (workplan 0138 T3 step 1). This
+# script uploaded it until that step: the owner again, straight to
+# postgres:5432 past the pooler. No task reads it. The tasks do not run
+# migrations — the API, the appliance and the seed do. The two functions that
+# read this variable, migrationConnectionString and poolerInFront
+# (packages/ledger/src/direct-url.ts), are called by the API and the seed alone.
+# Trigger.dev stores variables per environment, not per task, so every run of
+# every task held a superuser credential it never used.
+# scripts/a-run-that-carries-no-superuser.unit.test.ts fails if it comes back,
+# under any name.
+#
+# Leaving it out of the upload does NOT take it out of the store. `upload`
+# sends the variables it is given and nothing else (the SDK posts them to the
+# environment's import endpoint), and nothing here shows the platform dropping
+# a variable it was not sent. A plane that held it keeps it until it is deleted
+# once: docs/managed-bring-up.md, "Updating a running deployment". Until then
+# FORCE_REWRITE below does not rewrite it either, since it deletes only what it
+# uploads, so after a key rotation that leftover would be the one unreadable
+# secret that stops every run.
 #
 # `override: true` on purpose: this file is the source of truth, and a stale
 # dashboard value silently winning over a rotated .env is exactly the failure
@@ -136,8 +158,6 @@ fi
 # DB_HOST=postgres DB_PORT=5432 in .env is the rollback, same as the API's.
 TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
 TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
-# Never the pooler: session-scoped advisory lock. See packages/ledger/src/direct-url.ts.
-TASK_DIRECT_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@postgres:5432/${POSTGRES_DB:-openmigrate}"
 
 # WAIT FOR THE WEBAPP BEFORE UPLOADING TO IT.
 #
@@ -180,7 +200,6 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TRIGGER_ENV="$TRIGGER_ENV" \
   TASK_DATABASE_URL="$TASK_DATABASE_URL" \
   TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \
-  TASK_DIRECT_DATABASE_URL="$TASK_DIRECT_DATABASE_URL" \
   SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
   OAUTH2_CLIENT_ID="${OAUTH2_CLIENT_ID:-}" \
   OAUTH2_CLIENT_SECRET="${OAUTH2_CLIENT_SECRET:-}" \
@@ -214,7 +233,6 @@ const { envvars } = require("@trigger.dev/sdk");
   const variables = {
     DATABASE_URL: process.env.TASK_DATABASE_URL,
     APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
-    DIRECT_DATABASE_URL: process.env.TASK_DIRECT_DATABASE_URL,
     SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,
   };
   // Graph credentials and notification settings are optional; only the ones

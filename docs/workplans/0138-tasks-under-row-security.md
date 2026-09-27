@@ -2,7 +2,7 @@
 
 > **In one line:** Trigger.dev tasks reading tenant data as `app_user` under row security instead of the superuser owner via `DATABASE_URL`, owner reach kept to cross-tenant jobs, `DIRECT_DATABASE_URL` dropped from `set-task-env.sh`, a pool guard, docs corrected.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that the
 Trigger.dev tasks read and write tenant data as the database owner, and that the owner is a
@@ -28,13 +28,88 @@ takes it from a tag (0132 T8, which §4 cited, is superseded). #1137 corrected
 `managed.env.example`'s migration number, but every sentence §1 quotes is still on `main`
 (checked at the merge), so T5's list stands.
 
+**2026-09-27, T3 step 1 and T4 built** on branch
+`claude/ownpace-public-readiness-y7orc6-tasks-without-the-owners-connection-string`, not merged
+(0131 §6, R6 step 3). T0 is still open, so T4 is built as the ratchet §3 describes for option
+(b). That is safe under (a) as well: T1 empties the ratchet list either way.
+
+- **T3 step 1.** `deploy/compose/set-task-env.sh` no longer composes or uploads
+  `DIRECT_DATABASE_URL`. Checked first: nothing in `apps/worker/src` or
+  `apps/worker/trigger.config.ts` names it. In `packages/*/src` only `migrationConnectionString`
+  and `poolerInFront` (`packages/ledger/src/direct-url.ts`) read it, from an environment their
+  caller passes, and their callers are `apps/api/src/index.ts` and
+  `apps/api/src/scripts/seed-managed.ts`. A run now receives `DATABASE_URL` (still the owner),
+  `APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the optional values. The script's header,
+  `deploy-tasks.sh`'s header and `docs/managed-bring-up.md` phase 9 say so.
+- **T3's guard**, `scripts/a-run-that-carries-no-superuser.unit.test.ts`, traces each uploaded
+  variable back to where the script composes it, so the direct URL under another name is still
+  caught. On the unchanged script 2 of its 5 cases failed: `DIRECT_DATABASE_URL` is uploaded,
+  and an owner-composed value other than `DATABASE_URL` is uploaded (the same variable). The
+  `${POSTGRES_USER` half is a ratchet, since step 2 is not built: `OWNER_URL_UNTIL_T3_STEP_2`
+  holds `DATABASE_URL` alone, and the test fails if `DATABASE_URL` stops being the owner's while
+  the entry stays. 4 mutations, each red: the direct URL added back; the owner URL uploaded under
+  another name; `POSTGRES_PASSWORD` added to the pass-through list; `DATABASE_URL` composed from
+  another role with the entry kept.
+- **T4**, `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`, parses every non-test `.ts`
+  under `apps/worker/src` and `packages/*/src` that mentions `DATABASE_URL`. A read is any name
+  ending in `DATABASE_URL` other than `APP_DATABASE_URL`, used as a property, an element, a
+  destructured binding or a string of its own; a comment or a message is not. Two exported lists:
+  `CROSS_TENANT` (9: the six scheduled jobs, the operator's CLI, the dev entrypoint and
+  `direct-url.ts`), and `KNOWN_REMOVED_BY_T1` (11: the eight per-tenant jobs,
+  `build-deps-from-mapping.ts`, `build-deps.ts` for `openLedger` and `orchestration.ts` for
+  `verifyMapping`). The second list may not grow past 11, and an entry whose file no longer reads
+  a URL fails until it is deleted. A second rule: a file in `apps/worker/src/jobs/` that builds a
+  `Pool` or calls `createPgDb` must be on a list. The guard first checks that it found the tick
+  and the builders, and that `stopping-a-pass.ts`, which names `DATABASE_URL` only in its header,
+  is not counted. **Failed first:** a ratchet passes on the code it was written for, so the
+  failing run is its strict form. With `KNOWN_REMOVED_BY_T1` emptied, as it will be once T1
+  lands, 19 of 51 cases failed on the unchanged code: the eight per-tenant jobs and the three
+  orchestration files as readers, and the eight jobs as pool builders. 7 mutations, each red:
+  `process.env.DATABASE_URL` in `cutover-gate.ts`; `process.env['DIRECT_DATABASE_URL']` in a new
+  package file; `const { DATABASE_URL: url } = process.env`; `getEnv('DATABASE_URL')`; a
+  ratchet file that stops reading with its entry kept; an entry added to the ratchet list;
+  `new pg.Pool` in `cutover-gate.ts`.
+
+Where the build departs from §3:
+
+- **The ratchet list is longer than §3 T4 predicted.** §3 names the eight jobs and "the builders
+  in `packages/orchestration/src`". `openLedger` and `verifyMapping` read the owner's URL too.
+  §1 places them off the task path, and T1 part 2 removes their fallback, so they are on the
+  ratchet list and not on `CROSS_TENANT`.
+- **No entry yet for the audit sink's key connection or for T1's pool module.** On `main` the
+  sink is built on each job's own pool and reads no URL itself, and T1's module does not exist.
+  T1 adds both entries with the files.
+- **T3's guard carries its `${POSTGRES_USER` half as a ratchet.** §3 has it fail on today's
+  script on both counts, and it does. What lands is the half step 1 makes true, plus a list of
+  one that step 2 empties. Step 2's bring-up check, which asks Postgres whether the system role
+  is a superuser, is step 2's.
+- **Two lines that are also T5 step 1's.** `docs/rls-guide.md` §2's row for `set-task-env.sh`
+  said it uploads the direct URL because the tasks run migrations, and `docs/operator-runbook.md`
+  called the upload the tasks' migration connection. Both now say it uploads the owner URL every
+  task connects with today. R6 step 2 (0138 T5 step 1) rewrites the same two lines on its own
+  branch. Whichever merges second keeps its own wording, and keeps this fact: no
+  `DIRECT_DATABASE_URL` upload.
+
+**The owner's step, before the first invitation (⏳ Owner).** Delete the stored
+`DIRECT_DATABASE_URL` once on each plane that holds it: the OTA stack's, and live's if its task
+environment was filled before this lands (0132 T1c). The command and the check are in
+`docs/managed-bring-up.md`, "Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`".
+Leaving the name out of the upload does not delete the stored value. It also matters for a later
+key rotation: `SET_TASK_ENV_FORCE_REWRITE=1` deletes and rewrites only what the script uploads,
+so a leftover would stay on the old key and stop every run. Not verified here: whether the
+platform drops a variable it is not sent. The SDK (4.5.16) sends only the given variables to the
+environment's import endpoint; the server's side is not in this repository. Nothing was exercised
+against a running stack.
+
+Still open: T3 step 2 and T1, T2, T5 as before, and T0 (the owner).
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's answer: build first, or accept in writing | ⏳ **Owner** | §4 and open question 1. 0131 T5's row for this plan. Recommended: accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
 | T1 Per-tenant tasks read and write as the application role | 📋 **Proposed** | §3. Eight jobs, the builders that open their own ledger from `DATABASE_URL`, the stores that filter by their own `WHERE`, and (on `main`) the audit sink's key. Changing the URL is not enough on its own: under row security, a query with no tenant set reads nothing. |
 | T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1 | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only (open question 3). |
-| T3 No superuser in a run's environment | 📋 **Proposed**; step 1 is small | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
-| T4 A guard that fails when a per-tenant job opens the owner's pool | 📋 **Proposed** | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. |
+| T3 No superuser in a run's environment | Step 1 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-tasks-without-the-owners-connection-string`, not merged** (2026-09-27); deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed** | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
+| T4 A guard that fails when a per-tenant job opens the owner's pool | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-tasks-without-the-owners-connection-string`, not merged** (2026-09-27), as a ratchet | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. T1 empties `KNOWN_REMOVED_BY_T1` and deletes it. |
 | T5 The documents say which connection the tasks use | 📋 **Proposed**; step 1 before the first invitation | §3. Step 1: what is true today. Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
 
 ## 1. What there is today
