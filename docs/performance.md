@@ -38,7 +38,8 @@ for it, on a stack brought up with the demo:
 - `--seed N M` adds N rehearsal organisations with M migrations each.
 - `--sample` writes a line every 10 seconds: the task containers and their memory, the host's
   memory, swap and load, PgBouncer's waiting clients and longest wait, and Postgres' connections.
-- `--remove` takes the organisations back, with every row their passes wrote.
+- `--remove` takes the organisations back, with every row their passes wrote. It takes two runs:
+  the first pauses the rehearsal's migrations, and one a few minutes later removes.
 
 It refuses live's `.env`. After the owner's sitting, the results go in a *Measured: the managed
 stack* section here.

@@ -17,11 +17,16 @@
 #
 # NEVER ON LIVE. The script refuses a `.env` carrying live's marker, in every
 # mode and before it asks Docker anything (the marker is named once, in
-# stack-kind.sh). It refuses the marker exported into the shell as well, and a
-# COMPOSE_PROJECT_NAME in the shell that is not the one this checkout's `.env`
-# chooses: Compose follows the shell, so that checkout's containers could be
-# another stack's. The rehearsal also needs the demo servers, and only a stack
-# brought up with --with-demo has them.
+# stack-kind.sh). It refuses any value of the marker that stack-kind.sh does
+# not list as not live, since that could be a slip of live's, and it refuses
+# the marker exported into the shell as well. It refuses a COMPOSE_PROJECT_NAME
+# in the shell that is not the one this checkout's `.env` chooses: Compose
+# follows the shell, so that checkout's containers could be another stack's.
+# It names that `.env` to Compose itself (--env-file), so a COMPOSE_ENV_FILES
+# in the shell cannot swap in another stack's. And it refuses to go on when
+# the project Compose then reports is not the one the checkout chooses. The
+# rehearsal also needs the demo servers, and only a stack brought up with
+# --with-demo has them.
 #
 # WHAT --seed WRITES. Every id starts with ca9a0000-0000-4000-8000- (ID_PREFIX
 # below), a family nothing else in the repository uses, the way the demo seed's
@@ -45,14 +50,15 @@
 # written: nothing in a pass reads one, and the daily digest mails members.
 #
 # Each migration writes under a folder of its own, capacity-rehearsal-<tag>-
-# oNN-mNN, where the tag is the UTC minute of the seed. On the Nextcloud
-# target that keeps every file migration's copy a first copy, this time and
-# the next. On the JMAP target it does not: the JMAP writer adopts a message
-# found anywhere in the account by its Message-ID (jmap-target.ts,
-# `targetKeys`, ADR-0020), and demo tenant A has filed the same messages
-# there already. So a rehearsal mail migration is a real pass (a container,
-# an IMAP listing, the target's enumeration) that adopts rather than copies.
-# The real mail load is the owner's own large mailbox (0143 T9, step 3).
+# oNN-mNN, where the tag is the UTC minute of the seed, or REHEARSAL_TAG. On
+# the Nextcloud target that keeps every file migration's copy a first copy, in
+# this seed and in a later one with another tag. On the JMAP target it does
+# not: the JMAP writer adopts a message found anywhere in the account by its
+# Message-ID (jmap-target.ts, `targetKeys`, ADR-0020), and demo tenant A has
+# filed the same messages there already. So a rehearsal mail migration is a
+# real pass (a container, an IMAP listing, the target's enumeration) that
+# adopts rather than copies. The real mail load is the owner's own large
+# mailbox (0143 T9, step 3).
 #
 # WHAT --remove TAKES BACK. Every row, in every table with a `tenant_id`, whose
 # organisation carries the prefix — the seed's rows and everything the passes
@@ -62,10 +68,25 @@
 # checks that nothing is left, and does all of it in one transaction: either
 # the rehearsal is gone or nothing changed.
 #
-# While a pass of the rehearsal is still running, it pauses the rehearsal's
-# migrations (so the tick starts no more), removes nothing, and says to run it
-# again. A pass ends within the hour; a run row older than the tick's own
-# staleness window is a pass that died, and is not waited for.
+# IT TAKES TWO RUNS. The tick enqueues a pass without writing a row; the pass
+# opens its run row only when it starts. So no count of `running` rows can see
+# the passes the plane has queued but not started, and they would start after
+# the removal, on organisations that are gone. So:
+#
+#   1. While any migration of the rehearsal is active, --remove pauses them
+#      all, so the tick enqueues no more, removes nothing, and says to run it
+#      again in a few minutes. A queued pass that starts after that finds its
+#      migration paused and stops before its first data type.
+#   2. It removes nothing while a pass is running (a pass ends within the hour;
+#      a run row older than the tick's own staleness window is a pass that
+#      died, and is not waited for), nor while a pass started, or a migration
+#      was paused, within the last REMOVE_QUIET_MINUTES: the queue may not
+#      have drained yet.
+#   3. Otherwise it removes.
+#
+# A plane that holds a queued pass for longer than that quiet time can still
+# start it after the removal. That pass fails on its first write, because its
+# organisation is gone, and writes nothing.
 #
 # WHAT IT LEAVES, and says so: the copies the passes wrote into the demo target
 # accounts (named by folder when it removes), and the Trigger.dev plane's own
@@ -91,7 +112,10 @@
 #                             <persisted>/rehearsal/samples-<UTC time>.log)
 #   REHEARSAL_SAMPLE_SECONDS  seconds between samples (default 10)
 #   REHEARSAL_TAG             the folder tag --seed uses (default the UTC
-#                             minute). Letters and digits only.
+#                             minute). Letters and digits only. A tag used
+#                             before makes the file migrations adopt the
+#                             copies that seed left in the demo target,
+#                             instead of making first copies.
 #   REHEARSAL_PROC            where the host's meminfo and loadavg are read
 #                             (default /proc)
 set -euo pipefail
@@ -105,7 +129,9 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # Live's marker, named once.
 # shellcheck source=deploy/compose/stack-kind.sh
 . "${SCRIPT_DIR}/stack-kind.sh"
-COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
+# The .env named to Compose, so that it reads the file checked below and not
+# one a COMPOSE_ENV_FILES in the shell names.
+COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 
 # The fixed prefix of every rehearsal id: `ca9a` for capacity.
 ID_PREFIX='ca9a0000-0000-4000-8000-'
@@ -116,6 +142,9 @@ MAX_M=99
 # The tick's STALE_RUN_AFTER_MS (2 × PASS_HARD_LIMIT_MS), in seconds. A
 # `running` row older than this is a pass that died, not one in flight.
 STALE_RUN_AFTER_SECONDS=7200
+# How long --remove waits after the last pass of the rehearsal started, and
+# after its migrations were paused, before it takes the queue for drained.
+REMOVE_QUIET_MINUTES=5
 
 # The demo rows the rehearsal copies (seed-managed.ts, tenants A and B).
 DEMO_MAIL_SOURCE_CONNECTION='a0000000-0000-4000-8000-0000000000c1'
@@ -184,12 +213,16 @@ if stack_is_live "$ENV_FILE"; then
     "This stack holds testers' data, and rehearsal organisations never reach it." \
     "Run the rehearsal from the OTA stack's checkout, which has the demo servers it needs."
 fi
+if stack_may_be_live "$ENV_FILE"; then
+  file_kind="$(stack_kind "$ENV_FILE")"
+  die "refused: ${ENV_FILE} has a ${STACK_KIND_KEY} line${file_kind:+ ('${file_kind}')} that could be a slip of live's marker, ${STACK_KIND_KEY}=${STACK_KIND_LIVE}." \
+    "A refusal errs towards live: only a .env without the key, or with a kind stack-kind.sh lists as not live, is rehearsed on." \
+    "Look at that line. If this is live's .env, run the rehearsal from the OTA stack's checkout instead."
+fi
 
-shell_kind="${!STACK_KIND_KEY:-}"
-shell_kind="${shell_kind#\"}"
-shell_kind="${shell_kind%\"}"
-if [ "${shell_kind,,}" = "$STACK_KIND_LIVE" ]; then
-  die "refused: this shell has ${STACK_KIND_KEY}=${!STACK_KIND_KEY} exported, live's marker." \
+shell_kind="$(stack_kind_clean "${!STACK_KIND_KEY:-}")"
+if stack_kind_may_be_live "$shell_kind"; then
+  die "refused: this shell has ${STACK_KIND_KEY}='${!STACK_KIND_KEY}' exported, which is live's marker or could be a slip of it." \
     "A live .env was sourced into it, and Compose would follow what came with it." \
     "Open a new shell and run this again."
 fi
@@ -215,6 +248,16 @@ compose_project() {
 }
 COMPOSE_PROJECT="$(compose_project)" || die "docker compose could not read ${SCRIPT_DIR}/managed.yml with its .env (above)."
 [ -n "$COMPOSE_PROJECT" ] || die "docker compose reported no project name for ${SCRIPT_DIR}/managed.yml."
+
+# The project this checkout chooses: its .env's COMPOSE_PROJECT_NAME, else
+# managed.yml's own `name:`. Compose answering another one means something
+# above was missed, and it would act on another stack's containers.
+CHOSEN_PROJECT="$(env_value "$ENV_FILE" COMPOSE_PROJECT_NAME)"
+[ -n "$CHOSEN_PROJECT" ] || CHOSEN_PROJECT="$(sed -n 's/^name:[[:space:]]*//p' "${SCRIPT_DIR}/managed.yml")"
+if [ "$COMPOSE_PROJECT" != "$CHOSEN_PROJECT" ]; then
+  die "refused: docker compose reports the project '${COMPOSE_PROJECT}', and this checkout chooses '${CHOSEN_PROJECT}'." \
+    "Something in this shell points Compose at another stack. Open a new shell and run this again."
+fi
 
 # psql as the owner, over the postgres container's own socket. SQL on stdin.
 db() {
@@ -403,22 +446,41 @@ DECLARE
   p CONSTANT text := '${ID_PREFIX}%';
   t text;
   n bigint;
-  in_flight bigint;
   failed int;
   progress boolean;
   left_over text := '';
 BEGIN
   ${OWNER_CHECK}
 
-  -- A pass still running writes into what this would delete. Stop the tick
-  -- starting more, and come back when they have finished.
-  SELECT count(*) INTO in_flight FROM run
+  -- First, always: stop the tick enqueuing passes, and come back later. The
+  -- passes it queued already have no run row yet, so nothing below could
+  -- count them; they start later, find their migration paused and stop.
+  UPDATE mailbox_mapping SET status = 'paused', updated_at = now()
+   WHERE tenant_id::text LIKE p AND status IN ('active', 'continuous');
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n > 0 THEN
+    INSERT INTO rehearsal_out VALUES (0, 'paused ' || n);
+    RETURN;
+  END IF;
+
+  -- A pass still running writes into what this would delete.
+  SELECT count(*) INTO n FROM run
    WHERE tenant_id::text LIKE p AND status = 'running'
      AND started_at > now() - interval '${STALE_RUN_AFTER_SECONDS} seconds';
-  IF in_flight > 0 THEN
-    UPDATE mailbox_mapping SET status = 'paused', updated_at = now()
-     WHERE tenant_id::text LIKE p AND status IN ('active', 'continuous');
-    INSERT INTO rehearsal_out VALUES (0, 'in_flight ' || in_flight);
+  IF n > 0 THEN
+    INSERT INTO rehearsal_out VALUES (0, 'in_flight ' || n);
+    RETURN;
+  END IF;
+
+  -- A pass that started, or a migration paused, a short while ago: the plane
+  -- may still hold queued passes of the rehearsal.
+  SELECT (SELECT count(*) FROM run
+           WHERE tenant_id::text LIKE p AND started_at > now() - interval '${REMOVE_QUIET_MINUTES} minutes')
+       + (SELECT count(*) FROM mailbox_mapping
+           WHERE tenant_id::text LIKE p AND updated_at > now() - interval '${REMOVE_QUIET_MINUTES} minutes')
+    INTO n;
+  IF n > 0 THEN
+    INSERT INTO rehearsal_out VALUES (0, 'recent');
     RETURN;
   END IF;
 
@@ -509,24 +571,40 @@ do_remove() {
     die "the removal failed (above). Nothing was removed: it is one transaction."
   fi
 
-  local line in_flight='' nothing=0 total=0 removed=() folders=()
+  local line paused='' in_flight='' recent=0 nothing=0 answered=0 total=0 removed=() folders=()
   while IFS= read -r line; do
     case "$line" in
-      'in_flight '*) in_flight="${line#in_flight }" ;;
-      nothing) nothing=1 ;;
+      'paused '*) paused="${line#paused }" answered=1 ;;
+      'in_flight '*) in_flight="${line#in_flight }" answered=1 ;;
+      recent) recent=1 answered=1 ;;
+      nothing) nothing=1 answered=1 ;;
       'folder '*) folders+=("${line#folder }") ;;
       'removed '*)
         removed+=("${line#removed }")
         total=$((total + ${line##* }))
+        answered=1
         ;;
       '') ;;
       *) printf '%s\n' "$line" ;;
     esac
   done <<<"$out"
 
+  # An answer is one of the lines above, or the removal did not say what it
+  # did, and "removed 0 rows" would be a guess.
+  [ "$answered" -eq 1 ] || die "the removal gave no answer the script knows (above, if anything). Nothing is known to be removed."
+  if [ -n "$paused" ]; then
+    die "${paused} migration(s) of the rehearsal were active. They are paused now, so the tick enqueues no more passes." \
+      "Passes it had queued already still start, find their migration paused and stop." \
+      "Nothing was removed. Run --remove again in a few minutes."
+  fi
   if [ -n "$in_flight" ]; then
-    die "${in_flight} pass(es) of the rehearsal are still running. Its migrations are paused now, so the tick starts no more." \
+    die "${in_flight} pass(es) of the rehearsal are still running. Its migrations are paused, so the tick starts no more." \
       "Nothing was removed. Run --remove again when they have finished; a pass ends within the hour."
+  fi
+  if [ "$recent" -eq 1 ]; then
+    die "a pass of the rehearsal started, or its migrations were paused, within the last ${REMOVE_QUIET_MINUTES} minutes." \
+      "The plane may still hold passes it queued before the pause." \
+      "Nothing was removed. Run --remove again in a few minutes."
   fi
   if [ "$nothing" -eq 1 ]; then
     say "nothing to remove: no organisation carries the prefix ${ID_PREFIX}."
@@ -537,7 +615,7 @@ do_remove() {
   printf '  %s\n' "${removed[@]}"
   if [ "${#folders[@]}" -gt 0 ]; then
     say "left in the demo target accounts: the copies its passes wrote, under these folders." \
-      "No later seed writes into them, because each seed's folders carry its own time."
+      "A later seed with another tag writes beside them, not into them; one with this tag would adopt them."
     printf '  %s\n' "${folders[@]}"
   fi
   say "also left: the Trigger.dev plane's records of the rehearsal's runs (workplan 0143 T7)."
@@ -550,6 +628,11 @@ PROC_ROOT="${REHEARSAL_PROC:-/proc}"
 
 # "tasks=… task_mem_mib=… task_mem_max_mib=…" for every runner container on
 # this Docker daemon — both stacks', because the machine is what is measured.
+# A runner whose memory `docker stats` could not read (it prints `-- / --` for
+# one that exited while it collected, which is what runners do at the quarter
+# hour) is counted, and written as `name:?`; the largest is taken over the
+# ones it could read, and is `?` when it could read none. Only a failed
+# `docker stats` makes all three `?`.
 task_fields() {
   local stats
   if ! stats="$(docker stats --no-stream --format '{{.Name}}|{{.MemUsage}}' 2>&1)"; then
@@ -571,15 +654,18 @@ task_fields() {
       $1 ~ /^runner-/ {
         split($2, parts, " / ")
         m = mib(parts[1])
-        if (m < 0) { bad = 1; next }
-        r = int(m + 0.5)
+        if (m < 0) {
+          r = "?"
+        } else {
+          r = int(m + 0.5)
+          if (!nread || r > max) max = r
+          nread++
+        }
         list = list (n ? "," : "") $1 ":" r
-        if (r > max) max = r
         n++
       }
       END {
-        if (bad) exit 2
-        printf "tasks=%d task_mem_mib=%s task_mem_max_mib=%d", n, (n ? list : "none"), max
+        printf "tasks=%d task_mem_mib=%s task_mem_max_mib=%s", n, (n ? list : "none"), (nread || !n ? max + 0 : "?")
       }' <<<"$stats"; then
     printf 'tasks=? task_mem_mib=? task_mem_max_mib=?'
   fi
@@ -601,10 +687,12 @@ host_fields() {
 
 # "pool_cl_waiting=… pool_maxwait_s=…": PgBouncer's SHOW POOLS, clients
 # waiting summed over every pool, and the longest wait. Read by column name,
-# because the columns move between PgBouncer versions.
+# because the columns move between PgBouncer versions. Asked over 127.0.0.1
+# inside the PgBouncer container, which is what managed.yml's healthcheck
+# asks every 15 s, so the address is known to answer.
 pool_fields() {
   local pools
-  if ! pools="$("${COMPOSE[@]}" exec -T pgbouncer sh -c 'PGPASSWORD="$PGBOUNCER_AUTH_PASSWORD" psql -X -A -F "|" -P footer=off -h pgbouncer -p 6432 -U pgbouncer_auth -d pgbouncer -c "SHOW POOLS"' 2>&1)"; then
+  if ! pools="$("${COMPOSE[@]}" exec -T pgbouncer sh -c 'PGPASSWORD="$PGBOUNCER_AUTH_PASSWORD" psql -X -A -F "|" -P footer=off -h 127.0.0.1 -p 6432 -U pgbouncer_auth -d pgbouncer -c "SHOW POOLS"' 2>&1)"; then
     printf '[rehearsal] SHOW POOLS failed: %s\n' "$pools" >&2
     printf 'pool_cl_waiting=? pool_maxwait_s=?'
     return 0

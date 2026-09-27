@@ -729,12 +729,19 @@ the other stack's containers.
 - **Live moves only by hand, from a tag.** T6 is the procedure, and 0146 decides how tags are
   cut. Nothing scheduled deploys live.
 - **The marker is defined once (2026-09-27).** `deploy/compose/stack-kind.sh` holds
-  `STACK_KIND_KEY=STACK_KIND` and `STACK_KIND_LIVE=production`. It also holds `stack_is_live
-  <env-file>`, which reads the file with `env_value` and ignores quotes and case. It was built with
-  0143 T9's script, `rehearse-capacity.sh`, which already refuses live's `.env` with it (0143,
-  Status 2026-09-27). The gate's refusal below, T5's refusal of `--with-demo` and T6's
-  `deploy-live.sh` source that file rather than spelling the marker out. A shell step in a
-  workflow sources it the same way, from the checkout.
+  `STACK_KIND_KEY=STACK_KIND` and `STACK_KIND_LIVE=production`. It was built with 0143 T9's
+  script, `rehearse-capacity.sh`, which already refuses live's `.env` with it (0143, Status
+  2026-09-27). The gate's refusal below, T5's refusal of `--with-demo` and T6's `deploy-live.sh`
+  source that file rather than spelling the marker out. A shell step in a workflow sources it the
+  same way, from the checkout. It holds two predicates. Both read the file with `env_value`, and
+  surrounding whitespace, quotes and case make no difference.
+  - `stack_may_be_live <env-file>` is for the refusals: the gate's and T5's. It is true for live's
+    marker and for anything that could be a slip of it: any value not listed in
+    `STACK_KINDS_NOT_LIVE` (empty today, because the OTA stack's `.env` does not carry the key),
+    and a line naming the key that `env_value` cannot read. If the OTA stack is ever given a kind
+    of its own, it goes in that list first.
+  - `stack_is_live <env-file>` is exactly live's marker. It is for T6's `deploy-live.sh`, which
+    refuses a `.env` that does NOT carry it.
 - **The code half makes an accident harmless.** Live's `.env` carries a marker saying that the
   stack holds people's data (`STACK_KIND=production`, above). Straight after the restore,
   the gate refuses a `.env` that carries the marker, before `ensure-env-secrets.sh`, the backfill

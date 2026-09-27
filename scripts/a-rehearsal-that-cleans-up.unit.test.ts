@@ -18,23 +18,36 @@
  *   leave the passes' rows on a stack that keeps running for months. So the
  *   seed and the removal both run against a real database: PGlite, with both
  *   migration chains applied. The rows a pass would write are added by hand
- *   between them, and afterwards no table with a `tenant_id` holds a single
- *   row of the rehearsal. The demo organisations it copied from are untouched.
+ *   between them, with a row in a table that has no foreign key to `tenant`
+ *   and one in a table whose key refuses the delete. Afterwards no table with
+ *   a `tenant_id` holds a single row of the rehearsal. The demo organisations
+ *   it copied from are untouched.
+ *
+ *   It removes too early. The tick enqueues a pass without writing a row; the
+ *   pass opens its run row only when it starts. So "no run is running" does
+ *   not mean "nothing is coming". The first removal pauses the rehearsal's
+ *   migrations and removes nothing. A later one removes only once nothing is
+ *   running and nothing has started, or been paused, for a few minutes.
  *
  *   It reaches live. Live's `.env` carries a marker saying that the stack
  *   holds people's data (0132 T1g, `deploy/compose/stack-kind.sh`). The script
- *   refuses that `.env` in every mode, before anything is asked of Docker, so
- *   the stubbed `docker` must never have been called. It refuses the same
- *   marker exported into the shell, and a `COMPOSE_PROJECT_NAME` in the shell
- *   that points Compose at another stack than the checkout's `.env` chooses.
+ *   refuses that `.env` in every mode, and any value of the marker it does not
+ *   know, before anything is asked of Docker, so the stubbed `docker` must
+ *   never have been called. It refuses the marker exported into the shell, and
+ *   a `COMPOSE_PROJECT_NAME` in the shell that points Compose at another stack
+ *   than the checkout's `.env` chooses. It names the `.env` to Compose itself,
+ *   so `COMPOSE_ENV_FILES` cannot swap in another, and it refuses a project
+ *   Compose reports that the checkout does not choose.
  *
  *   Its numbers lie. A sample that cannot read the pooler must say `?`, never
  *   `0`: a zero is the answer the rehearsal's pass line looks for (hard
- *   rule 9). And the line must carry every field T9 records.
+ *   rule 9). One runner that `docker stats` cannot read says `?` for itself
+ *   and costs no other number. And the line must carry every field T9 records.
  *
  * `docker` and `psql` are stubs on the PATH. The `docker` stub runs `compose
  * exec … sh -c` locally, so the script's own psql command line is what runs,
- * against the `psql` stub. That stub hands SQL to PGlite when a database is
+ * against the `psql` stub. It picks the project the way Compose does, and logs
+ * it with every call. The `psql` stub hands SQL to PGlite when a database is
  * named, and prints a fixture otherwise.
  */
 
@@ -68,6 +81,9 @@ const PREFIX = 'ca9a0000-0000-4000-8000-';
 // The two demo organisations `seed-managed.ts` creates, which the rehearsal copies.
 const DEMO_A = 'a0000000-0000-4000-8000-000000000001';
 const DEMO_B = 'b0000000-0000-4000-8000-000000000002';
+
+/** Each case that boots PGlite in a child process, and again here, gets this long. */
+const PGLITE_CASE_MS = 120_000;
 
 const tempDirs: string[] = [];
 function tempDir(prefix: string): string {
@@ -108,11 +124,27 @@ const DOCKER_STUB = `#!/usr/bin/env bash
 printf '%s\\n' "$*" >>"$STUB_LOG"
 if [ "$1" = compose ]; then
   shift
+  file='' env_file=''
   while [ "$#" -gt 0 ]; do
-    case "$1" in -f) shift 2 ;; *) break ;; esac
+    case "$1" in
+      -f) file="$2"; shift 2 ;;
+      --env-file) env_file="$2"; shift 2 ;;
+      *) break ;;
+    esac
   done
+  # The project, picked the way Compose picks it: the shell's
+  # COMPOSE_PROJECT_NAME, else the one in the env file Compose reads
+  # (--env-file, else COMPOSE_ENV_FILES, else the .env beside the file), else
+  # the file's own name:. STUB_PROJECT stands for a Compose that answers
+  # something else again.
+  [ -n "$env_file" ] || env_file="\${COMPOSE_ENV_FILES:-$(dirname "$file")/.env}"
+  project="\${COMPOSE_PROJECT_NAME:-}"
+  [ -n "$project" ] || project="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$env_file" 2>/dev/null | tail -n 1)"
+  [ -n "$project" ] || project="$(sed -n 's/^name: *//p' "$file")"
+  project="\${STUB_PROJECT:-$project}"
+  printf 'compose[%s] %s\\n' "$project" "$1" >>"$STUB_LOG"
   case "$1" in
-    config) printf 'name: %s\\nservices: {}\\n' "\${STUB_PROJECT:-rehearsal-stub}"; exit 0 ;;
+    config) printf 'name: %s\\nservices: {}\\n' "$project"; exit 0 ;;
     exec)
       shift
       [ "$1" = -T ] && shift
@@ -249,6 +281,15 @@ function run(s: Stage, args: string[], extra: NodeJS.ProcessEnv = {}) {
   return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
+/** The projects the stubbed Compose was driven against, one per call. */
+const composeProjects = (s: Stage): string[] =>
+  readFileSync(s.log, 'utf8')
+    .split('\n')
+    .flatMap((l) => {
+      const m = /^compose\[([^\]]*)\] (\S+)$/.exec(l);
+      return m ? [`${m[1]} ${m[2]}`] : [];
+    });
+
 // ---------------------------------------------------------------------------
 // The live marker
 // ---------------------------------------------------------------------------
@@ -261,9 +302,16 @@ describe("live's marker is refused before anything reaches a stack", () => {
     'export STACK_KIND=production\n',
     'STACK_KIND=production   # set by the owner at bring-up\n',
     'STACK_KIND=Production\n',
+    // Slips of it. A refusal errs towards live: a value nobody listed as
+    // "not live" is taken for live's, and so is a line the reader cannot read.
+    'STACK_KIND=prod\n',
+    'STACK_KIND=live\n',
+    "STACK_KIND='production '\n",
+    '  STACK_KIND=production\n',
+    'STACK_KIND = production\n',
   ];
 
-  it.each(LIVE_FORMS.map((f) => [f.trim()]))('refuses a .env carrying `%s`, in every mode', (line) => {
+  it.each(LIVE_FORMS.map((f) => [f.trimEnd()]))('refuses a .env carrying `%s`, in every mode', (line) => {
     for (const args of [['--seed', '2', '2'], ['--remove'], ['--sample', '--count', '1']]) {
       const s = stage(`POSTGRES_USER=openmigrate\n${line}\n`);
       const r = run(s, args);
@@ -277,12 +325,41 @@ describe("live's marker is refused before anything reaches a stack", () => {
     }
   });
 
-  it('refuses the marker exported into the shell, as a sourced live .env leaves it', () => {
-    const s = stage('POSTGRES_USER=openmigrate\n');
-    const r = run(s, ['--seed', '1', '1'], { STACK_KIND: 'production' });
-    expect(r.status).not.toBe(0);
-    expect(r.out).toContain('STACK_KIND');
-    expect(readFileSync(s.log, 'utf8')).toBe('');
+  it('refuses the marker exported into the shell, as a sourced live .env leaves it, and its slips', () => {
+    for (const value of ['production', 'Production', '"production"', ' production', 'prod']) {
+      const s = stage('POSTGRES_USER=openmigrate\n');
+      const r = run(s, ['--seed', '1', '1'], { STACK_KIND: value });
+      expect(r.status, `STACK_KIND='${value}' in the shell was not refused:\n${r.out}`).not.toBe(0);
+      expect(r.out).toContain('STACK_KIND');
+      expect(readFileSync(s.log, 'utf8')).toBe('');
+    }
+  });
+
+  it("keeps stack_is_live exact for 0132 T6's positive check, and refuses on stack_may_be_live", () => {
+    // deploy-live.sh (0132 T6) will refuse a .env WITHOUT the marker, so it
+    // needs the exact answer. The refusals need the cautious one.
+    const dir = tempDir('stack-kind-');
+    const probe = (text: string) => {
+      const file = join(dir, 'env');
+      writeFileSync(file, text);
+      const r = spawnSync(
+        'bash',
+        ['-c', '. "$1"; stack_is_live "$2" && echo live; stack_may_be_live "$2" && echo may; true', '_', join(COMPOSE_DIR, 'stack-kind.sh'), file],
+        { encoding: 'utf8' },
+      );
+      expect(r.status, r.stderr).toBe(0);
+      return r.stdout.trim().split('\n').filter(Boolean).join(' ');
+    };
+    expect(probe('STACK_KIND=production\n')).toBe('live may');
+    expect(probe('STACK_KIND=" Production "\n')).toBe('live may');
+    expect(probe("STACK_KIND='production '\n")).toBe('live may');
+    expect(probe('STACK_KIND= "production"\n')).toBe('live may');
+    expect(probe('STACK_KIND=prod\n')).toBe('may');
+    expect(probe('  STACK_KIND=production\n')).toBe('may');
+    expect(probe('STACK_KIND = production\n')).toBe('may');
+    // The OTA stack's .env does not carry the key; an empty value names no kind.
+    expect(probe('POSTGRES_USER=openmigrate\n')).toBe('');
+    expect(probe('STACK_KIND=\n')).toBe('');
   });
 
   it('refuses a COMPOSE_PROJECT_NAME in the shell that the checkout does not choose', () => {
@@ -295,6 +372,38 @@ describe("live's marker is refused before anything reaches a stack", () => {
     expect(readFileSync(s.log, 'utf8')).toBe('');
   });
 
+  it('lets a COMPOSE_PROJECT_NAME in the shell through when the checkout chooses the same', () => {
+    const s = stage('POSTGRES_USER=openmigrate\nCOMPOSE_PROJECT_NAME=rehearsal-own\n');
+    const r = run(s, ['--remove'], { COMPOSE_PROJECT_NAME: 'rehearsal-own', STUB_PSQL_ANSWER: 'nothing\n' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/nothing to remove/);
+    expect(composeProjects(s)).toEqual(['rehearsal-own config', 'rehearsal-own exec']);
+  });
+
+  it('names its .env to Compose, so COMPOSE_ENV_FILES cannot point Compose at live', () => {
+    // Compose reads the files COMPOSE_ENV_FILES names INSTEAD of the .env
+    // beside managed.yml, and takes their COMPOSE_PROJECT_NAME. Every check
+    // above reads the checkout's .env; Compose has to read the same one.
+    const s = stage('POSTGRES_USER=openmigrate\n');
+    const live = join(tempDir('live-'), '.env');
+    writeFileSync(live, 'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\n');
+    run(s, ['--remove'], { COMPOSE_ENV_FILES: live });
+    const projects = composeProjects(s);
+    expect(projects.length, readFileSync(s.log, 'utf8')).toBeGreaterThan(0);
+    expect(projects.filter((p) => p.startsWith('ownpace-live ')), 'Compose was driven against live').toEqual([]);
+    const composeCalls = readFileSync(s.log, 'utf8').split('\n').filter((l) => l.startsWith('compose '));
+    for (const call of composeCalls) expect(call).toContain(`--env-file ${join(s.compose, '.env')}`);
+  });
+
+  it('refuses a project Compose reports that the checkout does not choose, before any exec', () => {
+    const s = stage('POSTGRES_USER=openmigrate\n');
+    const r = run(s, ['--remove'], { STUB_PROJECT: 'ownpace-live' });
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toContain("'ownpace-live'");
+    expect(r.out).toContain("'rehearsal-stub'");
+    expect(composeProjects(s)).toEqual(['ownpace-live config']);
+  });
+
   it('the marker is named in one place, and the script reads it from there', () => {
     // 0132 T1g's refusals (the gate, --with-demo, deploy-live.sh) are to take
     // the name from the same file, so it cannot be spelled two ways.
@@ -305,7 +414,7 @@ describe("live's marker is refused before anything reaches a stack", () => {
     expect(script).toContain('stack-kind.sh');
     const code = script.split('\n').filter((l) => !/^\s*#/.test(l));
     expect(
-      code.filter((l) => /STACK_KIND=|=production\b/.test(l)),
+      code.filter((l) => /\bproduction\b/i.test(l) || /\bSTACK_KIND\b/.test(l)),
       'the script spells the marker out instead of reading it from stack-kind.sh',
     ).toEqual([]);
   });
@@ -336,6 +445,23 @@ describe('seed, then remove, leaves nothing of the rehearsal', () => {
     if (rows[0]!.n > 0) out.tenant = rows[0]!.n;
     return out;
   };
+
+  const mappingStatuses = async (db: PgliteLike) =>
+    (
+      await db.query<{ status: string; n: number }>(
+        `SELECT status, count(*)::int AS n FROM mailbox_mapping WHERE tenant_id::text LIKE $1 GROUP BY 1 ORDER BY 1`,
+        [`${PREFIX}%`],
+      )
+    ).rows;
+
+  /** What the tick's last pause and the last pass started look like after `minutes`. */
+  const ageEverything = (db: PgliteLike, minutes: number) =>
+    db.exec(`
+      UPDATE mailbox_mapping SET updated_at = now() - interval '${minutes} minutes'
+       WHERE tenant_id::text LIKE '${PREFIX}%';
+      UPDATE run SET started_at = now() - interval '${minutes} minutes'
+       WHERE tenant_id::text LIKE '${PREFIX}%' AND started_at > now() - interval '${minutes} minutes';
+    `);
 
   beforeAll(async () => {
     dataDir = join(tempDir('rehearsal-db-'), 'pg');
@@ -387,186 +513,371 @@ describe('seed, then remove, leaves nothing of the rehearsal', () => {
   it('found the tables it checks', () => {
     // Vacuity: a check over no tables passes on everything.
     expect(tenantTables.length).toBeGreaterThan(20);
-    for (const t of ['connection', 'mailbox', 'mailbox_mapping', 'scope_selection', 'run', 'item', 'run_event', 'tenant_member']) {
+    for (const t of [
+      'connection',
+      'mailbox',
+      'mailbox_mapping',
+      'scope_selection',
+      'run',
+      'item',
+      'run_event',
+      'tenant_member',
+      'support_read',
+      'access_request',
+    ]) {
       expect(tenantTables).toContain(t);
     }
   });
 
-  it('seeds N organisations with M migrations each, on */15, every id under the prefix', async () => {
-    const r = run(s, ['--seed', '3', '4']);
-    expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/3 organisations/);
-    expect(r.out).toMatch(/12 migrations/);
+  it(
+    'seeds N organisations with M migrations each, on */15, every id under the prefix',
+    async () => {
+      const r = run(s, ['--seed', '3', '4']);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/3 organisations/);
+      expect(r.out).toMatch(/12 migrations/);
 
-    await withDb(dataDir, async (db) => {
-      expect(await countPrefixed(db)).toEqual({
-        tenant: 3,
-        // A mail pair and a Nextcloud pair per organisation, since M >= 2.
-        connection: 12,
-        mailbox: 12,
-        mailbox_mapping: 12,
-        scope_selection: 12,
-      });
-      const maps = await db.query<{ id: string; schedule: string; target_folder_prefix: string; status: string }>(
-        `SELECT id::text, schedule, target_folder_prefix, status FROM mailbox_mapping WHERE tenant_id::text LIKE $1`,
-        [`${PREFIX}%`],
-      );
-      for (const m of maps.rows) {
-        expect(m.id.startsWith(PREFIX)).toBe(true);
-        expect(m.schedule).toBe('*/15 * * * *');
-        expect(m.status).toBe('active');
-        expect(m.target_folder_prefix).toMatch(/^capacity-rehearsal-20260927T1200-o\d\d-m\d\d$/);
-      }
-      // Its own folder each, so none adopts another's copies.
-      expect(new Set(maps.rows.map((m) => m.target_folder_prefix)).size).toBe(12);
-
-      const domains = await db.query<{ domain: string; n: number }>(
-        `SELECT domain, count(*)::int AS n FROM scope_selection WHERE tenant_id::text LIKE $1 GROUP BY 1 ORDER BY 1`,
-        [`${PREFIX}%`],
-      );
-      expect(domains.rows).toEqual([
-        { domain: 'email', n: 6 },
-        { domain: 'file', n: 6 },
-      ]);
-
-      // Every row with an id of its own carries the prefix.
-      for (const t of ['connection', 'mailbox', 'mailbox_mapping', 'scope_selection']) {
-        const { rows } = await db.query<{ n: number }>(
-          `SELECT count(*)::int AS n FROM public.${t} WHERE tenant_id::text LIKE $1 AND id::text NOT LIKE $1`,
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual({
+          tenant: 3,
+          // A mail pair and a Nextcloud pair per organisation, since M >= 2.
+          connection: 12,
+          mailbox: 12,
+          mailbox_mapping: 12,
+          scope_selection: 12,
+        });
+        const maps = await db.query<{ id: string; schedule: string; target_folder_prefix: string; status: string }>(
+          `SELECT id::text, schedule, target_folder_prefix, status FROM mailbox_mapping WHERE tenant_id::text LIKE $1`,
           [`${PREFIX}%`],
         );
-        expect(rows[0]!.n, `${t} has a rehearsal row whose own id is not under the prefix`).toBe(0);
+        for (const m of maps.rows) {
+          expect(m.id.startsWith(PREFIX)).toBe(true);
+          expect(m.schedule).toBe('*/15 * * * *');
+          expect(m.status).toBe('active');
+          expect(m.target_folder_prefix).toMatch(/^capacity-rehearsal-20260927T1200-o\d\d-m\d\d$/);
+        }
+        // Its own folder each, so none adopts another's copies.
+        expect(new Set(maps.rows.map((m) => m.target_folder_prefix)).size).toBe(12);
+
+        const domains = await db.query<{ domain: string; n: number }>(
+          `SELECT domain, count(*)::int AS n FROM scope_selection WHERE tenant_id::text LIKE $1 GROUP BY 1 ORDER BY 1`,
+          [`${PREFIX}%`],
+        );
+        expect(domains.rows).toEqual([
+          { domain: 'email', n: 6 },
+          { domain: 'file', n: 6 },
+        ]);
+
+        // Every row with an id of its own carries the prefix.
+        for (const t of ['connection', 'mailbox', 'mailbox_mapping', 'scope_selection']) {
+          const { rows } = await db.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM public.${t} WHERE tenant_id::text LIKE $1 AND id::text NOT LIKE $1`,
+            [`${PREFIX}%`],
+          );
+          expect(rows[0]!.n, `${t} has a rehearsal row whose own id is not under the prefix`).toBe(0);
+        }
+
+        // The demo's credentials, copied as they are sealed: nothing re-encrypted.
+        const creds = await db.query<{ kind: string; role: string; secret_ref: string }>(
+          `SELECT kind, role, secret_ref FROM connection WHERE tenant_id::text LIKE $1 ORDER BY kind, role`,
+          [`${PREFIX}%`],
+        );
+        expect(new Set(creds.rows.map((c) => `${c.kind}/${c.role}/${c.secret_ref}`))).toEqual(
+          new Set(['imap/source/sealed-a-source', 'jmap/target/sealed-a-target', 'nextcloud/source/sealed-b-source', 'nextcloud/target/sealed-b-target']),
+        );
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'refuses a second seed while the first is still there, and writes nothing',
+    async () => {
+      const r = run(s, ['--seed', '1', '1']);
+      expect(r.status).not.toBe(0);
+      expect(r.out).toContain('--remove');
+      await withDb(dataDir, async (db) => {
+        expect((await countPrefixed(db)).tenant).toBe(3);
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'with its migrations still active, pauses them first and removes nothing, though no pass is running',
+    async () => {
+      // The tick enqueues a pass without a row; the pass opens its run row
+      // when it starts. So passes can be queued while no row says `running`,
+      // and a removal now would pull their organisations from under them.
+      await withDb(dataDir, async (db) => {
+        // What the rehearsal's passes write while it runs: runs, their events,
+        // items. None of these tables is one the seed writes.
+        await db.exec(`
+          INSERT INTO run (id, tenant_id, mapping_id, kind, status, started_at, finished_at)
+            SELECT gen_random_uuid(), tenant_id, id, 'incremental', 'succeeded', now() - interval '20 minutes', now() - interval '10 minutes'
+              FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%';
+          INSERT INTO run_event (tenant_id, run_id, message)
+            SELECT tenant_id, id, 'a pass finished' FROM run WHERE tenant_id::text LIKE '${PREFIX}%';
+          INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status)
+            SELECT tenant_id, id, 'file', '/', 'openmig-demo-file-1.txt', md5(id::text), 'copied'
+              FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%';
+          -- A pass that died hours ago: stale, and not in flight.
+          INSERT INTO run (tenant_id, mapping_id, kind, status, started_at)
+            SELECT tenant_id, id, 'incremental', 'running', now() - interval '5 hours'
+              FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%' ORDER BY id DESC LIMIT 1;
+        `);
+      });
+      const before = await withDb(dataDir, countPrefixed);
+
+      const r = run(s, ['--remove']);
+      expect(r.status, r.out).not.toBe(0);
+      expect(r.out).toMatch(/12 migration/);
+      expect(r.out).toMatch(/paused/);
+      expect(r.out).toMatch(/again in a few minutes/);
+
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual(before);
+        expect(await mappingStatuses(db)).toEqual([{ status: 'paused', n: 12 }]);
+        // And the demo's own migrations were not paused with it.
+        const demo = await db.query<{ status: string }>(
+          `SELECT DISTINCT status FROM mailbox_mapping WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')`,
+        );
+        expect(demo.rows).toEqual([{ status: 'active' }]);
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'with a pass still running, removes nothing yet',
+    async () => {
+      await withDb(dataDir, async (db) => {
+        await ageEverything(db, 10);
+        await db.exec(`
+          INSERT INTO run (tenant_id, mapping_id, kind, status, started_at)
+            SELECT tenant_id, id, 'incremental', 'running', now() - interval '10 minutes'
+              FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%' ORDER BY id LIMIT 1;
+        `);
+      });
+      const before = await withDb(dataDir, countPrefixed);
+
+      const r = run(s, ['--remove']);
+      expect(r.status, r.out).not.toBe(0);
+      expect(r.out).toMatch(/1 pass/);
+      expect(r.out).toMatch(/still running/);
+
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual(before);
+        expect(await mappingStatuses(db)).toEqual([{ status: 'paused', n: 12 }]);
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'with a pass started, or the migrations paused, minutes ago, removes nothing yet',
+    async () => {
+      // A pass the plane released after the pause opens its row, finds its
+      // migration paused and stops at once. While those still arrive, the
+      // queue has not drained.
+      await withDb(dataDir, async (db) => {
+        await db.exec(`
+          UPDATE run SET status = 'succeeded', finished_at = now()
+           WHERE tenant_id::text LIKE '${PREFIX}%' AND status = 'running'
+             AND started_at > now() - interval '1 hour';
+          INSERT INTO run (tenant_id, mapping_id, kind, status, started_at, finished_at)
+            SELECT tenant_id, id, 'incremental', 'cancelled', now() - interval '1 minute', now()
+              FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%' ORDER BY id LIMIT 1;
+        `);
+      });
+      const before = await withDb(dataDir, countPrefixed);
+
+      const started = run(s, ['--remove']);
+      expect(started.status, started.out).not.toBe(0);
+      expect(started.out).toMatch(/again in a few minutes/);
+
+      // The same with every pass long started, and the pause itself recent.
+      await withDb(dataDir, async (db) => {
+        await ageEverything(db, 10);
+        await db.exec(`UPDATE mailbox_mapping SET updated_at = now() - interval '1 minute' WHERE tenant_id::text LIKE '${PREFIX}%'`);
+      });
+      const paused = run(s, ['--remove']);
+      expect(paused.status, paused.out).not.toBe(0);
+      expect(paused.out).toMatch(/again in a few minutes/);
+
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual(before);
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'once the passes have finished and the queue is quiet, removes every row of the rehearsal and counts them',
+    async () => {
+      await withDb(dataDir, async (db) => {
+        await ageEverything(db, 10);
+        await db.exec(`
+          INSERT INTO rate_budget (tenant_id, provider, tokens, refilled_at)
+            SELECT id, 'imap:stalwart', 10, now() FROM tenant WHERE id::text LIKE '${PREFIX}%';
+          -- A table with a tenant_id and no foreign key to tenant: nothing
+          -- cascades into it, so only the schema-driven sweep reaches it.
+          INSERT INTO support_read (operator_user_id, tenant_id, view_name)
+            SELECT 'operator-subject', id, 'tenant' FROM tenant WHERE id::text LIKE '${PREFIX}%' ORDER BY id LIMIT 1;
+          -- A foreign key that refuses the delete (managed migration 0007):
+          -- the organisation goes only after the rows pointing at it.
+          INSERT INTO access_request (email, state, tenant_id, decided_by, decided_at)
+            SELECT 'rehearsal@demo.openmigrate.test', 'granted', id, 'operator-subject', now()
+              FROM tenant WHERE id::text LIKE '${PREFIX}%' ORDER BY id LIMIT 1;
+        `);
+      });
+      const before = await withDb(dataDir, countPrefixed);
+      // Vacuity: the passes' tables really are in play, beyond what the seed
+      // wrote, and so are the two a cascade would not take care of.
+      for (const t of ['run', 'run_event', 'item', 'rate_budget', 'support_read', 'access_request']) {
+        expect(before[t], t).toBeGreaterThan(0);
       }
 
-      // The demo's credentials, copied as they are sealed: nothing re-encrypted.
-      const creds = await db.query<{ kind: string; role: string; secret_ref: string }>(
-        `SELECT kind, role, secret_ref FROM connection WHERE tenant_id::text LIKE $1 ORDER BY kind, role`,
-        [`${PREFIX}%`],
+      const r = run(s, ['--remove']);
+      expect(r.status, r.out).toBe(0);
+      for (const [t, n] of Object.entries(before)) {
+        expect(r.out, `the removal does not report the ${n} rows of ${t}`).toContain(`${t} ${n}`);
+      }
+      // What stays is said: the copies in the demo targets, under their folders.
+      expect(r.out).toContain('capacity-rehearsal-20260927T1200-o01-m01');
+
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db), 'rows of the rehearsal are still there').toEqual({});
+        // The demo it copied from is untouched.
+        const demo = await db.query<{ t: number; c: number; b: number; m: number; r: number }>(
+          `SELECT (SELECT count(*)::int FROM tenant WHERE id IN ('${DEMO_A}', '${DEMO_B}')) AS t,
+                  (SELECT count(*)::int FROM connection WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')) AS c,
+                  (SELECT count(*)::int FROM mailbox WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')) AS b,
+                  (SELECT count(*)::int FROM mailbox_mapping WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')) AS m,
+                  (SELECT count(*)::int FROM run WHERE tenant_id = '${DEMO_A}') AS r`,
+        );
+        expect(demo.rows[0]).toEqual({ t: 2, c: 4, b: 4, m: 2, r: 1 });
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'a second removal finds nothing and says so',
+    () => {
+      const r = run(s, ['--remove']);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/nothing to remove/i);
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'with an odd M, seeds one more mail migration than file migrations, and takes them back',
+    async () => {
+      const r = run(s, ['--seed', '2', '3']);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/6 migrations \(4 mail, 2 files\)/);
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual({
+          tenant: 2,
+          connection: 8,
+          mailbox: 8,
+          mailbox_mapping: 6,
+          scope_selection: 6,
+        });
+        const perOrg = await db.query<{ tenant_id: string; email: number; file: number }>(
+          `SELECT tenant_id::text,
+                  count(*) FILTER (WHERE domain = 'email')::int AS email,
+                  count(*) FILTER (WHERE domain = 'file')::int AS file
+             FROM scope_selection WHERE tenant_id::text LIKE $1 GROUP BY 1 ORDER BY 1`,
+          [`${PREFIX}%`],
+        );
+        expect(perOrg.rows.map((o) => [o.email, o.file])).toEqual([
+          [2, 1],
+          [2, 1],
+        ]);
+      });
+
+      const first = run(s, ['--remove']);
+      expect(first.status, first.out).not.toBe(0);
+      expect(first.out).toMatch(/6 migration/);
+      await withDb(dataDir, (db) => ageEverything(db, 10));
+      const second = run(s, ['--remove']);
+      expect(second.status, second.out).toBe(0);
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual({});
+      });
+    },
+    PGLITE_CASE_MS,
+  );
+
+  it(
+    'refuses to seed without the demo it copies, and writes nothing',
+    async () => {
+      await withDb(dataDir, (db) =>
+        db.exec(`DELETE FROM connection WHERE id = 'b0000000-0000-4000-8000-0000000000c1'`),
       );
-      expect(new Set(creds.rows.map((c) => `${c.kind}/${c.role}/${c.secret_ref}`))).toEqual(
-        new Set(['imap/source/sealed-a-source', 'jmap/target/sealed-a-target', 'nextcloud/source/sealed-b-source', 'nextcloud/target/sealed-b-target']),
-      );
-    });
-  });
+      const r = run(s, ['--seed', '2', '2']);
+      expect(r.status).not.toBe(0);
+      expect(r.out).toContain('--with-demo');
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual({});
+      });
+    },
+    PGLITE_CASE_MS,
+  );
 
-  it('refuses a second seed while the first is still there, and writes nothing', async () => {
-    const r = run(s, ['--seed', '1', '1']);
-    expect(r.status).not.toBe(0);
-    expect(r.out).toContain('--remove');
-    await withDb(dataDir, async (db) => {
-      expect((await countPrefixed(db)).tenant).toBe(3);
-    });
-  });
+  it(
+    'with M = 1, needs only the mail pair, and seeds mail alone',
+    async () => {
+      // Demo B's Nextcloud source is gone (the case above); M = 1 copies none of it.
+      const r = run(s, ['--seed', '1', '1']);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/1 migrations \(1 mail, 0 files\)/);
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual({
+          tenant: 1,
+          connection: 2,
+          mailbox: 2,
+          mailbox_mapping: 1,
+          scope_selection: 1,
+        });
+        const kinds = await db.query<{ kind: string }>(
+          `SELECT kind FROM connection WHERE tenant_id::text LIKE $1 ORDER BY kind`,
+          [`${PREFIX}%`],
+        );
+        expect(kinds.rows.map((k) => k.kind)).toEqual(['imap', 'jmap']);
+      });
+      expect(run(s, ['--remove']).status).not.toBe(0);
+      await withDb(dataDir, (db) => ageEverything(db, 10));
+      expect(run(s, ['--remove']).status).toBe(0);
+      await withDb(dataDir, async (db) => {
+        expect(await countPrefixed(db)).toEqual({});
+      });
+    },
+    PGLITE_CASE_MS,
+  );
 
-  it('with a pass still running, pauses the rehearsal and removes nothing yet', async () => {
-    await withDb(dataDir, async (db) => {
-      // What the rehearsal's passes write while it runs: runs, their events,
-      // items, a rate budget. None of these tables is one the seed writes.
-      await db.exec(`
-        INSERT INTO run (id, tenant_id, mapping_id, kind, status, started_at, finished_at)
-          SELECT gen_random_uuid(), tenant_id, id, 'incremental', 'succeeded', now() - interval '20 minutes', now() - interval '10 minutes'
-            FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%';
-        INSERT INTO run_event (tenant_id, run_id, message)
-          SELECT tenant_id, id, 'a pass finished' FROM run WHERE tenant_id::text LIKE '${PREFIX}%';
-        INSERT INTO item (tenant_id, mapping_id, domain, collection, natural_key, natural_key_hash, status)
-          SELECT tenant_id, id, 'file', '/', 'openmig-demo-file-1.txt', md5(id::text), 'copied'
-            FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%';
-        INSERT INTO run (tenant_id, mapping_id, kind, status, started_at)
-          SELECT tenant_id, id, 'incremental', 'running', now() - interval '5 minutes'
-            FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%' ORDER BY id LIMIT 1;
-        -- A pass that died hours ago: stale, and not in flight.
-        INSERT INTO run (tenant_id, mapping_id, kind, status, started_at)
-          SELECT tenant_id, id, 'incremental', 'running', now() - interval '5 hours'
-            FROM mailbox_mapping WHERE tenant_id::text LIKE '${PREFIX}%' ORDER BY id DESC LIMIT 1;
-      `);
-    });
-    const before = await withDb(dataDir, countPrefixed);
-
-    const r = run(s, ['--remove']);
-    expect(r.status, r.out).not.toBe(0);
-    expect(r.out).toMatch(/1 pass/);
-    expect(r.out).toMatch(/paused/);
-
-    await withDb(dataDir, async (db) => {
-      expect(await countPrefixed(db)).toEqual(before);
-      const { rows } = await db.query<{ status: string; n: number }>(
-        `SELECT status, count(*)::int AS n FROM mailbox_mapping WHERE tenant_id::text LIKE $1 GROUP BY 1`,
-        [`${PREFIX}%`],
-      );
-      expect(rows).toEqual([{ status: 'paused', n: 12 }]);
-      // And the demo's own migrations were not paused with it.
-      const demo = await db.query<{ status: string }>(
-        `SELECT DISTINCT status FROM mailbox_mapping WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')`,
-      );
-      expect(demo.rows).toEqual([{ status: 'active' }]);
-    });
-  });
-
-  it('once the pass has finished, removes every row of the rehearsal and counts them', async () => {
-    await withDb(dataDir, async (db) => {
-      await db.exec(`
-        UPDATE run SET status = 'succeeded', finished_at = now()
-         WHERE tenant_id::text LIKE '${PREFIX}%' AND status = 'running'
-           AND started_at > now() - interval '1 hour';
-        INSERT INTO rate_budget (tenant_id, provider, tokens, refilled_at)
-          SELECT id, 'imap:stalwart', 10, now() FROM tenant WHERE id::text LIKE '${PREFIX}%';
-      `);
-    });
-    const before = await withDb(dataDir, countPrefixed);
-    // Vacuity: the passes' tables really are in play, beyond what the seed wrote.
-    for (const t of ['run', 'run_event', 'item', 'rate_budget']) expect(before[t], t).toBeGreaterThan(0);
-
-    const r = run(s, ['--remove']);
-    expect(r.status, r.out).toBe(0);
-    for (const [t, n] of Object.entries(before)) {
-      expect(r.out, `the removal does not report the ${n} rows of ${t}`).toContain(`${t} ${n}`);
-    }
-    // What stays is said: the copies in the demo targets, under their folders.
-    expect(r.out).toContain('capacity-rehearsal-20260927T1200-o01-m01');
-
-    await withDb(dataDir, async (db) => {
-      expect(await countPrefixed(db), 'rows of the rehearsal are still there').toEqual({});
-      // The demo it copied from is untouched.
-      const demo = await db.query<{ t: number; c: number; b: number; m: number; r: number }>(
-        `SELECT (SELECT count(*)::int FROM tenant WHERE id IN ('${DEMO_A}', '${DEMO_B}')) AS t,
-                (SELECT count(*)::int FROM connection WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')) AS c,
-                (SELECT count(*)::int FROM mailbox WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')) AS b,
-                (SELECT count(*)::int FROM mailbox_mapping WHERE tenant_id IN ('${DEMO_A}', '${DEMO_B}')) AS m,
-                (SELECT count(*)::int FROM run WHERE tenant_id = '${DEMO_A}') AS r`,
-      );
-      expect(demo.rows[0]).toEqual({ t: 2, c: 4, b: 4, m: 2, r: 1 });
-    });
-  });
-
-  it('a second removal finds nothing and says so', () => {
-    const r = run(s, ['--remove']);
-    expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/nothing to remove/i);
-  });
-
-  it('refuses to seed without the demo it copies, and writes nothing', async () => {
-    await withDb(dataDir, (db) =>
-      db.exec(`DELETE FROM connection WHERE id = 'b0000000-0000-4000-8000-0000000000c1'`),
-    );
-    const r = run(s, ['--seed', '2', '2']);
-    expect(r.status).not.toBe(0);
-    expect(r.out).toContain('--with-demo');
-    await withDb(dataDir, async (db) => {
-      expect(await countPrefixed(db)).toEqual({});
-    });
-  });
-
-  it('counts a pass in flight with the same window the tick uses', () => {
-    // A run row older than STALE_RUN_AFTER_MS is a pass that died, and the tick
-    // enqueues its migration again. The removal must not wait on one for ever.
-    const deadline = readFileSync(join(REPO_ROOT, 'packages/shared/src/pass-deadline.ts'), 'utf8');
-    const tick = readFileSync(join(REPO_ROOT, 'apps/worker/src/jobs/managed-sync-tick.ts'), 'utf8');
-    const hardMs = Number(/PASS_HARD_LIMIT_MS = ([\d_]+);/.exec(deadline)?.[1]?.replace(/_/g, ''));
-    expect(tick).toContain('const STALE_RUN_AFTER_MS = 2 * PASS_HARD_LIMIT_MS;');
-    const script = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
-    const seconds = Number(/^STALE_RUN_AFTER_SECONDS=(\d+)$/m.exec(script)?.[1]);
-    expect(seconds).toBe((2 * hardMs) / 1000);
-  });
+  it(
+    'counts a pass in flight with the same window the tick uses',
+    async () => {
+      // A run row older than STALE_RUN_AFTER_MS is a pass that died, and the
+      // tick enqueues its migration again. The removal must not wait on one for
+      // ever. Importing the tick opens a Pool; it is never used here.
+      process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
+      // Where the window comes from: PASS_HARD_LIMIT_MS, and the tick's twice
+      // that. Named here so that docs/LESSONS.md lists this guard under both.
+      for (const source of ['packages/shared/src/pass-deadline.ts', 'apps/worker/src/jobs/managed-sync-tick.ts']) {
+        expect(existsSync(join(REPO_ROOT, source)), source).toBe(true);
+      }
+      const { STALE_RUN_AFTER_MS } = await import('../apps/worker/src/jobs/managed-sync-tick.ts');
+      const script = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
+      const seconds = Number(/^STALE_RUN_AFTER_SECONDS=(\d+)$/m.exec(script)?.[1]);
+      expect(seconds * 1000).toBe(STALE_RUN_AFTER_MS);
+    },
+    PGLITE_CASE_MS,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -577,6 +888,9 @@ describe('a sample line carries every field T9 records', () => {
   const STATS = [
     'runner-cm1abc|210.5MiB / 125GiB',
     'runner-cm2def|1.5GiB / 125GiB',
+    // A runner that exited while `docker stats` collected: the CLI has no
+    // numbers for it, and says so this way.
+    'runner-cm3ghi|-- / --',
     'rehearsal-stub-postgres-1|800MiB / 125GiB',
     '',
   ].join('\n');
@@ -588,15 +902,25 @@ describe('a sample line carries every field T9 records', () => {
     '',
   ].join('\n');
 
-  function sampleStage() {
+  function sampleStage(stats = STATS) {
     const s = stage('POSTGRES_USER=openmigrate\n');
-    writeFileSync(join(s.root, 'stats'), STATS);
+    writeFileSync(join(s.root, 'stats'), stats);
     writeFileSync(join(s.root, 'pools'), POOLS);
     s.env.STUB_STATS = join(s.root, 'stats');
     s.env.STUB_POOLS = join(s.root, 'pools');
     s.env.STUB_PSQL_ANSWER = '37\n';
     return s;
   }
+
+  const sampleLines = (out: string) => out.split('\n').filter((l) => /^\d{4}-\d\d-\d\dT/.test(l));
+
+  const fieldsOf = (out: string): Record<string, string> => {
+    const line = sampleLines(out)[0];
+    expect(line, out).toBeDefined();
+    return Object.fromEntries(
+      line!.split(' ').slice(1).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]),
+    );
+  };
 
   const sampleFiles = (s: Stage): string[] => {
     const dir = join(s.root, '.persistent', 'rehearsal-stub', 'rehearsal');
@@ -607,14 +931,10 @@ describe('a sample line carries every field T9 records', () => {
     const s = sampleStage();
     const r = run(s, ['--sample', '--count', '1']);
     expect(r.status, r.out).toBe(0);
-    const line = r.out.split('\n').find((l) => /^\d{4}-\d\d-\d\dT/.test(l));
-    expect(line, r.out).toBeDefined();
-    const fields = Object.fromEntries(
-      line!.split(' ').slice(1).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]),
-    );
-    expect(fields).toEqual({
-      tasks: '2',
-      task_mem_mib: 'runner-cm1abc:211,runner-cm2def:1536',
+    expect(fieldsOf(r.out)).toEqual({
+      // The runner it could not read is counted, and says `?` for itself alone.
+      tasks: '3',
+      task_mem_mib: 'runner-cm1abc:211,runner-cm2def:1536,runner-cm3ghi:?',
       task_mem_max_mib: '1536',
       mem_available_mib: '96000',
       mem_total_mib: '128000',
@@ -632,8 +952,31 @@ describe('a sample line carries every field T9 records', () => {
     const files = sampleFiles(s);
     expect(files).toHaveLength(1);
     const text = readFileSync(files[0]!, 'utf8');
-    expect(text).toContain(line!);
+    expect(text).toContain(sampleLines(r.out)[0]!);
     expect(text).toMatch(/^# /m);
+  });
+
+  it('says `?` for the largest memory when no runner could be read, and still counts them', () => {
+    const s = sampleStage(['runner-cm9xyz|-- / --', 'rehearsal-stub-postgres-1|800MiB / 125GiB', ''].join('\n'));
+    const r = run(s, ['--sample', '--count', '1']);
+    expect(r.status, r.out).toBe(0);
+    const f = fieldsOf(r.out);
+    expect([f.tasks, f.task_mem_mib, f.task_mem_max_mib]).toEqual(['1', 'runner-cm9xyz:?', '?']);
+  });
+
+  it('asks the pooler at the address its own healthcheck proves', () => {
+    // managed.yml's healthcheck runs SHOW POOLS every 15 s, so that address
+    // is known to work on this image and pgbouncer.ini. A name would depend
+    // on resolution inside the container.
+    const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
+    const hc = /psql -h (\S+) -p 6432 -U pgbouncer_auth -d pgbouncer -c 'SHOW POOLS'/.exec(managed);
+    expect(hc, "managed.yml's PgBouncer healthcheck moved").not.toBeNull();
+    const s = sampleStage();
+    const r = run(s, ['--sample', '--count', '1']);
+    expect(r.status, r.out).toBe(0);
+    const calls = readFileSync(s.log, 'utf8').split('\n').filter((l) => l.startsWith('psql[pgbouncer] '));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain(`-h ${hc![1]} -p 6432 -U pgbouncer_auth -d pgbouncer`);
   });
 
   it('says `?` for a pooler it could not read, never 0', () => {
@@ -651,12 +994,41 @@ describe('a sample line carries every field T9 records', () => {
     expect(r.out).toContain('tasks=? task_mem_mib=? task_mem_max_mib=?');
   });
 
-  it('takes two samples ten seconds apart when asked for two', () => {
+  it('says `?` for the connections it could not count, never 0', () => {
+    const s = sampleStage();
+    const r = run(s, ['--sample', '--count', '1'], { STUB_PSQL_ANSWER: '' });
+    expect(r.status, r.out).toBe(0);
+    expect(fieldsOf(r.out).numbackends).toBe('?');
+  });
+
+  it('says `?` for a host it could not read, never 0', () => {
+    const s = sampleStage();
+    const r = run(s, ['--sample', '--count', '1'], { REHEARSAL_PROC: tempDir('no-proc-') });
+    expect(r.status, r.out).toBe(0);
+    const f = fieldsOf(r.out);
+    expect([f.mem_available_mib, f.mem_total_mib, f.swap_used_mib, f.load1, f.load5, f.load15]).toEqual([
+      '?',
+      '?',
+      '?',
+      '?',
+      '?',
+      '?',
+    ]);
+  });
+
+  it('samples every 10 s unless told otherwise, and says so on screen and in the file', () => {
+    const s = sampleStage();
+    const r = run(s, ['--sample', '--count', '1']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('a line every 10 s');
+    expect(readFileSync(sampleFiles(s)[0]!, 'utf8')).toContain('every 10 s');
+  });
+
+  it('writes as many lines as --count asks for', () => {
     const s = sampleStage();
     const r = run(s, ['--sample', '--count', '2'], { REHEARSAL_SAMPLE_SECONDS: '1' });
     expect(r.status, r.out).toBe(0);
-    expect(r.out.split('\n').filter((l) => /^\d{4}-\d\d-\d\dT/.test(l))).toHaveLength(2);
-    const script = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
-    expect(script).toMatch(/REHEARSAL_SAMPLE_SECONDS:-10\}/);
+    expect(sampleLines(r.out)).toHaveLength(2);
+    expect(r.out).toContain('a line every 1 s');
   });
 });

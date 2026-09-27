@@ -59,8 +59,9 @@ step 10). The sitting is still the owner's, and nothing has been measured.
     source, the demo Stalwart over JMAP as the target. When M is 2 or more it also gets demo
     tenant B's Nextcloud pair. The copies carry the demo's sealed credentials as they are, so the
     script needs no key.
-  - It writes M migrations on `*/15 * * * *`. Odd ones copy mail, even ones copy files. Each one
-    writes under a folder of its own, `capacity-rehearsal-<UTC minute>-oNN-mNN`.
+  - It writes M migrations on `*/15 * * * *`. Odd ones are mail migrations, even ones file
+    migrations. Each one writes under a folder of its own, `capacity-rehearsal-<tag>-oNN-mNN`. The
+    tag is the UTC minute of the seed, or `REHEARSAL_TAG`.
   - A migration that never ran is due at once (`sync-due.ts`), so every first pass starts on the
     next tick.
   - It refuses when an earlier rehearsal is still there, and when the demo rows are missing (the
@@ -69,10 +70,12 @@ step 10). The sitting is still the owner's, and nothing has been measured.
   `samples-<UTC time>.log` under `<persisted directory>/rehearsal/`. The persisted directory is
   `~/.persistent/<project>`, with the project Compose reports. The line holds:
   - the runner containers on the Docker daemon, both stacks', and each one's memory
-    (`docker stats`);
+    (`docker stats`). A runner whose memory `docker stats` cannot read (`-- / --`, for one that
+    exits while it collects) is still counted, and written as `name:?`;
   - the host's available and total memory, the swap in use and the load (`/proc`);
   - PgBouncer's `SHOW POOLS`: the clients waiting, summed over the pools, and the longest wait,
-    read by column name;
+    read by column name. It asks over `127.0.0.1` inside the PgBouncer container, as the
+    service's own healthcheck in `managed.yml` does;
   - Postgres' `numbackends`, summed over the stack's Postgres server.
 
   A value it could not read is written as `?`, never as 0.
@@ -80,38 +83,58 @@ step 10). The sitting is still the owner's, and nothing has been measured.
   That covers the seed's rows and everything the passes wrote under those organisations since. It
   reads the tables with a `tenant_id` from the schema, counts each one, checks that nothing is
   left, and does all of this in one transaction.
-  - While a pass of the rehearsal is still running, it pauses the rehearsal's migrations and
-    removes nothing. A pass counts as running while its run row is younger than the tick's
-    staleness window (2 hours).
-  - A second `--remove` finds nothing and says so.
+  - It takes two runs. The tick enqueues a pass without a run row, and the pass writes its row
+    only when it starts, so no count of rows can see a queued pass. While any rehearsal migration
+    is active, `--remove` pauses them all and removes nothing. A queued pass that starts after
+    that finds its migration paused and stops before its first data type.
+  - It removes nothing while a pass is running. A pass counts as running while its run row is
+    younger than the tick's staleness window (2 hours). It also removes nothing while a pass
+    started, or a migration was paused, within the last 5 minutes (`REMOVE_QUIET_MINUTES`),
+    because the queue may not have drained. Each of these refusals says to run it again.
+  - A `--remove` after everything is gone finds nothing and says so.
 
 **Live's marker is named once.** `deploy/compose/stack-kind.sh` holds `STACK_KIND_KEY=STACK_KIND`,
-`STACK_KIND_LIVE=production` and `stack_is_live <env-file>`. So 0132 T1g's working name,
-`STACK_KIND=production`, is now the name. `stack_is_live` reads the file with `env_value`. Quotes,
-an `export` and the case of the value make no difference. The script refuses in every mode, before
-any `docker` call, in three cases:
+`STACK_KIND_LIVE=production`, `STACK_KINDS_NOT_LIVE` (empty today) and two predicates. So 0132
+T1g's working name, `STACK_KIND=production`, is now the name. Both predicates read the file with
+`env_value`. Surrounding whitespace, quotes, an `export` and the case of the value make no
+difference.
 
-- the marker is in the `.env`;
-- the marker is exported into the shell;
+- `stack_is_live <env-file>` is true for exactly live's marker. It is for a check that must find
+  the marker before it goes on: 0132 T6's `deploy-live.sh`.
+- `stack_may_be_live <env-file>` is true for live's marker and for anything that could be a slip
+  of it: any value not listed in `STACK_KINDS_NOT_LIVE`, and a line naming the key that
+  `env_value` cannot read (indented, or with spaces around `=`). It is for refusals, which err
+  towards live. A kind given to the OTA stack later goes in that list.
+
+The script refuses in every mode, before any `docker` call, in three cases:
+
+- the marker, or a slip of it, is in the `.env`;
+- the marker, or a slip of it, is exported into the shell;
 - the shell has a `COMPOSE_PROJECT_NAME` that the checkout's `.env` does not choose.
+
+It passes that `.env` to Compose with `--env-file`, so a `COMPOSE_ENV_FILES` in the shell cannot
+make Compose read another one. It refuses before any `exec` when the project `docker compose
+config` reports is not the checkout's choice: the `.env`'s `COMPOSE_PROJECT_NAME`, else
+`managed.yml`'s `name:`.
 
 0132 T1g records that its gate refusal, T5's `--with-demo` refusal and T6's `deploy-live.sh` are
 to source the same file. Live's `.env` has to carry the line from its first bring-up (0132 T1b,
 step 2).
 
-**The guard, and that it failed first.** `scripts/a-rehearsal-that-cleans-up.unit.test.ts` has 21
-cases, with stubbed `docker` and `psql`.
+**The guard, and that it failed first.** `scripts/a-rehearsal-that-cleans-up.unit.test.ts` has 39
+cases (21 at the build, 18 more from the review fixes below), with stubbed `docker` and `psql`.
 
 - The `docker` stub runs `compose exec … sh -c` locally, so the script's own psql command line is
-  what runs.
+  what runs. It picks the project the way Compose does and logs it with every call.
 - The `psql` stub runs the SQL on PGlite, with both migration chains applied and the demo rows in
   place. So seed-then-remove is checked against the real schema.
 - The rows a pass writes (runs, events, items, a rate budget) are added by hand between the seed
-  and the removal. Afterwards no table with a `tenant_id` holds a rehearsal row, and the demo's rows
-  are all still there.
-- Other cases: the refusals before any `docker` call, the in-flight pause, the second seed and the
-  missing demo, and every field of the sample line, with `?` when the pooler or `docker stats`
-  cannot be read.
+  and the removal, with a row in `support_read`, which has no foreign key to `tenant`, and one in
+  `access_request`, whose key refuses the delete. Afterwards no table with a `tenant_id` holds a
+  rehearsal row, and the demo's rows are all still there.
+- Other cases: the refusals before any `docker` call, the two-run removal, the second seed, the
+  missing demo, `--seed 2 3` and `--seed 1 1` round trips, and every field of the sample line, with
+  `?` when a value cannot be read.
 
 On the unchanged code: 13 failed and 8 skipped, every case on `ENOENT`, because neither
 `rehearse-capacity.sh` nor `stack-kind.sh` existed. Each of these mutations turns it red:
@@ -130,6 +153,59 @@ On the unchanged code: 13 failed and 8 skipped, every case on `ENOENT`, because 
 - every container counted as a task;
 - `maxwait_us` ignored.
 
+**2026-09-27, review fixes, same branch.** A review of the build found these, and one commit
+fixes them all:
+
+- **The removal came too early.** It removed as soon as no run row said `running`, but a queued
+  pass has no row yet. It now takes two runs, as above.
+- **`COMPOSE_ENV_FILES` got past every check.** Compose reads the files it names instead of the
+  checkout's `.env`, including their `COMPOSE_PROJECT_NAME`. Now `--env-file` and the project
+  check, as above. Checked with `docker compose config` (v5.1.1, no daemon needed):
+  `COMPOSE_ENV_FILES` naming another `.env` changes the project, and `--env-file` wins over it.
+- **The refusal did not err towards live**, though `stack-kind.sh` said it did. `STACK_KIND=prod`,
+  `STACK_KIND='production '` and an indented line all passed. Now `stack_may_be_live`, as above.
+- **One unreadable runner lost the whole task group.** A `-- / --` line made `tasks`,
+  `task_mem_mib` and `task_mem_max_mib` all `?`, at the quarter-hour peaks T9 records.
+- **`SHOW POOLS` asked `-h pgbouncer`**, which was unproved. Now `127.0.0.1`. That line tripped
+  `scripts/the-check-postgres-never-made.unit.test.ts`, which refused every loopback `psql` that
+  carries a password, because Postgres trusts the loopback. PgBouncer does not: pgbouncer.ini
+  asks every connection for its password, and has no hba file. So that guard now accepts a
+  loopback `psql` aimed at PgBouncer's own `listen_port`, and only there, with a case that checks
+  the premise in pgbouncer.ini.
+- **The guard tested text in two places.** It now imports `STALE_RUN_AFTER_MS` from the tick,
+  and runs the default 10 s interval rather than reading it. Each PGlite case has its own
+  120 s timeout, because the unit project falls back to vitest's 5 s.
+- **The guard never reached a table where the sweep matters.** Every table it filled cascades
+  from `tenant`, so the delete loop could go and nothing turned red. Now it also fills
+  `support_read`, which has no foreign key to `tenant`, and `access_request`, whose key refuses
+  the delete.
+- **Paths no case ran:** a seed with M = 1 or an odd M, `numbackends` and the host fields as `?`,
+  and a shell `COMPOSE_PROJECT_NAME` that matches the checkout's. Each has a case now.
+- **Two sentences said more than the script does.** "Odd ones copy mail": a mail migration
+  adopts. "A later seed never adopts an earlier seed's files": one with a reused `REHEARSAL_TAG`
+  does. Both are corrected here, and the tag's help in the script says so.
+
+On the script before these fixes, 18 of the 39 cases failed: every one that the fixes above are
+about. The ones that passed on it cover what it already did right, such as a matching
+`COMPOSE_PROJECT_NAME`, `numbackends` and the host as `?`, and the default interval. Each of
+these mutations turns the guard red:
+
+- `--env-file` dropped;
+- the project check dropped;
+- the file or the shell refusal back on the exact marker;
+- either whitespace trim in `stack_kind_clean` dropped;
+- the unreadable-line check dropped;
+- a code line spelling `production`, or reading `$STACK_KIND` directly;
+- a shell `COMPOSE_PROJECT_NAME` refused even when the checkout chooses the same;
+- one unreadable runner making the group `?`;
+- `-h pgbouncer`;
+- `numbackends` or the host fields written as 0;
+- the pause-first step dropped, the quiet window dropped, or its pause half dropped;
+- the delete loop dropped (the organisations' cascade then leaves `support_read`'s row, and
+  `access_request` refuses);
+- even migrations as mail, or M = 1 asking for the Nextcloud pair;
+- the default interval moved off 10 s, and the staleness window moved off the tick's.
+
 **Departures from §3.**
 
 1. **A mail migration adopts; it does not copy.** The JMAP target adopts a message found anywhere
@@ -140,25 +216,30 @@ On the unchanged code: 13 failed and 8 skipped, every case on `ENOENT`, because 
    load that counts is step 3's large mailbox. §3's sentence is corrected below.
 2. **`--remove` takes back rows, not copies.** The copies the passes wrote into the demo target
    accounts stay, and the removal names their folders. The Trigger.dev plane's records of the
-   runs stay too (T7). Each seed's folders carry its own UTC minute, so a later seed never adopts
-   an earlier seed's files. The owner's large drive and mailbox (step 3) are not the script's.
+   runs stay too (T7). Each seed's folders carry its tag, so a later seed with another tag does
+   not adopt an earlier seed's files. A reused `REHEARSAL_TAG` does, and the script's help says
+   so. The owner's large drive and mailbox (step 3) are not the script's.
 3. **No member rows.** Nothing in a pass reads one, and the daily digest mails members.
 4. **Task containers are counted on the whole daemon**, as the containers whose names start with
    `runner-` (the ones `smoke-managed.sh` watches). So the count is both stacks'. It is the
    machine that is measured.
 
 **Not checked, because it needs the machine.** The script has never run against a real stack. Its
-first real run is the sitting. The guard checks the script against stubs, and three things are
+first real run is the sitting. The guard checks the script against stubs, and two things are
 unproved until then:
 
 - the exact `docker stats` output;
-- the `SHOW POOLS` columns of the pinned PgBouncer;
-- that `-h pgbouncer` resolves inside the PgBouncer container.
+- the `SHOW POOLS` columns of the pinned PgBouncer.
 
 **Open, and whose.**
 
 - The sitting and T0's numbers: the owner's.
-- 0132 T1g's, T5's and T6's refusals sourcing `stack-kind.sh`: those tasks' builds.
+- 0132 T1g's, T5's and T6's checks sourcing `stack-kind.sh`: those tasks' builds. The gate's and
+  T5's refusals use `stack_may_be_live`; T6's `deploy-live.sh` uses `stack_is_live`.
+- A pass the plane holds in its queue for longer than the 5-minute quiet window can still start
+  after the removal. It fails on its first write, because its organisation is gone, and writes
+  nothing to the database, but the plane records a failed run. The sitting will show whether the
+  window is long enough: the owner's.
 - Taking back the copies in the demo targets: not built. It is the owner's call whether it matters
   on the demo stack.
 - Real first copies of mail, for example with a JMAP target account per organisation: open, if
@@ -920,11 +1001,15 @@ gives the growth per day and the runway (§4).
   - Postgres' `numbackends`.
 - `--remove` takes back everything `--seed` made and counts what it removed, the way
   `seed-demo-dav-content.sh --remove <tag>` takes back one `--fresh <tag>` set. *(As built,
-  2026-09-27: every row of the rehearsal's organisations, the passes' rows included. The copies in
-  the demo targets stay, and it names their folders.)*
+  2026-09-27: every row of the rehearsal's organisations, the passes' rows included, in two runs:
+  the first pauses the rehearsal's migrations, and a later one removes once no pass is running and
+  the queue has been quiet for 5 minutes. The copies in the demo targets stay, and it names their
+  folders.)*
 - It refuses a `.env` that carries live's marker (0132 T1g: `STACK_KIND=production`, named once in
   `deploy/compose/stack-kind.sh` since 2026-09-27), as 0132 T5's refusal of `--with-demo` does.
-  Rehearsal organisations never reach the stack testers use.
+  Rehearsal organisations never reach the stack testers use. *(As built, 2026-09-27: it refuses
+  anything that could be a slip of the marker as well, and names its `.env` to Compose with
+  `--env-file`. See the Status block.)*
 - **Guard:** `scripts/a-rehearsal-that-cleans-up.unit.test.ts` drives it with a stubbed `docker`
   and `psql`. Every id `--seed` creates is one `--remove` deletes, the sample line has the fields
   above, and a `.env` with live's marker is refused before anything is written. It failed while
