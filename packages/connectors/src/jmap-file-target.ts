@@ -80,9 +80,28 @@ import {
   fileContentHash,
   reconstructFileNodePath,
   fileNodeIndex,
+  STREAM_FILES_LARGER_THAN_BYTES,
 } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { createHash } from 'node:crypto';
+
+/**
+ * The refusal for a file a source handed over as a stream (workplan 0143 T3a).
+ *
+ * A source reads a file larger than `STREAM_FILES_LARGER_THAN_BYTES` as a
+ * stream (`raw.body`) rather than into memory, and this target cannot write a
+ * stream yet (0143 T3b). It said *"No content for …"*, which reads as a file
+ * with nothing in it, so a tester was told nothing they could act on. It says
+ * which file, how large, what this target cannot do, and where it can go.
+ */
+export function tooLargeForJmapYet(path: string, sizeBytes: number): Error {
+  const mb = (bytes: number): string => (bytes / (1024 * 1024)).toFixed(1);
+  return new Error(
+    `${path} is ${mb(sizeBytes)} MB. A JMAP target cannot take a file larger than ` +
+      `${Math.round(STREAM_FILES_LARGER_THAN_BYTES / (1024 * 1024))} MB yet. Nothing was copied and nothing was ` +
+      'changed; every other file continues. A WebDAV target, such as Nextcloud, can take it.',
+  );
+}
 
 /** See `jmap-target.ts` — same server, same reasoning, same numbers. */
 const RATE_LIMIT_ATTEMPTS = 5;
@@ -593,6 +612,8 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const parentNodeId = await this.ensureDirectoryPath(parentPathOf(naturalKey));
     const content = raw.content;
     if (!content) {
+      // A large file arrives as a stream, which this target cannot write yet.
+      if (raw.body) throw tooLargeForJmapYet(naturalKey, raw.body.sizeBytes);
       // A file with no bytes is not the same thing as an empty file, and the
       // sync loop already refuses to hand one over (`runFileSync`'s fetchRaw).
       // Writing a zero-byte node in its place would be a silent empty copy of
@@ -698,6 +719,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
 
     const content = raw.content;
     if (!content) {
+      if (raw.body) throw tooLargeForJmapYet(naturalKey, raw.body.sizeBytes);
       throw new Error(`No content for ${naturalKey}; refusing to blank the node on the target.`);
     }
 
