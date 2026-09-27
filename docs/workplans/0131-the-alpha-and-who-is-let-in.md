@@ -37,8 +37,10 @@ read again.
 
 **Left, and whose.** The other session's rows, on `claude/mailbox-sync-errors-c2xsw2-*`: 0136 T1
 and T3 (the open #1230 and #1234 rewrite them), 0139 T6, and 0149's. 0132 T1, T1f, T3 and the
-T1g/T1b text, and 0143 T9: the open #1233, #1235 and #1236 change them. Rows that already said
-*merged* in their own words: this plan's T1 to T3, 0145 T1, and 0148 T1, T2, T3, T4 (a), T6 and T8.
+T1g/T1b text: the open #1233 and #1236 change them, and are the only ones still open for 0132's
+rows. 0143 T9 was left because #1235 was open when this sweep was written; #1235 merged at 18:25
+on 2026-09-27, after the sweep, and the row still says *not merged* until a later change marks it.
+Rows that already said *merged* in their own words: this plan's T1 to T3, 0145 T1, and 0148 T1, T2, T3, T4 (a), T6 and T8.
 0147 T5, built in #1155 as well, never said *not merged*, and the owner still confirms its rule
 (0147 open question 5), so it stays 🔨. 0145 T6's Dutch wording stays ⏳ **Owner** as written:
 #1208 merged, and whether the owner read the Dutch first is not recorded here. 0145's task table is
@@ -51,7 +53,9 @@ apps/worker`, so its way back is `cd ../..`; it said `cd ..`, which lands in `ap
 `./deploy/compose/set-task-env.sh` does not exist. And
 `scripts/a-database-without-a-container.unit.test.ts` stands its cluster up in a directory made
 for the run, on a port the OS hands out: with the fixed pair, two runs of `scripts/` at once found
-each other's cluster, and both failed.
+each other's cluster, and both failed. The directory is made under `/tmp`, as the script's own
+default is, and not under `os.tmpdir()`: as root the script runs initdb as `postgres`, and a
+`TMPDIR` that is a root-only 0700 directory stopped initdb with *Permission denied*.
 
 **2026-09-27, later: the index refuses a plan held twice.** `node scripts/workplan-index.mjs
 --check` now fails when a plan repeats a `## ` heading outside fenced code, and names the plan and

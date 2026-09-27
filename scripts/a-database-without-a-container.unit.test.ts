@@ -25,16 +25,15 @@
  *
  * AND IT IS RUN, where the machine can. The last case executes the real script
  * end to end whenever server binaries are present, in a directory made fresh for
- * the run and on a port the OS hands out. CI has no server installed and skips
- * it; this container does, and the check-in that found the `status` bug below
- * was exactly this test.
+ * the run under /tmp and on a port the OS hands out. CI has no server installed
+ * and skips it; this container does, and the check-in that found the `status`
+ * bug below was exactly this test.
  */
 
 import { afterEach, describe, it, expect } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -209,6 +208,12 @@ const aFreePort = (): Promise<number> =>
  * disturb a cluster somebody is using, and `down` in a `finally` so it leaves
  * none of its own behind.
  *
+ * UNDER /tmp, NOT os.tmpdir(), as the script's own default is. As root the
+ * script runs initdb as `postgres`, and every PARENT of the data directory has
+ * to be traversable by that user. /tmp always is; a TMPDIR can be a root-only
+ * 0700 directory, and there initdb failed with "could not access directory
+ * ... Permission denied", a failure about the machine and not the script.
+ *
  * FOUND BY RUNNING THE SUITE TWICE AT ONCE (2026-09-27). The pair used to be
  * fixed, `/tmp/ownpace-local-pg-selftest` on 55997, and two worktrees running
  * `scripts/` together found each other's cluster: the second `up` said
@@ -227,7 +232,7 @@ describe.skipIf(!hasServer())('and it really does stand one up', () => {
   });
 
   it('brings up a cluster with both chains on it, then takes it away', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'ownpace-local-pg-selftest-'));
+    const dir = mkdtempSync(join('/tmp', 'ownpace-local-pg-selftest-'));
     made.push(dir);
     const port = await aFreePort();
     const env = {
