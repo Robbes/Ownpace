@@ -1856,20 +1856,30 @@ with the same settings, once `set-task-env.sh` has uploaded them (below). The
 **identity provider sends its own**: the verification link on a new account, an
 email-change confirmation, a password reset, the invitation to set a first
 password. None of that goes through the API. `setup-zitadel.sh` configures it
-from the same `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
-`SMTP_PASSWORD` and `NOTIFY_FROM`, so there is one relay setting rather than
-two that can drift — but it only runs during the `app` phase, so a stack
-brought up before 2026-08-25 has an issuer with **no email provider at all**,
-silently dropping every one of those.
+from the same `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and
+`NOTIFY_FROM`, so there is one relay setting rather than two that can drift —
+but it only runs during the `app` phase, so a stack brought up before
+2026-08-25 has an issuer with **no email provider at all**, silently dropping
+every one of those.
+
+Its TLS does not follow `SMTP_SECURE`, which sets the API's transport alone. It
+is on for any relay and off only for the catcher (`SMTP_HOST=mailpit`), because
+the identity provider with TLS off never tries STARTTLS: on 587 it would send the
+relay's login in the clear, or be refused. With TLS on it tries implicit TLS and
+falls back to STARTTLS, which covers 465 and 587 alike (workplan 0133 T2).
 
 Until then the failure looks like a broken product rather than an unconfigured
 one: the account is created, the screen says to check your mail, and Mailpit
 stays empty.
 
-`setup-zitadel.sh` only CREATES a provider. One that already exists for the
-same `SMTP_HOST:SMTP_PORT` is reused with the settings it was created with, so
-a login added or changed later for the same relay reaches the API and not the
-issuer.
+`setup-zitadel.sh` finds the stack's provider by its description, the compose
+project's name, and updates it on every `app` phase to what `.env` says: the
+sender, the host, TLS, the user, and the password when one is set. An empty
+`SMTP_PASSWORD` keeps the one stored. So a login added or changed later reaches
+the issuer at the next `--only app`. Where an earlier `SMTP_HOST` change left
+several providers with the stack's name, the active one is updated and the
+others are named for you to remove in the console. A refused update is said,
+and the bring-up goes on.
 
 ### Is it actually pointed at the catcher?
 
@@ -1973,9 +1983,15 @@ nightly run, and none of it can reach a real inbox. `NOTIFY_FROM` and
 reach a real relay the result is a bounce rather than mail to a stranger.
 
 **For real delivery**, point `SMTP_HOST` at a relay, set `SMTP_PORT` /
-`SMTP_SECURE` to match, and set `NOTIFY_TO` to an address a person reads. Then
-re-run `./deploy/compose/set-task-env.sh` — task containers inherit nothing from
-compose, so a value only in `.env` is a value the digest will never see.
+`SMTP_SECURE` to match and `SMTP_USER` / `SMTP_PASSWORD` to its login, and set
+`NOTIFY_TO` to an address a person reads. The identity provider takes the same
+relay, login and sender, with TLS on whatever `SMTP_SECURE` says. Then apply it:
+
+- `./deploy/compose/bootstrap-managed.sh --only app` updates the identity
+  provider's mail provider to it, and recreates the API with it;
+- `./deploy/compose/set-task-env.sh` hands it to the tasks — task containers
+  inherit nothing from compose, so a value only in `.env` is a value the digest
+  will never see.
 
 `bootstrap-managed.sh` says so out loud when `SMTP_HOST` is still the catcher
 and `WEB_URL` is an https origin that is not localhost: every send would report

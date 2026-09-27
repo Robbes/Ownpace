@@ -28,8 +28,43 @@ open question 2 with (a) the same day.
 - **Not in this change:** privacy §4 and §9's row for access requests. The texts are the
   lawyer's pass (T1), and the owner keeps them as they are for now.
 
+**2026-09-27, evening: the owner answered open questions 2 and 5, and keeps T0 and T1 as they
+stand for now.**
+
+- **Open question 2: (a)**, *"2a"*. A declined access request is deleted 30 days after the
+  decision, in the managed retention job, as T6 proposes. It is M3's step 2, next.
+- **Open question 5 and T9's two facts**, *"yes all three"*:
+  - one channel: the GitHub advisory form, with `support@ownpace.eu` as the fallback for someone
+    without a GitHub account;
+  - a report is acknowledged within five working days, with no promise of when a fix lands;
+  - supported: `main`, until there is a release line, and the release live runs.
+
+  T9 is the second half of M3's step 6, after this one.
+- **T0 and T1**, *"legal: keep as is for now"*. Nothing in them changes.
+
+**2026-09-27: T8 (a) written (0131 §6, group M3, step 6)**, merged as #1241. `docs/breach-procedure.md`
+is the procedure §3 names:
+
+1. **Contain:** the hold, the passes already running cancelled in the Trigger.dev dashboard, a
+   tester's own credential, and the nightly gate paused before it rebuilds the OTA stack.
+2. **Keep the evidence:** `app_event`, `support_read`, `platform_pause`, the journal and the audit
+   export, copied off the machine before they age out.
+3. **Assess:** what data (the data-processing agreement's Annex A), whose, how, both stacks, and
+   the risk.
+4. **Notify the Autoriteit Persoonsgegevens** within 72 hours where feasible (Art. 33).
+5. **Tell the testers** when the risk is high (Art. 34), with the message in Dutch and English. A
+   business tester is told as the controller (the agreement's §7).
+6. **Register every breach** (Art. 33(5)).
+
+It adds one paragraph on keys: the stored credentials have no rotation (`SECURITY.md`). The
+docs index lists the page. No code, so no guard, as §3 says.
+
+- **Not in this change:** the record of processing and the light impact assessment, which the
+  owner keeps outside this repository (T8's other two parts). T9 waits on open question 5 (the
+  channel) and on the owner's response target and supported versions.
+
 **2026-09-27: T7 (a) built (0131 §6, group M3, step 3)** on branch
-`claude/mailbox-sync-errors-c2xsw2-an-account-a-tester-can-end`, not merged. A tester who asks the
+`claude/mailbox-sync-errors-c2xsw2-an-account-a-tester-can-end`, merged as #1237. A tester who asks the
 owner to end their account can now have it ended. The Close button needs the organisation's own
 owner signed in, and the owner is not.
 
@@ -163,10 +198,10 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; **access requests built 2026-09-27, not merged** (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
-| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, not merged**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
-| T8 A breach procedure, a record of processing, a light impact assessment | 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
-| T9 SECURITY.md covers the hosted service, with one channel | 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27, not merged** (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
+| T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
+| T9 SECURITY.md covers the hosted service, with one channel | 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release — *was:* 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
@@ -764,10 +799,13 @@ No code, so there is no guard. The Status block records the dates.
   (`docs/selfhost-quickstart.md`, `docs/managed-bring-up.md`), and D5 says the same for
   developers.
 - **Supported versions.** Stated by the owner. Before there is a release line, that is `main`.
+  *Stated 2026-09-27: `main`, and the release live runs.*
 - **A response target.** A number of working days to acknowledge a report, named by the owner.
-- **One channel, stated the same way everywhere.** Recommended: the GitHub advisory form, which
-  `SECURITY.md` already names, with `support@ownpace.eu` as the fallback for someone without a
-  GitHub account. Privacy §11 then says the same in the lawyer's pass.
+  *Named 2026-09-27: five working days to acknowledge, with no promise of when a fix lands.*
+- **One channel, stated the same way everywhere.** *Decided 2026-09-27, as recommended:* the
+  GitHub advisory form, which `SECURITY.md` already names, with `support@ownpace.eu` as the
+  fallback for someone without a GitHub account. Privacy §11 then says the same in the
+  lawyer's pass.
 - **`security.txt`** at `/.well-known/security.txt` on the site, written by the site build, with
   `Contact`, `Expires`, `Preferred-Languages` and `Canonical`.
 
@@ -908,6 +946,8 @@ the lawyer's pass.
    - **(a)** A declined request is deleted 30 days after the decision. *Recommended.*
    - **(b)** The texts say requests are kept until the alpha ends, and the owner deletes them by
      hand as the database owner at the end, with a runbook step.
+
+   **Answered 2026-09-27: (a)**, *"2a"*.
 3. **Credentials when a migration is finished (T6).**
    - **(a)** Keep them, and the texts say so: until you delete the connection or migration, or
      close your account. *Recommended*, because resuming a finished migration, and today's step
@@ -917,6 +957,8 @@ the lawyer's pass.
    recommended, or retained with a stated reason?
 5. **The vulnerability channel (T9).** The advisory form with support@ as fallback, as
    recommended, the advisory form alone, or an address alone? And the response target?
+   **Answered 2026-09-27**, *"yes all three"*: the advisory form with `support@ownpace.eu` as
+   fallback, five working days to acknowledge, and `main` with live's release supported.
 6. **Businesses in the alpha.** Households only, or may a tester be an organisation? If one is,
    privacy §3 makes the data-processing agreement part of its contract, and its draft is 0086
    T5's.
