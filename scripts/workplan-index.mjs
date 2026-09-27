@@ -13,13 +13,21 @@
 // CI's docs-hygiene job) fails any state where the two disagree.
 //
 // Usage:
-//   node scripts/workplan-index.mjs --check   # exit 1 on drift or a plan without a summary
+//   node scripts/workplan-index.mjs --check   # exit 1 on drift, a plan without a summary, or a plan
+//                                             # that repeats a `## ` heading (its body held twice)
 //   node scripts/workplan-index.mjs --write   # regenerate the region in docs/workplans/README.md
 //
 // Deliberately dumb, like adr-operative.mjs: it counts the markers a plan's own
 // task table carries and never decides what they mean, whether a plan is done,
 // or what comes next. The one sentence per plan is the plan's own
 // `> **In one line:**` line, written in the plan, so it cannot drift from it.
+//
+// ONE BODY PER PLAN. The merge of 2026-09-25 that resolved #1172 kept both
+// sides of workplan 0131, so §2 to §6 and its open questions stood in it twice.
+// The copies already differed, and later edits went to the first one only.
+// This check passed, because it read nothing below the Status block. A plan
+// that repeats a `## ` heading outside fenced code is therefore refused, by
+// name and heading. That is all it reads of a plan's body; it judges no content.
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -61,6 +69,33 @@ export const KNOWN_GAPS = {
 
 /** The files that are not plans although they carry a plan's number. */
 const NOT_A_PLAN = new Set(['0001-start-prompt.md']);
+
+/**
+ * The `## ` headings a plan carries more than once, outside fenced code, each
+ * with the (1-based) lines it stands on. A fence opens with three or more
+ * backticks or tildes, indented at most three spaces, and closes with a line of
+ * the same character, at least as long, and nothing after it (CommonMark).
+ */
+export function repeatedHeadings(text) {
+  const at = new Map();
+  let fence;
+  text.split('\n').forEach((line, i) => {
+    const f = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === '') fence = undefined;
+      return;
+    }
+    // A backtick fence's info string may not hold a backtick; such a line is inline code.
+    if (f && !(f[1][0] === '`' && f[2].includes('`'))) {
+      fence = f[1];
+      return;
+    }
+    if (!line.startsWith('## ')) return;
+    const heading = line.trimEnd();
+    at.set(heading, [...(at.get(heading) ?? []), i + 1]);
+  });
+  return [...at].filter(([, lines]) => lines.length > 1).map(([heading, lines]) => ({ heading, lines }));
+}
 
 /** Plan files: NNNN-*.md, in number order, then file-name order. */
 export function planFiles(dir = DIR) {
@@ -159,7 +194,7 @@ export function readPlan(file, text) {
   if (unmarked) notes.push(`${unmarked} unmarked`);
   if (NOT_A_PLAN.has(file)) notes.push(SHARED_NUMBERS[number] ?? 'not a plan');
 
-  return { file, number, title, summary, date, rows, markers, notes };
+  return { file, number, title, summary, date, rows, markers, notes, repeated: repeatedHeadings(text) };
 }
 
 /** Everything the table needs, plus the problems `--check` refuses. */
@@ -185,6 +220,14 @@ export function collect(dir = DIR) {
     }
   }
 
+  const repeats = [];
+  for (const p of plans) {
+    if (NOT_A_PLAN.has(p.file)) continue;
+    for (const { heading, lines } of p.repeated) {
+      repeats.push(`${p.file}: "${heading}" stands on lines ${lines.slice(0, -1).join(', ')} and ${lines[lines.length - 1]}`);
+    }
+  }
+
   const gaps = [];
   const numbers = [...byNumber.keys()].map(Number).sort((a, b) => a - b);
   const highest = numbers[numbers.length - 1] ?? 0;
@@ -192,7 +235,7 @@ export function collect(dir = DIR) {
     const key = String(n).padStart(4, '0');
     if (!byNumber.has(key)) gaps.push({ number: key, reason: KNOWN_GAPS[key] ?? 'no file on this branch' });
   }
-  return { plans, gaps, problems };
+  return { plans, gaps, problems, repeats };
 }
 
 /** The generated region, BEGIN to END lines included. */
@@ -248,7 +291,8 @@ export function render(readme, region) {
 
 /**
  * What `--check` answers for a directory of plans: the README's region against a
- * fresh assembly, and every plan's summary line. `ok` is false with the reasons.
+ * fresh assembly, every plan's summary line, and that no plan holds a `## `
+ * section twice. `ok` is false with the reasons.
  */
 export function check(dir = DIR) {
   const readme = readFileSync(join(dir, 'README.md'), 'utf8');
@@ -263,13 +307,24 @@ export function check(dir = DIR) {
     messages.push('docs/workplans/README.md is out of date with the plans\' own first lines, summaries and Status blocks.');
     messages.push('Regenerate it:  node scripts/workplan-index.mjs --write');
   }
-  const { problems } = collect(dir);
+  const { problems, repeats } = collect(dir);
   if (problems.length) {
     messages.push('Every plan carries one line under its title that says what it is about, for the index:');
     messages.push(`  ${SUMMARY_PREFIX}<one sentence, at most ${SUMMARY_MAX} characters, no progress or dates>`);
     for (const p of problems) messages.push(`  - ${p}`);
   }
+  if (repeats.length) messages.push(...repeatMessages(repeats));
   return { ok: messages.length === 0, messages };
+}
+
+/** What `--check` and `--write` say about plans that repeat a `## ` heading. */
+function repeatMessages(repeats) {
+  return [
+    'A plan holds its body once. These headings stand in it more than once, which is what a merge',
+    'that kept both sides\' copy leaves (0131, 2026-09-25). Merge the copies into one, keep the newest',
+    'text of each, and say in the plan\'s Status block what differed and what was kept:',
+    ...repeats.map((r) => `  - ${r}`),
+  ];
 }
 
 /** Rewrite the README's region for a directory of plans. */
@@ -287,12 +342,13 @@ if (mode === '--write') {
     console.error(String(err.message ?? err));
     process.exit(1);
   }
-  const { problems } = collect();
+  const { problems, repeats } = collect();
   if (problems.length) {
     console.error(`${problems.length} plan(s) have no usable one-line summary; --check will fail:`);
     for (const p of problems) console.error(`  - ${p}`);
-    process.exit(1);
   }
+  if (repeats.length) repeatMessages(repeats).forEach((m) => console.error(m));
+  if (problems.length || repeats.length) process.exit(1);
 } else if (mode === '--check') {
   const { ok, messages } = check();
   if (!ok) {
