@@ -38,11 +38,13 @@ limit on tests is the next pull request, and the failures route is T3's second s
   that each case reached its server. `scripts/a-refusal-that-pastes-its-envelope.unit.test.ts`
   now also holds that every DAV refusal a source throws carries its parts, and that the session
   loader pastes no body. With the rule switched on, what `tenantFetch` and `reachableHost` throw
-  reads as `insideOurNetwork` (`remote-refusal.unit.test.ts`).
+  reads as `insideOurNetwork` (`remote-refusal.unit.test.ts`). Through the doors, now that every
+  client goes through the rule: an address inside our network is refused at every door before
+  anything connects, as `insideOurNetwork`, and a host the rule admitted that redirects inward is
+  answered the same way, without the address it redirected to.
 - **Not yet:** the screens' Dutch for these sentences and for `unreachable` (the web half, after
-  the other session's pull requests on the same files); a case through the doors with the rule
-  switched on, which needs the clients going through it (T1 (a)'s second slice); and the JMAP
-  file and contact targets' upload refusals, which a pass writes and a Test never reaches.
+  the other session's pull requests on the same files); and the JMAP file and contact targets'
+  upload refusals, which a pass writes and a Test never reaches.
 
 **2026-09-27: T1 (a), second slice built (0131 §6, group M2, step 1).** Every client that reaches
 a host a tenant typed now goes through the rule. The rule is still off in every process, so

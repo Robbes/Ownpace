@@ -24,6 +24,10 @@
  * - a port where nothing answers: `unreachable`, and not the address;
  * - an IMAP server's `NO` is its words; an IMAP port that answers with
  *   something else says nothing of it;
+ * - with the rule switched on (0136 T1), an address inside our network is
+ *   refused at every door before anything connects, with the outcome
+ *   `insideOurNetwork`; and a host the rule admitted that redirects inward is
+ *   answered the same way, without the address it redirected to;
  * - and the operator keeps the full text: the log line carries the bytes the
  *   answer does not, under the reference the answer ends with. That is also
  *   the control, the proof that each case reached the server it asks.
@@ -38,6 +42,7 @@ import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { log } from '@openmig/shared';
+import { refuseInternalAddresses } from '@openmig/shared/reachable-host';
 import { SecretStore } from '@openmig/core/secret-store';
 
 process.env.SECRET_ENCRYPTION_KEY ??=
@@ -96,7 +101,9 @@ app.use('/api/permissions', permissionRoutes);
 // ---------------------------------------------------------------------------
 
 /** What the HTTP server answers every request with, case by case. */
-let answer = { status: 500, type: 'text/html', body: '' };
+let answer: { status: number; type: string; body: string; location?: string } = { status: 500, type: 'text/html', body: '' };
+/** How many requests reached the HTTP server. */
+let reached = 0;
 let davServer: http.Server;
 let davBase = '';
 let closedPort = 0;
@@ -142,9 +149,13 @@ async function listening(server: net.Server): Promise<number> {
 
 beforeAll(async () => {
   davServer = http.createServer((req, res) => {
+    reached += 1;
     req.resume();
     req.on('end', () => {
-      res.writeHead(answer.status, { 'Content-Type': answer.type });
+      res.writeHead(answer.status, {
+        'Content-Type': answer.type,
+        ...(answer.location ? { Location: answer.location } : {}),
+      });
       res.end(answer.body);
     });
   });
@@ -361,5 +372,66 @@ describe('an IMAP host', () => {
     expect(res.body.ok).toBe(false);
     expect(JSON.stringify(res.body)).not.toContain(MARKER);
     expect(JSON.stringify(res.body)).not.toContain('127.0.0.1');
+  });
+});
+
+describe('with the rule switched on (0136 T1)', () => {
+  it("an address inside our network: refused at every door before it connects, as 'insideOurNetwork'", async () => {
+    answer = { status: 500, type: 'text/html', body: `<html>${MARKER}</html>` };
+    reached = 0;
+    const off = refuseInternalAddresses();
+    try {
+      const test = await request(app)
+        .post('/api/migrations/test-connection')
+        .send({ side: 'target', targetType: 'nextcloud', targetConfig: { url: davBase, ...CREDS } });
+      expect(test.body.ok).toBe(false);
+      expect(test.body.outcome).toEqual({ code: 'insideOurNetwork' });
+      expect(test.body.reason).toMatch(/inside this service's own network.* Reference [0-9a-f]{8}\.$/);
+      for (const door of await everyDoor()) {
+        expect(door.body, `${door.door} named the address`).not.toContain('127.0.0.1');
+        expect(door.body, door.door).not.toContain(MARKER);
+        if (door.reason !== undefined) expect(door.reason, door.door).toMatch(/inside this service's own network/);
+      }
+      const imap = await request(app)
+        .post('/api/migrations/test-connection')
+        .send({
+          side: 'target',
+          targetType: 'imap',
+          targetConfig: { host: '127.0.0.1', port: (imapRefusing.address() as AddressInfo).port, useSsl: false, ...CREDS },
+        });
+      expect(imap.body.outcome).toEqual({ code: 'insideOurNetwork' });
+      expect(JSON.stringify(imap.body)).not.toContain('127.0.0.1');
+    } finally {
+      off();
+    }
+    expect(reached, 'nothing reached the server').toBe(0);
+  });
+
+  it('a host the rule admitted that redirects inward: the same answer, and not the address it redirected to', async () => {
+    const port = (davServer.address() as AddressInfo).port;
+    answer = { status: 302, type: 'text/plain', body: '', location: `http://127.0.0.1:${port}/${MARKER}/` };
+    reached = 0;
+    const off = refuseInternalAddresses({
+      allow: ['dav.admitted.test'],
+      resolve: async () => [{ address: '127.0.0.1', family: 4 }],
+    });
+    try {
+      const res = await request(app)
+        .post('/api/migrations/test-connection')
+        .send({
+          side: 'target',
+          targetType: 'nextcloud',
+          targetConfig: { url: `http://dav.admitted.test:${port}/remote.php/dav/`, ...CREDS },
+        });
+      expect(res.body.ok).toBe(false);
+      expect(res.body.outcome).toEqual({ code: 'insideOurNetwork' });
+      expect(JSON.stringify(res.body)).not.toContain('127.0.0.1');
+      expect(JSON.stringify(res.body)).not.toContain(MARKER);
+    } finally {
+      off();
+    }
+    // The admitted host was reached; the address it redirected to was not.
+    expect(reached).toBeGreaterThan(0);
+    expect(logged.some((line) => line.includes('127.0.0.1') && /\[ref [0-9a-f]{8}\]/.test(line))).toBe(true);
   });
 });
