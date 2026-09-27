@@ -2,7 +2,75 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T7 built on `claude/ownpace-public-readiness-y7orc6-a-door-from-the-sign-in-page`,
+not merged.** This is 0131 §6's group R1, step 3. Under the sign-in button in `Login.tsx` there
+is now one link, `login.requestAccess`, in §3's words: EN *"No account yet? Request access."*, NL
+*"Nog geen account? Vraag toegang aan."* It goes to `/request-access?locale=en` or
+`/request-access?locale=nl`, in the language the page is drawn in (`useLocale`). The request page
+reads `?locale=` (#1137), and the locale it sends is the one the answer is written in.
+
+- **Only under the button, and only where the API has an issuer.** The link sits in the block
+  that draws the sign-in button. A deployment without an issuer shows the paste box instead, and
+  no link. There, a granted request could never be taken up: it is claimed at the first sign-in
+  only when the token says the issuer verified the address (`claimRequestedMembership` in
+  `apps/api/src/middleware/auth.ts`), and a seed token carries no such claim. The issuer that
+  counts is the API's, so the link also reads the API's answer. It shows only when
+  `acceptsSeedToken` is `false`, which is the API saying it has an issuer, the same reading
+  `login.providerNotBuilt` makes. Where the bundle has an issuer and the API has none, the page
+  draws the button and the folded paste box, and no link. There is no link either while the page
+  is still asking the API what it accepts, or when it could not ask, because there is no button
+  then.
+- **Only on managed, by the route table.** §3's fact holds: `/login` and `/request-access` each
+  sit under `ManagedOnly` in `AppRoutes.tsx`. The appliance builds the bundle with
+  `VITE_EDITION=selfhost` (`build:selfhost`, `apps/selfhost/Dockerfile`) and serves it under `/ui`,
+  where an unknown path gets `index.html` (`apps/selfhost/src/static-ui.ts`). So `/ui/login` and
+  `/ui/request-access` reach the router, and both land on Review & confirm. The page therefore has
+  no edition test of its own. The guard renders the real route table instead, and holds the link
+  and the page it opens to the same edition.
+
+Guard: `apps/web/src/pages/a-door-from-the-sign-in-page.unit.test.tsx`, 12 cases. It renders the
+real `AppRoutes` with the real sign-in and request pages, with an issuer configured, in both
+languages. It checks the link's words and `href`, that there is one, and where it is: inside the
+button's own block, after the button, and before the build stamp at the foot of the page. It
+checks that following the link opens the request form in the same language. There is no link with
+no issuer, with an issuer in the bundle and none in the API, while the page is still asking the
+API, or when it could not ask. On the appliance, `/login` and `/request-access` both land on
+Review & confirm, and neither the link nor the form mounts. On `main`'s `Login.tsx` 4 cases fail:
+the link, and following it, in both languages. The other 8 pass, as they should, because they
+hold what must stay true. Each fails under a mutation. Mutations, each restored: the link without
+`?locale=` (2 cases fail), the locale fixed to `en` (2: the Dutch `href`, and the Dutch form opens
+in English), the link on every sign-in page, ungated and outside the button's block (4), the link
+gated on the bundle's issuer alone (1), the link above the button (2), the link moved out of the
+button's block to the foot of the page, after the build stamp, under `issuer &&` (5: both
+placement cases, the bundle-only issuer, the page still asking, and the page that could not ask),
+the same link just above the status link (5), a wrong path (4), `/login` without `ManagedOnly` (2), and
+`/request-access` without it (2).
+
+After review, the same day. The first guard had 9 cases and held the link's place only as "after
+the button", so a link moved to the foot of the page passed all 9. It now also holds the link
+inside the button's block and above the build stamp, and holds that there is none while the page
+asks or when it could not ask. Those cases passed on the reviewed code, as they should, and fail
+under the two foot mutations above. The reviewed code gated the link on the bundle's issuer
+alone, so a bundle with an issuer and an API without one showed it. The case for that failed on
+the reviewed code (1 of 12) and passes now. The comment in `Login.tsx` now says "the only way
+from the app", since the website's *Request access* also links to the page. The guard's header
+now says that `Login.tsx` had no link of its own to the request page, not that the page had no
+link: it carries the status link.
+
+Departures from §3: the case without an issuer, above, the gate on the API's answer, and a guard
+that also renders the route table. §1's *"`Login.tsx` … contains no `Link` and no `href`"* was
+true on 2026-09-24, and is no longer true on this branch.
+
+Departure from §4: its step 2 put T6 and T7 in one web PR, after T0's address (its step 1). This
+build follows 0131 §6 R1 instead, where this plan's T7 is step 3 and T6 (a) and (c) are step 4,
+because T6 waits on T0's address. So T7 goes alone, before T0. §4 now puts T7 first, and T6
+after T0's address.
+
+Still open: nothing of T7. It reaches `main` when the branch merges. T6's line on `/login`, which
+goes near this link, waits on the owner's address (T0) and is T6's. The identity provider's own
+registration page, and accounts that nobody let in, are 0135's (T5, T8), as §3 says.
 
 **2026-09-26: T3 (a) and (c) after review, on the same branch, still not merged.** `main` was
 merged into `claude/ownpace-public-readiness-y7orc6-read-only-where-it-is-true` first, with
@@ -212,7 +280,7 @@ Everything a tester reads is written in Dutch first and translated into English 
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
 | T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings now reach the API on this plan's branch, not yet on `main` (§1). **Before the first invitation.** |
-| T7 *Request access* on the sign-in page | 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
+| T7 *Request access* on the sign-in page | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-door-from-the-sign-in-page`, not merged** (2026-09-27); *was:* 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
 | T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |
 
 ## 1. What there is today
@@ -937,12 +1005,13 @@ the screen should come before the first invitation instead is open question 5.
 
 **Before the first invitation**, in this order:
 
-1. T0's address.
-2. T6 and T7 in one web PR, with the chooser. The compose change for the report form is already
-   on this plan's branch.
-3. T3's Connect line and site copy, once T0 approves the copy, and its grant page if testers send
+1. T7 (0131 §6 R1 step 3), on its own. It needs nothing from the owner.
+2. T0's address.
+3. T6 with the chooser, once T0's address is in (0131 §6 R1 step 4). The compose change for the
+   report form is already on this plan's branch.
+4. T3's Connect line and site copy, once T0 approves the copy, and its grant page if testers send
    grant links (0140 open question 2).
-4. T1's short form, last, because it points at all of the above and at 0131 T1, 0139 T2 and
+5. T1's short form, last, because it points at all of the above and at 0131 T1, 0139 T2 and
    0140 T2 and T3.
 
 **After:** T2 as soon as 0131 T2's table exists. Then T4 and T5's screen changes, one PR each.
