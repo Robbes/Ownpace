@@ -272,6 +272,12 @@ const Setup: React.FC = () => {
   if (!data) return null;
 
   const { progress } = data;
+  // Whether the narrowing question means anything here. The answer is
+  // remembered per side and provider on this device, so where it is not
+  // asked a stored "no" must not arrange the list either: it would put a
+  // "What you can do yourself" heading over every step, under no question.
+  const asksAdmin = data.steps.some((s) => s.step.needsAnotherPerson);
+  const answer: AdminAnswer = asksAdmin ? adminAnswer : 'unknown';
 
   return (
     <div className="p-6 max-w-3xl">
@@ -343,48 +349,49 @@ const Setup: React.FC = () => {
               BEFORE the list, because the answer changes what most of the list
               means: an admin sees seven things to do, while somebody without
               those rights sees four they can do and three to hand over. Showing
-              everyone all seven made the page look like more work than it is. */}
-          <div className="mt-4 border border-gray-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-gray-900">
-              {t('setup.admin.question')} — {providerDisplayName(data.provider)}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(['yes', 'no', 'unknown'] as const).map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => setAdminAnswer(a)}
-                  className={`text-sm rounded px-3 py-1.5 border ${
-                    adminAnswer === a
-                      ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
-                  }`}
-                >
-                  {t(
-                    a === 'yes'
-                      ? 'setup.admin.yes'
-                      : a === 'no'
-                        ? 'setup.admin.no'
-                        : 'setup.admin.unsure',
-                  )}
-                </button>
-              ))}
+              everyone all seven made the page look like more work than it is.
+              Asked only where a step needs somebody else (0148 T5 (a)): on
+              Apple's or Soverin's list every step is the holder's own, every
+              answer showed the same list, and a person with a personal Apple
+              account was asked whether they administer it for an organisation. */}
+          {asksAdmin && (
+            <div className="mt-4 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-gray-900">
+                {t('setup.admin.question')} — {providerDisplayName(data.provider)}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(['yes', 'no', 'unknown'] as const).map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setAdminAnswer(a)}
+                    className={`text-sm rounded px-3 py-1.5 border ${
+                      adminAnswer === a
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    {t(
+                      a === 'yes'
+                        ? 'setup.admin.yes'
+                        : a === 'no'
+                          ? 'setup.admin.no'
+                          : 'setup.admin.unsure',
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-500">{t('setup.admin.hint')}</p>
             </div>
-            <p className="mt-2 text-xs text-gray-500">{t('setup.admin.hint')}</p>
-          </div>
+          )}
 
           {(() => {
             // With "no", the admin-gated steps are not hidden — hiding work
             // does not make it go away, and somebody has to chase it. They are
             // SEPARATED, under a heading that says whose they are.
             const mine =
-              adminAnswer === 'no'
-                ? data.steps.filter((s) => !s.step.needsAnotherPerson)
-                : data.steps;
-            const theirs =
-              adminAnswer === 'no'
-                ? data.steps.filter((s) => s.step.needsAnotherPerson)
-                : [];
+              answer === 'no' ? data.steps.filter((s) => !s.step.needsAnotherPerson) : data.steps;
+            const theirs = answer === 'no' ? data.steps.filter((s) => s.step.needsAnotherPerson) : [];
             const list = (rows: typeof data.steps) => {
               const current = rows.find((s) => s.state === 'open')?.step.key;
               return (
@@ -404,7 +411,7 @@ const Setup: React.FC = () => {
             };
             return (
               <>
-                {adminAnswer === 'no' && mine.length > 0 && (
+                {answer === 'no' && mine.length > 0 && (
                   <h3 className="mt-6 text-sm font-medium text-gray-700">{t('setup.yours')}</h3>
                 )}
                 {list(mine)}
