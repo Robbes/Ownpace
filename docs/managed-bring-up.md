@@ -323,8 +323,11 @@ So a command reaches a stack in one of two ways, and never by a fixed name:
 the shell, even an empty one, over the checkout's `.env`. So after
 `set -a; . deploy/compose/.env; set +a` in one checkout, a `docker compose`
 command in the other checkout acts on the first stack. Open a new shell, or
-`unset COMPOSE_PROJECT_NAME`, before you change checkouts. The scripts refuse
-to run when the shell and the checkout's `.env` disagree.
+`unset COMPOSE_PROJECT_NAME`, before you change checkouts. Every script in
+`deploy/compose/` that runs Compose refuses to run when the shell and the
+checkout's `.env` disagree, before its first Compose command
+(`scripts/two-stacks-on-one-box.unit.test.ts` holds each one to that). A
+`docker compose` command you type yourself does not refuse.
 
 Before workplan 0132 T1 the 17 containers had fixed names (`ownpace-db`,
 `trigger-api`, `ownpace-idp`, …). The first bring-up after that change

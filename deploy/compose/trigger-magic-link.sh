@@ -41,7 +41,12 @@ case "${1:-}" in
 esac
 
 # Through Compose, which picks the stack the checkout's own .env names; a bare
-# `docker logs` of a fixed name read whichever stack owned that name.
+# `docker logs` of a fixed name read whichever stack owned that name. Compose
+# follows a COMPOSE_PROJECT_NAME exported in the shell over that .env, so the
+# reader refuses a shell that names the other stack (workplan 0132 T1).
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+compose_project "${SCRIPT_DIR}" >/dev/null || exit 1
 if [ -n "${TRIGGER_CONTAINER:-}" ]; then
   SOURCE="container '${TRIGGER_CONTAINER}'"
   DEFAULT_LOG_CMD="docker logs --tail 2000 $(printf '%q' "${TRIGGER_CONTAINER}")"

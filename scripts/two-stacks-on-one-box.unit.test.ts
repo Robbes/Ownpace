@@ -37,14 +37,29 @@
  *   selects the stack (`name:` in `managed.yml`). That holds in code, in a
  *   printed recipe and in a comment, because a comment's command gets pasted
  *   too. It also refuses any workflow that names `ownpace-live`: CI never
- *   touches live (T1g).
+ *   touches live (T1g). And live's project written out as a name
+ *   (`ownpace-live-…`, `ownpace-live_…`) anywhere at all.
+ *
+ *   Three more rules keep a script inside its own stack. Every `docker ps`
+ *   filters by a name built from the project: the daemon holds both stacks,
+ *   and the task runs' `runner-` names carry no project, so the smoke's
+ *   runner-log watcher would have copied live's task-run logs into the OTA
+ *   gate's public evidence. Every script that runs Compose asks the reader
+ *   (`compose_project`) before its first Compose command, because Compose
+ *   follows a name exported in the shell and the reader refuses one that
+ *   disagrees with the checkout. The reader of shell text that tells a command
+ *   from a printed recipe is checked to reach the end of every script.
  *
  *   The second half renders `managed.yml` the way Compose does, under two
  *   project names and two sets of port values. The two stacks may share no
  *   container name, volume, network or host port, and every network a stack's
  *   services or task runs join must start with that stack's own project name.
- *   It then runs the one reader the scripts take the project from, and
- *   `reset-trigger.sh` itself, in each stack's checkout.
+ *   The smoke's runner watcher must render to that stack's runner network. It
+ *   then runs the one reader the scripts take the project from, and
+ *   `reset-trigger.sh` itself, in each stack's checkout. Last, it runs each
+ *   script that reaches a stack through Compose in the OTA stack's checkout
+ *   from a shell that exports live's name: each must refuse before its first
+ *   `docker` call and leave the `.env` as it was.
  *
  * WHAT IT DOES NOT MAKE TRUE. Both stacks' `trigger-docker-proxy` hold the
  * host's Docker socket and may create containers on any network (0132 §1).
@@ -126,6 +141,70 @@ const linesOf = (s: Source): Line[] =>
 const allLines = sources.flatMap(linesOf);
 const where = (hits: Line[]): string[] => hits.map(({ file, n, line }) => `${file}:${n}: ${line.trim()}`);
 const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const scripts = sources.filter((s) => s.file.startsWith('deploy/compose/') && s.file.endsWith('.sh'));
+
+/**
+ * Which lines of a shell script bash reads as code: not a comment line, not
+ * inside a heredoc, and not the continuation of a quoted string that an
+ * earlier line opened. Printed recipes live in exactly those places, and a
+ * recipe is not a command the script runs. `open` is the state the reader was
+ * left in at the end of the file: anything but null means it lost its place,
+ * and then its answers are not to be trusted.
+ */
+function shellCode(s: Source): { lines: Array<Line & { code: boolean }>; open: string | null } {
+  const lines: Array<Line & { code: boolean }> = [];
+  let quote: '"' | "'" | null = null;
+  const heredocs: Array<{ delim: string; strip: boolean }> = [];
+  s.text.split('\n').forEach((line, i) => {
+    const here = heredocs[0];
+    if (here) {
+      if ((here.strip ? line.replace(/^\t+/, '') : line) === here.delim) heredocs.shift();
+      lines.push({ file: s.file, n: i + 1, line, code: false });
+      return;
+    }
+    lines.push({ file: s.file, n: i + 1, line, code: quote === null && !/^\s*#/.test(line) });
+    for (let j = 0; j < line.length; j += 1) {
+      const c = line[j]!;
+      if (quote === "'") {
+        if (c === "'") quote = null;
+      } else if (quote === '"') {
+        if (c === '\\') j += 1;
+        else if (c === '"') quote = null;
+      } else if (c === '\\') {
+        j += 1;
+      } else if (c === '#' && (j === 0 || /\s/.test(line[j - 1]!))) {
+        break;
+      } else if (c === "'" || c === '"') {
+        quote = c;
+      } else if (line.startsWith('<<', j) && !line.startsWith('<<<', j)) {
+        const m = /^<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/.exec(line.slice(j));
+        if (m) {
+          heredocs.push({ delim: m[3]!, strip: m[1] === '-' });
+          j += m[0].length - 1;
+        }
+      }
+    }
+  });
+  const open = heredocs[0] ? `heredoc ${heredocs[0].delim}` : quote;
+  return { lines, open };
+}
+
+/**
+ * A line that RUNS Compose, as opposed to one that prints a Compose command
+ * for somebody to paste: the command itself, the `COMPOSE` array expanded as
+ * a command, a command substitution, or a command string the script `eval`s.
+ */
+function runsCompose(line: string, evals: boolean): boolean {
+  return (
+    /^\s*(?:(?:if|until|while|then|do|else|!)\s+)*(?:[A-Za-z_]\w*=\S*\s+)*docker\s+compose\b/.test(line) ||
+    /\$\(\s*docker\s+compose\b/.test(line) ||
+    line.includes('"${COMPOSE[@]}"') ||
+    (evals && /^\s*(?:local\s+)?[A-Za-z_]\w*="docker\s+compose\b/.test(line))
+  );
+}
+
+/** A call of the project reader, not its definition or a mention in prose. */
+const READER_CALL = /\bcompose_project\s+"/;
 
 // ---------------------------------------------------------------------------
 // managed.yml, parsed
@@ -242,6 +321,99 @@ describe('the first half: nothing names a stack that the project does not', () =
   it('no workflow names ownpace-live: CI never touches live (T1g)', () => {
     const hits = allLines.filter(({ file, line }) => file.startsWith('.github/') && line.includes(LIVE));
     expect(where(hits)).toEqual([]);
+  });
+
+  it("nothing is named with live's project written out", () => {
+    // The OTA stack's name has a case of its own above; this is the same slip
+    // the other way round. `ownpace-live-db`, `ownpace-live_ownpace-network`
+    // or `ownpace-live_zitadel_machinekey` in a script is live's container,
+    // network or volume whichever checkout runs it. Prose that names the
+    // stack itself is fine.
+    const hits = allLines.filter(({ line }) => new RegExp(`${esc(LIVE)}[-_]`).test(line));
+    expect(
+      where(hits),
+      "a name is built from the project; written out, it is live's in the OTA stack's checkout too",
+    ).toEqual([]);
+  });
+
+  it("every `docker ps` lists this stack's containers only", () => {
+    // `docker ps` asks the whole daemon, and the daemon holds both stacks. The
+    // smoke's runner-log watcher took every `runner-*` container, and the task
+    // runs' names carry no project, so beside live it would have copied live's
+    // task-run logs, and the task environment they print, into the OTA gate's
+    // public job log and evidence. It would also have counted a live runner as
+    // the OTA stack's own. A listing is narrowed by a `--filter` built from the
+    // project, or from a name derived from it. Comments are prose.
+    const hits: Line[] = [];
+    let listings = 0;
+    for (const s of sources.filter((x) => x.file !== MANAGED)) {
+      const derived = new Set(['COMPOSE_PROJECT', 'COMPOSE_PROJECT_NAME']);
+      for (let grew = true; grew; ) {
+        grew = false;
+        for (const m of s.text.matchAll(/^\s*(?:local\s+|export\s+|readonly\s+)?([A-Za-z_]\w*)=(.*)$/gm)) {
+          const [, name, value] = m;
+          if (derived.has(name!)) continue;
+          if ([...derived].some((d) => new RegExp(`\\$\\{?${d}\\b`).test(value!))) {
+            derived.add(name!);
+            grew = true;
+          }
+        }
+      }
+      const byProject = new RegExp(
+        `--filter[= ]["']?(?:network|label|name|volume)=[^\\s"']*\\$\\{?(?:${[...derived].join('|')})\\b`,
+      );
+      for (const l of linesOf(s)) {
+        if (/^\s*#/.test(l.line) || !/\bdocker\s+(?:container\s+)?(?:ps|ls|list)\b/.test(l.line)) continue;
+        listings += 1;
+        if (!byProject.test(l.line)) hits.push(l);
+      }
+    }
+    expect(listings, 'no `docker ps` found at all: the smoke has one').toBeGreaterThan(0);
+    expect(
+      where(hits),
+      "filter by the project's network or label, e.g. --filter \"network=${COMPOSE_PROJECT}_ownpace-network\"",
+    ).toEqual([]);
+  });
+
+  it('reads every script to its end without losing its place', () => {
+    // The next case trusts this reader to tell a command from a printed
+    // recipe. A heredoc or a quote it failed to close would hide the rest of
+    // the file from it.
+    const lost = scripts.map((s) => ({ file: s.file, open: shellCode(s).open })).filter((x) => x.open);
+    expect(lost).toEqual([]);
+    const counted = scripts.flatMap((s) => {
+      const evals = shellCode(s).lines.some((l) => l.code && /\beval\b/.test(l.line));
+      return shellCode(s).lines.filter((l) => l.code && runsCompose(l.line, evals));
+    });
+    expect(counted.length, 'found almost no Compose commands: the reader is blind').toBeGreaterThan(20);
+  });
+
+  it('every script that runs Compose asks the project reader first', () => {
+    // Compose follows a COMPOSE_PROJECT_NAME exported in the shell over the
+    // checkout's own .env. The reader refuses that mismatch, so a script is
+    // safe only when it asks before its first Compose command. On the branch
+    // that added the reader, operator.sh, seed-managed.sh and
+    // trigger-magic-link.sh never asked, and trigger-credentials.sh asked
+    // after it had copied the other stack's Trigger.dev key into this
+    // checkout's .env.
+    const late: string[] = [];
+    for (const s of scripts.filter((x) => !x.file.endsWith('/env-read.sh'))) {
+      const { lines } = shellCode(s);
+      const evals = lines.some((l) => l.code && /\beval\b/.test(l.line));
+      const first = lines.find((l) => l.code && runsCompose(l.line, evals));
+      if (!first) continue;
+      const reader = lines.find((l) => l.code && READER_CALL.test(l.line));
+      if (!reader || reader.n > first.n) {
+        late.push(
+          `${s.file}:${first.n}: runs Compose (${first.line.trim()}) ` +
+            (reader ? `before the reader at line ${reader.n}` : 'and never asks the reader'),
+        );
+      }
+    }
+    expect(
+      late,
+      'call `compose_project "${SCRIPT_DIR}" >/dev/null || exit 1` (from env-read.sh) before the first Compose command',
+    ).toEqual([]);
   });
 
   it('the persisted .env and the Trigger.dev dumps default to ~/.persistent/<project>', () => {
@@ -474,6 +646,17 @@ describe('the second half: the OTA stack and live, rendered side by side', () =>
           'would join another stack\'s network, or none',
       ).toEqual([]);
     });
+
+    it(`the smoke run in ${stack.project}'s checkout watches ${stack.project}'s task runs, and no others`, () => {
+      // The runner-log watcher tells the two stacks' task runs apart by the one
+      // thing that differs: the network the supervisor starts them on. So its
+      // filter has to render to that stack's DOCKER_RUNNER_NETWORKS.
+      const smoke = read('deploy/compose/smoke-managed.sh');
+      const watcher = /docker ps --filter "network=([^"]+)"[^\n]*grep '\^runner-'/.exec(smoke);
+      expect(watcher, "smoke-managed.sh's runner watcher lists every runner-* container on the daemon").not.toBeNull();
+      const network = interpolate(watcher![1]!, { COMPOSE_PROJECT: stack.project });
+      expect(stack.runners).toContain(network);
+    });
   }
 });
 
@@ -603,5 +786,106 @@ describe('reset-trigger.sh removes its own stack\'s Trigger.dev database, and no
     expect(r.status, r.err).toBe(0);
     expect(r.calls).toContain(`volume rm ${OTA}_trigger_db_data`);
     expect(r.calls).not.toContain(LIVE);
+  });
+});
+
+/**
+ * A script run in the OTA stack's checkout from a shell that still exports
+ * live's name (`set -a; . ~/ownpace-live/deploy/compose/.env` earlier in the
+ * same shell). `docker` and `pnpm` only write down what they were asked, and
+ * `docker` answers the way the other stack would: the queries with live's
+ * Trigger.dev key, `port` with live's published port, `logs` with live's link.
+ */
+function inOtaCheckout(
+  script: string,
+  args: string[],
+  shell: { COMPOSE_PROJECT_NAME?: string },
+): { status: number | null; calls: string; err: string; envBefore: string; envAfter: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'two-stacks-shell-'));
+  try {
+    const compose = join(dir, 'deploy', 'compose');
+    const bin = join(dir, 'bin');
+    mkdirSync(compose, { recursive: true });
+    mkdirSync(bin);
+    for (const f of readdirSync(COMPOSE_DIR).filter((x) => x.endsWith('.sh') || x === 'managed.yml')) {
+      copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
+    }
+    // The OTA stack's .env names no project, on purpose (managed.env.example).
+    const envBefore = [
+      'POSTGRES_USER=openmigrate',
+      'POSTGRES_PASSWORD=ota-stub-password',
+      'POSTGRES_DB=openmigrate',
+      'JWT_SECRET=ota-stub-jwt',
+      'SECRET_ENCRYPTION_KEY=ota-stub-key',
+      'TRIGGER_PROJECT_REF=proj_OTAref',
+      'TRIGGER_SECRET_KEY=tr_prod_OTAkey',
+      '',
+    ].join('\n');
+    writeFileSync(join(compose, '.env'), envBefore);
+    const log = join(dir, 'calls.log');
+    writeFileSync(log, '');
+    writeFileSync(
+      join(bin, 'docker'),
+      [
+        '#!/usr/bin/env bash',
+        `echo "docker $*" >> "${log}"`,
+        'case "$*" in',
+        '  *"exec -T trigger-db"*)',
+        '    sql="$(cat)"',
+        '    case "$sql" in',
+        "      *information_schema*) printf 'Project.externalRef\\nProject.id\\nProject.name\\nRuntimeEnvironment.apiKey\\nRuntimeEnvironment.slug\\nRuntimeEnvironment.projectId\\n' ;;",
+        "      *) printf 'proj_LIVEref|tr_prod_LIVEkey|live\\n' ;;",
+        '    esac ;;',
+        "  *'port postgres'*) echo '0.0.0.0:25432' ;;",
+        "  *' logs '*) echo 'https://trigger.example.test/magic?token=LIVE' ;;",
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(join(bin, 'pnpm'), `#!/usr/bin/env bash\necho "pnpm $*" >> "${log}"\n`);
+    chmodSync(join(bin, 'docker'), 0o755);
+    chmodSync(join(bin, 'pnpm'), 0o755);
+    const r = spawnSync('bash', [join(compose, script), ...args], {
+      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, ...shell },
+      encoding: 'utf8',
+      input: '',
+      timeout: 20_000,
+    });
+    return {
+      status: r.status,
+      calls: readFileSync(log, 'utf8'),
+      err: r.stderr,
+      envBefore,
+      envAfter: readFileSync(join(compose, '.env'), 'utf8'),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("a script run from a shell that names the other stack touches neither", () => {
+  // Every script here that reaches a stack through Compose. The first four
+  // reached it without asking the reader, so they followed the shell into the
+  // other stack; trigger-credentials.sh asked only after it had written.
+  const SCRIPTS: Array<[string, string[]]> = [
+    ['trigger-credentials.sh', ['--write']],
+    ['operator.sh', ['list']],
+    ['seed-managed.sh', []],
+    ['trigger-magic-link.sh', []],
+    ['reset-trigger.sh', ['--yes']],
+  ];
+
+  it.each(SCRIPTS)('%s reaches a stack when the shell names none', (script, args) => {
+    // Vacuity: the stubs are on the path and the script would have used them.
+    expect(inOtaCheckout(script, args, {}).calls).toMatch(/^docker /m);
+  });
+
+  it.each(SCRIPTS)("%s refuses before its first command when the shell names live", (script, args) => {
+    const r = inOtaCheckout(script, args, { COMPOSE_PROJECT_NAME: LIVE });
+    expect(r.status, r.err).not.toBe(0);
+    expect(r.calls, 'it reached a stack, and Compose would have picked the shell\'s').toBe('');
+    expect(r.envAfter, "it wrote the other stack's values into this checkout's .env").toBe(r.envBefore);
+    expect(r.err).toContain('unset COMPOSE_PROJECT_NAME');
   });
 });

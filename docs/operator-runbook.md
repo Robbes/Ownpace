@@ -32,6 +32,14 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 
 ## Prerequisites
 
+- The right checkout. Every command here acts on the stack whose checkout you run it
+  from: on the reference machine, `~/ownpace-managed` for the OTA stack, and
+  `~/ownpace-live` for testers' tenants once that stack stands (workplan 0132 D7, T1b).
+  The `docker compose -f deploy/compose/managed.yml …` commands, the `psql` recipes and
+  the scripts all take the stack from that checkout's `deploy/compose/.env`. Run from the
+  other checkout, a query answers for the other stack's tenants, and a change such as
+  revoking a link finds nothing to change there. See
+  [Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches).
 - Docker + Docker Compose v2 on the host.
 - `pnpm install` run in the repo (the seed, the deploy CLI wrapper and the env-var/smoke
   scripts use workspace `node_modules`).
