@@ -106,6 +106,12 @@ describe('the line the owner came looking for', () => {
     const link = screen.getByText(/checked and ready to finish/).closest('a');
     expect(link?.getAttribute('href')).toBe(`/mappings/${UUID}`);
   });
+
+  it('names a grace period nobody chose at, and links its Finish page (0128 D7)', () => {
+    show([mapping({ graceEnded: ['email', 'file'] })]);
+    const link = screen.getByText('grace period over and nobody chose, so no longer copying: Email, Files').closest('a');
+    expect(link?.getAttribute('href')).toBe(`/mappings/${UUID}/finish`);
+  });
 });
 
 describe('what it does not say', () => {

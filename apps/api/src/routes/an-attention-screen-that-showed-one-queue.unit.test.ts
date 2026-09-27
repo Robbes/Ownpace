@@ -198,6 +198,20 @@ describe('the collector, on the rules a screen full of migrations depends on', (
 
   const row = (id: string, status = 'active', name: string | null = null) => ({ id, name, status });
 
+  it('names a grace period nobody chose at, as the digest does, and a failed read as a blind spot (0128 D7)', async () => {
+    const out = await collectTenantAttention(
+      [row('a'), row('b')],
+      readers({
+        graceEnded: async (id) => {
+          if (id === 'b') throw new Error('the ledger is locked');
+          return ['calendar'];
+        },
+      }),
+    );
+    expect(out.mappings[0]!.graceEnded).toEqual(['calendar']);
+    expect(out.mappings[1]!.blindSpots).toEqual(['the grace periods: the ledger is locked']);
+  });
+
   it('asks the decision queue ONCE across three migrations', async () => {
     // The bug this forbids: three migrations, one drift decision, and a
     // screen that says three. Counted once, on the first that reports.

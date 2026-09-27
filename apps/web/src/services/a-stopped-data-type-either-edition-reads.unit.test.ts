@@ -4,7 +4,7 @@
  * them on (workplan 0125 T7).
  *
  * The Finish checklist names a stopped data type in both of its modes. Per
- * mapping it has no `/status` of its own to read, so `fetchMappingDomains`
+ * mapping it has no `/status` of its own to read, so `fetchMappingDataTypes`
  * asks the edition's own source: the appliance's `/status`, filtered to this
  * mapping, or managed's `GET /migrations/{id}`. Pinned in both editions,
  * because a reader that worked in one and answered "none" in the other would
@@ -45,7 +45,7 @@ vi.mock('./edition.ts', async (importOriginal) => {
   };
 });
 
-import { fetchMappingDomains } from './operating-service.ts';
+import { fetchMappingDataTypes } from './operating-service.ts';
 
 const stopped = {
   domain: 'calendar',
@@ -76,13 +76,13 @@ describe('the appliance', () => {
         ],
       },
     });
-    expect(await fetchMappingDomains('acme-mail')).toEqual([stopped]);
+    expect((await fetchMappingDataTypes('acme-mail')).domains).toEqual([stopped]);
     expect(getMock).toHaveBeenCalledWith('/status');
   });
 
   it('answers none for a migration /status does not know', async () => {
     getMock.mockResolvedValue({ data: { status: 'ok', mappings: [] } });
-    expect(await fetchMappingDomains('nope')).toEqual([]);
+    expect((await fetchMappingDataTypes('nope')).domains).toEqual([]);
   });
 });
 
@@ -93,12 +93,12 @@ describe('managed', () => {
 
   it('reads the migration’s own detail', async () => {
     getMock.mockResolvedValue({ data: { id: 'acme-mail', domainStatus: [stopped] } });
-    expect(await fetchMappingDomains('acme-mail')).toEqual([stopped]);
+    expect((await fetchMappingDataTypes('acme-mail')).domains).toEqual([stopped]);
     expect(getMock).toHaveBeenCalledWith('/migrations/acme-mail');
   });
 
   it('answers none when the detail carries no rows yet', async () => {
     getMock.mockResolvedValue({ data: { id: 'acme-mail' } });
-    expect(await fetchMappingDomains('acme-mail')).toEqual([]);
+    expect((await fetchMappingDataTypes('acme-mail')).domains).toEqual([]);
   });
 });

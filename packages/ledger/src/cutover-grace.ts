@@ -28,6 +28,7 @@
  */
 
 import { sql } from 'drizzle-orm';
+import { cutoverGraceEndedAt } from '@openmig/shared';
 import type { PgDatabase } from './db-types.ts';
 
 /** The cutover still copies. Over `cutover_state c`; any other state reads false. */
@@ -76,4 +77,62 @@ export async function cutoverStillCopies(
   domain?: string,
 ): Promise<boolean> {
   return (await readCutoverWindows(db, tenantId, mappingId)).of(domain);
+}
+
+/** When a migration's cutover grace periods ended, read once. */
+export interface GraceEnds {
+  /**
+   * When a ledger's grace period ended, or null while it has not: a data
+   * type's own, or the whole migration's where it has none; without a data
+   * type, the whole migration's. A data type with its own ledger is answered
+   * by that ledger alone, ended or not.
+   */
+  readonly of: (domain?: string) => Date | null;
+}
+
+/**
+ * When each of a migration's cutover grace periods ended (workplan 0128 D7):
+ * the day its owner is told of, on the Finish page and in the digest, when a
+ * data type is still in its cutover and nobody chose. By `cutoverGraceEndedAt`
+ * in shared. Read inside the organisation's transaction.
+ */
+export async function readGraceEnds(
+  db: PgDatabase,
+  tenantId: string,
+  mappingId: string,
+  now: Date = new Date(),
+): Promise<GraceEnds> {
+  const found = (await db.execute(sql`
+    SELECT c.domain, c.state, c.copies_through_grace, c.updated_at,
+           c.grace_period_started_at, c.grace_period_hours, c.grace_period_completed_at
+      FROM cutover_state c
+     WHERE c.tenant_id = ${tenantId}::uuid AND c.mapping_id = ${mappingId}::uuid
+  `)) as unknown as {
+    rows: Array<{
+      domain: string | null;
+      state: string;
+      copies_through_grace: boolean;
+      updated_at: Date | string;
+      grace_period_started_at: Date | string | null;
+      grace_period_hours: number;
+      grace_period_completed_at: Date | string | null;
+    }>;
+  };
+  const asDate = (v: Date | string | null): Date | null => (v === null ? null : new Date(v));
+  const endOf = (r: (typeof found.rows)[number]): Date | null =>
+    cutoverGraceEndedAt(
+      {
+        state: r.state,
+        copiesThroughGrace: r.copies_through_grace,
+        enteredAt: new Date(r.updated_at),
+        graceStartedAt: asDate(r.grace_period_started_at),
+        graceHours: r.grace_period_hours,
+        completedAt: asDate(r.grace_period_completed_at),
+      },
+      now,
+    );
+  const wholeRow = found.rows.find((r) => r.domain === null);
+  const whole = wholeRow === undefined ? null : endOf(wholeRow);
+  const own = new Map(found.rows.filter((r) => r.domain !== null).map((r) => [r.domain!, endOf(r)]));
+  return { of: (domain) => (domain !== undefined && own.has(domain) ? (own.get(domain) ?? null) : whole) };
 }
