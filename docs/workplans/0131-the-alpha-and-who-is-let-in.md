@@ -4,6 +4,11 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, later: the index refuses a plan held twice.** `node scripts/workplan-index.mjs
+--check` now fails when a plan repeats a `## ` heading outside fenced code, and names the plan and
+the heading. With `main`'s copy of this plan it names the six headings that stood twice; with this
+one it passes. 0147's Status has the guard.
+
 **2026-09-27: T1, T2 and T3 (a) are merged.** Their task rows said *not merged*, and T5's 0131
 row said *Nothing built*. But #1160 merged T1 (a) on 2026-09-24, and #1171 and #1172 merged T2 (a)
 and T3 (a) on 2026-09-25. The three rows now say so. T5's 0131 row says so too, and that none of
