@@ -4,6 +4,19 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, evening: the owner answered open questions 1 and 3.**
+
+- **Open question 1, T0's provisional numbers: accepted for now**, *"accept proposals for now"*:
+  - 2 passes in flight per organisation (`MAX_PASSES_PER_ORGANISATION`, T1);
+  - 5 migrations per organisation (T2a);
+  - a 2 GB largest file (T4);
+  - invitations in waves of about five (§4).
+
+  The overall cap (`MAX_PASSES_IN_FLIGHT`) still comes from T1's formula, read on the machine.
+  T9 replaces all of them.
+- **Open question 3, T5's rule: (c)**, *"5c"*: the small data types first, then a fair share of
+  what is left. M4's step 4 builds it.
+
 **2026-09-27: T2d's runbook step written (0131 §6, group M4, step 8, with 0142 T6)** on branch
 `claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged. Step 3 of
 `docs/incident-runbook.md` carries it, as §3 gives it:
@@ -283,12 +296,12 @@ unproved until then:
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's numbers | ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
+| T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, 2 GB, waves of about five; ⏳ **Owner** for the overall cap on the machine — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2d's runbook step written 2026-09-27, not merged**, in 0142 T6's runbook; T2a to T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
-| T5 Every data type of a migration gets a turn in a pass | 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
+| T5 Every data type of a migration gets a turn in a pass | 📋 **Decided 2026-09-27: (c)** (open question 3) — *was:* 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
@@ -1206,12 +1219,13 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
 
 1. **T0's provisional numbers.** The proposals are 2 passes per organisation, 5 migrations per
    organisation, a 2 GB largest file, and waves of about five. The overall cap comes from T1's
-   formula on the machine. Are these acceptable until T9 replaces them?
+   formula on the machine. Are these acceptable until T9 replaces them? **Answered 2026-09-27:
+   yes, for now**, *"accept proposals for now"*.
 2. **T3 for the first invitation.** (a) T3a only, with JMAP files pointed at WebDAV, which is
    recommended and keeps the minimum small. (b) T3b before the first invitation, if the owner
    expects the first testers to want their files on a JMAP target.
 3. **T5's rule.** (c), small first and then a fair share, is recommended. Or (a) rotation, or (b)
-   least progressed first.
+   least progressed first. **Answered 2026-09-27: (c)**, *"5c"*.
 4. **T9's large mailbox and drive.** Does the owner have a large mailbox that is not Gmail, for
    example a Microsoft 365 one, to put through the rehearsal? And where do those two loads run?
    (a) On the OTA stack with the rest of the sitting, storing the grants for a day under the
