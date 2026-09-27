@@ -109,7 +109,7 @@ describe('what the page watches', () => {
      * A row that is in neither list fails, which is the point: a new Ownpace
      * check has to say which of the two it is.
      */
-    const THROUGH_THE_APP = ['Web app', 'API', 'Database', 'Sign-in'];
+    const THROUGH_THE_APP = ['Web app', 'API', 'Database', 'Sign-in', 'Scheduled syncs'];
     const OWN_ADDRESS: Record<string, string> = {
       'Identity provider': '${STATUS_IDP_URL}',
       Website: '${STATUS_SITE_URL}',
@@ -137,26 +137,45 @@ describe('what the page watches', () => {
 });
 
 describe('the checks line up with what the API actually answers', () => {
-  it('asserts only on fields /api/ready returns', () => {
+  it('asserts only on fields the route it reads returns', () => {
     // THE CASE THIS FILE EXISTS FOR. A renamed field makes the page red
-    // forever, and a red status page is the one bug nobody files.
-    const declared = [...readySource.matchAll(/readonly (\w+): CheckState;/g)].map((m) => m[1]);
-    expect(declared, 'the Readiness interface moved — this scan needs updating').toContain(
+    // forever, and a red status page is the one bug nobody files. Two routes
+    // answer with fields now (workplan 0142 T2): readiness, and the sync
+    // tick's own. A field of one asked of the other is red forever too.
+    const fieldsOf = (type: string): string[] => {
+      const body = readySource.match(new RegExp(`interface ${type} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? '';
+      return [...body.matchAll(/readonly (\w+):/g)].map((m) => m[1]!);
+    };
+    const routes: ReadonlyArray<readonly [string, string[]]> = [
+      ['/api/ready/scheduler', fieldsOf('SchedulerReadiness')],
+      ['/api/ready', fieldsOf('Readiness')],
+      // `/health` answers `{ status: 'ok' }` from a literal.
+      ['/api/health', ['status']],
+    ];
+    expect(routes[0]![1], 'the SchedulerReadiness interface moved — this scan needs updating').toEqual([
+      'scheduler',
+    ]);
+    expect(routes[1]![1], 'the Readiness interface moved — this scan needs updating').toContain(
       'database',
     );
 
-    const asserted = config.endpoints
-      .flatMap((e) => e.conditions)
-      .flatMap((c) => [...c.matchAll(/\[BODY\]\.(\w+)/g)].map((m) => m[1]));
-    expect(asserted.length, 'no [BODY] conditions found — the scan is vacuous').toBeGreaterThan(0);
-
-    for (const field of asserted) {
-      // `status` is the roll-up, which is a field too.
-      expect(
-        [...declared, 'status'],
-        `gatus.yaml asserts on [BODY].${field}, which /api/ready does not return`,
-      ).toContain(field);
+    let asserted = 0;
+    for (const endpoint of config.endpoints) {
+      const fields = endpoint.conditions.flatMap((c) =>
+        [...c.matchAll(/\[BODY\]\.(\w+)/g)].map((m) => m[1]!),
+      );
+      if (fields.length === 0) continue;
+      const route = routes.find(([path]) => endpoint.url.endsWith(path));
+      expect(route, `${endpoint.name} asserts on [BODY] of a route this scan does not know`).toBeTruthy();
+      for (const field of fields) {
+        asserted += 1;
+        expect(
+          route![1],
+          `gatus.yaml asserts on [BODY].${field}, which ${route![0]} does not return`,
+        ).toContain(field);
+      }
     }
+    expect(asserted, 'no [BODY] conditions found — the scan is vacuous').toBeGreaterThan(0);
   });
 
   it('reads the FIELD for database and sign-in, not the status code', () => {
@@ -164,7 +183,7 @@ describe('the checks line up with what the API actually answers', () => {
     // pulled the API out of rotation over a sign-in outage would turn a partial
     // problem into a total one. So `[STATUS] == 200` would be green during
     // exactly the degradation these two rows exist to show.
-    for (const name of ['Database', 'Sign-in']) {
+    for (const name of ['Database', 'Sign-in', 'Scheduled syncs']) {
       const endpoint = config.endpoints.find((e) => e.name === name)!;
       expect(endpoint, `${name} endpoint is gone`).toBeTruthy();
       expect(endpoint.conditions.join(' ')).toContain('[BODY].');
