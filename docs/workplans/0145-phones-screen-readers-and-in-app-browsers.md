@@ -4,6 +4,51 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, build review: Stage 9's fixes, on the same branch
+(`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
+text only. Step 6 now issues a fresh grant link for each app on each phone, because a link that
+has been accepted is spent (*"Deze link is verbruikt."*). The in-app browser table gains the
+*Language seen* column T10 asks for. T1's row is marked merged: #1169 (`41c77a01`, `144c6f69`),
+on `main` since 2026-09-25, all but the skip link. Stage 9's table of the minimum names it. No
+guard: the facts were read at `origin/main` (`eba2d10`). 0141's Status has the rest of the review.
+
+**2026-09-27, build: T10's runbook stage, on branch
+`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged.** This is 0131 §6's R5 step 3. It is
+text only: the walk has not happened, and nothing here records one.
+
+- **The stage.** `docs/owner-test-runbook.md` gains *"Stage 9 — the same walk on two phones"*,
+  after 0141 T12's Stage 8. It has T10's phones, both set to Dutch, the two screen-reader passes
+  over steps 3 to 5, and T10's eight steps, each with what to expect. It has the in-app browser
+  table, with the columns T10 names.
+- **What to record, and where.** For each step, phone and pass: pass, fail or *not in this
+  release*, the date, live's release from the build stamp, the phone and its OS version, the
+  browser and the language, never an address. The rows and the table go in this block. The grant
+  link's in-app rows also go to 0140 T3. A browser where neither the window nor the link comes back
+  goes to T5, whose same-tab fallback waits for one. A sign-in page that does not fit goes to 0135.
+- **How each fact was checked.** Every label and route the stage quotes was read at `origin/main`
+  (`eba2d10`). *Toegang aanvragen* is `ctaOrder` in `site/copy.mjs`, and `orderHref` in
+  `site/build.mjs` adds `?locale=nl`. *Menu*, *Sluiten*, *Verbinden met Google* and *Volgende* are
+  in `strings.ts`. The four step names, *Bron*, *Doel*, *Migratie* and *Controleren*, are
+  `CreateMapping.tsx`'s. The build stamp shows in `Layout.tsx` and on the pages outside it
+  (`Login.tsx`, `RequestAccess.tsx`, `Invitations.tsx`, `Grant.tsx`, `View.tsx`).
+- **Which of the minimum is on `main`.** T1 is, T3 (a) is since #1206, and T6 since #1208. T5
+  with T7 (a) is not. So the stage has a table of which task each step waits for, and a step whose
+  task is not in live's release is recorded as *not in this release*, not as a failure.
+
+**No guard.** T10 is the owner's walk, and the stage is documentation. Each fact was checked
+against the code instead.
+
+**Departures from §3.**
+
+- The heading *"Stap 2 van 4: Doel"* is T3 (a)'s proposal. The step names in it are the wizard's
+  own.
+- Step 3 closes the menu with its close button and with its backdrop, because a phone has no
+  Escape key.
+- Step 8 asks for 200% page zoom in Safari, without naming Safari's control for it.
+
+**Open, and whose.** The walk is the owner's, after 0141's Stage 8, once live runs a release that
+carries the minimum. T9 (a) is written from it after.
+
 **2026-09-27, review fixes: T6's branch, not merged.** The owner's reading of all the Dutch is
 still owed before it merges (0144 D1), and two answers are still the owner's: the grant half is
 built ahead of 0140's open question 2, and the switch follows this plan's open question 2 as
@@ -488,6 +533,8 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | Task | Status | Notes |
 |---|---|---|
 | T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 is built. |
+| T1 The phone menu takes focus and gives it back | ✅ **done** in #1169, merged 2026-09-25 (`41c77a01`, `144c6f69`), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
+
 | T1 The phone menu takes focus and gives it back | 🔨 **Built**, merged in #1169 (2026-09-25), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | (a) ✅ **done** in #1206, merged 2026-09-27; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
@@ -497,7 +544,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
-| T10 The walk on two phones | ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
+| T10 The walk on two phones | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
 ## 1. What there is today
 
