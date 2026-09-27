@@ -81,7 +81,13 @@ services:
       # is set to the front's address, or the name stops answering. Compose
       # reads it from the `.env` beside this file, in the checkout this stack
       # is brought up from. Unset, the second entry renders the same as the
-      # first and Compose keeps one. Never 0.0.0.0.
+      # first and Compose keeps one. One IPv4 address, never a name and never
+      # 0.0.0.0. NOTHING RECREATES THIS SERVICE BUT A PERSON: no workflow and
+      # no script runs this file, so a change here, or to WWW_BIND, reaches
+      # the machine at the next `docker compose -f deploy/compose/www.yml up -d`
+      # from an updated checkout. And a bind on a mesh address needs that
+      # address to exist when Docker starts the container, after a reboot too
+      # (docs/managed-bring-up.md, "Which address a port answers on").
       # scripts/a-port-published-on-purpose.unit.test.ts holds the shape.
       - "127.0.0.1:${WWW_PORT:-3125}:80"
       - "${WWW_BIND:-127.0.0.1}:${WWW_PORT:-3125}:80"

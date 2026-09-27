@@ -58,8 +58,18 @@
 # set in this stack's `.env`, it adds that address and leaves loopback where it was. What a bind is
 # set to is the front's address for a port a public name is routed to (the web app, the identity
 # provider and the status page), and a mesh address for a page the owner opens from a laptop.
-# Never 0.0.0.0. `scripts/a-port-published-on-purpose.unit.test.ts` holds every `ports:` entry to
-# this shape. Mailpit and Nextcloud keep their older single bind, which their callers follow.
+# A bind is one IPv4 address, never a name (Compose refuses the whole file, `invalid IP address`)
+# and never 0.0.0.0; `bootstrap-managed.sh` refuses both before Compose reads the file.
+# `scripts/a-port-published-on-purpose.unit.test.ts` holds every `ports:` entry to this shape.
+# Mailpit and Nextcloud keep their older single bind, which their callers follow.
+#
+# A BIND ON A MESH ADDRESS TIES THE CONTAINER'S START TO THAT ADDRESS. Docker binds the address
+# when it starts the container, and the address must exist then. After a reboot where Docker
+# starts before the mesh client has its address, the container fails with `cannot assign
+# requested address`, its loopback publish with it, and a restart policy does not reliably
+# retry that start. A publish on every interface never had this dependency. The remedy,
+# `net.ipv4.ip_nonlocal_bind=1` or Docker ordered after the mesh, and the check after a reboot are
+# in docs/managed-bring-up.md, "Which address a port answers on".
 name: ownpace-managed
 services:
   # PostgreSQL Database
@@ -509,9 +519,10 @@ services:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
     ports:
       # The dashboard. To open it from a laptop over the mesh, set
-      # TRIGGER_TLS_BIND to this machine's mesh address, next to the
-      # TRIGGER_TLS_HOST that names it (docs/managed-bring-up.md, "Addressing
-      # the dashboard"). The smoke keeps asking 127.0.0.1. See the header.
+      # TRIGGER_TLS_BIND to this machine's mesh IP address, the one
+      # TRIGGER_TLS_HOST names (an IP, never a name; docs/managed-bring-up.md,
+      # "Addressing the dashboard"). The smoke keeps asking 127.0.0.1. See the
+      # header.
       - "127.0.0.1:${TRIGGER_TLS_PORT:-3443}:3443"
       - "${TRIGGER_TLS_BIND:-127.0.0.1}:${TRIGGER_TLS_PORT:-3443}:3443"
     volumes:

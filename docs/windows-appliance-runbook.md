@@ -273,11 +273,11 @@ started with `deploy/selfhost/setup-stalwart.sh` (idempotent), and run the
 appliance on the laptop, pointing its mapping at the Spark's NetBird address.
 
 **Publish it on that address, because the default is loopback.** Since
-workplan 0132 T3, `setup-stalwart.sh` publishes both ports on `STALWART_BIND`, which
-is `127.0.0.1` unless set (workplan 0132 T3): its accounts and passwords are in
-this repository. Before that it published with no bind address, on every
-interface. Run it on the Spark with the NetBird address, and the script asks
-that same address when it provisions:
+workplan 0132 T3, `setup-stalwart.sh` publishes both ports on `STALWART_BIND`,
+which is `127.0.0.1` unless set: its accounts and passwords are in this
+repository. Before that it published with no bind address, on every interface.
+Run it on the Spark with the NetBird address, and the script asks that same
+address when it provisions:
 
 ```bash
 STALWART_BIND=<spark-netbird-ip> ./deploy/selfhost/setup-stalwart.sh

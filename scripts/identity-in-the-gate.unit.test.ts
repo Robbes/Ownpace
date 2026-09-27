@@ -33,6 +33,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 const COMPOSE = fileURLToPath(new URL('../deploy/compose/', import.meta.url));
 const read = (name: string): string => readFileSync(COMPOSE + name, 'utf8');
@@ -343,23 +344,72 @@ describe('the identity provider is published somewhere it can actually bind', ()
     ).not.toContain(idp?.host);
   });
 
+  /**
+   * Every host port each service publishes, by service. One port on two
+   * addresses (loopback, and the address its bind adds, workplan 0132 T3) is
+   * two entries of ONE service. The same host port under a second service is
+   * two containers asking for one port, and one of them cannot start.
+   */
+  const hostPortsByService = (
+    file: string,
+    yaml: string,
+  ): { owner: string; variable: string; host: string }[] => {
+    const doc = parseYaml(yaml) as { services: Record<string, { ports?: unknown[] }> };
+    return Object.entries(doc.services).flatMap(([service, svc]) =>
+      (svc.ports ?? []).flatMap((entry) => {
+        const m = /^(?:(?:127\.0\.0\.1|\$\{[A-Z_]+_BIND:-127\.0\.0\.1\}):)?\$\{([A-Z_]+):-(\d+)\}:/.exec(
+          String(entry),
+        );
+        return m ? [{ owner: `${file}:${service}`, variable: m[1]!, host: m[2]! }] : [];
+      }),
+    );
+  };
+
+  /** `3123: managed.yml:web (WEB_PORT) and managed.yml:gatus (WEB_PORT)`, per clash. */
+  const clashesOf = (all: { owner: string; variable: string; host: string }[]): string[] => {
+    const seen = new Map<string, { owner: string; variable: string }>();
+    const clashes: string[] = [];
+    for (const p of all) {
+      const first = seen.get(p.host);
+      // Keyed by SERVICE, not by variable: keyed by variable, a publish copied
+      // into a second service (`127.0.0.1:${WEB_PORT:-3123}:8080` under gatus)
+      // passed as "the same port on another address".
+      if (first && first.owner !== p.owner) {
+        clashes.push(`${p.host}: ${first.owner} (${first.variable}) and ${p.owner} (${p.variable})`);
+      } else if (!first) seen.set(p.host, p);
+    }
+    return clashes;
+  };
+
   it('gives every service on this host a host port of its own', () => {
     // www.yml is a separate file that deliberately runs on the SAME host (its
     // header says so), so its port counts against the same pool.
-    //
-    // One port published on two addresses (loopback, and the address its bind
-    // adds) is ONE port, not a clash: it is the same variable both times.
-    const all = [...managedPorts, ...publishes(www)];
-    const seen = new Map<string, string>();
-    const clashes: string[] = [];
-    for (const p of all) {
-      const owner = seen.get(p.host);
-      if (owner && owner !== p.variable) clashes.push(`${p.host}: ${owner} and ${p.variable}`);
-      else seen.set(p.host, p.variable);
-    }
-    expect(clashes, 'two services default to the same host port — one of them cannot start').toEqual(
+    const all = [
+      ...hostPortsByService('managed.yml', managed),
+      ...hostPortsByService('www.yml', www),
+    ];
+    expect(all.length, 'read no host ports by service').toBeGreaterThan(10);
+    expect(clashesOf(all), 'two services default to the same host port — one of them cannot start').toEqual(
       [],
     );
+  });
+
+  it('counts one port on two addresses as one, and one variable in two services as a clash', () => {
+    const yaml = [
+      'services:',
+      '  web:',
+      '    ports:',
+      '      - "127.0.0.1:${WEB_PORT:-3123}:80"',
+      '      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3123}:80"',
+      '  gatus:',
+      '    ports:',
+      '      - "127.0.0.1:${STATUS_PORT:-3124}:8080"',
+      '      - "127.0.0.1:${WEB_PORT:-3123}:8080"',
+    ].join('\n');
+    const clashes = clashesOf(hostPortsByService('x.yml', yaml));
+    expect(clashes, 'a publish copied into a second service went unreported').toHaveLength(1);
+    expect(clashes[0]).toContain('x.yml:gatus');
+    expect(clashesOf(hostPortsByService('x.yml', yaml.split('\n').slice(0, 5).join('\n')))).toEqual([]);
   });
 
   it('listens on the very port it publishes, because the origin check includes it', () => {

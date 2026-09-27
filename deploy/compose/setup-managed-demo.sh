@@ -42,7 +42,11 @@ set -euo pipefail
 #     defaults) if both run on one host.
 #   STALWART_BIND — the address the demo Stalwart's two ports are published on,
 #     forwarded to setup-stalwart.sh. Loopback by default (workplan 0132 T3): the
-#     stack reaches it by name, and the seeder below asks the same address.
+#     stack reaches it by name, and the seeder below asks the same address. The
+#     nightly gate's own seed step (e2e-managed.yml, "The demo's mail source has
+#     mail in it") asks 127.0.0.1 and does not read it, so the OTA stack's
+#     `.env` leaves STALWART_BIND unset. On a mesh address the container's start
+#     also waits on that address existing, after a reboot too.
 #   STALWART_CLI_URL — forwarded to setup-stalwart.sh. If you're running this from a
 #     Docker-outside-of-Docker sandbox (only reaches Docker via a mounted docker.sock),
 #     127.0.0.1:<published-port> may not be reachable from your own shell even though

@@ -207,6 +207,11 @@ load_env() {
   note_mail_goes_nowhere_real
   note_status_page_probes_itself
   note_site_row_half_configured
+  note_dashboard_on_this_machine_only
+
+  # Before Compose reads the file: a bind that is a name fails `config` below
+  # with Compose's words and no key, and `0.0.0.0` passes it and fails at `up`.
+  refuse_a_bind_that_is_not_an_address "$ENV_FILE"
 
   local config_err
   if ! config_err="$("${COMPOSE[@]}" config -q 2>&1)"; then
@@ -226,6 +231,76 @@ load_env() {
     fi
     exit 1
   fi
+}
+
+# EVERY *_BIND IS AN IPv4 ADDRESS, AND NONE IS EVERY INTERFACE (workplan 0132 T3).
+#
+# A bind is the host address a port is published on, and Compose takes only an
+# IP there. Three mistakes pass everything until the first bring-up that reads
+# the key, and none of them names the key:
+#
+#   a NAME (TRIGGER_TLS_HOST may be one, and a bind "set to the same address"
+#   copies it): Compose refuses the whole file, `invalid IP address: …`, so
+#   every compose command fails, the gate's bring-up and teardown included;
+#
+#   0.0.0.0, or `::`: every interface, which is what these keys exist to stop.
+#   Beside the fixed 127.0.0.1 publish of the same port it also cannot bind,
+#   so the container does not start, with Docker's words and not this rule's;
+#
+#   `KEY=   # note`: Compose reads the note as the value (managed-env-contract),
+#   and bash reads it as empty, so every shell-side check agrees it is unset.
+#
+# Every key ending in _BIND in the file, not a list, so MAILPIT_BIND,
+# NEXTCLOUD_BIND and STALWART_BIND are held to the same rule. The value is
+# never printed: a name that is not an address may be a private machine's,
+# and the gate's log is public.
+refuse_a_bind_that_is_not_an_address() { # refuse_a_bind_that_is_not_an_address <env-file>
+  local file="$1" key raw value octet ok bad=()
+  local keys
+  # The lines env_value reads, and no others, so the value refused is the value
+  # the rest of this script would use.
+  keys="$(sed -n 's/^\(export[[:space:]][[:space:]]*\)\{0,1\}\([A-Za-z_][A-Za-z0-9_]*_BIND\)=.*/\2/p' "$file" | sort -u)"
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    # The line in force is the last, as Compose and `set -a; .` both take it.
+    raw="$(grep -E "^(export[[:space:]]+)?${key}=" "$file" | tail -n 1 || true)"
+    raw="${raw#*=}"
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    case "$raw" in
+      '#'*)
+        bad+=("${key}: a comment where the value belongs, which Compose reads as the address")
+        continue
+        ;;
+    esac
+    value="$(env_value "$file" "$key")"
+    [ -n "$value" ] || continue
+    case "$value" in
+      0.0.0.0 | :: | '[::]')
+        bad+=("${key}: ${value} is every interface")
+        continue
+        ;;
+    esac
+    ok=0
+    if [[ "$value" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
+      ok=1
+      for octet in "${BASH_REMATCH[@]:1}"; do
+        # No leading zero (Compose's parser refuses one) and nothing over 255.
+        if [[ "$octet" =~ ^0[0-9] ]] || [ "$octet" -gt 255 ]; then ok=0; fi
+      done
+    fi
+    [ "$ok" = "1" ] || bad+=("${key}: not an IPv4 address (a bind takes an IP address, never a name)")
+  done <<<"$keys"
+
+  [ "${#bad[@]}" -eq 0 ] && return 0
+  echo "!!! ${file} publishes a port on an address Docker cannot use, or should not:" >&2
+  local b
+  for b in "${bad[@]}"; do echo "!!!   ${b}" >&2; done
+  echo "!!! A bind is empty (127.0.0.1 only) or one IPv4 address of this machine:" >&2
+  echo "!!! the front's address for a routed name, its mesh address for a page you" >&2
+  echo "!!! open from a laptop. Never 0.0.0.0. Fix it here and in any persisted" >&2
+  echo "!!! copy the next run restores from, then run this again." >&2
+  echo "!!! docs/managed-bring-up.md, \"Which address a port answers on\"." >&2
+  exit 1
 }
 
 # Bring services up, and on failure show WHY rather than the one line compose
@@ -419,6 +494,41 @@ note_site_row_half_configured() {
     note "  uses:"
     note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} STATUS_SITE_URL=https://www.example.com"
   fi
+}
+
+# A DASHBOARD NAMED FOR THE LAPTOP AND PUBLISHED FOR THIS MACHINE.
+#
+# trigger-tls publishes on 127.0.0.1, and on TRIGGER_TLS_BIND's address too
+# when that is set (workplan 0132 T3). TRIGGER_TLS_HOST names the address the
+# browser uses, but it does not publish anything: with a host that is not this
+# machine's loopback and no bind, the certificate and the origins are right,
+# the magic link is printed, and nothing answers it from the laptop.
+#
+# The value is not printed. It is this machine's mesh address, and the gate's
+# log is public.
+#
+# A NOTE, NOT A REFUSAL: a dashboard reached through an SSH tunnel is a
+# legitimate way to work, and the stack is fine either way.
+DASHBOARD_NOTE_SAID=0
+note_dashboard_on_this_machine_only() {
+  [ "${DASHBOARD_NOTE_SAID:-0}" = "1" ] && return 0
+  local host bind
+  host="$(env_get TRIGGER_TLS_HOST)"
+  bind="$(env_get TRIGGER_TLS_BIND)"
+  case "$host" in
+    '' | localhost | 127.0.0.1) return 0 ;;
+  esac
+  [ -z "$bind" ] || return 0
+  DASHBOARD_NOTE_SAID=1
+
+  note "THE TRIGGER.DEV DASHBOARD ANSWERS ON THIS MACHINE ONLY. TRIGGER_TLS_HOST"
+  note "  names another address, and TRIGGER_TLS_BIND is empty, so trigger-tls"
+  note "  publishes on 127.0.0.1 alone. To open it from that address, set"
+  note "  TRIGGER_TLS_BIND to the IP address TRIGGER_TLS_HOST names (a bind takes"
+  note "  an IP address, never a name), then recreate the service:"
+  note "      ./deploy/compose/env-upsert.sh ${ENV_FILE} TRIGGER_TLS_BIND=<that address>"
+  note "      docker compose -f deploy/compose/managed.yml up -d trigger-tls"
+  note "  docs/managed-bring-up.md, \"Which address a port answers on\"."
 }
 
 # THE `zitadel` ROLE'S PASSWORD, ASKED BEFORE THE CONTAINER IS STARTED.
@@ -806,7 +916,9 @@ phase_env() {
     note "TRIGGER_TLS_HOST=localhost — the dashboard will only be usable FROM this"
     note "  machine. To reach it from your laptop, set TRIGGER_TLS_HOST (and the"
     note "  https half of TRIGGER_APP_ORIGIN / TRIGGER_LOGIN_ORIGIN) to the address"
-    note "  the browser actually uses, then re-run --from trigger."
+    note "  the browser actually uses, and TRIGGER_TLS_BIND to that same IP address,"
+    note "  which publishes the port there (a bind takes an IP, never a name). Then"
+    note "  re-run --from trigger."
   fi
 
   # The file has just been created, so NONE of the decisions above have been
@@ -819,8 +931,10 @@ phase_env() {
 
     ${ENV_FILE} has just been created. Read it before anything uses it —
     the passwords, the public URLs (CORS_ORIGIN / WEB_URL / API_URL), the
-    prices in PRICING_* (integer CENTS), and TRIGGER_TLS_HOST are decisions,
-    not defaults. docs/managed-bring-up.md, phase 2, says what each one costs.
+    prices in PRICING_* (integer CENTS), TRIGGER_TLS_HOST, and the *_BIND
+    addresses (TRIGGER_TLS_BIND beside TRIGGER_TLS_HOST, WEB_BIND and
+    ZITADEL_BIND where a public name is routed here) are decisions, not
+    defaults. docs/managed-bring-up.md, phase 2, says what each one costs.
 
     Edit it directly, or:
       ./deploy/compose/env-upsert.sh ${ENV_FILE} KEY=VALUE …
