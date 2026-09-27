@@ -516,7 +516,7 @@ partly there:
 | 0145 task | Steps below | On `main` |
 |---|---|---|
 | T1, the phone menu takes focus and gives it back | 3 | Yes, since #1169 (`Layout.tsx`) |
-| T3 (a), each wizard step starts at the top and says which it is | 5 | No |
+| T3 (a), each wizard step starts at the top and says which it is | 5 | Yes, since #1206 (`CreateMapping.tsx`, `Layout.tsx`) |
 | T5 with T7 (a), the consent window opens on the press, and a greyed-out button says why | 4 | No |
 | T6, the grant page and the consent endings in one language | 6 | No |
 
