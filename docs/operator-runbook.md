@@ -522,6 +522,24 @@ curl -X POST "$API/api/tenants/$TENANT/close" \
   -d '{"windowDays": 30}'     # 0, 7, 30 or 90 — the customer chooses
 ```
 
+**When a tester asks you to close theirs** (terms §11: through the report form
+or the support address, naming a window), you have no owner token of theirs.
+Close it at the machine instead (workplan 0139 T7 (a)):
+
+```bash
+./deploy/compose/operator.sh close <tenant-id> 30 \
+  --by <your-subject> --reference 'ticket 4821, their mail of 26 September'
+```
+
+It is the same close the button makes (`closeAccount` in
+`apps/api/src/close-account.ts`), and it prints the same answer as the table
+below: both dates, the sentence in English and in Dutch, and what outlives the
+erasure. That is what you send them. It refuses a window outside the list, and a
+subject that is not an appointed operator's (`operator.sh list`). The audit log
+records the close as `tenant.closed`, with you as the actor and the reference
+beside `via: operator`; a close from the button names its owner and
+`via: screen`.
+
 Syncs and billing stop immediately and the account goes read-only. Nothing is
 deleted yet. A window of `0` cannot be undone and the response says so
 (`canReopenUntil: null`); every other window can, with
@@ -588,6 +606,10 @@ Then send them `standingGrants` from the close response. Revoking a token is
 not withdrawing a consent: an Entra admin consent, a Google OAuth
 authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.
+
+**Their sign-in account.** Closing and purging leave the person's account at
+the identity provider. Once the purge has run, remove it in the provider's
+console. Workplan 0135 T8's script will take this step over.
 
 > **The three decision queues now have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves

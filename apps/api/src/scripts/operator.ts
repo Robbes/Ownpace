@@ -74,6 +74,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
 import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
+import { describeClosed, parseCloseCommand, runCloseCommand } from './operator-close.ts';
+import { getTriggerClient } from '@openmig/scheduler';
 import {
   checkByKind,
   HOUSEKEEPING_CHECKS,
@@ -102,6 +104,7 @@ const USAGE = `Usage:
   operator:clean <kind> [--confirm]
   operator:secrets
   operator:links <tenant-id> [<n> [--until YYYY-MM-DD] [note] | --tier]
+  operator:close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>
 
 DATABASE_URL must be the OWNER connection — app_user cannot write this table,
 which is the point of it.`;
@@ -705,6 +708,18 @@ async function main(): Promise<void> {
         log.info(
           rowCount === 0 ? `No operator with subject ${userId}.` : `${userId} is no longer an operator.`,
         );
+        break;
+      }
+
+      case 'close': {
+        // A tester's account ended when they ask (0139 T7 (a)), through the
+        // function the Close button calls: operator-close.ts.
+        const command = parseCloseCommand(rest);
+        if ('error' in command) throw new Error(command.error);
+        const closed = await runCloseCommand(pool, command, {
+          cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)),
+        });
+        for (const line of describeClosed(command, closed)) log.info(line);
         break;
       }
 
