@@ -43,7 +43,7 @@ describe('the cutover door asks the ledger before it enqueues', () => {
   it('asks BEFORE anything is enqueued', () => {
     const askAt = POST.indexOf('prepareTransition(');
     const resolveAt = POST.indexOf('resolveCutoverJob(');
-    const enqueueAt = POST.indexOf('.tasks.trigger(');
+    const enqueueAt = POST.indexOf('await enqueue(');
     expect(askAt).toBeGreaterThan(-1);
     expect(resolveAt).toBeGreaterThan(askAt);
     expect(enqueueAt).toBeGreaterThan(askAt);
@@ -62,7 +62,7 @@ describe('the cutover door asks the ledger before it enqueues', () => {
   it('refuses the whole migration once a data type has a cutover of its own, before the ledger is asked (0128 T5, slice 5b)', () => {
     const beginAt = POST.indexOf('cutoverBeginRefusal(');
     const askAt = POST.indexOf('prepareTransition(');
-    const enqueueAt = POST.indexOf('.tasks.trigger(');
+    const enqueueAt = POST.indexOf('await enqueue(');
     expect(beginAt).toBeGreaterThan(POST.indexOf('loadLedgers('));
     expect(askAt).toBeGreaterThan(beginAt);
     const refusedAt = POST.indexOf("error: 'cutover_refused'", beginAt);
@@ -78,14 +78,14 @@ describe('the cutover door asks the ledger before it enqueues', () => {
     expect(POST).toContain('loadCutoverState(asTenantId(tenantId), asMappingId(mappingId), body.domain)');
     const carriedAt = POST.indexOf("code: 'not_a_path'");
     expect(carriedAt).toBeGreaterThan(POST.indexOf('readPathStopFacts('));
-    expect(POST.indexOf('return;', carriedAt)).toBeLessThan(POST.indexOf('.tasks.trigger('));
+    expect(POST.indexOf('return;', carriedAt)).toBeLessThan(POST.indexOf('await enqueue('));
     expect(POST).toContain('resolveCutoverJob(tenantId, mappingId, body)');
   });
 
   it('returns on a refusal, so nothing is enqueued', () => {
     const refusalAt = POST.indexOf("error: 'cutover_refused'");
     const returnAt = POST.indexOf('return;', refusalAt);
-    const enqueueAt = POST.indexOf('.tasks.trigger(');
+    const enqueueAt = POST.indexOf('await enqueue(');
     expect(returnAt).toBeGreaterThan(refusalAt);
     expect(returnAt).toBeLessThan(enqueueAt);
   });

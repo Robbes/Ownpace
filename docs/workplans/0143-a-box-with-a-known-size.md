@@ -688,9 +688,9 @@ too. Verification, cutover, confirmation and the two apply tasks open no copying
 count does not see them. None has a queue of its own. Verification and confirmation join a run
 already in progress instead of starting a second (*"Joined, not stacked"*, `operating-routes.ts`).
 Each of the five starts from a request somebody makes. T9 records whether they matter. 0132 T6
-proposes one function for all eight API enqueue sites so that the operator hold covers them. After
-the alpha, the same function can refuse *Sync now* for an organisation at its cap, with a
-sentence.
+(b) puts all eight API enqueue sites through one function, `enqueueUnlessHeld` (2026-09-27), so
+the operator hold covers them. After the alpha, the same function can refuse *Sync now* for an
+organisation at its cap, with a sentence.
 
 **The host, in the bring-up.** *Before you start* gains a memory and CPU line beside the disk
 line. It gives the formula above, and T9's measured figure for both stacks' resident services.
