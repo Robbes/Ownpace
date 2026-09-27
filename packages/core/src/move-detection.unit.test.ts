@@ -448,6 +448,29 @@ describe('a file moved between source folders', () => {
     expect(third.drift).toBe(0);
   });
 
+  it('is not paired with an arrival the target already held', async () => {
+    // Since workplan 0149 T1 a create refused with 412 comes back ADOPTED,
+    // where it came back as created. What was at that path is the customer's,
+    // so it is counted as adopted, not as a creation, and cannot be where the
+    // vanished file went: that stays a disappearance.
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('a', [{ key: 'a/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+    w.folders.set('b', []);
+    await w.run(ledger);
+
+    w.folders.set('a', []);
+    w.folders.set('b', [{ key: 'b/report.pdf', body: 'PDF-BYTES', version: 'e1' }]);
+    // Already there when the pass writes, so the writer adopts it.
+    w.target.set('t/b:b/report.pdf', 'PDF-BYTES');
+
+    const second = await w.run(ledger);
+    expect(second.adopted).toBe(1);
+    expect(second.created).toBe(0);
+    expect(second.moved).toBe(0);
+    expect(second.drift).toBe(1);
+  });
+
   it('calls a disappearance with no matching arrival drift, not a move', async () => {
     const ledger = new MemoryLedger();
     const w = world('file');
