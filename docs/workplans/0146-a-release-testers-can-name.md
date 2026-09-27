@@ -10,7 +10,8 @@
 invitation and is not built here.
 
 - **The setting.** `apps/worker/trigger.config.ts` declares `runtime: 'node-24'`. Its comment
-  says what §3 asks: 24 is the images' major, the version guard holds the two together, and
+  says what §3 asks: 24 is the images' Node major (the api and selfhost images run it, the web
+  image builds on it and serves from nginx), the version guard holds the two together, and
   without the line the CLI takes the server project's default runtime, or else its own `node`,
   which in 4.5.16 is Node 21. It also names the base image the CLI builds on, and says a change
   there takes a task re-deploy.
@@ -20,34 +21,46 @@ invitation and is not built here.
   `node-22`, `node-24`, `node-26`, the two deprecated `experimental-` aliases, and `bun` (core's
   `dist/esm/v3/schemas/build.d.ts`, line 15). Core's `resolveBuildRuntime` returns `node-24`
   unchanged. The published CLI, `trigger.dev@4.5.16`, read again from npm for this build, builds
-  `node-24` on `triggerdotdev/node:24-bookworm@sha256:d2d0c018…` and `node` on
-  `triggerdotdev/node:21-bookworm@sha256:49c6575c…` (`dist/esm/deploy/buildImage.js`, lines 449
-  and 451). It passes the config's value through that same `resolveBuildRuntime`
-  (`dist/esm/config.js`, line 103), and keeps it: the server project's default replaces it only
+  `node-24` on `triggerdotdev/node:24-bookworm@sha256:d2d0c018…` (`dist/esm/deploy/buildImage.js`,
+  line 451) and `node` on `triggerdotdev/node:21-bookworm@sha256:49c6575c…` (line 449). It reads
+  the evaluated config's `runtime` (`dist/esm/config.js`, line 102), passes it through that same
+  `resolveBuildRuntime` (line 103), and keeps it: the server project's default replaces it only
   when the config names none (`runtimeWasExplicit`, `dist/esm/commands/deploy.js`, line 268).
 - **The comments are corrected.** The headers of `crc32.ts` and
   `a-checksum-the-runtime-did-not-have.unit.test.ts` now say the CLI is pinned, the config named
   no runtime, the CLI's default was Node 21, and the config names `node-24` since this task. The
   CRC-32 module stays, as §3 says.
 - **Guard 1.** `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` has a third block, *the
-  tasks run the Node major the images ship*, with three cases. The config declares one `runtime`,
-  on a line of its own, so a commented-out line does not count. It is `node-<N>`, where N is the
-  images' one major. And the pinned core's `resolveBuildRuntime`, the function the CLI calls on
-  the value, returns it unchanged. The header's *Not read here* paragraph is now a section that
-  says what the block holds and what it does not prove.
+  tasks run the Node major the images ship*, with three cases. It imports the config and reads
+  its evaluated `runtime`, the value the CLI reads, not the file's text. The config names a
+  runtime. It is `node-<N>`, where N is the images' one major. And the pinned core's
+  `resolveBuildRuntime`, the function the CLI calls on the value, returns it unchanged. The
+  header's *Not read here* paragraph is now a section that says what the block holds and what it
+  does not prove.
 - **Failed first.** All three cases failed on the unchanged config, and the six existing cases
-  passed. The messages were `expected [] to have a length of 1`, `expected undefined to be
-  'node-24'` and `Unsupported runtime undefined in trigger.config`. **Mutations:** five, each
+  passed. The messages were `expected undefined to be defined`, `expected undefined to be
+  'node-24'` and `Unsupported runtime undefined in trigger.config`. **Mutations:** six, each
   turned the block red. `node-22` failed one case, `experimental-node-24` two, the line commented
-  out three, and a second `runtime:` line one. Moving the three images and the runtime to 25
-  together failed the third case, because the pinned core has no `node-25` (the `setup-node`
-  case failed too).
-- **Departures from §3.** The third case is new. `pnpm typecheck` does not read
-  `apps/worker/trigger.config.ts`: the root `tsconfig.json` takes `apps/*/src/**` and root-level
-  `*.config.ts`, and `tsc --listFilesOnly` does not list the file. Without the case, a runtime
-  the pinned CLI cannot build, such as a major the images reach before the SDK does, would first
-  fail on the nightly deploy. The test's comment above `isTest` repeated the *"a CLI this
-  repository does not pin"* claim; it is corrected too, though §3 names only lines 12 to 16.
+  out with `//` three, the line inside a `/* … */` block comment three, and a second
+  `runtime: 'node-22'` after the first one (the later key wins, for the CLI and for the guard).
+  Moving the three images and the runtime to 25 together failed the third case, because the
+  pinned core has no `node-25` (the `setup-node` case failed too).
+- **Review fixes (2026-09-27).** The first version of the block read the config as text, with a
+  regex for a `runtime:` line. The review found that a line inside a block comment still matched:
+  with it, all nine cases passed while importing the config gave `runtime` as `undefined`, which
+  is what the CLI would have seen. The block now imports the config, and on that same mutation
+  all three of its cases fail. The review also found the two `buildImage.js` line numbers above
+  in the wrong order, the config's comment saying the web image runs Node 24 (it only builds on
+  it), and the comment above `isTest` leaving out that, with no runtime named, the server
+  project's default comes before the CLI's own. All three are corrected.
+- **Departures from §3.** The third case is new. Before this build, `pnpm typecheck` did not read
+  `apps/worker/trigger.config.ts`: the root `tsconfig.json` takes `apps/*/src/**`, `scripts/**`
+  and root-level `*.config.ts`, and `tsc --listFilesOnly` did not list the file. The guard's
+  import now brings it in through `scripts/**`, so typecheck refuses a runtime the pinned SDK does
+  not know, and a duplicate key (TS1117). The third case stays: typecheck accepts the deprecated
+  `experimental-node-24`, and the case does not rest on typecheck having run. The test's comment
+  above `isTest` repeated the *"a CLI this repository does not pin"* claim; it is corrected too,
+  though §3 names only lines 12 to 16.
 - **What to look for on the machine.** The proof is the first scheduled run of the managed gate
   (`e2e-managed.yml`) after this merges. Its task deploy (`bootstrap-managed.sh`, which runs
   `deploy-tasks.sh`) builds the task image, and the build output should name
@@ -57,7 +70,10 @@ invitation and is not built here.
   answers which Node 24 minor it carries. Neither is verified yet (§3). For `ownpace-live`, §4's
   row asks the same of its first deploy from the alpha tag.
 - **Open.** Reading that run's build output, after the merge: the R session. Guard 2, after the
-  first invitation: the R session. The pull request's merge: the owner.
+  first invitation: the R session. 0131 T5's go/no-go row for 0146 still says in its *Today*
+  column that `trigger.config.ts` names no runtime. It is updated in the post-merge sweep, as
+  0131's other *Today* cells have been after their merges, not on this branch: the R session. The
+  pull request's merge: the owner.
 
 **2026-09-24: opened from the owner's answers.** Among the readiness review's findings of
 2026-09-23 about versions and releases, these five shape this plan. The only release is

@@ -49,8 +49,9 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'
  *
  * That is the real boundary rather than a list of today's three files. A test
  * BUILDS fixtures and runs on whatever Node CI has, which has the export. A
- * job runs in a task image built on whatever runtime the task config names,
- * or on the CLI's default when it names none, which is how the deploy died.
+ * job runs in a task image built on the runtime the task config names or,
+ * when it names none, on the server project's default or else the CLI's own,
+ * which is how the deploy died.
  *
  * Derived, so the next test that needs a zip fixture is not a maintenance
  * task, and the next SOURCE file that reaches for the platform still is.

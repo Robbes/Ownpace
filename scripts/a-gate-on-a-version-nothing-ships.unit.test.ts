@@ -41,10 +41,15 @@
  * T6).
  *
  * So the config names `runtime: 'node-<N>'`, N being the images' one major, and
- * this block holds it there. It also hands the value to the pinned
- * `@trigger.dev/core`'s `resolveBuildRuntime`, the function the CLI calls on
- * it: `pnpm typecheck` does not read trigger.config.ts, and a major the pinned
- * CLI has no base image for should fail here, not on the nightly deploy.
+ * this block holds it there. It imports the config and reads the value the CLI
+ * reads, not the file's text: a line inside a block comment, or a second key
+ * that overrides the first, reads one way as text and another to the CLI. It
+ * also hands the value to the pinned `@trigger.dev/core`'s
+ * `resolveBuildRuntime`, the function the CLI calls on it, so a major the
+ * pinned CLI has no base image for fails here, not on the nightly deploy. The
+ * import also brings trigger.config.ts under `pnpm typecheck`, which did not
+ * read it before: the root tsconfig takes each app's `src` and `scripts`, and
+ * the config sits beside `src`.
  *
  * What this does not prove: that the deploy then builds on that image (the
  * nightly managed gate's task deploy does, and its build output names the base
@@ -69,6 +74,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { resolveBuildRuntime } from '@trigger.dev/core/v3/build';
+import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
@@ -189,33 +195,32 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
 });
 
 /**
- * The worker's deploy config. The Trigger.dev CLI reads it and builds the task
- * image on the base image of the `runtime` it names.
+ * The worker's deploy config. The Trigger.dev CLI loads it and builds the task
+ * image on the base image of the `runtime` it names. Imported above; the path
+ * is for the messages.
  */
 const TASK_CONFIG = 'apps/worker/trigger.config.ts';
 
-/** Every `runtime: '<value>'` the config declares, each on a line of its own. A commented-out one is not a declaration. */
-function taskRuntimes(): string[] {
-  return [...read(TASK_CONFIG).matchAll(/^\s*runtime:\s*['"]([^'"]*)['"]/gm)].map((m) => m[1]!);
-}
-
 describe('the tasks run the Node major the images ship', () => {
   const images = imageNodeMajors();
-  const runtimes = taskRuntimes();
+  // The evaluated value, as the CLI reads it (`config.runtime` in the pinned
+  // CLI's config loader). Typed `unknown` so the cases below say what a wrong
+  // value is rather than the compiler narrowing it away.
+  const runtime: unknown = taskConfig.runtime;
 
-  it('the worker deploy config names one runtime', () => {
+  it('the worker deploy config names a runtime', () => {
     // Absent, the CLI takes the server project's default, or else its own
     // `node`, which in the pinned 4.5.16 CLI is triggerdotdev/node:21-bookworm.
     expect(
-      runtimes,
-      `${TASK_CONFIG} names no runtime (or more than one), so the task image's Node is whatever the CLI defaults to`,
-    ).toHaveLength(1);
+      runtime,
+      `${TASK_CONFIG} names no runtime, so the task image's Node is whatever the server project or the CLI defaults to`,
+    ).toBeDefined();
   });
 
   it("that runtime is node-<the images' major>", () => {
     const shipped = images[0]!.major;
     expect(
-      runtimes[0],
+      runtime,
       `the images run Node ${shipped}; the tasks, which hold every tenant's credentials while they run, must too`,
     ).toBe(`node-${shipped}`);
   });
@@ -223,9 +228,10 @@ describe('the tasks run the Node major the images ship', () => {
   it('the pinned Trigger.dev core accepts it as it stands, not as a deprecated alias', () => {
     // `resolveBuildRuntime` is what the CLI calls on this value. It throws on
     // a runtime the pinned version has no base image for, and maps a
-    // deprecated alias to its replacement. `pnpm typecheck` does not read
-    // trigger.config.ts, so without this a major the CLI cannot build would
-    // first fail on the nightly deploy.
-    expect(resolveBuildRuntime(runtimes[0])).toBe(runtimes[0]);
+    // deprecated alias to its replacement. The config's type allows only
+    // the runtimes the pinned SDK knows, but this case does not rest on the
+    // typecheck having run: a major the CLI cannot build fails here, not on
+    // the nightly deploy.
+    expect(resolveBuildRuntime(runtime)).toBe(runtime);
   });
 });
