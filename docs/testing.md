@@ -401,6 +401,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the Spark: the managed-edition gate
   (workplan 0084), run against a long-lived configured stack, so it does not prove bring-up from
   scratch.
+- **Before a deploy to live** (workplan 0141 T14, the owner's rule of 2026-09-27): the last two
+  *scheduled* runs of `e2e-managed.yml` on `main` are green, and the newer of them ran the commit
+  being tagged. `e2e.yml`'s scheduled runs over the same two nights, four runs, are green too. A
+  dispatched run does not count, and a red scheduled run starts the count again. This holds for
+  live's first bring-up from a tag and for each deploy after it, unless the owner accepts fewer
+  in writing. T14 has the two `gh run list` commands that read it.
 - `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the Spark: the soft lane against
   a target we do not host (workplan 0105 T4). Red means investigate; it never runs on a pull
   request, so it blocks nothing.
