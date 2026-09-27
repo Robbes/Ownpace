@@ -10,7 +10,7 @@
  * says whether a broken connection matters.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PROVIDER_ACCOUNT_DOMAINS } from '@openmig/shared';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,6 +19,7 @@ import { AxiosError, AxiosHeaders } from 'axios';
 import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
 import type { ConnectionSummary } from '../services/mapping-service.ts';
 import { STRINGS } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 /** An axios-shaped 400, the way the real apiClient delivers a refusal. */
 const axiosStatus = (status: number, statusText: string, data: unknown): AxiosError => {
@@ -858,7 +859,7 @@ describe('adding a connection through the front door', () => {
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
       // The deployment's client: no pair sent, not even empty strings.
-      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ sourceType: 'gmail' });
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ sourceType: 'gmail', locale: 'en' });
       expect(opened).toHaveBeenCalled();
 
       // The popup hands the token back; same origin, the flow's own shape.
@@ -904,7 +905,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
-      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'] });
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'], locale: 'en' });
     } finally {
       opened.mockRestore();
     }
@@ -935,7 +936,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
       await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
-      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar', 'task'] });
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar', 'task'], locale: 'en' });
     } finally {
       opened.mockRestore();
     }
@@ -980,7 +981,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(button).toBeEnabled());
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
-      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['task'] });
+      expect(googleAuthorize.mock.calls[0]![0]).toEqual({ domains: ['task'], locale: 'en' });
     } finally {
       opened.mockRestore();
     }
@@ -1016,6 +1017,7 @@ describe('adding a connection through the front door', () => {
       fireEvent.click(button);
       await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
       expect(googleAuthorize.mock.calls[0]![0]).toEqual({
+        locale: 'en',
         sourceType: 'gmail',
         clientId: 'cid.apps.googleusercontent.com',
         clientSecret: 'shh',
@@ -1075,7 +1077,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(microsoftAuthorize).toHaveBeenCalled());
       // The deployment's registration: no pair sent, not even empty strings —
       // and the ticked face, not a default somebody never chose.
-      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'] });
+      expect(microsoftAuthorize.mock.calls[0]![0]).toEqual({ domains: ['calendar'], locale: 'en' });
       expect(googleAuthorize).not.toHaveBeenCalled();
       expect(dropboxAuthorize).not.toHaveBeenCalled();
       expect(opened.mock.calls[0]?.[1]).toBe('ownpace-microsoft-consent');
@@ -1119,7 +1121,7 @@ describe('adding a connection through the front door', () => {
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       // The deployment's app: no pair sent, not even empty strings — and
       // Dropbox's route, never Google's.
-      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({});
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({ locale: 'en' });
       expect(googleAuthorize).not.toHaveBeenCalled();
       expect(opened.mock.calls[0]?.[1]).toBe('ownpace-dropbox-consent');
 
@@ -1227,6 +1229,7 @@ describe('adding a connection through the front door', () => {
       fireEvent.click(button);
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({
+        locale: 'en',
         clientId: 'dbx-app-key',
         clientSecret: 'dbx-app-secret',
       });
@@ -1663,5 +1666,71 @@ describe('what is standing against a connection (workplan 0094 T5)', () => {
     expect(await screen.findByText('Acme migration (source)')).toBeTruthy();
     expect(screen.queryByText('From the future')).toBeNull();
     expect(screen.queryByText(/stopped/)).toBeNull();
+  });
+});
+
+/**
+ * THE OWNER'S ENDING IS ASKED FOR IN THE PAGE'S LANGUAGE (workplan 0145 T6).
+ *
+ * Every consent case above runs in English, which is also the page's language
+ * when nothing chose one, so a literal `locale: 'en'` at the call site would
+ * pass all of them. These press the same three buttons with the page in Dutch.
+ * The server records what it is sent and renders the ending in it; what it is
+ * sent is this page's to get right.
+ */
+describe('the consent asks for its ending in the page’s language (0145 T6)', () => {
+  beforeEach(() => window.localStorage.setItem('ownpace.locale', 'nl'));
+  afterEach(() => window.localStorage.removeItem('ownpace.locale'));
+
+  function renderInDutch() {
+    list.mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <LocaleProvider>
+          <MemoryRouter>
+            <Connections />
+          </MemoryRouter>
+        </LocaleProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it.each([
+    { provider: 'Google', card: /^Gmail/, connect: 'wizard.google.connect', authorize: googleAuthorize, faces: false },
+    { provider: 'Dropbox', card: /^Dropbox/, connect: 'wizard.dropbox.connect', authorize: dropboxAuthorize, faces: false },
+    {
+      provider: 'Microsoft',
+      card: /^Microsoft 365 account/,
+      connect: 'wizard.microsoft.connect',
+      authorize: microsoftAuthorize,
+      faces: true,
+    },
+  ] as const)('Verbinden met $provider sends nl', async ({ card, connect, authorize, faces }) => {
+    providerClients.mockResolvedValue({ google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' });
+    // The shared table answers the faces, as it does while the facts are on
+    // their way.
+    providerAccounts.mockReturnValue(new Promise(() => {}));
+    authorize.mockResolvedValue({ url: 'https://provider.example/consent', redirectUri: 'r', scope: 'x' });
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      renderInDutch();
+      fireEvent.click(await screen.findByText(STRINGS.nl['connections.add']));
+      fireEvent.click(screen.getByRole('button', { name: card }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
+      const button = await screen.findByRole('button', { name: new RegExp(`^${STRINGS.nl[connect]}`) });
+      if (faces) {
+        await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
+        fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+      }
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(authorize).toHaveBeenCalled());
+      expect(authorize.mock.calls[0]![0]).toMatchObject({ locale: 'nl' });
+    } finally {
+      opened.mockRestore();
+    }
   });
 });
