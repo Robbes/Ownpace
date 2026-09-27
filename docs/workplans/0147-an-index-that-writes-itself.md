@@ -2,7 +2,22 @@
 
 > **In one line:** Generating the workplan table in `docs/workplans/README.md` with `scripts/workplan-index.mjs` and a CI drift check, keeping the old hand-written sections as history, correcting stale plan Status blocks, explaining 0048 to 0050, and a numbering rule.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: `--check` refuses a plan that holds its body twice.** The merge of 2026-09-25 that
+resolved #1172 (536f56ab) left 0131's §2 to §6 and its open questions in it twice, and `--check`
+passed, because it read nothing below a plan's Status block. So `scripts/workplan-index.mjs` gains
+a rule beside §3's eight: a plan that repeats a `## ` heading outside fenced code fails `--check`,
+and `--write` says so too. The message names the plan, the heading and the lines it stands on, and
+says how to merge the copies. A fence is three or more backticks or tildes, as in CommonMark. It is
+the one thing the script reads from a plan's body, and it judges no content. The guard,
+`scripts/workplan-index.unit.test.ts`, gains 7 fixture cases. 5 of them failed on the unchanged
+script; the other 2 are the halves that must pass (the plan in one copy, and headings inside
+fences). Each of 8 mutations turns at least one case red, among them fences ignored, a fence that
+never closes, `--check` not reading the repeats, and any heading level counted. On the real tree,
+`--check` fails with `main`'s 0131 and names its six repeated headings, and passes with 0131 in one
+copy. No other plan repeats a heading, on this branch or on `main`. The README's paragraph on what
+`--check` refuses is written by hand and does not name this rule yet.
 
 **2026-09-24, evening: T1, T2, T3 (a), T4 and T5 built, with one line per plan added (D5).** The
 owner: *"also, i see that the "Workplans — index & sequencing" is outdated and doenst contain the
