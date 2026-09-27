@@ -1,14 +1,14 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+ * ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
  *
- * The Spark runs a single managed stack (`managed.yml` pins
- * `name: ownpace-managed` and gives every service a fixed `container_name`,
- * both of which are global) and drives it from TWO checkouts: the operator's,
- * and the nightly gate's. The gate's checkout cannot keep a `.env` at all —
- * `actions/checkout` deletes ignored files before every run — so the workflow
- * restores one from `~/.persistent/ownpace-managed/`.
+ * The Spark drives the OTA stack, `managed.yml`'s default project, from TWO
+ * checkouts: the operator's, and the nightly gate's. The gate's checkout
+ * cannot keep a `.env` at all — `actions/checkout` deletes ignored files
+ * before every run — so the workflow restores one from
+ * `~/.persistent/<project>/`. (A second stack, `ownpace-live`, has a checkout,
+ * a `.env` and a persisted directory of its own: workplan 0132 D7.)
  *
  * That restore was a workaround for a checkout that cannot hold secrets. It
  * became a SECOND SOURCE OF TRUTH, and on 2026-08-24 the two copies disagreed:

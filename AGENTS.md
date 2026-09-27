@@ -68,9 +68,13 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 - Optional dev stack: `docker compose -f deploy/compose/dev.yml up -d` (Postgres + Nextcloud).
   Stalwart isn't part of it — its two-phase startup can't be expressed as one compose service —
   bring it up with `deploy/selfhost/setup-stalwart.sh` instead.
-- **The managed stack runs out of `~/ownpace-managed`** on its host, matching the
-  compose project name `managed.yml` pins. Any command you hand somebody to run
-  against the live deployment starts there — see
+- **The OTA stack runs out of `~/ownpace-managed`** on its host, matching the
+  default project name `managed.yml` pins; a second stack sets its own with
+  `COMPOSE_PROJECT_NAME` in its `.env`, and every container, volume and network
+  is named after the project (workplan 0132 T1). Reach a service with
+  `docker compose -f deploy/compose/managed.yml exec <service>`, never a fixed
+  container name. Any command you hand somebody to run against the OTA stack
+  starts there — see
   [docs/managed-bring-up.md](docs/managed-bring-up.md#updating-a-running-deployment)
   for the after-a-pull sequence, including when the Trigger.dev tasks need
   re-deploying and when they do not.

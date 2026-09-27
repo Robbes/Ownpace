@@ -25,19 +25,31 @@
 # derives the resource-name prefix from the CURRENT DIRECTORY'S BASENAME ("compose"), so on a
 # shared host, any other unrelated project also run from a directory literally named `compose`
 # collides on the exact same volume/network names (compose_postgres_data,
-# compose_ownpace-network, ...). Confirmed live on the Spark box (2026-07-25): `ownpace-db`
-# silently mounted a `compose_postgres_data` volume created two days earlier -- NOT this project's
+# compose_ownpace-network, ...). Confirmed live on the Spark box (2026-07-25): the database
+# container silently mounted a `compose_postgres_data` volume created two days earlier -- NOT this project's
 # data -- so its `openmigrate` role's real password didn't match this stack's own .env, and every
 # app-tier connection failed with "password authentication failed" despite .env, the container's
 # own POSTGRES_PASSWORD env var, and a local-socket/127.0.0.1 psql check all agreeing (the latter
 # two are trusted by Postgres's default pg_hba.conf and never actually check the password -- only
 # a connection from another container's real IP exercises the scram-sha-256 rule and exposed this).
+#
+# THE PIN IS A DEFAULT, AND EVERY NAME FOLLOWS WHATEVER OVERRIDES IT (workplan 0132 T1, D7, D9).
+# `COMPOSE_PROJECT_NAME` in the `.env` beside this file (or in the environment, or `-p`) overrides
+# it, and the reference machine runs a second stack that way: `ownpace-live`, beside this default
+# one, on the same Docker daemon. A daemon keeps two stacks apart by NAMES only, so nothing here
+# names a stack itself. Volumes and networks carry no `name:`, so compose prefixes them with the
+# project. Every `container_name` is built from `${COMPOSE_PROJECT_NAME}`, which compose sets to
+# the project it chose, so this stack's database is `<project>-db` (`docker compose -p` does NOT
+# namespace a fixed `container_name`: 17 fixed ones stopped a second project from starting at
+# all). The scripts reach a service with `docker compose exec <service>`, and take the project
+# from `compose_project` in env-read.sh. `scripts/two-stacks-on-one-box.unit.test.ts` renders this
+# file under two projects and fails on anything the two would share.
 name: ownpace-managed
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:18-alpine
-    container_name: ownpace-db
+    container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openmigrate}
@@ -81,7 +93,7 @@ services:
   # whole stack back on direct connections without touching this file.
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.2-p0
-    container_name: ownpace-pgbouncer
+    container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
     restart: unless-stopped
     depends_on:
       postgres:
@@ -107,7 +119,7 @@ services:
   # Trigger.dev Backend
   trigger-db:
     image: postgres:18-alpine
-    container_name: trigger-db
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: trigger
@@ -125,7 +137,7 @@ services:
 
   trigger-redis:
     image: redis:7-alpine
-    container_name: trigger-redis
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -146,7 +158,7 @@ services:
     # had moved to 4.5.7 — and the v4.5.7 pin then repeated the same drift
     # when the SDK moved to 4.5.9.
     image: ghcr.io/triggerdotdev/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.5.16}
-    container_name: trigger-api
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
     restart: unless-stopped
     user: root
     command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
@@ -273,7 +285,7 @@ services:
   # they test against is the only version this stack has evidence about.
   clickhouse:
     image: clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd
-    container_name: trigger-clickhouse
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
     restart: unless-stopped
     # Upstream's, and not decoration: ClickHouse opens a lot of files and the
     # default soft limit is where that shows up as corruption-looking errors.
@@ -297,7 +309,7 @@ services:
       # triggerdb, so what is lost is dashboard history, not the ability to
       # run anything — and `clickhouse_data` remains on disk until somebody
       # deliberately removes it:
-      #     docker volume rm ownpace-managed_clickhouse_data
+      #     docker volume rm <project>_clickhouse_data
       - clickhouse_data_v2:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
       - ./clickhouse-override.xml:/etc/clickhouse-server/config.d/override.xml:ro
@@ -336,7 +348,7 @@ services:
   # (deploy-tasks.sh pushes, the smoke runs a task) is the proof for this one.
   trigger-registry:
     image: registry:3.1.1
-    container_name: trigger-registry
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
     restart: unless-stopped
     ports:
       - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
@@ -351,7 +363,7 @@ services:
   # more — no exec into other containers, no volume deletion, no swarm.
   trigger-docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
-    container_name: trigger-docker-proxy
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
     restart: unless-stopped
     environment:
       CONTAINERS: 1
@@ -372,7 +384,7 @@ services:
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
     image: ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.5.16}
-    container_name: trigger-supervisor
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
     restart: unless-stopped
     environment:
       TRIGGER_API_URL: http://trigger-api:3000
@@ -384,8 +396,12 @@ services:
       DOCKER_HOST: tcp://trigger-docker-proxy:2375
       # Run containers join THIS network, so tasks reach postgres, stalwart
       # and nextcloud by the same names the worker container uses. The value
-      # is the REAL network name — compose prefixes the pinned project name.
-      DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network
+      # is the REAL network name, and compose prefixes the project's name, so
+      # it is built from that name too (workplan 0132 T1, D9). It was written
+      # out as the OTA stack's, and under any other project the task runs
+      # would have joined the OTA stack's network, where `postgres` is the OTA
+      # stack's database.
+      DOCKER_RUNNER_NETWORKS: ${COMPOSE_PROJECT_NAME}_ownpace-network
       DOCKER_REGISTRY_URL: localhost:${REGISTRY_PORT:-5000}
     volumes:
       - trigger_shared:/home/node/shared
@@ -439,7 +455,7 @@ services:
     # and an empty object store, which is a decision with a restore plan, not a
     # rider. See docs/managed-bring-up.md.
     image: bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c
-    container_name: trigger-minio
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
@@ -464,7 +480,7 @@ services:
   # address browsers actually use (e.g. the machine's VPN IP).
   trigger-tls:
     image: caddy:2-alpine
-    container_name: trigger-tls
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     environment:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
@@ -544,7 +560,7 @@ services:
     # schema at boot, on the persistent stack, so the gate run that proves this
     # is the one that applies it.
     image: ghcr.io/zitadel/zitadel:v4.17.3
-    container_name: ownpace-idp
+    container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on
     # a database it has already initialised it skips straight to serving. Two
@@ -586,9 +602,9 @@ services:
       # reach — so this is a value that has to be RIGHT AT FIRST INIT, not
       # corrected afterwards.
       #
-      # `ownpace-idp` is the container's own name and is registered as a network
-      # alias below, so it resolves to this container from anywhere on the
-      # network. A BROWSER on the host needs one line in /etc/hosts:
+      # `ownpace-idp` is registered as a network alias below (the container's
+      # own name is `<project>-idp` since workplan 0132 T1), so it resolves to
+      # this container from anywhere on the stack's own network. A BROWSER on the host needs one line in /etc/hosts:
       #
       #   127.0.0.1  ownpace-idp
       #
@@ -720,8 +736,8 @@ services:
       # file), so the derivation above stays exactly as it is for the API, and
       # the page's `Identity provider` row — which probes the provider by that
       # name, on this container's own port — reaches it whether or not something
-      # fronts the provider publicly. Fronted, the app-network alias is the
-      # container's name and this one is the domain; direct, both are the domain
+      # fronts the provider publicly. Fronted, the app-network alias is
+      # `ownpace-idp` and this one is the domain; direct, both are the domain
       # and the second is redundant, which is fine.
       status-probe:
         aliases:
@@ -789,7 +805,7 @@ services:
         # answers commit "unknown" — build with:
         #   GIT_SHA=$(git rev-parse HEAD) docker compose -f managed.yml build
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: ownpace-api
+    container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-development}
@@ -1007,7 +1023,7 @@ services:
         # have no session to ask with. Vite exposes only VITE_ names, hence the
         # prefix. Empty is off; changing it means rebuilding this image.
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
-    container_name: ownpace-web
+    container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3123}:80"
@@ -1025,7 +1041,7 @@ services:
   # cannot tell you, and why it lives here rather than on its own machine.
   gatus:
     image: ghcr.io/twin/gatus:v5.36.0
-    container_name: ownpace-status
+    container_name: ${COMPOSE_PROJECT_NAME}-status
     restart: unless-stopped
     environment:
       # The address a BROWSER uses, not an internal service name: probing
@@ -1166,7 +1182,7 @@ services:
   # things that should reach it are services in this stack. The web UI is.
   mailpit:
     image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
-    container_name: ownpace-mailpit
+    container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     environment:
       # A catcher accepts whatever it is handed. Refusing on auth or TLS would
@@ -1248,7 +1264,7 @@ services:
 
   nextcloud:
     image: nextcloud:34-apache
-    container_name: ownpace-nextcloud
+    container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     environment:
       SQLITE_DATABASE: nextcloud
