@@ -4,8 +4,43 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T3 built (0131 §6, group M3, step 5)** on branch
+`claude/mailbox-sync-errors-c2xsw2-what-a-lost-machine-costs`, not merged. What a lost machine
+costs is written where the owner will look for it, and two texts that said a lost database costs
+nothing now say what it costs.
+
+- **The runbook** gains *If the machine is lost during the alpha*: what only the machine held,
+  what a tester keeps, why losing live's `.env` alone costs testers more than losing the machine,
+  the owner's five steps, and no squash during the alpha. *Backup & restore* now opens by saying
+  that `ownpace-live` takes no backups during the alpha, and that its recipe is for a deployment
+  that does.
+- **ADR-0020's operative rule** is amended in place (ADR-0038) to what is built: the reindex is the
+  worker's command in both editions, run by hand; the appliance warns at start-up; nothing runs it
+  automatically. Its amendment at the end says so, and that the database the ledger lives in is
+  not a rebuildable cache. `OPERATIVE.md` is regenerated.
+- **The downgrade refusal** in `packages/ledger/src/migrate.ts` no longer says *"nothing
+  irreplaceable lives here"*, and no longer advises a drop. It names what no target rebuilds, and
+  says that a database holding real data is restored from a backup, never dropped. A comment in
+  `migrate-upgrade.unit.test.ts` that relied on the old advice is corrected.
+- **No squash of either migration chain during the alpha** is recorded here, in the runbook, and
+  in the refusal, which names `squash-migrations.sh` as never run once real data exists. 0146 T3
+  makes the script itself refuse, after the alpha tag.
+- **Proved.** A new case in `packages/ledger/src/migrate-upgrade.unit.test.ts`, beside the
+  existing refusal case, runs on every checkout. The existing case needs the release's tag and a
+  migration the release lacks. The new one records a version this build does not ship and reads
+  the refusal: it must still refuse, name the backup and say not to drop, and must say neither
+  *"nothing irreplaceable"* nor *"drop and recreate"*. It fails on `main`.
+  `scripts/adr-operative.unit.test.ts` holds `OPERATIVE.md` to the amended rule.
+  - **Mutations:** 6, all killed: the refusal saying *"nothing irreplaceable"* again, no longer
+    saying not to drop, no longer naming the backup, or advising *"drop and recreate"*; a newer
+    database not refused; `OPERATIVE.md` left behind the amended rule. The runbook's section and
+    the ADR's words are prose, and no guard reads them.
+- **T1 (a) and (b) merged as #1214.** T1 (c), the check of the Trigger.dev store, is M3's step 4
+  and is not in this change. Neither are T4, the copy off the machine, which is the owner's, nor
+  T2's paragraph, which the lawyer reads.
+
 **2026-09-27, build: T1 (a) and (b) built on branch
-`claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, not merged.** (a) is the wording and (b) the
+`claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, merged as #1214.** (a) is the wording and (b) the
 start-up check, as 0131 §6 R1 step 5 names them. (c), the check of the Trigger.dev store before
 the sentence is trusted, is 0131 M3's step 4 and is not built here.
 
@@ -95,9 +130,9 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS=0` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
-| T1 The erasure sentence says there are no backups | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, not merged** (2026-09-27): (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, not built (0131 M3) — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
+| T1 The erasure sentence says there are no backups | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-retention-somebody-stated`, merged as #1214** (2026-09-27): (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, not built (0131 M3) — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
-| T3 What a lost machine costs, written down | 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
+| T3 What a lost machine costs, written down | 🔨 **Built 2026-09-27, not merged**: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
 | T5 Backups of both databases, encrypted, off the machine, drilled | 🅿️ **Parked (trigger: before the first paying customer, or when the alpha ends, whichever comes first)** | §3. Both databases and the roles, one retention number for the pruning and the erasure sentence, a restore drill in the managed gate and on live's timer (0132 T7), a dump before each migrating deploy of live (0132 T6), a stated RPO and RTO. |
 

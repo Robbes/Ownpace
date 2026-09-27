@@ -377,6 +377,11 @@ one option that is not.
 
 ## Backup & restore (§22.1)
 
+`ownpace-live`, the stack testers use, takes no backups during the alpha
+([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md), D1). This
+recipe is for a deployment that does. What losing live's machine costs, and what you do then, is
+in [If the machine is lost during the alpha](#if-the-machine-is-lost-during-the-alpha).
+
 **Back up the control-plane DB before every migration/upgrade.** Schema rollback is hard —
 we prefer roll-forward + backups.
 
@@ -406,6 +411,49 @@ Notes:
   credentials and `ZITADEL_MASTERKEY` the provider's data. Keep a copy off the host, apart from the
   dumps. Restore with the api and zitadel stopped, roles first. This procedure has not been drilled
   for the managed edition (the appliance's has: `test/e2e/selfhost-backup-restore.e2e.test.ts`).
+
+## If the machine is lost during the alpha
+
+Live keeps no backups during the alpha, so a lost machine takes with it everything only that
+machine held ([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
+T3):
+
+- live's database: the organisations, their members, connections and stored credentials, the
+  migrations and their settings, run history, pending decisions, the audit log and the access
+  requests;
+- every sign-in identity (live's `zitadel` database, on the same server);
+- live's `.env`, with its keys and passwords, unless you keep a copy off the machine (0134 T4);
+- live's Trigger.dev account, project and keys, and the dumps of its store.
+
+A tester loses their setup and a first pass, not their data. Their mail, calendars, contacts and
+files are still in their old account, and the copies already made stay in their new one. A
+migration they set up again adopts what the target already holds and reads the whole source once.
+What it adopts no longer follows the source, and what they deleted or moved on the new side comes
+back, as it does after deleting a migration and setting it up again. The grants and app passwords
+they gave survive at their providers, and they withdraw them.
+
+**Losing live's `.env` alone is worse for testers than losing the machine.** Every stored
+credential becomes unreadable, so every tester reconnects every account. Every identity is
+stranded, so the identity provider starts again and every tester registers again. The copy off the
+machine (0134 T4) is what prevents it.
+
+What you do:
+
+1. Tell each tester, from the list of testers (0134 T4), with the alpha conditions' paragraph on
+   backups (0134 T2).
+2. Bring live up again as 0132 T1b to T1e do, with the copy of live's `.env` if you have one.
+   Empty its `ZITADEL_PAT_EXPIRY` line first. A new identity provider reads that date once, at
+   first initialisation, and a date already past gives a provisioning token that is born expired;
+   `setup-zitadel.sh` seeds a fresh date only into an empty line. If the old machine could be in
+   someone else's hands, replace every value instead: nothing depends on the old ones any more,
+   and the OAuth client secrets are replaced in each provider's console.
+3. Do Trigger.dev's one-time steps on live's plane (0132 T1c).
+4. Grant each tester again as they come back.
+5. Record the date and what was lost in 0134's Status block.
+
+Never squash either migration chain during the alpha (`scripts/squash-migrations.sh`). For the
+testers a squash is the same as a lost database: the runner refuses the old chain, and a database
+with real data is restored from a backup, never dropped.
 
 ## Upgrade
 

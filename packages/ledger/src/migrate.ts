@@ -156,6 +156,9 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
       const alreadyApplied = new Set(appliedRows.rows.map((r) => r.version));
 
       // Downgrade guard: refuse if the DB carries a version newer than we ship.
+      // Its advice never says to drop the database (workplan 0134 T3). Only the
+      // ledger's items can be rebuilt from a target; what sits beside them
+      // cannot, and on a managed stack that is every organisation.
       const highestApplied = [...alreadyApplied].sort().pop();
       if (highestApplied && highestApplied > highestKnown) {
         throw new Error(
@@ -163,9 +166,12 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
             `(highest known: ${highestKnown}). Refusing to start rather than guess.\n` +
             'Either this build is older than the database (upgrade the application), or the ' +
             'migration chain was SQUASHED and this database still records the pre-squash ' +
-            'filenames — see scripts/squash-migrations.sh. A squash only ever happens ' +
-            'pre-release, and the fix for it is to drop and recreate the database; the ledger ' +
-            'is a rebuildable cache (ADR-0020), so nothing irreplaceable lives here.',
+            'filenames — see scripts/squash-migrations.sh, which is never run once real data ' +
+            'exists. Do not drop this database to get past this. The ledger\'s items can be ' +
+            'rebuilt from the target (ADR-0020), but the connections and their stored ' +
+            'credentials, the migrations and their settings, and on a managed stack the ' +
+            'organisations and the audit log, cannot: a database that holds real data is ' +
+            'restored from a backup, never dropped.',
         );
       }
 
