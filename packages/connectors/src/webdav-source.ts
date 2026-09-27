@@ -30,6 +30,7 @@ import type {
 } from './webdav-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import {
   TRASHBIN_PROPFIND_BODY,
   nextcloudTrashbinUrl,
@@ -960,7 +961,7 @@ export function createFileHttpClient(): HttpClient {
           : body) as RequestInit['body'],
         ...(streaming ? ({ duplex: 'half' } as Record<string, unknown>) : {}),
       };
-      const response = await fetch(options.url, init);
+      const response = await tenantFetch(options.url, init);
 
       /**
        * A STREAMED RESPONSE, for the same reason in the other direction.

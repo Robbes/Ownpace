@@ -38,6 +38,7 @@ import {
   resolveGoogleClient,
   type PermissionListing,
 } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import {
   createTokenProvider,
   directoryAvailability,
@@ -69,9 +70,12 @@ import { refusedOverTestLimit } from '../probe-limit.ts';
 
 const router = Router();
 
+// One client for Graph and for the organisation's own Nextcloud. The second is
+// a host a tenant gave us, so both go through the rule (0136 T1); Graph's
+// address is public and passes it.
 const httpClient: HttpClient = {
   async request({ url, method, headers }) {
-    const res = await fetch(url, { method, headers });
+    const res = await tenantFetch(url, { method, headers });
     return { status: res.status, body: await res.text(), headers: {} };
   },
 };

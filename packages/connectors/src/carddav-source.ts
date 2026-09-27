@@ -18,6 +18,7 @@
 import type { ContactSource, ContactFolder, RawContact, SyncCursor } from '@openmig/shared';
 import type { CardDAVSourceConfig, CardDAVSyncToken, CardDAVContactObject, CardDAVHomeSet as _CardDAVHomeSet, CardDAVCollection as _CardDAVCollection } from './carddav-source.types.ts';
 import { carddavMatchAllFilter, davRefusalBody, log } from '@openmig/shared';
+import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import {
   wellKnownUrl as buildWellKnownUrl,
@@ -1211,7 +1212,7 @@ function createDefaultHttpClient(): HttpClient {
             'request without it, which would empty the resource and report success',
         );
       }
-      const response = await fetch(options.url, {
+      const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: options.body,
