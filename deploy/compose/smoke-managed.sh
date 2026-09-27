@@ -5428,6 +5428,16 @@ ledger_state() { q "SELECT state FROM cutover_state WHERE $CUTOVER_WHERE"; }
 ledger_events() { # ledger_events <to_state> — entries into that state, on the trail
   q "SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND to_state='$1'"
 }
+# ledger_ready_snapshot — "<state>|<entries into READY_FOR_CUTOVER>", read in ONE
+# statement, so from one snapshot. The job writes a transition's trail entry and
+# its state in one transaction (tenantCutoverStore), and two separate reads can
+# straddle that commit: E2E (managed) #200 read the state just before it
+# (PREPARING) and the entries just after it (2), and failed a ledger that had
+# converged 0.3 seconds earlier. One statement sees the transition whole or not
+# at all.
+ledger_ready_snapshot() {
+  q "SELECT coalesce((SELECT state FROM cutover_state WHERE $CUTOVER_WHERE),''), (SELECT count(*) FROM cutover_event WHERE $CUTOVER_WHERE AND to_state='READY_FOR_CUTOVER')"
+}
 ledger_trail() { # the trail, oldest first — printed whenever the ledger did not do what was expected
   q "SELECT to_char(timestamp,'HH24:MI:SS')||' '||coalesce(from_state,'-')||' -> '||to_state||' by '||triggered_by||': '||coalesce(reason,'')||' '||metadata::text FROM cutover_event WHERE $CUTOVER_WHERE ORDER BY timestamp"
 }
@@ -5499,8 +5509,7 @@ if [ "$CUTOVER_READY" = "1" ]; then
       || fail_at "the second 202 must say the ledger was READY_FOR_CUTOVER and resets to PREPARING first: got '$prep'"
     i=0; st=""; ready_entries=""
     while [ $i -lt "$SYNC_POLLS" ]; do
-      st="$(ledger_state)"
-      ready_entries="$(ledger_events READY_FOR_CUTOVER)"
+      IFS='|' read -r st ready_entries <<<"$(ledger_ready_snapshot)"
       [ "$ready_entries" = "2" ] && break
       [ "$st" = "FAILED" ] && break
       i=$((i + 1)); sleep "$POLL_SLEEP"
