@@ -6,7 +6,8 @@
  * A gate answers "does what we ship work", and it can only answer for the
  * versions it actually ran. Three of this repository's gates were running a
  * version the product does not run on — two on Node, one on Postgres — with
- * nothing beside any of them saying why.
+ * nothing beside any of them saying why. And one part of the product, the
+ * managed tasks, ran a Node that no gate runs.
  *
  * ## Node: every `actions/setup-node` asks for the major the images run
  *
@@ -22,15 +23,37 @@
  * alias file already records one resolver behaviour that differs between the
  * two.
  *
- * Not read here: the managed worker's task image. The Trigger.dev CLI builds
- * it, and the worker's deploy config (apps/worker/trigger.config.ts) names no
- * `runtime`, so it gets the CLI's default `node` base, which in the 4.5.16 CLI
- * the deploy runs is Node 21. No workflow or Dockerfile in this repository
- * states that version.
- *
  * A `setup-node` step with no `node-version` at all is refused too: it runs
  * whatever Node the runner image happens to carry, which is a version nobody
  * chose.
+ *
+ * ## Node: the tasks' runtime is the major the images run
+ *
+ * The other way round: something that ships, on a version no gate runs. The
+ * managed worker's task image comes from no Dockerfile here. The Trigger.dev
+ * CLI builds it, on the base image of the `runtime` that the worker's deploy
+ * config (apps/worker/trigger.config.ts) names. The config named none, so the
+ * CLI took its default `node`, which in the 4.5.16 CLI the deploy runs is
+ * `triggerdotdev/node:21-bookworm`: the tasks, which hold every tenant's
+ * credentials while they run, ran Node 21, and no workflow or Dockerfile
+ * stated it. The `node:zlib` `crc32` import that
+ * `a-checksum-the-runtime-did-not-have` records is what it cost (workplan 0146
+ * T6).
+ *
+ * So the config names `runtime: 'node-<N>'`, N being the images' one major, and
+ * this block holds it there. It imports the config and reads the value the CLI
+ * reads, not the file's text: a line inside a block comment, or a second key
+ * that overrides the first, reads one way as text and another to the CLI. It
+ * also hands the value to the pinned `@trigger.dev/core`'s
+ * `resolveBuildRuntime`, the function the CLI calls on it, so a major the
+ * pinned CLI has no base image for fails here, not on the nightly deploy. The
+ * import also brings trigger.config.ts under `pnpm typecheck`, which did not
+ * read it before: the root tsconfig takes each app's `src` and `scripts`, and
+ * the config sits beside `src`.
+ *
+ * What this does not prove: that the deploy then builds on that image (the
+ * nightly managed gate's task deploy does, and its build output names the base
+ * image), or that the task bundle loads on it (0146 T6's second guard).
  *
  * ## Postgres: migration-lint replays onto the major the deployments run
  *
@@ -50,6 +73,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { resolveBuildRuntime } from '@trigger.dev/core/v3/build';
+import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(REPO_ROOT, p), 'utf8');
@@ -166,5 +191,47 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
       linted.filter((major) => major !== shipped),
       `the deployments run postgres ${shipped}; migration-lint replays the chain on another major`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * The worker's deploy config. The Trigger.dev CLI loads it and builds the task
+ * image on the base image of the `runtime` it names. Imported above; the path
+ * is for the messages.
+ */
+const TASK_CONFIG = 'apps/worker/trigger.config.ts';
+
+describe('the tasks run the Node major the images ship', () => {
+  const images = imageNodeMajors();
+  // The evaluated value, as the CLI reads it (`config.runtime` in the pinned
+  // CLI's config loader). Typed `unknown` so the cases below say what a wrong
+  // value is rather than the compiler narrowing it away.
+  const runtime: unknown = taskConfig.runtime;
+
+  it('the worker deploy config names a runtime', () => {
+    // Absent, the CLI takes the server project's default, or else its own
+    // `node`, which in the pinned 4.5.16 CLI is triggerdotdev/node:21-bookworm.
+    expect(
+      runtime,
+      `${TASK_CONFIG} names no runtime, so the task image's Node is whatever the server project or the CLI defaults to`,
+    ).toBeDefined();
+  });
+
+  it("that runtime is node-<the images' major>", () => {
+    const shipped = images[0]!.major;
+    expect(
+      runtime,
+      `the images run Node ${shipped}; the tasks, which hold every tenant's credentials while they run, must too`,
+    ).toBe(`node-${shipped}`);
+  });
+
+  it('the pinned Trigger.dev core accepts it as it stands, not as a deprecated alias', () => {
+    // `resolveBuildRuntime` is what the CLI calls on this value. It throws on
+    // a runtime the pinned version has no base image for, and maps a
+    // deprecated alias to its replacement. The config's type allows only
+    // the runtimes the pinned SDK knows, but this case does not rest on the
+    // typecheck having run: a major the CLI cannot build fails here, not on
+    // the nightly deploy.
+    expect(resolveBuildRuntime(runtime)).toBe(runtime);
   });
 });
