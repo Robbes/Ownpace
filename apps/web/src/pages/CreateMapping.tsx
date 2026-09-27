@@ -60,7 +60,7 @@ import {
   type ConnectionSummary,
   type TestConnectionResult,
 } from '../services/mapping-service.ts';
-import { duplicateMapping, serverMessage } from '../services/api.ts';
+import { duplicateMapping, serverMessage, tooManyTests } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
 import { ConsentLines, ConsentNote, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
@@ -1073,7 +1073,12 @@ const CreateMapping: React.FC = () => {
     const asResult = (settled: PromiseSettledResult<TestConnectionResult>): TestConnectionResult =>
       settled.status === 'fulfilled'
         ? settled.value
-        : { ok: false, reason: serverMessage(settled.reason) };
+        : {
+            ok: false,
+            // The limit on tests (0136 T3) is ours, so it is said in the
+            // reader's language; anything else is the server's sentence.
+            reason: tooManyTests(settled.reason) ? t('probe.tooManyTests') : serverMessage(settled.reason),
+          };
 
     // One side at a time now that each has its own step (workplan 0070):
     // probing the other would report on credentials the person has not been
@@ -2178,7 +2183,7 @@ const CreateMapping: React.FC = () => {
                 which; a provider's refusal always falls through unchanged,
                 because that string is what you paste into their console. */}
             <p className="text-gray-700 min-w-0 break-words">
-              {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '', locale)}
+              {probeText(t, r.outcome, (r.ok ? r.detail : r.reason) ?? '', locale, r.said)}
               {r.qualification && (
                 /* What this account CAN CARRY (0106 T0). */
                 <span className="block mt-1">{qualificationText(t, r.qualification)}</span>
