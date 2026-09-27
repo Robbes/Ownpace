@@ -521,7 +521,8 @@ GitHub hid none of it.
 
 - **Every run, fixed where it is printed.**
   - `e2e-managed.yml`'s last step ran `docker compose ps`, whose PORTS column names every bind. It
-    prints name, service and status now; `e2e.yml`'s one `ps` too.
+    prints name, image, service, age and status now (no PORTS, and no COMMAND, which carries
+    zitadel's `--masterkey`); `e2e.yml`'s one `ps` too.
   - `deploy-tasks.sh`: the CLI printed its "View deployment" and "Test tasks" links on the
     dashboard's origin and appended both to `$GITHUB_ENV`, which the runner prints in the header of
     every later step (nine more copies a run). It now runs with `GITHUB_ENV` and `GITHUB_OUTPUT`
@@ -532,13 +533,20 @@ GitHub hid none of it.
     `setup-nextcloud-users.sh`'s "External DAV ready at" and its `000` note do the same.
 - **On a failure.** `load_env`'s refusal of an unquoted value names the line and the key, never
   the value (#163's line held the address). `explain_failure` filters the container logs and the
-  healthcheck's output before printing them. The smoke filters its own stream before `tee`, so its
-  job log and its evidence file are clean at the source. `redact-evidence.sh` has a second pass for
-  the artifact. The filter is `deploy/compose/own-addresses.sh`: each `*_BIND`,
+  healthcheck's output before printing them, and `setup-zitadel.sh` its two 40-line log tails. The
+  smoke filters its own stream before `tee`, so its job log and its evidence file are clean at the
+  source, and waits for that filter before it returns, so its verdict is not printed after the
+  caller's next line. `redact-evidence.sh` has a second pass for the artifact, which stands down to
+  the range if the `.env`'s values make a program sed refuses, so the shape pass still runs. Its
+  first pass now reads each value as `env-read.sh` does (a single-quoted secret, or one with a
+  comment after it, was searched for as written and never found) and escapes every regex
+  character. The filter is `deploy/compose/own-addresses.sh`: each `*_BIND`,
   `TRIGGER_TLS_HOST`, the hosts of `TRIGGER_APP_ORIGIN` and `TRIGGER_LOGIN_ORIGIN` and each entry of
   `NEXTCLOUD_TRUSTED_DOMAINS` becomes the key that holds it (`<MAILPIT_BIND>`), and any address in
   `100.64.0.0/10` becomes `<mesh-ip>`, which also covers another peer's address in an access log.
-  Loopback, every interface, empty values and compose service names are left alone.
+  Loopback, every interface, empty values and compose service names are left alone. A
+  double-quoted value, the form `managed.env.example` gives `NEXTCLOUD_TRUSTED_DOMAINS`, is read
+  without its quotes.
 - **The mask.** A new step right after the `.env` is restored, before anything reads the stack,
   emits `::add-mask::` for the same values (`own-addresses.sh --mask`). It is the only cover for
   what no script filters: Docker's own error when an `up` cannot bind an address, and a line
@@ -551,12 +559,20 @@ GitHub hid none of it.
   announces the catch-all's login and IMAP server, a provider's public host
   (`live-catchall.unit.test.ts` asks for it), and no mesh address.
 - **Guards**, both failing on `origin/main` first:
-  `scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts` (13 cases, 13 red: the mask
-  run against a fixture `.env`, its place in the workflow parsed from the YAML, `ps` in every
-  self-hosted job, the deploy invocation, `shown_origin`, `load_env`, `setup-nextcloud-users.sh`
-  and `explain_failure` run with stubs, the artifact redaction, the smoke's filter) and
+  `scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts` (17 cases: the mask
+  run against a fixture `.env`, a double-quoted one too, its place in the workflow parsed from the
+  YAML (the step right after the restore), `ps` in every self-hosted job against the fields that
+  name no address, the deploy invocation, `shown_origin`, `load_env`, `setup-nextcloud-users.sh`,
+  `explain_failure` and `setup-zitadel.sh`'s log tail run with stubs and reaching the helper
+  through each script's own source line, the smoke run from its first line through its `exec`, the
+  artifact redaction with a name inside a longer one; the first 13 were red on `origin/main`, the
+  four added after review red on this branch's first version, the old `ps` rule, or a script with
+  its source line removed) and
   `scripts/a-credential-the-next-step-printed.unit.test.ts` (5 cases, 4 red; the fifth proves its
-  own pattern is not vacuous; the lane's step is run with a `pnpm` that reports what it was handed).
+  own pattern is not vacuous, a path handed in through a step's `env:` included; the lane's step is
+  run with a `pnpm` that reports what it was handed). `redact-evidence.unit.test.ts` has three more
+  cases: a quoted secret with a comment beside another, one full of regex characters, and a `.env`
+  whose addresses break the address pass.
   `smoke-managed-verdict.unit.test.ts` now accepts the smoke's `tee` behind the filter.
 - **Docs:** `docs/managed-bring-up.md`, *Which address a port answers on*, says the gate's log is
   public and what keeps the binds out of it.

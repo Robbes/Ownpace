@@ -34,8 +34,8 @@
 # and masked it would blank the word out of every line the job prints.
 #
 # The values are read with env-read.sh's `env_value`, the way Compose and bash
-# both read them, and never printed except on a mask line, which the runner
-# consumes. So nothing that runs this may use `set -x`.
+# both read them (a double-quoted one too), and never printed except on a mask
+# line, which the runner consumes. So nothing that runs this may use `set -x`.
 #
 # Usage:  . "${SCRIPT_DIR}/env-read.sh"; . "${SCRIPT_DIR}/own-addresses.sh"
 #         ./deploy/compose/own-addresses.sh --mask deploy/compose/.env
@@ -79,6 +79,17 @@ own_addresses() {
   local -a values=() labels=()
   [ -f "$file" ] || return 0
 
+  # A value as bash sources it: one pair of double quotes around it is quoting,
+  # not part of the address. managed.env.example and load_env's remedy both
+  # write NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud …", env_value keeps a
+  # double quote, and the mask runs before check-env-agreement.sh refuses it.
+  _own_value() { # _own_value <file> <key>
+    local v
+    v="$(env_value "$1" "$2")"
+    case "$v" in '"'*'"') v="${v#\"}"; v="${v%\"}" ;; esac
+    printf '%s' "$v"
+  }
+
   _own_add() { # _own_add <value> <key>
     _own_is_nobody "$1" && return 0
     found=""
@@ -97,24 +108,24 @@ own_addresses() {
   # refusal holds to its rule.
   while IFS= read -r key; do
     [ -n "$key" ] || continue
-    _own_add "$(env_value "$file" "$key")" "$key"
+    _own_add "$(_own_value "$file" "$key")" "$key"
   done <<<"$(sed -n 's/^\(export[[:space:]][[:space:]]*\)\{0,1\}\([A-Za-z_][A-Za-z0-9_]*_BIND\)=.*/\2/p' "$file" | sort -u)"
 
-  _own_add "$(env_value "$file" TRIGGER_TLS_HOST)" TRIGGER_TLS_HOST
+  _own_add "$(_own_value "$file" TRIGGER_TLS_HOST)" TRIGGER_TLS_HOST
   for key in TRIGGER_APP_ORIGIN TRIGGER_LOGIN_ORIGIN; do
-    value="$(env_value "$file" "$key")"
+    value="$(_own_value "$file" "$key")"
     [ -n "$value" ] && _own_add "$(_own_origin_host "$value")" "$key"
   done
   # Space-separated, as the Nextcloud image reads it. An entry may carry a
   # port; an IPv6 literal carries more than one colon and keeps its own.
   local -a entries=()
-  read -r -a entries <<<"$(env_value "$file" NEXTCLOUD_TRUSTED_DOMAINS)"
+  read -r -a entries <<<"$(_own_value "$file" NEXTCLOUD_TRUSTED_DOMAINS)"
   for entry in "${entries[@]}"; do
     case "$entry" in *:*:*) ;; *) entry="${entry%%:*}" ;; esac
     _own_add "$entry" NEXTCLOUD_TRUSTED_DOMAINS
   done
 
-  unset -f _own_add
+  unset -f _own_add _own_value
   for i in "${!values[@]}"; do printf '%s\t%s\n' "${values[$i]}" "${labels[$i]}"; done
 }
 

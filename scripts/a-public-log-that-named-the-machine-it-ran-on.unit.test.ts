@@ -38,7 +38,8 @@
  *   so a message nobody has found yet prints `***`;
  * - and what is written to a file is filtered by value and by the mesh
  *   range (`own-addresses.sh`'s sed): the smoke's own stream, the container
- *   logs the bring-up dumps, and the artifact, which a mask never touches.
+ *   logs the bring-up dumps (`explain_failure`'s and `setup-zitadel.sh`'s),
+ *   and the artifact, which a mask never touches.
  *
  * Addresses here are documentation shapes: `100.64.0.1`, the mesh placeholder
  * `an-address-that-was-not-an-example` permits, and RFC 5737's. A second mesh
@@ -47,7 +48,17 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,8 +66,18 @@ import { parse } from 'yaml';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
-const OWN = join(ROOT, 'deploy/compose/own-addresses.sh');
-const ENV_READ = join(ROOT, 'deploy/compose/env-read.sh');
+const COMPOSE_DIR = join(ROOT, 'deploy/compose');
+const OWN = join(COMPOSE_DIR, 'own-addresses.sh');
+const ENV_READ = join(COMPOSE_DIR, 'env-read.sh');
+
+/** How a script here reaches the helpers: its own source lines, and no others. */
+const SOURCES_OWN = /^\. "\$\{SCRIPT_DIR\}\/own-addresses\.sh"$/m;
+function sourceLines(script: string): string {
+  return read(script)
+    .split('\n')
+    .filter((l) => /^\. "\$\{SCRIPT_DIR\}\/(env-read|own-addresses)\.sh"$/.test(l))
+    .join('\n');
+}
 
 /** Shell comments removed: a comment may name a flag without passing it. */
 function code(text: string): string {
@@ -72,6 +93,9 @@ const FRONT = '192.0.2.10';
 const NEXTCLOUD = '203.0.113.5';
 const TRUSTED = '198.51.100.7';
 const NAME = 'spark.mesh.example';
+/** The mesh's own domain, inside NAME and inside FILES, and met before FILES. */
+const ZONE = 'mesh.example';
+const FILES = 'files.mesh.example';
 /** Another peer on the mesh: in the range, and in no key. */
 const PEER = ['100', '97', '12', '34'].join('.');
 
@@ -90,13 +114,16 @@ const ENV = [
   `TRIGGER_APP_ORIGIN=https://${NAME}:3443`,
   `TRIGGER_LOGIN_ORIGIN='https://${NAME}:3443'`,
   'TRIGGER_API_ORIGIN=http://127.0.0.1:3090',
-  `NEXTCLOUD_TRUSTED_DOMAINS='localhost nextcloud ${TRUSTED}'`,
+  `NEXTCLOUD_TRUSTED_DOMAINS='localhost nextcloud ${ZONE} ${FILES} ${TRUSTED}'`,
   'SMTP_HOST=mailpit',
   '',
 ].join('\n');
 
 /** Exactly what the job must hide: every value above that names this machine. */
-const OWN_VALUES = [MESH, FRONT, NEXTCLOUD, NAME, TRUSTED];
+const OWN_VALUES = [MESH, FRONT, NEXTCLOUD, NAME, ZONE, FILES, TRUSTED];
+
+/** A name a shorter value inside it replaced first, leaving a label behind. */
+const CUT = /[\w-]\.<[A-Z_,]+>|<[A-Z_,]+>\.[\w-]/;
 
 /**
  * The value as a whole address or name, so the near miss `192.0.2.100` in a
@@ -144,13 +171,48 @@ describe('the job-level mask', () => {
     for (const v of OWN_VALUES) expect(others.join('\n')).not.toContain(v);
   });
 
+  it('reads a double-quoted value as bash does, the form the bring-up guide writes', () => {
+    // `managed.env.example` and load_env's own remedy both say
+    // NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud …", and the mask runs
+    // before check-env-agreement.sh would refuse it. A quote kept masked
+    // `"localhost` and hid a last entry only together with its quote.
+    const BOX = 'box.mesh.example';
+    const APP = 'app.mesh.example';
+    const quoted = join(dir, 'quoted.env');
+    writeFileSync(
+      quoted,
+      [
+        `NEXTCLOUD_BIND=${MESH}`,
+        `TRIGGER_TLS_HOST="${NAME}"`,
+        `TRIGGER_APP_ORIGIN="https://${APP}"`,
+        `NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud ${MESH} ${BOX}"`,
+        '',
+      ].join('\n'),
+    );
+    const r = spawnSync('bash', [OWN, '--mask', quoted], { encoding: 'utf8' });
+    expect(r.status, r.stderr).toBe(0);
+    const masked = r.stdout
+      .split('\n')
+      .filter((l) => l.startsWith('::add-mask::'))
+      .map((l) => l.slice('::add-mask::'.length));
+    expect(masked.filter((m) => m.includes('"')), 'a mask kept a quote').toEqual([]);
+    expect(masked.sort()).toEqual([MESH, NAME, APP, BOX].sort());
+    const redacted = spawnSync('bash', [OWN, '--redact', quoted], {
+      encoding: 'utf8',
+      input: `External at ${BOX}:8083 via ${NAME}\n{"host":"localhost"}\n`,
+    });
+    expect(redacted.status, redacted.stderr).toBe(0);
+    expect(redacted.stdout).toContain('External at <NEXTCLOUD_TRUSTED_DOMAINS>:8083 via <TRIGGER_TLS_HOST>');
+    expect(redacted.stdout).toContain('{"host":"localhost"}');
+  });
+
   it('masks nothing, and succeeds, when there is no .env to read', () => {
     const r = spawnSync('bash', [OWN, '--mask', join(dir, 'absent.env')], { encoding: 'utf8' });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).not.toContain('::add-mask::');
   });
 
-  it('runs in the managed gate after the .env is restored and before anything reads the stack', () => {
+  it('runs in the managed gate right after the .env is restored, before anything reads the stack', () => {
     const wf = parse(read('.github/workflows/e2e-managed.yml')) as {
       jobs: Record<string, { steps: Array<{ name?: string; run?: string; uses?: string }> }>;
     };
@@ -164,7 +226,9 @@ describe('the job-level mask', () => {
       ),
     );
     expect(restore, 'the restore step is no longer recognisable').toBeGreaterThanOrEqual(0);
-    expect(mask, 'no step masks this machine\'s own addresses').toBeGreaterThan(restore);
+    // The step right after: any step between them could read the .env, and a
+    // list of the ones that do is a list somebody forgets to extend.
+    expect(mask, 'the mask is not the step right after the restore').toBe(restore + 1);
     expect(first, 'no step reads the stack').toBeGreaterThan(mask);
     // A trace prints each value before the runner has been told to hide it.
     expect(runOf(steps[mask]!)).not.toMatch(/set -[a-z]*x|set -o xtrace/);
@@ -184,18 +248,53 @@ describe('what the gate prints about the stack', () => {
       for (const [job, def] of Object.entries(wf.jobs ?? {})) {
         if (!JSON.stringify(def['runs-on'] ?? '').includes('self-hosted')) continue;
         for (const step of def.steps ?? []) {
-          for (const line of code(step.run ?? '').split('\n')) found.push({ where: `${file} ${job}`, line });
+          // A line ending in a backslash goes on: `docker compose $X \` then `ps`.
+          const lines = code(step.run ?? '').replace(/\\\n\s*/g, ' ').split('\n');
+          for (const line of lines) found.push({ where: `${file} ${job}`, line });
         }
       }
     }
     return found;
   }
 
+  /**
+   * The `ps` fields that name no address. The default table has PORTS, and
+   * `json` and `{{.Publishers}}` carry the same publishes as a URL each.
+   */
+  const SAFE_PS_FIELD = /^\.(Name|Names|Service|Status|State|Health|ID|Image|RunningFor|CreatedAt)$/;
+  function psPrintsABind(line: string): boolean {
+    const format = /--format(?:=|\s+)('[^']*'|"[^"]*"|\S+)/.exec(line)?.[1];
+    if (format === undefined) return true;
+    const actions = [...format.matchAll(/\{\{(.*?)\}\}/g)].map((m) => m[1]!.trim());
+    return actions.length === 0 || actions.some((a) => !SAFE_PS_FIELD.test(a));
+  }
+
   it('lists containers without the PORTS column, which prints every bind', () => {
+    // Two jobs list containers on this machine: `.github/workflows/e2e.yml`
+    // (the self-host gate) and `.github/workflows/e2e-managed.yml`.
     const ps = selfHostedRuns().filter(({ line }) => /\bdocker\b(\s+compose\b)?[^|;&]*\sps\b/.test(line));
     expect(ps.length, 'no `ps` found in a self-hosted job: the scan is looking at nothing').toBeGreaterThan(0);
-    const wrong = ps.filter(({ line }) => !/--format\s/.test(line) || /\.Ports\b/.test(line));
+    const wrong = ps.filter(({ line }) => psPrintsABind(line));
     expect(wrong.map((w) => `${w.where}: ${w.line.trim()}`)).toEqual([]);
+  });
+
+  it('tells a `ps` that prints a bind from one that does not, so the scan is not vacuous', () => {
+    for (const bad of [
+      'docker compose $X ps',
+      'docker compose $X ps --format json',
+      'docker compose $X ps --format=json',
+      "docker compose $X ps --format 'table {{.Name}}\\t{{.Publishers}}'",
+      "docker compose $X ps --format '{{.Name}} {{json .}}'",
+      "docker compose $X ps --format 'table'",
+    ]) {
+      expect(psPrintsABind(bad), bad).toBe(true);
+    }
+    for (const good of [
+      "docker compose $X ps --format 'table {{.Name}}\\t{{.Image}}\\t{{.Service}}\\t{{.RunningFor}}\\t{{.Status}}' || true",
+      "docker compose $X ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true",
+    ]) {
+      expect(psPrintsABind(good), good).toBe(false);
+    }
   });
 
   it('runs the deploy CLI without the Actions files and without its links', () => {
@@ -302,7 +401,7 @@ describe('what is written to a file', () => {
     `the status page at http://${FRONT}:3124 answered 502`,
     `{"logger":"http","msg":"enabling automatic TLS certificate management","domains":["${NAME}"]}`,
     `${PEER} - - [27/Sep/2026] "GET / HTTP/1.1" 200 from another peer`,
-    `trusted domains: localhost nextcloud ${TRUSTED}`,
+    `trusted domains: localhost nextcloud ${ZONE} ${FILES} ${TRUSTED}`,
     // Near misses, which must survive: a longer address sharing a prefix, and
     // loopback.
     'a neighbour at 192.0.2.100, and the API on http://127.0.0.1:3001',
@@ -319,6 +418,7 @@ describe('what is written to a file', () => {
     expect(r.status, r.stderr).toBe(0);
     const out = readFileSync(join(evidence, 'smoke-managed-1.log'), 'utf8');
     for (const v of [...OWN_VALUES, PEER]) expect(out, `${v} survived`).not.toMatch(whole(v));
+    expect(out).not.toMatch(CUT);
     // Replaced by what it is, so the line still reads.
     expect(out).toContain('WEB_BIND');
     expect(out).toContain('<NEXTCLOUD_BIND>');
@@ -329,11 +429,31 @@ describe('what is written to a file', () => {
   });
 
   it('the smoke filters its own stream, so its log and its evidence are clean at the source', () => {
-    const smoke = code(read('deploy/compose/smoke-managed.sh'));
-    const program = smoke.search(/^REDACT_OWN_ADDRESSES="\$\(own_address_sed "\$\{SCRIPT_DIR\}\/\.env"\)"/m);
-    const exec = smoke.search(/^exec > >\(sed -u -E -e "\$REDACT_OWN_ADDRESSES" \| tee "\$OUT"\) 2>&1$/m);
-    expect(program, 'the smoke builds no redaction from its .env').toBeGreaterThan(-1);
-    expect(exec, 'the smoke tees its output unfiltered').toBeGreaterThan(program);
+    // RUN, from the smoke's first line through its `exec`, in a directory laid
+    // out like deploy/compose: a smoke that stopped sourcing own-addresses.sh
+    // built an empty program, which sed accepts, and filtered nothing.
+    const lines = read('deploy/compose/smoke-managed.sh').split('\n');
+    const exec = lines.findIndex((l) => /^exec > >\(sed -u -E -e "\$REDACT_OWN_ADDRESSES" \| tee "\$OUT"\) 2>&1$/.test(l));
+    expect(exec, 'the smoke tees its output unfiltered').toBeGreaterThan(-1);
+    const box = join(dir, 'box');
+    mkdirSync(box);
+    writeFileSync(join(box, '.env'), ENV);
+    for (const f of ['env-read.sh', 'own-addresses.sh', 'managed.yml']) symlinkSync(join(COMPOSE_DIR, f), join(box, f));
+    const preamble = join(box, 'preamble.sh');
+    writeFileSync(preamble, [...lines.slice(0, exec + 1), 'printf \'%s\\n\' "$1"', 'printf \'%s\\n\' "$1" >&2', ''].join('\n'));
+    const kept = join(box, 'smoke.txt');
+    const env: Record<string, string | undefined> = { ...process.env, SMOKE_OUT: kept };
+    delete env.COMPOSE_PROJECT_NAME;
+    const r = spawnSync('bash', [preamble, LOG], { encoding: 'utf8', env });
+    expect(r.status, r.stderr).toBe(0);
+    const file = readFileSync(kept, 'utf8');
+    for (const v of [...OWN_VALUES, PEER]) {
+      expect(r.stdout, `${v} reached the stream`).not.toMatch(whole(v));
+      expect(file, `${v} reached ${kept}`).not.toMatch(whole(v));
+    }
+    expect(file).toContain('MAILPIT_BIND');
+    expect(file).toContain('<mesh-ip>');
+    expect(file).toContain('192.0.2.100');
   });
 
   it('the filter the smoke uses cleans the lines the smoke prints', () => {
@@ -343,6 +463,7 @@ describe('what is written to a file', () => {
     });
     expect(piped.status, piped.stderr).toBe(0);
     for (const v of [...OWN_VALUES, PEER]) expect(piped.stdout, `${v} survived`).not.toMatch(whole(v));
+    expect(piped.stdout).not.toMatch(CUT);
     expect(piped.stdout).toContain('192.0.2.100');
   });
 
@@ -353,8 +474,11 @@ describe('what is written to a file', () => {
     const logFile = join(dir, 'container.log');
     writeFileSync(logFile, LOG);
     const program = [
-      `. "${ENV_READ}"`,
-      `[ -f "${OWN}" ] && . "${OWN}"`,
+      // As bootstrap reaches the helper: its own source lines, under its own
+      // `set -e`, so a bootstrap that stopped sourcing it is a 127 here.
+      'set -euo pipefail',
+      `SCRIPT_DIR="${COMPOSE_DIR}"`,
+      sourceLines('deploy/compose/bootstrap-managed.sh'),
       `ENV_FILE="${envFile}"`,
       'COMPOSE_PROJECT=ownpace-managed',
       `FATAL_LINE_RE='(ERROR|Error:)'`,
@@ -369,5 +493,45 @@ describe('what is written to a file', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('trigger-tls');
     for (const v of [...OWN_VALUES, PEER]) expect(r.stderr, `${v} survived`).not.toMatch(whole(v));
+  });
+
+  it('setup-zitadel\'s log tail is filtered the same way', () => {
+    // Printed when the provider exits during start-up or never answers ready,
+    // and in the gate by "The provider step, run a second time" on a failure.
+    const setup = read('deploy/compose/setup-zitadel.sh');
+    const raw = code(setup)
+      .split('\n')
+      .filter((l) => /COMPOSE\[@\]\}"\s+logs\b.*>&2\s*$/.test(l));
+    expect(raw.map((l) => l.trim()), 'a container log printed unfiltered').toEqual([]);
+    const at = setup.indexOf('zitadel_log_tail() {');
+    expect(at, 'setup-zitadel.sh has no filtered log tail').toBeGreaterThan(-1);
+    const tail = setup.slice(at, setup.indexOf('\n}\n', at) + 3);
+    const logFile = join(dir, 'zitadel.log');
+    writeFileSync(logFile, LOG);
+    const r = bash(
+      [
+        'set -euo pipefail',
+        `SCRIPT_DIR="${COMPOSE_DIR}"`,
+        sourceLines('deploy/compose/setup-zitadel.sh'),
+        `ENV_FILE="${envFile}"`,
+        `fake_compose() { case "$1" in logs) cat "${logFile}" ;; esac; }`,
+        'COMPOSE=(fake_compose)',
+        tail,
+        'zitadel_log_tail',
+      ].join('\n'),
+    );
+    expect(r.status, r.stderr).toBe(0);
+    for (const v of [...OWN_VALUES, PEER]) expect(r.stderr, `${v} survived`).not.toMatch(whole(v));
+    expect(r.stderr).toContain('<mesh-ip>');
+  });
+
+  it('every script that calls the helpers sources them itself', () => {
+    // The cases above source what each script sources; this one says so for
+    // every script, the ones not tested by name included.
+    const users = readdirSync(COMPOSE_DIR)
+      .filter((f) => f.endsWith('.sh') && f !== 'own-addresses.sh')
+      .filter((f) => /\b(own_address_\w+|shown_origin)\b/.test(code(read(`deploy/compose/${f}`))));
+    expect(users.length, 'no script calls the helpers: the scan is looking at nothing').toBeGreaterThan(2);
+    expect(users.filter((f) => !SOURCES_OWN.test(read(`deploy/compose/${f}`)))).toEqual([]);
   });
 });

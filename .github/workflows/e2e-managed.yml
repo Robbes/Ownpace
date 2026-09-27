@@ -645,8 +645,9 @@ jobs:
           set -uo pipefail
           # No PORTS column: it prints every publish, and the binds are this
           # machine's addresses. `docker ps --format '{{.Names}} {{.Ports}}'`
-          # on the machine itself shows them to whoever needs them.
-          docker compose $MANAGED_COMPOSE ps --format 'table {{.Name}}\t{{.Service}}\t{{.Status}}' || true
+          # on the machine itself shows them to whoever needs them. No COMMAND
+          # either: zitadel's carries its `--masterkey`.
+          docker compose $MANAGED_COMPOSE ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}' || true
           health=$(docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
           echo '--- no healthcheck defined (this gate cannot speak for these) ---'
           echo "$health" | awk 'NF==1 && $1!=""' || true

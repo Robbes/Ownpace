@@ -429,7 +429,7 @@ jobs:
           # No PORTS column, as in every job on this machine: a publish names
           # an address, and this log is public. The ports are the ones picked
           # above.
-          docker compose $SELFHOST_COMPOSE_FILES ps --format 'table {{.Name}}\t{{.Service}}\t{{.Status}}'
+          docker compose $SELFHOST_COMPOSE_FILES ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}'
 
       - name: Green-light the mapping (0013 T7 — mappings load paused until confirmed)
         run: |

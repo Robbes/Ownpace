@@ -44,7 +44,8 @@ ENV_FILE="${REDACT_ENV_FILE:-${SCRIPT_DIR}/.env}"
 
 # --- pass 1: every value in .env that looks like a secret --------------------
 if [ -f "$ENV_FILE" ]; then
-  while IFS='=' read -r key value; do
+  while IFS='=' read -r key _; do
+    key="${key#export }"
     case "$key" in ''|\#*) continue ;; esac
     # Only values worth hiding, and long enough that replacing them cannot
     # mangle unrelated text. A three-character value would match everywhere.
@@ -52,9 +53,13 @@ if [ -f "$ENV_FILE" ]; then
       *SECRET*|*PASSWORD*|*KEY*|*TOKEN*|*_PW) : ;;
       *) continue ;;
     esac
+    # The value as Compose and bash read it: quotes and an inline comment
+    # removed. env-upsert.sh single-quotes a secret with a space or a `~`.
+    value="$(env_value "$ENV_FILE" "$key")"
     [ "${#value}" -ge 8 ] || continue
-    # Escape for sed: the value can contain slashes and ampersands.
-    escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
+    # Escape for sed. Unquoted, a value can hold any regex character, and one
+    # sed error here would end the script before passes 2 and 3.
+    escaped=$(printf '%s' "$value" | sed -e 's/[][\/&|.*^$]/\\&/g')
     find "$DIR" -type f -exec sed -i "s|${escaped}|[REDACTED]|g" {} +
   done < "$ENV_FILE"
 fi
@@ -63,7 +68,13 @@ fi
 # Each value becomes the key that holds it (`<MAILPIT_BIND>`), so the line still
 # says which publish a failure was about; the range catches the peers no key
 # names. Run even without a .env: the range needs none.
+# A program sed refuses would end the script here, before pass 3, over an
+# upload that runs anyway: it is tried first, and the range alone stands in.
 own_program="$(own_address_sed "$ENV_FILE")"
+if ! sed -E -e "$own_program" </dev/null >/dev/null 2>&1; then
+  echo "[redact] WARNING: the .env's addresses make a program sed refuses; redacting the mesh range only" >&2
+  own_program="$(own_address_sed /dev/null)"
+fi
 find "$DIR" -type f -exec sed -i -E -e "$own_program" {} +
 
 # --- pass 3: by shape, for the ones we could not name ------------------------

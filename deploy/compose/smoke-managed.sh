@@ -159,13 +159,21 @@ BALANCE_TAG=""
 # becomes the key that holds it, so the line still says which publish failed.
 #
 # A program sed would refuse would take the whole stream with it, so it is
-# tried first, and the range alone stands in for it.
+# tried first, and the range alone stands in for it. So it does for an empty
+# one, which sed accepts and which filters nothing.
 REDACT_OWN_ADDRESSES="$(own_address_sed "${SCRIPT_DIR}/.env")"
-if ! sed -E -e "$REDACT_OWN_ADDRESSES" </dev/null >/dev/null 2>&1; then
+if [ -z "$REDACT_OWN_ADDRESSES" ] || ! sed -E -e "$REDACT_OWN_ADDRESSES" </dev/null >/dev/null 2>&1; then
   echo "[smoke] WARNING: the .env's addresses make a filter sed refuses; filtering the mesh range only" >&2
   REDACT_OWN_ADDRESSES="$(own_address_sed /dev/null)"
 fi
 exec > >(sed -u -E -e "$REDACT_OWN_ADDRESSES" | tee "$OUT") 2>&1
+# `sed -u` reads a byte at a time and falls behind a burst, and nothing waits
+# for it: the verdict could print after the caller's next line, and $OUT read
+# at once could lack its tail. Every EXIT trap below ends with this, after the
+# runner-log watcher is gone, since a wait while it holds the pipe never ends.
+SMOKE_FILTER_PID=$!
+end_stream() { exec >&- 2>&-; wait "$SMOKE_FILTER_PID" 2>/dev/null || true; }
+trap end_stream EXIT
 echo "########## smoke-managed $(date -u +%FT%TZ) — evidence: $OUT ##########"
 
 fail=0
@@ -852,9 +860,9 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
     done
     sleep 1
   done
-) &
+) >/dev/null 2>&1 &
 WATCHER_PID=$!
-trap 'kill "$WATCHER_PID" 2>/dev/null || true' EXIT
+trap 'kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
 
 # ---------- the last two services nothing speaks for (0084 T7.1) ----------
 #
@@ -1227,7 +1235,7 @@ else
   # watcher, and `trap … EXIT` REPLACES the handler rather than adding to it —
   # so a second one here silently leaks that process for the rest of the run.
   # Caught by looking, not by it going wrong, which is the cheaper way round.
-  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true' EXIT
+  trap 'idp_take_back; kill "$WATCHER_PID" 2>/dev/null || true; end_stream' EXIT
 
   # ---- the client this gate signs in with ----
   #

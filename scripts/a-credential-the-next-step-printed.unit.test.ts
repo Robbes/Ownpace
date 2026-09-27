@@ -36,7 +36,7 @@ import { parse } from 'yaml';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
 
-type Step = { name?: string; run?: string };
+type Step = { name?: string; run?: string; env?: Record<string, string> };
 type Workflow = { jobs?: Record<string, { steps?: Step[] }> };
 
 /** Shell comments removed: a comment may name a file without reading it. */
@@ -56,6 +56,9 @@ function workflows(): string[] {
 /** A path to a dotenv file, as opposed to `process.env.X`. */
 const READS_A_DOTENV = /(^|[\s"'/}=])\.env\b(?![.\w])/;
 
+/** The step's code and the `env:` it hands that code: `ENV_FILE: deploy/compose/.env` is read as `$ENV_FILE`. */
+const readsFrom = (step: Step) => code(step.run ?? '') + '\n' + JSON.stringify(step.env ?? {});
+
 describe('no workflow routes a .env through the files the runner prints', () => {
   it('finds no step that reads a .env and writes $GITHUB_ENV or $GITHUB_OUTPUT', () => {
     const wrong: string[] = [];
@@ -67,7 +70,7 @@ describe('no workflow routes a .env through the files the runner prints', () => 
           const run = code(step.run ?? '');
           if (!run) continue;
           steps += 1;
-          if (READS_A_DOTENV.test(run) && /GITHUB_(ENV|OUTPUT)\b/.test(run)) {
+          if (READS_A_DOTENV.test(readsFrom(step)) && /GITHUB_(ENV|OUTPUT)\b/.test(run)) {
             wrong.push(`${file} ${job}: ${step.name ?? run.split('\n')[0]}`);
           }
         }
@@ -82,6 +85,15 @@ describe('no workflow routes a .env through the files the runner prints', () => 
     expect(READS_A_DOTENV.test('cp deploy/compose/.env x')).toBe(true);
     expect(READS_A_DOTENV.test('fs.appendFileSync(process.env.GITHUB_ENV, lines)')).toBe(false);
     expect(READS_A_DOTENV.test('cat > deploy/selfhost/.env.example')).toBe(false);
+    // The path handed in through the step's `env:`, the code naming only $ENV_FILE.
+    expect(
+      READS_A_DOTENV.test(
+        readsFrom({
+          env: { ENV_FILE: 'deploy/compose/.env' },
+          run: 'echo "DASHBOARD=$(env_value "$ENV_FILE" TRIGGER_APP_ORIGIN)" >> "$GITHUB_ENV"',
+        }),
+      ),
+    ).toBe(true);
   });
 });
 
