@@ -4,6 +4,14 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, build review: Stage 9's fixes, on the same branch
+(`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
+text only. Step 6 now issues a fresh grant link for each app on each phone, because a link that
+has been accepted is spent (*"Deze link is verbruikt."*). The in-app browser table gains the
+*Language seen* column T10 asks for. T1's row is marked merged: #1169 (`41c77a01`, `144c6f69`),
+on `main` since 2026-09-25, all but the skip link. Stage 9's table of the minimum names it. No
+guard: the facts were read at `origin/main` (`eba2d10`). 0141's Status has the rest of the review.
+
 **2026-09-27, build: T10's runbook stage, on branch
 `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged.** This is 0131 §6's R5 step 3. It is
 text only: the walk has not happened, and nothing here records one.
@@ -139,7 +147,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | Task | Status | Notes |
 |---|---|---|
 | T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 is built. |
-| T1 The phone menu takes focus and gives it back | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
+| T1 The phone menu takes focus and gives it back | ✅ **done** in #1169, merged 2026-09-25 (`41c77a01`, `144c6f69`), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
 | T4 Errors are announced | 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |

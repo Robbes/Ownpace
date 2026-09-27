@@ -13,8 +13,9 @@ to do differently this round, and what to send back**. The stage documents are:
 | 10 | [`soverin-supervised-run.md`](./soverin-supervised-run.md) | A migration into a provider we do not host, and the nightly lane that keeps checking it |
 | — | [`operator-runbook.md`](./operator-runbook.md) | What every queue and refusal means, while you are clicking |
 
-Stages 8 and 9 are written out below. They are walked on `ownpace-live`, the stack testers use,
-and not on the machines above.
+Stages 4 to 9 have no document of their own, and are written out in full below. Stages 8 and 9
+are walked on `ownpace-live`, the stack testers use, and not on the OTA stack or the appliance.
+Stage 10 runs on the OTA stack.
 
 ## App-first or commands-first? Both — but the order is not a preference
 
@@ -372,19 +373,30 @@ page, a first pass, a progress link, a grant link, *Report a problem* and the Fi
 permission list. Nothing in the repository drives this journey in a browser against a real API
 (0141 §1). The phone half is Stage 9.
 
-**When.** On `ownpace-live`, after 0133 T4, the mail half of the same walk. This stage follows
-on from that walk's step 4: each person has joined as the owner of an organisation of their own.
-The alpha note (0131 T1) and the *Experimental* tag (0131 T2) are both on `main`, so any release
-cut from it carries them.
+**When.** On `ownpace-live`, after 0133 T4, the mail half of the same walk. It starts once A and
+B have each joined as the owner of an organisation of their own (*Before you start*). 0133 T4 does
+not bring in both: it lets in one address, and its step 6 declines the other. The alpha note
+(0131 T1) and the *Experimental* tag (0131 T2) are both on `main`, so any release cut from it
+carries them.
 
 **Before you start.**
 
 - **Two fresh accounts, A and B.** Neither is on your own domains.
 - **Two languages.** A's browser is set to Dutch, B's to English. The app takes its language
   from the browser the first time, and keeps a choice made with the menu's switch after that.
+- **Both in, each as an owner.** A and B each come in the way 0133 T4's steps 1 to 4 let one
+  address in. They ask for access at `/request-access`. You press *Grant access* for each in the
+  access queue (*Access requests*, `/access-requests`). Each registers at live's identity
+  provider with the address they asked with, signs in, and presses *Meedoen* / *Join* on the
+  Invitations page (`/invitations`). A does this in the Dutch browser and B in the English one.
 - **A's source** is a Google account that is a test user of live's Google client (0140 T0).
+- **A second Google account, for step 6.** It is not A's, and it is also on live's Google client's
+  list of test users (0140 T0). Google stops an account that is not on that list on its own
+  screen, before the product learns who it is. That tests Google, not the product.
 - **B's source** is a personal Microsoft account (outlook.com, hotmail.com or live.com). Its
-  consent is also 0140 T6's personal-account consent.
+  consent is also 0140 T6's personal-account consent. Microsoft must know live's callback address
+  first (0140 T11). Until it does, step 2 fails for B at Microsoft, and that is not the product's
+  failure.
 - **A target for each first pass**, one you provide for the walk (0141 open question 3).
 - **Live's release.** Note it from the build stamp at the foot of the menu. Every record below
   carries it.
@@ -428,10 +440,11 @@ one of them.
 6. **A grant link (A only).** Grant links are for Google sources only. On A's migration page,
    under *Toegangslinks*, choose how long it works and press *Toegangslink maken*
    ([`grant-links.md`](./grant-links.md), *Issuing one*).
-   - Open it in a private window, press *Doorgaan met Google*, and at Google sign in with any
-     other Google account.
+   - Open it in a private window, press *Doorgaan met Google*, and at Google sign in with the
+     second Google account (*Before you start*).
      **Expect:** it is refused. The page after Google names both addresses and says *"Nothing
-     was stored, and your link still works."*
+     was stored, and your link still works."* If Google's own screen stops the account first, it
+     is not on the test-user list: add it and try again. That is not a result for this step.
    - Open it again and sign in as A. **Expect:** it is accepted.
    - Open it a third time. **Expect:** it cannot be used. The grant page says *"This link cannot
      be used. It may have been used already, …"*, and on the migration page the link reads *"Op …
@@ -439,12 +452,14 @@ one of them.
 
    That refusal and the page after Google are English on `main`, even for A. 0145 T6 puts them
    in the reader's language. Write down the language each came in.
-7. **Report a problem.** From the menu, *Een probleem melden* / *Report a problem*. Describe
-   anything, and press *Melding versturen* / *Send the report*.
-   **Expect:** where live has a helpdesk (0130), the page answers *"Sent. Your report is number
-   …"* and the report reaches you. Where it has none, the page says *"Reporting a problem is not
-   set up on this service."*, and a tester's route is the address in the alpha conditions
-   (0131 T5). Write down which of the two it was.
+7. **Report a problem.** Look in the menu for *Een probleem melden* / *Report a problem*.
+   **Expect:** where live has a helpdesk (0130), the menu has it. Open it, describe anything, and
+   press *Melding versturen* / *Send the report*. The page answers *"Verstuurd. Uw melding heeft
+   nummer …"* / *"Sent. Your report is number …"*, and the report reaches you. Where live has
+   none, the menu has no such entry, and that missing entry is the result to record. A tester's
+   route is then the address in the alpha conditions (0131 T5). Opening `/report` by hand shows
+   *"Een probleem melden is op deze dienst niet ingesteld."* / *"Reporting a problem is not set
+   up on this service."* Write down which of the two it was.
 8. **The permission list.** On the Finish page (`/mappings/<id>/finish`), press *Haal de
    rechtenlijst op* / *Get the permission list*, and read the file it downloads.
    **Expect:** every sentence in it is true of that source. For A's Google account, the
@@ -456,13 +471,32 @@ one of them.
 
 **Record.** For each step and each person: pass or fail, the date, live's release, and the
 language seen. Never an address, a name or a tenant id. It goes in 0141's Status as a dated
-paragraph. B's consent screens also go to 0140 T6. A first pass that meets all seven points of
-*What counts as a live proof* ([`feature-matrix.md`](./feature-matrix.md), *Live proofs*) is also
-a row under *Recorded proofs*, with the account *a second account* and the stack
-`ownpace-live`. Where that row's kind and data type are still experimental in `SOURCE_PROOFS`,
-as all of B's are, the verdict turns proven in the same pull request as the row;
-`scripts/a-proof-that-was-written-down.unit.test.ts` refuses a row beside an experimental
-verdict.
+paragraph. B's consent screens also go to 0140 T6.
+
+**A live proof, if you want one.** The walk alone is not a live proof. *What counts as a live
+proof* ([`feature-matrix.md`](./feature-matrix.md), *Live proofs*) also asks for a verification
+and a second pass that creates nothing (its points 5 and 6), and the eight steps have neither. For
+a row, do this after step 4, for each person:
+
+- On the migration's page, open *Verificatie* / *Check* (`/mappings/<id>/verify`) and press
+  *Voer de verificatie uit* / *Run the check*. Each data type's *Resultaat* / *Result* reads
+  `PASS`. Write down its two counts, *Op het oude systeem* / *On the old system* and *Op het
+  nieuwe* / *On the new one*.
+- Run one more pass: on *Migraties* / *Migrations*, press the play button in the migration's row
+  (its tooltip reads *Synchroniseer nu* / *Trigger sync*). When the pass has ended, press
+  *Verifieer opnieuw* / *Check again*. Each data type's *On the new one* count is the one you
+  wrote down, so the second pass created nothing.
+
+Where Verify does not cover a data type, point 5 lets you compare the counts with the provider's
+own screen instead, and write down both. Where calendar events or tasks with attendees were
+copied, point 7 also needs the catcher or catch-all to have stayed silent. This stage does not
+check that.
+
+A pass that then meets all seven points is a row under *Recorded proofs*, with the account *a
+second account* and the stack `ownpace-live`. Where that row's kind and data type are still
+experimental in `SOURCE_PROOFS`, as all of B's are, the verdict turns proven in the same pull
+request as the row; `scripts/a-proof-that-was-written-down.unit.test.ts` refuses a row beside an
+experimental verdict.
 
 **Passes when** all eight steps pass for both people. Until 0141 T11 is in live's release, step
 8 cannot pass for B.
@@ -481,7 +515,7 @@ partly there:
 
 | 0145 task | Steps below | On `main` |
 |---|---|---|
-| T1, the phone menu takes focus and gives it back | 3 | Yes (`Layout.tsx`) |
+| T1, the phone menu takes focus and gives it back | 3 | Yes, since #1169 (`Layout.tsx`) |
 | T3 (a), each wizard step starts at the top and says which it is | 5 | No |
 | T5 with T7 (a), the consent window opens on the press, and a greyed-out button says why | 4 | No |
 | T6, the grant page and the consent endings in one language | 6 | No |
@@ -519,7 +553,9 @@ The steps, on each phone:
    **Expect:** each step starts at the top of the page, and the screen reader reads its
    heading, such as *"Stap 2 van 4: Doel"* (T3 (a)). The four steps are *Bron*, *Doel*,
    *Migratie* and *Controleren*.
-6. Open a grant link, like Stage 8's step 6, from WhatsApp and from your mail app.
+6. For each app on each phone, issue a fresh grant link (Stage 8's step 6, *Toegangslink
+   maken*), because a link that has been accepted is spent. Send it to the phone in that app, one
+   in WhatsApp and one in your mail app, and open it from there.
    **Expect:** the grant page, Google's return and the page after it are all in Dutch (T6), and
    that last page fits the screen (#1137). Each app's browser goes in the table below.
 7. Open the progress link.
@@ -530,11 +566,11 @@ The steps, on each phone:
 **The in-app browsers.** For the grant link, and for the sign-in link in the access-granted mail,
 one row for each app the testers named:
 
-| App | Phone and OS version | Which browser opened | Google's page | Our page after it | Date | Release |
-|---|---|---|---|---|---|---|
+| App | Phone and OS version | Which browser opened | Google's page | Our page after it | Language seen | Date | Release |
+|---|---|---|---|---|---|---|---|
 
 *Which browser opened* is one of: the system browser, an in-app tab, or a view inside the app.
-The two page columns say whether it worked.
+The two page columns say whether it worked. *Language seen* is the language our page came in.
 
 **Record.** For each step, on each phone and in each screen-reader pass: pass, fail or *not in
 this release*; the date; live's release; the kind of phone and its OS version; the browser; the

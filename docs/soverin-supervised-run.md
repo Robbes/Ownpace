@@ -27,7 +27,7 @@ Stage 10 points here. What changed, and why:
   checks its copy and one update of it.
 - **The source is open.** See *Before the sitting*.
 - **The rest now matches the code.** One Soverin connection carries
-  calendars, contacts, mail and tasks (0106 T4a), so step A adds one
+  calendars, contacts, mail and tasks (0106 T4, 0113 T5), so step A adds one
   connection and step D makes one mapping. The connection's Test no longer
   shows the scheduling verdict (0105 T0, the owner's instruction of
   2026-09-07), so step E reads it from the audit log. The labels are the
@@ -77,7 +77,7 @@ that, and this section plus D are walked again.
    owner. Use a person whose only organisation on this stack is this one:
    step H's token is theirs, and the lane names no organisation, so the API
    takes the person's only membership (`resolveTenant`).
-2. *Connections* → *Add a connection*; *Source or target?* → **Target**;
+2. *Connections* → *Add a connection*; *Source or target?* → **Targets**;
    *Provider* → **Soverin** — one row for the one account, which carries
    calendars, contacts, mail and tasks. The boxes come pre-filled
    with what Soverin's own help pages publish: host `caldav.soverin.net`,

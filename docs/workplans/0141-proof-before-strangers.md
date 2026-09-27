@@ -4,6 +4,46 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, build review: the stages' fixes, on the same branch
+(`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
+text only: no walk and no sitting has happened. The review read the stages against `origin/main`
+and found eleven things. All are fixed:
+
+- **How A and B get in.** 0133 T4 lets in one address, and its step 6 declines the other, so
+  Stage 8 cannot follow on from its step 4 for both people. *Before you start* now has each of A
+  and B ask at `/request-access`, be granted in the access queue, register, and press *Meedoen* /
+  *Join*, each in their own browser's language.
+- **Step 6's other account.** Live's Google client stays in Testing (0140 D1), and Google stops an
+  account that is not a test user on its own screen, so the product's refusal would never show.
+  The step now uses a second Google account that is also a test user (0140 T0), named under
+  *Before you start*.
+- **Step 7, *Report a problem*.** The menu offers the entry only where the service takes reports
+  (`Layout.tsx`). Without a helpdesk the missing entry is the result, and `/report` opened by hand
+  shows the sentence that says so. Both answers are quoted in Dutch and English.
+- **B's Microsoft prerequisite.** Microsoft must know live's callback first (0140 T11), or step 2
+  fails at Microsoft for a reason that is not the product's.
+- **A live proof.** The eight steps have no Verify and no second pass, which points 5 and 6 of
+  *What counts as a live proof* need. The stage now says the walk alone is not a proof, and gives
+  both runs after step 4, with the labels on the screen (*Voer de verificatie uit*, *Synchroniseer
+  nu*, *Verifieer opnieuw*).
+- **Stage 9** issues a fresh grant link for each app on each phone, because an accepted link is
+  spent, and its table gains the *Language seen* column 0145 T10 names.
+- **The runbook's intro** no longer sets live against *"the machines above"*: live runs on the
+  same machine as the OTA stack (0132 D7).
+- **The Soverin runbook** says *Source or target?* → **Targets**, the button's label.
+- **0105's T1 and T3 rows** describe the corrected runbook: one connection, one mapping, the
+  verdict from the audit row, the token from the provider.
+- **Two stale rows.** T10 (a) is marked merged: #1187 (`d7c4ebde`, `6402cd93`), on `main` since
+  2026-09-26. Stage 8's step 3 relies on it. 0145 T1 is marked merged in its plan: #1169.
+
+**No guard**, as before. Each new fact was read at `origin/main` (`eba2d10`): `Layout.tsx`,
+`ReportProblem.tsx`, `AppRoutes.tsx`, `Mappings.tsx`, `Verify.tsx`, `Connections.tsx`,
+`strings.ts` in both languages, `feature-matrix.md`, 0133 T4, and 0140 D1, T0 and T11.
+
+**Departures from §3.** T12 (a) has step 6 refused for *"any other account"*, and has the stage
+follow on from 0133 T4's step 4. The stage uses a second test-user account instead, and brings A
+and B in itself, for the reasons above. T12 (a)'s own text is left as it is.
+
 **2026-09-27, build: T12 (a)'s runbook stage and T7 (a)'s corrections, on branch
 `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged.** This is 0131 §6's R5 step 3, which calls
 the stage T12 (a1). It is text only. No walk and no sitting has happened, and nothing here records
@@ -12,8 +52,8 @@ one.
 - **Stage 8 — two strangers**, in `docs/owner-test-runbook.md`. It has T12 (a)'s eight steps, each
   with what to do and what to expect, on `ownpace-live` after 0133 T4. It says what to record: pass
   or fail, the date, live's release from the build stamp, and the language, never an address. It
-  says where: this block, B's consent screens in 0140 T6, and a first pass that meets all seven
-  points as a *Recorded proofs* row, with its verdict turned proven in the same pull request.
+  says where: this block, B's consent screens in 0140 T6, and a pass that meets all seven points
+  as a *Recorded proofs* row, with its verdict turned proven in the same pull request.
   Stage 9 is 0145 T10's phone half.
 - **Stage 10 — Soverin as a target** points at `docs/soverin-supervised-run.md`, which has T7 (a)'s
   corrections. Step H arms the lane with `LIVE_TARGET_API_TOKEN`, and says whose token it is, how
@@ -261,7 +301,7 @@ for the card says so.
 | T7 Soverin as a target | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's corrections, (a)); ⏳ **Owner** (the sitting, and its source: open question 9) — *was:* ⏳ **Owner** | §3. 0105 T3's sitting. Its step H needs a correction first. **Before a tester who picks the Soverin card.** |
 | T8 Nextcloud and JMAP targets beyond our own servers | 📋 **Proposed** (the JMAP legs); ⏳ **Owner** (a hosted Nextcloud) | §3. **After.** Until then, a tester's contacts and files go to CardDAV or WebDAV rather than JMAP. |
 | T9 The organiser canary (0103 T3) | ⏳ **Owner**; the gate's fixture 📋 **Proposed** | §3. **Before the first invitation**, because nearly every tester moves a calendar. |
-| T10 Shared mailboxes: Partial until one is copied | 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)); ⏳ **Owner** (0027 T0's consent run, after) | §3. **Before a tester on a Microsoft card.** |
+| T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed** | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`, not merged** (2026-09-27) (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
