@@ -40,6 +40,11 @@
  * No sidebar, no navigation, no sign-out: there is no account behind any of it.
  * `BuildStamp` stays, because "the link my son sent me shows nothing" is a
  * support conversation that starts with which build they are on.
+ *
+ * The language switch stays too (workplan 0145 T6): outside `Layout` there
+ * was none, and a Dutch parent whose phone is set to English could not change
+ * it. A refusal of the link shows the half the server sent in the page's
+ * language, and is announced (`role="alert"`); the waiting line is a status.
  */
 
 import React from 'react';
@@ -48,7 +53,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isPauseReason, type FailureCategory, type MappingLifecycle } from '@openmig/shared';
 import { viewApi, type MigrationViewPayload, type ViewRow } from '../services/view-service.ts';
 import { serverMessage } from '../services/api.ts';
-import { useT, useFormatters } from '../i18n/index.tsx';
+import { linkRefusal } from '../services/link-refusal.ts';
+import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import type { StringKey } from '../i18n/index.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { VIEW_FAILURE_KEY, VIEW_SIDE_KEY } from '../i18n/view-failure-key.ts';
@@ -56,6 +62,7 @@ import { formatBytes } from '../i18n/bytes.ts';
 import { Hint } from '../components/Hint.tsx';
 import PausedBecause from '../components/PausedBecause.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
+import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 
 /**
@@ -268,6 +275,7 @@ const TheAccessTheyGave: React.FC<{ link: string; view: MigrationViewPayload }> 
 const View: React.FC = () => {
   const { link } = useParams<{ link: string }>();
   const t = useT();
+  const { locale } = useLocale();
   const { dateTime } = useFormatters();
 
   const view = useQuery({
@@ -281,15 +289,23 @@ const View: React.FC = () => {
 
   return (
     <main className="max-w-xl mx-auto px-6 py-12">
+      <LanguageSwitch className="justify-end mb-4" />
       <h1 className="text-xl font-semibold text-gray-900">{t('view.title')}</h1>
 
-      {view.isPending && <p className="mt-4 text-sm text-gray-600">{t('view.loading')}</p>}
+      {view.isPending && (
+        <p role="status" className="mt-4 text-sm text-gray-600">
+          {t('view.loading')}
+        </p>
+      )}
 
       {view.error != null && (
-        // The server's own sentence, verbatim: a refused link and a migration
-        // that no longer exists are both written to be forwarded to the person
-        // who sent the link, and rewording either would lose that half.
-        <p className="mt-4 text-sm text-amber-800">{serverMessage(view.error)}</p>
+        // The server's own sentence, verbatim, in the half the page is in: a
+        // refused link and a migration that no longer exists are both written
+        // to be forwarded to the person who sent the link, and rewording
+        // either would lose that half.
+        <p role="alert" className="mt-4 text-sm text-amber-800">
+          {linkRefusal(view.error, locale, t)}
+        </p>
       )}
 
       {view.data && (

@@ -33,12 +33,15 @@ import {
   connectionsApi,
 } from '../services/mapping-service.ts';
 import type { ProviderAccountFacts } from '../services/mapping-service.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
+import { STRINGS } from '../i18n/strings.ts';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: {
     create: vi.fn(),
     googleAuthorize: vi.fn(),
     dropboxAuthorize: vi.fn(),
+    microsoftAuthorize: vi.fn(),
     listSharedDrives: vi.fn(),
     listSharedFolders: vi.fn(),
     listDropboxSharedFolders: vi.fn(),
@@ -1430,7 +1433,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       await waitFor(() => expect(connectButton()).toBeEnabled());
       fireEvent.click(connectButton());
       await waitFor(() => expect(authorizeMock).toHaveBeenCalled());
-      expect(authorizeMock.mock.calls[authorizeMock.mock.calls.length - 1]![0]).toEqual({ domains: ['calendar'] });
+      expect(authorizeMock.mock.calls[authorizeMock.mock.calls.length - 1]![0]).toEqual({ domains: ['calendar'], locale: 'en' });
 
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -1569,7 +1572,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
       await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
       // ABSENT, not empty strings — the route's schema refuses an empty one —
       // and Dropbox's route, never Google's.
-      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({});
+      expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({ locale: 'en' });
       expect(authorizeMock).not.toHaveBeenCalled();
       expect(open.mock.calls[0]?.[1]).toBe('ownpace-dropbox-consent');
 
@@ -1618,6 +1621,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     fireEvent.click(connectButton());
     await waitFor(() => expect(dropboxAuthorize).toHaveBeenCalled());
     expect(dropboxAuthorize.mock.calls[0]![0]).toEqual({
+      locale: 'en',
       clientId: 'dbx-app-key',
       clientSecret: 'dbx-app-secret',
     });
@@ -1701,6 +1705,85 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     expect(sent.refreshToken).toBe('dbx-refresh');
     expect(sent).not.toHaveProperty('clientId');
     expect(sent).not.toHaveProperty('clientSecret');
+  });
+});
+
+/**
+ * THE OWNER'S ENDING IS ASKED FOR IN THE PAGE'S LANGUAGE (workplan 0145 T6).
+ *
+ * Every consent case above runs in English, which is also the wizard's
+ * language when nothing chose one, so a literal `locale: 'en'` at the call
+ * site would pass all of them. These press the wizard's three buttons with the
+ * page in Dutch; the server records what it is sent and renders the ending in
+ * it.
+ */
+describe('CreateMapping — the consent asks for its ending in the page’s language (0145 T6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    vi.mocked(providerClientsApi.get).mockResolvedValue({
+      google: 'deployment',
+      dropbox: 'deployment',
+      microsoft: 'deployment',
+    });
+  });
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+    vi.mocked(providerClientsApi.get).mockResolvedValue({
+      google: 'connection',
+      dropbox: 'connection',
+      microsoft: 'connection',
+    });
+  });
+
+  const renderInDutch = () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <LocaleProvider>
+          <MemoryRouter initialEntries={['/mappings/new']}>
+            <Routes>
+              <Route path="/mappings/new" element={<CreateMapping />} />
+            </Routes>
+          </MemoryRouter>
+        </LocaleProvider>
+      </QueryClientProvider>,
+    );
+  };
+
+  it.each([
+    { provider: 'Google', card: /^Gmail/, connect: 'wizard.google.connect', authorize: 'googleAuthorize' },
+    { provider: 'Dropbox', card: /^Dropbox/, connect: 'wizard.dropbox.connect', authorize: 'dropboxAuthorize' },
+    {
+      provider: 'Microsoft',
+      card: /^Microsoft 365 account/,
+      connect: 'wizard.microsoft.connect',
+      authorize: 'microsoftAuthorize',
+    },
+  ] as const)('Verbinden met $provider sends nl', async ({ card, connect, authorize }) => {
+    const ask = vi.mocked(mappingApi[authorize]);
+    ask.mockResolvedValue({ url: 'https://provider.example/consent', redirectUri: 'r', scope: 'x' } as never);
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      renderInDutch();
+      fireEvent.click(screen.getByRole('button', { name: card }));
+      fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
+        target: { value: 'owner@example.invalid' },
+      });
+      const button = await screen.findByRole('button', { name: new RegExp(`^${STRINGS.nl[connect]}`) });
+      // An account kind asks for the faces it serves; tick one if none is.
+      const boxes = screen.queryAllByRole('checkbox');
+      if (boxes.length > 0 && !boxes.some((b) => (b as HTMLInputElement).checked)) fireEvent.click(boxes[0]!);
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(ask).toHaveBeenCalled());
+      expect(ask.mock.calls[0]![0]).toMatchObject({ locale: 'nl' });
+    } finally {
+      open.mockRestore();
+    }
   });
 });
 

@@ -52,6 +52,27 @@ of* it.
    theirs and stays verbatim; `credentialsRefused` is ours and carries the
    pair. When adding server prose, ask **who wrote this sentence** before
    asking which class it is.
+
+   **What a link holder reads is the third application** (workplan 0145 T6).
+   A grant link or a progress link is opened by somebody with no account, on a
+   page in the language they chose, so the refusals the server writes for
+   them have their Dutch beside them in `link-holder-refusals.ts`: the link
+   that cannot be used, the *"not ready"* frame and its reasons, the two
+   sign-in wrappers, and the callback's refusals. The grant ending's own
+   sentences are paired in `google-consent.ts` (`GRANT_ENDING`). The
+   withdrawal and report-a-link refusals, and the ending for an unknown or
+   expired consent state, are not paired yet (0145 Status). On the wire a pair
+   travels as `reason` and `reasonNl` (`message` and `messageNl` for the link
+   check), and the page shows the half in its language, or the English as
+   served when there is no Dutch half. A failure the server wrote no sentence
+   for (no connection, a timeout, an answer the page cannot read) is the
+   page's own, from the dictionary (`link.unreachable`, `link.unreadable`),
+   and never the transport's English. Inside a pair a finding stays verbatim
+   in both halves: the word Google sent back (`access_denied`), the addresses
+   somebody signed in with, the operator's own refusal of a callback address.
+   The pages the API renders after a provider's consent choose their language
+   the same way, from the language the authorize call named, which the server
+   records on the pending consent and never reads back from the redirect.
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`

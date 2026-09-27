@@ -23,7 +23,7 @@ describe('the grant subject, as the page receives it', () => {
         checkedCompany: 'ACME LEGAL B.V.',
         askedBy: 'owner@example.org',
         organisationPhone: '+31 20 123 4567',
-        reads: 'your contacts',
+        domains: ['contact'],
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
         readOnlyAtProvider: true,
         from: 'someone@example.invalid',
@@ -44,6 +44,8 @@ describe('the grant subject, as the page receives it', () => {
       host: 'cloud.example.org',
       account: 'dest@example.org',
     });
+    // Which data types, which the page words in its own language (0145 T6).
+    expect(subject.domains).toEqual(['contact']);
   });
 
   it('keeps what the server cannot say as null, not as a missing field', async () => {
@@ -53,7 +55,7 @@ describe('the grant subject, as the page receives it', () => {
         checkedCompany: null,
         askedBy: null,
         organisationPhone: null,
-        reads: 'your contacts',
+        domains: ['contact'],
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
         readOnlyAtProvider: true,
         from: 'someone@example.invalid',
@@ -77,7 +79,7 @@ describe('the grant subject, as the page receives it', () => {
         checkedCompany: null,
         askedBy: null,
         organisationPhone: null,
-        reads: 'your contacts',
+        domains: ['contact'],
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
         from: 'someone@example.invalid',
         to: { provider: 'jmap', host: null, account: null },
@@ -96,7 +98,7 @@ describe('the grant subject, as the page receives it', () => {
         checkedCompany: null,
         askedBy: null,
         organisationPhone: null,
-        reads: 'your contacts',
+        domains: ['contact'],
         scope: 'https://www.googleapis.com/auth/contacts.readonly',
         readOnlyAtProvider: true,
         from: null,
@@ -105,5 +107,27 @@ describe('the grant subject, as the page receives it', () => {
       },
     });
     await expect(grantApi.read('abc.def')).rejects.toThrow();
+  });
+
+  it('refuses a data type it has no words for, or none at all, rather than naming less (0145 T6)', async () => {
+    // A consent page that dropped a data type would say less than will be
+    // read; one with none would say "access to ." Both are refused.
+    for (const domains of [['contact', 'photos'], []]) {
+      getMock.mockResolvedValue({
+        data: {
+          organisation: 'Acme Legal',
+          checkedCompany: null,
+          askedBy: null,
+          organisationPhone: null,
+          domains,
+          scope: 'https://www.googleapis.com/auth/contacts.readonly',
+          readOnlyAtProvider: true,
+          from: 'someone@example.invalid',
+          to: { provider: 'jmap', host: null, account: null },
+          expiresAt: '2026-09-30T00:00:00.000Z',
+        },
+      });
+      await expect(grantApi.read('abc.def'), JSON.stringify(domains)).rejects.toThrow();
+    }
   });
 });
