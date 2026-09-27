@@ -789,10 +789,12 @@ export function wizardTypeForConnectionKind(kind: string): string {
       return 'google-contacts';
     case 'o365':
       // Both `oauth2` and `graph` store as o365 and share a field list, so
-      // either answer is correct for the fields. Their setup profiles differ
-      // since workplan 0148 T5 (a) (Exchange Online's permission against
-      // Microsoft Graph's), and the kind cannot say which card made the row:
-      // a checklist opened from a stored o365 connection is Graph's.
+      // either answer is correct for the fields. Not for the checklist: their
+      // setup profiles differ since workplan 0148 T5 (a) (Exchange Online's
+      // permission against Microsoft Graph's), and the kind cannot say which
+      // card made the row. So Connections does not open a checklist through
+      // this answer for an o365 row; it links both cards' (its
+      // `CARDS_OF_ONE_KIND`).
       return 'graph';
     default:
       return kind;

@@ -26,7 +26,9 @@
  *    `{#application-graph}` and `{#application-imap}` write it, and neither
  *    names the other's permission;
  *  - the page renders each new profile as steps, not as "nothing to set up",
- *    and links the card's own guide section, as the other profiles do.
+ *    and links the card's own guide section, as the other profiles do;
+ *  - it asks whether the reader administers the provider only where a step
+ *    needs an administrator, which Apple's and Soverin's do not.
  *
  * Entra's screen words (*App registrations*, *Certificates & secrets*,
  * *Application permissions*, *Grant admin consent for*, *Enterprise
@@ -36,8 +38,8 @@
  * cmdlet names are the same in every language and are held in both.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import {
@@ -194,10 +196,21 @@ const NAMED: ReadonlyArray<{
     side: 'target',
     provider: 'soverin',
     slug: 'soverin',
-    sections: ['before', 'soverin'],
+    sections: ['before', 'soverin', 'when-test-says'],
     words: {
-      en: ['app password', 'Password', 'Mail server', 'Mail port', 'imap.soverin.net', '993'],
-      nl: ['app-wachtwoord', 'Wachtwoord', 'Mailserver', 'Mailpoort', 'imap.soverin.net', '993'],
+      en: ['app password', 'Password', 'Mail server', 'Mail port', 'imap.soverin.net', '993', 'carries no mail'],
+      nl: [
+        'app-wachtwoord',
+        'Wachtwoord',
+        'Mailserver',
+        'Mailpoort',
+        'imap.soverin.net',
+        '993',
+        // The guide leaves the app password to the reader, and names what a
+        // connection saved without is missing.
+        'Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak',
+        'verbinding die zonder Mailserver is bewaard, draagt geen mail',
+      ],
     },
   },
   {
@@ -367,5 +380,53 @@ describe("the page shows each new profile's steps and links the card's guide sec
         expect(guide.getAttribute('href')).toBe(cardGuideHref(side, provider));
       });
     }
+  }
+});
+
+/**
+ * The narrowing question asks whether the reader administers the provider,
+ * and only an administrator's step makes the answer change the list (workplan
+ * 0068). Apple's one step and Soverin's three are the holder's own, so there
+ * the question asked a person with a personal Apple account whether they
+ * administer it for an organisation, and every answer showed the same list.
+ * It is asked where a step needs somebody else. The answer is remembered on
+ * the device per side and provider, so a stored "no" must not bring back the
+ * heading it arranges the list under either.
+ */
+describe('the administrator question is asked only where a step needs one (0148 T5 (a))', () => {
+  const HOLDERS_OWN: ReadonlyArray<readonly [SetupSide, string]> = [
+    ['source', 'apple'],
+    ['target', 'soverin'],
+  ];
+
+  // The answer is remembered on the device; no case inherits another's.
+  afterEach(() => {
+    for (const [side, provider] of [...HOLDERS_OWN, ['target', 'nextcloud'] as const]) {
+      window.localStorage.removeItem(`setup.admin.${side}.${provider}`);
+    }
+  });
+
+  for (const locale of LOCALES) {
+    for (const [side, provider] of HOLDERS_OWN) {
+      it(`${locale}: ${side} ${provider} asks nothing, and a stored "no" arranges nothing`, async () => {
+        expect(setupStepsFor(side, provider).some((s) => s.needsAnotherPerson)).toBe(false);
+        window.localStorage.setItem(`setup.admin.${side}.${provider}`, 'no');
+        renderSetup(locale, side, provider);
+        const first = setupStepsFor(side, provider)[0]!;
+        expect(await screen.findByText(words(locale, first.titleKey))).toBeTruthy();
+        expect(screen.queryByText(words(locale, 'setup.admin.question'), { exact: false })).toBeNull();
+        expect(screen.queryByText(words(locale, 'setup.admin.no'))).toBeNull();
+        expect(screen.queryByText(words(locale, 'setup.yours'))).toBeNull();
+      });
+    }
+
+    it(`${locale}: target nextcloud, whose account an administrator makes, still asks`, async () => {
+      expect(setupStepsFor('target', 'nextcloud').some((s) => s.needsAnotherPerson)).toBe(true);
+      renderSetup(locale, 'target', 'nextcloud');
+      expect(await screen.findByText(words(locale, 'setup.admin.question'), { exact: false })).toBeTruthy();
+      fireEvent.click(screen.getByText(words(locale, 'setup.admin.no')));
+      expect(screen.getByText(words(locale, 'setup.yours'))).toBeTruthy();
+      expect(screen.getByText(words(locale, 'setup.forYourAdmin'))).toBeTruthy();
+    });
   }
 });

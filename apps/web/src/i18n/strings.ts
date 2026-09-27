@@ -2359,7 +2359,7 @@ const en = {
     'The Soverin account must exist already, with room for what is coming. This service creates no accounts.',
   'setup.soverin.password.title': 'Have the account’s password at hand',
   'setup.soverin.password.detail':
-    'This service signs in with the Soverin email address and that account’s password. If Soverin offers you an app password, use it: it goes in the same Password box. Whether one app password covers mail as well as calendars and contacts is not certain; the test says so per part.',
+    'This service signs in with the Soverin email address and that account’s password. If Soverin offers you an app password, it can go in the same Password box instead. Whether one app password covers mail as well as calendars and contacts is not certain; the test says so per part.',
   'setup.soverin.password.yields': 'the email address, and the password or an app password.',
   'setup.soverin.mail_server.title': 'Mail moving too? Keep the mail server',
   'setup.soverin.mail_server.detail':
@@ -4208,7 +4208,7 @@ const nl: Record<keyof typeof en, string> = {
     'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Geen Microsoft Graph-recht: deze kaart meldt zich aan bij de IMAP-server van Exchange Online, en zo’n token draagt alleen rechten die Exchange Online geeft. Daarna drukt een beheerder op Grant admin consent for uw organisatie.',
   'setup.exchange.service_principal.title': 'Registreer de toepassing in Exchange Online',
   'setup.exchange.service_principal.detail':
-    'Een Exchange-beheerder voert New-ServicePrincipal uit in Exchange Online PowerShell, met de Application (client) ID en de Object ID die onder Enterprise applications staat. Niet de Object ID onder App registrations: daarmee mislukt de aanmelding van de kaart. De handleiding heeft de opdrachten.',
+    'Een Exchange-beheerder voert New-ServicePrincipal uit in Exchange Online PowerShell, met de Application (client) ID en de Object ID die onder Enterprise applications staat. Niet de Object ID onder App registrations: daarmee mislukt de aanmelding van de kaart. De handleiding geeft de opdrachten.',
   'setup.exchange.mailbox_permission.title': 'Geef de toepassing het postvak',
   'setup.exchange.mailbox_permission.detail':
     'De Exchange-beheerder voert Add-MailboxPermission uit met -AccessRights FullAccess, één keer voor elk postvak dat de kaart leest. Met FullAccess zou een toepassing het postvak ook kunnen wijzigen. Deze dienst leest het alleen, en Microsoft dwingt dat voor deze kaart niet af.',
@@ -4258,18 +4258,18 @@ const nl: Record<keyof typeof en, string> = {
   'setup.nextcloud.app_password.yields': 'een app-wachtwoord, voor het vak Wachtwoord van de wizard.',
   'setup.nextcloud.dav_url.title': 'Noteer het adres met /remote.php/dav',
   'setup.nextcloud.dav_url.detail':
-    'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter, zoals https://cloud.example.com/remote.php/dav. Dat hoort in DAV-basis-URL; er is geen vak voor een host of een poort. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen: de naam na /remote.php/dav/files/ is de gebruikersnaam die u invult.',
+    'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter, zoals https://cloud.example.com/remote.php/dav. Dat vult u in bij DAV-basis-URL; er is geen vak voor een host of een poort. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen: de naam na /remote.php/dav/files/ is de gebruikersnaam die u invult.',
   'setup.nextcloud.dav_url.yields': 'de DAV-basis-URL en uw gebruikersnaam.',
   'setup.soverin.account_exists.title': 'Zorg dat het Soverin-account bestaat',
   'setup.soverin.account_exists.detail':
     'Het Soverin-account moet al bestaan, met ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
   'setup.soverin.password.title': 'Houd het accountwachtwoord bij de hand',
   'setup.soverin.password.detail':
-    'Deze dienst meldt zich aan met het Soverin-e-mailadres en het wachtwoord van dat account. Biedt Soverin u een app-wachtwoord, gebruik dat dan: het hoort in hetzelfde vak Wachtwoord. Of één app-wachtwoord voor mail én voor agenda’s en contacten werkt, staat niet vast; de test zegt het per deel.',
+    'Deze dienst meldt zich aan met het Soverin-e-mailadres en het wachtwoord van dat account. Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak Wachtwoord. Of één app-wachtwoord voor mail én voor agenda’s en contacten werkt, staat niet vast; de test zegt het per deel.',
   'setup.soverin.password.yields': 'het e-mailadres, en het wachtwoord of een app-wachtwoord.',
   'setup.soverin.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
   'setup.soverin.mail_server.detail':
-    'De wizard vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een verbinding die zonder is bewaard, draagt geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
+    'De wizard vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een verbinding die zonder Mailserver is bewaard, draagt geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
