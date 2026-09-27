@@ -28,6 +28,8 @@ two questions it raised the same evening.
   - An already-copied file that has not changed is skipped by the ledger before any fetch, so it
     is never refused. A changed one above the limit is.
   - A file whose listing carries no size is copied as before.
+  - The API spec's four lists of categories name the tenth, and so do the vocabulary's own pins
+    and the list of categories that need a person.
 - **What 10 GB asks of the machine.** A pass stops taking new work at 50 minutes and is killed at
   60, so a 10 GB file needs about 25 to 30 Mbit/s, sustained from source to target. A slower one
   is killed with its pass and starts again on the next one, every pass, until T4's half after the
