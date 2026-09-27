@@ -10,6 +10,13 @@
  * line, `> **In one line:**` summary, Status heading and task table, and CI's
  * docs-hygiene job runs `node scripts/workplan-index.mjs --check`.
  *
+ * A PLAN HOLDS ITS BODY ONCE. The merge of 2026-09-25 that resolved #1172 kept
+ * both sides of workplan 0131: §2 to §6 and its open questions stood in it
+ * twice, the copies already different, and later edits went to the first one
+ * only. `--check` passed, because nothing it read was below the Status block.
+ * It now refuses a plan that repeats a `## ` heading outside fenced code, and
+ * names the plan and the heading.
+ *
  * FIXTURES ONLY. A unit test that read the real plans would make every prose
  * commit to a workplan run the whole suite, which
  * `a-doc-a-test-reads-that-ci-skipped` exists to prevent (0147 §1). The real
@@ -195,6 +202,92 @@ describe('numbers and summaries across the directory (rules 8 and 9)', () => {
   it('the summary is the table\'s column, and a pipe in it is escaped', () => {
     const dir = fixture({ '0101-a.md': plan('0101', { summary: '> **In one line:** Reads A | B.' }) });
     expect(call('assemble', dir).ok).toContain('| Reads A \\| B. |');
+  });
+});
+
+describe('a plan holds its body once (0131 after the merge that resolved #1172)', () => {
+  // What followed the Status block in 0131, cut down: §1 to the open questions.
+  const REST = [
+    "## 2. The owner's decisions (2026-09-24)",
+    '',
+    'Decisions.',
+    '',
+    '## Open questions',
+    '',
+    '1. A question.',
+    '',
+  ].join('\n');
+  const once = plan('0131') + REST;
+  // The shape `main` had from 2026-09-25: the second copy starts in the middle
+  // of §1, and §2 on and the open questions follow again.
+  const twice = once + 'The rest of §1, from the second copy.\n\n' + REST;
+
+  it('--check fails on 0131 as it stood on main, naming the plan and each repeated heading', () => {
+    const dir = fixture({ '0131-a.md': twice });
+    call('write', dir);
+    const r = call('check', dir).ok;
+    expect(r.ok).toBe(false);
+    const said = r.messages.join('\n');
+    expect(said).toContain("0131-a.md: \"## 2. The owner's decisions (2026-09-24)\"");
+    expect(said).toContain('0131-a.md: "## Open questions"');
+    // A heading the plan carries once is not named.
+    expect(said).not.toContain('## 1. What there is today');
+    expect(said).not.toContain('## Status');
+  });
+
+  it('collect() lists each repeat with the lines it stands on', () => {
+    const dir = fixture({ '0131-a.md': twice, '0132-a.md': plan('0132') });
+    const { repeats } = call('collect', dir).ok as { repeats: string[] };
+    expect(repeats).toHaveLength(2);
+    expect(repeats[0]).toMatch(/^0131-a\.md: "## 2\. The owner's decisions \(2026-09-24\)" stands on lines \d+ and \d+$/);
+    expect(repeats[1]).toMatch(/^0131-a\.md: "## Open questions" stands on lines \d+ and \d+$/);
+  });
+
+  it('--check passes on the same plan in one copy', () => {
+    const dir = fixture({ '0131-a.md': once });
+    call('write', dir);
+    expect(call('check', dir).ok).toEqual({ ok: true, messages: [] });
+  });
+
+  it('a "## " line inside fenced code is not a heading, with backticks, tildes and a longer fence', () => {
+    const fenced = [
+      '```markdown',
+      '## 1. What there is today',
+      '```',
+      '',
+      '~~~',
+      '## Open questions',
+      '~~~',
+      '',
+      '````md',
+      '```',
+      '## 1. What there is today',
+      '```',
+      '````',
+      '',
+    ].join('\n');
+    const dir = fixture({ '0131-a.md': once + fenced });
+    call('write', dir);
+    expect(call('check', dir).ok).toEqual({ ok: true, messages: [] });
+  });
+
+  it('a fence closes, so a heading repeated after one is still found', () => {
+    const dir = fixture({ '0131-a.md': once + '```\ncode\n```\n\n## Open questions\n\nAgain.\n' });
+    call('write', dir);
+    const r = call('check', dir).ok;
+    expect(r.ok).toBe(false);
+    expect(r.messages.join('\n')).toContain('0131-a.md: "## Open questions"');
+  });
+
+  it('a line of three backticks whose info string holds a backtick is inline code, not a fence', () => {
+    const dir = fixture({ '0131-a.md': once + '```x` is inline code\n\n## Open questions\n\nAgain.\n' });
+    expect(call('collect', dir).ok.repeats).toEqual([expect.stringContaining('"## Open questions"')]);
+  });
+
+  it('a repeated "### " heading, or a "## " line quoted in prose, is not a repeat', () => {
+    const text = once + '### Guard\n\nOne.\n\n### Guard\n\nTwo.\n\nThe line `## Open questions` is quoted here.\n';
+    const dir = fixture({ '0131-a.md': text });
+    expect(call('collect', dir).ok.repeats).toEqual([]);
   });
 });
 
