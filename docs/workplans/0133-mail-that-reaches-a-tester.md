@@ -4,8 +4,55 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T2 items 2 and 3 built (0131 §6, group M5, step 3, which calls it T2 (b))** on
+branch `claude/mailbox-sync-errors-c2xsw2-the-issuers-relay-over-tls`, not merged. Both are in
+`setup-zitadel.sh`'s "mail this instance sends" section, which the other session's #1233 (0132 T1)
+also changed; it merged first.
+
+- **Item 2, TLS for any relay that is not the catcher.** `tls` is true whenever `SMTP_HOST` is not
+  `mailpit`, whatever `SMTP_SECURE` says, and false for the catcher. With TLS on, Zitadel v4.17.3
+  tries implicit TLS and falls back to STARTTLS, so 465 and 587 are both covered (§1).
+- **Item 3, one provider, updated in place.** The script finds the provider by its description,
+  the stack's name (`$COMPOSE_PROJECT`), and not by its relay address. #1233 made the description
+  the stack's name. The OTA stack's older provider was described `ownpace-managed`, which is also
+  that stack's project name, so it is found. The provider is updated with
+  `PUT /admin/v1/email/smtp/{id}` to `.env`'s sender, host, TLS and user, and to the password when
+  one is set.
+  - Where several carry the name, the active one is updated and the others are named for removal
+    in the console.
+  - A refused update is reported, and the bring-up goes on.
+- **The calls, read in v4.17.3's source rather than seen on a running server.**
+  - `UpdateEmailProviderSMTP` and `UpdateEmailProviderSMTPPassword` are implemented in
+    `internal/api/grpc/admin/email.go`, and their names match the proto's RPCs.
+  - The test verb's name does not: the Go method is `TestEmailProviderById`, and the proto's RPC is
+    `TestEmailProviderSMTPById`. That is why the reference box got a 501.
+  - The update carries its own `password` field, so the password call is not needed.
+  - An update sent without a password keeps the stored one (`smtpPlainAuthChanges`), and one that
+    changes nothing is accepted without an event.
+
+  No Zitadel runs where this was built. *E2E (managed)* runs the script twice on a runner whose
+  identity provider persists, so its first run after the merge makes the call on the pinned
+  server. Its log says *"updating it"*, or that the provider refused the update. A refusal does
+  not fail the gate, so that line is what to read.
+- **Proved.** Four new cases in `scripts/the-mail-the-issuer-could-not-send.unit.test.ts`, each
+  failing on `main`:
+  - the script's settings prologue, run in bash: `tls` is true for a relay on 587 or 465 whatever
+    `SMTP_SECURE` says, and false for the catcher;
+  - no "already configured", and a `PUT` on the provider found;
+  - the script's own jq programs, run on a sample search answer: the stack's providers by name,
+    the active one whatever the order, and the others named;
+  - the update carries the password only when one is set, and a refused update does not end the
+    bring-up.
+  - **Mutations:** 11, all killed: TLS from `SMTP_SECURE` again, for the catcher too, or off for
+    a relay; any provider, or an HTTP one, taken as the stack's; no preference for the active one;
+    the password always sent, or never; "already configured" again; no update sent; and the
+    chosen provider named among the others.
+- **Not in this change:** item 4, the guide's "For real delivery" steps, because the other
+  session's #1236 also changes `docs/managed-bring-up.md` (0131 §6's out-of-turn rule). The guide's
+  sentence that the script reads `SMTP_SECURE` is corrected with it.
+
 **2026-09-27: T2 item 5 built (0131 §6, group M5, step 1, which calls it T2 (c))** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-login-never-sent-in-the-clear`, not merged. The API's half
+`claude/mailbox-sync-errors-c2xsw2-a-login-never-sent-in-the-clear`, merged as #1245. The API's half
 of the rule that a login is never sent without TLS. `smtpTransport`
 (`packages/connectors/src/smtp-transport.ts`) sets nodemailer's `requireTLS` when a login is set
 and `secure` (implicit TLS) is not. Before, nodemailer upgraded to STARTTLS when a relay offered
@@ -117,7 +164,7 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 |---|---|---|
 | T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
 | T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself stays ⏳ the owner's. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
-| T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 🔨 built 2026-09-27, not merged (`requireTLS` with a login) | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
+| T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 and 3 🔨 built 2026-09-27, not merged (TLS for any relay but the catcher, one provider updated in place) | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
 | T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3 | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
 | T5 The relay named as a sub-processor | 📋 **Proposed**; carried by 0139 | §3. Fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` in three legal pages. |

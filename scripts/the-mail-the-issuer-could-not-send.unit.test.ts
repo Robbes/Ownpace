@@ -33,6 +33,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
@@ -492,5 +493,114 @@ describe('and it still has what it caught tomorrow', () => {
         'failed parse as 0 — unlimited — so a typo here silently removes the\n' +
         'bound rather than failing.',
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('the relay is spoken to over TLS, and the provider follows .env (workplan 0133 T2)', () => {
+  const setup = directives('setup-zitadel.sh');
+
+  /**
+   * The script's own settings prologue, from reading SMTP_HOST to the first
+   * branch on it, run in bash with `read_env` answering from `env` the way the
+   * real one answers from `.env`: a value when set, the default when empty.
+   */
+  function tlsFor(env: Record<string, string>): string {
+    const from = setup.indexOf(`SMTP_RELAY="$(read_env SMTP_HOST '')"`);
+    const to = setup.indexOf('if [ -z "$SMTP_RELAY" ]; then');
+    expect(from, 'the mail settings are no longer read where they were').toBeGreaterThan(-1);
+    expect(to, 'the first branch on SMTP_HOST moved').toBeGreaterThan(from);
+    const readEnv = 'read_env() { local v="${!1-}"; [ -n "$v" ] && printf "%s" "$v" || printf "%s" "${2:-}"; }';
+    const r = spawnSync('bash', ['-c', `${readEnv}\n${setup.slice(from, to)}\nprintf '%s' "$SMTP_TLS"`], {
+      env: { PATH: process.env.PATH ?? '', ...env },
+      encoding: 'utf8',
+    });
+    expect(r.status, `the prologue did not run: ${r.stderr}`).toBe(0);
+    return r.stdout;
+  }
+
+  /** The single-quoted jq program of the first `jq` call after `anchor`. */
+  function jqProgramAfter(anchor: string): string {
+    const at = setup.indexOf(anchor);
+    expect(at, `"${anchor}" is no longer in setup-zitadel.sh`).toBeGreaterThan(-1);
+    const call = setup.indexOf('jq ', at);
+    const open = setup.indexOf("'", call);
+    const close = setup.indexOf("'", open + 1);
+    expect(close, 'no quoted jq program').toBeGreaterThan(open);
+    return setup.slice(open + 1, close);
+  }
+
+  function jq(program: string, input: string, args: string[]): string {
+    const r = spawnSync('jq', [...args, program], { input, encoding: 'utf8' });
+    expect(r.error, `jq did not run: ${String(r.error)}`).toBeUndefined();
+    expect(r.status, `jq failed: ${r.stderr}`).toBe(0);
+    return r.stdout.trim();
+  }
+
+  /** A provider search answer: this stack's two, a stranger's, and an HTTP one. */
+  const SEARCH = JSON.stringify({
+    result: [
+      { id: 'old', state: 'EMAIL_PROVIDER_INACTIVE', description: 'ownpace-managed', smtp: { host: 'old-relay.test:587' } },
+      { id: 'used', state: 'EMAIL_PROVIDER_ACTIVE', description: 'ownpace-managed', smtp: { host: 'relay.test:587' } },
+      { id: 'theirs', state: 'EMAIL_PROVIDER_ACTIVE', description: 'someone-else', smtp: { host: 'relay.test:587' } },
+      { id: 'hook', state: 'EMAIL_PROVIDER_INACTIVE', description: 'ownpace-managed', http: { endpoint: 'https://hook.test' } },
+    ],
+  });
+
+  it('never speaks to a relay that is not the catcher without TLS', () => {
+    // The example leaves SMTP_SECURE empty for 587, the usual relay port, and
+    // Zitadel with TLS off never tries STARTTLS: the relay's login went out in
+    // the clear, or the identity provider's mail failed while the API's arrived.
+    for (const secure of ['', 'false', 'true']) {
+      expect(tlsFor({ SMTP_HOST: 'smtp.relay.test', SMTP_PORT: '587', SMTP_SECURE: secure }), `SMTP_SECURE='${secure}'`).toBe(
+        'true',
+      );
+    }
+    expect(tlsFor({ SMTP_HOST: 'smtp.relay.test', SMTP_PORT: '465', SMTP_SECURE: 'true' })).toBe('true');
+    // The catcher speaks plain SMTP on 1025, and is the only one that does.
+    expect(tlsFor({ SMTP_HOST: 'mailpit', SMTP_PORT: '1025' })).toBe('false');
+  });
+
+  it('updates the provider it made instead of calling it configured', () => {
+    expect(
+      setup,
+      'a provider this stack made is reported as "already configured" and left as it\n' +
+        'was, so a changed relay login, sender or TLS never reaches it.',
+    ).not.toMatch(/already configured/);
+    expect(setup).toMatch(/api PUT "\/admin\/v1\/email\/smtp\/\$\{SMTP_ID\}"/);
+  });
+
+  it("finds that provider by the stack's name, not by the relay's address", () => {
+    const mine = jq(jqProgramAfter('MINE="$(jq'), SEARCH, ['-c', '--arg', 'd', 'ownpace-managed']);
+    expect(JSON.parse(mine).map((p: { id: string }) => p.id)).toEqual(['old', 'used']);
+    // The active one of the two, whatever order the answer lists them in.
+    const chosen = jqProgramAfter('SMTP_ID="$(jq');
+    expect(jq(chosen, mine, ['-r'])).toBe('used');
+    expect(jq(chosen, JSON.stringify([...JSON.parse(mine)].reverse()), ['-r'])).toBe('used');
+    // None active: the first is updated, and the activation below turns it on.
+    expect(jq(chosen, JSON.stringify([{ id: 'only', state: 'EMAIL_PROVIDER_INACTIVE' }]), ['-r'])).toBe('only');
+    expect(jq(chosen, '[]', ['-r'])).toBe('');
+    // And the other one is named for removal.
+    const others = jqProgramAfter("another provider carries this stack's name");
+    expect(jq(others, mine, ['-r', '--arg', 'id', 'used'])).toBe('old at old-relay.test:587');
+  });
+
+  it('sends the password only when one is set, and never fails the bring-up over it', () => {
+    const update = jqProgramAfter('api PUT "/admin/v1/email/smtp/${SMTP_ID}"');
+    const args = (pw: string) => [
+      '-nc',
+      '--arg', 'from', 'noreply@ownpace.test',
+      '--arg', 'host', 'relay.test:587',
+      '--argjson', 'tls', 'true',
+      '--arg', 'user', 'mailer',
+      '--arg', 'pw', pw,
+      '--arg', 'stack', 'ownpace-managed',
+    ];
+    const withPassword = JSON.parse(jq(update, '', args('not-a-real-password')));
+    expect(withPassword).toMatchObject({ host: 'relay.test:587', tls: true, user: 'mailer', description: 'ownpace-managed' });
+    expect(withPassword.password).toBe('not-a-real-password');
+    // A password cannot be read back, and an update without one keeps it.
+    expect(JSON.parse(jq(update, '', args('')))).not.toHaveProperty('password');
+    // Refused, it is reported and the bring-up goes on, as the test send does.
+    expect(setup).toMatch(/if ! update_out="\$\( \( api PUT/);
   });
 });
