@@ -95,6 +95,7 @@ import {
 } from './migrations/index.ts';
 import { serverFault } from '../server-fault.ts';
 import { probeAnswers, type ProbeAnswers } from '../probe-answer.ts';
+import { refusedOverTestLimit } from '../probe-limit.ts';
 import { withinBudget } from './within-budget.ts';
 import { archiveOnServerRefusal } from './archive-on-the-server.ts';
 
@@ -715,6 +716,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
         : { username: values.username ?? '', password: values.password ?? '' };
 
+    // One test against the member's limit, now that it will connect (0136 T3).
+    if (refusedOverTestLimit(req, res)) return;
     // What a host the tester typed said is answered from its parts (0136 T3).
     const answers = probeAnswers('adding a connection', tenantId);
     const probe = answers.result(
@@ -821,6 +824,7 @@ router.post('/:id/test', authenticate, async (req: AuthenticatedRequest, res: Re
 
     const creds = SecretStore.decryptCredentials(row.secretRef);
     const config = (row.config ?? {}) as Record<string, unknown>;
+    if (refusedOverTestLimit(req, res)) return;
     const answers = probeAnswers('testing a connection', tenantId);
     const result = answers.result(
       row.role === 'target'
@@ -957,6 +961,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     // The CONFIG is deliberately left alone: rotation replaces a secret, not
     // where the migration is rooted. Changing both here would let a rotation
     // silently re-point a mapping at a different folder.
+    if (refusedOverTestLimit(req, res)) return;
     const answers = probeAnswers('replacing credentials', tenantId);
     const probe = answers.result(
       row.role === 'target'

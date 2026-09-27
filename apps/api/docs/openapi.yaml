@@ -1567,6 +1567,7 @@ paths:
             probed or stored; the sentence says the export goes in a folder of
             the Nextcloud or WebDAV files the migration writes to.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyTests' }
   /api/connections/{id}:
     delete:
       tags: [Connections]
@@ -1642,6 +1643,7 @@ paths:
                     description: False when the probe failed and the old credentials were kept.
         '400': { description: A missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyTests' }
         '404': { description: No such connection for this tenant. }
         '409':
           description: |
@@ -1713,6 +1715,7 @@ paths:
                           capability: { type: string, enum: [auto-schedule, none, unknown] }
                           sentence: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyTests' }
         '404': { description: No such connection for this tenant. }
         '409':
           description: |
@@ -1821,6 +1824,7 @@ paths:
             0136 T5): an export archive at a path on this service's own machine,
             refused before anything is probed.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyTests' }
   /api/migrations:
     get:
       tags: [Migrations]
@@ -4483,6 +4487,7 @@ paths:
             text/markdown:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyTests' }
 
   /api/billing/usage:
     get:
@@ -5498,6 +5503,18 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     NotFound:
       description: No such resource in this tenant.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyTests:
+      description: |
+        More tests than one member makes by hand: sixty an hour, shared by the
+        five doors that connect to an address somebody typed (workplan 0136
+        T3). `too_many_tests`, with `Retry-After`.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds to wait.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
