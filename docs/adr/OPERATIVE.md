@@ -276,7 +276,8 @@ live in [README.md](./README.md), the register.
 ## [ADR-0024: `apply` — an explicit, gated exception to non-destructiveness](./0024-explicit-owner-deletion-apply.md)
 
 - `apply` is the **only destructive code path**, per item, owner-called, never automatic (relocations gained a second caller under ADR-0030/0031 — same function, same gates).
-- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (ETag; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
+- Seven gates, all enforced and re-checked in the ledger's conditional UPDATE: per-mapping opt-in; `TargetRemover` capability; **positive evidence only** (`reported`/`trashed`, never `inferred`); ownership (`copied`/`updated` only — `adopted` is never touched); no-edit-since (`If-Match` with the recorded ETag on DAV, checked by the server in the DELETE itself; a read that must succeed on JMAP contacts and files; UIDVALIDITY on IMAP); mass-deletion breaker (20% of ≥20); concurrent-apply re-check.
+- **With no recorded version, nothing is removed** (`version_unknown`, workplan 0149 T3): a row without one, or with only a weak ETag, cannot say whether somebody changed the copy. JMAP mail, which records no version by design, is the one target this does not apply to.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a reappearance is **never re-copied**; outcomes state `kind: binned|deleted`, understating recoverability.
 
 ## [ADR-0025: Proton Drive as a files target — deferred on authentication, not on effort](./0025-proton-drive-target-deferred.md)

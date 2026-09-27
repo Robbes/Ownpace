@@ -838,9 +838,13 @@ before anything is removed:
    remove. An `adopted` item was on the target before this migration ever ran,
    and hard rule 2 forbids touching it.
 3. **Nobody has edited it on the target since.** Checked at the moment of
-   removal, against the same ETag the shadow-sync overwrite protection already
-   uses. An item you (or anyone else) has changed in the new system is yours
-   now, and `apply` leaves it alone and reports `edited_on_target`.
+   removal, against the same version the shadow-sync overwrite protection
+   already uses: on a DAV target the server checks it in the removal itself.
+   An item you (or anyone else) has changed in the new system is yours now,
+   and `apply` leaves it alone and reports `edited_on_target`. A copy for
+   which no version was recorded is never removed, because nothing could tell
+   whether it changed: `apply` reports `version_unknown`, and you can delete
+   it in the new system yourself if you are sure, then choose `keep`.
 4. **This does not look like a mass-deletion event.** If more than a fifth of
    a domain's migrated items (and there are at least 20 of them) are sitting in
    the deletions queue at once, every `apply` call for that domain is refused
@@ -854,8 +858,8 @@ before anything is removed:
 
 A call that is refused always says why, in a `reason` you can read as-is —
 `not_enabled`, `target_cannot_remove`, `weak_evidence`, `not_ours`,
-`edited_on_target`, `mass_deletion_suspected`, `already_applied` are the
-distinct codes.
+`edited_on_target`, `version_unknown`, `mass_deletion_suspected`,
+`already_applied` are the distinct codes.
 
 **What "removed" means depends on the target.** The response's `kind` tells you
 which you got:

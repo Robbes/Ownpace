@@ -4,6 +4,48 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, later: T3 built (0131 §6, group M1, step 2), stacked on T1 and T2's pull request.**
+T4 and T5 are next in the group, in its order.
+
+- **The server checks, on DAV.** The DELETE and the rewrite PUT carry `If-Match` with the
+  recorded version, quoted; the HEAD before them is gone. A 412 on a DELETE is read with one
+  HEAD: gone keeps today's answer (already removed), there is `conflicted`, and a HEAD that
+  cannot say throws with nothing removed. A 412 on a rewrite is `conflicted`, where it threw,
+  and the sync loop marks the row `adopted` as it does for any conflict.
+- **No version, no removal.** Without one the writer sends nothing and answers the new
+  `unversioned`, and core refuses with the new code `version_unknown`, in §3's words. It is read
+  before `target_cannot_remove`, on the deletion and the relocation path alike. Both editions
+  carry it unchanged: the appliance answers 403, and managed's receipt says `refused` with the
+  code. A rewrite without one goes ahead unconditioned (D3).
+- **Weak versions.** A writer records a weak ETag with its `W/` (`readVersion`), so removal treats
+  it as none and a rewrite keeps a HEAD and a comparison (D4). Rows written before this recorded
+  a weak ETag without its marker, so they look strong; on a server that sends weak ETags their
+  next rewrite reads as a conflict. Whether Nextcloud and Stalwart send weak ETags on PUT is what
+  the first nightly after the merge shows (D4).
+- **The other targets.** JMAP contacts and files refuse a removal without a version, and a read
+  of the stored fingerprint that fails refuses a removal or a rewrite, where it proceeded. IMAP
+  refuses a row without UIDVALIDITY. JMAP mail is unchanged.
+- **Also changed:** a chunked WebDAV rewrite keeps the read and the comparison, since chunks
+  cannot carry `If-Match` (no production path turns chunks on). The JMAP integration suites
+  clean their fixtures straight on the server (`__testing__/jmap-fixture-cleanup.ts`), because
+  a cleanup has no version and the product now refuses it. The managed smoke's `ELIGIBLE` asks
+  for a version, and its diagnosis names rows that have none instead of calling them a
+  ledger-write bug.
+- **Proved.** The guard `packages/engines/src/a-removal-the-server-checks.unit.test.ts` (33 cases,
+  all three DAV writers, and the WebDAV one again with a streamed body); cases in the JMAP
+  contacts and files tests (a failed read sends no destroy and no rewrite; no version reads
+  nothing and destroys nothing), in the IMAP target's (no UIDVALIDITY, nothing moved), and in
+  `apply-deletion` and `apply-relocation` (`version_unknown`, nothing recorded). The pinned tests
+  changed with D1, not to make CI pass: `dav-remove` (a removal without a version, a HEAD that
+  fails), `target-edit-protection` (its stub server now honours `If-Match`, and a target with no
+  version for the copy is a conflict), `dav-write-round-trips` (a 412 on a rewrite), and every
+  test that removed without a version now passes one. **Mutations:** 41, all killed. The first run
+  left four alive, all in the streamed WebDAV PUT, which the guard had written only buffered; it
+  now writes a streamed body too, and the nine WebDAV mutations were run again and killed.
+- **Not run here:** the integration suites on Nextcloud and Stalwart (no Docker in this
+  environment; CI runs them), and the appliance nightly's apply legs, whose first scheduled run
+  after the merge shows whether those targets record versions.
+
 **2026-09-27: T1 and T2 built, in one pull request (0131 §6, group M1, step 1).** T3, T4 and
 T5 are next in the group, in its order.
 
@@ -79,7 +121,7 @@ OTA stack and the appliances.
 |---|---|---|
 | T1 A 412 on create is an adoption, in all three DAV writers | ✅ **Built 2026-09-27** (D1), with T2 | §3. CalDAV, CardDAV, and WebDAV with its streamed twin. The row is `adopted`, and it is never rewritten or removed as Ownpace's. The JMAP mail writer is the model. WebDAV asks what is at the path first, so a directory stays a conflict. Guard: `a-refusal-recorded-as-a-copy.unit.test.ts`. **Alpha minimum.** |
 | T2 A lookup that fails is not an absence | ✅ **Built 2026-09-27** (D1), with T1 | §3. The per-item CalDAV REPORT, CardDAV REPORT and WebDAV PROPFIND answer 207 or 404, or they throw (hard rule 9). They go through the retry helper, as the writes do. Guard: `an-absence-that-was-a-failure.unit.test.ts`. **Alpha minimum.** |
-| T3 Removal and rewrite carry the version, and removal refuses without one | 📋 **Decided** (D1 for removal, D3 for a rewrite) | §3. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
+| T3 Removal and rewrite carry the version, and removal refuses without one | ✅ **Built 2026-09-27** (D1 for removal, D3 for a rewrite) | §3. Guard: `a-removal-the-server-checks.unit.test.ts`. `If-Match` on the DAV DELETE and on the rewrite PUT. With no recorded version, or a version that cannot be read back, nothing is removed, and removal answers with a new refusal code. A rewrite whose version no longer matches is left alone and counted, as a conflict is today. A row without a version is rewritten, as today, and records the version the target returns (D3). JMAP contacts and files and IMAP mail follow the same rule. JMAP mail is unchanged. ADR-0024's operative rule and the architecture document change in the same PR. **Alpha minimum.** |
 | T4 The cutover gate holds when nothing was compared | 📋 **Decided** (D2) | §3. 0009's section headed T9, option 1: a domain whose target can hash, and from which no sample came back with a hash, is FAIL. The pinned test changes with it, because the owner decided, and not so that CI passes. **Alpha minimum.** |
 | T5 The IMAP source opens folders read-only, and no source can write | 📋 **Proposed** | §3. `{ readOnly: true }` (EXAMINE) at the four places `imapflow-source.ts` opens a mailbox. A guard over every source connector's calls. **Alpha minimum.** |
 | T6 The words become true | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` and 0144 T4 and T5 once T1 to T3 have landed. This is coordination with 0144, which owns the wording. **After** T3. |

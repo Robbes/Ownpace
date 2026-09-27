@@ -44,6 +44,44 @@ export function readEtag(response: HeadersLike): string | undefined {
   return undefined;
 }
 
+/** The prefix a recorded version keeps when the server's ETag was weak. */
+const WEAK = 'W/';
+
+/**
+ * The version to RECORD for what we just wrote: `readEtag`'s value, with `W/`
+ * kept in front when the ETag was weak (workplan 0149 T3).
+ *
+ * `readEtag` throws the marker away, which is right for a comparison and wrong
+ * for a record: the server checks `If-Match` with the strong comparison (RFC
+ * 9110 §13.1.1), so a weak validator never matches. A version sent back as
+ * `If-Match` without knowing it was weak would fail every time, and every
+ * rewrite of that item would read as somebody's edit. So the record says which
+ * kind it is, and `ifMatchFor` sends only the strong kind.
+ */
+export function readVersion(response: HeadersLike): string | undefined {
+  const etag = readEtag(response);
+  if (etag === undefined) return undefined;
+  const raw = Object.entries(response.headers).find(([key]) => key.toLowerCase() === 'etag')?.[1] ?? '';
+  return /^\s*W\//i.test(raw) ? `${WEAK}${etag}` : etag;
+}
+
+/** Was this recorded version a weak ETag? */
+export function isWeakVersion(recorded: string): boolean {
+  return recorded.startsWith(WEAK);
+}
+
+/**
+ * The `If-Match` value for a recorded version, or `undefined` when there is
+ * nothing the server could check: no version, or a weak one (workplan 0149 T3).
+ *
+ * Quoted, because an entity-tag is a quoted string (RFC 9110 §8.8.3) and every
+ * recorded version had its quotes taken off by `readEtag`.
+ */
+export function ifMatchFor(recorded: string | undefined): string | undefined {
+  if (recorded === undefined || isWeakVersion(recorded)) return undefined;
+  return `"${recorded}"`;
+}
+
 /** What a pre-overwrite check concluded. */
 export type OwnershipVerdict =
   /** The target still holds the version we wrote, or we cannot tell. Proceed. */
@@ -52,25 +90,34 @@ export type OwnershipVerdict =
   | 'changed';
 
 /**
- * Decide whether an object we are about to overwrite is still the one we wrote.
+ * Decide whether an object we are about to overwrite is still the one we wrote,
+ * by a read and a comparison.
+ *
+ * THE CHECK A WEAK VERSION KEEPS (workplan 0149 T3, D4). A strong one is sent
+ * as `If-Match` and the server decides in the write itself, with no gap between
+ * reading and acting. A weak one cannot be matched that way, so a rewrite of it
+ * reads the target first and compares, as every rewrite used to. A removal
+ * never comes here: without a strong version it is refused outright.
  *
  * Both unknowns mean PROCEED, and that asymmetry is deliberate:
  *
  * - **We recorded no version.** Every row written before migration 0023 is in
  *   this state, as is anything written by a server that returns no ETag on PUT.
  *   Refusing would block every source change until each row had been rewritten
- *   once, which is a protection that presents as an outage.
+ *   once, which is a protection that presents as an outage (0149 D3).
  * - **The target reports no version now.** We have nothing to compare against.
  *   Treating silence as evidence of an edit would be inventing a fact.
  *
  * Only a version we recorded, differing from a version the target reports, is
  * evidence that someone has been in there — and that is the one case that stops
- * the write.
+ * the write. A recorded version's `W/` is not part of the comparison: `current`
+ * comes from `readEtag`, which drops it too.
  */
 export function ownershipOf(
   expected: string | undefined,
   current: string | undefined,
 ): OwnershipVerdict {
   if (expected === undefined || current === undefined) return 'ours';
-  return expected === current ? 'ours' : 'changed';
+  const bare = isWeakVersion(expected) ? expected.slice(WEAK.length) : expected;
+  return bare === current ? 'ours' : 'changed';
 }
