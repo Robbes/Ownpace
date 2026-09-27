@@ -277,8 +277,9 @@ describe('a checklist the deployment emptied names the button (0148 T2 (b))', ()
   }
 
   it('a provider with nothing to prepare still says so', async () => {
-    setupGet.mockResolvedValue(emptied('apple'));
-    wrap('en', <Setup />, '/setup/source/apple', '/setup/:side/:provider');
+    // `microsoft` has no profile yet (0148 T5 (b)); Apple has one since T5 (a).
+    setupGet.mockResolvedValue(emptied('microsoft'));
+    wrap('en', <Setup />, '/setup/source/microsoft', '/setup/:side/:provider');
     expect(await screen.findByText(words('en', 'setup.nothingToDo'))).toBeTruthy();
   });
 });

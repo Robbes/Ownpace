@@ -51,18 +51,31 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 
 ### The two database roles (why there are two DB URLs)
 
-Migration `0009` creates a **non-owner `app_user`** role. RLS is enforced through it:
+Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforced through it:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
-  **superuser**, which **bypasses RLS even under FORCE**. Never the request path. It is held by the
-  scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh` (the demo
-  tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and `set-task-env.sh` (the
-  tasks' own migration connection). `docs/rls-guide.md` §2 carries the full table, and a guard fails
-  if a script composes an owner URL without appearing in it.
-- `APP_DATABASE_URL` → the **`app_user`** role. The API and the deployed Trigger.dev tasks
-  connect through this for all tenant data, so row-level security is always in force (workplan
-  0011 T1; `set-task-env.sh` uploads both URLs into the task env). If you ever point the app at
-  the owner URL, tenant isolation silently disappears — don't.
+  **superuser**, which **bypasses RLS even under FORCE**. Meant never to be the API's request path;
+  today two API routes open a pool on it, the permission report and the sharing rescan
+  (`apps/api/src/routes/permissions.ts`; `docs/rls-guide.md`, "Where row security holds today").
+  The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its audit key's
+  one connection. It is held
+  by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
+  (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
+  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **every task
+  connects with it today** (below). `docs/rls-guide.md` §2 carries the full table, and a guard
+  fails if a script composes an owner URL without appearing in it.
+- `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
+  row-level security is in force on its request path (workplan 0011 T1), with two routes excepted:
+  the permission report and the sharing rescan read on their own owner pool. If you ever point the
+  app at the owner URL, tenant isolation silently disappears — don't.
+- **The deployed Trigger.dev tasks do not use `APP_DATABASE_URL` yet.** `set-task-env.sh` uploads
+  three URLs, and every run receives all three: `DATABASE_URL` (the owner, through the pooler),
+  which every task connects with, for tenant data too; `APP_DATABASE_URL`, which no task reads; and
+  `DIRECT_DATABASE_URL` (the owner, straight to `postgres:5432`), which no task reads either, since
+  no task runs migrations. So row security does not bind the tasks: there, what keeps one
+  organisation's rows from another is each query's own tenant filter. Workplan 0138 moves the
+  per-tenant tasks to `app_user`; `docs/rls-guide.md`, "Where row security holds today", lists
+  every connection and whether the policies bind it.
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
 rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
@@ -509,7 +522,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **0** during the alpha, workplan 0134) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
 
@@ -519,11 +532,17 @@ is the kind of false a supervisory authority asks about. Backups are not
 edited retrospectively — nobody surgically edits a backup — they **expire**,
 and the wording says exactly that.
 
-**Set `BACKUP_RETENTION_DAYS` to your own number.** The default is the
-reference deployment's. If your backups are kept for a month, a deployment left
-on the default promises a date it cannot honour. `0` is a valid answer for a
-deployment that takes no backups, and produces different wording rather than
-the same date twice.
+**Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is the
+owner's number for a deployment that takes backups, and it assumes they exist.
+Nothing in this repository backs up the application database yet (see
+[Backup & restore](#backup--restore-221)), and `ownpace-live`, the stack
+testers use, takes no backups during the alpha and sets `0`
+([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)).
+If your backups are kept for a month, a deployment left on the default promises
+a date it cannot honour. `0` is a valid answer for a deployment that takes no
+backups, and produces different wording rather than the same date twice. The
+API warns about a blank value at start in production, and refuses to start
+with one when `OWNPACE_STAGE=alpha`.
 
 ### 2. Purge — runs when the window has passed
 
@@ -1213,8 +1232,9 @@ it until it is ended or kept copying.
 
 ## Health & troubleshooting
 
-- **API or tasks won't connect / RLS errors on every query:** confirm `APP_DATABASE_URL` is set and
-  points at `app_user` (not the owner), and that migration `0009` ran (the role exists).
+- **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
+  and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
+  exists). The tasks do not read it yet: they connect with `DATABASE_URL` (workplan 0138).
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
