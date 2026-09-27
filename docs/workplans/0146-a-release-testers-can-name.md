@@ -2,7 +2,62 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27, build: T6 (a), the setting and Guard 1, built on branch
+`claude/ownpace-public-readiness-y7orc6-tasks-on-node-24`, not merged (0131 §6, group R7, step
+5).** Guard 2, the pull-request check that the task bundle loads, comes after the first
+invitation and is not built here.
+
+- **The setting.** `apps/worker/trigger.config.ts` declares `runtime: 'node-24'`. Its comment
+  says what §3 asks: 24 is the images' major, the version guard holds the two together, and
+  without the line the CLI takes the server project's default runtime, or else its own `node`,
+  which in 4.5.16 is Node 21. It also names the base image the CLI builds on, and says a change
+  there takes a task re-deploy.
+- **Checked against the pinned packages.** `apps/worker/package.json` pins `@trigger.dev/sdk`
+  4.5.16, and the root `package.json` pins it and `@trigger.dev/core` at 4.5.16. The SDK's
+  `defineConfig` takes core's `TriggerConfig`, whose `runtime` is a `ConfigRuntime`: `node`,
+  `node-22`, `node-24`, `node-26`, the two deprecated `experimental-` aliases, and `bun` (core's
+  `dist/esm/v3/schemas/build.d.ts`, line 15). Core's `resolveBuildRuntime` returns `node-24`
+  unchanged. The published CLI, `trigger.dev@4.5.16`, read again from npm for this build, builds
+  `node-24` on `triggerdotdev/node:24-bookworm@sha256:d2d0c018…` and `node` on
+  `triggerdotdev/node:21-bookworm@sha256:49c6575c…` (`dist/esm/deploy/buildImage.js`, lines 449
+  and 451). It passes the config's value through that same `resolveBuildRuntime`
+  (`dist/esm/config.js`, line 103), and keeps it: the server project's default replaces it only
+  when the config names none (`runtimeWasExplicit`, `dist/esm/commands/deploy.js`, line 268).
+- **The comments are corrected.** The headers of `crc32.ts` and
+  `a-checksum-the-runtime-did-not-have.unit.test.ts` now say the CLI is pinned, the config named
+  no runtime, the CLI's default was Node 21, and the config names `node-24` since this task. The
+  CRC-32 module stays, as §3 says.
+- **Guard 1.** `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` has a third block, *the
+  tasks run the Node major the images ship*, with three cases. The config declares one `runtime`,
+  on a line of its own, so a commented-out line does not count. It is `node-<N>`, where N is the
+  images' one major. And the pinned core's `resolveBuildRuntime`, the function the CLI calls on
+  the value, returns it unchanged. The header's *Not read here* paragraph is now a section that
+  says what the block holds and what it does not prove.
+- **Failed first.** All three cases failed on the unchanged config, and the six existing cases
+  passed. The messages were `expected [] to have a length of 1`, `expected undefined to be
+  'node-24'` and `Unsupported runtime undefined in trigger.config`. **Mutations:** five, each
+  turned the block red. `node-22` failed one case, `experimental-node-24` two, the line commented
+  out three, and a second `runtime:` line one. Moving the three images and the runtime to 25
+  together failed the third case, because the pinned core has no `node-25` (the `setup-node`
+  case failed too).
+- **Departures from §3.** The third case is new. `pnpm typecheck` does not read
+  `apps/worker/trigger.config.ts`: the root `tsconfig.json` takes `apps/*/src/**` and root-level
+  `*.config.ts`, and `tsc --listFilesOnly` does not list the file. Without the case, a runtime
+  the pinned CLI cannot build, such as a major the images reach before the SDK does, would first
+  fail on the nightly deploy. The test's comment above `isTest` repeated the *"a CLI this
+  repository does not pin"* claim; it is corrected too, though §3 names only lines 12 to 16.
+- **What to look for on the machine.** The proof is the first scheduled run of the managed gate
+  (`e2e-managed.yml`) after this merges. Its task deploy (`bootstrap-managed.sh`, which runs
+  `deploy-tasks.sh`) builds the task image, and the build output should name
+  `triggerdotdev/node:24-bookworm@sha256:d2d0c018…` where run #193's named
+  `node:21-bookworm@sha256:49c6575c…`. A green run also shows that the self-hosted supervisor at
+  `v4.5.16` runs the image. A task's log line with `process.version`, or `node -v` in the image,
+  answers which Node 24 minor it carries. Neither is verified yet (§3). For `ownpace-live`, §4's
+  row asks the same of its first deploy from the alpha tag.
+- **Open.** Reading that run's build output, after the merge: the R session. Guard 2, after the
+  first invitation: the R session. The pull request's merge: the owner.
 
 **2026-09-24: opened from the owner's answers.** Among the readiness review's findings of
 2026-09-23 about versions and releases, these five shape this plan. The only release is
@@ -48,7 +103,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
-| T6 The tasks run the Node the images run | 📋 **Proposed** | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
+| T6 The tasks run the Node the images run | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-tasks-on-node-24`, not merged** (2026-09-27): (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
 | T8 A watch on the pinned images Dependabot leaves alone | 📋 **Proposed** | §3. After the first invitation. Extends 0135 T7's job (the identity provider) to Trigger.dev, ClickHouse, MinIO and the task base image. |
 
