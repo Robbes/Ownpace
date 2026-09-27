@@ -478,6 +478,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/trigger.config.ts`
 
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 
 ### `deploy/compose/bootstrap-managed.sh`
@@ -2086,6 +2087,7 @@ Reads:
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e-live-target.yml`
 - `.github/workflows/e2e-managed.yml`
+- `apps/worker/trigger.config.ts`
 - `deploy/compose/managed.yml`
 - `deploy/selfhost/compose.yml`
 
