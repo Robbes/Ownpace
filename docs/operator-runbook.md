@@ -142,9 +142,11 @@ from anything but localhost. The `trigger-tls` service (Caddy, `tls internal`) s
 deliberate and load-bearing:
 
 - `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` → the **https** front (browsers).
-- `TRIGGER_API_ORIGIN` → **`http://localhost:3090`**, always. The deploy CLI follows the
-  server-advertised API origin; pointing it at a self-signed https front fails deploys
-  with a bare "Connection error".
+- The API origin → **`http://127.0.0.1:3090`**, always, fixed in `managed.yml` and not
+  read from `.env`. The deploy CLI follows the server-advertised API origin: pointing it at
+  a self-signed https front fails deploys with a bare "Connection error", and `localhost`
+  fails the image build, which the CLI then sends to the machine's first non-loopback
+  address. `TRIGGER_API_ORIGIN` in `.env` is only what the scripts log the CLI in with.
 
 Set `TRIGGER_TLS_HOST` to the address browsers actually use (e.g. the machine's VPN IP) —
 it is both the certificate's subject and the SNI default for IP-connecting browsers, and
@@ -1327,6 +1329,10 @@ says when it ended (`graceEndedAt` on its `endings` row), and the digest names
 it until it is ended or kept copying.
 
 ## Health & troubleshooting
+
+When a status row goes red, an alert arrives, or a tester says something happened to their
+data, start with [`incident-runbook.md`](./incident-runbook.md): one row per alert, and the
+steps for a tester's report. The items below are causes it points to.
 
 - **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
   and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role

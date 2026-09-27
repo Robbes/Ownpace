@@ -606,9 +606,11 @@ router.post('/:id/grant', authenticateSubject, async (req: AuthenticatedRequest,
 /**
  * POST /api/access-requests/:id/decline — say no, and keep the record.
  *
- * No tenant, and the row is not deleted: `access_request` has no DELETE grant
- * for anybody, so a refusal cannot be made to disappear afterwards. That is the
- * queue's whole value as a record.
+ * No tenant, and nobody deletes the row: `access_request` has no DELETE grant
+ * for any person, so a refusal cannot be made to disappear afterwards. That is
+ * the queue's whole value as a record. It ages out on a stated date instead:
+ * the nightly retention job deletes a declined request 30 days after the
+ * decision (workplan 0139 T6, `pruneDeclinedAccessRequests`).
  *
  * **The person is told, unless the operator says not to** (workplan 0095 T5).
  * Somebody who wrote to a business and heard nothing back does not conclude

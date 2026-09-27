@@ -296,9 +296,22 @@ cd "${REPO_ROOT}/apps/worker"
 #
 # `--profile` is passed as well and stays the fallback: with no token in .env
 # the CLI reads the profile file, which carries its own apiUrl.
+#
+# `--network host`: THE IMAGE BUILD REACHES THE API ON THIS MACHINE'S LOOPBACK.
+# The CLI builds the task image here, and the image's indexer calls the API
+# during the build, at the origin the server advertises (managed.yml's
+# API_ORIGIN, http://127.0.0.1:<port>). On buildx's default network the build
+# is a container of its own, where 127.0.0.1 is itself. With `--network host`
+# the build shares this machine's network, where 127.0.0.1 is the API, and the
+# port needs no address beyond loopback (0132 T3 (a)). Before this, the
+# advertised `localhost` was rewritten by the CLI to host.docker.internal, the
+# machine's first non-loopback IPv4 address, and E2E (managed) #201 stopped
+# with "Failed to fetch environment variables: Connection error" once the port
+# answered on loopback only. The CLI recreates its `trigger` builder on the host
+# network the first time it sees this flag.
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
-  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:${TRIGGER_PORT:-3090}}" \
-  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}"
+  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://127.0.0.1:${TRIGGER_PORT:-3090}}" \
+  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}" --network host
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
 #
