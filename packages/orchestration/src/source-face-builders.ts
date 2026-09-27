@@ -246,6 +246,35 @@ export function connectionKindsWithFace(
 }
 
 /**
+ * EVERY STORED KIND THAT IS A MICROSOFT SOURCE (workplan 0141 T11): `o365`,
+ * the customer's own Entra registration, and every kind whose mail face is
+ * Graph, which today is the `microsoft` account.
+ *
+ * The drift detector, group discovery and the permission report each looked
+ * for `kind = 'o365'` alone. A tenant whose source was a Microsoft account was
+ * told it had no Microsoft 365 source at all, the report's Finish-page sentence
+ * among them.
+ *
+ * `connectionKindsWithFace` alone is not enough: `o365` is in neither table
+ * above, because its faces come from the row's own `type`, so the helper
+ * answers `microsoft` only.
+ */
+export function microsoftSourceKinds(): ReadonlyArray<string> {
+  return [...new Set(['o365', ...connectionKindsWithFace('email', 'graph-mail')])].sort();
+}
+
+/**
+ * Of one tenant's Microsoft sources, the one its directory is asked through:
+ * the customer's own registration where there is one, because only `o365` can
+ * hold application permissions, and otherwise the first account.
+ */
+export function directorySourceOf<Row extends { readonly kind: string }>(
+  rows: ReadonlyArray<Row>,
+): Row | undefined {
+  return rows.find((row) => row.kind === 'o365') ?? rows[0];
+}
+
+/**
  * Every face a provider account kind can EVER claim — the guard's question.
  *
  * Reads the ceiling tables rather than a deployment's environment on purpose:

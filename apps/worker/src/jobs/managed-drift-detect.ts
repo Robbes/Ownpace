@@ -35,8 +35,13 @@ import {
   notifierFromEnv,
   directoryNotEnumerable,
   directoryAvailability,
+  type DirectoryEnv,
 } from '@openmig/connectors';
 import { runNewMailboxDetection, coverageIncompleteReason } from '@openmig/core';
+import {
+  directorySourceOf,
+  microsoftSourceKinds,
+} from '@openmig/orchestration/source-face-builders';
 import type { HttpClient } from '@openmig/connectors';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -64,6 +69,53 @@ interface TenantRow {
 interface CoverageRow {
   readonly primary_address: string | null;
   readonly mapping_id: string;
+}
+
+/** A tenant's Microsoft source, as the lookup below reads it. */
+export interface MicrosoftSourceRow {
+  readonly kind: string;
+  readonly config: unknown;
+}
+
+/**
+ * THE TENANT'S MICROSOFT SOURCES, by every Microsoft kind (workplan 0141 T11).
+ * `$2` is `microsoftSourceKinds()`. This asked `kind = 'o365'` alone, so a
+ * tenant whose source was a Microsoft account was told it had no Microsoft 365
+ * source connection. Exported for the guard, which runs it on the ledger.
+ */
+export const MICROSOFT_SOURCES_SQL = `SELECT kind, config FROM connection
+  WHERE tenant_id = $1 AND role = 'source' AND kind = ANY($2::text[])`;
+
+/**
+ * The directory of one tenant's Microsoft source, or why it cannot be read.
+ * Exported for the guard (workplan 0141 T11).
+ */
+export async function listDirectoryOf(
+  source: MicrosoftSourceRow | undefined,
+  env: DirectoryEnv = process.env,
+): Promise<DirectoryListing> {
+  // The Graph tenant this source belongs to. Stored on the connection,
+  // because the app registration is per O365 tenant, not per mapping.
+  const graphTenantId = (source?.config as { tenantId?: string } | undefined)?.tenantId;
+  // Four preconditions, each with its own reason and its own fix, told apart
+  // in `directory-availability.ts`, where they are tested. The first is the
+  // source's kind: an account's grant is delegated.
+  const available = directoryAvailability(env, graphTenantId, source?.kind);
+  if (!available.ok) {
+    return { kind: 'not_enumerable', reason: directoryNotEnumerable(available.reason) };
+  }
+  const tokenProvider = createTokenProvider({
+    tokenEndpoint: `https://login.microsoftonline.com/${graphTenantId!}/oauth2/v2.0/token`,
+    clientId: available.clientId,
+    clientSecret: available.clientSecret,
+    tenantId: graphTenantId!,
+    scope: 'https://graph.microsoft.com/.default',
+  });
+  return listTenantMailboxes(
+    async () => (await tokenProvider.getToken()).accessToken,
+    httpClient,
+    { applicationPermissions: true },
+  );
 }
 
 export const managedDriftDetect = schedules.task({
@@ -101,38 +153,16 @@ export const managedDriftDetect = schedules.task({
         .filter((a): a is string => Boolean(a));
       const unstated = coverage.filter((r) => !r.primary_address?.trim()).map((r) => r.mapping_id);
 
-      // The Graph tenant this source belongs to. Stored on the connection,
-      // because the app registration is per O365 tenant, not per mapping.
-      const { rows: connections } = await pool.query<{ config: unknown }>(
-        `SELECT config FROM connection
-          WHERE tenant_id = $1 AND role = 'source' AND kind = 'o365' LIMIT 1`,
-        [tenant.id],
+      const { rows: microsoftSources } = await pool.query<MicrosoftSourceRow>(
+        MICROSOFT_SOURCES_SQL,
+        [tenant.id, [...microsoftSourceKinds()]],
       );
-      const graphTenantId = (connections[0]?.config as { tenantId?: string } | undefined)?.tenantId;
+      const source = directorySourceOf(microsoftSources);
 
       const summary = await runNewMailboxDetection({
         tenantId: asTenantId(tenant.id),
 
-        listDirectory: async (): Promise<DirectoryListing> => {
-          // Three preconditions, each with its own reason and its own fix —
-          // told apart in `directory-availability.ts`, where they are tested.
-          const available = directoryAvailability(process.env, graphTenantId);
-          if (!available.ok) {
-            return { kind: 'not_enumerable', reason: directoryNotEnumerable(available.reason) };
-          }
-          const tokenProvider = createTokenProvider({
-            tokenEndpoint: `https://login.microsoftonline.com/${graphTenantId!}/oauth2/v2.0/token`,
-            clientId: available.clientId,
-            clientSecret: available.clientSecret,
-            tenantId: graphTenantId!,
-            scope: 'https://graph.microsoft.com/.default',
-          });
-          return listTenantMailboxes(
-            async () => (await tokenProvider.getToken()).accessToken,
-            httpClient,
-            { applicationPermissions: true },
-          );
-        },
+        listDirectory: () => listDirectoryOf(source),
 
         coveredAddresses: async () => covered,
 
