@@ -2,7 +2,7 @@
 
 > **In one line:** Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, by-hand forwarding meanwhile, relay as sub-processor.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that no
 mail leaves the OTA stack. The API's mail and the identity provider's mail both go to Mailpit, a
@@ -21,10 +21,59 @@ keeps Mailpit for the nightly gate and the demo (D5). The by-hand interim (T1) n
 only, and only until the relay exists; T3 no longer has to separate the gate's mail from the
 testers', T4 walks the production names, and T2 item 1 is done.
 
+**2026-09-27, T1: the guide's subsection (0131 §6, R5 step 4).** Built on branch
+`claude/ownpace-public-readiness-y7orc6-passing-mail-on-by-hand`, not merged.
+`docs/managed-bring-up.md`, "Mail: caught, not delivered", ends with "Before a relay: passing mail
+on by hand". It says where the procedure applies: on live only, until live's `.env` names the
+relay, with live's own Mailpit. That is open question 5's recommendation, and the subsection says
+the owner has not answered it. It says where each mail lands while `SMTP_HOST=mailpit`, which mail
+is addressed to a tester and what the owner does with each, which mail goes to `NOTIFY_TO`, and
+what is never mailed. Then T1's rules: a code goes by mail, only to the address it was sent to;
+only codes the owner expects; be there within the hour; tell the tester first. It ends with a
+recipe that lists one tester's mail by recipient, and with when the interim ends.
+
+- **No guard.** T1 is documentation and names none, so none was written. Each fact was read at
+  `origin/main` (`eba2d108`). The senders: `tellOperator`, `tell` and `tellMessage` in
+  `apps/api/src/access-notify.ts`, their calls in `routes/access-requests.ts` and
+  `routes/migrations/operating-routes.ts`, and `notifierFromEnv` in the four worker jobs
+  (`managed-digest.ts`, `run-rollback.ts`, `managed-group-discovery.ts`,
+  `managed-drift-detect.ts`). The subjects come from `EVENT` and `DIGEST_SUBJECT` in
+  `packages/shared/src/notifications.ts`, the recipients from `readNotifierConfig` and
+  `DIGEST_RECIPIENTS_SQL`, and the queue's words from `strings.ts` (`queue.mailSent`,
+  `queue.tellThem`). Where the mail lands comes from `managed.yml` (`mailpit`, `MP_MAX_MESSAGES`,
+  no relay setting, `DOCKER_RUNNER_NETWORKS`, `name:` and the 17 `container_name` lines),
+  `managed.env.example`, `set-task-env.sh` and `setup-zitadel.sh`. The binding comes from
+  `claimRequestedMembership` and `pendingInvitations` in `apps/api/src/middleware/auth.ts`. The
+  recipe's `jq` reads the field names in Mailpit v1.31.1's `MessageSummary`, as the smoke does,
+  and it was run against a sample answer. The code lifetimes were read at Zitadel v4.17.3:
+  `cmd/defaults.yaml` gives `1h` to `EmailVerificationCode` and `PasswordVerificationCode`, and
+  `72h` to `InitializeUserCode` and `InviteCode`. The password reset uses the second
+  (`internal/command/instance.go`), and an email change uses the first
+  (`internal/command/user_v2_email.go`).
+- **Departures from §3's table.** Two more mails, and neither goes to the tester, relay or not.
+  `decision_raised` (from `managed-group-discovery` and `managed-drift-detect`) and
+  `rollback_finished` (from `run-rollback`) go to `NOTIFY_TO` through `notifierFromEnv`. The
+  guide lists them as mail to the operator. `run-rollback`'s option is called `notifyUsers`, but
+  on managed the notice reaches the operator, and a tester whose migration is rolled back hears
+  nothing from the product. **Recorded, not changed**; the guide says to tell them by hand.
+- **§1 corrected by the guide.** §1 says the fallback announcement goes out "on a press".
+  `POST /api/migrations/:mappingId/sharing/announce` exists, but no screen in `apps/web` calls it,
+  so a tester cannot send it. The guide says so.
+- **Live cannot run on `main` yet.** `managed.yml` pins `name: ownpace-managed` and gives 17
+  services a fixed `container_name`, `ownpace-mailpit` among them. Also,
+  `DOCKER_RUNNER_NETWORKS: ownpace-managed_ownpace-network` would put live's task runs on the OTA
+  stack's network, where `mailpit` is the OTA stack's catcher. 0132 T1 comes first (R7), and the
+  guide says so.
+- **Noticed, not changed.** The section's first paragraph says the API sends "the daily digest".
+  The tasks send it (`managed-digest.ts`), with the settings `set-task-env.sh` uploads. M5's
+  0133 T2 item 4 edits that section's steps, and the sentence can be fixed there.
+- **Open.** Open questions 1 and 5 are the owner's. So is the passing itself, if testers reach
+  live before the relay. 0132 T1 is R7's, and nothing here can run before it.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
-| T1 Until then: the owner passes each mail on by hand | 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
+| T1 Until then: the owner passes each mail on by hand | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-passing-mail-on-by-hand`, not merged** (2026-09-27): the guide's subsection. The passing itself stays ⏳ the owner's. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
 | T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24 | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
 | T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3 | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
