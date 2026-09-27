@@ -331,6 +331,12 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   and names what is missing.
 - `OAUTH2_*` — only for a stack with a Microsoft Graph source or 0028's drift
   detector. An IMAP-only stack needs none of it.
+- `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty. The API and
+  every task run refuse to connect to a host a tester typed when it resolves
+  inside this service's own network, except for the exact names this lists
+  (workplan 0136 T1, T2). An entry admits that name for every organisation on
+  the deployment. The `demo` phase adds the demo's two; nothing else belongs
+  here.
 
 Edit `.env` by hand, or use
 [`env-upsert.sh`](../deploy/compose/env-upsert.sh), which replaces a key where
@@ -387,7 +393,14 @@ mode.
 
 Runs [`setup-managed-demo.sh`](../deploy/compose/setup-managed-demo.sh) — real
 Stalwart (IMAP source, JMAP target) and real Nextcloud (CalDAV/CardDAV/WebDAV)
-— then the seed:
+— then the seed.
+
+**First it admits the demo's two names.** The demo's connections reach its
+backends by compose name, `nextcloud` and `stalwart`, and the API and the tasks
+refuse both unless `OWNPACE_REACHABLE_HOSTS` lists them. So the phase adds
+whichever is missing to `.env` and keeps anything else listed, before the API
+starts and before the task variables are uploaded. Live never runs this phase,
+so its list stays as its operator wrote it. The seed:
 
 ```bash
 DATABASE_URL=postgresql://…@localhost:5432/openmigrate \
@@ -552,7 +565,17 @@ trusted domains are `localhost nextcloud`, so the UI answers on
 `http://localhost:8083` from the host itself (`ssh -L 8083:localhost:8083
 <host>` from elsewhere). Inside the stack its DAV root is
 `http://nextcloud/remote.php/dav` — the base URL a `caldav`, `carddav` or
-`webdav` connection takes.
+`webdav` connection takes, once `OWNPACE_REACHABLE_HOSTS` lists `nextcloud`.
+
+**A host inside this network is refused.** The API and every task run refuse to
+connect to a host a tester typed when it resolves inside this service's own
+network: loopback, the private ranges, link-local, CGNAT, unique-local, and a
+compose name (workplan 0136 T1). A redirect is checked the same way. The Test
+button then says the address is inside our network, without the address. The
+exact names in `OWNPACE_REACHABLE_HOSTS` are admitted, and this phase prints
+what the list holds; on live, nothing. Before the API starts, the phase also
+checks that every Docker network on the machine lies inside those ranges, and
+stops when one does not (see [When it goes wrong](#when-it-goes-wrong)).
 
 #### Reaching it over a private mesh (NetBird, Tailscale)
 
@@ -1598,6 +1621,8 @@ optional `OAUTH2_*` / `SMTP_*` / `NOTIFY_*` from `.env`, with `override: true`
 so a stale dashboard value cannot win over a rotated file. The addresses it
 uploads are **in-network** (`pgbouncer:6432` by default), because runners
 join the compose network — `localhost` there would point a task at itself.
+It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
+`.env` leaves it empty, so the tasks admit exactly the names the API does.
 It does not upload `DIRECT_DATABASE_URL` (workplan 0138 T3 step 1): that is the
 database owner straight to Postgres, and no task reads it. A plane that received
 it before that change still holds it; see
@@ -2211,6 +2236,9 @@ let a credential obtained once survive to the next run.
 | Sign-in completes and then every request is refused with `Missing required claims in token payload` | **The access token carries no email address, and the API requires one.** ADR-0042 narrowed the required claims to `sub` + `email` because invitations are addressed to an email address and a first-time signer-in has no row to look one up in. Zitadel puts user info claims in the ID token and NOT in the access token — measured with `idTokenUserinfoAssertion` both off and on | Nothing to do on a current checkout: the application is provisioned with `idTokenUserinfoAssertion` on, and `apps/web/src/services/oidc.ts` sends the ID token. Its audience is `[client id, project id]` and `JWT_AUDIENCE` is that project id, so the API validates issuer, audience, signature and expiry exactly as it would for an access token |
 | The smoke says `the API cannot reach the issuer at all` on a stack whose issuer is plainly fine | **The check asked with a client the image has not got.** the API's image is `node:24-slim` — no curl, no wget — so `docker exec … curl …` printed `curl: not found`, `\|\| true` swallowed the 127, and the empty string was reported as a verdict about the issuer. The container's own HEALTHCHECK has used `node -e "fetch(...)"` all along | Nothing to do on a current checkout: the smoke asks with node, and keeps "the probe could not run", "the issuer could not be reached" and "the issuer answered X" apart — three facts about three different things (hard rule 10) |
 | The sign-in screen shows the same provider button several times — nine Google buttons after a week of re-runs | Until 2026-09-02 `configure_idp` looked for an existing provider on the deprecated `/admin/v1/idps/_search` list, which does not list the template kind it creates, so every re-run of the app phase added one more. It now reads `/admin/v1/idps/templates/_search`, keeps the oldest, and reports duplicates by count | `./deploy/compose/setup-zitadel.sh --offer-one Google` keeps the **oldest** button (the one your first sign-ins were linked to) and takes the others off the screen by removing their login-policy links — every provider stays, and so does everyone's link to it. The console's **instance** page does the same (Default settings → Login Behaviour and Security → Identity Providers, the 'available' toggle); an organisation-page toggle is undone by the next bring-up, which resets an organisation's own login policy on purpose. The script never deletes a provider. If a Google sign-in then asks to link the account, accept once |
+| The bring-up stops before the API with `N of M Docker networks lie outside the ranges the rule refuses` and `A Docker network on this machine lies outside the ranges a tester's host is refused in` | A network on this machine, this stack's or another stack's, has a subnet or a gateway outside the ranges the rule for a tester's host refuses (workplan 0136 T1 (b)). A host that resolves there would reach this machine through that network's gateway, and the rule would let it through | The `OUTSIDE` lines above the refusal name each network, its compose project, and the subnet or gateway outside. Set the daemon's `default-address-pools` inside `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16` and recreate the network, or remove it if nothing uses it. Then `--from app` |
+| `ownpace-api` restarts at start-up, and task runs fail before they connect anywhere, with `OWNPACE_REACHABLE_HOSTS: "<entry>" is not a host name` | The list takes exact host names only: no wildcards, ranges, addresses or ports. A process that cannot read it stops, rather than admit more than the list says | Fix the entry in `.env`, then `docker compose -f deploy/compose/managed.yml up -d api` and `./deploy/compose/set-task-env.sh`. Task variables are read at run start; no redeploy is needed |
+| On the gate's stack, the Test button says the demo Nextcloud or Stalwart is inside our network, the smoke's `test-connection` step fails, or a demo migration's pass fails with `host_inside_our_network` | `OWNPACE_REACHABLE_HOSTS` does not list the name, so the rule refuses it like any other host inside this network | On a demo box, `--from demo` adds the demo's names; or add `nextcloud,stalwart` to `.env` by hand. Then `up -d api` and `./deploy/compose/set-task-env.sh`. On live, add nothing: this is the rule doing its job, and an entry admits that name for every organisation |
 
 ---
 

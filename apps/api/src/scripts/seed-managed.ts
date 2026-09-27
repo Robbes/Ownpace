@@ -94,6 +94,10 @@ interface DemoTenant {
 // Demo Stalwart accounts (deploy/selfhost/setup-stalwart.sh always provisions these four,
 // fixed, regardless of caller — see that script's PLAN_FILE). Reached by the compose
 // network alias "stalwart" that setup-managed-demo.sh joins it to.
+//
+// Both compose names below need OWNPACE_REACHABLE_HOSTS (workplan 0136 T2): the API and
+// the tasks refuse a host inside this service's own network, and a compose name is one,
+// unless the list names it. The bring-up's demo phase writes both names into it.
 const STALWART_MAIL = { host: 'stalwart', imapsPort: 993, jmapBaseUrl: 'http://stalwart:8080' };
 
 // Demo Nextcloud accounts (provisioned by setup-managed-demo.sh via the canonical

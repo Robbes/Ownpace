@@ -274,6 +274,50 @@ export function refusesInternalAddresses(): boolean {
   return active !== undefined;
 }
 
+/** A host name as the allow list takes it: labels of letters, digits and hyphens, and nothing else. */
+const LISTED_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.?$/i;
+
+/**
+ * THE OPERATOR'S ALLOW LIST (0136 T2), as `OWNPACE_REACHABLE_HOSTS` holds it:
+ * exact host names, separated by spaces or commas, that the rule admits
+ * although they resolve inward. The demo targets on the gate's stack, by
+ * compose name. Empty by default, and empty on live.
+ *
+ * An entry that is not a plain host name is refused, naming it, so a process
+ * with a list it cannot read does not start: a wildcard or a range read as a
+ * pattern would admit more than anyone wrote, and an address is never
+ * admitted by the list anyway (`reachableAddress`).
+ */
+export function reachableHostsFrom(value: string | undefined): string[] {
+  const entries = (value ?? '').split(/[\s,]+/).filter((entry) => entry !== '');
+  for (const entry of entries) {
+    if (isIP(unbracket(entry)) !== 0 || !LISTED_NAME.test(entry)) {
+      throw new Error(
+        `OWNPACE_REACHABLE_HOSTS: "${entry}" is not a host name. The list takes exact names only, ` +
+          'with no wildcards, ranges, addresses or ports.',
+      );
+    }
+  }
+  return entries.map((entry) => entry.toLowerCase().replace(/\.$/, ''));
+}
+
+/**
+ * Switch the rule on at a managed process's start-up, with the operator's
+ * allow list from `OWNPACE_REACHABLE_HOSTS` (0136 T1, T2). The managed API and
+ * the managed task runtime call this; nothing the appliance runs does. A list
+ * it cannot read throws before anything is switched, naming the entry, so the
+ * process does not start with it. Answers the names it admits, for the
+ * process's own start-up line. `resolve` is the guard's, as for
+ * `refuseInternalAddresses`; a process leaves it to the system's lookup.
+ */
+export function refuseInternalAddressesFromEnv(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  resolve?: ResolveAll,
+): { readonly admitted: readonly string[]; readonly off: () => void } {
+  const admitted = reachableHostsFrom(env['OWNPACE_REACHABLE_HOSTS']);
+  return { admitted, off: refuseInternalAddresses({ allow: admitted, ...(resolve ? { resolve } : {}) }) };
+}
+
 /**
  * `fetch`, for a request to a host a tenant gave us.
  *
