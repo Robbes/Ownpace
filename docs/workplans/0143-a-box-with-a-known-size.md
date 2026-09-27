@@ -4,8 +4,22 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27: T3a built (0131 §6, group M4, step 1)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-file-jmap-could-not-take`, not merged. A file larger than
+**2026-09-27: T2d's runbook step written (0131 §6, group M4, step 8, with 0142 T6)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged. Step 3 of
+`docs/incident-runbook.md` carries it, as §3 gives it:
+
+- as the database owner on live's database, the organisation's migrations in a state that runs
+  passes, listed with their id and status first, because the list is what puts each one back;
+- then each moved by the lifecycle's table: an `active` one to `paused`, a `continuous` one to
+  `cutover`, and never a `continuous` one to `paused`;
+- the two limits: the tester can undo it, and the step goes around the route, row security and
+  the status-change record, so the date and the organisation go in the incident's record.
+
+0142 T6's guard asks `updateTransition` itself for the three moves, so a change to the table fails
+there before the runbook tells anybody to do what the product refuses. T2d's built hold comes
+after, as planned.
+
+**2026-09-27: T3a built (0131 §6, group M4, step 1)**, merged as #1243. A file larger than
 8 MB (`STREAM_FILES_LARGER_THAN_BYTES`) reaches a target as a stream, and `JmapFileTarget` cannot
 write one. It said *"No content for …"*, which reads as an empty file. It now says, when it would
 create the file and when it would rewrite it: *"<path> is 12.4 MB. A JMAP target cannot take a
@@ -271,8 +285,8 @@ unproved until then:
 |---|---|---|
 | T0 The alpha's numbers | ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
-| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27, not merged**: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
+| T2 What one organisation can make the machine do | 🔨 **T2d's runbook step written 2026-09-27, not merged**, in 0142 T6's runbook; T2a to T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
+| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
