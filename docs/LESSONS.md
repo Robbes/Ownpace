@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 159 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 160 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -872,6 +872,10 @@ reading a file drops off its entry by itself.
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
+### `packages/connectors/package.json`
+
+- [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
+
 ### `packages/connectors/src/archive-file-source.ts`
 
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
@@ -900,6 +904,7 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
+- [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/connectors/src/dropbox-token-provider.ts`
@@ -915,6 +920,7 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/google-drive-transport.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
 
 ### `packages/connectors/src/google-jwt-bearer-provider.ts`
 
@@ -965,6 +971,7 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/imapflow-source.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
 
 ### `packages/connectors/src/jmap-contact-target.ts`
 
@@ -985,6 +992,10 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/token-revoker.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
+### `packages/connectors/src/webdav-archive-store.ts`
+
+- [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
 
 ### `packages/connectors/src/webdav-source.ts`
 
@@ -2519,6 +2530,18 @@ Reads:
 - `docs/adr/0014-cost-recovery-billing.md`
 - `packages/ledger/src/mapping-status-audit.ts`
 - `site/pages/en/pricing.md`
+
+### [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts)
+
+A SOURCE ONLY READS (workplan 0149 T5).
+
+Reads:
+
+- `packages/connectors/package.json`
+- `packages/connectors/src/dropbox-file-source.ts`
+- `packages/connectors/src/google-drive-transport.ts`
+- `packages/connectors/src/imapflow-source.ts`
+- `packages/connectors/src/webdav-archive-store.ts`
 
 ### [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts)
 

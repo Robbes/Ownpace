@@ -109,6 +109,21 @@ export interface MailboxMeasure {
   readonly estimated: boolean;
 }
 
+/**
+ * EVERY MAILBOX IS OPENED READ-ONLY (workplan 0149 T5).
+ *
+ * `{ readOnly: true }` makes imapflow send EXAMINE instead of SELECT. The
+ * server then refuses STORE and EXPUNGE on the mailbox, a CLOSE removes
+ * nothing, and `\Recent` stays untouched. EXAMINE answers with the same
+ * UIDVALIDITY, UIDNEXT and message count that the cursor and the measurement
+ * read (RFC 3501 §6.3.2), so nothing here reads differently.
+ *
+ * Nothing in this class writes today: the body fetch is a PEEK and no STORE,
+ * EXPUNGE, MOVE or CLOSE is sent. EXAMINE makes the server hold that line
+ * too, so a later mistake in this file cannot change somebody's old mailbox.
+ * The guard is `scripts/a-source-that-only-reads.unit.test.ts`, which also
+ * reads every other source for a method that writes.
+ */
 export class ImapFlowSource implements SourceConnector {
   private readonly config: ImapSourceConfigWithTokenProvider;
   private readonly tokenProvider?: TokenProvider;
@@ -240,7 +255,7 @@ export class ImapFlowSource implements SourceConnector {
       // over the SELECTABLE ones: a LIST of nothing but containers is a LIST
       // of nothing this connector can read.
       try {
-        await client.mailboxOpen('INBOX');
+        await client.mailboxOpen('INBOX', { readOnly: true });
         return [{ path: 'INBOX', name: 'INBOX', specialUse: 'inbox' as SpecialUse }];
       } catch (openErr) {
         throw new Error(
@@ -280,7 +295,7 @@ export class ImapFlowSource implements SourceConnector {
    * 200), the newest ones, and `estimated: true` the moment any folder was
    * sampled rather than summed, so a screen can say ≈ rather than =.
    *
-   * Read-only: SELECT and FETCH of sizes, no flags touched.
+   * Read-only: EXAMINE and FETCH of sizes, no flags touched.
    */
   async measureMailbox(
     options: { readonly sampleSize?: number; readonly folders?: ReadonlyArray<MailFolder> } = {},
@@ -296,7 +311,7 @@ export class ImapFlowSource implements SourceConnector {
       let bytes = 0;
       let estimated = false;
       for (const folder of folders) {
-        const lock = await client.getMailboxLock(folder.path);
+        const lock = await client.getMailboxLock(folder.path, { readOnly: true });
         try {
           const box = client.mailbox;
           const exists = box && typeof box !== 'boolean' ? Number(box.exists ?? 0) : 0;
@@ -339,7 +354,7 @@ export class ImapFlowSource implements SourceConnector {
     folder: MailFolder,
     cursor?: SyncCursor,
   ): Promise<{ items: ReadonlyArray<MailItem>; nextCursor: SyncCursor; unkeyable?: number }> {
-    const lock = await client.getMailboxLock(folder.path);
+    const lock = await client.getMailboxLock(folder.path, { readOnly: true });
     try {
       const box = client.mailbox;
       if (!box || typeof box === 'boolean') {
@@ -447,7 +462,7 @@ export class ImapFlowSource implements SourceConnector {
   }
 
   private async fetchInternal(client: ImapFlow, item: MailItem): Promise<RawMessage> {
-    const lock = await client.getMailboxLock(item.folder.path);
+    const lock = await client.getMailboxLock(item.folder.path, { readOnly: true });
     try {
       const uid = uidFromSourceRef(item.sourceRef);
 
