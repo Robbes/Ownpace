@@ -33,6 +33,7 @@ export * from './domain-sync.ts';
 export * from './pass-summary.ts';
 export * from './failure-side.ts';
 export * from './dav-sync.ts';
+export * from './largest-file.ts';
 export * from './discovery.ts';
 export * from './apply-deletion.ts';
 export * from './detect-new-mailboxes.ts';
