@@ -1541,6 +1541,14 @@ export interface Ledger {
       readonly action: string;
       /** Narrow to one mapping via the audit detail; omit for tenant-wide. */
       readonly mappingId?: string;
+      /**
+       * Narrow to the rows whose detail lists this share subject in its
+       * `subjects`: the announcement of the shares carried by hand, one wave
+       * per data type (0128 T5, slice 6). A row that lists none was pressed
+       * for the whole migration, before the waves, so it answers for every
+       * subject.
+       */
+      readonly subject?: string;
     },
   ): Promise<string | undefined>;
   /**

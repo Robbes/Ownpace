@@ -344,8 +344,8 @@ queue's one-go press makes the NEW platform send its own share notification,
 with a working link, at the moment you press (workplan 0104). This template
 covers the remainder the platform cannot announce: shares somebody carried
 over BY HAND (`done_manual` rows). The product sends it from the sharing
-queue (one press, at or after cutover, note required); each person receives
-only their own items.
+queue (one press, note required), once per data type, at or after that data
+type's own cutover; each person receives only their own items.
 
 ### English
 

@@ -4,6 +4,39 @@
 
 ## Status — 2026-09-26 (update this block at the end of every session)
 
+**2026-09-26: T5's sixth slice, second part (6b): the shares carried by hand, announced once per
+data type, at its cutover.** Slice 6 is built. The announcement the platform cannot make (0104
+T3) goes the way the one-go press went in 6a (D8):
+- **One wave per data type.** A press announces the shares carried by hand of each data type
+  that is cut over, and leaves the others, counted (`waitingForCutover`), for the press at their
+  own cutover. With none of them cut over it is refused, naming the data types that wait. Each
+  person hears only of their own items, in the wave of their data type.
+- **Once per data type.** Every press is remembered in the audit log with the share subjects it
+  announced (`subjects`). A data type announced before is left out of the next press, counted
+  (`alreadyAnnounced`), and mailed again only on purpose (`confirmResend`); a press after every
+  wave is refused. A press made before the waves, for the whole migration, announced every data
+  type. The ledger reads it (`latestAuditEventAt`'s `subject`).
+- **One press for both editions** (`announceByHandShares`, core), where each edition had its own
+  copy; each brings its gate, its mail channel and its sender.
+- A press with nothing carried by hand announces nothing and answers 200, as the one-go press
+  does since 6a, where a migration not yet done used to be refused whole.
+- ADR-0032's amendment, the openapi spec (and apply-all's `waitingForCutover`, which 6a left out
+  of it), and Template 6's note.
+
+Evidence:
+- the press (10): the calendars' wave while the files run and the files' at theirs, each person
+  with their own items; a press after both waves refused, and mailed again only on purpose; a
+  press from before the waves; a data type announced before left out; refused with nothing cut
+  over and without a mail channel; nothing carried by hand; a mail that did not go; and the
+  refusals' words;
+- the memory on PGlite as `app_user` (1): each data type read from the presses that listed it,
+  an empty wave answering for none, another migration's presses not this one's, and a press for
+  the whole migration answering for all;
+- the doors, with a mail channel whose transport the test holds: managed's on Postgres 16 (2) and
+  the appliance's on its own PGlite (1), from nothing cut over, through the calendars' wave and the
+  files', to a resend on purpose. 6a's door tests keep their gate and lose their announcement,
+  which these replace.
+
 **2026-09-26: T5's sixth slice, first part (6a): each share waits for its own data type's
 cutover.** A calendar shared with a colleague is applied once the calendars are cut over, while
 the files keep running and their shares wait for their own cutover (D8).
@@ -534,7 +567,7 @@ its test.
 | T2 Passes keep running through the grace period | ✅ **Built 2026-09-24** (D1 (a)) | §3. From execute until the grace period ends, a migration that was `active` keeps being copied under the after-cutover rules, which is what the grace period's own definition promises. A paused one stays stopped. |
 | T3 The ending is a choice: end, or keep copying which data types | 📋 **Decided: D3, D5, D7**; with T5 | §3. Where a migration ends, *End the migration* and *Keep copying* stand side by side, and keeping asks which data types continue. Keep enters the lane in one press on step 4's attestation (D3); the grace period's end is said on the Finish page and in the digest (D7). With D8 the ending is chosen per data type, at that data type's cutover. |
 | T4 A data type can be stopped and resumed | ✅ **Built 2026-09-25** (D2 (c), D4, D5, D6; T5 slice 3) | §3. The managed half of 0125 T7, with the same word: the copies stay, they no longer follow the source, and resuming continues where it stopped. A stopped data type keeps its slot while `active` and releases it in the continuous lane. The appliance gets the same (D4); the last data type still copying cannot be stopped (D5); a stopped one is not verified (D6). |
-| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 5, and 6's first part, built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
+| T5 A cutover per data type | 🟡 **Decided: D8**; designed 2026-09-24; slices 1 to 6 built by 2026-09-26 | §3. Mail can be cut over, and stop after its grace period, while files keep running as an ordinary sync until their own cutover. 0109 T1c's grain, extracted there for this decision. Seven slices, readers first; T4 is the third and T3 the last. |
 
 ## 1. What happens today
 
@@ -764,7 +797,8 @@ cutover; once every one is past it, a new data type is a new migration, as today
 6. **Shares per data type**, announced once at each data type's cutover, in two parts. First (6a)
    each share waits for its own data type's cutover, in every press, and the gate opens at the
    cutover as ADR-0032 says (*built 2026-09-26*). Then (6b) the announcement of the shares carried
-   by hand, one wave per data type, with its once-only guard kept per data type.
+   by hand, one wave per data type, with its once-only guard kept per data type (*built
+   2026-09-26*).
 7. **T3 on the Finish page**, per data type: *End* and *Keep copying* each, step 4 for mail only,
    the lane per data type, the appliance's missing lane route (D4), and the grace period's end in
    the digest (D7). With a data type ended or kept on its own, a press on the whole migration

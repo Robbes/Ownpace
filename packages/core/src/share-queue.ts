@@ -316,14 +316,26 @@ const SHARED_DATA: Record<DiscoveryDomain, { readonly noun: string; readonly plu
 };
 
 /**
+ * The data types a refusal names for these shares, in the order the product
+ * lists data types; none when there are no shares, or one it cannot place (a
+ * refusal then speaks of the whole migration).
+ */
+export function sharedDataNamed(
+  subjects: readonly string[],
+): ReadonlyArray<{ readonly noun: string; readonly plural: boolean }> | undefined {
+  const domains = subjects.map(dataTypeOfShare);
+  if (domains.length === 0 || domains.includes(undefined)) return undefined;
+  return DISCOVERY_DOMAINS.filter((d) => domains.includes(d)).map((d) => SHARED_DATA[d]);
+}
+
+/**
  * The refusal of shares whose own data types are not cut over yet (0128 T5,
  * slice 6), naming them: each share waits for its own data type's cutover,
  * while the others may already be applied.
  */
 export function notCutOverReason(subjects: readonly string[]): string {
-  const domains = subjects.map(dataTypeOfShare);
-  if (domains.length === 0 || domains.includes(undefined)) return NOT_CUT_OVER_REASON;
-  const named = DISCOVERY_DOMAINS.filter((d) => domains.includes(d)).map((d) => SHARED_DATA[d]);
+  const named = sharedDataNamed(subjects);
+  if (named === undefined) return NOT_CUT_OVER_REASON;
   if (named.length === 1) {
     const { noun, plural } = named[0]!;
     const be = plural ? 'are' : 'is';

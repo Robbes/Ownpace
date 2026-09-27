@@ -50,3 +50,4 @@ export * from './permission-map.ts';
 export * from './permission-report.ts';
 export * from './run-permission-inventory.ts';
 export * from './share-queue.ts';
+export * from './share-announce.ts';
