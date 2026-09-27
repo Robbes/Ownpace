@@ -24,14 +24,17 @@
  * running cluster reuses it rather than destroying somebody's work.
  *
  * AND IT IS RUN, where the machine can. The last case executes the real script
- * end to end whenever server binaries are present, on its own port and its own
- * directory. CI has no server installed and skips it; this container does, and
- * the check-in that found the `status` bug below was exactly this test.
+ * end to end whenever server binaries are present, in a directory made fresh for
+ * the run and on a port the OS hands out. CI has no server installed and skips
+ * it; this container does, and the check-in that found the `status` bug below
+ * was exactly this test.
  */
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -176,30 +179,61 @@ describe('the cluster it builds is the one the product runs on', () => {
 });
 
 /**
+ * A port nothing on this machine listens on, as the OS hands it out: bind to 0
+ * on loopback, read what was given, let it go. The script's own
+ * `port_is_taken` and Postgres's bind still refuse loudly if something takes it
+ * in between.
+ */
+const aFreePort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      const port = typeof address === 'object' && address !== null ? address.port : 0;
+      probe.close(() => {
+        if (port > 0) resolve(port);
+        else reject(new Error(`the OS handed out no port: ${JSON.stringify(address)}`));
+      });
+    });
+  });
+
+/**
  * AND IT ACTUALLY WORKS, on any machine that can run it.
  *
  * Every case above reads the script. This one runs it — because a script that
  * is beautifully shaped and does not start a database is worth nothing, and
  * that is exactly the failure the source-only half cannot see.
  *
- * Its own directory and its own port, so it cannot disturb a cluster somebody
- * is using, and `down` in a `finally` so it leaves none of its own behind.
+ * A directory made fresh for this run and a port the OS hands out, so it cannot
+ * disturb a cluster somebody is using, and `down` in a `finally` so it leaves
+ * none of its own behind.
+ *
+ * FOUND BY RUNNING THE SUITE TWICE AT ONCE (2026-09-27). The pair used to be
+ * fixed, `/tmp/ownpace-local-pg-selftest` on 55997, and two worktrees running
+ * `scripts/` together found each other's cluster: the second `up` said
+ * "already running — reusing it" about the first's half-migrated cluster and
+ * counted two tables of three, and its `down` then removed that cluster under
+ * the first, whose psql died with "terminating connection due to administrator
+ * command". Both runs failed, and neither failure was about the script.
  */
 describe.skipIf(!hasServer())('and it really does stand one up', () => {
-  const env = {
-    ...process.env,
-    LOCAL_PG_DIR: '/tmp/ownpace-local-pg-selftest',
-    LOCAL_PG_PORT: '55997',
-    LOCAL_PG_DB: 'localpg_selftest',
-  };
-  const run = (arg: string): string =>
-    execFileSync('bash', [SCRIPT, arg], { env, encoding: 'utf8', cwd: REPO_ROOT });
+  it('brings up a cluster with both chains on it, then takes it away', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ownpace-local-pg-selftest-'));
+    const port = await aFreePort();
+    const env = {
+      ...process.env,
+      LOCAL_PG_DIR: dir,
+      LOCAL_PG_PORT: String(port),
+      LOCAL_PG_DB: 'localpg_selftest',
+    };
+    const run = (arg: string): string =>
+      execFileSync('bash', [SCRIPT, arg], { env, encoding: 'utf8', cwd: REPO_ROOT });
 
-  it('brings up a cluster with both chains on it, then takes it away', () => {
     try {
       const up = run('up');
       expect(up).toContain("export TEST_DATABASE_URL='postgresql://");
-      expect(up, 'the port it was told to use').toContain(':55997/localpg_selftest');
+      expect(up, 'the port it was told to use').toContain(`:${port}/localpg_selftest`);
 
       // THE POINT OF ALL OF IT: a table from EACH chain. `tenant` is the
       // ledger's, `platform_operator` is the managed chain's, and a cluster
@@ -214,12 +248,12 @@ describe.skipIf(!hasServer())('and it really does stand one up', () => {
       ).trim();
       expect(count, 'a chain did not go on').toBe('3');
 
-      expect(run('status')).toContain('55997');
+      expect(run('status')).toContain(`:${port}/localpg_selftest`);
     } finally {
-      execFileSync('bash', [SCRIPT, 'down'], { env, encoding: 'utf8', cwd: REPO_ROOT });
+      run('down');
     }
     // And `down` really removed it — a teardown that reports success without
     // removing anything is the same lie in the other direction.
-    expect(existsSync('/tmp/ownpace-local-pg-selftest')).toBe(false);
+    expect(existsSync(dir)).toBe(false);
   }, 120_000);
 });
