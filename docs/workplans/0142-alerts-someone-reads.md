@@ -4,6 +4,21 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T2's row on the status page built (0131 §6, group M4, step 5's remainder)** on
+branch `claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged. It rides with
+T6's runbook, as 0131 §6 allows a task too small to stand alone, because the runbook already
+carries the row's entry.
+
+- **The row.** *Scheduled syncs*, in the Ownpace group of `gatus.yaml`, reads
+  `[BODY].scheduler == up` off `${STATUS_WEB_URL}/api/ready/scheduler`, on the public page, as
+  open question 3 decided. It reads the field, not the code, because the route answers 200
+  whatever it says. T1's alert on it comes with T1.
+- **`docs/status-page.md`** names the row and says why it has its own route.
+- **`scripts/status-page.unit.test.ts`**: *Scheduled syncs* joins `THROUGH_THE_APP` and the rows
+  that must read the field. The field scan now reads each route's own type: a row asks
+  `/api/ready` only for `Readiness`'s fields, and `/api/ready/scheduler` only for
+  `SchedulerReadiness`'s. It fails on `main`, where the row does not exist.
+
 **2026-09-27, evening: the owner answered open questions 1 and 3.**
 
 - **Open question 1, T0's channel: (a) e-mail**, *"Alert: email"*. Alerts go to `NOTIFY_TO`
@@ -131,7 +146,7 @@ watch's issue reaches the owner (0141, 0146).
 |---|---|---|
 | T0 The alert channel, and what the alpha promises | 📋 the channel **Decided 2026-09-27**: e-mail through 0133's relay (open question 1); ⏳ **Owner** for its settings and the test alert; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
 | T1 The status page tells the owner when an Ownpace row goes red | 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
-| T2 A tick that says it ran | 🔨 **(a) built 2026-09-27**, merged as #1244: the beat and `GET /api/ready/scheduler`; the Gatus row decided 2026-09-27 for the public page (open question 3), and next — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
+| T2 A tick that says it ran | 🔨 **(a) built 2026-09-27**, merged as #1244: the beat and `GET /api/ready/scheduler`; the Gatus row, on the public page (open question 3), built 2026-09-27, not merged — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
 | T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
 | T4 What is waiting: queued runs, pooler waits, recorded failures | 📋 **Proposed** | §3. After the first invitation. Queue counts written with T2's heartbeat, `SHOW POOLS`, and a daily count of 0129's recorded failures. |
 | T5 Something off the machine that can say "down" | 📋 **Proposed**; the host is the owner's | §3. After the first invitation. A second copy of the same `gatus.yaml` on a small EU host, watching the public addresses. Until then, testers are the outside probe (§4). |
