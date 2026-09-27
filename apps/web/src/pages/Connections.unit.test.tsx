@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PROVIDER_ACCOUNT_DOMAINS } from '@openmig/shared';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { credentialFieldsFor, wizardTypeForConnectionKind } from '@openmig/shared';
 import type { ConnectionSummary } from '../services/mapping-service.ts';
@@ -118,6 +118,38 @@ function renderPage() {
   );
 }
 
+/**
+ * The page inside a router that also has the checklist's route, which says
+ * where it landed and what the link said it came from: the checklist's back
+ * link reads that `from` to return to Connections (workplan 0074).
+ */
+function Landed() {
+  const { side, provider } = useParams();
+  const from = (useLocation().state as { from?: string } | null)?.from;
+  return <p>{`landed on ${side}/${provider} from ${from ?? 'nowhere'}`}</p>;
+}
+
+function renderAt(path: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/connections" element={<Connections />} />
+          <Route path="/setup/:side/:provider" element={<Landed />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+/** Every checklist link on the page, in order. */
+const setupHrefs = (): string[] =>
+  screen
+    .getAllByRole('link')
+    .map((link) => link.getAttribute('href') ?? '')
+    .filter((href) => href.startsWith('/setup/'));
+
 beforeEach(() => {
   list.mockReset();
   testConnection.mockReset();
@@ -195,6 +227,45 @@ describe('the connections screen', () => {
 
     const link = (await screen.findByText('Setup steps')) as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/setup/source/box');
+  });
+
+  /**
+   * A stored `o365` row came from one of two cards, and nothing on the row
+   * says which (workplan 0148 T5 (a)): *Via IMAP* and *Via the Graph API*
+   * store the same config. Their checklists differ, Office 365 Exchange
+   * Online's `IMAP.AccessAsApp` against Microsoft Graph's `Mail.Read`, so a
+   * single link to Graph's sent a Via IMAP connection to a permission that
+   * does nothing for its token. The row offers both, each by its card's name,
+   * and each still says it came from here so the checklist's back link returns.
+   */
+  it("an o365 row offers each Microsoft card's checklist, by the card's name (0148 T5 (a))", async () => {
+    list.mockResolvedValue([conn({ kind: 'o365', role: 'source' })]);
+    renderAt('/connections');
+
+    const imap = await screen.findByRole('link', { name: STRINGS.en['wizard.m365.viaImap'] });
+    const graph = screen.getByRole('link', { name: STRINGS.en['wizard.m365.viaGraph'] });
+    expect(imap.getAttribute('href')).toBe('/setup/source/oauth2');
+    expect(graph.getAttribute('href')).toBe('/setup/source/graph');
+    expect(setupHrefs()).toEqual(['/setup/source/oauth2', '/setup/source/graph']);
+
+    fireEvent.click(imap);
+    expect(await screen.findByText('landed on source/oauth2 from /connections')).toBeTruthy();
+  });
+
+  it('the Via the Graph API link says it came from Connections too', async () => {
+    list.mockResolvedValue([conn({ kind: 'o365', role: 'source' })]);
+    renderAt('/connections');
+
+    fireEvent.click(await screen.findByRole('link', { name: STRINGS.en['wizard.m365.viaGraph'] }));
+    expect(await screen.findByText('landed on source/graph from /connections')).toBeTruthy();
+  });
+
+  it('a row of any other kind keeps its one checklist link', async () => {
+    list.mockResolvedValue([conn({ kind: 'box' }), conn({ id: 'c2', kind: 'webdav', role: 'target' })]);
+    renderAt('/connections');
+
+    expect(await screen.findAllByText('Setup steps')).toHaveLength(2);
+    expect(setupHrefs()).toEqual(['/setup/source/box', '/setup/target/webdav']);
   });
 
   it('an empty tenant says so instead of rendering nothing', async () => {

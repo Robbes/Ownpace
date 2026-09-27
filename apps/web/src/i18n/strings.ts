@@ -2290,16 +2290,30 @@ const en = {
     'Have the account owner consent with the scope for that product; a token consented for one Google product does not work for another. Or use a service account with domain-wide delegation, which an admin authorises once for the whole domain.',
   'setup.google.consent_scope.yields': 'a refresh token (or a service-account key file).',
   'setup.graph.app_registration.title': 'Register an app in Microsoft Entra',
+  // Shared by Via the Graph API and Via IMAP: the Microsoft guide's {#application}.
   'setup.graph.app_registration.detail':
-    'Entra admin centre → App registrations → New registration, in the tenant whose mailboxes you are migrating.',
+    'Entra admin centre → Identity → Applications → App registrations → New registration, in the tenant whose mailboxes you are migrating. Choose Accounts in this organizational directory only and leave the redirect address empty. The Overview page then shows the Application (client) ID and the Directory (tenant) ID.',
   'setup.graph.app_registration.yields': 'a Tenant ID and a Client ID.',
-  'setup.graph.api_permissions.title': 'Add read permissions and get admin consent',
+  // Via the Graph API only (0148 T5 (a)): both cards read one mailbox's mail,
+  // and this one reads it with one Microsoft Graph permission.
+  'setup.graph.api_permissions.title': 'Add Mail.Read and get admin consent',
   'setup.graph.api_permissions.detail':
-    'Add the Graph permissions for what you are migrating (mail, calendar, contacts or files), then have a tenant administrator grant consent. Reading another user\u2019s mailbox or drive needs application permissions, which always require consent.',
+    'API permissions → Add a permission → Microsoft Graph → Application permissions → Mail.Read. Nothing else: this card reads one mailbox’s mail. Then an administrator presses Grant admin consent for your organisation. As an application permission, Mail.Read can read every mailbox in the organisation; this service reads only the one the connection names.',
   'setup.graph.client_secret.title': 'Create a client secret',
   'setup.graph.client_secret.detail':
     'Certificates & secrets → New client secret. Copy it immediately — Entra shows the value once.',
   'setup.graph.client_secret.yields': 'a Client Secret.',
+  // Via IMAP (0148 T5 (a)): its token carries only what Office 365 Exchange
+  // Online gives, so its recipe is the Microsoft guide's {#application-imap}.
+  'setup.exchange.permission.title': 'Add IMAP.AccessAsApp and get admin consent',
+  'setup.exchange.permission.detail':
+    'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Not a Microsoft Graph permission: this card signs in to Exchange Online’s IMAP server, and such a token carries only what Exchange Online gives. Then an administrator presses Grant admin consent for your organisation.',
+  'setup.exchange.service_principal.title': 'Register the application in Exchange Online',
+  'setup.exchange.service_principal.detail':
+    'An Exchange administrator runs New-ServicePrincipal in Exchange Online PowerShell, with the Application (client) ID and the Object ID shown under Enterprise applications. Not the Object ID under App registrations: with that one, the card’s sign-in fails. The guide has the commands.',
+  'setup.exchange.mailbox_permission.title': 'Give the application the mailbox',
+  'setup.exchange.mailbox_permission.detail':
+    'The Exchange administrator runs Add-MailboxPermission with -AccessRights FullAccess, once for each mailbox the card reads. FullAccess would let an application change the mailbox as well as read it. This service only reads it, and for this card Microsoft does not enforce that.',
   'setup.imap.server_address.title': 'Find the IMAP server address',
   'setup.imap.server_address.detail':
     'The host and port your mail provider documents for IMAP, and whether it uses SSL. Usually port 993 with SSL.',
@@ -2333,6 +2347,34 @@ const en = {
   'setup.davbasic.app_password.detail':
     'Use an app-specific password rather than the account\u2019s own login where the server offers one — it can be revoked without changing the person\u2019s password.',
   'setup.davbasic.app_password.yields': 'a username and an app password.',
+  // ---- What comes first for Apple, Nextcloud and Soverin (0148 T5 (a)) ----
+  // Each in its card guide's words: apple.md {#app-password}, nextcloud.md
+  // {#app-password} and {#nextcloud}, soverin.md {#soverin}.
+  'setup.apple.app_password.title': 'Make an app-specific password',
+  'setup.apple.app_password.detail':
+    'Sign in at account.apple.com → Sign-In and Security → App-Specific Passwords, and generate one. Apple shows it once, so copy it at once. Not your Apple Account password: Apple refuses that one here by design.',
+  'setup.apple.app_password.yields': 'an app-specific password, such as abcd-efgh-ijkl-mnop.',
+  'setup.nextcloud.account_exists.title': 'Make sure the Nextcloud account exists',
+  'setup.nextcloud.account_exists.detail':
+    'The account must exist on the Nextcloud already, with enough room for what is coming. This service creates no accounts.',
+  'setup.nextcloud.app_password.title': 'Create an app password',
+  'setup.nextcloud.app_password.detail':
+    'In Nextcloud: Settings → Security → Devices & sessions. Type a name under App name, such as Migration, press Create new app password and copy the password. Use it rather than the account’s own password: it can be revoked without changing yours.',
+  'setup.nextcloud.app_password.yields': 'an app password, for the wizard’s Password box.',
+  'setup.nextcloud.dav_url.title': 'Note the address with /remote.php/dav',
+  'setup.nextcloud.dav_url.detail':
+    'The address you open Nextcloud at, with /remote.php/dav on the end, such as https://cloud.example.com/remote.php/dav. It goes in DAV base URL; there is no box for a host or a port. Nextcloud shows its WebDAV address at the bottom of the Files settings page: the name after /remote.php/dav/files/ is the user name to type.',
+  'setup.nextcloud.dav_url.yields': 'the DAV base URL, and your user name.',
+  'setup.soverin.account_exists.title': 'Make sure the Soverin account exists',
+  'setup.soverin.account_exists.detail':
+    'The Soverin account must exist already, with room for what is coming. This service creates no accounts.',
+  'setup.soverin.password.title': 'Have the account’s password at hand',
+  'setup.soverin.password.detail':
+    'This service signs in with the Soverin email address and that account’s password. If Soverin offers you an app password, it can go in the same Password box instead. Whether one app password covers mail as well as calendars and contacts is not certain; the test says so per part.',
+  'setup.soverin.password.yields': 'the email address, and the password or an app password.',
+  'setup.soverin.mail_server.title': 'Mail moving too? Keep the mail server',
+  'setup.soverin.mail_server.detail':
+    'The wizard fills in Mail server, imap.soverin.net, and Mail port, 993, from Soverin’s published settings. If mail moves, leave Mail server filled in: a connection saved without it carries no mail. Calendars and contacts need no mail server.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Request access',
   'access.intro': 'Invite-only for now: tell us what you want to move, and we will email you.',
@@ -4168,15 +4210,24 @@ const nl: Record<keyof typeof en, string> = {
   'setup.google.consent_scope.yields': 'een refresh-token (of een service-account-sleutelbestand).',
   'setup.graph.app_registration.title': 'Registreer een app in Microsoft Entra',
   'setup.graph.app_registration.detail':
-    'Entra-beheercentrum → App registrations → New registration, in de tenant waarvan u de postbussen migreert.',
+    'Entra-beheercentrum → Identity → Applications → App registrations → New registration, in de tenant waarvan u de postvakken migreert. Kies Accounts in this organizational directory only en laat het omleidingsadres leeg. De pagina Overview toont daarna de Application (client) ID en de Directory (tenant) ID.',
   'setup.graph.app_registration.yields': 'een Tenant-ID en een Client-ID.',
-  'setup.graph.api_permissions.title': 'Voeg leesrechten toe en laat een beheerder toestemmen',
+  'setup.graph.api_permissions.title': 'Voeg Mail.Read toe en laat een beheerder toestemmen',
   'setup.graph.api_permissions.detail':
-    'Voeg de Graph-rechten toe voor wat u migreert (mail, agenda, contacten of bestanden) en laat een tenantbeheerder toestemming geven. De postbus of drive van een ander lezen vereist application permissions, en die vragen altijd om toestemming.',
+    'API permissions → Add a permission → Microsoft Graph → Application permissions → Mail.Read. Verder niets: deze kaart leest de mail van één postvak. Daarna drukt een beheerder op Grant admin consent for uw organisatie. Als toepassingsrecht kan Mail.Read elk postvak in de organisatie lezen; deze dienst leest alleen het postvak dat de verbinding noemt.',
   'setup.graph.client_secret.title': 'Maak een clientgeheim',
   'setup.graph.client_secret.detail':
     'Certificates & secrets → New client secret. Kopieer de waarde meteen — Entra toont deze één keer.',
   'setup.graph.client_secret.yields': 'een Client-geheim.',
+  'setup.exchange.permission.title': 'Voeg IMAP.AccessAsApp toe en laat een beheerder toestemmen',
+  'setup.exchange.permission.detail':
+    'API permissions → Add a permission → APIs my organization uses → Office 365 Exchange Online → Application permissions → IMAP.AccessAsApp. Geen Microsoft Graph-recht: deze kaart meldt zich aan bij de IMAP-server van Exchange Online, en zo’n token draagt alleen rechten die Exchange Online geeft. Daarna drukt een beheerder op Grant admin consent for uw organisatie.',
+  'setup.exchange.service_principal.title': 'Registreer de toepassing in Exchange Online',
+  'setup.exchange.service_principal.detail':
+    'Een Exchange-beheerder voert New-ServicePrincipal uit in Exchange Online PowerShell, met de Application (client) ID en de Object ID die onder Enterprise applications staat. Niet de Object ID onder App registrations: daarmee mislukt de aanmelding van de kaart. De handleiding geeft de opdrachten.',
+  'setup.exchange.mailbox_permission.title': 'Geef de toepassing het postvak',
+  'setup.exchange.mailbox_permission.detail':
+    'De Exchange-beheerder voert Add-MailboxPermission uit met -AccessRights FullAccess, één keer voor elk postvak dat de kaart leest. Met FullAccess zou een toepassing het postvak ook kunnen wijzigen. Deze dienst leest het alleen, en Microsoft dwingt dat voor deze kaart niet af.',
   'setup.imap.server_address.title': 'Zoek het IMAP-serveradres op',
   'setup.imap.server_address.detail':
     'De host en poort die uw mailaanbieder voor IMAP documenteert, en of er SSL gebruikt wordt. Meestal poort 993 met SSL.',
@@ -4210,6 +4261,31 @@ const nl: Record<keyof typeof en, string> = {
   'setup.davbasic.app_password.detail':
     'Gebruik waar de server dat aanbiedt een app-specifiek wachtwoord in plaats van de gewone login — dat kan ingetrokken worden zonder het wachtwoord van de persoon te wijzigen.',
   'setup.davbasic.app_password.yields': 'een gebruikersnaam en een app-wachtwoord.',
+  'setup.apple.app_password.title': 'Maak een app-specifiek wachtwoord',
+  'setup.apple.app_password.detail':
+    'Meld u aan op account.apple.com → Aanmelden en beveiliging → App-specifieke wachtwoorden en maak er een. Apple toont het één keer, dus kopieer het meteen. Niet het wachtwoord van uw Apple-account: dat weigert Apple hier met opzet.',
+  'setup.apple.app_password.yields': 'een app-specifiek wachtwoord, zoals abcd-efgh-ijkl-mnop.',
+  'setup.nextcloud.account_exists.title': 'Zorg dat het Nextcloud-account bestaat',
+  'setup.nextcloud.account_exists.detail':
+    'Het account moet al bestaan op de Nextcloud, met genoeg ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
+  'setup.nextcloud.app_password.title': 'Maak een app-wachtwoord',
+  'setup.nextcloud.app_password.detail':
+    'In Nextcloud: Instellingen → Beveiliging → Apparaten & sessies. Typ bij App naam een naam, zoals Migratie, druk op Creëer een nieuw app wachtwoord en kopieer het wachtwoord. Gebruik dat in plaats van het accountwachtwoord zelf: het kan ingetrokken worden zonder uw eigen wachtwoord te wijzigen.',
+  'setup.nextcloud.app_password.yields': 'een app-wachtwoord, voor het vak Wachtwoord van de wizard.',
+  'setup.nextcloud.dav_url.title': 'Noteer het adres met /remote.php/dav',
+  'setup.nextcloud.dav_url.detail':
+    'Het adres waarop u Nextcloud opent, met /remote.php/dav erachter, zoals https://cloud.example.com/remote.php/dav. Dat vult u in bij DAV-basis-URL; er is geen vak voor een host of een poort. Nextcloud toont het WebDAV-adres onderaan de pagina met bestandsinstellingen: de naam na /remote.php/dav/files/ is de gebruikersnaam die u invult.',
+  'setup.nextcloud.dav_url.yields': 'de DAV-basis-URL en uw gebruikersnaam.',
+  'setup.soverin.account_exists.title': 'Zorg dat het Soverin-account bestaat',
+  'setup.soverin.account_exists.detail':
+    'Het Soverin-account moet al bestaan, met ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
+  'setup.soverin.password.title': 'Houd het accountwachtwoord bij de hand',
+  'setup.soverin.password.detail':
+    'Deze dienst meldt zich aan met het Soverin-e-mailadres en het wachtwoord van dat account. Biedt Soverin u een app-wachtwoord, dan kan dat in hetzelfde vak Wachtwoord. Of één app-wachtwoord voor mail én voor agenda’s en contacten werkt, staat niet vast; de test zegt het per deel.',
+  'setup.soverin.password.yields': 'het e-mailadres, en het wachtwoord of een app-wachtwoord.',
+  'setup.soverin.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
+  'setup.soverin.mail_server.detail':
+    'De wizard vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een verbinding die zonder Mailserver is bewaard, draagt geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
   // ---- Asking for access (workplan 0093) ----
   'access.title': 'Toegang aanvragen',
   'access.intro':
