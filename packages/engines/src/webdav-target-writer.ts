@@ -31,7 +31,7 @@ import {
   isOnTarget,
   applyTargetFolderPrefix,
 } from '@openmig/shared';
-import { davRefusalBody } from '@openmig/shared';
+import { davRefusalBody, withFailureCategory } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, ownershipOf } from './dav-target-version.ts';
@@ -350,9 +350,12 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       );
     }
 
-    // Check if file already exists on target
-    const existingId = await this.existingTargetId(_parentId, naturalKey);
-    if (existingId) {
+    // ONE RECORDING, TWO WAYS OF ARRIVING AT IT: the existence check below
+    // finds the file, or the create is refused with 412 and the server says a
+    // file is there (`heldAtPath`, workplan 0149 T1). The same fact, and it has
+    // to be recorded the same way or the two paths disagree about what the
+    // row means.
+    const adopt = async (targetId: string): Promise<UpsertResult> => {
       // Record in ledger if not present (adopt existing)
       await this.ledger.recordIfAbsent({
         tenantId: this.tenantId,
@@ -360,7 +363,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         mappingId: this.mappingId,
         naturalKeyHash,
         contentHash: await hashOfContent(),
-        targetId: existingId,
+        targetId,
         createdAt: new Date().toISOString(),
         sizeBytes,
         // ADOPTED, explicitly. Omitting it let PgLedger apply its 'copied'
@@ -393,11 +396,23 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         // file. Recorded here as well as by the loop for the same race as above.
         naturalKey,
       });
-      return { targetId: existingId, created: false, adopted: true };
-    }
+      return { targetId, created: false, adopted: true };
+    };
+
+    // Check if file already exists on target
+    const existingId = await this.existingTargetId(_parentId, naturalKey);
+    if (existingId) return adopt(existingId);
 
     // Upload the file to the target
     const written = await this.uploadFile(raw);
+    // THE PATH WAS TAKEN AFTER ALL: the check above missed it, and the create
+    // was refused. Nothing was written, so none of the create-path recording
+    // below is true of it. The snapshot is kept current, as the create path
+    // keeps it.
+    if (written.alreadyHeld) {
+      (await this.keysUnderRoot())?.set(this.normalizeRelativePath(naturalKey), written.path);
+      return adopt(written.path);
+    }
     // The digest the upload made on its way past, when it streamed. Falls back
     // to the buffered hash, which is what every non-streaming source produces.
     if (written.contentHash !== undefined) contentHashValue = written.contentHash;
@@ -481,7 +496,8 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
 
   /**
    * Find a file by its natural key (path).
-   * Returns the file ID if found, undefined otherwise.
+   * Returns the file ID if found, undefined when the server says nothing is
+   * there, and throws when the server gave no answer (workplan 0149 T2).
    */
   async findFileByNaturalKey(
     _parentId: string,
@@ -490,36 +506,45 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     // naturalKey is already root-relative and self-contained; resolve it directly (see upsertFile).
     const filePath = this.normalizeRelativePath(naturalKey);
 
-    try {
-      const response = await this.httpClient.request({
-        method: 'PROPFIND',
-        url: this.buildUrl(filePath),
-        headers: {
-          Depth: '0',
-          Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
-        },
-      });
+    // Retried as the writes are, and NOT caught (workplan 0149 T2).
+    //
+    // This caught every error as "File doesn't exist", and read every status
+    // but 207 and 200 the same way. A busy Nextcloud's 500, an expired login
+    // and a dropped connection all said "not on the target", which is the
+    // answer that decides whether to write and, since a 412 is asked about
+    // here, whether to adopt.
+    const response = await this.requestWithRetry({
+      method: 'PROPFIND',
+      url: this.buildUrl(filePath),
+      headers: {
+        Depth: '0',
+        Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
+      },
+    });
 
-      if (response.status === 207 || response.status === 200) {
-        // A 207 says something is there, not that it is a FILE. Returning the
-        // path for a collection made the caller adopt it — an item recorded as
-        // migrated whose bytes were never written.
-        const [item] = parseMultiStatus(response.body as string);
-        if (item && isCollection(item.xml)) {
-          throw new Error(
-            `Cannot write ${filePath}: the target already holds a DIRECTORY at that path.`,
-          );
-        }
-        return filePath;
+    if (response.status === 207 || response.status === 200) {
+      // A 207 says something is there, not that it is a FILE. Returning the
+      // path for a collection made the caller adopt it — an item recorded as
+      // migrated whose bytes were never written.
+      const [item] = parseMultiStatus(response.body as string);
+      if (item && isCollection(item.xml)) {
+        throw new Error(
+          `Cannot write ${filePath}: the target already holds a DIRECTORY at that path.`,
+        );
       }
-    } catch (err) {
-      // A conflict is a real answer and must not be swallowed by the
-      // "doesn't exist" catch below — that is how it became invisible.
-      if (err instanceof Error && err.message.startsWith('Cannot write ')) throw err;
-      // File doesn't exist
+      return filePath;
     }
 
-    return undefined;
+    // 404: nothing is there.
+    if (response.status === 404) return undefined;
+
+    // Any other answer is no answer: see the same throw in
+    // caldav-target-writer.ts (workplan 0149 T2, hard rule 9).
+    throw new Error(
+      `PROPFIND on ${filePath} failed; refusing to treat this as "not present", because a write ` +
+        'or an adoption would then rest on an answer the server never gave. ' +
+        `Cause: status ${response.status}: ${davRefusalBody(response.body)}`,
+    );
   }
 
   /**
@@ -790,11 +815,43 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     return readEtag(response);
   }
 
+  /**
+   * A CREATE REFUSED WITH 412: something is already at this path, and it is
+   * not ours to claim as a copy (workplan 0149 T1).
+   *
+   * Both PUTs returned the bare path here, which the caller took for a write:
+   * the row was recorded `copied`, so a source change later overwrote the file
+   * and *apply deletions* would remove it — a file the customer already had,
+   * treated as one we wrote. Nothing in a 412 says whose the file is. It may
+   * have appeared since the snapshot, a failed lookup may have hidden it, or
+   * our own PUT may have landed behind a 5xx its retry never saw.
+   *
+   * The path is this file's natural key, so what is there is adopted AT it —
+   * never rewritten and never removed as ours, including, at worst, our own
+   * landed copy. But only once asked what it is: a 412 answers for a
+   * DIRECTORY at the path too, and adopting one records an item whose bytes
+   * were never written, the defect `findFileByNaturalKey` already refuses.
+   */
+  private async heldAtPath(filePath: string): Promise<{ path: string; alreadyHeld: true }> {
+    const held = await this.findFileByNaturalKey('', filePath);
+    if (held === undefined) {
+      throw withFailureCategory(
+        'target_refused',
+        new Error(
+          `PUT for ${filePath} was refused with 412, and the target then answered that nothing ` +
+            'is at that path. Nothing was written, and nothing was recorded; the next pass tries ' +
+            'again.',
+        ),
+      );
+    }
+    return { path: held, alreadyHeld: true };
+  }
+
   private async uploadFile(
     raw: RawFileItem,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string; alreadyHeld?: boolean }> {
     // raw.item.path is root-relative and self-contained (see WebdavFileSource.toRelativePath);
     // resolve it directly instead of re-deriving it from a parent directory id.
     const filePath = this.normalizeRelativePath(raw.item.path);
@@ -882,16 +939,17 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
           // On the update path replacing IS the intent, and the ownership
           // decision was made upstream against the ledger. Sending the
           // precondition anyway made the server answer 412, which the branch
-          // below reports as success — the rewrite silently did nothing while
-          // the pass counted `updated: 1`.
+          // below then reported as success — the rewrite silently did nothing
+          // while the pass counted `updated: 1`.
           ...(overwrite ? {} : { 'If-None-Match': '*' }),
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
       });
-      // 412: already there. The snapshot was stale, not the write wrong.
-      // Unreachable on the overwrite path, which sends no precondition; if a
-      // server returns it anyway that is a refusal to replace, and reporting it
-      // as a successful rewrite would record a copy the target does not hold.
+      // 412: something is already at this path, and it is not ours
+      // (`heldAtPath`, workplan 0149 T1). Unreachable on the overwrite path,
+      // which sends no precondition; if a server returns it anyway that is a
+      // refusal to replace, and reporting it as a successful rewrite would
+      // record a copy the target does not hold.
       if (response.status === 412) {
         if (overwrite) {
           throw new Error(
@@ -899,8 +957,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
               'The file was NOT replaced.',
           );
         }
-        // Something was already there, so its version is not ours to claim.
-        return { path: filePath };
+        return this.heldAtPath(filePath);
       }
       // RFC 4918 §9.7.1: PUT returns 201 (created) or 204 (existing resource replaced). Without
       // this check a failed write (e.g. the parent collection doesn't actually exist) was
@@ -932,7 +989,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     filePath: string,
     raw: RawFileItem,
     overwrite: boolean,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; contentHash?: string; alreadyHeld?: boolean }> {
     const body = raw.body!;
     if (this.config.chunkedUploads && body.sizeBytes > (this.config.chunkSize || 10 * 1024 * 1024)) {
       // Saying so beats a request the server will cut off half way, which
@@ -969,7 +1026,10 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
             'The file was NOT replaced.',
         );
       }
-      return { path: filePath };
+      // The same answer as the buffered PUT's. No digest: the server refused
+      // the bytes, so the hasher saw a body the target does not hold, and the
+      // adoption hashes the source instead.
+      return this.heldAtPath(filePath);
     }
     if (response.status !== 201 && response.status !== 204) {
       throw new Error(
