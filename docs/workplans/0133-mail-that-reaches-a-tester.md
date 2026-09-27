@@ -4,6 +4,14 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, evening: the owner answered open question 2, and with it 3: the platform's mail is
+sent as `support@ownpace.eu`** (*"ok, support@ownpace.eu"*), which the owner already has and
+reads. That is (a): an address a person reads, so a reply to the decline mail reaches a person,
+and no `NOTIFY_REPLY_TO` is built. `NOTIFY_FROM` in live's `.env` is that address, set with the
+relay's other settings (T0). The owner had first thought of a `no-reply@` address, since the
+domain is a catch-all; with no Reply-To, that sender would tell testers not to write, where the
+decline mail says to. The relay itself, its login and its SPF and DKIM are still T0's.
+
 **2026-09-27: T2 items 2 to 4 built (0131 §6, group M5, step 3, which calls it T2 (b))** on
 branch `claude/mailbox-sync-errors-c2xsw2-the-issuers-relay-over-tls`, not merged. Both are in
 `setup-zitadel.sh`'s "mail this instance sends" section, which the other session's #1233 (0132 T1)
@@ -170,7 +178,7 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
+| T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) for the relay, its login and the DNS; the sending address 📋 **Decided 2026-09-27**: `support@ownpace.eu` (open question 2 (a)) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
 | T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself stays ⏳ the owner's. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
 | T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 to 4 🔨 built 2026-09-27, not merged (TLS for any relay but the catcher, one provider updated in place, the guide) | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
@@ -712,9 +720,12 @@ trigger a verification mail.
      domain's SPF record. No code is needed. *Recommended.*
    - **(b)** Send from a subdomain that only sends, and add a `NOTIFY_REPLY_TO` setting to both
      senders. That is a small build, with a guard in `notifier-from-env.unit.test.ts`.
+
+   **Answered 2026-09-27: (a)**, as `support@ownpace.eu`, *"ok, support@ownpace.eu"*.
 3. **Does a person read support@ownpace.eu during the alpha?** The privacy policy says *"A person
    reads that address"*. The question that D1 answers asked this too, and the
-   answer did not cover it.
+   answer did not cover it. **Answered 2026-09-27, with open question 2:** the owner has
+   `support@ownpace.eu` and reads it, and it is now the address the platform sends from.
 4. **Mailpit's gating (T3).** On `--with-demo` only, or also whenever `SMTP_HOST` is
    `mailpit`? *Recommended:* both, for the reason in T3. The second condition is also what starts
    live's own catcher during T1's interim.
