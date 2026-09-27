@@ -4,6 +4,18 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, late: T14 read, and written where the gate is described (0131 §6, group M6,
+step 2)**, on branch `claude/mailbox-sync-errors-c2xsw2-a-count-of-green-nights`, not merged.
+
+- **The count is 0 of 2.** The managed gate's last two scheduled runs, #199 and #200, failed; the
+  appliance nightly's last four are green. T14 has the runs and what comes next: the next
+  scheduled managed run is the first with #1253's repair of the task deploy.
+- **`docs/testing.md`** now states the rule beside the two nightly gates: before live's first
+  deploy from a tag, and before each later one, the managed gate's last two scheduled runs are
+  green and the newer ran the tagged commit, and the appliance nightly's runs over the same two
+  nights are green. It links T14 for the commands that read it.
+- No code, so no guard, as §3 says.
+
 **2026-09-27, evening: the owner answered open questions 6 and 7.**
 
 - **N is two nights** (*"two nights"*), counted on scheduled runs only, as recommended; the
@@ -363,7 +375,7 @@ for the card says so.
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
 | T13 The O365 lane and the live-target lane | ⏳ **Owner** (runner label, secrets); 📋 **Proposed** (code) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
-| T14 The nightly managed gate's readiness rule | 📋 **Decided 2026-09-27**: two nights, scheduled runs only — *was:* ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
+| T14 The nightly managed gate's readiness rule | 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
 
@@ -1058,8 +1070,17 @@ both of these:
 
 The live-target lane is not part of the rule until it is armed (T13).
 
-**Today the count is 0.** See §1's table: the last scheduled green is #191, and #196 was
-dispatched.
+**Read on 2026-09-27, late: the count is 0 of 2.**
+
+- **The managed gate:** its last two scheduled runs on `main` both failed, #200 on 09-27 and #199
+  on 09-26. #198 and #197 before them were green, and a red one resets the count.
+- **The appliance nightly:** its last four scheduled runs, #234 to #237 over 09-26 and 09-27, are
+  green.
+- **What comes next.** The next scheduled run of the managed gate is the first to carry #1253,
+  which repaired the task deploy #1236 broke (the dispatched #202 proved it). If it and the one
+  after it are green, the rule is met two nights from now, for the commit the second one ran.
+- **When they run.** GitHub starts the gate's 03:30 UTC schedule about five hours late, as
+  `e2e-managed.yml`'s own comment records, so a night's run is read the next morning.
 
 **The order, with 0132.** Under 0132 D7 the gate is not switched off: it keeps running on the OTA
 stack every night, before and during the alpha (0132 T0, T1g). So the count builds on its own. The
