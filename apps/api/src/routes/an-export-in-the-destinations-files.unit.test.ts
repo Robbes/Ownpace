@@ -102,6 +102,14 @@ vi.mock('@openmig/orchestration/probe-connection', async (importOriginal) => {
     probeTargetConnection: vi.fn(async () => ({ ok: true, detail: 'stubbed' })),
   };
 });
+// The cap on unfinished migrations (0143 T2a) locks and counts with SQL this
+// recording database does not model, and its count would take the results
+// queued in `selects` for the doors below. It is proved on a real database in
+// `a-migration-past-the-cap`; these doors are about where an export is read.
+vi.mock('./migrations/migration-cap.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./migrations/migration-cap.ts')>();
+  return { ...actual, holdTheCap: vi.fn(async () => {}) };
+});
 vi.mock('@openmig/orchestration/archive-source-factory', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@openmig/orchestration/archive-source-factory')>();

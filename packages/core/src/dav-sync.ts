@@ -42,6 +42,7 @@ import { applyTargetFolderPrefix,
   fileContentHash,
 } from '@openmig/shared';
 import { runDomainSync, type DomainSyncResult } from './domain-sync.ts';
+import { fileTooLarge } from './largest-file.ts';
 
 /**
  * Does this target apply `targetFolderPrefix` itself?
@@ -334,6 +335,12 @@ export interface FileSyncDeps extends PassClock, SourceAuthority {
   readonly onCollision?: 'skip' | 'fail';
   /** Create every target directory under this folder — see `MappingConfig.targetFolderPrefix`. */
   readonly targetFolderPrefix?: string;
+  /**
+   * The largest file this deployment copies, in bytes (0143 T4): a listed file
+   * above it is refused before a byte is read. Managed passes carry it; the
+   * appliance passes none, and nothing is refused (`largest-file.ts`).
+   */
+  readonly largestFileBytes?: number;
 }
 
 /**
@@ -379,6 +386,14 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
        * the source's own threshold it is still a buffer, because most files
        * are small and a buffer is simpler.
        */
+      // A FILE NO PASS CAN CARRY is refused here, before `source.fetch`, so no
+      // download starts and no daily byte meter is spent on it (0143 T4). The
+      // listing's size is the one there is before a byte has moved; a file
+      // whose listing has none is copied as before.
+      const listed = item.item.size;
+      if (deps.largestFileBytes !== undefined && typeof listed === 'number' && listed > deps.largestFileBytes) {
+        throw fileTooLarge(item.item.path, listed, deps.largestFileBytes);
+      }
       const fetched = item.content ? { content: item.content } : await source.fetch(item.item);
       const content = fetched.content;
       const body = 'body' in fetched ? fetched.body : undefined;

@@ -1083,6 +1083,8 @@ const en = {
   'view.failure.quotaExceeded': 'A daily limit was reached. Copying resumes tomorrow on its own.',
   'view.failure.policyRefused':
     'Some items were left out by this migration\u2019s own settings, not by either account.',
+  'view.failure.tooLarge':
+    'Some files were left out: they are larger than this service copies during the alpha.',
   'view.failure.sourceRefused':
     'Your old account would not release some items. Nothing was sent to your new account.',
   'view.failure.targetRefused': 'Your new account would not accept some items.',
@@ -1348,6 +1350,11 @@ const en = {
   // the button by its own label (`failures.retry`), so a reader can find both.
   'failure.policyRefused':
     'Not migrated yet: Google files in a format the new account cannot receive. Choose one both sides can handle under Export format for Google files, then press Try again \u2014 or leave these items behind.',
+  // The tenth category (0143 T4), the owner's choice of 2026-09-27: a file
+  // larger than this service copies, refused before a byte was read. No
+  // setting changes the answer, so the remedy names none.
+  'failure.tooLarge':
+    'Not migrated: larger than this service copies during the alpha. Copy these files by hand, or leave them behind.',
   // Also shortened on 2026-09-22 from the owner's draft, but kept GENERAL: this
   // category is not Drive's alone — a mail or calendar source that refuses an
   // item lands here too — so the owner's "like maps" belongs in the per-item
@@ -2501,6 +2508,8 @@ const nl: Record<keyof typeof en, string> = {
     'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
   'failure.policyRefused':
     'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies er een dat beide kanten aankunnen onder Exportformaat voor Google-bestanden en klik op Probeer opnieuw \u2014 of laat deze items achter.',
+  'failure.tooLarge':
+    'Niet gemigreerd: groter dan deze dienst tijdens de alfa kopieert. Kopieer deze bestanden met de hand, of laat ze achter.',
   'failure.sourceRefused':
     'Niet gemigreerd: het oude account wilde dit niet afgeven, dus er is niets naar het nieuwe gestuurd \u2014 daar valt niets te controleren. Probeer opnieuw als dat veranderd is, of laat deze items achter.',
   'failure.targetRefused':
@@ -3441,6 +3450,8 @@ const nl: Record<keyof typeof en, string> = {
   'view.failure.quotaExceeded': 'Een daglimiet is bereikt. Morgen gaat het kopiëren vanzelf verder.',
   'view.failure.policyRefused':
     'Sommige items bleven liggen door de instellingen van deze migratie, niet door uw accounts.',
+  'view.failure.tooLarge':
+    'Sommige bestanden bleven liggen: ze zijn groter dan deze dienst tijdens de alfa kopieert.',
   'view.failure.sourceRefused':
     'Uw oude account gaf sommige items niet vrij. Er ging niets naar uw nieuwe account.',
   'view.failure.targetRefused': 'Uw nieuwe account wilde sommige items niet aannemen.',

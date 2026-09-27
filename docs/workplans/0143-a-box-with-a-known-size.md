@@ -4,8 +4,122 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27: T3a built (0131 §6, group M4, step 1)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-file-jmap-could-not-take`, not merged. A file larger than
+**2026-09-27, late: T4 (a) built (0131 §6, group M4, step 2)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-file-no-pass-can-carry`, not merged. The owner answered the
+two questions it raised the same evening.
+
+- **The owner's answers, 2026-09-27.**
+  - **The limit is 10 GB, not T0's provisional 2 GB:** *"I however want the limit higher then 2GB
+    per file. Max it at 10 GB per file."*
+  - **A category of its own, `too_large`:** *"yes 'too large' sounds good"*. §3 said
+    `policy_refused`, whose remedy on the Failures page sends the reader to *Export format for
+    Google files*, and whose count the export panel shows as format refusals: wrong for a video
+    on OneDrive. Its remedy, EN and NL, is the one put to the owner: *"Not migrated: larger than
+    this service copies during the alpha. Copy these files by hand, or leave them behind."*
+- **What it does.** A managed file pass carries `largestFileBytes`, from `LARGEST_FILE_MB`
+  (blank is 10240, 10 GB; `packages/orchestration/src/largest-file-setting.ts`), which
+  `set-task-env.sh` uploads. In `runFileSync`'s `fetchRaw`, before `source.fetch`, a listed file
+  above it is refused with §3's sentence (`fileTooLarge`, `packages/core/src/largest-file.ts`):
+  *"<path> is 12.4 GB. During the alpha this service copies files up to 10 GB, because a larger
+  file can take longer than one pass may run. Nothing was copied and nothing was changed; every
+  other file continues. Copy this one by hand."* The error is a decision, parked on first sight,
+  and states `too_large`. A value it cannot read stops the file pass, naming it. The appliance
+  passes no limit.
+  - An already-copied file that has not changed is skipped by the ledger before any fetch, so it
+    is never refused. A changed one above the limit is.
+  - A file whose listing carries no size is copied as before.
+  - The API spec's four lists of categories name the tenth, and so do the vocabulary's own pins
+    and the list of categories that need a person.
+- **What 10 GB asks of the machine.** A pass stops taking new work at 50 minutes and is killed at
+  60, so a 10 GB file needs about 25 to 30 Mbit/s, sustained from source to target. A slower one
+  is killed with its pass and starts again on the next one, every pass, until T4's half after the
+  alpha counts those attempts. T9 measures the rate.
+- **Proved.**
+  - `packages/core/src/a-file-no-pass-can-carry.unit.test.ts`, the real `runFileSync` over a fake
+    source. A 12.4 GB file is refused with the sentence, and its download is never started. Every
+    other file is copied, and the refused one is parked as a `too_large` decision. One byte over
+    is refused, one byte under is copied, and with no limit nothing is refused. The two refusal
+    cases fail on `main`.
+  - `packages/orchestration/src/a-file-no-pass-can-carry.unit.test.ts`: the setting's default and
+    refusals, the managed builder reading it, `set-task-env.sh` uploading it, and the appliance
+    building its pass without it.
+  - The web guards that every category reaches both screens in both languages pass with the
+    tenth.
+- **Where the limit is said.** The feature matrix, under Files. §3 also names the owner's grant
+  step and 0144's known-limitations page; those are the owner's and 0144's.
+- **Not in this change:** the attempts counted for a file under the limit that is still too slow
+  (T4's half after the alpha). The ledger's column comments (migration 0051) still list the nine
+  categories of their day.
+
+**2026-09-27, late: T2a built (0131 §6, group M4, step 3)**, merged as #1258. The owner accepted
+T0's provisional numbers the same day (open question 1), five migrations per organisation among
+them.
+
+- **Creating a migration is refused once the organisation has five that are not finished.**
+  `POST /api/migrations` answers 409, `migration_cap`: *"This organisation has 5 migrations that
+  are not finished, and may have 5 at once. Finish or delete one before you add another, or ask
+  whoever runs this service for more."* Every status but `done` counts, a draft among them.
+  Nothing is written for a refused one.
+- **One create at a time per organisation.** The cap is held in the create's own transaction,
+  under a per-organisation advisory lock taken before the count, as `live-link-limit.ts` holds
+  the grant links. Two presses at once cannot both be the fifth.
+- **The number is the deployment's:** `MAX_MIGRATIONS_PER_ORGANISATION`, blank for 5
+  (`apps/api/src/routes/migrations/migration-cap.ts`). `managed.yml` passes it to the api and the
+  env example documents it. A value that is not a whole number of at least 1 stops the api at
+  start, naming it.
+- **`maxMappings` and `maxUsers` left the generic organisation update.** Nothing read either.
+  Values already stored stay inert. A cap on members belongs with 0131's open question 6 and 0137.
+- **Proved.**
+  - `apps/api/src/routes/migrations/a-migration-past-the-cap.unit.test.ts`, 8 cases through the
+    real routes on PGlite:
+    - the sixth is refused with the sentence, and nothing is written;
+    - a finished one does not count, and a draft does;
+    - another organisation's do not;
+    - the setting moves the cap, and one it cannot read is refused;
+    - the organisation update stores neither key.
+
+    4 fail on `main`. The plan names it as an integration test; the routes are proved on PGlite,
+    like the other route guards.
+  - `a-migration-past-the-cap.integration.test.ts`: two creates at once with a cap of one, on a
+    real Postgres with two connections. The second waits for the lock and is refused. It runs in
+    CI's integration job.
+  - Mutations: 12 of 14 killed. Two survive the unit guard, for stated reasons:
+    - the lock removed: PGlite has one connection and cannot show a race; the integration test
+      is written for it;
+    - the organisation filter removed from the count: row security already scopes it to the
+      caller's organisation, so the filter is a second fence and the mutant is equivalent.
+- **Not in this change:** T2b and T2c, which §3 says could ride here, come as their own step, and
+  T2d's built hold comes after.
+
+**2026-09-27, evening: the owner answered open questions 1 and 3.**
+
+- **Open question 1, T0's provisional numbers: accepted for now**, *"accept proposals for now"*:
+  - 2 passes in flight per organisation (`MAX_PASSES_PER_ORGANISATION`, T1);
+  - 5 migrations per organisation (T2a);
+  - a 2 GB largest file (T4), which the owner raised to 10 GB later the same evening (T4's
+    entry above);
+  - invitations in waves of about five (§4).
+
+  The overall cap (`MAX_PASSES_IN_FLIGHT`) still comes from T1's formula, read on the machine.
+  T9 replaces all of them.
+- **Open question 3, T5's rule: (c)**, *"5c"*: the small data types first, then a fair share of
+  what is left. M4's step 4 builds it.
+
+**2026-09-27: T2d's runbook step written (0131 §6, group M4, step 8, with 0142 T6)**, merged as
+#1252. Step 3 of `docs/incident-runbook.md` carries it, as §3 gives it:
+
+- as the database owner on live's database, the organisation's migrations in a state that runs
+  passes, listed with their id and status first, because the list is what puts each one back;
+- then each moved by the lifecycle's table: an `active` one to `paused`, a `continuous` one to
+  `cutover`, and never a `continuous` one to `paused`;
+- the two limits: the tester can undo it, and the step goes around the route, row security and
+  the status-change record, so the date and the organisation go in the incident's record.
+
+0142 T6's guard asks `updateTransition` itself for the three moves, so a change to the table fails
+there before the runbook tells anybody to do what the product refuses. T2d's built hold comes
+after, as planned.
+
+**2026-09-27: T3a built (0131 §6, group M4, step 1)**, merged as #1243. A file larger than
 8 MB (`STREAM_FILES_LARGER_THAN_BYTES`) reaches a target as a stream, and `JmapFileTarget` cannot
 write one. It said *"No content for …"*, which reads as an empty file. It now says, when it would
 create the file and when it would rewrite it: *"<path> is 12.4 MB. A JMAP target cannot take a
@@ -269,12 +383,12 @@ unproved until then:
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's numbers | ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
+| T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ⏳ **Owner** for the overall cap on the machine — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
-| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27, not merged**: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
-| T4 A file no pass can carry is refused up front, with a sentence | 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
-| T5 Every data type of a migration gets a turn in a pass | 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
+| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
+| T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
+| T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27, not merged**: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
+| T5 Every data type of a migration gets a turn in a pass | 📋 **Decided 2026-09-27: (c)** (open question 3) — *was:* 📋 **Proposed** | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
@@ -1192,12 +1306,13 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
 
 1. **T0's provisional numbers.** The proposals are 2 passes per organisation, 5 migrations per
    organisation, a 2 GB largest file, and waves of about five. The overall cap comes from T1's
-   formula on the machine. Are these acceptable until T9 replaces them?
+   formula on the machine. Are these acceptable until T9 replaces them? **Answered 2026-09-27:
+   yes, for now**, *"accept proposals for now"*.
 2. **T3 for the first invitation.** (a) T3a only, with JMAP files pointed at WebDAV, which is
    recommended and keeps the minimum small. (b) T3b before the first invitation, if the owner
    expects the first testers to want their files on a JMAP target.
 3. **T5's rule.** (c), small first and then a fair share, is recommended. Or (a) rotation, or (b)
-   least progressed first.
+   least progressed first. **Answered 2026-09-27: (c)**, *"5c"*.
 4. **T9's large mailbox and drive.** Does the owner have a large mailbox that is not Gmail, for
    example a Microsoft 365 one, to put through the rehearsal? And where do those two loads run?
    (a) On the OTA stack with the rest of the sitting, storing the grants for a day under the

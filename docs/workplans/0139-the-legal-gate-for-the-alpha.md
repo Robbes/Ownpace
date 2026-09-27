@@ -4,9 +4,32 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
-**2026-09-27: T6's access requests built (0131 §6, group M3, step 2)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-request-nobody-keeps-forever`, not merged. The owner answered
-open question 2 with (a) the same day.
+**2026-09-27, late: T9 written (0131 §6, group M3, step 6, its second half)** on branch
+`claude/mailbox-sync-errors-c2xsw2-one-way-to-report-a-vulnerability`, not merged, as the owner
+decided it the same day (open question 5).
+
+- **`SECURITY.md`** names the advisory form, then `support@ownpace.eu` for someone without a
+  GitHub account, as the only two channels. It promises an acknowledgement within five working
+  days, and no date for a fix. Its new **Scope** covers the code in both editions and the hosted
+  service, `ownpace-live` at the `ownpace.eu` names and the test stack at `ota.ownpace.eu`. It
+  says that testing against the hosted service needs the owner's permission first, and points at
+  the two bring-up guides for a stack of one's own. **Supported versions:** `main`, and the release
+  the hosted service runs.
+- **`/.well-known/security.txt`** is written by the site build (`site/security-txt.mjs`). It has
+  the same two `Contact` lines in the same order, `Expires` 180 days after the build,
+  `Preferred-Languages: en, nl` and a `Policy` link. `Canonical` names `www.ownpace.eu` on a
+  `--public` build only.
+- **Proved.** `scripts/one-way-to-report-a-vulnerability.unit.test.ts`, 8 cases, 5 of which fail
+  on `main`: the scope, the versions and the five days, and the two channels in order in
+  `SECURITY.md` and in `security.txt`. It also checks that `Expires` is ahead and under a year,
+  that `Canonical` is on the public build only, and that the build writes the file. Privacy §11,
+  in both languages, names one of the channels.
+- **Not in this change:** privacy §11 names only `support@ownpace.eu`. The texts are the
+  lawyer's pass (T1), which the owner keeps as they are for now, and that pass adds the form; the
+  guard then asks for both, in order.
+
+**2026-09-27: T6's access requests built (0131 §6, group M3, step 2)**, merged as #1255. The
+owner answered open question 2 with (a) the same day.
 
 - **A declined request is deleted 30 days after its decision.** `pruneDeclinedAccessRequests`
   (`packages/managed/src/access-request-retention.ts`) deletes every request whose state is
@@ -198,10 +221,10 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27, not merged** (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
-| T9 SECURITY.md covers the hosted service, with one channel | 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release — *was:* 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
+| T9 SECURITY.md covers the hosted service, with one channel | 🔨 **Written 2026-09-27, not merged**: `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form with T1 — *was:* 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 

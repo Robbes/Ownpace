@@ -168,7 +168,7 @@ describe('unknown is an answer, not a gap', () => {
 });
 
 describe('the vocabulary itself', () => {
-  it('is exactly the nine the owner accepted', () => {
+  it('is exactly the ten the owner accepted', () => {
     // Adding one is a product decision, not a refactor: the test the owner set
     // was "does it change what you do next". This pin is how that stays true —
     // it went red when the two refusals below were added, which is the point.
@@ -190,6 +190,14 @@ describe('the vocabulary itself', () => {
     //                   handed it over, the destination was never asked, and a
     //                   setting on the mapping is what changes the answer.
     //
+    // The nine became ten on 2026-09-27, on the owner's choice ("yes 'too
+    // large' sounds good"), when a file too large for one pass was first
+    // refused before a byte was read (workplan 0143 T4):
+    //
+    //   too_large       THIS SERVICE declined it. Like policy_refused, nobody
+    //                   was asked, but no setting on the mapping changes the
+    //                   answer: the file is copied by hand.
+    //
     // ORDER IS PART OF THE PIN. The refusals sit together and in the order a
     // reader meets them, which is the order the item travels: did we even ask
     // for it, did the source hand it over, did the destination take it, did the
@@ -199,6 +207,7 @@ describe('the vocabulary itself', () => {
       'rate_limited',
       'quota_exceeded',
       'policy_refused',
+      'too_large',
       'source_refused',
       'target_refused',
       'format_refused',
@@ -219,7 +228,8 @@ describe('the vocabulary itself', () => {
     //
     // `policy_refused` is reachable only the second way, and that is the point
     // rather than a gap: nothing a provider can say means "this migration's own
-    // settings declined it", because no provider was involved. It arrives as a
+    // settings declined it", because no provider was involved. `too_large` is
+    // the same: "larger than this service carries" is ours to say, not theirs. It arrives as a
     // STATED category from the code that refused (workplan 0125 T4), which is
     // why the classifier takes one at all.
     //
@@ -245,7 +255,8 @@ describe('the vocabulary itself', () => {
         .map(([message, side]) => classifyFailure(message, side))
         // The stated route, with a message that matches NOTHING, so the only
         // thing that can produce this answer is the statement itself.
-        .concat(classifyFailure('a Google Form has no file to copy', 'source', 'policy_refused')),
+        .concat(classifyFailure('a Google Form has no file to copy', 'source', 'policy_refused'))
+        .concat(classifyFailure('a file larger than one pass may carry', 'source', 'too_large')),
     );
     for (const c of FAILURE_CATEGORIES) {
       if (c === 'unknown') continue;

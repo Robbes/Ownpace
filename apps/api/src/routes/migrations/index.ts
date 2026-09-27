@@ -91,6 +91,7 @@ import { awaitingGrantRefusal } from './grant-link-readiness.ts';
 // accounts the detail route does, and importing this router to reach it would
 // load every migration route to answer one question.
 import { accountOnConnection } from './account-on-connection.ts';
+import { holdTheCap, maxMigrationsPerOrganisationFromEnv, PastTheCap } from './migration-cap.ts';
 export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
@@ -2161,10 +2162,19 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       }
     }
 
+    // The deployment's cap on unfinished migrations (0143 T2a), read per
+    // request like every other deployment setting here. A value it cannot read
+    // is a fault with a reference, not a silent default.
+    const cap = maxMigrationsPerOrganisationFromEnv(process.env.MAX_MIGRATIONS_PER_ORGANISATION);
+
     // Persist the full chain in one tenant-scoped transaction (RLS-enforced):
     // source + target connection (with ENCRYPTED credentials), a mailbox per
     // connection, the mailbox_mapping, and one scope_selection row per domain.
     const created = await withTenantDb(tenantId, getSharedPool(), async (db) => {
+      // Before anything is written: at most `cap` unfinished migrations per
+      // organisation, one create at a time (`migration-cap.ts`).
+      await holdTheCap(db, tenantId, cap);
+
       // Never store plaintext secrets — encrypt via SecretStore. secret_ref is a
       // text column read back by decryptCredentials(string) → parseEncryptedSecret,
       // which expects the inner EncryptedSecret ({v,n,t,c}) JSON, so store `.encrypted`.
@@ -2458,6 +2468,15 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         error: 'duplicate_mapping',
         existingMappingId: error.existingId,
         existingMappingName: error.existingName,
+        message: error.message,
+      });
+    } else if (error instanceof PastTheCap) {
+      // Also a refusal the person can act on (0143 T2a): the sentence says how
+      // many there are, how many there may be, and what makes room.
+      res.status(409).json({
+        error: 'migration_cap',
+        unfinished: error.unfinished,
+        cap: error.cap,
         message: error.message,
       });
     } else {
