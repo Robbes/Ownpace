@@ -4,6 +4,82 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T1 (a), third slice, and T2 built (0131 §6, group M2, steps 1 and 2)** on branch
+`claude/mailbox-sync-errors-c2xsw2-the-rule-switched-on`, not merged. The rule is on in the managed
+API and the managed tasks, with the operator's allow list. T1 and T2 are built, but for the
+refusal's Dutch on the screens, which T3's web half brings. The next E2E (managed) run is the proof
+on a stack.
+
+- **The API** switches the rule on at start-up, in the block where the other start-up checks run,
+  before it listens (`refuseInternalAddressesFromEnv`, in `apps/api/src/index.ts`), and logs the
+  names the list admits.
+- **The tasks.** Each of the fourteen task modules first imports
+  `apps/worker/src/jobs/refuse-internal-addresses.ts`, which switches the rule on as the module
+  loads, once per process. A task module that does not import it fails the guard. The repository
+  gives the tasks no start-up hook. Trigger.dev can load an `init.ts` from the tasks' directory,
+  but its own build decides that, and nothing here could prove the file was loaded.
+- **The list, `OWNPACE_REACHABLE_HOSTS` (T2),** is read by `reachableHostsFrom` in
+  `reachable-host.ts`: exact names, separated by commas, compared in lower case. An entry that is a
+  wildcard, a range, an address, a port, a URL, a user part or a path stops the process at
+  start-up, naming the entry, rather than admit more than the list says. It reaches the API through
+  `managed.yml` and the tasks through `set-task-env.sh`. When `.env` leaves it empty,
+  `set-task-env.sh` deletes it from the plane, so the tasks do not go on admitting names the file
+  no longer lists.
+- **The demo's names.** The gate's stack runs the bring-up's `demo` phase. That phase now adds
+  `nextcloud` and `stalwart` to `.env` before the API starts and before the task variables are
+  uploaded, and keeps anything else listed (`admit_demo_hosts`). Live never runs that phase, so its
+  list stays empty. The `app` phase prints what the list holds.
+- **The smoke** asks the API for `http://nextcloud/remote.php/dav` by its compose name, at
+  `test-connection` and in the mapping it creates. Its host-side `curl` calls keep `NEXTCLOUD_BIND`.
+  `seed-managed.ts` and `setup-managed-demo.sh` say that their compose names need the list.
+- **The doors' answer.** With #1227 merged, a door the rule refuses answers `insideOurNetwork`,
+  without the host.
+- **The appliance** never switches the rule on. Its server never loads the task modules, and nothing
+  in `apps/selfhost` calls the switch or is handed the list.
+- **The bring-up guide.** `docs/managed-bring-up.md`'s failure table gains the rows T1 (b)'s entry
+  left for this change: the network check's refusal, a list the API cannot read, and a demo target
+  refused because the list does not name it. The `env`, `demo`, `app` and `tasks` phases say what
+  the list is and who writes it.
+- **Proved.**
+  - `scripts/a-rule-nothing-switched-on.unit.test.ts`, 39 cases:
+    - the API's start-up switches the rule on before it listens;
+    - every task module imports the switch, with a floor of fourteen;
+    - loaded as a run loads it, the switch turns the rule on. It admits a listed compose name, and
+      refuses an unlisted one and `127.0.0.1`. A list it cannot read fails the module, naming the
+      entry;
+    - nothing the appliance runs switches it on, and nothing hands it the list;
+    - the list reaches `managed.yml`, the example, and `set-task-env.sh`, which uploads it and
+      deletes it when it is empty;
+    - `admit_demo_hosts`, lifted from the bring-up and run in bash against the real
+      `env-upsert.sh`, adds only what is missing, keeps the rest, and writes nothing when both names
+      are there. The `app` phase says what the list holds;
+    - and the smoke asks for the compose name.
+  - `a-host-we-are-asked-to-reach.unit.test.ts` gains twelve cases for the list:
+    - how it is read;
+    - nine entries it refuses, each by name;
+    - a listed name passing, where an unlisted one, and a longer name that contains it, are refused;
+    - at start-up, the rule is switched on with the list, is on with nothing admitted when the list
+      is unset, and is not switched on when the list cannot be read.
+  - **Mutations:** 23, all killed:
+    - in the API: the switch removed, and the operator's list ignored;
+    - in the tasks: two task modules without the switch, the switch never switching on, and the
+      switch reading no list;
+    - in the list: a wildcard admitted, an address admitted, any entry passing, a list split on
+      commas only, a list not lower-cased, and the rule switched on without the list. The last
+      survived the shared guard alone on the first run, since its start-up case read what the list
+      reported and not what it admitted; the case now asks both, and kills it on its own;
+    - in the deploy files: `managed.yml` not handing the API the list, `set-task-env.sh` not
+      uploading it or leaving an emptied one on the plane, and the example losing it;
+    - in the bring-up: the demo phase not admitting the names, admitting them by dropping what
+      else is listed or by adding one that is already there, and the `app` phase not saying what
+      the list holds;
+    - the smoke asking for the host-side address again;
+    - and the appliance switching the rule on, or being handed the list.
+- **Not yet:**
+  - the proof on a stack, which is the next E2E (managed) run: the gate's bring-up admits the two
+    names, and the smoke's Test and migration reach the demo Nextcloud through the rule;
+  - the screens' Dutch for `insideOurNetwork`, in T3's web half.
+
 **2026-09-27, T3's answer built** (0131 §6, group M2, step 3) on branch
 `claude/mailbox-sync-errors-c2xsw2-a-probe-that-does-not-read-aloud`, not merged. The per-member
 limit on tests is the next pull request, and the failures route is T3's second step.
@@ -297,8 +373,8 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **(a)'s two slices and (b) built 2026-09-27** (the rule, and every client of a tenant's host going through it, not yet switched on; the bring-up's network check); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
-| T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
+| T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **Built 2026-09-27**: (a)'s three slices (the rule; every client of a tenant's host going through it; the rule switched on in the managed API and tasks, not merged) and (b) (the bring-up's network check); the refusal's Dutch comes with T3's web half; advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
+| T2 An operator allowlist for the demo targets | 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; *was:* 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, not merged**; the limit and the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |

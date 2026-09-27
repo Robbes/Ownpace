@@ -4678,10 +4678,15 @@ fi
 # a probe, and two refusals. (3) must create to prove anything, so it deletes
 # what it created and says whether that worked.
 #
-# `$NC`, the demo Nextcloud as this script reaches it, is read in the export
-# archive section above, which writes to it first.
+# The URL is the one the API and the tasks use, by the demo's compose name,
+# not `$NC`, the address this script reaches the demo at from the host. The rule
+# for a host a tenant gives us (workplan 0136 T1) refuses that address, which is
+# loopback or a mesh address inside the refused ranges. It admits `nextcloud`
+# because this stack's OWNPACE_REACHABLE_HOSTS lists it (T2; the bring-up's
+# demo phase writes it), and Nextcloud trusts the name, which is on
+# NEXTCLOUD_TRUSTED_DOMAINS' default. Host-side calls keep `$NC`.
 note "the Nextcloud door"
-nc_dav_url="${NC}/remote.php/dav"
+nc_dav_url="http://nextcloud/remote.php/dav"
 
 # 1. THE SHAPE THE DOOR ASKS FOR, through the product's own probe — the same
 #    one Test presses. `test-connection` stores nothing, so this asks whether

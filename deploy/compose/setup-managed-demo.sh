@@ -190,3 +190,6 @@ SEED_ONLY_IF_EMPTY=true \
 echo "[setup-managed-demo] Done. Demo backend ready for seed-managed.ts:"
 echo "[setup-managed-demo]   Mail:  stalwart:993 (IMAPS) / stalwart:8080 (JMAP) on ${MANAGED_NETWORK}"
 echo "[setup-managed-demo]   DAV:   http://nextcloud/ on ${MANAGED_NETWORK}"
+# The API and the tasks refuse a compose name unless OWNPACE_REACHABLE_HOSTS
+# lists it (workplan 0136 T2); bootstrap-managed.sh's demo phase writes both.
+echo "[setup-managed-demo]   Both names need OWNPACE_REACHABLE_HOSTS=nextcloud,stalwart in .env"

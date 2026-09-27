@@ -20,7 +20,11 @@
  * - the socket goes to the checked address while TLS keeps the typed name;
  * - through a real server: a redirect, and a hop to another name, meet the
  *   same check as the first request, and the refusal is said as ours;
- * - with the rule off, nothing changes (the appliance).
+ * - with the rule off, nothing changes (the appliance);
+ * - the operator's allow list (T2) admits exact names only: a name on it
+ *   passes, the same name off it is refused, and an entry that is not a plain
+ *   host name stops the process at start-up instead of being read as a
+ *   pattern.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -38,6 +42,8 @@ import {
   tenantFetch,
   reachableHost,
   HostInsideOurNetwork,
+  reachableHostsFrom,
+  refuseInternalAddressesFromEnv,
   type ReachableHostRule,
   type ResolveAll,
 } from './reachable-host.ts';
@@ -388,6 +394,73 @@ describe('a host a client opens its own socket to (IMAP)', () => {
     release = refuseInternalAddresses({ resolve: resolver({ 'imap.example.com': ['192.168.0.2'] }) });
     await expect(reachableHost('imap.example.com')).rejects.toBeInstanceOf(HostInsideOurNetwork);
     await expect(reachableHost('stalwart')).rejects.toBeInstanceOf(HostInsideOurNetwork);
+  });
+});
+
+describe("the operator's allow list (0136 T2)", () => {
+  it('reads exact names, separated by spaces or commas, in lower case, and nothing when unset', () => {
+    expect(reachableHostsFrom(undefined)).toEqual([]);
+    expect(reachableHostsFrom('  ')).toEqual([]);
+    expect(reachableHostsFrom('nextcloud stalwart')).toEqual(['nextcloud', 'stalwart']);
+    expect(reachableHostsFrom(' Nextcloud,stalwart. , demo.example.test\n')).toEqual([
+      'nextcloud',
+      'stalwart',
+      'demo.example.test',
+    ]);
+  });
+
+  it.each([
+    ['a wildcard', '*.example.test'],
+    ['a wildcard inside a name', 'next*'],
+    ['a range', '10.0.0.0/8'],
+    ['an address', '127.0.0.1'],
+    ['an IPv6 address', '[::1]'],
+    ['a port', 'nextcloud:8080'],
+    ['a URL', 'http://nextcloud'],
+    ['a user part', 'admin@nextcloud'],
+    ['a path', 'nextcloud/remote.php'],
+  ])('%s is refused at start-up, by name, and never read as a pattern', (_what, entry) => {
+    expect(() => reachableHostsFrom(`stalwart ${entry}`)).toThrow(`"${entry}" is not a host name`);
+  });
+
+  it('a name on the list passes although it resolves inward; the same name off it, and any other, is refused', async () => {
+    const table = { nextcloud: ['172.20.0.5'], stalwart: ['172.20.0.6'] };
+    const listed = rule(table, reachableHostsFrom('nextcloud'));
+    await expect(reachableAddress('nextcloud', listed)).resolves.toEqual({ address: '172.20.0.5', family: 4 });
+    await expect(reachableAddress('NextCloud.', listed)).resolves.toEqual({ address: '172.20.0.5', family: 4 });
+    await expect(reachableAddress('stalwart', listed)).rejects.toBeInstanceOf(HostInsideOurNetwork);
+    await expect(reachableAddress('nextcloud', rule(table))).rejects.toBeInstanceOf(HostInsideOurNetwork);
+    // Not a pattern: a longer name that contains the listed one is not listed.
+    const longer = rule({ 'nextcloud.evil.example': ['172.20.0.7'] }, reachableHostsFrom('nextcloud'));
+    await expect(reachableAddress('nextcloud.evil.example', longer)).rejects.toBeInstanceOf(HostInsideOurNetwork);
+  });
+
+  it('at start-up: the rule is switched on with the list, and a list it cannot read switches nothing', async () => {
+    const { admitted, off } = refuseInternalAddressesFromEnv(
+      { OWNPACE_REACHABLE_HOSTS: 'nextcloud stalwart' },
+      resolver({ nextcloud: ['172.18.0.5'], postgres: ['172.18.0.2'] }),
+    );
+    try {
+      expect(refusesInternalAddresses()).toBe(true);
+      expect(admitted).toEqual(['nextcloud', 'stalwart']);
+      // What the list admits, not only what it reports: a listed compose name
+      // reaches its address inside the network, and an unlisted one does not.
+      await expect(reachableHost('nextcloud')).resolves.toEqual({ host: '172.18.0.5', servername: 'nextcloud' });
+      await expect(reachableHost('postgres')).rejects.toBeInstanceOf(HostInsideOurNetwork);
+    } finally {
+      off();
+    }
+    expect(refusesInternalAddresses()).toBe(false);
+    // Unset, as on live: the rule is on, and admits nothing by name.
+    const unset = refuseInternalAddressesFromEnv({});
+    try {
+      expect(unset.admitted).toEqual([]);
+      expect(refusesInternalAddresses()).toBe(true);
+    } finally {
+      unset.off();
+    }
+    expect(() => refuseInternalAddressesFromEnv({ OWNPACE_REACHABLE_HOSTS: '*.example.test' })).toThrow(/is not a host name/);
+    expect(refusesInternalAddresses()).toBe(false);
   });
 });
 
