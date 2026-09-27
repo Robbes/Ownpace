@@ -4,6 +4,34 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, night: T6 (a), the page's languages, built (0131 §6, group M7, step 3)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-sign-in-page-in-our-own-words`, not merged, after T1 to T3.
+The mails and the brand, T6's other halves, are not in it.
+
+- **Dutch and English, and no other.** `setup-zitadel.sh` writes the instance restriction
+  `allowedLanguages: {list: ["nl","en"]}` when it differs, and reads it back.
+- **The default from `.env`.** `IDP_DEFAULT_LANGUAGE`, `nl` or `en`, is set when it differs and read
+  back. `nl` belongs in live's `.env`. Empty keeps the instance's own default. Any other value
+  stops the run before anything is written, and so does an empty one when the current default is
+  neither `nl` nor `en`, because the list could not then be written.
+- **In that order, read in Zitadel's source at v4.17.3** (`internal/command`): it refuses a default
+  the allowed list leaves out, a list that leaves out the default, and a default set to the value
+  it already has (NotChanged). So the default goes first, then the list, and neither is sent when
+  it is already right. `managed.yml` is not changed. The script relies on the API call, as §3
+  says, and a fresh instance gets both on its first bring-up.
+- **The summary** prints the two languages and the default. The env example and the bring-up
+  guide's 8b name the setting.
+- **Proved.** `scripts/a-sign-in-page-in-our-own-words.unit.test.ts`, 9 cases, with a stand-in
+  provider that refuses what Zitadel refuses:
+  - a fresh instance gets `nl` first, then the list;
+  - an empty setting keeps the default and still sets the list;
+  - nothing is written when both are right, whatever the list's order;
+  - the default moves between the two without touching the list;
+  - `de` stops the run before any write, and so does an empty setting over a `de` default;
+  - a list or a default that does not take stops the run, naming it;
+  - the bring-up sets them on every run, after the form is closed, and its summary says so.
+- **Left for the owner (§3):** once on live's instance, that a Dutch browser gets the Dutch page.
+
 **2026-09-27, night: T3 (a) built (0131 §6, group M7, step 2)** on branch
 `claude/mailbox-sync-errors-c2xsw2-one-organisation-counted`, not merged, after T1 and T2.
 
@@ -117,7 +145,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; 🔨 **(a) the count on every run of `setup-zitadel.sh` built 2026-09-27, not merged**; live's daily count is 0132 T7's — *was:* the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
-| T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
+| T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and 🔨 **(a) the languages built 2026-09-27, not merged**; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | 📋 **Proposed** | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 

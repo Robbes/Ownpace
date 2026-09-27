@@ -2018,6 +2018,61 @@ Set it by hand with the provisioning token, and read it back:
 }
 close_public_org_registration
 
+# ------------------------------------------------- the page's languages --
+#
+# DUTCH AND ENGLISH, AND ONLY THOSE (workplan 0135 T6, the owner's D4: the
+# testers are Dutch). Upstream allows every language it has and defaults to
+# English, so a visitor could be shown a sign-in page in a language nobody here
+# reads. The allowed list is the instance restriction beside T1's; the default
+# is the instance's own, from IDP_DEFAULT_LANGUAGE in .env: nl on live, where
+# the testers are, and whatever the OTA stack's .env says there. Empty keeps
+# the instance's default as it is.
+#
+# THE DEFAULT FIRST, THEN THE LIST, and each only when it differs, because
+# Zitadel refuses both the wrong way round, read in its source at v4.17.3
+# (`internal/command`): a default the allowed list leaves out, and a list that
+# leaves out the default. And it refuses a default set to the value it already
+# has, as NotChanged, so that is never sent. The read-backs decide.
+page_default_language() { jq -r '.language // empty' <<<"$(api GET /admin/v1/languages/default)"; }
+page_allowed_languages() { jq -c '(.allowedLanguages // []) | sort' <<<"$(api GET /admin/v1/restrictions)"; }
+set_page_languages() {
+  local want_default="$1" current
+  case "$want_default" in
+    ''|nl|en) ;;
+    *) die "IDP_DEFAULT_LANGUAGE is '${want_default}', and the sign-in page offers Dutch and English
+only (workplan 0135 T6). Set it to nl or en in ${ENV_FILE}, or leave it empty to keep
+the instance's own default." ;;
+  esac
+  current="$(page_default_language)"
+  if [ -n "$want_default" ] && [ "$current" != "$want_default" ]; then
+    say "the sign-in page's default language: ${current:-unset}, becoming ${want_default}"
+    api PUT "/admin/v1/languages/default/${want_default}" >/dev/null
+  elif [ -z "$want_default" ] && [ "$current" != "nl" ] && [ "$current" != "en" ]; then
+    die "the sign-in page's default language is '${current:-unset}', which Dutch and English
+leave out, so the allowed list cannot be written. Set IDP_DEFAULT_LANGUAGE to nl or en
+in ${ENV_FILE}, and run this again."
+  fi
+  if [ "$(page_allowed_languages)" != '["en","nl"]' ]; then
+    say "the sign-in page offers every language upstream has: allowing Dutch and English only"
+    api PUT /admin/v1/restrictions '{"allowedLanguages":{"list":["nl","en"]}}' >/dev/null
+  fi
+  [ "$(page_allowed_languages)" = '["en","nl"]' ] || die "could not limit the sign-in page to Dutch and English.
+
+The instance restriction allowedLanguages reads $(page_allowed_languages), not [\"en\",\"nl\"].
+Read it with:
+
+    curl -sS ${ISSUER}/admin/v1/restrictions -H \"Authorization: Bearer \$PAT\" | jq .allowedLanguages"
+  PAGE_DEFAULT_LANGUAGE="$(page_default_language)"
+  if [ -n "$want_default" ] && [ "$PAGE_DEFAULT_LANGUAGE" != "$want_default" ]; then
+    die "could not make ${want_default} the sign-in page's default language: it reads '${PAGE_DEFAULT_LANGUAGE:-unset}'.
+Read it with:
+
+    curl -sS ${ISSUER}/admin/v1/languages/default -H \"Authorization: Bearer \$PAT\""
+  fi
+  say "the sign-in page speaks Dutch and English, ${PAGE_DEFAULT_LANGUAGE} by default"
+}
+set_page_languages "$(read_env IDP_DEFAULT_LANGUAGE '')"
+
 # ---------------------------------------------- how many organisations here --
 #
 # ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3). The two settings above keep
@@ -2114,6 +2169,7 @@ cat <<EOF
   client     ${CLIENT_ID}
   console    ${ISSUER}/ui/console
   organisations ${ORG_COUNT} (one is right: workplan 0135 T3)
+  languages  nl, en; ${PAGE_DEFAULT_LANGUAGE} by default (IDP_DEFAULT_LANGUAGE)
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed
