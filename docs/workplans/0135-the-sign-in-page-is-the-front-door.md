@@ -38,9 +38,18 @@ bring-up sets both settings and reads them back, and the nightly gate does so on
     carries the check; an existing project is updated with its other settings copied, including
     a labelling setting it had, and read back; one with the check is not written; an update that
     does not take stops the run; the check runs once the project is known.
-- **Not yet seen on a running instance.** §3 says the gate's people, created with
-  `POST /v2/users/human` and no organisation named, land in the first organisation and pass the
-  check. This change's pull request runs the managed gate once, on the OTA instance, to see it.
+- **Seen on the OTA instance, by E2E (managed) #203 on this branch (2026-09-27).** The run's own
+  lines say what it found and did:
+  - *"it admits users of every organisation: turning the project check on"*, then *"it now admits
+    its own organisation only"*;
+  - *"anybody who can load the sign-in page can found an organisation here: closing that"*, then
+    *"closed: the form that founds one now answers 404"*;
+  - the smoke: *"the form that founds an organisation is not served (404)"*. Its people, created
+    with `POST /v2/users/human` and no organisation named, signed in through the check, as §3
+    expected. The run passed.
+
+  So the OTA instance served the form and admitted every organisation until that run, and has
+  both settings since, read back. What T0 still asks there is the owner's own sign-in, once.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 read the
 identity provider that testers were then to sign in to, Zitadel `v4.17.3` at `id.ota.ownpace.eu`.
@@ -79,7 +88,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7) | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
+| T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7); on the OTA instance both were set and read back by E2E (managed) #203 on 2026-09-27, and the owner's own sign-in is left | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
 | T1 Public organisation registration off | 🔨 **Built 2026-09-27, not merged**: `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
 | T2 The project admits its own organisation only | 🔨 **Built 2026-09-27, not merged**: created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; the count is 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
