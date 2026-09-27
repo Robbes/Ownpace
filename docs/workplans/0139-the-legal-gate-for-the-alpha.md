@@ -2,7 +2,28 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-27 (update this block at the end of every session)
+
+**2026-09-27: T6's migration-delete revocation built** (0131 §6, group M3, step 1) on branch
+`claude/mailbox-sync-errors-c2xsw2-a-deleted-migration-revokes-its-grant`, not merged. §1 found
+that deleting a migration dropped our copy of the credential its own row holds and revoked
+nothing. That credential is `source_secret_ref`, the token a person granted through a grant link.
+
+- **The delete now revokes it**, with `revokeCredentialRow`, as the connection delete does:
+  after the delete, so nothing is revoked until the row is gone and no network call holds the
+  tenant transaction open. The source connection's kind, read in the same transaction, decides
+  how. Best effort: the answer carries `revocation`, and `failed` means the person withdraws it
+  themselves. Only the row's own credential: the organisation's, on the connection, is never
+  touched. A migration without one answers as before, with no `revocation`.
+- **Proved.** `apps/api/src/routes/migrations/a-deleted-migration-revokes-its-grant.unit.test.ts`,
+  against PGlite as `app_user` through the real route, with only Google's revocation endpoint
+  stubbed. Deleting a migration that holds a granted token sends Google that token once, after
+  the row is gone. The connection's credential is left as it was, and a migration without a
+  credential of its own calls nobody. A migration that is not there, or is another
+  organisation's, revokes nothing. Google not answering still deletes the migration, and the
+  answer says the revocation failed. The two revoking cases fail on `main`.
+- **Not in this change:** the screens do not show `revocation` after a migration delete yet;
+  the rest of T6 waits on open questions 2 and 3.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that the
 legal texts of the managed service are unpublished drafts with unfilled placeholders. It also
@@ -42,7 +63,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, on branch `claude/mailbox-sync-errors-c2xsw2-a-deleted-migration-revokes-its-grant`, not merged; the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
