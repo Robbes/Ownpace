@@ -43,9 +43,10 @@ change then marked the script done there too.
 Rows that already said *merged* in their own words: this plan's T1 to T3, 0145 T1, and 0148 T1, T2, T3, T4 (a), T6 and T8.
 0147 T5, built in #1155 as well, never said *not merged*, and the owner still confirms its rule
 (0147 open question 5), so it stays 🔨. 0145 T6's Dutch wording stays ⏳ **Owner** as written:
-#1208 merged, and whether the owner read the Dutch first is not recorded here. 0145's task table is
-cut in two by a blank line after a stray copy of its T1 row, so the index counts 2 of its 11 rows;
-that is left for a change of its own.
+#1208 merged, and whether the owner read the Dutch first is not recorded here. 0145's task table was
+cut in two by a blank line after a stray copy of its T1 row, so the index counted 2 of its 11 rows;
+a change of its own removed the stray row, and fixed 0144 T6's note that the report form's
+settings were not yet on `main` (they are, since #1148).
 
 **Two more, in the same pull request.** `docs/managed-bring-up.md`, *Rotating
 `TRIGGER_ENCRYPTION_KEY`*: the one-variable repair starts at the checkout's root and does `cd
