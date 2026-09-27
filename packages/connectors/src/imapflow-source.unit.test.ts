@@ -54,6 +54,8 @@ let boxState: { uidValidity: bigint; uidNext: number; exists: number };
 let openable: boolean;
 /** Every call the connector made, so a test can assert what was NOT called. */
 let calls: string[];
+/** Every mailbox the connector opened, and the options it opened it with. */
+let opens: Array<{ how: 'mailboxOpen' | 'getMailboxLock'; path: string; options: unknown }>;
 let connects: number;
 let logouts: number;
 /** Set to make the next N operations fail, e.g. to drive the auth-retry path. */
@@ -95,14 +97,16 @@ vi.mock('imapflow', () => {
       maybeFail();
       return mailboxes;
     }
-    async mailboxOpen(path: string) {
+    async mailboxOpen(path: string, options?: unknown) {
       calls.push(`mailboxOpen(${path})`);
+      opens.push({ how: 'mailboxOpen', path, options });
       if (!openable) throw new Error('NONEXISTENT');
       this.mailbox = { path, ...boxState };
       return this.mailbox;
     }
-    async getMailboxLock(path: string) {
+    async getMailboxLock(path: string, options?: unknown) {
       calls.push(`lock(${path})`);
+      opens.push({ how: 'getMailboxLock', path, options });
       maybeFail();
       // What a server does with a name LIST marked `\Noselect`: a tagged NO.
       // Gmail answers exactly this for `[Gmail]`, and imapflow turns it into
@@ -197,6 +201,7 @@ function fakeMeter() {
 
 beforeEach(() => {
   calls = [];
+  opens = [];
   connects = 0;
   logouts = 0;
   openable = true;
@@ -394,6 +399,40 @@ describe('an empty mailbox', () => {
   it('surfaces a listing failure rather than reporting no messages', async () => {
     failNextOperations = { count: 1, error: new Error('server said NO') };
     await expect(source().listSince(INBOX)).rejects.toThrow(/server said NO/);
+  });
+});
+
+// =======================================================================
+// 4b. Read-only: EXAMINE, never SELECT (workplan 0149 T5)
+// =======================================================================
+
+describe('every mailbox is opened read-only', () => {
+  it('passes readOnly to all four opens, so imapflow sends EXAMINE', async () => {
+    // imapflow sends SELECT unless it is told `readOnly`. A SELECTed mailbox
+    // accepts STORE and EXPUNGE, and a CLOSE expunges it; an EXAMINEd one
+    // refuses both, and its CLOSE removes nothing. Nothing here sends those
+    // today, which is this code's own discipline. EXAMINE is the server's.
+    boxState = { uidValidity: 42n, uidNext: 10, exists: 1 };
+    messages = [{ uid: 7, envelope: { messageId: '<a@dev.local>' }, size: 4, source: Buffer.from('body') }];
+
+    await source().measureMailbox(); // one lock per listed folder
+    await source().listSince(INBOX); // one lock
+    await source().fetch({
+      messageId: '<a@dev.local>',
+      folder: INBOX,
+      keywords: [],
+      receivedAt: '2026-08-06T10:00:00.000Z',
+      size: 4,
+      sourceRef: 'INBOX:7',
+    }); // one lock
+    mailboxes = [];
+    await source().listFolders(); // the INBOX fallback's mailboxOpen
+
+    expect(new Set(opens.map((o) => o.how))).toEqual(new Set(['mailboxOpen', 'getMailboxLock']));
+    expect(opens.length, 'measure (2), listing, fetch and the fallback').toBe(5);
+    for (const open of opens) {
+      expect(open.options, `${open.how}(${open.path})`).toEqual({ readOnly: true });
+    }
   });
 });
 
