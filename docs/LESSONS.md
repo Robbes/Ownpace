@@ -284,6 +284,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/web/src/components/finish/EachDataTypeEnds.tsx`
+
+- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
 ### `apps/web/src/i18n/probe-text.unit.test.tsx`
 
 - [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
@@ -308,10 +312,6 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/CreateMapping.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
-
-### `apps/web/src/pages/Finish.tsx`
-
-- [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
 ### `apps/web/src/pages/Login.tsx`
 
@@ -2324,8 +2324,8 @@ Reads:
 - `apps/api/src/routes/migrations/operating-routes.ts`
 - `apps/selfhost/src/index.ts`
 - `apps/web/src/components/StateChip.tsx`
+- `apps/web/src/components/finish/EachDataTypeEnds.tsx`
 - `apps/web/src/i18n/strings.ts`
-- `apps/web/src/pages/Finish.tsx`
 - `docs/adr/0014-cost-recovery-billing.md`
 - `packages/ledger/src/mapping-status-audit.ts`
 - `site/pages/en/pricing.md`

@@ -96,6 +96,14 @@ async function migrationStatus(base: string): Promise<string | undefined> {
   return status.mappings.find((m) => m.mappingId === MAPPING)?.migrationStatus;
 }
 
+/** Each data type's ending as `/status` offers it to the Finish page (slice 7b). */
+async function endings(base: string): Promise<unknown> {
+  const status = (await (await fetch(`${base}/status`)).json()) as {
+    mappings: Array<{ mappingId: string; endings?: unknown }>;
+  };
+  return status.mappings.find((m) => m.mappingId === MAPPING)?.endings;
+}
+
 /** What the appliance logged while `work` ran. */
 async function logged<T>(work: () => Promise<T>): Promise<{ result: T; lines: string[] }> {
   const lines: string[] = [];
@@ -133,6 +141,11 @@ describe('a data type ended or kept on the appliance', () => {
         migration: { from: 'active', to: 'continuous' },
       });
       expect(await migrationStatus(booted.base)).toBe('continuous');
+      // What the Finish page is offered is what the door accepts next.
+      expect(await endings(booted.base)).toEqual([
+        { domain: 'calendar', phase: 'done', stopped: false, offers: ['keep'] },
+        { domain: 'file', phase: 'continuous', stopped: false, offers: ['end'] },
+      ]);
 
       // The last one ended: the migration is done, no longer scheduled, and said so once.
       const ended = await logged(() => press(booted.base, 'end', 'file'));

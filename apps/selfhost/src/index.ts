@@ -23,7 +23,7 @@
 
 import { createServer, type Server, type ServerResponse, type IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, type PathEnding } from '@openmig/ledger';
+import { runMigrations, appEventSinkOn, createPgDb, createPgliteDb, pgDriver, PgMigrationStatusStore, PgDiscoveryStore, PgDecisionStore, PgPolicyPresetStore, PgGroupDefStore, PgLedger, PgCursorStore, RunStore, withTenant, pruneRunEvents, pruneRuns, pruneAppEvents, retentionDaysFromEnv, runRetentionDaysFromEnv, readOperatorLog, auditExportOn, deploymentKeyFor, readAuditExport, readPathPhases, readShareGate, applyMappingStatusChange, pathsFromTheMapping, recordScope, stopOrResumePath, pathStopRefusalReason, readPathStopFacts, pathStopChoices, endOrKeepPath, pathEndingRefusalReason, pathEndingChoices, type PathEnding } from '@openmig/ledger';
 // Import the in-process scheduler directly (NOT the package index, which
 // re-exports the Trigger.dev client) so self-host never loads managed code —
 // hard rule 5.
@@ -1579,8 +1579,8 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             m.config.tenantId as TenantId,
             m.mailboxMappingId as MappingId,
           );
-          // Each data type's stop as the page offers it (0128 T4, slice 3c),
-          // by the rule the stop door itself decides by.
+          // Each data type's stop and ending as the pages offer them (0128 T4,
+          // slice 3c; T5, slice 7b), by the rules the doors themselves decide by.
           const tenantId = m.config.tenantId as string;
           const facts = await withTenant(persistenceBackend.driver, tenantId, (tdb) =>
             readPathStopFacts(tdb, tenantId, m.mailboxMappingId),
@@ -1592,7 +1592,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             statuses,
             failures,
             adopted,
-            ...(facts === undefined ? {} : { stops: pathStopChoices(facts) }),
+            ...(facts === undefined ? {} : { stops: pathStopChoices(facts), endings: pathEndingChoices(facts) }),
           });
         }
         // The channel's state travels with the status an owner already polls.
@@ -3340,9 +3340,11 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
 
       // PUT /mappings/:id {status: 'continuous'} — the continuous lane's door
       // (workplan 0128 D4 (a): the appliance gets the same choice). The Finish
-      // page's *Keep copying* sends the same request to both editions; this
-      // edition answered it 404 until now, so the lane could be chosen only on
-      // managed. Decided by the rule managed's update door asks
+      // page's *Keep copying* sent the same request to both editions, and this
+      // edition answered it 404, so the lane could be chosen only on managed.
+      // The page now keeps each data type through its own door above (0128
+      // T5, slice 7b); this one stays the whole migration's, for a caller of
+      // the API. Decided by the rule managed's update door asks
       // (`updateTransition`), and written through the ledger's own door with
       // its paths and audit record. Only the lane is entered here: every other
       // move has its own door on this edition (Start, Finish, and the operator
@@ -3535,9 +3537,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             'The migration is finished. This mapping no longer syncs, and drift, deletions and ' +
             'moves are no longer reported for it. Nothing was added to or removed from the ' +
             'target — what is there now is what stays.',
+          // Keep copying per data type is the way back into copying (0128 T5,
+          // slice 7b); the hand edit stays the one way back before the cutover.
           ifYouNeedToResume:
-            'Remove the mapping from the config directory to retire it for good, or set its ' +
-            "mailbox_mapping.status back to 'active' and restart the appliance to resume.",
+            'To copy again, keep a data type copying on the Finish page: it runs in the continuous ' +
+            'lane, where deletions at the old provider are no longer mirrored. To retire the mapping ' +
+            "for good, remove it from the config directory. Setting its mailbox_mapping.status back " +
+            "to 'active' and restarting the appliance takes it back before its cutover.",
         };
         return sendJson(res, 200, finished);
       }
