@@ -4,6 +4,28 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27: T8 (a) written (0131 §6, group M3, step 6)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-breach-procedure`, not merged. `docs/breach-procedure.md`
+is the procedure §3 names:
+
+1. **Contain:** the hold, the passes already running cancelled in the Trigger.dev dashboard, a
+   tester's own credential, and the nightly gate paused before it rebuilds the OTA stack.
+2. **Keep the evidence:** `app_event`, `support_read`, `platform_pause`, the journal and the audit
+   export, copied off the machine before they age out.
+3. **Assess:** what data (the data-processing agreement's Annex A), whose, how, both stacks, and
+   the risk.
+4. **Notify the Autoriteit Persoonsgegevens** within 72 hours where feasible (Art. 33).
+5. **Tell the testers** when the risk is high (Art. 34), with the message in Dutch and English. A
+   business tester is told as the controller (the agreement's §7).
+6. **Register every breach** (Art. 33(5)).
+
+It adds one paragraph on keys: the stored credentials have no rotation (`SECURITY.md`). The
+docs index lists the page. No code, so no guard, as §3 says.
+
+- **Not in this change:** the record of processing and the light impact assessment, which the
+  owner keeps outside this repository (T8's other two parts). T9 waits on open question 5 (the
+  channel) and on the owner's response target and supported versions.
+
 **2026-09-27: T6's migration-delete revocation built** (0131 §6, group M3, step 1) on branch
 `claude/mailbox-sync-errors-c2xsw2-a-deleted-migration-revokes-its-grant`, not merged. §1 found
 that deleting a migration dropped our copy of the credential its own row holds and revoked
@@ -65,7 +87,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, on branch `claude/mailbox-sync-errors-c2xsw2-a-deleted-migration-revokes-its-grant`, not merged; the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
-| T8 A breach procedure, a record of processing, a light impact assessment | 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
+| T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27, not merged**: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | 📋 **Proposed**; the channel is the owner's | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
