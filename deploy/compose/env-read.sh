@@ -88,3 +88,66 @@ env_value() {
     printf '%s' "$default"
   fi
 }
+
+# compose_project <compose-dir>
+#
+# THE COMPOSE PROJECT THIS CHECKOUT DRIVES, found the way Compose finds it
+# (workplan 0132 T1). Two stacks share one Docker daemon on the reference
+# machine, the OTA stack and `ownpace-live`, and a daemon keeps them apart by
+# NAMES only: every container, volume and network is named after its project.
+# A script that spelled a name out reached whichever stack owned it; one that
+# asks this reaches its own.
+#
+# Compose takes the project from, in order:
+#
+#   COMPOSE_PROJECT_NAME in the environment   even when it is set but EMPTY:
+#                                             then the .env is not read and
+#                                             managed.yml's `name:` applies
+#   COMPOSE_PROJECT_NAME in the .env beside managed.yml
+#   managed.yml's own `name:`                 the OTA stack's default
+#
+# Checked against Compose 5.1.1 on 2026-09-27 with `docker compose config`,
+# which prints the name it chose. The scripts here never pass `-p`, so these
+# three are every way a stack is chosen.
+#
+# THE CHECKOUT'S .env IS WHAT CHOOSES THE STACK, and a shell that says
+# otherwise is refused rather than followed. `set -a; . deploy/compose/.env` in
+# one checkout exports that stack's name (or an empty one) into the shell, and
+# Compose then prefers it over the next checkout's own `.env`: the same command
+# in live's checkout would act on the OTA stack. So when the environment and
+# the file disagree, this names both and fails, and nothing gets built from
+# either. A name Compose would refuse is refused here too.
+#
+# Usage:  COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
+compose_project() {
+  local dir="${1:-}"
+  local declared from_file name
+
+  declared="$(sed -n 's/^name:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "${dir}/managed.yml" 2>/dev/null)"
+  from_file="$(env_value "${dir}/.env" COMPOSE_PROJECT_NAME)"
+  from_file="${from_file:-$declared}"
+
+  if [ "${COMPOSE_PROJECT_NAME+set}" = "set" ]; then
+    name="${COMPOSE_PROJECT_NAME:-$declared}"
+    if [ "$name" != "$from_file" ]; then
+      echo "compose_project: this shell has COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}', so Compose would drive '${name}'," >&2
+      echo "  but ${dir}/.env chooses '${from_file:-nothing}'. Compose follows the shell, and this checkout is the other stack's." >&2
+      echo "  Unset it (unset COMPOSE_PROJECT_NAME), or open a new shell, and run this again." >&2
+      return 1
+    fi
+  else
+    name="$from_file"
+  fi
+
+  case "$name" in
+    '' )
+      echo "compose_project: no project: COMPOSE_PROJECT_NAME is not set and ${dir}/managed.yml has no \`name:\`" >&2
+      return 1
+      ;;
+    [!a-z0-9]* | *[!a-z0-9_-]* )
+      echo "compose_project: COMPOSE_PROJECT_NAME='${name}' is not a name Compose accepts: lowercase letters, digits, '-' and '_', starting with a letter or digit" >&2
+      return 1
+      ;;
+  esac
+  printf '%s' "$name"
+}

@@ -612,9 +612,15 @@ describe('--fresh seeds keys no tombstone can already own', () => {
     // A command a script prints for a human to paste is part of its interface.
     // This pins that the expansion happens in the container, which HAS the
     // variables, by asserting the `sh -c` wrapper rather than the bare form.
+    //
+    // And it reaches the database through Compose, which picks the stack the
+    // checkout's own `.env` names, rather than a fixed container name that
+    // belongs to whichever stack owns it on a box with two (workplan 0132 T1).
     const script = readFileSync(SEEDER, 'utf8');
-    expect(script).toContain(`docker exec -i ownpace-db sh -c 'psql -U "$POSTGRES_USER"`);
-    expect(script).not.toMatch(/docker exec ownpace-db psql -U "\$POSTGRES_USER"/);
+    expect(script).toContain(
+      `docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER"`,
+    );
+    expect(script).not.toMatch(/exec(?: -[iT])* \S+ psql -U "\$POSTGRES_USER"/);
   });
 
   it('the hint groups by `domain`, never the legacy `item_type`', () => {
