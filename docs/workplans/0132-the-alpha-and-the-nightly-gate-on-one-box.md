@@ -484,18 +484,49 @@ spec is held by the guard too.
 - *0142 §1* still said a pass started by hand is not held. It keeps that as history and adds that
   it is refused since T6 (b).
 
+**2026-09-27, evening: the first gate after T3 (a) stopped at the task deploy, and the deploy now
+builds on the host network.** #1233 (T1) and #1236 (T3 (a), T1f) merged. E2E (managed) #201, run
+by hand on #1249's branch with both in it, brought the stack up under the new names, with every
+routed port on loopback and the front's address, and the API and the Trigger.dev API on loopback
+only. It then stopped at the task deploy: *"Failed to index deployment: Failed to fetch environment
+variables: Connection error."*
+
+- **Why.** The indexer is a `RUN` step of the image build, and it asks the Trigger.dev API for the
+  environment's variables. The CLI (4.5.16, `deploy/buildImage.js`) hands it the API's URL with
+  `localhost` replaced by `host.docker.internal`, mapped to the machine's first non-loopback IPv4.
+  Port 3090 answered there only while it answered on every interface. T3 (a) left
+  `TRIGGER_BIND` empty, rightly, and nothing checked that the build asks from outside the loopback.
+- **The fix.** `deploy-tasks.sh` deploys with `--network host`, so a `RUN` step shares the machine's
+  loopback. It hands the CLI the origin with a `localhost` host spelled `127.0.0.1`
+  (`trigger_api_url_for_the_build`, in `trigger-cli-lib.sh`), which the CLI does not rewrite. Port
+  3090 stays on 127.0.0.1. `TRIGGER_API_URL` is an argument of the indexer stage alone; the image
+  the tasks run from does not carry it. `managed.yml`'s comment and the bring-up guide's
+  *Which address a port answers on* say so.
+- **Proved.** `scripts/a-build-that-could-not-reach-its-api.unit.test.ts`, 13 cases: the deploy
+  builds with `--network host`; it hands the CLI the helper's address, never the origin as it is;
+  the helper spells a `localhost` host as `127.0.0.1` in nine origins and leaves other hosts, and
+  names that merely contain the word, alone; the result holds no `localhost` for the CLI to
+  replace; `managed.yml` still publishes the API on 127.0.0.1. 12 of the 13 failed before the fix.
+  `a-token-without-an-address` now reads the derivation through the helper.
+  `the-stack-knew-and-did-not-say` read `trigger_cli_profiles_present` to the end of the file,
+  which now holds a function after it; it reads the function's own body.
+- **Not proved here.** Whether buildx grants the host network to the CLI's `docker-container`
+  builder can only be seen on the machine: the next managed gate is the proof. The CLI deletes and
+  recreates its builder when the builder's network differs, so the first deploy after this change
+  is slower.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
-| T1 Container names, networks and scripts take the stack from the project name | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-stack-named-by-its-project`, not merged** (2026-09-27) — *was:* 📋 Decided 2026-09-24 (D7, D9) | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS`, the network task runs join), `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9, and `ownpace-managed_` volume or network names on 13 lines in six files (that network literal and `reset-trigger.sh`'s volume among them). Compose's own two networks already follow the project (D9). A guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. The old options A, B and C are ⛔ superseded and kept in §3. |
+| T1 Container names, networks and scripts take the stack from the project name | ✅ **done** in #1233, merged 2026-09-27 — *was:* 📋 Decided 2026-09-24 (D7, D9) | §3. **The first task; nothing below can start before it.** 17 fixed `container_name` values, one network literal in `managed.yml` (`DOCKER_RUNNER_NETWORKS`, the network task runs join), `ownpace-db` in 7 scripts, `trigger-api` in 8 and the project name in 9, and `ownpace-managed_` volume or network names on 13 lines in six files (that network literal and `reset-trigger.sh`'s volume among them). Compose's own two networks already follow the project (D9). A guard fails on a fixed stack name and on any hard-coded `ownpace-managed_` name. The old options A, B and C are ⛔ superseded and kept in §3. |
 | T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | 📋 **Decided 2026-09-24** (D7, D8) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values, never `--with-demo`. The owner sets the four database passwords in live's `.env` before the first bring-up (D8). `ensure-env-secrets.sh` still does not generate them, and `trigger-db`'s still waits for T2's code. |
 | T1c Its own Trigger.dev plane | 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
-| T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
+| T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27, with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
+| T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7); (a) the binds ✅ **done** in #1236, merged 2026-09-27; the task deploy's build on the host network 🔨 **built 2026-09-27, not merged** | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) — *was:* 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. |

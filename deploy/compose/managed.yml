@@ -253,7 +253,9 @@ services:
       APP_LOG_LEVEL: info
     ports:
       # Plain HTTP, and the deploy CLI asks it on localhost (TRIGGER_API_ORIGIN),
-      # so TRIGGER_BIND stays empty on a real box. See the header.
+      # so TRIGGER_BIND stays empty on a real box. See the header. The deploy's
+      # image build asks it too, from the host network on 127.0.0.1
+      # (deploy-tasks.sh), so this fixed loopback publish is the one it needs.
       - "127.0.0.1:${TRIGGER_PORT:-3090}:3000"
       - "${TRIGGER_BIND:-127.0.0.1}:${TRIGGER_PORT:-3090}:3000"
     volumes:

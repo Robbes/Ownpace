@@ -251,3 +251,29 @@ trigger_cli_profiles_present() {
     return 0
   done
 }
+
+# trigger_api_url_for_the_build <origin> — the API's address as the task
+# deploy hands it to the CLI: the same origin, with a `localhost` host spelled
+# 127.0.0.1. On stdout.
+#
+# THE INDEXER ASKS FROM INSIDE THE IMAGE BUILD (workplan 0132 T3). A `RUN` step
+# of the build fetches the environment's variables from the API. The CLI
+# (4.5.16, `deploy/buildImage.js`) gives that step the URL with `localhost`
+# replaced by `host.docker.internal`, mapped to the machine's first
+# non-loopback IPv4. Since every port answers on 127.0.0.1 unless a bind names
+# another address, the API's port does not answer there, and the build stopped
+# with "Failed to fetch environment variables: Connection error" (E2E (managed)
+# #201). deploy-tasks.sh builds with `--network host`, where 127.0.0.1 is the
+# machine's own loopback, and hands the CLI this address: the CLI replaces only
+# the word `localhost`, so 127.0.0.1 reaches the build as it is.
+#
+# Only a host that is exactly `localhost` changes. Another host is the
+# operator's choice and passes through, as does a name that merely contains the
+# word.
+trigger_api_url_for_the_build() {
+  local url="${1:-}"
+  if [[ "$url" =~ ^([A-Za-z][A-Za-z0-9+.-]*://)localhost([:/].*)?$ ]]; then
+    url="${BASH_REMATCH[1]}127.0.0.1${BASH_REMATCH[2]}"
+  fi
+  printf '%s\n' "$url"
+}

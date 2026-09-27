@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 168 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 169 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -522,6 +522,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/deploy-tasks.sh`
 
+- [a-build-that-could-not-reach-its-api](../scripts/a-build-that-could-not-reach-its-api.unit.test.ts) — A BUILD THAT COULD NOT REACH ITS API (workplan 0132 T3).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
@@ -611,6 +612,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/managed.yml`
 
+- [a-build-that-could-not-reach-its-api](../scripts/a-build-that-could-not-reach-its-api.unit.test.ts) — A BUILD THAT COULD NOT REACH ITS API (workplan 0132 T3).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
@@ -766,6 +768,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/trigger-cli-lib.sh`
 
+- [a-build-that-could-not-reach-its-api](../scripts/a-build-that-could-not-reach-its-api.unit.test.ts) — A BUILD THAT COULD NOT REACH ITS API (workplan 0132 T3).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
@@ -1758,6 +1761,16 @@ Reads:
 - `apps/api/src/index.ts`
 - `apps/web/src/pages/Login.tsx`
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-build-that-could-not-reach-its-api](../scripts/a-build-that-could-not-reach-its-api.unit.test.ts)
+
+A BUILD THAT COULD NOT REACH ITS API (workplan 0132 T3).
+
+Reads:
+
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/trigger-cli-lib.sh`
 
 ### [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts)
 

@@ -116,7 +116,11 @@ describe('a token without an address is not a login', () => {
     // `TRIGGER_API_ORIGIN` is what .env already carries and what managed.yml
     // and set-task-env.sh read. A literal `http://localhost:3090` here would
     // be a fourth copy of one address, and the port is configurable.
+    // Since 0132 T3 the origin reaches the deploy through
+    // trigger_api_url_for_the_build, which only spells `localhost` as
+    // 127.0.0.1 (a-build-that-could-not-reach-its-api).
     const text = code(readFileSync(join(ROOT, 'deploy/compose/deploy-tasks.sh'), 'utf8'));
-    expect(text).toMatch(/TRIGGER_API_URL="\$\{TRIGGER_API_ORIGIN:-/);
+    expect(text).toMatch(/BUILD_API_URL="\$\(trigger_api_url_for_the_build "\$\{TRIGGER_API_ORIGIN:-/);
+    expect(text).toMatch(/TRIGGER_API_URL="\$\{BUILD_API_URL\}"/);
   });
 });

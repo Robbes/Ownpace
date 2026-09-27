@@ -354,7 +354,12 @@ describe('the shared library keeps its own contract', () => {
   it('trigger_cli_profiles_present writes only its answer to stdout', () => {
     // The mint() rule: a function whose stdout IS its value must print nothing
     // else there. A stray `say` would be read as a profile name.
-    const fn = cliLib.slice(cliLib.indexOf('trigger_cli_profiles_present() {'));
+    // The function's own body, to its closing brace: the library goes on
+    // after it, with functions whose stdout is a different value.
+    const from = cliLib.slice(cliLib.indexOf('trigger_cli_profiles_present() {'));
+    const fn = from.slice(0, from.search(/^\}/m) + 1);
+    expect(fn).toContain('trigger_cli_profiles_present() {');
+    expect(fn.trimEnd().endsWith('}')).toBe(true);
     expect(fn).not.toMatch(/^\s*(echo|printf|say)\b/m);
   });
 });

@@ -243,7 +243,11 @@ Compose reads the file, and names the key, not the value.
   that way (workplan 0142).
 - **Leave `POSTGRES_BIND`, `API_BIND` and `TRIGGER_BIND` empty.** Nothing off the
   machine needs the database, the API with its unauthenticated `/metrics`, or
-  the Trigger.dev API.
+  the Trigger.dev API. The task deploy's image build asks the Trigger.dev API
+  too, from its indexer step. `deploy-tasks.sh` builds on the host network and
+  hands the CLI `127.0.0.1`, so the build finds the API on this machine's
+  loopback. The CLI would turn `localhost` into this machine's outside address,
+  where the port does not answer (workplan 0132 T3).
 
 ```bash
 # deploy/compose/.env — 100.64.0.1 is the SHAPE of a mesh address, not yours

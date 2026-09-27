@@ -296,9 +296,21 @@ cd "${REPO_ROOT}/apps/worker"
 #
 # `--profile` is passed as well and stays the fallback: with no token in .env
 # the CLI reads the profile file, which carries its own apiUrl.
+#
+# THE BUILD ASKS THE API TOO, FROM INSIDE ITSELF (workplan 0132 T3). The
+# indexer is a `RUN` step of the image build, and it fetches the environment's
+# variables from the API. The API's port answers on 127.0.0.1 only, so the
+# build runs on the host network (`--network host`), where 127.0.0.1 is this
+# machine's loopback. The address goes to the CLI as 127.0.0.1, never
+# `localhost`: the CLI would turn that word into host.docker.internal, this
+# machine's outside address, where the port does not answer
+# (trigger_api_url_for_the_build in trigger-cli-lib.sh says how, and E2E
+# (managed) #201 is what it cost). TRIGGER_API_URL is an argument of the
+# indexer stage only; the image the tasks run from does not carry it.
+BUILD_API_URL="$(trigger_api_url_for_the_build "${TRIGGER_API_ORIGIN:-http://localhost:${TRIGGER_PORT:-3090}}")"
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
-  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:${TRIGGER_PORT:-3090}}" \
-  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}"
+  TRIGGER_API_URL="${BUILD_API_URL}" \
+  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}" --network host
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
 #
