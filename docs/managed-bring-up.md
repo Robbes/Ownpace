@@ -1537,11 +1537,15 @@ database and fails in a way that reads like a broken task."*
 **Environment before deploy, deliberately.** Task containers inherit
 **nothing** from compose: a run gets only what the Trigger.dev platform stores
 for the project's environment. `set-task-env.sh` uploads `DATABASE_URL`,
-`APP_DATABASE_URL`, `DIRECT_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the
+`APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY` and the
 optional `OAUTH2_*` / `SMTP_*` / `NOTIFY_*` from `.env`, with `override: true`
 so a stale dashboard value cannot win over a rotated file. The addresses it
-uploads are **in-network** (`pgbouncer:6432`, `postgres:5432`), because runners
+uploads are **in-network** (`pgbouncer:6432` by default), because runners
 join the compose network — `localhost` there would point a task at itself.
+It does not upload `DIRECT_DATABASE_URL` (workplan 0138 T3 step 1): that is the
+database owner straight to Postgres, and no task reads it. A plane that received
+it before that change still holds it; see
+[once, after the pull that stopped uploading it](#once-after-the-pull-that-stopped-uploading-direct_database_url).
 
 `deploy-tasks.sh` re-checks the architecture and refuses on a mismatch, then
 deploys. **Re-run it after every `git pull` that touches `apps/worker`.**
@@ -2181,6 +2185,62 @@ purely web. When in doubt, run it: it is idempotent and costs a minute.
 inherit nothing from compose, so the environment is uploaded separately — run
 it only when a value in `.env` that the worker reads has changed (see phase 9).
 A code-only pull does not need it.
+
+### Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`
+
+Workplan 0138 T3 step 1 took `DIRECT_DATABASE_URL` out of what `set-task-env.sh`
+uploads. It is the database owner, a superuser, straight to Postgres past the
+pooler, and no task reads it. Leaving it out of the upload does not take it out
+of the store: `upload` sends only the variables it is given, and nothing shows
+the platform removing the others. So a plane that received it before keeps
+handing it to every run until it is deleted once.
+
+It also matters for a later key rotation. `SET_TASK_ENV_FORCE_REWRITE=1`
+deletes and rewrites only the variables the script uploads, so a leftover
+`DIRECT_DATABASE_URL` stays on the old key after a
+[`TRIGGER_ENCRYPTION_KEY` rotation](#rotating-trigger_encryption_key), and one
+unreadable secret is enough to stop every run.
+
+On each stack whose plane received it (the OTA stack in `~/ownpace-managed`,
+and `ownpace-live` if its tasks were set up before this change), from that
+stack's checkout:
+
+```bash
+(
+  set -euo pipefail
+  set -a; . deploy/compose/.env; set +a
+  . deploy/compose/trigger-cli-lib.sh
+  TRIGGER_ENV="$(trigger_env deploy/compose/.env)"
+  cd apps/worker
+  TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" TRIGGER_ENV="$TRIGGER_ENV" \
+    node -e 'require("@trigger.dev/sdk").envvars.del(process.env.TRIGGER_PROJECT_REF, process.env.TRIGGER_ENV, "DIRECT_DATABASE_URL").then(() => console.log("deleted DIRECT_DATABASE_URL"), (e) => console.log("delete said:", e && e.message ? e.message : e))'
+)
+./deploy/compose/set-task-env.sh
+```
+
+The parentheses keep a refusal inside them. `trigger_env` is the resolver
+`set-task-env.sh` itself uses, so the delete goes to the same environment the
+upload does, including on a `.env` that still carries the old
+`TRIGGER_ENV_SLUG`; when the two names disagree it refuses, and only the
+subshell exits, not your terminal.
+
+What the delete says is not the check. This repository has seen `envvars.del`
+report a variable missing while its row existed (`deploy/compose/reset-trigger.sh`,
+under a discarded key). The check is the line `set-task-env.sh` prints next,
+`upload OK — env now holds:` and the names in the store: `DIRECT_DATABASE_URL`
+must not be among them. If it is still listed, look for its row in the
+platform's own database (on live, under live's project name):
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T trigger-db \
+  psql -U trigger -d triggerdb -tA -c "SELECT key FROM \"SecretStore\" WHERE key LIKE '%DIRECT_DATABASE_URL%'"
+```
+
+A row there that the delete cannot remove is a secret the current key cannot
+read. `deploy/compose/reset-trigger.sh` says why a reset is then the way out
+and what it destroys, and
+[Rotating `TRIGGER_ENCRYPTION_KEY`](#rotating-trigger_encryption_key) when the
+wipe beats the surgery.
 
 ### Draining first, and telling customers why
 
