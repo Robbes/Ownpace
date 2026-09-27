@@ -940,10 +940,12 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/caldav-source.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 ### `packages/connectors/src/carddav-source.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
 ### `packages/connectors/src/dropbox-file-source.ts`
@@ -1027,6 +1029,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 
+### `packages/connectors/src/jmap-session.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
 ### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -1046,6 +1052,7 @@ reading a file drops off its entry by itself.
 ### `packages/connectors/src/webdav-source.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
@@ -1393,6 +1400,14 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/reachable-host.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
+### `packages/shared/src/remote-refusal.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/shared/src/remote-refusal.unit.test.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 ### `packages/shared/src/target-domains.ts`
 
@@ -2502,9 +2517,15 @@ A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 Reads:
 
+- `packages/connectors/src/caldav-source.ts`
+- `packages/connectors/src/carddav-source.ts`
+- `packages/connectors/src/jmap-session.ts`
+- `packages/connectors/src/webdav-source.ts`
 - `packages/engines/package.json`
 - `packages/shared/src/dav-refusal.unit.test.ts`
 - `packages/shared/src/index.ts`
+- `packages/shared/src/remote-refusal.ts`
+- `packages/shared/src/remote-refusal.unit.test.ts`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)
 

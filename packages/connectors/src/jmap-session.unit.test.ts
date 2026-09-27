@@ -21,6 +21,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { RemoteRefusal } from '@openmig/shared';
 import { loadJmapSession } from './jmap-session.ts';
 
 const URL_UNDER_TEST = 'http://jmap.test/.well-known/jmap';
@@ -180,6 +181,29 @@ describe('what the failure message carries', () => {
     );
     respondWith(unreadable);
     await expect(loadJmapSession(URL_UNDER_TEST, AUTH)).rejects.toThrow(/returned HTTP 502/);
+  });
+});
+
+describe('the parts beside the message (0136 T3)', () => {
+  it('a problem document: its type and detail in the message, and as the words', async () => {
+    respondWith(json({ type: 'urn:ietf:params:jmap:error:notJSON', status: 400, detail: 'Not JSON.' }, 400));
+    const err = await loadJmapSession(URL_UNDER_TEST, AUTH).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(RemoteRefusal);
+    expect(err).toMatchObject({
+      protocol: 'jmap',
+      status: 400,
+      providerWords: 'urn:ietf:params:jmap:error:notJSON — Not JSON.',
+    });
+    // The envelope goes from the message too, as `davRefusalBody` takes a
+    // DAV server's off.
+    expect((err as Error).message).toMatch(/returned HTTP 400 - urn:ietf:params:jmap:error:notJSON — Not JSON\.$/);
+  });
+
+  it('any other body: the status alone as a part, the body still in the message', async () => {
+    respondWith(new Response('<html>the proxy says no</html>', { status: 502 }));
+    const err = await loadJmapSession(URL_UNDER_TEST, AUTH).catch((e: unknown) => e);
+    expect(err).toMatchObject({ protocol: 'jmap', status: 502, providerWords: undefined });
+    expect((err as Error).message).toMatch(/the proxy says no/);
   });
 });
 

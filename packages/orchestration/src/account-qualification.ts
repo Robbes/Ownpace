@@ -47,9 +47,10 @@ import {
   type QualificationKey,
   type QualificationReason,
 } from '@openmig/shared';
-import type { DiscoveryDomain, ProbeUnit } from '@openmig/shared';
+import { whatHappened } from '@openmig/shared';
+import type { DiscoveryDomain, ProbeUnit, WhatHappened } from '@openmig/shared';
 import { buildImapSourceFrom } from './mail-source-factory.ts';
-import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
+import { davEndpointFromCreds, davUrlIsTyped, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { measureTargetScheduling } from './target-scheduling.ts';
 import type { SchedulingVerdict } from './target-scheduling.ts';
 // THE FIVE FACES OF A GOOGLE GRANT, built exactly as a pass builds them
@@ -121,6 +122,15 @@ export interface QualifiedDomain {
    * (then `detail` says so).
    */
   readonly volume?: MeasuredVolume;
+  /**
+   * WHAT HAPPENED, IN PARTS, on a face that was refused at an address the
+   * tester typed (workplan 0136 T3): the server's status and its words only
+   * when they came as an error document we know, or a socket failure by its
+   * category. `detail` holds the full text, the remote's bytes included; the
+   * managed API rewrites `detail` from this and drops the field before the
+   * record is stored or returned. Absent on every other face.
+   */
+  readonly said?: WhatHappened;
 }
 
 /** A face's volume, as data — a screen words and formats it. */
@@ -257,6 +267,8 @@ function counted(count: number, unit: ProbeUnit): string {
 async function askListable(
   build: () => Listable,
   unit: ProbeUnit,
+  /** The address is one the tester typed, so a refusal carries its parts (0136 T3). */
+  typedHost = false,
 ): Promise<QualifiedDomain> {
   try {
     const folders = await build().listFolders();
@@ -276,6 +288,7 @@ async function askListable(
       detail: `Unmeasured — the probe was refused: ${
         err instanceof Error ? err.message : String(err)
       }`,
+      ...(typedHost ? { said: whatHappened(err) } : {}),
     };
   }
 }
@@ -380,6 +393,7 @@ export async function qualifyAccount(
               { authType: 'LOGIN', password: creds.password },
             ),
       'folder',
+      true,
     );
     const notAskable: QualifiedDomain = {
       answer: 'unknown',
@@ -488,6 +502,9 @@ export async function qualifyAccount(
   // A protocol kind (caldav, carddav, webdav, nextcloud) is not a named
   // account, claims nothing about the server behind it, and is measured
   // exactly as before.
+  // WHOSE ADDRESS (0136 T3): the row's own, typed by somebody, or a
+  // provider's published root. Only a typed one's refusal carries its parts.
+  const typedDav = davUrlIsTyped(config);
   const davFace = (
     face: DiscoveryDomain,
     word: string,
@@ -495,7 +512,7 @@ export async function qualifyAccount(
     unit: ProbeUnit,
   ): Promise<QualifiedDomain> =>
     accountServes(kind, face)
-      ? askListable(build, unit)
+      ? askListable(build, unit, typedDav)
       : Promise.resolve(reasonedNo(kind, face) ?? notAFaceOf(kind, word));
   const [calendar, task, contact, file, mailMeasured] = await Promise.all([
     davFace(
@@ -566,6 +583,7 @@ export async function qualifyAccount(
                   { authType: 'LOGIN', password: creds.password },
                 ),
           'folder',
+          typedMailHost !== '',
         )
       : Promise.resolve(undefined),
   ]);
@@ -618,15 +636,12 @@ async function qualifyJmap(
 ): Promise<AccountQualification> {
   const baseUrl = String(config.baseUrl ?? '');
   const sessionUrl = `${baseUrl}/.well-known/jmap`;
-  const unknownAll = (why: string): AccountQualification => ({
-    domains: {
-      mail: { answer: 'unknown', reason: 'refused', detail: why },
-      calendar: { answer: 'unknown', reason: 'refused', detail: why },
-      contact: { answer: 'unknown', reason: 'refused', detail: why },
-      file: { answer: 'unknown', reason: 'refused', detail: why },
-      task: { answer: 'unknown', reason: 'refused', detail: why },
-    },
-  });
+  // The base URL is one the tester typed, so a failure that is the server's
+  // carries its parts (0136 T3). A status alone is ours to say, and says it.
+  const unknownAll = (why: string, said?: WhatHappened): AccountQualification => {
+    const face: QualifiedDomain = { answer: 'unknown', reason: 'refused', detail: why, ...(said ? { said } : {}) };
+    return { domains: { mail: face, calendar: face, contact: face, file: face, task: face } };
+  };
   let capabilities: Record<string, unknown>;
   try {
     const response = await tenantFetch(sessionUrl, {
@@ -645,6 +660,7 @@ async function qualifyJmap(
       `Unmeasured — the session document could not be read: ${
         err instanceof Error ? err.message : String(err)
       }`,
+      whatHappened(err),
     );
   }
   const has = (urn: string): boolean => urn in capabilities;
