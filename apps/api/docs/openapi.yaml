@@ -1895,6 +1895,17 @@ paths:
         on a migration that does not run). A `domainStatus` row its owner
         stopped carries `stoppedByOwner: true`; one switched off otherwise
         does not.
+
+        `endingChoices` (workplan 0128 T5, slice 7b) lists each data type the
+        migration carries with its ending, as the Finish page offers it:
+        `phase` (`active`, `cutover`, `done` or `continuous`), `stopped`, and
+        `offers`, the presses `…/domains/{domain}/end` and `…/keep` accept now.
+        One rule decides both. End is offered without counting the data
+        type's open failures; the door answers those with a refusal the page
+        can force. Empty while the migration is paused or never started.
+        On a data type still in its cutover, `graceEndedAt` says when its
+        grace period ended while nobody chose: it no longer copies (D7, slice
+        7c).
       responses:
         '200':
           description: The migration.
@@ -2147,6 +2158,116 @@ paths:
           description: |
             `resume_refused`, with `refused` and a `reason`: `not_running`,
             `not_a_path` or `not_stoppable`, as for a stop.
+
+  /api/migrations/{mappingId}/domains/{domain}/end:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - name: domain
+        in: path
+        required: true
+        schema: { type: string, enum: [email, calendar, contact, file, task] }
+      - name: force
+        in: query
+        required: false
+        schema: { type: boolean }
+        description: End it over its own failures still waiting on a decision, knowingly.
+    post:
+      tags: [Migrations]
+      summary: End one data type where its migration ends
+      description: |
+        Ends ONE data type (workplan 0128 T3, T5 slice 7; D3, D8): it becomes
+        `done`. Its passes stop, its slot is let go, and what is copied
+        stays. From before its cutover it ends as the whole migration's Finish
+        does. The data type's own failures still waiting on a decision refuse
+        it unless `force=true`. The migration's status is then its data types'
+        roll-up: with every data type ended, the migration is finished. Each
+        move is recorded (`path.phase`, and `mapping.status` when the
+        migration's status moved).
+      responses:
+        '200':
+          description: Ended, or already ended (`changed` false, with its `phase`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, domain, ending, changed]
+                properties:
+                  id: { type: string }
+                  domain: { type: string, enum: [email, calendar, contact, file, task] }
+                  ending: { type: string, enum: [end] }
+                  changed: { type: boolean }
+                  phase: { type: string, description: 'Its phase, when nothing changed.' }
+                  from: { type: string }
+                  to: { type: string, enum: [done] }
+                  migration:
+                    type: object
+                    description: The migration's status, when the roll-up moved it.
+                    properties:
+                      from: { type: string }
+                      to: { type: string }
+                  slotsTaken: { type: boolean }
+        '400':
+          description: '`invalid_domain`: the path names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `end_refused`, with `refused` the stable part and a `reason`:
+            `not_running` (the migration or the data type is paused or never
+            started; `status` names it), `not_a_path` (the migration does not
+            carry this data type), or `unresolved_failures` (`count` of its
+            own failures waiting on a decision; `forceable` true).
+
+  /api/migrations/{mappingId}/domains/{domain}/keep:
+    parameters:
+      - $ref: '#/components/parameters/MappingId'
+      - name: domain
+        in: path
+        required: true
+        schema: { type: string, enum: [email, calendar, contact, file, task] }
+    post:
+      tags: [Migrations]
+      summary: Keep one data type copying in the continuous lane
+      description: |
+        Keeps ONE data type copying after its cutover (workplan 0128 T3, T5
+        slice 7; D3, D8): it enters the continuous lane (`continuous`), where
+        it copies under the after-cutover rules and holds a slot; a slot it
+        did not hold raises the month's peak. From before its cutover it is
+        recorded as its cutover and then the lane. Its failures do not hold it
+        back: the lane goes on retrying them. Not while its owner has it
+        stopped: resume it first, or end it. The migration's status is then
+        its data types' roll-up.
+      responses:
+        '200':
+          description: Kept, or already in the lane (`changed` false, with its `phase`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, domain, ending, changed]
+                properties:
+                  id: { type: string }
+                  domain: { type: string, enum: [email, calendar, contact, file, task] }
+                  ending: { type: string, enum: [keep] }
+                  changed: { type: boolean }
+                  phase: { type: string, description: 'Its phase, when nothing changed.' }
+                  from: { type: string }
+                  to: { type: string, enum: [continuous] }
+                  migration:
+                    type: object
+                    description: The migration's status, when the roll-up moved it.
+                    properties:
+                      from: { type: string }
+                      to: { type: string }
+                  slotsTaken: { type: boolean }
+        '400':
+          description: '`invalid_domain`: the path names no data type.'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `keep_refused`, with `refused` and a `reason`: `not_running`,
+            `not_a_path`, or `stopped` (resume it first, or end it).
 
   /api/migrations/{mappingId}/sync:
     parameters:
@@ -3954,6 +4075,10 @@ paths:
 
         Auto-applied relocations are reported as zero: they are news the digest
         bounds by its own window, not a queue anybody can act on.
+
+        `graceEnded` names the data types whose grace period ended while nobody
+        chose (workplan 0128 D7): still in their cutover, no longer copying,
+        and waiting on End or Keep copying on the Finish page. Absent when none.
 
         A migration whose status is `done` is omitted entirely — a finished
         migration keeps its history and stops nagging. A queue that could not

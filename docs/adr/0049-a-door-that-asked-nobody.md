@@ -34,8 +34,11 @@
 - What the door still does: `active`/`paused` → `cutover` (the declaration), `active` → `paused`
   (pause), `cutover` ↔ `continuous` and `done` → `continuous` (the lane and its stop). Restating
   the status a mapping already has is a request, not a transition: 200, nothing recorded.
-- **The Finish page's lane switch sends `PUT`**, the verb this path is served by. A web test pins
-  the verb.
+- **The lane's switch is `PUT`**, the verb this path is served by, for a caller of the API. The
+  Finish page no longer sends it (amended 2026-09-26, workplan 0128 T5 slice 7b): it keeps each
+  data type copying through that data type's own door (`POST …/domains/{domain}/keep`, ADR-0048's
+  amendment of that day), and ends each through `…/end`, so the web's verb pin went with the
+  call it pinned.
 - **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
   `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
   reaches them once it exists, through the cutover, Finish and Keep copying.
@@ -131,6 +134,14 @@ the axios instance without a `patch` at all, so a regression fails as a missing 
   those two and refuses the rest with a 400 on `status`, before anything is written. There is no
   table to ask here, because nothing comes before a migration's first status: the answer is the
   two states a migration can begin in (`CREATABLE_STATUSES`).
+
+- **The Finish page presses per data type (2026-09-26, workplan 0128 T5 slice 7b).** The owner's
+  D8 put the ending per data type, so the page's one *Keep copying* for the whole migration, the
+  `PUT` whose verb this ADR found wrong, gave way to an End and a Keep copying beside each data
+  type, through the ending door of each. Its rule is the same as this table's where the two
+  meet: the lane is entered only after a cutover (from before one, the press is recorded as the
+  cutover and then the lane), and `done` has the lane as its one exit. The `PUT` stays the lane's
+  switch for the whole migration, for a caller of the API.
 
 ## Alternatives considered
 

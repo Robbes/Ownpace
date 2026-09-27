@@ -637,7 +637,11 @@ export class CutoverStore implements CutoverStateStore {
       cutoverStartedAt: undefined,
       cutoverCompletedAt: undefined,
       gracePeriodStartedAt: row.gracePeriodStartedAt?.toISOString() as string,
-      gracePeriodEndsAt: undefined,
+      // When the grace period ends, or ended: its start and its hours (0128
+      // D7). It was never filled before, so nothing that read it ever knew.
+      gracePeriodEndsAt: row.gracePeriodStartedAt
+        ? new Date(row.gracePeriodStartedAt.getTime() + row.gracePeriodHours * 3_600_000).toISOString()
+        : undefined,
       copiesThroughGrace: row.copiesThroughGrace,
       gracePeriodHours: row.gracePeriodHours,
       totalItemsMigrated: 0,
