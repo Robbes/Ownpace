@@ -173,6 +173,9 @@ const en = {
   'login.pasteFallback':
     'This deployment’s API uses no identity provider; it accepts a token from the seed script.',
   'login.oidcFailed': 'We could not reach the sign-in service.',
+  // Under the sign-in button (workplan 0144 T7): the way to the request page
+  // for somebody who has no account yet. The mirror of `access.backToSignIn`.
+  'login.requestAccess': 'No account yet? Request access.',
   // ---- Asking the API what it accepts, before offering it (workplan 0102 T1) ----
   'login.checking': 'Checking how this deployment signs people in…',
   // Not a fallback to the paste box: on a managed stack that box is refused
@@ -2712,6 +2715,7 @@ const nl: Record<keyof typeof en, string> = {
   'login.pasteFallback':
     'Deze API gebruikt geen identiteitsprovider en accepteert dus een token uit het seedscript.',
   'login.oidcFailed': 'Wij konden de aanmeldservice niet bereiken.',
+  'login.requestAccess': 'Nog geen account? Vraag toegang aan.',
   // ---- De API vragen wat zij accepteert (workplan 0102 T1) — zie het Engelse blok. ----
   'login.checking': 'Bezig met controleren hoe deze omgeving mensen aanmeldt…',
   'login.modeUnavailable':
