@@ -41,6 +41,12 @@
  * whatever channel reaches the server. `.yml` is out of scope: pgbouncer's
  * healthcheck asks over 127.0.0.1 and is right to, because pgbouncer applies
  * its own `auth_type = scram-sha-256` to every connection, loopback included.
+ * The same holds in a script: a loopback psql aimed at PgBouncer's own port
+ * (`listen_port` in pgbouncer.ini) is asked for its password.
+ * `rehearse-capacity.sh --sample` asks SHOW POOLS that way, exactly as the
+ * healthcheck does (0143 T9, review, 2026-09-27). A case below keeps the
+ * premise honest: pgbouncer.ini has that `auth_type` and no hba file that
+ * could trust the loopback.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -87,17 +93,24 @@ export function verifiesAPassword(command: string): boolean {
   return /\bPGPASSWORD\b/.test(command) && /\bpsql\b/.test(command);
 }
 
+const pgbouncerIni = readFileSync(join(COMPOSE_DIR, 'pgbouncer', 'pgbouncer.ini'), 'utf8');
+/** PgBouncer's port, read from its own configuration rather than written here. */
+export const PGBOUNCER_PORT = /^listen_port\s*=\s*(\d+)\s*$/m.exec(pgbouncerIni)?.[1] ?? '';
+
 /**
  * Does the command reach the server over something Postgres actually
  * authenticates? Absent `-h`, psql uses the socket. A literal loopback host is
- * no better: the image trusts 127.0.0.1 too.
+ * no better: the image trusts 127.0.0.1 too. Unless the port is PgBouncer's:
+ * PgBouncer asks every connection for its password, loopback included.
  */
 export function asksOverAnAuthenticatedChannel(command: string): boolean {
   const host = /\s-h\s+["']?([^\s"']+)/.exec(command)?.[1];
   // No `-h` at all, or a `-h` with nothing after it: psql falls back to the
   // socket either way, which is the case this whole file exists to refuse.
   if (!host) return false;
-  return !/^(localhost|127\.|::1$|\[::1\])/.test(host);
+  if (!/^(localhost|127\.|::1$|\[::1\])/.test(host)) return true;
+  const port = /\s-p\s+["']?([^\s"']+)/.exec(command)?.[1];
+  return PGBOUNCER_PORT !== '' && port === PGBOUNCER_PORT;
 }
 
 describe('every password check reaches Postgres the way the thing it speaks for does', () => {
@@ -154,6 +167,20 @@ describe('the rule itself, on the two commands that were actually written', () =
         `${host} was accepted as an authenticated channel`,
       ).toBe(false);
     }
+  });
+
+  it("accepts a loopback host on PgBouncer's port, and only there, because PgBouncer asks every connection", () => {
+    // The premise, in pgbouncer.ini itself: its own auth_type on every
+    // connection, and no hba file that could trust the loopback.
+    expect(PGBOUNCER_PORT, 'pgbouncer.ini has no listen_port').toMatch(/^\d+$/);
+    expect(pgbouncerIni).toMatch(/^auth_type\s*=\s*scram-sha-256\s*$/m);
+    expect(pgbouncerIni).not.toMatch(/^auth_hba_file\s*=/m);
+
+    const pooler = `PGPASSWORD=x psql -h 127.0.0.1 -p ${PGBOUNCER_PORT} -U pgbouncer_auth -d pgbouncer -c 'SHOW POOLS'`;
+    expect(asksOverAnAuthenticatedChannel(pooler)).toBe(true);
+    // Postgres' own port, or no port at all, is the trusted loopback again.
+    expect(asksOverAnAuthenticatedChannel(pooler.replace(`-p ${PGBOUNCER_PORT}`, '-p 5432'))).toBe(false);
+    expect(asksOverAnAuthenticatedChannel(pooler.replace(` -p ${PGBOUNCER_PORT}`, ''))).toBe(false);
   });
 
   it('joins a continuation, because that is how both checks were laid out', () => {
