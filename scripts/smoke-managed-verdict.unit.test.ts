@@ -325,7 +325,11 @@ describe("the smoke's eligibility is the product's, not a paraphrase of it", () 
     // asserts the stronger property the factoring bought: the clause exists in
     // that one definition, and every query that selects an item uses it rather
     // than open-coding a filter that could drift from it.
-    expect(smoke).toMatch(/ELIGIBLE="status IN \('copied','updated'\) AND coalesce\(target_ref->>'id',''\) <> ''"/);
+    // And a recorded version (workplan 0149 T3): without one the removal is
+    // refused as `version_unknown`, which this gate's verdict would pass.
+    expect(smoke).toMatch(
+      /ELIGIBLE="status IN \('copied','updated'\) AND coalesce\(target_ref->>'id',''\) <> '' AND target_version IS NOT NULL"/,
+    );
     const selects = [...smoke.matchAll(/SELECT natural_key_hash FROM item[^"]*/g)];
     expect(selects.length).toBeGreaterThan(0);
     for (const m of selects) {
@@ -426,7 +430,14 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
   const block = smoke.match(/ {2}echo "what IS on this mapping:"[\s\S]*?\n {2}fi\n/)?.[0];
 
   /** Drive the real branch with a `q` that answers as a given ledger would. */
-  function diagnose(total: string, eligible: string, breakdown = '', spent = '0', fixture = '') {
+  function diagnose(
+    total: string,
+    eligible: string,
+    breakdown = '',
+    spent = '0',
+    fixture = '',
+    handled = '0',
+  ) {
     // `pick_fixture` is defined further up the real script, outside this block.
     // Left undefined, bash printed "command not found", the branch that calls it
     // silently took the empty path, and every test here still passed — a
@@ -439,8 +450,11 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
     // on it silently answered the ELIGIBLE query with the TOTAL — which made
     // this stub report "6 eligible" for a ledger the test said had none. The
     // tombstone count is told apart the same way, and for the same reason.
+    // The rows ours WITH a handle (workplan 0149 T3) are told apart by the
+    // handle clause, before the status list both of those counts carry.
     const q = `q() { case "$1" in
       *"count(*) FROM item"*"status='tombstoned'"*) echo "${spent}" ;;
+      *"count(*) FROM item"*"coalesce(target_ref->>'id','') <> ''"*) echo "${handled}" ;;
       *"count(*) FROM item"*"status IN ('copied','updated')"*) echo "${eligible}" ;;
       *"count(*) FROM item"*) echo "${total}" ;;
       *) printf '%s' "${breakdown}" ;;
@@ -513,6 +527,16 @@ describe('the refusal says WHICH way there is nothing to act on', () => {
     expect(out).toContain('none carries a target_ref id');
     expect(out).toContain("bug in the sync's ledger write");
     expect(out).not.toContain('seed-demo-dav-content.sh');
+  });
+
+  it('copied with a handle but no recorded version is said to be that, not a sync bug', () => {
+    // Workplan 0149 T3: a removal without a version is refused as
+    // version_unknown, so such rows are not eligible. Calling them a ledger-
+    // write bug would send the reader hunting a sync that did nothing wrong.
+    const out = diagnose('6', '6', 'file|copied|6|6|0', '0', '', '6');
+    expect(out).toContain('none recorded a version');
+    expect(out).toContain('version_unknown');
+    expect(out).not.toContain("bug in the sync's ledger write");
   });
 
   it('always prints the actual breakdown, whichever state it is', () => {

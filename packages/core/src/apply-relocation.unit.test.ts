@@ -250,6 +250,18 @@ describe('the gates it shares with a deletion are still in front of it', () => {
     expect((await ledger.find(TENANT, MAPPING, 'file', OLD_KEY))?.status).toBe('copied');
   });
 
+  it('leaves a copy with no recorded version alone, as version_unknown (workplan 0149 T3)', async () => {
+    // The writer removed nothing, for want of a version to check against. Its
+    // own code: nobody is known to have edited it, and this is not a target
+    // that cannot remove either.
+    const ledger = await ledgerWithRelocation();
+
+    const outcome = await applyRelocation(deps(ledger, fakeRemover({ unversioned: true })), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'version_unknown' });
+    expect((await ledger.find(TENANT, MAPPING, 'file', OLD_KEY))?.status).toBe('copied');
+  });
+
   it('refuses a second apply on an already-removed copy', async () => {
     const ledger = await ledgerWithRelocation();
     await applyRelocation(deps(ledger, fakeRemover()), OLD_KEY);
