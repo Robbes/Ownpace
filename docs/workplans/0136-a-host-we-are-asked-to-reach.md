@@ -4,6 +4,46 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, T3's answer built** (0131 §6, group M2, step 3) on branch
+`claude/mailbox-sync-errors-c2xsw2-a-probe-that-does-not-read-aloud`, not merged. The per-member
+limit on tests is the next pull request, and the failures route is T3's second step.
+
+- **The parts.** A refusal carries its parts beside its message (`RemoteRefusal`,
+  `packages/shared/src/remote-refusal.ts`): the status, and the provider's words only when the
+  body is an error document of a kind §3 lists, as the document itself (its root element or its
+  JSON shape) and not inside some other page, capped at 300 characters. The eight DAV refusals
+  the sources throw, the IMAP source's `NO` or `BAD` (with its response code), and the JMAP
+  session loader carry them. The messages are unchanged, except that the session loader's now
+  reads a JMAP problem document for its type and detail instead of pasting the first 300
+  characters of it, the way `davRefusalBody` unwraps a DAV one.
+- **Only for a host the tester typed.** The probe adds `said` (`whatHappened`) to a failure from a
+  target, or from a mail source whose row names its host (every `imap` row, and an `o365` row on
+  IMAP, since the door takes the field), and the qualification to a face refused at a typed
+  address. A provider's fixed hosts carry none, and their words render as before (0080, 0115 T5):
+  Graph, Google, Dropbox, Box. Apple's published roots are nobody's typed address and carry none
+  either.
+- **The answer** (`apps/api/src/probe-answer.ts`), at the five doors of §1: the Test door, the
+  three `/api/connections` doors (the headline, and every face before the row stores it) and the
+  permission report's faces. A server that answered: its status, and its words or *"with
+  something that is not a DAV, JMAP or IMAP error"*. Nothing answered: the new outcome code
+  `unreachable`, and no address. The rule's refusal (T1, read by its code): the new outcome code
+  `insideOurNetwork`, and no host, since after a redirect the host it names is the remote's. A
+  certificate and anything else: a sentence of ours. Each sentence ends with a reference; the full text goes to
+  the log under it, and the operator's log page records `probe.refused`, once per request.
+- **Proved.** `apps/api/src/routes/a-probe-that-does-not-read-aloud.unit.test.ts` drives the real
+  doors, probe and qualifier against servers on this machine: an HTML 500, a JSON 200 of another
+  shape and a text 403 reach no answer at any door, a GData 403, a Google JSON 400 and a Sabre
+  500 keep their code and message, a closed port answers `unreachable` without its address, and
+  an IMAP `NO` is its words. The log has every byte under the reference, which is also the proof
+  that each case reached its server. `scripts/a-refusal-that-pastes-its-envelope.unit.test.ts`
+  now also holds that every DAV refusal a source throws carries its parts, and that the session
+  loader pastes no body. With the rule switched on, what `tenantFetch` and `reachableHost` throw
+  reads as `insideOurNetwork` (`remote-refusal.unit.test.ts`).
+- **Not yet:** the screens' Dutch for these sentences and for `unreachable` (the web half, after
+  the other session's pull requests on the same files); a case through the doors with the rule
+  switched on, which needs the clients going through it (T1 (a)'s second slice); and the JMAP
+  file and contact targets' upload refusals, which a pass writes and a Test never reaches.
+
 **2026-09-27: T1 (a), first slice built (0131 §6, group M2, step 1).** The rule, in
 `packages/shared/src/reachable-host.ts`, and nothing calls it yet, so nothing behaves differently.
 T1 (a) comes in three pull requests: this one; the clients that reach a tenant's host going
@@ -172,7 +212,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 |---|---|---|
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | 🔨 **First slice built 2026-09-27** (the rule, not yet called); advised before the first invitation (D1) | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
-| T3 A probe answer that says what happened, not what the remote said | 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
+| T3 A probe answer that says what happened, not what the remote said | 🔨 **The answer built 2026-09-27, not merged**; the limit and the failures route to come; *was:* 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-no-archive-disk-path-on-managed`, not merged** (2026-09-24); before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
 | T6 Guard tests for each | 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |

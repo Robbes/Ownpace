@@ -26,7 +26,9 @@ import {
   appleAuthRefusal,
   isCredentialRefusal,
   microsoftFaceScope,
+  whatHappened,
   type ProviderClientEnv,
+  type WhatHappened,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
 import {
@@ -106,7 +108,21 @@ export type ProbeResult =
        */
       readonly scheduling?: SchedulingVerdict;
     }
-  | { readonly ok: false; readonly reason: string; readonly outcome: ProbeOutcome };
+  | {
+      readonly ok: false;
+      readonly reason: string;
+      readonly outcome: ProbeOutcome;
+      /**
+       * WHAT HAPPENED, IN PARTS, when the probe reached a host the tester typed
+       * (workplan 0136 T3): a DAV, IMAP or JMAP server's status and its words
+       * only when they came as an error document we know, or a socket failure
+       * by its category. `reason` above is the full text and still holds the
+       * remote's bytes; the managed API answers from this instead and logs
+       * `reason` under a reference. Absent for a provider's fixed hosts, whose
+       * words render verbatim (workplan 0080), and for every refusal of ours.
+       */
+      readonly said?: WhatHappened;
+    };
 
 /** The English `detail` for a successful listing — the fallback, not the UI. */
 function connectedDetail(count: number, unit: ProbeUnit, floor = false): string {
@@ -178,7 +194,7 @@ export function withProbeDeadline(
  * `reason` is the English either way, so nothing that only knows about
  * `reason` changes.
  */
-function providerRefused(err: unknown, kind?: string): ProbeResult {
+function providerRefused(err: unknown, kind?: string, typedHost = false): ProbeResult {
   if (isCredentialRefusal(err)) {
     return {
       ok: false,
@@ -202,6 +218,7 @@ function providerRefused(err: unknown, kind?: string): ProbeResult {
     ok: false,
     reason: text,
     outcome: { code: 'providerRefused' },
+    ...(typedHost ? { said: whatHappened(err) } : {}),
   };
 }
 
@@ -211,6 +228,8 @@ async function probeListable(
   /** The connection kind, so a refusal we can say better than the provider is
    *  recognised — see `providerRefused` (workplan 0115 T5). */
   kind?: string,
+  /** The host is one the tester typed, so a refusal carries its parts (0136 T3). */
+  typedHost = false,
 ): Promise<ProbeResult> {
   try {
     const folders = await build().listFolders();
@@ -220,7 +239,7 @@ async function probeListable(
       outcome: { code: 'connected', count: folders.length, unit },
     };
   } catch (err) {
-    return providerRefused(err, kind);
+    return providerRefused(err, kind, typedHost);
   }
 }
 
@@ -578,10 +597,15 @@ async function probeSourceNow(
       // The managed mail builder handles both: a password, a static token, or
       // the per-customer app registration (which selects XOAUTH2 minting, with
       // Graph behind it for an O365 tenant).
+      //
+      // WHOSE ADDRESS (0136 T3): the row's `host`, where it has one. An `imap`
+      // row always does, and an `o365` row on IMAP may, since the door takes
+      // the field; a Graph row has none and reaches Microsoft's fixed host.
       return probeListable(
         () => buildSourceConnectorFromCredentials(config as unknown as SourceConfig, creds),
         'folder',
         kind,
+        typeof config.host === 'string' && config.host !== '',
       );
     default:
       return {
@@ -688,7 +712,9 @@ async function probeTargetNow(
       ...(scheduling ? { scheduling } : {}),
     };
   } catch (err) {
-    return providerRefused(err);
+    // Every target's address is one the tester typed: a JMAP base URL, an
+    // IMAP host, a DAV URL (0136 T3).
+    return providerRefused(err, undefined, true);
   }
 }
 

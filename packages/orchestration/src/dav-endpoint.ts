@@ -37,6 +37,16 @@ export function davUrl(config: Record<string, unknown>, kind?: string, face?: st
 }
 
 /**
+ * Whether `davUrl` answers from the row's own config, an address somebody
+ * typed, rather than from a provider's published root (workplan 0136 T3). The
+ * same three branches, in the same order, as `davUrl` itself.
+ */
+export function davUrlIsTyped(config: Record<string, unknown>): boolean {
+  if (typeof config.url === 'string' || typeof config.baseUrl === 'string') return true;
+  return typeof config.host === 'string' && config.host !== '';
+}
+
+/**
  * Resolve a DAV endpoint from a stored connection's config + decrypted
  * credentials, requiring a username and password. Fails fast with a clear
  * message (naming the role + expected keys) instead of silently building a

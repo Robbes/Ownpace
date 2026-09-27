@@ -119,6 +119,7 @@ import {
   updateTransition,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
+import { probeAnswers } from '../../probe-answer.ts';
 import { archiveOnServerRefusal } from '../archive-on-the-server.ts';
 
 /** Take the first row of a RETURNING result or fail loudly (no silent nulls). */
@@ -1939,10 +1940,9 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
       // would open. See `archive-on-the-server.ts`.
       const onServer = archiveOnServerRefusal(sourceKindFor(body.sourceType), config);
       if (onServer) return void res.status(400).json(onServer);
-      const result = await probeSourceConnection(
-        sourceKindFor(body.sourceType),
-        config,
-        sourceCredentialRecord(half),
+      // What a host the tester typed said is answered from its parts (0136 T3).
+      const result = probeAnswers('testing a connection', req.tenantId).result(
+        await probeSourceConnection(sourceKindFor(body.sourceType), config, sourceCredentialRecord(half)),
       );
       return void res.json(result);
     }
@@ -1952,10 +1952,12 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
         reason: 'Testing the target needs targetType and targetConfig.',
       });
     }
-    const result = await probeTargetConnection(
-      body.targetType,
-      targetConnectionConfig({ targetType: body.targetType, targetConfig: body.targetConfig }),
-      { username: body.targetConfig.username, password: body.targetConfig.password },
+    const result = probeAnswers('testing a connection', req.tenantId).result(
+      await probeTargetConnection(
+        body.targetType,
+        targetConnectionConfig({ targetType: body.targetType, targetConfig: body.targetConfig }),
+        { username: body.targetConfig.username, password: body.targetConfig.password },
+      ),
     );
     return void res.json(result);
   } catch (error) {

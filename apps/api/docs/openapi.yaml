@@ -1782,8 +1782,15 @@ paths:
         call — built exactly the way a sync pass would build the connector, so
         a passed test cannot diverge from what create would store. A provider
         refusal ("wrong password", "invalid scope") is an ANSWER, returned as
-        `{ok:false, reason}` with the provider's words verbatim, not an error
-        status.
+        `{ok:false, reason, outcome}`, not an error status.
+
+        A provider's fixed hosts answer in their own words. An address the
+        tester typed is answered from its parts (workplan 0136 T3): the status,
+        and the server's words only when they came as an error document we know
+        (DAV, Google, JMAP, an IMAP `NO`); a server that did not answer has the
+        outcome code `unreachable`, and no address; an address inside this
+        service's own network has `insideOurNetwork`, and no host. The sentence
+        ends with a reference that finds the full text in the server log.
       requestBody:
         required: true
         content:

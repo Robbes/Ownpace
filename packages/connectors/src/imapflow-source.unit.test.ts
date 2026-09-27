@@ -162,6 +162,7 @@ function imapRefusal(status: 'NO' | 'BAD', text: string, command?: string): Erro
 }
 
 // Imported AFTER the mock is declared, the way vitest hoisting requires.
+const { RemoteRefusal } = await import('@openmig/shared');
 const { ImapFlowSource, isCertificateError, isSelectableFolder, imapRefusalDetail } = await import(
   './imapflow-source.ts'
 );
@@ -842,6 +843,26 @@ describe('a refusal says what the server said', () => {
   it('leaves an ordinary error exactly as it was', async () => {
     failNextOperations = { count: 1, error: new Error('LIST exploded') };
     await expect(source().listFolders()).rejects.toThrow(/^LIST exploded$/);
+    failNextOperations = { count: 1, error: new Error('LIST exploded') };
+    await expect(source().listFolders()).rejects.not.toBeInstanceOf(RemoteRefusal);
+  });
+
+  it('carries the NO line as its part, and not the command we sent (0136 T3)', async () => {
+    failNextOperations = {
+      count: 1,
+      error: imapRefusal('NO', '[NONEXISTENT] Unknown Mailbox: [Gmail] (Failure)', 'SELECT "[Gmail]"'),
+    };
+    const refused = await source().listFolders().catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(RemoteRefusal);
+    expect(refused).toMatchObject({
+      protocol: 'imap',
+      status: undefined,
+      providerWords: 'NO [NONEXISTENT] Unknown Mailbox: [Gmail] (Failure)',
+    });
+    // The message the operator reads is the one it always was.
+    expect((refused as Error).message).toBe(
+      'The IMAP server refused: NO [NONEXISTENT] Unknown Mailbox: [Gmail] (Failure) (in answer to: SELECT "[Gmail]")',
+    );
   });
 
   it('answers undefined for anything that is not one of imapflow’s refusals', () => {

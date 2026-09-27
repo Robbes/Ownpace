@@ -78,6 +78,7 @@ import {
   uidFromSourceRef,
   type ImapSourceConfigWithTokenProvider,
 } from './imap-conventions.ts';
+import { RemoteRefusal, imapRefusalWords, type RemoteRefusalParts } from '@openmig/shared';
 
 /**
  * How many times to re-ask for a message that is not there yet, and how long
@@ -516,9 +517,13 @@ export class ImapFlowSource implements SourceConnector {
       // this line — the auth retry included — needs the error imapflow threw,
       // so the refusal is only unpacked on the way out, and only when it IS
       // one: anything else travels untouched, with `cause` kept either way.
+      //
+      // As a `RemoteRefusal` since 0136 T3: the same message, and beside it the
+      // server's NO or BAD line as a part, which is all the managed Test button
+      // may repeat of what a host a tester typed said.
       const detail = imapRefusalDetail(error);
       if (!detail) throw error;
-      throw new Error(detail, { cause: error });
+      throw new RemoteRefusal(detail, imapRefusalParts(error), { cause: error });
     }
   }
 
@@ -641,6 +646,27 @@ export function imapRefusalDetail(error: unknown): string | undefined {
     `The IMAP server refused: ${[status, text].filter(Boolean).join(' ')}` +
     (command ? ` (in answer to: ${command})` : '')
   );
+}
+
+/**
+ * The parts of an imapflow refusal an answer may be built from (workplan 0136
+ * T3): the server's `NO` or `BAD` line, in its own words and capped, and never
+ * the command we sent. IMAP has no status beyond that line.
+ */
+export function imapRefusalParts(error: unknown): RemoteRefusalParts {
+  const carrier = (typeof error === 'object' && error !== null ? error : {}) as {
+    responseStatus?: unknown;
+    responseText?: unknown;
+    serverResponseCode?: unknown;
+  };
+  // imapflow keeps the text apart from the response code, which its LOGIN sets
+  // as `serverResponseCode`; the code is the most useful word on the line.
+  const words = imapRefusalWords(
+    typeof carrier.responseStatus === 'string' ? carrier.responseStatus : undefined,
+    typeof carrier.responseText === 'string' ? carrier.responseText : undefined,
+    typeof carrier.serverResponseCode === 'string' ? carrier.serverResponseCode : undefined,
+  );
+  return { protocol: 'imap', ...(words === undefined ? {} : { providerWords: words }) };
 }
 
 /**

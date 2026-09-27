@@ -404,3 +404,86 @@ describe('the scheduling verdict: measured at test time, never assumed (0105 T0)
     }
   });
 });
+
+describe('what a host the tester typed said, in parts (workplan 0136 T3)', () => {
+  // The managed API answers from `said` and logs `reason`; see
+  // `apps/api/src/probe-answer.ts`. Here: which probes carry it, and that it
+  // holds no more than the parts.
+  afterEach(() => vi.unstubAllGlobals());
+
+  const PAGE = '<!doctype html><html><body><p>an internal admin page</p></body></html>';
+
+  it('a DAV target that refuses: its status, no words from an HTML page, and the full text kept in reason', async () => {
+    vi.stubGlobal('fetch', async () => new Response(PAGE, { status: 500 }));
+    const result = await probeTargetConnection(
+      'caldav',
+      { type: 'caldav', url: 'https://dav.example.net/dav/' },
+      { username: 'u', password: 'p' },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.said).toEqual({ kind: 'answered', protocol: 'dav', status: 500 });
+    expect(result.reason).toContain('an internal admin page');
+  });
+
+  it('a target where nothing answers: unreachable, and nothing of the address', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed', {
+        cause: Object.assign(new Error('connect ECONNREFUSED 10.1.2.3:8080'), { code: 'ECONNREFUSED' }),
+      });
+    });
+    const result = await probeTargetConnection(
+      'webdav',
+      { type: 'webdav', url: 'https://files.example.net/dav/' },
+      { username: 'u', password: 'p' },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.said).toEqual({ kind: 'unreachable' });
+  });
+
+  it("a provider's fixed host carries no parts: its words stay its own (workplan 0080)", async () => {
+    // Google's token endpoint refusing, for a Google calendar source: not an
+    // address anybody typed.
+    vi.stubGlobal('fetch', async () => new Response('{"error":"invalid_grant"}', { status: 400 }));
+    const result = await probeSourceConnection(
+      'google_calendar',
+      { type: 'google_calendar', user: 'a@example.net' },
+      { clientId: 'id', clientSecret: 'secret', refreshToken: 'rt' },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.said).toBeUndefined();
+  });
+
+  it('an o365 source on Graph names no host, so its failure is Microsoft\'s words: no parts', async () => {
+    vi.stubGlobal('fetch', async () => new Response('{"error":"invalid_client"}', { status: 401 }));
+    const result = await probeSourceConnection(
+      'o365',
+      { type: 'graph-mail', tenantId: 'contoso.example', mailbox: 'u@contoso.example' },
+      { clientId: 'id', clientSecret: 'secret' },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.said).toBeUndefined();
+  });
+
+  it('an o365 source on IMAP reaches the host in its row, so its failure carries parts', async () => {
+    const result = await probeSourceConnection(
+      'o365',
+      { type: 'imap-oauth2', host: '127.0.0.1', port: 1, user: 'u', tls: false, useSsl: false },
+      { password: 'p' },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.said).toEqual({ kind: 'unreachable' });
+  });
+
+  it('an IMAP source names its host, so its failure carries parts', async () => {
+    // A port nothing listens on: the refusal is the socket's, and says so.
+    // The config shape the door stores for an IMAP source (`sourceConnectionConfig`).
+    const result = await probeSourceConnection(
+      'imap',
+      { type: 'imap-oauth2', host: '127.0.0.1', port: 1, user: 'u', tls: false, useSsl: false },
+      { password: 'p' },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.said).toEqual({ kind: 'unreachable' });
+  });
+});

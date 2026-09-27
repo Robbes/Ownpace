@@ -858,8 +858,13 @@ reading a file drops off its entry by itself.
 - [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
+### `packages/connectors/src/caldav-source.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
 ### `packages/connectors/src/carddav-source.ts`
 
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
 ### `packages/connectors/src/dropbox-file-source.ts`
@@ -900,6 +905,10 @@ reading a file drops off its entry by itself.
 
 - [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
 
+### `packages/connectors/src/jmap-session.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
 ### `packages/connectors/src/takeout-archive-reader.unit.test.ts`
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -910,6 +919,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/connectors/src/webdav-source.ts`
 
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 - [the-decode-that-was-waiting-in-the-next-connector](../scripts/the-decode-that-was-waiting-in-the-next-connector.unit.test.ts) — The same UTF-8 round trip, sitting in a second connector for three weeks.
 
 ### `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
@@ -1208,6 +1218,14 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/qualification-gate.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
+
+### `packages/shared/src/remote-refusal.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
+
+### `packages/shared/src/remote-refusal.unit.test.ts`
+
+- [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 ### `packages/shared/src/target-domains.ts`
 
@@ -2228,9 +2246,15 @@ A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 
 Reads:
 
+- `packages/connectors/src/caldav-source.ts`
+- `packages/connectors/src/carddav-source.ts`
+- `packages/connectors/src/jmap-session.ts`
+- `packages/connectors/src/webdav-source.ts`
 - `packages/engines/package.json`
 - `packages/shared/src/dav-refusal.unit.test.ts`
 - `packages/shared/src/index.ts`
+- `packages/shared/src/remote-refusal.ts`
+- `packages/shared/src/remote-refusal.unit.test.ts`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)
 

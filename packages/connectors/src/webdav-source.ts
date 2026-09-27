@@ -36,6 +36,7 @@ import {
   parseTrashbinOriginalLocations,
   classifyTrashbinLocation,
 } from './webdav-trashbin.ts';
+import { RemoteRefusal, davRefusalParts } from '@openmig/shared';
 
 /**
  * WebDAV source connector implementation.
@@ -232,7 +233,10 @@ export class WebdavFileSource implements FileSource {
       return { paths: [], unnameable: 0 };
     }
     if (response.status !== 207) {
-      throw new Error(`trashbin PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `trashbin PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
 
     const paths: string[] = [];
@@ -412,7 +416,10 @@ export class WebdavFileSource implements FileSource {
     });
     
     if (response.status !== 207) {
-      throw new Error(`PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`);
+      throw new RemoteRefusal(
+        `PROPFIND failed with status ${response.status}: ${davRefusalBody(response.body)}`,
+        davRefusalParts(response),
+      );
     }
     
     return this.parsePropfindResponse(response.body);
