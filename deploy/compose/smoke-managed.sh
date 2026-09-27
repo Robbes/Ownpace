@@ -822,8 +822,10 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
 (
   # Capture every runner-* container's log stream the moment it appears.
   # The parent's exit ends this watcher via the PID check.
+  # This stack's task runs only: they start on its DOCKER_RUNNER_NETWORKS, and
+  # another stack's runners carry the same `runner-` names (workplan 0132 T1).
   while kill -0 $$ 2>/dev/null; do
-    for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true); do
+    for c in $(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true); do
       if [ ! -f "$RUNNER_LOG_DIR/$c.log" ]; then
         touch "$RUNNER_LOG_DIR/$c.log"
         docker logs -f "$c" >"$RUNNER_LOG_DIR/$c.log" 2>&1 &

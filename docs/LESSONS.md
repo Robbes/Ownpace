@@ -454,7 +454,7 @@ reading a file drops off its entry by itself.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
@@ -463,10 +463,12 @@ reading a file drops off its entry by itself.
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
+- [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
@@ -479,7 +481,7 @@ reading a file drops off its entry by itself.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
@@ -508,7 +510,7 @@ reading a file drops off its entry by itself.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
@@ -538,8 +540,9 @@ reading a file drops off its entry by itself.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
+- [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [status-page](../scripts/status-page.unit.test.ts) — The status page's configuration says what we think it says (workplan 0094).
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
@@ -560,6 +563,7 @@ reading a file drops off its entry by itself.
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/redact-evidence.sh`
 
@@ -588,6 +592,7 @@ reading a file drops off its entry by itself.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/set-task-env.sh`
 
@@ -648,6 +653,7 @@ reading a file drops off its entry by itself.
 - [the-mail-the-issuer-could-not-send](../scripts/the-mail-the-issuer-could-not-send.unit.test.ts) — THE MAIL THE ISSUER COULD NOT SEND.
 - [the-moment-pressed](../scripts/the-moment-pressed.unit.test.ts) — THE MOMENT, PRESSED (workplan 0104 T2, final stage).
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/trigger-cli-lib.sh`
 
@@ -658,10 +664,12 @@ reading a file drops off its entry by itself.
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/trigger-magic-link.sh`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/trigger-remember-token.sh`
 
@@ -670,7 +678,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/trigger-version.sh`
 
-- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `deploy/compose/www.yml`
@@ -2205,6 +2213,7 @@ A documented command must be runnable, and a wrapper must compose what a host-ru
 Reads:
 
 - `apps/api/src/scripts/operator.ts`
+- `deploy/compose/env-read.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/operator.sh`
@@ -2814,7 +2823,7 @@ NOTICE carries the one restriction this project places on an otherwise permissiv
 
 ### [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts)
 
-ONE BOX, ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 
 Reads:
 
@@ -2897,6 +2906,8 @@ The seed, and the password the volume never heard of.
 Reads:
 
 - `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/managed.yml`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/seed-managed.sh`
 
@@ -3150,7 +3161,12 @@ Reads:
 - `deploy/compose/env-read.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.yml`
+- `deploy/compose/operator.sh`
 - `deploy/compose/reset-trigger.sh`
+- `deploy/compose/seed-managed.sh`
+- `deploy/compose/smoke-managed.sh`
+- `deploy/compose/trigger-credentials.sh`
+- `deploy/compose/trigger-magic-link.sh`
 
 ### [ui-build-output](../scripts/ui-build-output.unit.test.ts)
 
