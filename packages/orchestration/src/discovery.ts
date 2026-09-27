@@ -8,8 +8,8 @@
  *
  * Trigger.dev-free: importing this has no managed-only deps, so the self-host path can use it too
  * (hard rule 5). Each edition supplies the per-domain `run()` thunk — managed builds its source
- * from the DB (RLS), self-host from the config file — keeping this orchestration edition-agnostic
- * and unit-testable with fakes.
+ * from the DB, filtered by tenant, self-host from the config file — keeping this orchestration
+ * edition-agnostic and unit-testable with fakes.
  */
 
 import type {

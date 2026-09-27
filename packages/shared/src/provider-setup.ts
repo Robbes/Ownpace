@@ -162,24 +162,87 @@ const GOOGLE: ReadonlyArray<SetupStep> = [
   },
 ];
 
+/**
+ * The two Microsoft cards that take an administrator's registration, *Via the
+ * Graph API* (`graph`) and *Via IMAP* (`oauth2`). They shared one profile until
+ * 0148 T5 (a), whose permission step said to add Microsoft Graph permissions
+ * "for mail, calendar, contacts or files". Both cards read one mailbox's mail,
+ * and the IMAP card's token carries only what is given on Office 365 Exchange
+ * Online, so the Graph permission did nothing for it. Each card now has the
+ * recipe of its own section of the Microsoft guide (`{#application-graph}`,
+ * `{#application-imap}`), after the registration and its secret, which the
+ * two share and the guide writes once (`{#application}`).
+ *
+ * No step here is `ownAppOnly`: these cards always take a registration of the
+ * customer's own, whatever the deployment carries (the guide's words).
+ */
+const ENTRA_REGISTRATION: SetupStep = {
+  key: 'app_registration',
+  titleKey: 'setup.graph.app_registration.title',
+  detailKey: 'setup.graph.app_registration.detail',
+  yieldsKey: 'setup.graph.app_registration.yields',
+};
+
+const ENTRA_SECRET: SetupStep = {
+  key: 'client_secret',
+  titleKey: 'setup.graph.client_secret.title',
+  detailKey: 'setup.graph.client_secret.detail',
+  yieldsKey: 'setup.graph.client_secret.yields',
+};
+
 const GRAPH: ReadonlyArray<SetupStep> = [
+  ENTRA_REGISTRATION,
+  ENTRA_SECRET,
   {
-    key: 'app_registration',
-    titleKey: 'setup.graph.app_registration.title',
-    detailKey: 'setup.graph.app_registration.detail',
-    yieldsKey: 'setup.graph.app_registration.yields',
-  },
-  {
+    // The key stays: it was this card's permission step, and it still is.
     key: 'api_permissions',
     titleKey: 'setup.graph.api_permissions.title',
     detailKey: 'setup.graph.api_permissions.detail',
     needsAnotherPerson: true,
   },
+];
+
+/**
+ * *Via IMAP*: the Exchange Online permission, the application registered in
+ * Exchange Online, and the mailbox given to it. New keys rather than the old
+ * `api_permissions`: a tick given against the Graph text is not a tick for the
+ * Exchange permission, so the old rows are left behind (see the header).
+ */
+const IMAP_APPLICATION: ReadonlyArray<SetupStep> = [
+  ENTRA_REGISTRATION,
+  ENTRA_SECRET,
   {
-    key: 'client_secret',
-    titleKey: 'setup.graph.client_secret.title',
-    detailKey: 'setup.graph.client_secret.detail',
-    yieldsKey: 'setup.graph.client_secret.yields',
+    key: 'exchange_permission',
+    titleKey: 'setup.exchange.permission.title',
+    detailKey: 'setup.exchange.permission.detail',
+    needsAnotherPerson: true,
+  },
+  {
+    key: 'service_principal',
+    titleKey: 'setup.exchange.service_principal.title',
+    detailKey: 'setup.exchange.service_principal.detail',
+    needsAnotherPerson: true,
+  },
+  {
+    key: 'mailbox_permission',
+    titleKey: 'setup.exchange.mailbox_permission.title',
+    detailKey: 'setup.exchange.mailbox_permission.detail',
+    needsAnotherPerson: true,
+  },
+];
+
+/**
+ * The Apple account (0148 T5 (a)). One thing comes first, and it is at Apple:
+ * the app-specific password, because Apple refuses the account's own password
+ * over IMAP, CalDAV and CardDAV. The words are `wizard.appleAppPassword.why`'s
+ * and the Apple guide's `{#app-password}`.
+ */
+const APPLE: ReadonlyArray<SetupStep> = [
+  {
+    key: 'app_password',
+    titleKey: 'setup.apple.app_password.title',
+    detailKey: 'setup.apple.app_password.detail',
+    yieldsKey: 'setup.apple.app_password.yields',
   },
 ];
 
@@ -216,6 +279,59 @@ const WEBDAV_TARGET: ReadonlyArray<SetupStep> = [
     titleKey: 'setup.webdav.base_url.title',
     detailKey: 'setup.webdav.base_url.detail',
     yieldsKey: 'setup.webdav.base_url.yields',
+  },
+];
+
+/**
+ * The Nextcloud card (0148 T5 (a)): the account, an app password, and the
+ * address with `/remote.php/dav`, which is the card's one address box. Not
+ * `WEBDAV_TARGET`, whose last step asks for a host, a port and a path that
+ * this card has no boxes for. The words are the Nextcloud guide's.
+ */
+const NEXTCLOUD_TARGET: ReadonlyArray<SetupStep> = [
+  {
+    key: 'account_exists',
+    titleKey: 'setup.nextcloud.account_exists.title',
+    detailKey: 'setup.nextcloud.account_exists.detail',
+    needsAnotherPerson: true,
+  },
+  {
+    key: 'app_password',
+    titleKey: 'setup.nextcloud.app_password.title',
+    detailKey: 'setup.nextcloud.app_password.detail',
+    yieldsKey: 'setup.nextcloud.app_password.yields',
+  },
+  {
+    key: 'dav_url',
+    titleKey: 'setup.nextcloud.dav_url.title',
+    detailKey: 'setup.nextcloud.dav_url.detail',
+    yieldsKey: 'setup.nextcloud.dav_url.yields',
+  },
+];
+
+/**
+ * The Soverin card (0148 T5 (a)): the account, its password (or an app
+ * password, if Soverin offers one), and, only where mail moves, the mail
+ * server the wizard pre-fills from the provider directory. A connection saved
+ * without it carries no mail (the Soverin guide). Its first step is not marked
+ * as somebody else's: a Soverin account is one its holder signs up for.
+ */
+const SOVERIN_TARGET: ReadonlyArray<SetupStep> = [
+  {
+    key: 'account_exists',
+    titleKey: 'setup.soverin.account_exists.title',
+    detailKey: 'setup.soverin.account_exists.detail',
+  },
+  {
+    key: 'password',
+    titleKey: 'setup.soverin.password.title',
+    detailKey: 'setup.soverin.password.detail',
+    yieldsKey: 'setup.soverin.password.yields',
+  },
+  {
+    key: 'mail_server',
+    titleKey: 'setup.soverin.mail_server.title',
+    detailKey: 'setup.soverin.mail_server.detail',
   },
 ];
 
@@ -261,8 +377,10 @@ const SOURCE_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
   gmail: GOOGLE,
   'google-calendar': GOOGLE,
   'google-contacts': GOOGLE,
-  oauth2: GRAPH,
+  // Each Microsoft registration card its own recipe (0148 T5 (a)).
+  oauth2: IMAP_APPLICATION,
   graph: GRAPH,
+  apple: APPLE,
   imap: IMAP_BASIC,
 };
 
@@ -272,6 +390,8 @@ const TARGET_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
   imap: DAV_BASIC_TARGET,
   caldav: DAV_BASIC_TARGET,
   carddav: DAV_BASIC_TARGET,
+  nextcloud: NEXTCLOUD_TARGET,
+  soverin: SOVERIN_TARGET,
 };
 
 /**

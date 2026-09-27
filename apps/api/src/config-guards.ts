@@ -14,9 +14,18 @@
  *  - CORS_ORIGIN localhost in production is only a WARNING: the standard
  *    deploy proxies /api same-origin through the web image's nginx, so CORS
  *    never fires — but a direct-to-API setup would break, so it is named.
+ *
+ * And one that is not about a URL (workplan 0134 T1): a blank
+ * BACKUP_RETENTION_DAYS, which makes the erasure sentence name backups kept
+ * for the default 7 days whether or not anything backs the database up.
  */
 
-import { log } from '@openmig/shared';
+import {
+  DEFAULT_BACKUP_RETENTION_DAYS,
+  backupRetentionIsBlank,
+  log,
+} from '@openmig/shared';
+import { alphaFrom } from './access-notify.ts';
 
 const isLocalhostUrl = (value: string): boolean => {
   try {
@@ -27,7 +36,7 @@ const isLocalhostUrl = (value: string): boolean => {
   }
 };
 
-export interface UrlConfigProblem {
+export interface ConfigProblem {
   fatal: boolean;
   message: string;
 }
@@ -39,9 +48,9 @@ export const describeUrlConfigProblems = (env: {
   API_URL?: string;
   WEB_URL?: string;
   CORS_ORIGIN?: string;
-}): UrlConfigProblem[] => {
+}): ConfigProblem[] => {
   if (env.NODE_ENV !== 'production') return [];
-  const problems: UrlConfigProblem[] = [];
+  const problems: ConfigProblem[] = [];
 
   if (env.MOLLIE_API_KEY) {
     for (const [name, consequence] of [
@@ -89,14 +98,89 @@ export const describeUrlConfigProblems = (env: {
   return problems;
 };
 
-/** Boot-time enforcement: throws on fatal problems, warns on the rest. */
-export const assertProductionUrlConfig = (
-  warn: (message: string) => void = (m) => log.warn(m),
-): void => {
-  const problems = describeUrlConfigProblems(process.env);
+/** Throws on fatal problems, warns on the rest. */
+const enforce = (problems: ConfigProblem[], warn: (message: string) => void): void => {
   const fatal = problems.filter((p) => p.fatal);
   for (const p of problems.filter((p) => !p.fatal)) warn(p.message);
   if (fatal.length > 0) {
     throw new Error(fatal.map((p) => p.message).join(' '));
   }
+};
+
+/** Boot-time enforcement: throws on fatal problems, warns on the rest. */
+export const assertProductionUrlConfig = (
+  warn: (message: string) => void = (m) => log.warn(m),
+): void => {
+  enforce(describeUrlConfigProblems(process.env), warn);
+};
+
+/**
+ * A backup retention somebody stated (workplan 0134 T1).
+ *
+ * `POST /api/tenants/:tenantId/close` tells a customer when their erasure
+ * completes, from `BACKUP_RETENTION_DAYS` (0085 T5). A blank value reads as
+ * the default of 7, so the sentence names backups kept for 7 days after the
+ * purge, and nothing checked that any exist. Nothing in this repository backs
+ * up the managed application database yet, and the alpha takes no backups at
+ * all (0134 D1). The default stays 7 (0134 §3); this makes the blank visible.
+ *
+ *  - In production, blank is a WARNING. It names both honest answers: 0 when
+ *    nothing is backed up, and the number of days backups are kept.
+ *  - With the alpha setting on (`OWNPACE_STAGE=alpha`, 0131 T1), blank is
+ *    FATAL whatever NODE_ENV says, so an alpha stack cannot start while it
+ *    quotes backups by default. It does not wait for production because
+ *    `managed.yml` defaults NODE_ENV to `development`.
+ *  - A stated number, 0 or 7 or any other, is never a problem here. A value
+ *    that is not a whole number is refused where it is read, by
+ *    `backupRetentionDaysFromEnv`.
+ *
+ * Fatal on the alpha is the plan's recommendation; whether it should only warn
+ * is 0134 open question 4, still the owner's to answer.
+ *
+ * At most one problem, in the shape `describeUrlConfigProblems` returns, so
+ * the boot path treats both alike. The guard is
+ * `apps/api/src/a-retention-somebody-stated.unit.test.ts`.
+ */
+export const describeBackupRetentionProblem = (env: {
+  NODE_ENV?: string;
+  OWNPACE_STAGE?: string;
+  BACKUP_RETENTION_DAYS?: string;
+}): ConfigProblem[] => {
+  const raw = env.BACKUP_RETENTION_DAYS;
+  if (!backupRetentionIsBlank(raw)) return [];
+  const blank = raw === undefined ? 'unset' : 'empty';
+  const days = DEFAULT_BACKUP_RETENTION_DAYS;
+
+  if (alphaFrom(env)) {
+    return [
+      {
+        fatal: true,
+        message:
+          `BACKUP_RETENTION_DAYS is ${blank} on a stack with OWNPACE_STAGE=alpha. ` +
+          `The erasure sentence would then name backups kept for ${days} days after the purge, ` +
+          'and an alpha stack must say whether it keeps any. ' +
+          "Set it to 0 if nothing backs up this deployment's database, as during the alpha, " +
+          'or to the number of days its backups are kept (workplan 0134).',
+      },
+    ];
+  }
+
+  if (env.NODE_ENV !== 'production') return [];
+  return [
+    {
+      fatal: false,
+      message:
+        `BACKUP_RETENTION_DAYS is ${blank} in production, so the erasure sentence a closing ` +
+        `customer is given names backups kept for ${days} days after the purge. ` +
+        "Set it to 0 if nothing backs up this deployment's database, " +
+        'or to the number of days its backups are kept (workplan 0134).',
+    },
+  ];
+};
+
+/** Boot-time enforcement of the retention check: throws on the alpha case, warns in production. */
+export const assertBackupRetentionConfig = (
+  warn: (message: string) => void = (m) => log.warn(m),
+): void => {
+  enforce(describeBackupRetentionProblem(process.env), warn);
 };

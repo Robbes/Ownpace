@@ -4,7 +4,8 @@
  * Pure resolution of a sync/cutover API request into the Trigger.dev task id +
  * id-only payload to enqueue. Kept free of the trigger client / router imports
  * so it is cheaply unit-testable. Payloads carry ids only — never message
- * content (§12/§17); the worker loads connections/credentials under RLS.
+ * content (§12/§17); the worker loads connections/credentials filtered by
+ * tenant. Row security does not bind the tasks yet (workplan 0138).
  */
 
 /**
@@ -187,7 +188,8 @@ export function discoveryTriggerOptions(
  * the document somebody deletes their originals on the strength of.
  *
  * Ids only, like every payload here: the worker loads connections and
- * credentials under RLS (§12/§17).
+ * credentials filtered by tenant (§12/§17). Row security does not bind the
+ * tasks yet (workplan 0138).
  */
 export function resolveConfirmationJob(
   tenantId: string,
