@@ -158,6 +158,9 @@ const LIVE_ENV: Record<string, string> = {
   CORS_ORIGIN: 'https://app.ownpace.eu',
   WEB_URL: 'https://app.ownpace.eu',
   NODE_ENV: 'production',
+  // The proxies in front of live's api: NetBird's and the web container's
+  // nginx (the owner, 2026-09-28, ops-trust-proxy (b); workplan 0132 T3 (d)).
+  TRUST_PROXY: '2',
   ZITADEL_EXTERNALDOMAIN: 'id.ownpace.eu',
   ZITADEL_EXTERNALPORT: '443',
   ZITADEL_EXTERNALSECURE: 'true',
@@ -945,6 +948,9 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ['ZITADEL_EXTERNALSECURE not true', { ZITADEL_EXTERNALSECURE: 'false' }, 'ZITADEL_EXTERNALSECURE'],
     ['ZITADEL_TLS_MODE not external', { ZITADEL_TLS_MODE: 'disabled' }, 'ZITADEL_TLS_MODE'],
     ['NODE_ENV not production', { NODE_ENV: 'development' }, 'NODE_ENV'],
+    ['TRUST_PROXY empty: the api would name the web container for every visitor', { TRUST_PROXY: '' }, 'TRUST_PROXY'],
+    ["TRUST_PROXY 1: the web container's nginx alone, so NetBird for every visitor", { TRUST_PROXY: '1' }, 'TRUST_PROXY'],
+    ["TRUST_PROXY true: every caller's own header believed", { TRUST_PROXY: 'true' }, 'TRUST_PROXY'],
     ['OWNPACE_REACHABLE_HOSTS set', { OWNPACE_REACHABLE_HOSTS: 'nextcloud' }, 'OWNPACE_REACHABLE_HOSTS', 'nextcloud'],
     ["the gate's placeholder Google client", { GOOGLE_OAUTH_CLIENT_ID: 'gate-google-q1' }, 'GOOGLE_OAUTH_CLIENT_ID', 'gate-google-q1'],
     ["the gate's placeholder Dropbox key", { DROPBOX_OAUTH_CLIENT_ID: 'gatedropboxappkey' }, 'DROPBOX_OAUTH_CLIENT_ID', 'gatedropboxappkey'],
@@ -1546,6 +1552,10 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
         'systemctl --user enable --now ownpace-box-duties.timer',
         `./deploy/compose/deploy-live.sh --dry-run ${TAG}`,
         'EXPOSURE_PROBE_LIVE_PORTS',
+        // Before the first invitation, the owner's (workplan 0139, item 8;
+        // 0132 T3 (d)): NetBird's sign-in off, and the visitor in the logs.
+        "NetBird's sign-in",
+        'name the visitor',
         'Status block',
       ]) {
         expect(third.out).toContain(step);

@@ -62,10 +62,13 @@
 #       needs no entry); WEB_URL
 #       or CORS_ORIGIN not https://app.ownpace.eu; the identity provider not
 #       at id.ownpace.eu on 443, secure, TLS ended in front; NODE_ENV not
-#       production; BACKUP_RETENTION_DAYS empty, 0 or not a whole number
-#       above 0 (the most days a dump of live's databases taken before a
-#       deploy is kept: 7, workplan 0134; the dump and its deletion are the
-#       owner's steps, which nothing does yet); OWNPACE_REACHABLE_HOSTS set;
+#       production; TRUST_PROXY not a count of at least 2, the proxies in
+#       front of the api (NetBird's and the web container's nginx, so the
+#       api's log names the visitor: T3 (d)); BACKUP_RETENTION_DAYS empty, 0
+#       or not a whole number above 0 (the most days a dump of live's
+#       databases taken before a deploy is kept: 7, workplan 0134; the dump
+#       and its deletion are the owner's steps, which nothing does yet);
+#       OWNPACE_REACHABLE_HOSTS set;
 #       APP_DB_USER not app_user; a gate placeholder client (gate-…,
 #       gatedropboxappkey); SMTP_HOST empty or mailpit, SMTP_PORT empty or
 #       not a port, NOTIFY_FROM or NOTIFY_TO empty or an address in .invalid,
@@ -114,7 +117,9 @@
 #      sudo, are the owner's.
 #  10. What is left, and only the owner can do: sign up, become the operator,
 #      the timer, the hold and deploy-live.sh --dry-run rehearsal, the outside
-#      probe's variable, and the record in 0132's Status block.
+#      probe's variable and NetBird's sign-in off (0139, item 8), the logs
+#      checked for the visitor's address (T3 (d)), and the record in 0132's
+#      Status block.
 #
 # WHAT IT PRINTS. Never a value from the .env, never an address and never a
 # port: a refusal names the key. One exception: a port in the ephemeral range
@@ -615,6 +620,15 @@ check_settings() {
     _p+=("ZITADEL_TLS_MODE: not external: TLS ends in front of the provider (T1b step 4).")
   [ "$(env_value "$ENV_FILE" NODE_ENV)" = production ] ||
     _p+=("NODE_ENV: not production (T4).")
+  # The visitor's address in the api's log and its per-caller limit (the
+  # owner, 2026-09-28, ops-trust-proxy (b); privacy §4.5; T3 (d)). Two proxies
+  # stand in front of live's api: NetBird's, which sets X-Forwarded-For to the
+  # visitor's address, and the web container's nginx, which appends NetBird's.
+  # Empty names the web container for every visitor, 1 names NetBird, and
+  # `true` believes whatever a caller sends. A count of 2 or more; T3 (d)'s
+  # request with a forged header, on live, says whether it is 2.
+  [[ "$(env_value "$ENV_FILE" TRUST_PROXY)" =~ ^([2-9]|[1-9][0-9]+)$ ]] ||
+    _p+=("TRUST_PROXY: empty, or not a count of at least 2. Live's api is behind two proxies, NetBird's and the web container's nginx, so it is 2: then the api names the visitor, whose address NetBird passes on, as privacy §4.5 says; with less it names one of the proxies for every visitor (T3 (d)).")
   # Live's databases are dumped before each deploy and each dump is deleted
   # after at most this many days: the owner's answer to 0134's open question
   # 1, (b), with 7 days, on 2026-09-28. Both are the owner's steps for now
@@ -1274,7 +1288,14 @@ owner_steps() {
      nothing. Then lift the hold. Every deploy from here on is deploy-live.sh.
   5. Set the repository variable EXPOSURE_PROBE_LIVE_PORTS to live's published
      ports, and dispatch the Exposure probe workflow (workplan 0132 T3 (c)).
-  6. Write the date, the tag and each check's outcome, never a value, in
+     It fails while NetBird's sign-in answers app., id., status. or
+     www.ownpace.eu instead of the service: switch it off on all four before
+     the first invitation (workplan 0139, item 8).
+  6. Check that live's logs name the visitor: one request from outside with a
+     forged X-Forwarded-For, then one line of the api's, the web's and the
+     site's log (the bring-up guide, "After the script", step 6; workplan
+     0132 T3 (d)). Paste those lines nowhere public.
+  7. Write the date, the tag and each check's outcome, never a value, in
      workplan 0132's Status block (T0 step 6).
 EOF
 }

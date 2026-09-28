@@ -65,9 +65,11 @@ const OUT = join(REPO_ROOT, 'docs', 'LESSONS.md');
  * Extensions a guard plausibly reads. Anything else is not a file it protects.
  * `template` since 2026-09-28: `apps/web/nginx.conf.template` is the file a
  * body-limit guard protects, and it was filed under the files the guard only
- * mentioned. `Dockerfile` is a name, not an extension, and is matched as one.
+ * mentioned. `conf` since the same day, for `deploy/compose/www-nginx.conf`,
+ * the website's nginx, which three guards read and no entry named.
+ * `Dockerfile` is a name, not an extension, and is matched as one.
  */
-const EXTENSIONS = ['ts', 'tsx', 'mjs', 'sh', 'yml', 'yaml', 'md', 'sql', 'json', 'example', 'template'];
+const EXTENSIONS = ['ts', 'tsx', 'mjs', 'sh', 'yml', 'yaml', 'md', 'sql', 'json', 'example', 'template', 'conf'];
 /** File names with no extension that a guard plausibly reads. */
 const NAMES = ['Dockerfile'];
 

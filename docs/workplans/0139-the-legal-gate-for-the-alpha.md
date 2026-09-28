@@ -4,6 +4,39 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: three items of the work list built: visitors' addresses in our own logs, the journald
+step out, and the check that no NetBird sign-in answers (item 8)**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged, from `main`
+at `96e737df`, before #1317 merged. The items are `site/legal/README.md`'s *To build or to do* on
+#1317, and item 8 is #1317's, in the entry *the privacy policy (1.2) and the terms (1.3)
+revisited*: *"No NetBird sign-in in front of the service (privacy §7's row, whose log names no user
+ID): NetBird's sign-in (SSO) is on for the hosts NetBird serves ("No pin, but SSO on"), and by the
+owner's choice ("Off everywhere at launch") goes off on `app.`, `id.`, `status.` and
+`www.ownpace.eu` before the first invitation, a precondition for it. Checked from outside the NetBird
+network: each host answers with the app or the site itself, not NetBird's sign-in page."* 0132's
+Status block has the whole record; in short:
+
+- **Item 8, the check.** The exposure probe (0132 T3 (c)), which runs on a GitHub-hosted runner,
+  outside the NetBird network, asks each of the four names for the page a visitor asks first and
+  fails a redirect to another host (NetBird's SSO), NetBird's own page (its password or PIN page),
+  any other answer that is not the service, and no answer; `www.ownpace.eu` when it is on live's
+  front. Guard: `scripts/a-sign-in-in-front-of-the-front-door.unit.test.ts`. **Still the owner's:**
+  switching the sign-in off in NetBird on all four, then the dispatch that passes. Item 8 stays open
+  until then; nothing here changes a rendered sentence.
+- **ops-trust-proxy (b).** Both nginx logs record the address NetBird passes on as their last field,
+  and live's `TRUST_PROXY` is 2, which `stand-up-live.sh` requires. Checked on live with one log
+  line of each (0132 T3 (d)), once it stands. Guard:
+  `scripts/a-visitor-every-log-called-netbird.unit.test.ts`. The comment beside privacy §4.5 says
+  the app's nginx *"takes the real client address from NetBird's header"*: it records the header as
+  a field of its own, and that comment follows when this branch meets #1317.
+- **ops-log-driver (a).** The journald step is out of `docs/managed-bring-up.md`, including live's
+  owner's steps, which now carry `docker info --format '{{.LoggingDriver}}'` (`json-file` or
+  `local`) and how to undo a journald setting. **Still the owner's:** running it on the machine.
+  Guard: `scripts/a-journal-that-outlived-the-container.unit.test.ts`.
+- **Proved.** The three guards and three new cases of `a-first-bring-up-of-live` were written first
+  and failed on `96e737df`'s code (25 of 25, 7 of 11, 4 of 54, 3 of 3); 21 mutations each turned one
+  red. The counts and the gates are in 0132's entry.
+
 **2026-09-28: T10, the production site deployed with live (0131 §6, group R7; T0 fact 6)**,
 built on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged.
 Nothing has run on the machine. Live is not stood up (0132 T1b), and the scripts have run only

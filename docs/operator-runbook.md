@@ -146,6 +146,32 @@ running service, force it: `docker compose -f managed.yml up -d --force-recreate
 — the live symptom that teaches this the hard way is changing the `TRIGGER_*_ORIGIN`s and
 getting a white screen from a dashboard still advertising the old origins.
 
+### Whose address a log line names, and how long it stays
+
+Behind NetBird, every request reaches the machine from NetBird's own address on
+the mesh: its reverse proxy ends TLS and connects through the tunnel. The
+visitor's address travels in `X-Forwarded-For`, which NetBird sets to the
+address the visitor connected from (privacy §4.5: *"your IP address, which
+NetBird passes on to us"*). So:
+
+| Log | Where the visitor's address is |
+|---|---|
+| `api` (`docker compose … logs api`) | First, when `TRUST_PROXY` counts the proxies in front of it: 2 on live, NetBird's and the web container's nginx. Empty, the first field is the web container for everybody. |
+| `web`, the app's nginx | Last, in quotes (`ownpace_combined` in `apps/web/nginx.conf.template`). The first field is NetBird's. |
+| `www`, the website's nginx | Last, in quotes (`ownpace_site` in `deploy/compose/www-nginx.conf`). The first field is NetBird's. |
+
+Workplan 0132 T3 (d)'s check reads one line of each on live
+([managed-bring-up.md](managed-bring-up.md#after-the-script-the-owners-steps),
+step 6). These lines are personal data: never paste one anywhere public.
+
+**How long they stay.** Every container writes with Docker's default log driver,
+`json-file`, and its output goes when the container is removed: at each deploy for
+the app and the site, when its image or settings change for the sign-in service.
+That is privacy §9's *"until the part of the service that wrote them is replaced"*.
+`docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`) on a
+machine that keeps to it; `journald` there would keep every line past its container
+(managed-bring-up.md, *Before you start*, says how to undo it).
+
 ### The trigger dashboard's TLS front (`trigger-tls`)
 
 The dashboard runs production-mode Secure cookies, so login is unusable over plain http
