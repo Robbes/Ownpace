@@ -650,6 +650,18 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
     scheme: TargetHashScheme = 'bytes',
   ): Promise<string | undefined> {
     const filePath = this.normalizeRelativePath(entry.naturalKey);
+    /**
+     * A WHOLE-FILE HASH IS TAKEN AS THE FILE ARRIVES (workplan 0150 T1).
+     *
+     * The GET used to be read whole into memory, like every other response,
+     * and then hashed. A sample is any file a migration copied, so a sampled
+     * video on a pass machine of half a gigabyte was a verification killed for
+     * memory, the way the owner's Dropbox passes were killed by their uploads.
+     * Streamed, it holds a chunk at a time. `container-parts` still reads the
+     * bytes whole: a container is opened to be hashed, and it is a rendering
+     * this product asked for, never a stored file of any size.
+     */
+    const streamed = scheme !== 'container-parts';
     let response: HttpResponse;
     try {
       response = await this.httpClient.request({
@@ -658,6 +670,7 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
         headers: {
           Authorization: `Basic ${Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64')}`,
         },
+        ...(streamed ? { stream: true } : {}),
       });
     } catch (err) {
       // The same shape the CalDAV writer already had: the result is honest
@@ -670,7 +683,26 @@ export class WebDAVTargetWriter implements FileTargetWriter, TargetReindexer, Ta
       return undefined;
     }
 
-    if (response.status !== 200) return undefined;
+    if (response.status !== 200) {
+      // Nothing to read, and a stream left open would hold its connection.
+      await response.bodyStream?.cancel().catch(() => undefined);
+      return undefined;
+    }
+    if (streamed && response.bodyStream) {
+      const hasher = streamingFileContentHash();
+      try {
+        await response.bodyStream
+          .pipeThrough(hasher.through)
+          .pipeTo(new WritableStream<Uint8Array>({ write() {} }));
+      } catch (err) {
+        log.warn(
+          `[webdav] GET ${filePath} broke off while it was read: ` +
+            `${err instanceof Error ? err.message : String(err)}; content not sampled`,
+        );
+        return undefined;
+      }
+      return hasher.digest();
+    }
     // Bytes only. Hashing the UTF-8 decoded `body` would differ from the source
     // hash for every non-ASCII binary file — reporting healthy files as corrupt.
     if (!response.bodyBytes) return undefined;
@@ -1224,6 +1256,14 @@ export interface HttpRequestOptions {
    */
   body?: string | Buffer | Uint8Array | ReadableStream<Uint8Array>;
   headers?: Record<string, string>;
+  /**
+   * Hand the response back as a STREAM rather than reading it into memory.
+   *
+   * Off by default: every response this writer reads but one is small XML.
+   * The exception is a file read back for its checksum (`contentHashFor`),
+   * which is a whole file, as large as any the migration copied.
+   */
+  stream?: boolean;
 }
 
 export interface HttpResponse {
@@ -1239,6 +1279,13 @@ export interface HttpResponse {
    * "cannot measure" rather than falling back to the string.
    */
   bodyBytes?: Uint8Array;
+  /**
+   * The response body as a stream, when `stream: true` was asked for.
+   *
+   * Present INSTEAD of `bodyBytes`, never beside it: holding both would
+   * defeat the point. `body` is empty text on a streamed response.
+   */
+  bodyStream?: ReadableStream<Uint8Array>;
 }
 
 /**
@@ -1262,13 +1309,25 @@ function createDefaultHttpClient(): HttpClient {
         ...(streaming ? STREAMED_REQUEST_INIT : {}),
       });
 
-      // Read once as bytes. Reading `.text()` alone would leave no way to hash
-      // binary file content.
-      const bytes = new Uint8Array(await response.arrayBuffer());
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headers[key] = value;
       });
+
+      // A STREAMED RESPONSE, handed back unread: `arrayBuffer()` below is the
+      // ceiling this option removes (see `HttpRequestOptions.stream`).
+      if (options.stream) {
+        return {
+          status: response.status,
+          body: '',
+          headers,
+          ...(response.body ? { bodyStream: response.body } : {}),
+        };
+      }
+
+      // Read once as bytes. Reading `.text()` alone would leave no way to hash
+      // binary file content.
+      const bytes = new Uint8Array(await response.arrayBuffer());
 
       // Decoded on first read, not on every response — see the same getter in
       // WebdavFileSource's client. The reindexer's checksum sampling GETs whole

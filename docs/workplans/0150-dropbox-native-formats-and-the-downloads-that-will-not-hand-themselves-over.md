@@ -4,6 +4,31 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night, later: the same wall at cutover, closed (T1; 0131 §6, group M8)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-checksum-that-downloaded-the-whole-file`, not merged.
+
+- **What was found.** Verification reads a sample of the copied files back from the target and
+  hashes them (§20). The WebDAV writer's `contentHashFor` read each sampled file whole into memory
+  first, as its client read every response. A sample is any file a migration copied, so a sampled
+  video on a pass machine of half a gigabyte would kill a verification the way the uploads killed
+  the passes. It was found while reading the client for the entry below. It never ran on the
+  owner's migration, which has not reached its cutover.
+- **Done on this branch.**
+  - The writer's client takes `stream`, as the WebDAV source's does, and hands a streamed
+    response back unread.
+  - `contentHashFor` asks for a stream on a whole-file hash and hashes the file as it arrives.
+  - `container-parts` still reads the bytes whole. A container is opened to be hashed, and it is
+    a rendering this product asked for.
+  - A refused read cancels its stream. A read that breaks off is `undefined`, never a hash of part
+    of a file.
+- **Proved** by `a-checksum-that-downloaded-the-whole-file` (6 cases). Among them, a real 64 MiB
+  file through the real client and `fetch` holds 0 MiB three quarters in, where it held 48. 5 of 5
+  mutations killed.
+- **Both memory tests now settle before they read.** The server stops for a moment, then two full
+  collections run a turn apart. Unsettled, a reading could count memory that was freed but not yet
+  swept: 0 to 5 MiB over 20 runs of the upload test, and up to 32 MiB here. Settled, both read 0
+  in 10 runs with the fix, and 52 and 48 MiB without it.
+
 **2026-09-28, night: what killed every pass, found and fixed (T1's open half; 0131 §6, group M8)**
 on branch `claude/mailbox-sync-errors-c2xsw2-an-upload-that-kept-every-byte`, not merged. From the
 owner's readings on the OTA stack, with the migration's id left out, and measured here.
