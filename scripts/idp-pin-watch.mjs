@@ -106,7 +106,7 @@ export function issueBody({ pin, newest }) {
     '',
     `Read the notes of every release after ${pin}, up to https://github.com/zitadel/zitadel/releases/tag/${newest}. A release that fixes a security issue in something this stack uses is applied within ${WINDOW_DAYS} days (workplan 0135 T7), by the route 0119 §3 item 2 sets:`,
     '',
-    "1. Dump the OTA instance's `zitadel` database by hand first, by the runbook's recipe (`docs/operator-runbook.md`, *Backup & restore*). The gate drills Trigger.dev's database, not the identity provider's.",
+    "1. Dump the OTA instance's `zitadel` database by hand first: `./deploy/compose/dump-idp.sh` in its checkout, which reads the dump back and writes the way back beside it. The gate drills Trigger.dev's database, not the identity provider's.",
     '2. Its own pull request moves the pin, with the notes read.',
     "3. E2E (managed) on that branch applies it to the OTA instance, whose schema then moves one way.",
     '4. Live takes it from a release tag.',

@@ -178,12 +178,12 @@ describe('the one issue', () => {
     expect(body).toMatch(/Live takes it from a release tag/);
   });
 
-  it("points at a dump recipe that exists: the runbook's section, and a zitadel dump in it", () => {
+  it('points at the dump script, which exists and dumps the identity provider\'s database', () => {
     const body = issueBody(behind);
-    expect(body).toContain('`docs/operator-runbook.md`, *Backup & restore*');
-    const runbook = readFileSync(join(REPO_ROOT, 'docs/operator-runbook.md'), 'utf8');
-    expect(runbook).toMatch(/^## Backup & restore/m);
-    expect(runbook).toMatch(/pg_dump [^\n]*-d zitadel/);
+    expect(body).toContain('`./deploy/compose/dump-idp.sh`');
+    const script = readFileSync(join(REPO_ROOT, 'deploy/compose/dump-idp.sh'), 'utf8');
+    expect(script).toMatch(/pg_dump [^\n]*--format=custom/);
+    expect(script).toMatch(/ZITADEL_DB_NAME/);
   });
 });
 
