@@ -547,8 +547,9 @@ is therefore not possible for any product, and a connection that offered it woul
 something Google refuses. The complete route Google leaves open is **Google Takeout** — the
 person exports their library as an archive — which is a snapshot to download rather than an
 account to read, and so a different kind of migration than the account faces on this page.
-If you need your photos moved, say so; it decides whether an archive-import route is worth
-building, and nothing here will quietly pretend to cover it.
+The **Export archive** card reads a Takeout of Google Photos:
+[`archive-setup.md`](archive-setup.md) says how to ask Google for one, and where it has to be
+for the card to read it.
 
 **And the obvious hope does not rescue it.** Google publishes a Data Portability API for
 people in the European Economic Area, built to satisfy the Digital Markets Act, which sounds
