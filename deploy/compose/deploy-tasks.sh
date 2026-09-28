@@ -47,8 +47,11 @@ set -euo pipefail
 # the compose network, NOT in the worker container, so they inherit nothing:
 #
 #   DATABASE_URL           the owner, through the pooler, at the IN-NETWORK
-#                          address; every task reads it today (workplan 0138)
-#   APP_DATABASE_URL       the RLS-enforcing app_user role, same address
+#                          address; the six scheduled jobs connect with it, and
+#                          the per-tenant tasks read their audit key with it
+#                          (workplan 0138)
+#   APP_DATABASE_URL       the RLS-enforcing app_user role, same address; the
+#                          per-tenant tasks' tenant data (workplan 0138 T1)
 #   SECRET_ENCRYPTION_KEY  (same 32-byte key as api/worker)
 #   OAUTH2_* / SMTP_* / NOTIFY_* (optional, as configured)
 #

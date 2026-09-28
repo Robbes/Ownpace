@@ -26,14 +26,13 @@ import { runAllDomains } from '@openmig/orchestration';
 import {
   PgLedger as _PgLedger,
   PgMigrationStatusStore,
-  appEventSinkOn,
-  auditExportOn,
-  createPgDb,
   mailboxMapping,
-  pgDriver,
+  tenantScopedDb,
+  withTenant,
 } from '@openmig/ledger';
-import { log, phasesOfTheMigration, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { log, phasesOfTheMigration } from '@openmig/shared';
 import { and, eq } from 'drizzle-orm';
+import { openTaskPools } from './jobs/task-pools.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -69,7 +68,9 @@ Examples:
   pnpm exec tsx apps/worker/src/index.ts --config mapping.json
 
 Environment Variables:
-  DATABASE_URL         PostgreSQL connection string (required)
+  APP_DATABASE_URL     PostgreSQL connection string as app_user (required): the
+                       ledger, under row security, as the tasks use it
+  DATABASE_URL         the database owner's (required), for the audit key alone
   OAUTH2_ACCESS_TOKEN  OAuth2 access token for O365 (if using XOAUTH2)
 `);
       process.exit(0);
@@ -101,21 +102,19 @@ async function main() {
   const config = loadConfig(configPath);
   log.info(`[Worker] Mapping ${config.mappingId} for tenant ${config.tenantId}`);
 
-  // Create database connection and status store
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error(
-      'DATABASE_URL environment variable is required. ' +
-      'Example: postgres://user:password@localhost:5432/ownpace'
-    );
-  }
-  const db = createPgDb(databaseUrl);
+  // Its pools the way the per-tenant tasks take theirs (0138 T1 step 2): the
+  // ledger on APP_DATABASE_URL, app_user, under row security, and the audit
+  // key's pool of one on the owner's URL. `openTaskPools` refuses without
+  // either, and points the sinks: a failed domain on the operator's log page
+  // (0129 T1), the audit lines (0129 T4) on the key's pool.
+  const pools = openTaskPools();
+  // Every statement of the ledger, the cursors and the status store in this
+  // organisation's scope (`tenantScopedDb`): as app_user, a statement with no
+  // tenant set reads nothing.
+  const db = tenantScopedDb(pools.tenant, config.tenantId);
   const statusStore = new PgMigrationStatusStore(db);
   // Every pass is handed its ledger and opens none of its own (0138 T1 part 2).
   const ledgerOptions = { ledgerDb: db };
-  // A failed domain is also recorded for the operator's log page (0129 T1).
-  setAppEventSink(appEventSinkOn(pgDriver(db.$pool)));
-  setAuditExportSink(auditExportOn(pgDriver(db.$pool), { 'service.name': 'ownpace-worker' }));
 
   /**
    * The mapping's phase, for the pass (0117 D4).
@@ -132,12 +131,14 @@ async function main() {
    */
   const lifecycle = await (async () => {
     try {
-      const rows = await db
-        .select({ status: mailboxMapping.status })
-        .from(mailboxMapping)
-        .where(
-          and(eq(mailboxMapping.tenantId, config.tenantId), eq(mailboxMapping.id, config.mappingId)),
-        );
+      const rows = await withTenant(pools.tenant, config.tenantId, (tx) =>
+        tx
+          .select({ status: mailboxMapping.status })
+          .from(mailboxMapping)
+          .where(
+            and(eq(mailboxMapping.tenantId, config.tenantId), eq(mailboxMapping.id, config.mappingId)),
+          ),
+      );
       return rows[0]?.status ?? 'active';
     } catch (err) {
       // Said out loud rather than swallowed (hard rule 9). Falling back keeps

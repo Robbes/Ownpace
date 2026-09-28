@@ -177,21 +177,50 @@ function whereFrom(task: string, payload: unknown): RunWhere {
 }
 
 /**
+ * How a run hands over what it opened, to be ended once the run is over and,
+ * if it failed, once its failure is recorded: `afterwards(() => pools.end())`.
+ */
+export type Afterwards = (end: () => Promise<void>) => void;
+
+/**
  * A task's `run`, whose every throw leaves through {@link planeErrorFor}.
  *
  * Every task under `src/jobs` is defined with one (the guard
  * `a-run-that-kept-a-testers-words` reads them all), so a task added later
  * cannot let a tester's words out by forgetting.
+ *
+ * **WHAT A RUN OPENED IS ENDED AFTER ITS FAILURE IS RECORDED.** The run gets a
+ * third argument, {@link Afterwards}, and what it hands over there is ended
+ * here, last handed first, once the run has returned or its failure is on the
+ * operator's log page. That page is on the tenant pool a run opens
+ * (`openTaskPools`), and the failure is recorded here, after the run: ended in
+ * the run's own `finally`, as run-cutover and run-rollback ended theirs until
+ * 0138 T1 step 2's review, the pool was gone by then, and every such failure
+ * left a reference that named no event. An end that fails is said on the
+ * container's output and changes neither the plane's error nor what the run
+ * returned: the run's outcome is what happened, and a run failed for a pool
+ * that would not close would be retried, a cutover or a rollback done twice.
  */
 export function leavesAReference<P, C, R>(
   task: string,
-  run: (payload: P, context: C) => Promise<R>,
+  run: (payload: P, context: C, afterwards: Afterwards) => Promise<R>,
 ): (payload: P, context: C) => Promise<R> {
   return async (payload, context) => {
+    const ends: Array<() => Promise<void>> = [];
     try {
-      return await run(payload, context);
+      return await run(payload, context, (end) => {
+        ends.push(end);
+      });
     } catch (error) {
       throw await planeErrorFor(error, whereFrom(task, payload));
+    } finally {
+      for (const end of ends.reverse()) {
+        try {
+          await end();
+        } catch (error) {
+          log.error(`[${task}] could not end what the run opened:`, error);
+        }
+      }
     }
   };
 }

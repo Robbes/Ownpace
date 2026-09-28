@@ -866,6 +866,9 @@ describe('seed, then remove, leaves nothing of the rehearsal', () => {
       // tick enqueues its migration again. The removal must not wait on one for
       // ever. Importing the tick opens a Pool; it is never used here.
       process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
+      // And the pass it triggers, run-delta-sync, opens its pools at import
+      // through openTaskPools, which refuses without APP_DATABASE_URL (0138 T1).
+      process.env.APP_DATABASE_URL ??= 'postgres://unused:unused@tick.test.invalid/none';
       // Where the window comes from: PASS_HARD_LIMIT_MS, and the tick's twice
       // that. Named here so that docs/LESSONS.md lists this guard under both.
       for (const source of ['packages/shared/src/pass-deadline.ts', 'apps/worker/src/jobs/managed-sync-tick.ts']) {
