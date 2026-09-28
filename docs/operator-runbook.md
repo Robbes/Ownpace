@@ -355,13 +355,15 @@ the template on the next billing touch, rather than half-merging into a price no
 Already-issued invoices are unaffected — they carry the numbers they were generated with; the
 new rates apply to invoices generated from now on.
 
-## This box also runs CI — and that has to end before the first real tenant
+## This box also runs CI — beside live for the alpha, and not beyond it
 
-The Spark is currently four things at once: the live managed stack, the CI
-runner for pushes to `main`, the e2e runner, and the O365 e2e runner. That is a
-reasonable arrangement while the only data on it is the demo seed. It stops
-being reasonable the moment a customer's mailbox credentials live here, and the
-reason is not hypothetical — it has already nearly happened twice:
+The Spark is several things at once: the OTA stack (`ownpace-managed`, the demo
+and the nightly gate's target), `ownpace-live` (the stack the alpha's testers
+use), the CI runner for pushes to `main`, the e2e runner, and the O365 e2e
+runner. Sharing it was a reasonable arrangement while the only data on it was
+the demo seed. It stops being reasonable the moment a customer's mailbox
+credentials live here, and the reason is not hypothetical — it has already
+nearly happened twice:
 
 - **A drill nearly took a live appliance down.** `container_name` in
   `compose.yml` is a fixed string and `docker compose -p` does not namespace
@@ -374,7 +376,7 @@ reason is not hypothetical — it has already nearly happened twice:
   for one reason: the runner is a single shared box, and a full stack bring-up
   next to a live one is not free.
 
-**The gate:** before the first non-demo tenant is onboarded, CI and production
+**The rule:** before the first non-demo tenant is onboarded, CI and production
 must not share this machine. Two ways to get there, and the cheaper one only
 became available recently:
 
@@ -385,8 +387,32 @@ became available recently:
    than not sharing a Docker daemon with production.
 2. **Move production off**, onto a host that runs no CI at all.
 
-Either is fine. Doing neither, with real mail credentials on the box, is the
-one option that is not.
+**The alpha is the one exception, by the owner's decision of 2026-09-24**
+([workplan 0132](./workplans/0132-the-alpha-and-the-nightly-gate-on-one-box.md),
+D7). Live runs on this machine beside the OTA stack and CI, for a free,
+invite-only alpha of hand-picked testers, under that plan's conditions:
+
+- **Names per project, on one Docker daemon.** Every container, volume and
+  network is named after its compose project, and each stack has its own
+  checkout, `.env`, ports, Trigger.dev plane and identity provider (0132 T1 to
+  T1d; [Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches)).
+  That keeps the stacks apart by configuration. It is not a security boundary:
+  each stack's `trigger-docker-proxy` holds the Docker socket, and so does the
+  runner.
+- **The gate refuses live's `.env`.** The nightly managed gate refuses a
+  persisted `.env` that carries live's marker, `STACK_KIND=production`, or a
+  slip of it, before it copies anything out of that directory
+  (`deploy/compose/refuse-live-env.sh`, 0132 T1g), and no workflow names
+  `ownpace-live`. A script in live's checkout whose `.env` carries the marker
+  but no `COMPOSE_PROJECT_NAME=ownpace-live` refuses too, rather than acting on
+  the OTA stack (0132 T1b).
+- **Live moves only by hand, from a tag** (0132 T6). The OTA stack keeps
+  following `main` every night; nothing scheduled deploys live.
+
+Beyond the alpha the rule stands as written: before a paying customer, or any
+tenant the owner did not invite to the alpha, one of the two moves above is
+done. Either is fine. Doing neither, with real mail credentials on the box, is
+the one option that is not.
 
 ## Backup & restore (§22.1)
 

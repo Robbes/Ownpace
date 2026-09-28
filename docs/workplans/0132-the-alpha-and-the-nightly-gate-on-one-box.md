@@ -511,6 +511,93 @@ indexer said *"Failed to fetch environment variables: Connection error"*.
 - **Still to prove on the machine:** a task deploy with the builder on the host network. A run of
   E2E (managed) on this branch does it before the merge.
 
+**2026-09-27, night: T1g's code half built, on branch
+`claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged.** The gate refuses live's `.env`, a live `.env` on the OTA
+stack's project is refused, and the two documents that said CI and live never share the machine
+now say what D7 decided.
+
+- **The gate's refusal.** `deploy/compose/refuse-live-env.sh <env-file>` sources `stack-kind.sh`
+  and refuses whatever `stack_may_be_live` takes for live: the marker, other quotes, case and
+  spacing, a value nobody listed as not live, a line the reader cannot read. It names
+  `STACK_KIND` and `MANAGED_ENV_PERSIST_DIR` and prints no value from the file. With the
+  variable set, it says to point it back at the OTA stack's directory or delete it. Empty or
+  unset (the workflow always exports it, empty when the repository variable is absent), the
+  refused file is the workflow's own default, the OTA stack's, so it says that `.env` carries the
+  line: take it out, or list the OTA stack's kind in `STACK_KINDS_NOT_LIVE` (`stack-kind.sh`).
+  A missing file or no argument exits 2, not 0. `e2e-managed.yml`'s *Restore the one-time
+  setup* runs it on `"${PERSIST_DIR}/.env"` under `set -e`, inside the `if` that finds the file
+  and before its first `cp`. Four lines, and the comment above them no longer says the gate never
+  reads live's file, in one hunk away from the masking step PR #1264 adds after the restore.
+- **A departure from §3: before the copy, not after it.** §3 said *"straight after the restore"*.
+  Refused before the copy, nothing of live's reaches the checkout: not the `.env`, not
+  `userlist.txt`, and not the persisted CLI login, which the restore copies into the runner's own
+  `~/.config/trigger`. It matters for the steps that run `if: always()`. *What state did we leave
+  it in?* runs `docker compose ps` from the checkout, and with live's `.env` there (it names
+  `COMPOSE_PROJECT_NAME`) that would list live's containers in the public log.
+- **Live's `.env` on the OTA stack's project.** `compose_project` (`env-read.sh`) fell back to
+  `managed.yml`'s `name:` when the `.env` named no project. It now refuses when the project comes
+  out as that name and the `.env` carries exactly live's marker, `stack_is_live`'s rule, whether
+  the name came from the fallback, from the file or from a shell that agrees. It names
+  `STACK_KIND` and `COMPOSE_PROJECT_NAME=ownpace-live` (T1b), and no value. `stack-kind.sh`
+  sources `env-read.sh`, so the reader reads `STACK_KIND_KEY` and `STACK_KIND_LIVE` out of
+  `stack-kind.sh` with `env_value`, as data: the `stack-kind.sh` beside the reader's own real
+  file (`readlink -f` of `BASH_SOURCE`), not beside the `.env`, so a directory that only links
+  the reader in still tells. `stack_kind_clean` moved from `stack-kind.sh` into `env-read.sh`, so
+  both compare the marker with one function; every caller of `stack-kind.sh` still has it. A
+  reader with no `stack-kind.sh` beside it is refused on the OTA project rather than taking the
+  project for it. Nothing else in the reader changed: a shell that disagrees is refused as
+  before.
+- **No workflow names `ownpace-live`.** That check was already in T1's guard
+  (`two-stacks-on-one-box`, *no workflow names ownpace-live*), merged with T1 in #1233. Nothing to
+  add; a mutation below shows it still bites.
+- **Docs.** The runbook's CI section is now *This box also runs CI — beside live for the alpha,
+  and not beyond it*: the rule stands, the alpha is the one exception by the owner's decision of
+  2026-09-24, under three conditions (names per project on one Docker daemon, which is not a
+  security boundary; the gate refuses live's `.env`; live moves only by hand, from a tag).
+  `docs/release.md`'s checklist item says the same. `docs/managed-bring-up.md`: *Which stack a
+  command reaches* names the reader's new refusal, the persisted-setup section the gate's, and
+  *One stack, one `.env`* no longer says the gate never reads live's file (it reads it once, to
+  refuse it). `stack-kind.sh`'s header lists both refusals as built.
+- **The guards, and that they failed first.** `scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts`,
+  27 cases: the script run against `.env` files the test writes (12 forms of live's marker
+  refused with no value printed and nothing written, its advice with the variable set, empty and
+  unset, the OTA `.env` and an empty key passed, a missing file or argument not a pass, no marker
+  spelled in the script), and the gate read as YAML and run (the refusal in the restore before
+  its first copy, under a `set -e` nothing switches off before the call, with no
+  `continue-on-error`; the step's own `run:` block run in a temp checkout under
+  `bash -eo pipefail`, which on live's `.env` and one slip of it exits non-zero and copies no
+  `.env`, `userlist.txt` or CLI login, and on the OTA `.env` copies all three; no step before the
+  restore writes `.env` or reads the persisted directory). Against `origin/main` 23 of the 27
+  failed; the four that passed are the ones that find their landmarks or check an order `main`
+  already has. `scripts/two-stacks-on-one-box.unit.test.ts` has five new reader cases (44 in
+  all): live's marker on the OTA project refused in six situations, the marker with live's
+  project is live, only the exact marker is refused (`prod`, empty, commented out pass), a
+  missing `stack-kind.sh` is refused, and a reader linked into a directory without one reads the
+  marker beside its real file. Against `origin/main` 3 of the 5 failed; the other two describe
+  what `main` already did. Eleven mutations, each red: the refusal moved after the copy (1),
+  `|| true` after it (1), `stack_is_live` for `stack_may_be_live` (4), the file's kind in the
+  message (10), `ensure-env-secrets.sh` in a step before the restore (1), a workflow comment
+  naming `ownpace-live` (T1's guard, 1), the reader's marker check removed (2), the reader
+  refusing any kind (1), the reader printing the value (1), the reader taking a missing
+  `stack-kind.sh` for the OTA stack (1), `set +e` before the refusal and `set -e` after it (3;
+  the gate half only read the step's text before the review, and stayed green). The advice's
+  two unset cases and the linked reader's case failed on the unreviewed code too. Two fixtures that run a script calling the reader in a
+  bare directory (`seed-managed`, `a-recipe-the-env-file-could-not-answer`) and two in
+  `two-stacks-on-one-box` copy `stack-kind.sh` beside it now.
+- **Open, and whose.** The live-target lane (`e2e-live-target.yml`) reads `LIVE_*` lines from
+  the same persisted directory and writes nothing; it has no refusal, and PR #1264 edits that
+  step, so it is left for after that merge. T5's refusal of `--with-demo` and T6's
+  `deploy-live.sh` are still 📋. On the machine: nothing to do for the OTA stack, whose `.env`
+  carries no marker; live's `.env` needs `COMPOSE_PROJECT_NAME=ownpace-live` beside
+  `STACK_KIND=production` from its first bring-up (T1b step 2), which the reader now enforces.
+- **Beside PR #1264.** Its guard `a-public-log-that-named-the-machine-it-ran-on` runs the
+  smoke's preamble in a directory that links `env-read.sh`, `own-addresses.sh` and
+  `managed.yml`, and no `stack-kind.sh`. With the reader looking beside the `.env`, its case
+  *the smoke filters its own stream…* was refused once both merged, though the text merged
+  cleanly. The reader now looks beside its own real file, and on a trial merge of the two that
+  case passes. This entry sits after the *evening* one, where #1264 also adds its entry, so the
+  second of the two to merge keeps both, the first one's above.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
@@ -520,7 +607,7 @@ indexer said *"Failed to fetch environment variables: Connection error"*.
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
-| T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. |
+| T1g Live is deployed by hand from a tag; CI never touches it | 🔨 **The code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged** (2026-09-27) — *was:* 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
@@ -587,7 +674,8 @@ says. Under D7 that is acceptable for a demo stack, and it is the reason testers
 
 **The repository's own rule.** The runbook says *"before the first non-demo tenant is onboarded,
 CI and production must not share this machine"* (*This box also runs CI*), and
-`docs/release.md` carries the same checklist item. A tester is a non-demo tenant. The runbook
+`docs/release.md` carries the same checklist item. A tester is a non-demo tenant. (Since T1g's
+code half, 2026-09-27, both name the alpha as the one exception, under D7's conditions.) The runbook
 names the class of problem as *"CI and production share a Docker daemon"*, and D7 keeps them on
 one daemon: live, the OTA stack and the runner. SECURITY.md says of the runner: *"trusted
 workflows only (docker socket + root = RCE risk)"*. Pull requests run on GitHub-hosted runners,
@@ -1230,11 +1318,17 @@ the other stack's containers.
   - `stack_is_live <env-file>` is exactly live's marker. It is for T6's `deploy-live.sh`, which
     refuses a `.env` that does NOT carry it.
 - **The code half makes an accident harmless.** Live's `.env` carries a marker saying that the
-  stack holds people's data (`STACK_KIND=production`, above). Straight after the restore,
-  the gate refuses a `.env` that carries the marker, before `ensure-env-secrets.sh`, the backfill
-  or the copy-back can write anything. So a `MANAGED_ENV_PERSIST_DIR` pointed at live's directory
-  by mistake stops at once. This is option A's code half, kept, and keyed on the marker instead of
-  `WEB_URL`, because the OTA stack's `WEB_URL` is a real https address too.
+  stack holds people's data (`STACK_KIND=production`, above). In the restore, before it copies
+  anything out of the persisted directory, the gate refuses a `.env` that carries the marker, so
+  `ensure-env-secrets.sh`, the backfill and the copy-back never see it. So a
+  `MANAGED_ENV_PERSIST_DIR` pointed at live's directory by mistake stops at once. This is option
+  A's code half, kept, and keyed on the marker instead of `WEB_URL`, because the OTA stack's
+  `WEB_URL` is a real https address too. **Built 2026-09-27** (`deploy/compose/refuse-live-env.sh`,
+  not merged); the Status block says how.
+- **Live's `.env` on the OTA project is refused too (with T1b).** `compose_project` falls back to
+  `managed.yml`'s `name:` when the `.env` names no project, so a live checkout whose `.env` forgot
+  `COMPOSE_PROJECT_NAME=ownpace-live` would drive the OTA stack with live's `.env`. The reader now
+  refuses live's exact marker on that project. **Built 2026-09-27**, not merged.
 - **The guard.** `scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts` finds that refusal in
   `e2e-managed.yml`, ahead of the first write to `.env`. T1's guard fails if any workflow names
   `ownpace-live`.
@@ -1243,7 +1337,7 @@ the other stack's containers.
 - **The docs.** The runbook's CI section and the release checklist item say that live runs on the
   reference machine beside the OTA stack and CI, by the owner's decision of 2026-09-24, under this
   plan's conditions. They say that the rule still stands for anything beyond the alpha, and that
-  the separation is by names on one Docker daemon (D7).
+  the separation is by names on one Docker daemon (D7). **Done 2026-09-27**, with the code half.
 
 ### T2 — database passwords the repository does not contain
 
