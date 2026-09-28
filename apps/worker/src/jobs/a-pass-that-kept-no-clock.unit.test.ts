@@ -32,9 +32,7 @@ const loop = src.slice(src.indexOf('for (const domain of domains) {'));
 
 describe('where a pass spent its time, on managed', () => {
   it('rides into run.stats beside domainSeconds', () => {
-    const finish = src.slice(src.indexOf('.finishRun(runId, outcome, {'), src.indexOf('} catch (finishErr)'));
-    expect(finish).toContain('domainSeconds');
-    expect(finish).toMatch(/\{ domainMetrics \}/);
+    expect(src).toMatch(/finishRun\(runId, outcome, \{[^}]*domainSeconds, domainMetrics[^}]*\}\)/);
   });
 
   it('is kept before the pass decides whether it finished, so a stopped pass keeps it too', () => {

@@ -350,12 +350,7 @@ export const runDeltaSync = schemaTask({
       runClosed = true;
       try {
         await withTenant(pool, tenantId, async (db) => {
-          await new RunStore(db).finishRun(runId, outcome, {
-            itemsProcessed,
-            errors,
-            domainSeconds,
-            ...(Object.keys(domainMetrics).length > 0 ? { domainMetrics } : {}),
-          });
+          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors, domainSeconds, domainMetrics });
         });
       } catch (finishErr) {
         // Best-effort — never mask the real error with a bookkeeping one.
