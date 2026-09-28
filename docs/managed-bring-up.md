@@ -243,17 +243,23 @@ Compose reads the file, and names the key, not the value.
   brought up with. Without it, the name stops answering. The API reaches its
   issuer by the provider's public name too, so sign-in stops with it, and the
   status page's lamps go red.
-- **The front's own request-body limit must allow 8 MB on the app's name.** A
-  problem report (8f) carries a screenshot of up to 5 MB, sent as base64 in a
-  request of up to about 7 MB; the API takes 8 MB
+- **The front's own request-body limit must allow 8 MB on the app's name, and
+  on the helpdesk's.** A problem report (8f) carries a screenshot of up to
+  5 MB, sent as base64 in a request of up to about 7 MB; the API takes 8 MB
   (`PROBLEM_REPORT_BODY_LIMIT`), and the web image's nginx lets that much
   through to `/api/`. The ingress in front of the machine (NetBird's, on the
   reference machine) may have a limit of its own, and this repository cannot
-  set it: check that it allows at least 8 MB. 8f's test report with a
-  screenshot near 5 MB is what proves it. A front that refuses with a 413 makes
-  the form tell the person to choose a smaller screenshot, and nothing is
-  recorded. One that drops the connection instead leaves the form saying only
-  *Network Error*.
+  set it: check that it allows at least 8 MB. The API then sends the same
+  screenshot on to Zammad, as base64 inside the ticket, so that request is
+  about 7 MB too. Whatever answers on `ZAMMAD_URL`'s name (Zammad's own
+  nginx, a proxy in front of it, or this same ingress if the name is routed
+  through it) must also take about 8 MB. 8f's test report with a screenshot
+  near 5 MB is what proves both. A front on the app's name that refuses with a
+  413 makes the form tell the person to choose a smaller screenshot, and
+  nothing is recorded; one that drops the connection instead leaves the form
+  saying only *Network Error*. A front on Zammad's name that refuses it is
+  answered with a reference and recorded as `report.not-delivered`, and the
+  API's log line for that reference says `Zammad answered 413`.
 - **A page you open from a laptop over the mesh** takes the machine's mesh
   address the same way: `TRIGGER_TLS_BIND` for the dashboard (*Addressing the
   dashboard*, above), and `STATUS_BIND` for a status page reached over the mesh
@@ -1767,9 +1773,22 @@ ticket. Restart the API, sign in, and the link appears; send yourself a test
 report. A report that Zammad refuses is answered with a reference, and recorded
 for the log page as `report.not-delivered`. Send one through the public name
 with a screenshot close to 5 MB too, the form's maximum, which makes a request
-of about 7 MB: a front that takes less refuses it before the API sees it, with
-a 413 or by dropping the connection, and a smaller screenshot would not show
-that (*Which address a port answers on*, above).
+of about 7 MB, and a ticket of the same size from the API to Zammad. A smaller
+screenshot shows neither of the two ways it can fail (*Which address a port
+answers on*, above):
+
+- **Refused before the API sees it:** a 413 or a dropped connection from a
+  front on the app's name. The form asks for a smaller screenshot, or says
+  *Network Error*, and nothing is recorded.
+- **Answered with a reference:** the API took the report and Zammad's side
+  refused the ticket. The log page shows `report.not-delivered`, and the API's
+  log line with that reference says why: `Zammad answered 413` is a front on
+  `ZAMMAD_URL`'s name with a limit below 8 MB, not the app's.
+
+The form waits two minutes for the answer. From a line with less than about
+0.6 Mbit/s of upstream, a report this large runs out of time first, and the
+form says it cannot tell whether the report arrived: look on the helpdesk
+before you send it again.
 
 The same setting switches on **Report this link** on the grant and progress
 pages (workplan 0108 T8 (d)). Somebody who doubts a link they were sent tells

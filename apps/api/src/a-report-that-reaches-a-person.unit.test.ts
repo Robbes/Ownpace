@@ -13,9 +13,12 @@
  *
  * And the body is read last (2026-09-28): sign-in, the helpdesk, the reply
  * address and the hour's five are decided before a byte of up to 8 MB is
- * parsed, and a body too large or not JSON is answered 413 or 400 in JSON,
- * never the API's 500 "fault on our side"
- * (`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts`).
+ * parsed, and a body too large, not JSON, or in a charset or encoding the
+ * parser does not read is answered 413, 400 or 415 in JSON, never the API's
+ * 500 "fault on our side"
+ * (`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts`). The
+ * largest report the form sends, a screenshot of the most it allows and a
+ * description as long, is taken whole.
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
@@ -27,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { setAppEventSink, type AppEvent } from '@openmig/shared';
 import { buildIdentity } from '@openmig/core';
 import {
+  MAX_DESCRIPTION,
   MAX_SCREENSHOT_BYTES,
   imageTypeOf,
   isRefusal,
@@ -308,6 +312,24 @@ describe('the route', () => {
     expect(res.status).toBe(201);
   });
 
+  it('takes the largest report the form sends: a screenshot of the most it allows, and a description as long', async () => {
+    const { calls, fetchImpl } = zammad();
+    const largest = Buffer.concat([PNG, Buffer.alloc(MAX_SCREENSHOT_BYTES - PNG.length)]).toString('base64');
+    // Each character one JSON writes as six bytes, so no description of this
+    // length makes a larger body.
+    const description = '\u0001'.repeat(MAX_DESCRIPTION - 1) + 'x';
+    const body = { description, page: '/', screenshot: { data: largest } };
+    // About 7 MB on the wire: what PROBLEM_REPORT_BODY_LIMIT, and every front
+    // before it, must let through.
+    expect(Buffer.byteLength(JSON.stringify(body))).toBeGreaterThan(7_000_000);
+    const res = await request(app({ env: CONFIGURED, fetchImpl }))
+      .post('/api/problem-reports')
+      .send(body);
+    expect(res.status).toBe(201);
+    const sent = JSON.parse(String(calls[0]!.init.body));
+    expect(sent.article.attachments[0].data).toBe(largest);
+  });
+
   it('says which field is wrong', async () => {
     const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
       .post('/api/problem-reports')
@@ -404,10 +426,37 @@ describe('the body, read last', () => {
     expect(events).toEqual([]);
   });
 
-  it("still sends any other fault to the API's own handler", async () => {
+  // The sender's other refusals, as body-parser raises them: each a 4xx with
+  // its own `type`. Until 2026-09-28 these went on to the API's handler, 500.
+  const unreadable: ReadonlyArray<readonly [string, string, string, number]> = [
+    ['a charset the parser does not read', 'content-type', 'application/json; charset=latin1', 415],
+    ['a Content-Encoding the parser does not read', 'content-encoding', 'compress', 415],
+  ];
+
+  it.each(unreadable)('answers %s with its own status, not a fault on our side', async (_what, header, value, status) => {
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
+      .post('/api/problem-reports')
+      .set('content-type', 'application/json')
+      .set(header, value)
+      .send(JSON.stringify({ description: 'x', page: '/' }));
+    expect(res.status).toBe(status);
+    expect(res.body).toMatchObject({ error: 'invalid_report' });
+    expect(events).toEqual([]);
+  });
+
+  // Thrown where the limiter is asked, before the body: a fault in the route's
+  // own code, a 5xx the parser raises about itself, and a 4xx that is not the
+  // parser's (it has no `type`) are all ours to record, not the sender's.
+  const faults: ReadonlyArray<readonly [string, Error]> = [
+    ['a plain fault', new Error('the limiter broke')],
+    ["a 5xx the parser raises about itself", Object.assign(new Error('stream is not readable'), { status: 500, expose: false, type: 'stream.not.readable' })],
+    ["a 4xx that is not the parser's", Object.assign(new Error('forbidden'), { status: 403, expose: true })],
+  ];
+
+  it.each(faults)("still sends %s to the API's own handler", async (_what, fault) => {
     const limiter = createKnockLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
     vi.spyOn(limiter, 'take').mockImplementation(() => {
-      throw new Error('the limiter broke');
+      throw fault;
     });
     const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl, limiter }))
       .post('/api/problem-reports')

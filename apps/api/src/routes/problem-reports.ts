@@ -19,8 +19,8 @@
  * liked, and a body that was not JSON reached the global error handler as a
  * 500 "fault on our side". Now sign-in, the helpdesk, the reply address and
  * the hour's five are all decided first, none of which reads the body, and a
- * body too large or not JSON is answered here, 413 or 400, in JSON the form
- * can read.
+ * body too large, not JSON, or in a charset or encoding the parser does not
+ * read is answered here, 413, 400 or 415, in JSON the form can read.
  */
 
 import express, { Router } from 'express';
@@ -139,11 +139,21 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
    * A body the parser refused, answered as the route's other refusals are.
    * Without this, body-parser's error went on to the API's global handler,
    * which answers every error 500 "a fault on our side" and records it as one.
-   * Too large is 413, which the form reads as "choose a smaller screenshot";
-   * not JSON is 400. Anything else is a real fault and goes on.
+   * Too large is 413, which the form reads as "choose a smaller screenshot".
+   *
+   * Every other refusal the parser makes of what the sender sent is answered
+   * with its own status: not JSON (400), a charset or a `Content-Encoding` it
+   * does not read (415), a body that ended early or was not the length it
+   * said (400). body-parser gives each a `type` and a 4xx status. Until
+   * 2026-09-28 only "not JSON" was answered here, and a signed-in POST with
+   * `charset=latin1` was answered 500 and recorded as `api.unhandled`. A 5xx
+   * the parser raises is a fault of ours, and goes on with anything else.
    */
   router.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
-    const type = (err as { type?: unknown } | null)?.type;
+    const { type, status } = (typeof err === 'object' && err !== null ? err : {}) as {
+      type?: unknown;
+      status?: unknown;
+    };
     if (type === 'entity.too.large') {
       res.status(413).json({
         error: 'report_too_large',
@@ -151,8 +161,8 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
       });
       return;
     }
-    if (type === 'entity.parse.failed') {
-      res.status(400).json({ error: 'invalid_report', reason: 'The report did not arrive as JSON.' });
+    if (typeof type === 'string' && typeof status === 'number' && status < 500) {
+      res.status(status).json({ error: 'invalid_report', reason: 'The report did not arrive as JSON this service reads.' });
       return;
     }
     next(err);

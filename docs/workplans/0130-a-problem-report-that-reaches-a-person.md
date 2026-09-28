@@ -20,32 +20,57 @@ smaller one, in English and Dutch (`report.tooLarge`).
 With 8 MB let through, the route no longer parses before it knows who is sending. Its parser was
 mounted on the whole router, so it read and parsed up to 8 MB before sign-in, and a body that was
 not JSON became a 500 *"fault on our side"* recorded as `api.unhandled`. Now sign-in, the
-helpdesk, the reply address and the hour's five come first, and a body too large or not JSON is
-answered 413 (`report_too_large`) or 400 in JSON. The 8m stays on all of `/api/` on purpose,
-as the template now says: nginx takes the whole body before the API asks who is sending, so a
-location of the report's own would let the same 8 MB in unsigned.
+helpdesk, the reply address and the hour's five come first, and a body too large is answered 413
+(`report_too_large`) in JSON. Every other refusal the parser makes of what was sent is answered
+with its own status as `invalid_report`: not JSON 400, a charset or a `Content-Encoding` it does
+not read 415 (the review found `charset=latin1` still answered 500 and recorded as
+`api.unhandled`), a body cut short 400. A 5xx the parser raises still goes to the API's handler.
+The 8m stays on all of `/api/` on purpose, as the template now says: nginx takes the whole body
+before the API asks who is sending, so a location of the report's own would let the same 8 MB in
+unsigned.
 
 The public ingress in front of the machine may have a body limit of its own, which this
 repository cannot set: `docs/managed-bring-up.md` says to check it allows 8 MB, and 8f's test
 report now sends a screenshot close to 5 MB (a request of about 7 MB) through the public name.
-**A gap, not handled:** a front that drops the connection instead of answering 413 leaves the
-form saying *Network Error*, with no hint that the screenshot was the cause. Showing the
-too-large hint then would be wrong whenever the network itself was down, so it is not.
+The API hands Zammad the same screenshot in a ticket of about 7 MB, so whatever answers on
+`ZAMMAD_URL`'s name must take that too. A refusal there is answered with a reference and
+recorded as `report.not-delivered`, with `Zammad answered 413` in the API's log line, and 8f now
+says which of the two fronts each sign points to. 0131 T5's row for this plan carries the same
+check. The form waits two minutes for a report (`REPORT_TIMEOUT_MS`), not the API client's 30
+seconds, which needed about 1.9 Mbit/s of upstream for a report that large. When the time runs out,
+the form says in English or Dutch that it cannot tell whether the report arrived
+(`report.timedOut`), since the front may already have handed it on and sending it again can make
+a second ticket. **Two gaps, not handled:** below about 0.6 Mbit/s of upstream a report near
+7 MB still runs out of time. And a front that drops the connection instead of answering 413
+leaves the form saying *Network Error*, with no hint that the screenshot was the cause. Showing
+the too-large hint then would be wrong whenever the network itself was down, so it is not.
 
-Guards: `a-screenshot-the-front-door-lets-through` (12), red on main. It reads every
+Guards: `a-screenshot-the-front-door-lets-through` (15), red on main. It reads every
 `express.json`, `.raw`, `.text` and `.urlencoded` in `apps/api/src` and refuses a body read any
 other way it could miss (a parser imported by name or from `body-parser`, another body-reading
 package, the request stream read by hand). For each route whose parser takes more than nginx's
 default, it knows the URI (today the report's alone) and checks the location nginx would choose
 for it, in every nginx config under `apps/` and `deploy/`: exact, else the longest prefix unless
 `^~` or a regex comes first, nested locations likewise. So 8m on `location = /api/problem-reports`
-alone passes too; the guard as first written refused it. The API's `a-report-that-reaches-a-person`
-goes from 25 to 30, the web app's from 7 to 11. `scripts/lessons.mjs` now indexes `.template`
+alone passes too; the guard as first written refused it. It also holds the parser to the
+largest report there is, which nothing did: the review found `PROBLEM_REPORT_BODY_LIMIT` at
+'6mb' and the form's own `MAX_SCREENSHOT_BYTES` at 10 MB both passing every test. The largest
+report `parseProblemReport` takes (a 5 MB screenshot, 5000 characters of description and 2000 of
+page, each character one JSON writes as six bytes: 7.03 MB) must fit the route's limit, one byte
+or character more in any field must be refused, and the form's `MAX_SCREENSHOT_BYTES` and
+description `maxLength` must be the API's. The API's `a-report-that-reaches-a-person` goes from
+25 to 35, with a route test that posts the largest report the form sends and gets 201, and the
+web app's from 7 to 16. `scripts/lessons.mjs` now indexes `.template`
 files and Dockerfiles, so `docs/LESSONS.md` files this guard under the template it protects. 29
 mutations, all killed: 11 on the first version, then 5 on the route, 11 on the guard and the
 template, 2 on the index. One, the Dutch sentence left in English, died only once a test pinned
 the Dutch; another, a nested location's `proxy_pass` counted as its parent's, only once a case
-pinned it.
+pinned it. The review round added 22 more: 20 killed, among them the limit at '6mb', the form's
+screenshot at 10 MB and its `maxLength` at 10000, the page cap at 4000, the 4xx branch gone, a
+5xx answered as the sender's, the report's own timeout gone or 30 seconds, and the Dutch left in
+English. The two that survived were conditions no test could tell apart (a 400 floor no
+body-parser error goes under, and a "not JSON" branch the 4xx one now covers), and both were
+removed.
 
 **2026-09-24: a link holder can report too (workplan 0108 T8 (d)).** The owner decided that
 *"report this link"* goes to this form's helpdesk. The grant and progress pages offer it when

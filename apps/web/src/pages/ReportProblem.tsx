@@ -25,8 +25,10 @@ import { serverMessage } from '../services/api.ts';
 import {
   fetchReportingAvailable,
   refusedAsTooLarge,
+  REPORT_TIMEOUT_MS,
   reportablePage,
   sendProblemReport,
+  timedOut,
 } from '../services/problem-report-service.ts';
 
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
@@ -170,9 +172,14 @@ const ReportProblem: React.FC = () => {
 
         {send.isError && (
           <p role="alert" className="text-sm text-red-700">
-            {/* A 413 from any front says so in its own words, or in HTML: this
-                says what to do about it, in the reader's language. */}
-            {refusedAsTooLarge(send.error) ? t('report.tooLarge') : serverMessage(send.error)}
+            {/* A 413 from any front says so in its own words, or in HTML, and
+                a timeout in axios's English: these say what each means, in
+                the reader's language. */}
+            {refusedAsTooLarge(send.error)
+              ? t('report.tooLarge')
+              : timedOut(send.error)
+                ? t('report.timedOut', { minutes: REPORT_TIMEOUT_MS / 60_000 })
+                : serverMessage(send.error)}
           </p>
         )}
 

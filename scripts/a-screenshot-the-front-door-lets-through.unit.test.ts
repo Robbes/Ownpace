@@ -48,6 +48,19 @@
  *   only, with nginx's default on the rest of `/api/`. The config the web
  *   image copies in (`apps/web/Dockerfile`) must send the report to a location
  *   that proxies it, so the test cannot pass by finding nothing.
+ * - **That the parser takes the largest report there is.** Everything above
+ *   holds the front to the parser, and nothing held the parser to the report:
+ *   `PROBLEM_REPORT_BODY_LIMIT` at '6mb' passed this guard and both report
+ *   test files (review, 2026-09-28), and the form's largest reports would have
+ *   been answered 413. So the largest report `parseProblemReport` takes (a
+ *   screenshot of `MAX_SCREENSHOT_BYTES`, a description of `MAX_DESCRIPTION`
+ *   characters and a page of 2000, each character one JSON writes as six
+ *   bytes) must fit the route's limit, and one byte or character more in any
+ *   of them must be refused, so those are the API's real maxima. The form
+ *   keeps limits of its own in `apps/web/src/pages/ReportProblem.tsx`, a
+ *   separate package that cannot import the API's: its `MAX_SCREENSHOT_BYTES`
+ *   and its description's `maxLength` must be the API's. A form that let a
+ *   10 MB screenshot through also passed, until this read them.
  *
  * What it does not cover, and why:
  *
@@ -64,6 +77,10 @@
  *   `docs/managed-bring-up.md`, checked by 8f's test report with a screenshot
  *   near 5 MB, and the form says what a 413 means whichever front sends it
  *   (`apps/web/src/pages/ReportProblem.tsx`).
+ * - **The front on `ZAMMAD_URL`'s name**, which the API sends the same
+ *   screenshot through inside the ticket, is not in this repository either:
+ *   the same line and the same test report cover it, and a refusal there is a
+ *   `report.not-delivered` with a reference rather than a 413 at the form.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -71,7 +88,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PROBLEM_REPORT_BODY_LIMIT } from '../apps/api/src/problem-report.ts';
+import { FAILURE_CATEGORIES } from '@openmig/shared';
+import {
+  MAX_DESCRIPTION,
+  MAX_SCREENSHOT_BYTES,
+  PROBLEM_REPORT_BODY_LIMIT,
+  isRefusal,
+  parseProblemReport,
+} from '../apps/api/src/problem-report.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(REPO_ROOT, path), 'utf8');
@@ -414,6 +438,56 @@ function nginxConfigs(): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// The largest report, and the form's own limits
+// ---------------------------------------------------------------------------
+
+/** The report form, whose limits are its own constants: `apps/web` cannot import the API's. */
+const REPORT_FORM = 'apps/web/src/pages/ReportProblem.tsx';
+/** The longest page `parseProblemReport` takes; the one it refuses below pins it. */
+const MAX_PAGE = 2000;
+/** A character JSON writes as six bytes (`\u0001`), the most any one character of text takes. */
+const WIDEST = '\u0001';
+
+/**
+ * The largest report the API takes, as a body: every field at the most
+ * `parseProblemReport` allows, and every character of text one that JSON
+ * writes as six bytes. The description is counted as sent, and the form trims
+ * it before sending, so no report the form sends is larger. Grown by `grow`,
+ * one field one byte or character past its maximum, it must be refused.
+ */
+function largestReport(grow?: 'screenshot' | 'description' | 'page'): Record<string, unknown> {
+  const png = Buffer.alloc(MAX_SCREENSHOT_BYTES + (grow === 'screenshot' ? 1 : 0));
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const longest = [...FAILURE_CATEGORIES].reduce((a, b) => (b.length > a.length ? b : a));
+  return {
+    description: 'x' + WIDEST.repeat(MAX_DESCRIPTION - 1 + (grow === 'description' ? 1 : 0)),
+    page: '/' + WIDEST.repeat(MAX_PAGE - 1 + (grow === 'page' ? 1 : 0)),
+    reference: '0123abcd',
+    category: longest,
+    screenshot: { data: png.toString('base64') },
+  };
+}
+
+/** A number the form declares as digits multiplied (`5 * 1024 * 1024`), or undefined. */
+function product(expression: string | undefined): number | undefined {
+  if (expression === undefined || !/^[\d_\s*]+$/.test(expression)) return undefined;
+  const factors = expression.split('*').map((f) => f.replace(/[_\s]/g, ''));
+  if (factors.some((f) => f === '')) return undefined;
+  return factors.reduce((a, f) => a * Number(f), 1);
+}
+
+/** The form's own limits, read from its source. */
+function formLimits(): { screenshot: number | undefined; description: number | undefined } {
+  const form = read(REPORT_FORM);
+  const screenshot = product(/^export const MAX_SCREENSHOT_BYTES = ([^;]+);$/m.exec(form)?.[1]);
+  // The description's own tag, from its id to the end of the element.
+  const at = form.indexOf('id="report-description"');
+  const tag = at < 0 ? '' : form.slice(at, form.indexOf('/>', at));
+  const maxLength = /\bmaxLength=\{(\d+)\}/.exec(tag)?.[1];
+  return { screenshot, description: maxLength === undefined ? undefined : Number(maxLength) };
+}
+
+// ---------------------------------------------------------------------------
 // The guard
 // ---------------------------------------------------------------------------
 
@@ -578,5 +652,31 @@ describe('a screenshot the front door lets through', () => {
         'body limit (PROBLEM_REPORT_BODY_LIMIT in apps/api/src/problem-report.ts):\n' +
         failures.join('\n'),
     ).toEqual([]);
+  });
+});
+
+describe('the largest report there is', () => {
+  it('is taken by the API, and one byte or character more in any field is refused', () => {
+    expect(isRefusal(parseProblemReport(largestReport()))).toBe(false);
+    for (const field of ['screenshot', 'description', 'page'] as const) {
+      expect(parseProblemReport(largestReport(field)), `${field} one past its maximum`).toMatchObject({ field });
+    }
+  });
+
+  it("fits the parser the report route runs with, so no front's limit can stop at the parser's", () => {
+    const body = Buffer.byteLength(JSON.stringify(largestReport()));
+    const limit = bodyParserBytes(PROBLEM_REPORT_BODY_LIMIT);
+    expect(
+      body,
+      `The largest report the API takes is ${body} bytes as JSON, and the route parses at most ` +
+        `${PROBLEM_REPORT_BODY_LIMIT} (${limit}): the form's largest reports would be answered 413. ` +
+        'Raise PROBLEM_REPORT_BODY_LIMIT in apps/api/src/problem-report.ts, and client_max_body_size with it.',
+    ).toBeLessThanOrEqual(limit);
+  });
+
+  it("is what the form sends at most: its screenshot and description limits are the API's", () => {
+    const form = formLimits();
+    expect(form.screenshot, `${REPORT_FORM}: MAX_SCREENSHOT_BYTES, as the API's`).toBe(MAX_SCREENSHOT_BYTES);
+    expect(form.description, `${REPORT_FORM}: the description's maxLength, as the API's`).toBe(MAX_DESCRIPTION);
   });
 });

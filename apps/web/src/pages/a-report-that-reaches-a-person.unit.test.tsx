@@ -16,6 +16,11 @@
  * is too large, send a smaller one. Before 2026-09-28 it printed "Request
  * failed with status code 413"
  * (`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts`).
+ *
+ * And a report that got no answer in time says so in the reader's language:
+ * whether it arrived is unknown. The form waits two minutes for it, not the
+ * client's 30 seconds, because a report of about 7 MB is uploaded first
+ * (review, 2026-09-28).
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -27,7 +32,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
-import { reportablePage } from '../services/problem-report-service.ts';
+import { REPORT_TIMEOUT_MS, reportablePage, timedOut } from '../services/problem-report-service.ts';
 import ReportProblem from './ReportProblem.tsx';
 
 const EN = STRINGS.en;
@@ -112,11 +117,12 @@ describe('Report a problem', () => {
     await userEvent.click(screen.getByRole('button', { name: EN['report.send'] }));
 
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-    expect(postMock).toHaveBeenCalledWith('/problem-reports', {
-      description: 'The Moves screen is empty',
-      page: '/grant/:link/google',
-      reference: '0a1b2c3d',
-    });
+    expect(postMock).toHaveBeenCalledWith(
+      '/problem-reports',
+      { description: 'The Moves screen is empty', page: '/grant/:link/google', reference: '0a1b2c3d' },
+      // Its own time, not the client's 30 seconds: a 7 MB report uploads first.
+      { timeout: REPORT_TIMEOUT_MS },
+    );
     expect(
       await screen.findByText(
         EN['report.sent'].replace('{ticket}', '31001').replace('{email}', 'someone@example.invalid'),
@@ -139,10 +145,11 @@ describe('Report a problem', () => {
 
     await userEvent.click(screen.getByRole('button', { name: EN['report.send'] }));
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2));
-    expect(postMock).toHaveBeenLastCalledWith('/problem-reports', {
-      description: 'The Moves screen is empty',
-      page: '/',
-    });
+    expect(postMock).toHaveBeenLastCalledWith(
+      '/problem-reports',
+      { description: 'The Moves screen is empty', page: '/' },
+      { timeout: REPORT_TIMEOUT_MS },
+    );
     expect(
       await screen.findByText(
         EN['report.sent'].replace('{ticket}', '31001').replace('{email}', 'someone@example.invalid'),
@@ -201,6 +208,7 @@ describe('a report too large for a front on the way', () => {
       expect(postMock).toHaveBeenCalledWith(
         '/problem-reports',
         expect.objectContaining({ screenshot: { data: expect.any(String) as unknown } }),
+        { timeout: REPORT_TIMEOUT_MS },
       );
       // Not the transport's words, and not the front's own page or sentence.
       expect(document.body.textContent).not.toContain('413');
@@ -213,5 +221,44 @@ describe('a report too large for a front on the way', () => {
   it('is a Dutch sentence in Dutch, not the English one again', () => {
     expect(STRINGS.nl['report.tooLarge']).not.toBe(STRINGS.en['report.tooLarge']);
     expect(STRINGS.nl['report.tooLarge']).toMatch(/^De schermafbeelding is te groot/);
+  });
+});
+
+describe('a report that no answer came back for', () => {
+  it('waits two minutes, long enough to upload the largest report on a slow line', () => {
+    // About 7 MB at 0.6 Mbit/s is a minute and a half, and the API may spend
+    // 20 seconds more handing it to the helpdesk.
+    expect(REPORT_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+  });
+
+  it.each(['en', 'nl'] as const)(
+    'says whether it arrived is unknown, in the reader’s language, not in axios’s (%s)',
+    async (locale) => {
+      const L = STRINGS[locale];
+      postMock.mockRejectedValueOnce(
+        new AxiosError(`timeout of ${REPORT_TIMEOUT_MS}ms exceeded`, AxiosError.ECONNABORTED),
+      );
+      renderPage('/report?from=%2F', locale);
+      const description = await screen.findByLabelText(L['report.description']);
+      await userEvent.type(description, 'The Moves screen is empty');
+      await userEvent.click(screen.getByRole('button', { name: L['report.send'] }));
+
+      const said = L['report.timedOut'].replace('{minutes}', String(REPORT_TIMEOUT_MS / 60_000));
+      expect(await screen.findByRole('alert')).toHaveTextContent(said);
+      expect(document.body.textContent).not.toContain('exceeded');
+      expect(description).toHaveValue('The Moves screen is empty');
+    },
+  );
+
+  it('is a Dutch sentence in Dutch, not the English one again', () => {
+    expect(STRINGS.nl['report.timedOut']).not.toBe(STRINGS.en['report.timedOut']);
+    expect(STRINGS.nl['report.timedOut']).toMatch(/^Binnen \{minutes\} minuten kwam er geen antwoord/);
+  });
+
+  it('is a timeout only: a refusal, or a connection that dropped, is not one', () => {
+    expect(timedOut(new AxiosError('timeout of 1ms exceeded', AxiosError.ETIMEDOUT))).toBe(true);
+    expect(timedOut(new AxiosError('Network Error', AxiosError.ERR_NETWORK))).toBe(false);
+    expect(timedOut(refusal(502, { error: 'report_not_delivered' }))).toBe(false);
+    expect(timedOut(new Error('timeout'))).toBe(false);
   });
 });
