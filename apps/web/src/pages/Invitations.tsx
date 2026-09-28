@@ -35,6 +35,7 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote from '../components/AlphaNote.tsx';
+import SupportLine from '../components/SupportLine.tsx';
 
 const Invitations: React.FC = () => {
   const t = useT();
@@ -189,7 +190,10 @@ const Invitations: React.FC = () => {
             and this is a page somebody sees BEFORE they are inside the app,
             which makes it where "what build is this?" gets asked most. See
             components/BuildStamp.tsx. */}
-        <div className="text-center">
+        {/* A person to write to (workplan 0144 T6 (a)), when the deployment
+            names one. Outside `Layout`, the sidebar's *Help* is not here. */}
+        <div className="text-center space-y-2">
+          <SupportLine />
           <BuildStamp />
         </div>
       </div>

@@ -810,6 +810,15 @@ and a secret shipped to every visitor is not a secret), and writes
 `JWT_ISSUER`, `JWT_AUDIENCE` and the two `VITE_OIDC_*` values back into
 `deploy/compose/.env`. Re-running it is safe; it adopts what already exists.
 
+**Two doors it keeps shut** (workplan 0135 T1 and T2). Nobody can found an
+organisation of their own at the provider: the form at
+`/ui/login/register/org` answers 404. And the project admits its own
+organisation only, so an account in any other organisation gets no token for
+the app. Every run sets both, reads both back, and stops if either did not
+take; a fresh instance has the first from `managed.yml`. Self-registration
+stays on: it registers people in the project's own organisation, and they
+confirm their address by mail.
+
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still
@@ -1740,6 +1749,29 @@ prints `0`:
 ```bash
 docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
 ```
+
+### 8h. A person to write to *(only on the stack testers use)*
+
+A tester who is stuck before signing in cannot reach the report form (8f): it
+needs a session. So the stack testers use names an address a person reads
+(workplan 0144 T6 (a)). With it set, the sign-in, request, callback and
+invitation pages carry one line, *"Stuck? Mail … and name the page you are on.
+Never send a password."*, in English and Dutch, with the address as a mail
+link. Signed in, the sidebar shows *Help: …* where *Report a problem* would be,
+for as long as the form is off. Empty shows nothing new.
+
+```
+VITE_SUPPORT_EMAIL=support@example.eu
+```
+
+The web bundle bakes it in at build time, so rebuild the web image:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml up -d --build --wait web
+```
+
+Open the sign-in page: the line is above the status link.
 
 ### 9. `tasks` — the task environment, then the deploy
 
