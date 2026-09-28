@@ -177,6 +177,13 @@ for real, and the passing run's every `up` is the drill's own project with the o
 **Open:** the owner's run on `main` once this merges, and the required run on the commit to be
 tagged (T2).
 
+**2026-09-28, later still: the drill passed on `main`.** The fix merged as #1291 (`f7c3404f`). The
+owner ran `./scripts/upgrade-drill.sh v0.1.0-rc.1` again, in a clone of its own, on `main` at
+`fb70284a`. The run ended: *"DRILL PASSED"*, *"Upgraded across 59 migration(s), in place, on the
+released artifact."* That is the first drill from rc.1 that is not vacuous (0025 T5): 59
+migrations lie between rc.1 and that commit. It is not the commit to be tagged, so T2's step 4
+still runs once more, on that commit, before the tag (`release.md`).
+
 **2026-09-28: T5 (a) built with 0132 T6 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** The rule is in
 `deploy/compose/deploy-live.sh`; 0132's Status entry of the same date has the script as a whole.
