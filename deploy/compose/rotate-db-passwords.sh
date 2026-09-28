@@ -7,6 +7,11 @@
 #   ./deploy/compose/rotate-db-passwords.sh --sync       set the roles to .env
 #   ./deploy/compose/rotate-db-passwords.sh --rotate [--with-trigger-stores]
 #
+# WHICH STACK. --check runs on any stack, live included: it changes nothing,
+# and 0132 T0 step 5 runs it on live. --sync and --rotate refuse a stack that
+# may be live (stack_may_be_live, stack-kind.sh: live's marker, or anything
+# that could be a slip of it), before they ask the stack anything.
+#
 # WHY. The OTA stack's two database roles were created with values this
 # public repository contains: `app_user` with `app_password` (the first
 # migration), the owner with compose's default `openmigrate_password` or the
@@ -71,7 +76,11 @@
 #       owner's old name): its own check at the end tries that role too, so
 #       the rotation could only fail and be put back. It names the role and
 #       0132 T2 step 5, `ALTER ROLE <name> NOLOGIN`, never DROP;
-#   and anything but the project name typed back.
+#   anything but the project name typed back;
+#   and, once the name is typed, a CI job on this machine or an E2E (managed)
+#       run that started while the prompt waited: the two questions above are
+#       asked again before anything is written, because the prompt waits for
+#       as long as nobody types.
 # Then it keeps a copy of .env (<persisted dir>/.env.before-rotation-<UTC>,
 # mode 0600), generates `openssl rand -hex 24` for APP_DB_PASSWORD and
 # POSTGRES_PASSWORD (and CLICKHOUSE_PASSWORD and MINIO_ROOT_PASSWORD with
@@ -527,6 +536,51 @@ differing_keys() { # differing_keys <file> <file>
   printf '%s' "${out[*]:-}"
 }
 
+# A run of the gate on this machine: it restores the persisted .env when it
+# starts and copies its own back when it ends, so one that overlaps the
+# rotation undoes it. Asked before the prompt, and asked again once the project
+# name is typed, before anything is written: the prompt waits for as long as
+# nobody types, and a run can start meanwhile (the schedule, or a dispatch).
+# GitHub is asked the second time only when it was asked the first, and
+# GATE_ASKS_GH says so (the dispatch at the end uses it too).
+GATE_ASKS_GH=''
+refuse_a_busy_gate() { # refuse_a_busy_gate [again]
+  local rc active now=''
+  local -a meanwhile=()
+  if [ -n "${1:-}" ]; then
+    now=', after the project name was typed'
+    meanwhile=("Before the prompt the answer was none: it started while this waited for the name.")
+  fi
+  command -v pgrep >/dev/null 2>&1 || refuse "pgrep is not installed, so a CI job running on this machine cannot be ruled out."
+  rc=0
+  pgrep -f Runner.Worker >/dev/null 2>&1 || rc=$?
+  case "$rc" in
+    0) refuse "a GitHub Actions job is running on this machine${now} (a Runner.Worker process). A gate run that overlaps copies its old .env back over the persisted one." \
+      ${meanwhile[@]+"${meanwhile[@]}"} \
+      "Wait until it has finished (pgrep -c -f Runner.Worker prints 0), and run this again." ;;
+    1) ;;
+    *) refuse "pgrep could not be asked whether a CI job is running here (exit ${rc})." ;;
+  esac
+  if [ -z "${1:-}" ]; then
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+      GATE_ASKS_GH=1
+    else
+      say "gh is not signed in here, so GitHub was not asked whether E2E (managed) is queued."
+      say "  Look at Actions, E2E (managed), before you type the name below: nothing may be queued or in progress."
+    fi
+  fi
+  [ -n "$GATE_ASKS_GH" ] || return 0
+  active="$(cd "$REPO_ROOT" && gh run list --workflow e2e-managed.yml --limit 20 --json status \
+    --jq '[.[] | select(.status != "completed")] | length' 2>/dev/null)" ||
+    refuse "gh is signed in, and could not list E2E (managed)'s runs${now}, so a queued run cannot be ruled out." \
+      "Look at Actions, E2E (managed) on GitHub, and run this again when nothing is queued or in progress."
+  [[ "$active" =~ ^[0-9]+$ ]] || refuse "gh answered something that is not a count when asked for E2E (managed)'s runs${now}."
+  [ "$active" -eq 0 ] ||
+    refuse "E2E (managed) has ${active} run(s) queued or in progress${now}. A run that overlaps copies its old .env back over the persisted one." \
+      ${meanwhile[@]+"${meanwhile[@]}"} \
+      "Run this again after it has finished."
+}
+
 fail() { # fail <why> — the EXIT trap puts things back
   ROTATE_WHY="${1:-}"
   exit 1
@@ -591,8 +645,7 @@ rotate_on_exit() {
 }
 
 do_rotate() {
-  local v key rc typed active=''
-  local gh_ready=''
+  local v key rc typed
 
   # ---- Refusals that ask nothing of the stack --------------------------------
   for v in GITHUB_ACTIONS CI; do
@@ -624,30 +677,9 @@ do_rotate() {
   [ -x "${SCRIPT_DIR}/env-upsert.sh" ] || refuse "${SCRIPT_DIR}/env-upsert.sh is missing or not executable: it is the one writer of .env."
   command -v openssl >/dev/null 2>&1 || refuse "openssl is not installed: it makes the new values."
 
-  # A CI job on this machine: the gate's run restores and copies back .env.
-  command -v pgrep >/dev/null 2>&1 || refuse "pgrep is not installed, so a CI job running on this machine cannot be ruled out."
-  rc=0
-  pgrep -f Runner.Worker >/dev/null 2>&1 || rc=$?
-  case "$rc" in
-    0) refuse "a GitHub Actions job is running on this machine (a Runner.Worker process). A gate run that overlaps copies its old .env back over the persisted one." \
-      "Wait until it has finished (pgrep -c -f Runner.Worker prints 0), and run this again." ;;
-    1) ;;
-    *) refuse "pgrep could not be asked whether a CI job is running here (exit ${rc})." ;;
-  esac
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    active="$(cd "$REPO_ROOT" && gh run list --workflow e2e-managed.yml --limit 20 --json status \
-      --jq '[.[] | select(.status != "completed")] | length' 2>/dev/null)" ||
-      refuse "gh is signed in, and could not list E2E (managed)'s runs, so a queued run cannot be ruled out." \
-        "Look at Actions, E2E (managed) on GitHub, and run this again when nothing is queued or in progress."
-    [[ "$active" =~ ^[0-9]+$ ]] || refuse "gh answered something that is not a count when asked for E2E (managed)'s runs."
-    [ "$active" -eq 0 ] ||
-      refuse "E2E (managed) has ${active} run(s) queued or in progress. A run that overlaps copies its old .env back over the persisted one." \
-        "Run this again after it has finished."
-    gh_ready=1
-  else
-    say "gh is not signed in here, so GitHub was not asked whether E2E (managed) is queued."
-    say "  Look at Actions, E2E (managed), before you type the name below: nothing may be queued or in progress."
-  fi
+  # A CI job on this machine, or an E2E (managed) run queued: asked again
+  # after the prompt, below.
+  refuse_a_busy_gate
 
   # ---- Refusals that ask the stack -------------------------------------------
   local health
@@ -702,6 +734,11 @@ do_rotate() {
   IFS= read -r typed || true
   printf '\n'
   [ "$typed" = "$COMPOSE_PROJECT" ] || refuse "what was typed is not the project name."
+
+  # ---- Still no gate run, now that the name is typed ------------------------------
+  # The prompt waited for as long as nobody typed; a run that started meanwhile
+  # would copy its old .env back over the one written below.
+  refuse_a_busy_gate again
 
   # ---- The new values, in this shell only ---------------------------------------
   declare -A new=()
@@ -764,7 +801,7 @@ do_rotate() {
   fi
   say "NEXT, the one step: E2E (managed) on main. It restores this .env, recreates every container whose settings changed,"
   say "  uploads DATABASE_URL and APP_DATABASE_URL to Trigger.dev again, and its smoke proves a task still connects."
-  if [ -n "$gh_ready" ] && (cd "$REPO_ROOT" && gh workflow run e2e-managed.yml --ref main) >/dev/null 2>&1; then
+  if [ -n "$GATE_ASKS_GH" ] && (cd "$REPO_ROOT" && gh workflow run e2e-managed.yml --ref main) >/dev/null 2>&1; then
     say "  Dispatched it (gh workflow run e2e-managed.yml --ref main)."
   else
     say "  Dispatch it: on GitHub, Actions, E2E (managed), Run workflow, on main."

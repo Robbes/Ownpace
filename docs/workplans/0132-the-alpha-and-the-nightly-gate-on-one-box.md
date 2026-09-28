@@ -1148,6 +1148,44 @@ against the stubs in its guard. T0 step 2 is still the owner's.
   quiet time, `--rotate --with-trigger-stores`; dispatch E2E (managed) if the script did not;
   `--check` again after that run; the date and "refused" into T0.
 
+**2026-09-28, later: review nits to the rotation script, on the same branch, not merged.** Two,
+both taken, the owner's answer, and a second review's four, all taken.
+
+- **`--check` on live, said outright.** It changes nothing, and T0 step 5 runs it on live (T2's
+  step 2 against live), so it runs on any stack; `--sync` and `--rotate` refuse a stack that may
+  be live (`stack_may_be_live`) before they ask it anything. Nothing in T0 or T2 says the script
+  must refuse live entirely, so the behaviour is unchanged. The header, which is also `--help`,
+  now says so in a paragraph of its own (*Which stack*), and `docs/managed-bring-up.md` says it in
+  the table and under the procedure.
+- **The gate asked again after the prompt.** The `Runner.Worker` and E2E (managed) questions were
+  asked only before the prompt, which waits for as long as nobody types. They are one function
+  now, `refuse_a_busy_gate`, asked again once the project name is typed and before anything is
+  written (the kept copy, the new values, `.env`). A run that started meanwhile is refused, and
+  the refusal says it was not there before the prompt. GitHub is asked the second time only when
+  `gh` was signed in the first.
+- **The guard.** `scripts/rotate-db-passwords.unit.test.ts`, 39 cases. New: *--check runs on
+  live's .env and changes nothing, --sync on the same .env refuses, and --help says both*, and *a
+  CI job or an E2E (managed) run that starts while the prompt waits, refused once the name is
+  typed*, where the stubs' answer changes only once the prompt is on screen. The case that
+  dispatches E2E (managed) now expects GitHub asked twice. Against the committed script those
+  three were red. Each of these mutations then turned the guard red: `--check` refused on live
+  (only the new case caught it), `--sync` let through on live, the *Which stack* paragraph
+  removed, the second ask removed, the second ask moved before the prompt, the second ask
+  skipping GitHub, and the second ask skipping `pgrep`.
+- **The owner's answer.** The owner said *"7: ok"* on 2026-09-28: item 7 of the list they were
+  sent that day, which was this script. It is not this plan's open question 7 (*The OTA names*),
+  which stays open, and `ota_names` and T3's pass condition stay as they are. T0 step 2, running
+  the script on the OTA stack, is the owner's, after this merges (*For the owner*, above).
+- **The second review.** Four, all taken. The owner's answer above now says what "7" numbered.
+  `docs/managed-bring-up.md`'s `--sync` row says it refuses a stack that may be live; only the
+  paragraph under the procedure said so, so the table now says it for all three modes. The three
+  cases about live moved out of *--rotate refuses, before anything changes* into a describe of
+  their own, *which stack: --check on any, --sync and --rotate never on live*, so a case where
+  `--check` runs is no longer reported under `--rotate`'s refusals; the `--rotate` and `--sync`
+  ones are renamed to say which mode refuses, and none changed otherwise (still 39 cases).
+  `deploy/compose/stack-kind.sh` names `rotate-db-passwords.sh` among the scripts that tell the
+  stacks apart and among `stack_may_be_live`'s refusals, which it did not.
+
 
 | Task | Status | Notes |
 |---|---|---|
@@ -1159,7 +1197,7 @@ against the stubs in its guard. T0 step 2 is still the owner's.
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
-| T2 Database passwords the repository does not contain | The rotation script 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-passwords-the-repository-no-longer-knows`, not merged (2026-09-28): `rotate-db-passwords.sh` (`--check`, `--sync`, `--rotate [--with-trigger-stores]`) with `db-roles.sh`. On the OTA stack the change itself (T0 step 2) is still the owner's to run. The bring-up's code, (b), the refusals of shipped values and `TRIGGER_DB_PASSWORD` 📋 **Proposed** — *was:* 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
+| T2 Database passwords the repository does not contain | The rotation script 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-passwords-the-repository-no-longer-knows`, not merged (2026-09-28): `rotate-db-passwords.sh` (`--check`, `--sync`, `--rotate [--with-trigger-stores]`) with `db-roles.sh`; the owner approved the script (2026-09-28). On the OTA stack the change itself (T0 step 2) is the owner's to run, after merge. The bring-up's code, (b), the refusals of shipped values and `TRIGGER_DB_PASSWORD` 📋 **Proposed** — *was:* 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |

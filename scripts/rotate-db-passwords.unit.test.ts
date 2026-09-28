@@ -42,7 +42,12 @@
  *   process table beside the runner's listener, and the runs that are not
  *   completed); tracing prints every value; CI must never mint a password; a
  *   postgres that is not healthy cannot be set or proven. Each is refused
- *   before anything changes.
+ *   before anything changes. The prompt waits for as long as nobody types,
+ *   so the two questions about the gate are asked again once the name is
+ *   typed, and a run that started meanwhile is refused before anything is
+ *   written (the stubs' answer changes only once the prompt is on screen).
+ *   `--sync` is refused on live too; `--check`, which changes nothing, runs
+ *   on any stack, live included, because 0132 T0 step 5 runs it there.
  *   A rotation that stops halfway. A failed `ALTER`, a check after it that
  *   fails, or an interrupt, puts the old `.env` back (through the link) and
  *   the roles back to it, and says which step failed. A second interrupt, or
@@ -556,6 +561,8 @@ interface RunOpts {
   env?: Record<string, string>;
   bash?: string[];
   script?: string;
+  /** start() only: stdin stays open, and the case writes to it when it is ready. */
+  keepInput?: boolean;
 }
 
 /** Built from nothing, never from process.env: CI sets CI and GITHUB_ACTIONS, which --rotate refuses. */
@@ -595,7 +602,7 @@ function start(fx: Fixture, args: string[], opts: RunOpts = {}) {
   let stderr = '';
   child.stdout.on('data', (d: Buffer) => (stdout += d.toString('utf8')));
   child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
-  child.stdin.end(opts.input ?? '');
+  if (!opts.keepInput) child.stdin.end(opts.input ?? '');
   const finished = new Promise<{ status: number | null; signal: string | null; stdout: string; stderr: string; output: string }>(
     (resolve) => {
       child.on('close', (status, signal) =>
@@ -603,7 +610,16 @@ function start(fx: Fixture, args: string[], opts: RunOpts = {}) {
       );
     },
   );
-  return { child, finished };
+  return { child, finished, sofar: () => `${stdout}\n${stderr}` };
+}
+
+/** Until the script has printed <text>. */
+async function shown(sofar: () => string, text: string): Promise<void> {
+  const until = Date.now() + 60_000;
+  while (!sofar().includes(text)) {
+    if (Date.now() > until) throw new Error(`the script never printed ${JSON.stringify(text)}: ${sofar()}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
 }
 
 /** Until the docker stub says it has stopped at <point>. */
@@ -824,7 +840,7 @@ describe('every question about a password is asked the way the stack asks it', (
 });
 
 // ---------------------------------------------------------------------------
-// --rotate refuses, and changes nothing
+// Which stack each mode runs on, and what --rotate refuses: a refusal changes nothing
 // ---------------------------------------------------------------------------
 
 function unchanged(fx: Fixture, before: string, r: { status: number | null; output: string }) {
@@ -836,9 +852,9 @@ function unchanged(fx: Fixture, before: string, r: { status: number | null; outp
   expect(leaks(fx, r.output)).toEqual([]);
 }
 
-describe('--rotate refuses, before anything changes', () => {
+describe('which stack: --check on any, --sync and --rotate never on live', () => {
   it(
-    "live's marker, and anything that could be a slip of it",
+    "--rotate refuses live's marker, and anything that could be a slip of it",
     () => {
       for (const kind of ['production', ' Prod ']) {
         const fx = fixture({ project: LIVE, env: { COMPOSE_PROJECT_NAME: LIVE, STACK_KIND: kind } });
@@ -854,7 +870,7 @@ describe('--rotate refuses, before anything changes', () => {
   );
 
   it(
-    '--sync on live too: its roles are set by its own bring-up',
+    '--sync refuses live: its roles are set by its own bring-up',
     () => {
       const fx = fixture({ project: LIVE, env: { COMPOSE_PROJECT_NAME: LIVE, STACK_KIND: 'production' } });
       const before = readFileSync(fx.persisted, 'utf8');
@@ -865,6 +881,47 @@ describe('--rotate refuses, before anything changes', () => {
     CASE_MS,
   );
 
+  it(
+    "--check runs on live's .env and changes nothing, --sync on the same .env refuses, and --help says both",
+    () => {
+      // --check is read-only, and 0132 T0 step 5 runs it on live, so it runs
+      // on any stack. The two modes that write refuse one that may be live,
+      // before they ask it anything.
+      const fx = fixture({ project: LIVE, env: { COMPOSE_PROJECT_NAME: LIVE, STACK_KIND: 'production' } });
+      const before = readFileSync(fx.persisted, 'utf8');
+      const check = run(fx, ['--check']);
+      expect(check.status, check.output).toBe(0);
+      expect(check.stdout).toContain(`stack ${LIVE}`);
+      expect(check.stdout).toContain('RESULT: both controls open');
+      const asked = calls(fx).filter((c) => c.kind === 'network');
+      expect(asked.length, 'nothing was asked on live').toBeGreaterThan(0);
+      expect(new Set(asked.map((c) => c.network))).toEqual(new Set([`${LIVE}_ownpace-network`]));
+      expect(readFileSync(fx.persisted, 'utf8'), '--check changed .env').toBe(before);
+      expect(calls(fx).filter((c) => c.what === 'alter'), '--check altered a role').toEqual([]);
+      expect(leaks(fx, check.output)).toEqual([]);
+
+      const seen = calls(fx).length;
+      const sync = run(fx, ['--sync']);
+      unchanged(fx, before, sync);
+      expect(sync.stderr).toContain('STACK_KIND');
+      expect(sync.stderr).toContain('--check may be run there; --sync and --rotate may not.');
+      expect(calls(fx).slice(seen).filter((c) => c.tool === 'docker'), '--sync asked live before refusing').toEqual([]);
+
+      const help = spawnSync('bash', [join(COMPOSE_DIR, SCRIPT), '--help'], { env: { PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
+      expect(help.status, help.stderr).toBe(0);
+      const text = help.stdout
+        .split('\n')
+        .map((l) => l.replace(/^#\s?/, ''))
+        .join(' ')
+        .replace(/\s+/g, ' ');
+      expect(text).toContain('--check runs on any stack, live included');
+      expect(text).toContain('--sync and --rotate refuse a stack that may be live');
+    },
+    CASE_MS,
+  );
+});
+
+describe('--rotate refuses, before anything changes', () => {
   it(
     'a .env that is not the persisted file: it names the path and the keys that differ, never a value',
     () => {
@@ -934,6 +991,47 @@ describe('--rotate refuses, before anything changes', () => {
       }
     },
     CASE_MS,
+  );
+
+  it(
+    'a CI job or an E2E (managed) run that starts while the prompt waits, refused once the name is typed',
+    async () => {
+      // Both questions answer "none" before the prompt. The answer changes
+      // only once the prompt is on the screen, as it does when the schedule or
+      // a dispatch starts the gate while nobody has typed yet.
+      const ways: Array<{ gh: State['gh']; starts: (s: State) => void; says: string }> = [
+        {
+          gh: { authed: false, runs: [] },
+          starts: (s) => {
+            s.runner = true;
+          },
+          says: 'a GitHub Actions job is running on this machine, after the project name was typed',
+        },
+        {
+          gh: { authed: true, runs: ['completed', 'completed'] },
+          starts: (s) => {
+            s.gh.runs = ['queued', 'completed', 'completed'];
+          },
+          says: 'E2E (managed) has 1 run(s) queued or in progress, after the project name was typed',
+        },
+      ];
+      for (const way of ways) {
+        const fx = fixture({ state: { gh: way.gh } });
+        const before = readFileSync(fx.persisted, 'utf8');
+        const { child, finished, sofar } = start(fx, ['--rotate'], { keepInput: true });
+        await shown(sofar, `Type the project name (${OTA})`);
+        const s = stateOf(fx);
+        way.starts(s);
+        writeFileSync(fx.statePath, JSON.stringify(s));
+        child.stdin.end(`${OTA}\n`);
+        const r = await finished;
+        unchanged(fx, before, r);
+        expect(r.stderr).toContain(way.says);
+        expect(r.stderr).toContain('it started while this waited for the name');
+        expect(readdirSync(dirname(fx.persisted)).filter((f) => f.startsWith('.env.before-rotation-')), 'a copy was kept').toEqual([]);
+      }
+    },
+    CASE_MS * 2,
   );
 
   it(
@@ -1118,8 +1216,9 @@ describe('--rotate', () => {
       const fx = fixture({ state: { gh: { authed: true, runs: ['completed', 'completed'] } } });
       const r = run(fx, ['--rotate'], { input: `${OTA}\n` });
       expect(r.status, r.output).toBe(0);
+      // Asked before the prompt, and again once the name is typed.
       const listed = calls(fx).filter((c) => c.tool === 'gh' && c.argv[0] === 'run');
-      expect(listed, 'GitHub was not asked whether E2E (managed) is queued').toHaveLength(1);
+      expect(listed, 'GitHub was not asked, before the prompt and after it, whether E2E (managed) is queued').toHaveLength(2);
       const dispatched = calls(fx).filter((c) => c.tool === 'gh' && c.argv[0] === 'workflow');
       expect(dispatched.map((c) => c.argv.join(' '))).toEqual(['workflow run e2e-managed.yml --ref main']);
     },
