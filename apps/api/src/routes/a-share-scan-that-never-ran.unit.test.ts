@@ -41,7 +41,8 @@
  * pool is a fake that FILTERS the rows itself from the query it is given, which
  * is what makes these assertions sensitive to the parameter list rather than to
  * a string this file typed: narrow the lookup and the fake finds nothing, just
- * as Postgres did.
+ * as Postgres did. It is the request path's pool (`getDbPool`), and it answers
+ * on a client, as `withTenant` and drizzle use one (0138 T6).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -56,7 +57,10 @@ interface Row {
 
 const h = vi.hoisted(() => ({
   connections: [] as Array<{ kind: string; secret_ref: string | null; config: unknown }>,
-  queries: [] as Array<{ text: string; values: readonly unknown[] }>,
+  /** Each lookup, with the organisation its transaction was scoped to. */
+  queries: [] as Array<{ text: string; values: readonly unknown[]; tenant: unknown }>,
+  /** The organisation each mapping lookup (`resolveMappingMailbox`) was scoped to. */
+  mappingAskedIn: [] as unknown[],
   /** The credentials each Drive build was handed — the ADR-0041 evidence. */
   built: [] as Array<Record<string, string | undefined>>,
   listing: { kind: 'listed', grants: [] } as PermissionListing,
@@ -64,22 +68,43 @@ const h = vi.hoisted(() => ({
 
 vi.mock('pg', () => ({
   Pool: class {
-    async query(text: string, values: readonly unknown[] = []) {
-      h.queries.push({ text, values });
-      const rows = h.connections.filter((c) => {
-        // The Microsoft source and the Drive source are both kind lists now
-        // (0141 T11); each query's own list decides.
-        if (text.includes('kind = ANY($2::text[])'))
-          return (values[1] as readonly string[]).includes(c.kind);
-        if (text.includes("kind IN ('nextcloud', 'webdav')"))
-          return c.kind === 'nextcloud' || c.kind === 'webdav';
-        return false;
-      });
-      return { rows: rows.slice(0, 1) };
+    async connect() {
+      // What `withTenant` sets on this client: `app.current_tenant`, for one
+      // transaction.
+      let tenant: unknown;
+      return {
+        async query(q: string | { text: string }, values: readonly unknown[] = []) {
+          const text = typeof q === 'string' ? q : q.text;
+          if (text.includes("set_config('app.current_tenant'")) tenant = values[0];
+          if (text.includes('FROM mailbox_mapping')) h.mappingAskedIn.push(tenant);
+          if (!text.includes('FROM connection')) return { rows: [] };
+          h.queries.push({ text, values, tenant });
+          const rows = h.connections.filter((c) => {
+            // The Microsoft source and the Drive source are both kind lists now
+            // (0141 T11); each query's own list decides.
+            if (text.includes('kind = ANY($2::text[])'))
+              return (values[1] as readonly string[]).includes(c.kind);
+            if (text.includes("kind IN ('nextcloud', 'webdav')"))
+              return c.kind === 'nextcloud' || c.kind === 'webdav';
+            return false;
+          });
+          return { rows: rows.slice(0, 1) };
+        },
+        release() {},
+      };
     }
     async end() {}
   },
 }));
+
+// The request path's pool is the fake above.
+vi.mock('../middleware/auth.ts', async (importOriginal) => {
+  const { Pool } = await import('pg');
+  return {
+    ...(await importOriginal<typeof import('../middleware/auth.ts')>()),
+    getDbPool: () => new Pool(),
+  };
+});
 
 // The real builder's REFUSAL is kept — it is half of what is under test — and
 // only the network is taken away. A stub that accepted anything would pass
@@ -101,7 +126,7 @@ vi.mock('@openmig/orchestration/drive-source-factory', async (importOriginal) =>
   };
 });
 
-const { tenantInventoryScans } = await import('./permissions.ts');
+const { tenantInventoryScans, resolveMappingMailbox } = await import('./permissions.ts');
 
 const TENANT = '02240000-e29b-41d4-a716-446655442001';
 const MAILBOX = 'someone@example.test';
@@ -118,6 +143,7 @@ let saved: Record<string, string | undefined>;
 beforeEach(() => {
   h.connections.length = 0;
   h.queries.length = 0;
+  h.mappingAskedIn.length = 0;
   h.built.length = 0;
   saved = {
     GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID,
@@ -152,6 +178,19 @@ describe('the lookup finds the connection the customer actually made', () => {
       "the lookup asks for 'google-drive', which connection.kind cannot hold — it is the " +
         'wizard word. This is the defect the owner hit: the query matches no row, ever.',
     ).not.toContain('google-drive');
+  });
+
+  it('asks inside the organisation it was asked for (0138 T6)', async () => {
+    await tenantInventoryScans(TENANT, MAILBOX);
+    expect(h.queries).toHaveLength(3);
+    for (const q of h.queries) {
+      expect(q.tenant, `asked outside withTenant for ${TENANT}:\n${q.text}`).toBe(TENANT);
+    }
+  });
+
+  it('and so does the mapping lookup the rescan asks first (0138 T6)', async () => {
+    await resolveMappingMailbox(TENANT, '02240000-e29b-41d4-a716-446655442099');
+    expect(h.mappingAskedIn, `the mapping lookup was not asked inside withTenant for ${TENANT}`).toEqual([TENANT]);
   });
 
   it('scans the Drive of a google account connection', async () => {
