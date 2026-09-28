@@ -129,7 +129,9 @@ export const assertProductionUrlConfig = (
  *  - With the alpha setting on (`OWNPACE_STAGE=alpha`, 0131 T1), blank is
  *    FATAL whatever NODE_ENV says, so an alpha stack cannot start while it
  *    quotes backups by default. It does not wait for production because
- *    `managed.yml` defaults NODE_ENV to `development`.
+ *    `managed.yml` defaults NODE_ENV to `development`. It names live's own
+ *    number, 7, the most days a dump taken before a deploy is kept (0134 open
+ *    question 1 (b), 2026-09-28), so it never points live's operator at 0.
  *  - A stated number, 0 or 7 or any other, is never a problem here. A value
  *    that is not a whole number is refused where it is read, by
  *    `backupRetentionDaysFromEnv`.
@@ -159,8 +161,9 @@ export const describeBackupRetentionProblem = (env: {
           `BACKUP_RETENTION_DAYS is ${blank} on a stack with OWNPACE_STAGE=alpha. ` +
           `The erasure sentence would then name backups kept for ${days} days after the purge, ` +
           'and an alpha stack must say whether it keeps any. ' +
-          "Set it to 0 if nothing backs up this deployment's database, as during the alpha, " +
-          'or to the number of days its backups are kept (workplan 0134).',
+          "Set it to 0 if nothing backs up or dumps this deployment's database, " +
+          'or to the number of days its backups or dumps are kept: 7 on ownpace-live, ' +
+          'the most days a dump of its databases taken before a deploy is kept (workplan 0134).',
       },
     ];
   }

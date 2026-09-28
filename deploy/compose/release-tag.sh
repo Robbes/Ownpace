@@ -18,11 +18,12 @@
 #   the version its commit's root         a release's tag is its package.json
 #   package.json says, with a v in front  version with a v (docs/release.md §1)
 #
-# Each refusal carries 0146's sentence, "live runs releases: name a release
-# tag", and the words are deploy-live.sh's own, so that script can source this
-# one without its messages changing (a follow-up does; until then
+# Each refusal about the tag carries 0146's sentence, "live runs releases:
+# name a release tag", and every refusal is deploy-live.sh's own, word for
+# word and line for line, so that script can source this one without its
+# messages changing (a follow-up does; until then
 # scripts/one-rule-for-a-release-tag.unit.test.ts drives both on the same tags
-# and fails when they disagree).
+# and fails when any line of a refusal differs).
 #
 # TWO HALVES, because deploy-live.sh fetches between them. The first asks
 # origin; the caller may then run `git fetch --tags origin`, which adds tags
@@ -82,9 +83,11 @@ release_tag_is_release() {
   RELEASE_TAG_WHY=()
   RELEASE_TAG_COMMIT=''
   RELEASE_TAG_VERSION=''
+  # deploy-live.sh's words, word for word: it asks this after its fetch, which
+  # is when a tag origin has can still be missing here. stand-up-live.sh never
+  # reaches it: the tag it asks about is one this clone lists at HEAD.
   if ! local_object="$(git -C "$root" rev-parse -q --verify "refs/tags/${tag}")"; then
-    RELEASE_TAG_WHY=("the tag '${tag}' is on origin but not in this clone."
-      "Fetch it (git fetch --tags origin) and run this again.")
+    RELEASE_TAG_WHY=("the tag '${tag}' is on origin but not here after the fetch.")
     return 1
   fi
   if [ "$local_object" != "$remote_object" ]; then

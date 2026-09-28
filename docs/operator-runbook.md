@@ -672,7 +672,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **0** during the alpha, workplan 0134) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days a dump of its databases taken before a deploy is kept; the owner takes and deletes that dump by hand, since no script does yet, workplan 0134) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
 
@@ -685,9 +685,16 @@ and the wording says exactly that.
 **Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is the
 owner's number for a deployment that takes backups, and it assumes they exist.
 Nothing in this repository backs up the application database yet (see
-[Backup & restore](#backup--restore-221)), and `ownpace-live`, the stack
-testers use, takes no backups during the alpha and sets `0`
-([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)).
+[Backup & restore](#backup--restore-221)). `ownpace-live`, the stack testers
+use, takes none during the alpha and sets `7` (the owner's answer of
+2026-09-28 to
+[workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)'s
+open question 1): its databases are dumped before each deploy, with the
+commands under *Backup & restore*, and each dump is deleted after at most
+seven days. Both are the owner's steps for now. `deploy-live.sh` takes no dump
+(0132 T6 step 4 comes before it), and nothing deletes one, so delete each dump
+by its seventh day, whether or not a deploy followed. The automatic copy and
+its deletion are not built yet.
 If your backups are kept for a month, a deployment left on the default promises
 a date it cannot honour. `0` is a valid answer for a deployment that takes no
 backups, and produces different wording rather than the same date twice. The

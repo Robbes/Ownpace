@@ -17,8 +17,10 @@
  * (another change edits that script; a follow-up makes it source the library).
  * Until then this guard is what keeps them one rule: it drives BOTH on the
  * same tags, in real git repositories with a bare origin beside them, and
- * they must accept the same tags and refuse the rest with the same first
- * sentence. The library is driven the way deploy-live.sh uses it: the origin
+ * they must accept the same tags and refuse the rest in the same words, every
+ * line of each refusal (until 2026-09-28 only the first sentence was
+ * compared, and the library's words for a tag origin has and the fetch did
+ * not bring were its own). The library is driven the way deploy-live.sh uses it: the origin
  * half, then `git fetch --tags origin`, then the half that asks this clone.
  * deploy-live.sh runs with `--dry-run`, which stops before the checkout, with
  * `docker` and `psql` stubbed to report an open hold and nothing in flight.
@@ -39,6 +41,8 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
 const RELEASE_SENTENCE = 'live runs releases: name a release tag';
 const CASE_MS = 60_000;
+/** The real git, for a wrapper on a case's PATH to hand everything else to. */
+const REAL_GIT = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
 
 const tempDirs: string[] = [];
 afterAll(() => {
@@ -163,7 +167,22 @@ const env = (s: Stage): NodeJS.ProcessEnv => ({ ...gitEnv(s.root), PATH: `${s.bi
 interface Verdict {
   accepted: boolean;
   first: string;
+  /** Every line of the refusal: the first, then each one after it, unindented. */
+  lines: string[];
   out: string;
+}
+
+/** The refusal's lines: the one after `marker`, then each indented line that follows it. */
+function refusalLines(out: string, marker: string): string[] {
+  const all = out.split('\n');
+  const at = all.findIndex((l) => l.startsWith(marker));
+  if (at < 0) return [];
+  const lines = [all[at]!.slice(marker.length)];
+  for (const l of all.slice(at + 1)) {
+    if (!l.startsWith('  ')) break;
+    lines.push(l.slice(2));
+  }
+  return lines;
 }
 
 /** deploy-live.sh --dry-run <tag>, stopped before the checkout. */
@@ -174,9 +193,10 @@ function viaDeployLive(s: Stage, tag: string): Verdict {
     env: env(s),
     timeout: 60_000,
   });
+  // The refusal goes to stderr, whole, after anything said on stdout.
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   const first = /\[deploy-live\] refused: (.*)/.exec(out)?.[1] ?? '';
-  return { accepted: r.status === 0, first, out };
+  return { accepted: r.status === 0, first, lines: refusalLines(out, '[deploy-live] refused: '), out };
 }
 
 /** The library, the way deploy-live.sh will use it: origin, fetch, this clone. In a copy of the checkout. */
@@ -185,9 +205,10 @@ function viaLibrary(s: Stage, tag: string): Verdict & { commit: string; version:
   cpSync(s.work, copy, { recursive: true });
   const harness = `set -euo pipefail
 . "$1/deploy/compose/release-tag.sh"
-if ! release_tag_on_origin "$1" "$2"; then printf 'refused: %s\\n' "\${RELEASE_TAG_WHY[0]}"; exit 1; fi
+why() { printf 'refused: %s\\n' "\${RELEASE_TAG_WHY[0]}"; [ "\${#RELEASE_TAG_WHY[@]}" -eq 1 ] || printf '  %s\\n' "\${RELEASE_TAG_WHY[@]:1}"; }
+if ! release_tag_on_origin "$1" "$2"; then why; exit 1; fi
 git -C "$1" fetch -q --tags origin 2>/dev/null || { echo 'refused: at the fetch'; exit 1; }
-if ! release_tag_is_release "$1" "$2" "$RELEASE_TAG_REMOTE_OBJECT"; then printf 'refused: %s\\n' "\${RELEASE_TAG_WHY[0]}"; exit 1; fi
+if ! release_tag_is_release "$1" "$2" "$RELEASE_TAG_REMOTE_OBJECT"; then why; exit 1; fi
 printf 'release: %s %s\\n' "$RELEASE_TAG_COMMIT" "$RELEASE_TAG_VERSION"
 `;
   const r = spawnSync('bash', ['-c', harness, 'harness', copy, tag], { encoding: 'utf8', env: env(s), timeout: 60_000 });
@@ -196,6 +217,7 @@ printf 'release: %s %s\\n' "$RELEASE_TAG_COMMIT" "$RELEASE_TAG_VERSION"
   return {
     accepted: r.status === 0,
     first: /refused: (.*)/.exec(out)?.[1] ?? '',
+    lines: refusalLines(out, 'refused: '),
     out,
     commit: released?.[1] ?? '',
     version: released?.[2] ?? '',
@@ -223,6 +245,18 @@ const CASES: Case[] = [
   ['a tag only this clone has', (_s, h) => (h.release('v0.2.0-alpha.2', '0.2.0-alpha.2', { push: false }), 'v0.2.0-alpha.2'), 'refused'],
   ['a tag whose name does not start with v', (_s, h) => (h.release('alpha-2', '0.2.0-alpha.2'), 'alpha-2'), 'refused'],
   ["a tag whose package.json says another version", (_s, h) => (h.release('v0.2.0-alpha.2', '0.2.0-alpha.1'), 'v0.2.0-alpha.2'), 'refused'],
+  [
+    'a release tag origin has and the fetch does not bring here',
+    (s, h) => {
+      h.release('v0.2.0-alpha.2', '0.2.0-alpha.2');
+      git(s.root, s.work, 'tag', '-d', 'v0.2.0-alpha.2');
+      // git, but a fetch that brings nothing: what a fetch interrupted, or one
+      // told to leave tags alone, leaves behind.
+      writeExec(join(s.bin, 'git'), `#!/usr/bin/env bash\nfor a in "$@"; do [ "$a" = fetch ] && exit 0; done\nexec '${REAL_GIT}' "$@"\n`);
+      return 'v0.2.0-alpha.2';
+    },
+    'refused',
+  ],
   [
     "a tag here that is not origin's",
     (s, h) => {
@@ -255,7 +289,9 @@ describe('deploy-live.sh and release-tag.sh take the same tags, and refuse the r
       } else if (expected === 'refused') {
         expect(lib.first, lib.out).not.toBe('');
         expect(lib.first).toBe(deploy.first);
-        expect(lib.first).toMatch(/\bgit ls-remote\b|live runs releases: name a release tag/);
+        // Word for word, every line: deploy-live.sh will source the library.
+        expect(lib.lines, lib.out).toEqual(deploy.lines);
+        expect(lib.first).toMatch(/\bgit ls-remote\b|live runs releases: name a release tag|not here after the fetch/);
       } else {
         expect(deploy.first).toMatch(/fetch/);
         expect(lib.first).toMatch(/fetch/);

@@ -48,18 +48,31 @@
 #       among them) empty, one of the OTA stack's ports whatever its key (each
 #       *_PORT its persisted .env sets, and the rest at the compose files'
 #       default, NEXTCLOUD_PORT and the site's WWW_PORT among them), shared by
-#       two keys, or, on a first run, in use on the machine;
+#       two keys, or, on a first run, in use on the machine; a port live
+#       publishes (the nine, WWW_PORT while WWW_LIVE=true, 0139 T10's switch
+#       once it lands, and any other *_PORT a `ports:` entry of managed.yml
+#       names but the demo's) inside
+#       the kernel's ephemeral port range and not reserved (check_ephemeral:
+#       an outgoing connection can take it first), on a resume too;
 #       TRIGGER_API_ORIGIN not on TRIGGER_PORT; TRIGGER_APP_ORIGIN or
 #       TRIGGER_LOGIN_ORIGIN not on TRIGGER_TLS_PORT; TRIGGER_CLI_PROFILE
-#       empty, the default, or the OTA stack's; EXPOSURE_ALLOW missing an
-#       address either stack binds; WEB_URL
+#       empty, the default, or the OTA stack's; an EXPOSURE_ALLOW that
+#       exposure-check.sh refuses, or with which it would fail an address
+#       either stack binds on (asked of exposure-check.sh itself, so loopback
+#       needs no entry); WEB_URL
 #       or CORS_ORIGIN not https://app.ownpace.eu; the identity provider not
 #       at id.ownpace.eu on 443, secure, TLS ended in front; NODE_ENV not
-#       production; OWNPACE_STAGE=alpha without BACKUP_RETENTION_DAYS=0;
-#       OWNPACE_REACHABLE_HOSTS set; APP_DB_USER not app_user; a gate
-#       placeholder client (gate-…, gatedropboxappkey); a relay SMTP_HOST with
-#       a .invalid NOTIFY_FROM or NOTIFY_TO; a database password a URL cannot
-#       carry as it is; a password empty or published whose volume exists
+#       production; BACKUP_RETENTION_DAYS empty, 0 or not a whole number
+#       above 0 (the most days a dump of live's databases taken before a
+#       deploy is kept: 7, workplan 0134; the dump and its deletion are the
+#       owner's steps, which nothing does yet); OWNPACE_REACHABLE_HOSTS set;
+#       APP_DB_USER not app_user; a gate placeholder client (gate-…,
+#       gatedropboxappkey); SMTP_HOST empty or mailpit, SMTP_PORT empty or
+#       not a port, NOTIFY_FROM or NOTIFY_TO empty or an address in .invalid,
+#       any of those four in double quotes (live has a real relay from its
+#       first day and no catcher: 0133); a database password a URL
+#       cannot carry as it is; a password empty or published whose volume
+#       exists
 #   the three production names not resolving from this machine: the bring-up
 #       reaches id.ownpace.eu by its name, so the routes come first (T1e)
 #
@@ -104,8 +117,12 @@
 #      probe's variable, and the record in 0132's Status block.
 #
 # WHAT IT PRINTS. Never a value from the .env, never an address and never a
-# port: a refusal names the key. Nothing that runs this may use `set -x`, and
-# it refuses to run traced.
+# port: a refusal names the key. One exception: a port in the ephemeral range
+# that is not reserved is named with its number, and so are the ports its fix
+# lists, since the file that fixes it cannot be written without them. That
+# refusal is for the person standing live up, on the machine: paste it nowhere
+# public. Nothing that runs this may use `set -x`, and it refuses to run
+# traced.
 #
 # Usage:  ./deploy/compose/stand-up-live.sh [--resume]     from ~/ownpace-live
 #
@@ -116,6 +133,9 @@
 # Env overrides:
 #   STAND_UP_LIVE_CHECK_TRIES     tries per HTTP check (default 5)
 #   STAND_UP_LIVE_CHECK_INTERVAL  seconds between them (default 3)
+#   STAND_UP_LIVE_PROC_NET_DIR    where ip_local_port_range and
+#                                 ip_local_reserved_ports are read (default
+#                                 /proc/sys/net/ipv4; the guard's fixtures)
 set -euo pipefail
 # Before anything else: was this started traced? Then stop tracing, and refuse
 # below, before a value is read.
@@ -146,9 +166,27 @@ LIVE_PROJECT=ownpace-live
 LIVE_APP=app.ownpace.eu
 LIVE_IDP=id.ownpace.eu
 LIVE_STATUS=status.ownpace.eu
-# Every port live publishes, Mailpit's included: it starts while SMTP_HOST is
-# mailpit, and its default is the OTA stack's.
+# Every port a script that brings live up can publish, Mailpit's included.
+# ONE RULE DECIDES WHICH: a service is live's when bootstrap-managed.sh starts
+# it for a setting live's .env can hold. It names its services and never runs
+# a bare `up` (phase_app), so what a bare `up` would start decides nothing.
+# Live runs no catcher (its SMTP_HOST is a relay, 0133), but bootstrap starts
+# one whenever SMTP_HOST is mailpit (catcher_needed, 0133 T3 (b)): this script
+# refuses that, deploy-live.sh does not check it, and the guide keeps the
+# by-hand procedure for live in case the owner's answer changes. So
+# MAILPIT_PORT is set apart from the OTA stack's like the rest, whose default,
+# 3127, it would otherwise take.
 LIVE_PORT_KEYS=(POSTGRES_PORT TRIGGER_PORT TRIGGER_TLS_PORT ZITADEL_PORT API_PORT WEB_PORT STATUS_PORT REGISTRY_PORT MAILPIT_PORT)
+# A port managed.yml publishes that live never does, by the same rule: the
+# demo's Nextcloud starts only with --with-demo, which this script and
+# deploy-live.sh both refuse (T5).
+DEMO_PORT_KEYS=' NEXTCLOUD_PORT '
+# The site's switch, once workplan 0139 T10 lands: on its own branch, not
+# merged on 2026-09-28, deploy-live.sh serves live's copy of www.ownpace.eu on
+# WWW_PORT while WWW_LIVE=true. Until it lands no script reads WWW_LIVE and
+# managed.env.example does not define it, so nothing here asks WWW_PORT. The
+# guard checks the name and the value against that script's once it is here.
+SITE_SWITCH_KEY=WWW_LIVE
 # What a tag must carry for live to be deployed, checked and kept after this.
 TAG_MUST_CARRY=(deploy-live.sh exposure-check.sh box-duties.sh stack-kind.sh)
 # Each password this may generate, and the volume that takes it at its first
@@ -168,6 +206,7 @@ PUBLISHED_PASSWORDS=' app_password openmigrate_password trigger_password passwor
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
 CHECK_TRIES="${STAND_UP_LIVE_CHECK_TRIES:-5}"
 CHECK_INTERVAL="${STAND_UP_LIVE_CHECK_INTERVAL:-3}"
+PROC_NET_DIR="${STAND_UP_LIVE_PROC_NET_DIR:-/proc/sys/net/ipv4}"
 RESUME_LINE='./deploy/compose/stand-up-live.sh --resume'
 
 # Set by main.
@@ -338,10 +377,11 @@ main() {
   local -a generate=()
   check_settings problems
   check_ports problems "$( has_volume postgres_data && echo resume || echo first )"
+  check_ephemeral problems
   check_names problems
   check_passwords problems generate
   if [ "${#problems[@]}" -gt 0 ]; then
-    refuse "live's .env is not ready for its first bring-up. Each line names a key or a name, never a value; docs/managed-bring-up.md, \"Standing up ownpace-live\", says what each should be:" \
+    refuse "live's .env is not ready for its first bring-up. Each line names a key or a name and no value, but for a port in the ephemeral range, which its fix has to list; docs/managed-bring-up.md, \"Standing up ownpace-live\", says what each should be:" \
       "${problems[@]/#/- }"
   fi
   say "every refusal passed: ${tag}, live's .env, its ports and its names"
@@ -487,7 +527,7 @@ unread_keys() {
 # for live, by its key.
 check_settings() {
   local -n _p="$1"
-  local key value allow ota_env profile default_profile smtp line
+  local key value ota_env profile default_profile smtp line
   ota_env="$(persisted_dir "$OTA_PROJECT")/.env"
 
   # First, a line every check below would miss: env_value reads the key at the
@@ -507,26 +547,40 @@ check_settings() {
     [ -z "$(env_value "$ENV_FILE" "$key")" ] ||
       _p+=("${key}: set. It stays empty on live: nothing off this machine needs that port (T1b step 3).")
   done
-  allow=",$(env_value "$ENV_FILE" EXPOSURE_ALLOW),"
+  # Each bind against EXPOSURE_ALLOW, as exposure-check.sh reads the list
+  # (exposure_passes): first whether it reads the list at all.
+  local allow_read=1 rc=0
+  exposure_passes 127.0.0.1 || rc=$?
+  case "$rc" in
+    0) ;;
+    2)
+      allow_read=''
+      _p+=("EXPOSURE_ALLOW: exposure-check.sh refuses it: ${EXPOSURE_REFUSED} Step 7 runs that check, and would stop there, after the bring-up (workplan 0132 T3).")
+      ;;
+    *)
+      allow_read=''
+      _p+=("EXPOSURE_ALLOW: deploy/compose/exposure-check.sh could not be run (exit ${rc}), so whether it passes live's binds cannot be asked.")
+      ;;
+  esac
   while IFS= read -r key; do
     [ -n "$key" ] || continue
     value="$(env_value "$ENV_FILE" "$key")"
     [ -n "$value" ] || continue
-    is_ipv4 "$value" ||
+    if ! is_ipv4 "$value"; then
       _p+=("${key}: not one IPv4 address. A bind takes an IP address of this machine, never a name and never every interface (docs/managed-bring-up.md, \"Which address a port answers on\").")
-    case "$allow" in
-      *",${value},"*) ;;
-      *) _p+=("EXPOSURE_ALLOW: does not list the address in live's ${key}. The exposure check reads every container on the machine, and fails for each address not listed (workplan 0132 T3).") ;;
-    esac
+      continue
+    fi
+    [ -n "$allow_read" ] || continue
+    exposure_passes "$value" ||
+      _p+=("EXPOSURE_ALLOW: does not list the address in live's ${key}. exposure-check.sh reads every container on the machine, and fails each port published on an address the list does not name, loopback aside (workplan 0132 T3).")
   done <<<"$(keys_ending "$ENV_FILE" _BIND)"
   while IFS= read -r key; do
     [ -n "$key" ] || continue
     value="$(env_value "$ota_env" "$key")"
     [ -n "$value" ] || continue
-    case "$allow" in
-      *",${value},"*) ;;
-      *) _p+=("EXPOSURE_ALLOW: does not list the address in the OTA stack's ${key}. The check reads both stacks at once, so the list is every address any container on the machine is published on (workplan 0132 T3).") ;;
-    esac
+    [ -n "$allow_read" ] || continue
+    exposure_passes "$value" ||
+      _p+=("EXPOSURE_ALLOW: with it, exposure-check.sh would fail a port on the address in the OTA stack's ${key}. The check reads both stacks at once, so the list is every address any container on the machine is published on, loopback aside (workplan 0132 T3).")
   done <<<"$(keys_ending "$ota_env" _BIND)"
 
   value="$(env_value "$ENV_FILE" TRIGGER_PORT)"
@@ -561,9 +615,16 @@ check_settings() {
     _p+=("ZITADEL_TLS_MODE: not external: TLS ends in front of the provider (T1b step 4).")
   [ "$(env_value "$ENV_FILE" NODE_ENV)" = production ] ||
     _p+=("NODE_ENV: not production (T4).")
-  if [ "$(env_value "$ENV_FILE" OWNPACE_STAGE)" = alpha ] && [ "$(env_value "$ENV_FILE" BACKUP_RETENTION_DAYS)" != 0 ]; then
-    _p+=("BACKUP_RETENTION_DAYS: not 0, and OWNPACE_STAGE is alpha. The alpha takes no backups, and the api refuses to start on a blank (workplan 0134).")
-  fi
+  # Live's databases are dumped before each deploy and each dump is deleted
+  # after at most this many days: the owner's answer to 0134's open question
+  # 1, (b), with 7 days, on 2026-09-28. Both are the owner's steps for now
+  # (0132 T6 step 4; 0134 T0): deploy-live.sh takes no dump, and nothing
+  # deletes one. The number is set before the first dump, so it is a whole
+  # number above 0 from the first bring-up, and the erasure sentence names it.
+  # 0 would say there is no copy; a blank reads as 7 and the api refuses to
+  # start on one while OWNPACE_STAGE=alpha.
+  [[ "$(env_value "$ENV_FILE" BACKUP_RETENTION_DAYS)" =~ ^[1-9][0-9]*$ ]] ||
+    _p+=("BACKUP_RETENTION_DAYS: empty, 0, or not a whole number of days above 0. On live it is the most days a dump of its databases taken before a deploy is kept, 7 (workplan 0134, open question 1 (b)), and the erasure sentence a closing organisation is given names it. Taking the dump and deleting it by then are your steps (0132 T6 step 4): no script takes it or deletes it yet.")
   [ -z "$(env_value "$ENV_FILE" OWNPACE_REACHABLE_HOSTS)" ] ||
     _p+=("OWNPACE_REACHABLE_HOSTS: set. It admits the demo's hosts on the OTA stack; live's stays empty (0136 T2).")
   value="$(env_value "$ENV_FILE" APP_DB_USER)"
@@ -576,14 +637,97 @@ check_settings() {
         _p+=("${key}: the nightly gate's placeholder. Live offers only a client that exists: empty it, or set live's own (0132 T5, 0140).") ;;
     esac
   done <<<"$(sed -n 's/^\(GOOGLE_OAUTH_[A-Z_]*\|DROPBOX_OAUTH_[A-Z_]*\|MICROSOFT_OAUTH_[A-Z_]*\|IDP_GOOGLE_[A-Z_]*\)=.*/\1/p' "$ENV_FILE" | sort -u)"
+  # Mail: a real relay from live's first day, and no catcher (the owner's
+  # answer to 0133's open questions 1 and 5, 2026-09-28). The sign-up's
+  # verification code is the first mail live sends.
+  #
+  # FIRST, DOUBLE QUOTES. env_value takes off single quotes and not double
+  # ones (env-read.sh), so NOTIFY_TO="" reads here as two characters and would
+  # pass every check below, while Compose takes the quotes off and hands the
+  # containers an empty value; SMTP_HOST="mailpit" would pass as a relay. The
+  # quotes cannot be taken off here instead: setup-zitadel.sh reads SMTP_HOST,
+  # SMTP_PORT and NOTIFY_FROM with env_value too, and would hand the identity
+  # provider a host, a port or a sender with its quotes, so even a real relay
+  # in double quotes sends no verification code. NOTIFY_TO, which only Compose
+  # and a sourced .env read, is held to the same rule, so the four are written
+  # one way. A key in double quotes is refused, and asked nothing more.
+  local -A dquoted=()
+  for key in SMTP_HOST SMTP_PORT NOTIFY_FROM NOTIFY_TO; do
+    case "$(env_value "$ENV_FILE" "$key")" in
+      '"'*'"')
+        dquoted[$key]=1
+        _p+=("${key}: in double quotes. Compose takes them off and hands the containers what is inside, which may be nothing, while env_value, the reader of this script and of setup-zitadel.sh (which gives the identity provider its mail settings), keeps them as part of the value. Write it bare, or in single quotes (workplan 0133).")
+        ;;
+    esac
+  done
   smtp="$(env_value "$ENV_FILE" SMTP_HOST)"
-  if [ -n "$smtp" ] && [ "$smtp" != mailpit ]; then
-    for key in NOTIFY_FROM NOTIFY_TO; do
-      case "$(env_value "$ENV_FILE" "$key")" in
-        *.invalid*) _p+=("${key}: an address in .invalid, and SMTP_HOST names a relay, which refuses or bounces it (0133 T3 (c)).") ;;
+  if [ -z "${dquoted[SMTP_HOST]:-}" ] && { [ -z "$smtp" ] || [ "${smtp,,}" = mailpit ]; }; then
+    _p+=("SMTP_HOST: empty or mailpit. Live sends through a real relay from its first bring-up and runs no catcher (workplan 0133): empty sends nothing, and mailpit keeps every mail on this machine, the sign-up's verification code among them.")
+  fi
+  value="$(env_value "$ENV_FILE" SMTP_PORT)"
+  if [ -z "${dquoted[SMTP_PORT]:-}" ] && { ! [[ "$value" =~ ^[1-9][0-9]{0,4}$ ]] || [ "$value" -gt 65535 ]; }; then
+    _p+=("SMTP_PORT: empty or not a port. The identity provider's mail setup (setup-zitadel.sh) takes 1025, the catcher's port, when it is empty; a relay's submission port is usually 587, with STARTTLS (workplan 0133).")
+  fi
+  for key in NOTIFY_FROM NOTIFY_TO; do
+    [ -z "${dquoted[$key]:-}" ] || continue
+    value="$(env_value "$ENV_FILE" "$key")"
+    if [ -z "$value" ]; then
+      case "$key" in
+        NOTIFY_FROM) _p+=("NOTIFY_FROM: empty. It is the address live sends from, the one the relay's login and token are for; without it setup-zitadel.sh leaves the identity provider's mail alone (workplan 0133).") ;;
+        *) _p+=("NOTIFY_TO: empty. It is where an access request's notice and the digest go: an address you read (workplan 0133).") ;;
+      esac
+    elif in_dot_invalid "$value"; then
+      _p+=("${key}: an address in .invalid, which a relay refuses or bounces, so nobody would read what live sends (workplan 0133 T3 (c)).")
+    fi
+  done
+}
+
+# in_dot_invalid <addresses> — true when any address of a comma-separated
+# list, bare or as `Name <address>`, ends in .invalid, a domain nobody owns.
+in_dot_invalid() {
+  local a
+  local -a list=()
+  IFS=',' read -r -a list <<<"$1"
+  for a in ${list[@]+"${list[@]}"}; do
+    # What may follow the domain: a closing '>', quotes, spaces.
+    while :; do
+      case "$a" in
+        *[[:space:]] | *'>' | *'"' | *"'") a="${a%?}" ;;
+        *) break ;;
       esac
     done
+    case "${a,,}" in *.invalid) return 0 ;; esac
+  done
+  return 1
+}
+
+# exposure_passes <address> — whether the tag's exposure-check.sh, with live's
+# EXPOSURE_ALLOW, would pass a port published on <address>: 0 it would
+# (loopback, or an address the list names), 1 it would not, 2 it refuses the
+# list itself (EXPOSURE_REFUSED then holds its words, which name an entry by
+# its place and never its value), anything else it could not be run.
+#
+# THE LIST IS READ BY THE CHECK THAT DECIDES. exposure-check.sh runs at step
+# 7 and every day after (T3 (b), T7). A reading of the list of this script's
+# own accepted less than it does (a list in double quotes, a space after a
+# comma), asked for a loopback bind it never needs listed, and passed a list
+# it refuses (a name, every interface), which would stop the bring-up at its
+# last step. So the address goes to exposure-check.sh as one line of recorded
+# `docker ps` output on its stdin (--from -): a container publishing port 1
+# there. Only its exit is kept; what it prints names no address anyway.
+EXPOSURE_REFUSED=''
+exposure_passes() {
+  local listing out rc=0
+  case "$1" in
+    *:*) listing="bind"$'\t'"[$1]:1->1/tcp" ;;
+    *) listing="bind"$'\t'"$1:1->1/tcp" ;;
+  esac
+  out="$("${SCRIPT_DIR}/exposure-check.sh" --env-file "$ENV_FILE" --from - <<<"$listing" 2>&1)" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    EXPOSURE_REFUSED="${out%%$'\n'*}"
+    EXPOSURE_REFUSED="${EXPOSURE_REFUSED#exposure-check: }"
   fi
+  return "$rc"
 }
 
 # ota_ports <ota-env-file> — every port the OTA stack publishes or sets, one
@@ -639,6 +783,103 @@ check_ports() {
       _p+=("${key}: already in use on this machine (ss -tln).")
     fi
   done
+}
+
+# live_port_keys — every *_PORT live publishes, one per line: the nine; any
+# other key a `ports:` entry of managed.yml names, but the demo's, which live
+# never runs (T5); and the site's WWW_PORT while WWW_LIVE=true, the switch with
+# which deploy-live.sh serves live's copy of www.ownpace.eu once 0139 T10
+# lands (SITE_SWITCH_KEY).
+live_port_keys() {
+  local key
+  local -A seen=()
+  while IFS= read -r key; do
+    [ -n "$key" ] && [ -z "${seen[$key]:-}" ] || continue
+    [[ "$DEMO_PORT_KEYS" != *" ${key} "* ]] || continue
+    seen[$key]=1
+    printf '%s\n' "$key"
+  done <<<"$(
+    printf '%s\n' "${LIVE_PORT_KEYS[@]}"
+    sed -n 's/^[[:space:]]*-[[:space:]]*"[^"]*\${\([A-Za-z_][A-Za-z0-9_]*_PORT\)[:}].*/\1/p' "${SCRIPT_DIR}/managed.yml"
+    [ "$(env_value "$ENV_FILE" "$SITE_SWITCH_KEY")" != true ] || echo WWW_PORT
+  )"
+}
+
+# port_reserved <port> <list> — true when <list>, the kernel's
+# ip_local_reserved_ports (ports and ranges, separated by commas), covers
+# <port>.
+port_reserved() {
+  local port="$1" entry lo hi
+  local -a entries=()
+  IFS=',' read -r -a entries <<<"$2"
+  for entry in ${entries[@]+"${entries[@]}"}; do
+    entry="${entry//[[:space:]]/}"
+    case "$entry" in
+      '') continue ;;
+      *-*) lo="${entry%%-*}" hi="${entry#*-}" ;;
+      *) lo="$entry" hi="$entry" ;;
+    esac
+    [[ "$lo" =~ ^[0-9]+$ && "$hi" =~ ^[0-9]+$ ]] || continue
+    if [ "$port" -ge "$((10#$lo))" ] && [ "$port" -le "$((10#$hi))" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# check_ephemeral <problems-array> — no port live publishes in the kernel's
+# ephemeral range unless it is reserved, on a first run and on a resume.
+#
+# WHY. Linux gives each outgoing connection that does not choose its own
+# source port one from net.ipv4.ip_local_port_range (32768 to 60999 unless
+# changed): an image pull, a DNS lookup over TCP, a mail to the relay, a
+# browser on this machine. A port live publishes inside that range can be
+# held that way at the moment Docker binds it, after a reboot or at a
+# recreate, and the container that publishes it then fails to start with
+# "address already in use". Nothing on the machine is listening there, so the
+# `ss` check above cannot see it coming, and it goes away by itself, so a
+# retry works and nobody learns why. net.ipv4.ip_local_reserved_ports takes
+# ports out of that pool while a program may still bind them on purpose, so a
+# port of live's inside the range is refused unless it is listed there. The
+# refusal names the port, the one place this script prints one: the fix is a
+# line listing it.
+check_ephemeral() {
+  local -n _p="$1"
+  local range reserved low high key value
+  local -a caught=() ports=()
+  if ! range="$(cat -- "${PROC_NET_DIR}/ip_local_port_range" 2>/dev/null)"; then
+    _p+=("ip_local_port_range: ${PROC_NET_DIR}/ip_local_port_range could not be read, so whether live's ports lie in the range the kernel hands to outgoing connections cannot be asked.")
+    return 0
+  fi
+  read -r low high <<<"$range"
+  if ! [[ "${low:-}" =~ ^[0-9]+$ && "${high:-}" =~ ^[0-9]+$ ]]; then
+    _p+=("ip_local_port_range: ${PROC_NET_DIR}/ip_local_port_range does not hold two port numbers, so whether live's ports lie in the range the kernel hands to outgoing connections cannot be asked.")
+    return 0
+  fi
+  if ! reserved="$(cat -- "${PROC_NET_DIR}/ip_local_reserved_ports" 2>/dev/null)"; then
+    _p+=("ip_local_reserved_ports: ${PROC_NET_DIR}/ip_local_reserved_ports could not be read, so whether live's ports in the ephemeral range are reserved cannot be asked.")
+    return 0
+  fi
+  reserved="${reserved//[[:space:]]/}"
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    value="$(env_value "$ENV_FILE" "$key" "$(compose_default "$key")")"
+    [[ "$value" =~ ^[1-9][0-9]{0,4}$ ]] || continue
+    [ "$value" -ge "$low" ] && [ "$value" -le "$high" ] || continue
+    port_reserved "$value" "$reserved" && continue
+    caught+=("${key}: ${value} lies in this machine's ephemeral port range (net.ipv4.ip_local_port_range, ${low} to ${high}) and is not in net.ipv4.ip_local_reserved_ports. The kernel may hand it to an outgoing connection as its source port, and the container that publishes it then fails to start with \"address already in use\".")
+    ports+=("$value")
+  done <<<"$(live_port_keys)"
+  [ "${#caught[@]}" -gt 0 ] || return 0
+  local list
+  list="$(printf '%s\n' "${ports[@]}" | sort -nu | tr '\n' ',')"
+  list="${list%,}"
+  [ -z "$reserved" ] || list="${reserved},${list}"
+  _p+=("${caught[@]}")
+  _p+=("the fix for the port(s) above: reserve them, keeping what is reserved now, in a file of /etc/sysctl.d, then have the kernel read it:
+      echo 'net.ipv4.ip_local_reserved_ports = ${list}' | sudo tee /etc/sysctl.d/90-ownpace-reserved-ports.conf
+      sudo sysctl --system
+    sysctl --system reads the files there in name order, and the last to set a key wins: if another file sets it already, put the line in that file instead. Then run this again.")
 }
 
 # check_names <problems-array> — the three production names resolve here.
@@ -1008,11 +1249,11 @@ owner_steps() {
 
 [stand-up-live] What is left is yours (docs/managed-bring-up.md, "Standing up ownpace-live"):
 
-  1. Sign up at https://${LIVE_APP}. Until live sends through a relay, the
-     verification code is in live's Mailpit: from a laptop,
-       ssh -N -L <MAILPIT_PORT>:127.0.0.1:<MAILPIT_PORT> <you>@<this machine>
-     then open http://localhost:<MAILPIT_PORT> (<MAILPIT_PORT> is that key's
-     number in live's .env).
+  1. Sign up at https://${LIVE_APP}, with an address you read. The
+     identity provider sends the verification code through live's relay,
+     the first mail live sends (workplan 0133 T4). Live runs no catcher: if
+     the code does not arrive, the zitadel service's log and the relay's
+     say why.
   2. Become the operator. Your userId is on /api/me once you are signed in
      (the bring-up guide, 8c); then, from ~/${LIVE_PROJECT}:
        ./deploy/compose/operator.sh add <userId> <your email> "owner"

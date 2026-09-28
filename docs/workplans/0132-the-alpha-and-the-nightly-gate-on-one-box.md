@@ -1105,6 +1105,105 @@ against the stubs in their guards.
   5 and 6 recorded here. `ensure-env-secrets.sh` still passes the secrets it generates on
   `env-upsert.sh`'s command line; T2's rest can move it to `--stdin`.
 
+**2026-09-28, later: the owner's answers of 28 September in the stand-up script, and the
+review's two nits, on the same branch, not merged.** Nothing has run on live.
+
+- **Live's ports and the kernel's ephemeral range.** The owner chose live's ports inside Linux's
+  ephemeral range and reserved them with `net.ipv4.ip_local_reserved_ports`. `stand-up-live.sh`
+  now refuses, on a first run and on a resume, every port live publishes that lies in
+  `ip_local_port_range` and is not covered by `ip_local_reserved_ports` (single ports and
+  ranges, in a list): the nine, `WWW_PORT` while `WWW_LIVE=true` (0139 T10's switch, on its own
+  branch; until it lands no script here reads `WWW_LIVE`), and any other `*_PORT` a `ports:`
+  entry of `managed.yml` names, the demo's `NEXTCLOUD_PORT` aside. Why, in the script: an outgoing connection can take such a port as its
+  source port at the moment Docker binds it, and the container then fails to start with *address
+  already in use*. The refusal names the key and the port, the one place the script prints a
+  port, and prints the fix: a file in `/etc/sysctl.d` whose `net.ipv4.ip_local_reserved_ports`
+  keeps what is reserved now and adds the ports, then `sudo sysctl --system`. It reads the two
+  files under `STAND_UP_LIVE_PROC_NET_DIR` (default `/proc/sys/net/ipv4`), and one it cannot read
+  is refused, never taken for a port outside the range. The guide's step 2 says it, with example
+  ports.
+- **`BACKUP_RETENTION_DAYS` is 7 on live (0134 open question 1 (b), *"7 days is ok"*).** The
+  script refused anything but `0` on the alpha; it now refuses an empty value, `0`, or anything
+  but a whole number above 0, whatever `OWNPACE_STAGE` says, and says the number is the most days
+  a dump taken before a deploy is kept, and that taking and deleting the dump are the owner's
+  (below). §8g, the guide's step 6 and its *What this does not cover*, the operator runbook's two
+  places and `managed.env.example`'s two comments said live sets `0`; they say `7` now. Three
+  more places said `0` and were missed here at first (the review below): they say `7` now too.
+- **Mail: a real relay from the first day, no catcher (0133).** The script refuses an
+  `SMTP_HOST` that is empty or `mailpit`, an `SMTP_PORT` that is empty or not a port
+  (`setup-zitadel.sh` takes 1025 when it is empty), and a `NOTIFY_FROM` or `NOTIFY_TO` that is
+  empty or has an address ending in `.invalid`, bare or as `Name <address>`, in a list too. The
+  guide's step 6 names the relay's values in general terms, with Proton Mail's submission host as
+  an example, and puts the token in on stdin; the sign-up step no longer sends you to a Mailpit.
+  `MAILPIT_PORT` stays among the nine, for the reason the review below gives.
+- **Nit: `EXPOSURE_ALLOW` read as `exposure-check.sh` reads it.** The script's own reading
+  refused a list in double quotes or with a space after a comma, which `exposure-check.sh`
+  takes, demanded a loopback bind in the list, which it never needs, and passed a list it
+  refuses (a name, every interface), which would have stopped the bring-up at its last step. It
+  now hands each bind's address to the tag's `exposure-check.sh --from -` as one recorded line,
+  so the check that decides reads the list.
+- **Nit: `release-tag.sh`'s one refusal in its own words.** *"on origin but not in this clone"*,
+  with a second line, is now `deploy-live.sh`'s *"the tag '…' is on origin but not here after the
+  fetch."*, word for word. `deploy-live.sh` is not changed. The guard compared first lines only;
+  it compares every line now.
+- **The guards, and that they fail first.** `scripts/a-first-bring-up-of-live.unit.test.ts` has
+  39 new cases (retention 9, mail 11, `EXPOSURE_ALLOW` 6, the ephemeral range 13); all 39 fail
+  against the committed script. Its fixture sends mail to a relay, sets 7, reserves live's ports
+  in a fixture range, and runs the real `exposure-check.sh` for recorded lines.
+  `scripts/one-rule-for-a-release-tag.unit.test.ts` has one new case, a tag origin has and the
+  fetch does not bring, which fails on the old words. Twenty-two mutations each turned the cases
+  they aim at red, and were put back: no ephemeral check, ranges ignored, the first entry only,
+  no lower bound, the site's switch ignored or always on, the demo's port asked, `managed.yml`'s
+  ports not read, the fix dropping what is reserved, the check on a first run only, an unreadable
+  range taken as none; `0` taken, the catcher taken, `SMTP_PORT` unchecked, an empty sender
+  taken, a list's second address or a named address missed; a refused list ignored, the old
+  reading of the list; and in `release-tag.sh` the old words, an extra line, and a second line
+  reworded.
+- **Review of this entry, the same day: one blocking finding and five minor ones, all taken.**
+  - *The dump before a deploy is not built.* This entry, the guide, the runbook,
+    `managed.env.example` and the script's refusal said live *takes* a copy before each deploy
+    and keeps it at most 7 days. Nothing does: `deploy-live.sh` leaves the dump to the owner
+    (T6 step 4, before it), and nothing deletes one. Each place now says the decision (0134 open
+    question 1 (b), 7 days) and the procedure: the owner dumps before each deploy and deletes
+    each dump by its seventh day, and the automatic copy and its deletion are not built yet. The
+    refusal says so, and its guard reads `deploy-live.sh`'s own *"It does not … dump the
+    database (step 4)"*, so it fails the day a script takes the dump.
+  - *Three more places said live sets `0`.* `managed.yml`'s comment on the api's
+    `BACKUP_RETENTION_DAYS`, `erasure-timeline.ts`'s two comments and the api's alpha refusal in
+    `config-guards.ts` (*"Set it to 0 … as during the alpha"*) say `7` now; the refusal names
+    *"7 on ownpace-live, the most days a dump of its databases taken before a deploy is kept"*.
+    This is 0134's *Still to change, now that N is set*, recorded on main the same day.
+  - *Before a relay: passing mail on by hand* opens with the owner's answer (the relay from day
+    one, not used on live), and its *Where it applies* says why it never does, since the script
+    refuses `SMTP_HOST=mailpit`. It no longer calls 0133's open question 5 unanswered.
+  - *Double quotes.* `env_value` takes off single quotes and not double ones, so `NOTIFY_TO=""`
+    passed the empty check as two characters while Compose hands the api nothing, and
+    `SMTP_HOST="mailpit"` passed as a relay. Taking the quotes off here would not do:
+    `setup-zitadel.sh` reads `SMTP_HOST`, `SMTP_PORT` and `NOTIFY_FROM` with `env_value`, so even a
+    real relay in double quotes would reach the identity provider with them. The script refuses
+    those three and `NOTIFY_TO` in double quotes, once per key, and says to write it bare or in
+    single quotes.
+  - *One reason for `MAILPIT_PORT`, and none for `NEXTCLOUD_PORT`.* The bare `docker compose up`
+    reason held for Nextcloud too, and `bootstrap-managed.sh` never runs one: it names its
+    services. The rule now is that a port is live's when the bring-up starts its service for a
+    setting live's `.env` can hold. The catcher starts whenever `SMTP_HOST` is `mailpit`, which
+    `deploy-live.sh` does not check, and its default is the OTA stack's; Nextcloud starts only with
+    `--with-demo`, which both scripts refuse. A guard reads those premises in the two scripts.
+  - *`WWW_LIVE` is 0139 T10's, on its own branch.* The script's comment and the guide now say the
+    switch applies once that lands. A guard compares the key and its `true` with `www-live.sh`'s
+    `www_live_switch` once a script here reads `WWW_LIVE`; on this branch it is skipped.
+  - *The guards.* `a-first-bring-up-of-live` has ten new cases: the refusal's owner's steps, six
+    keys in double quotes refused and a relay in single quotes taken, the rule for the ports, and
+    the site's switch (skipped here). `a-retention-somebody-stated` has one: the alpha refusal
+    names 7 and not *"as during the alpha"*. Thirteen mutations turned the cases they aim at red,
+    and were put back: the refusal's old words; `deploy-live.sh`'s header saying it dumps; no
+    double-quote check; the quotes taken off instead; a quoted key still asked the checks after
+    it; any quote on the raw line refused; Nextcloud started without `--with-demo`; the catcher
+    for the demo only; `MAILPIT_PORT` exempted like the demo's; `deploy-live.sh` taking
+    `--with-demo`; the switch under another name, or on for another value (with the site branch's
+    `www-live.sh` in place, and with a script reading `WWW_LIVE` and no `www-live.sh`); and the
+    api's old refusal.
+
 **2026-09-28: the web after T6 (b), built on branch
 `claude/ownpace-public-readiness-y7orc6-a-hold-that-says-what-it-did`, not merged.** The T6 (b)
 entry left three gaps on the screens "for whoever next works on those screens" (*Open, and
@@ -1768,7 +1867,12 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
 3. **Ports of its own.** Every `*_PORT` variable gets a value the OTA stack does not use:
    `POSTGRES_PORT`, `TRIGGER_PORT`, `TRIGGER_TLS_PORT`, `ZITADEL_PORT`, `API_PORT`, `WEB_PORT`,
    `STATUS_PORT` and `REGISTRY_PORT` (T1c), and `MAILPIT_PORT`: live starts a Mailpit of its own
-   while `SMTP_HOST=mailpit`, and the default is the OTA stack's (added 2026-09-28). **And the
+   while `SMTP_HOST=mailpit`, and the default is the OTA stack's (added 2026-09-28; later that day
+   live has a relay from its first bring-up and no catcher, 0133, and the key stays, since the
+   bring-up starts a catcher whenever `SMTP_HOST` is `mailpit`, which `deploy-live.sh` does not
+   check). A port inside the kernel's ephemeral range is reserved with
+   `net.ipv4.ip_local_reserved_ports` first, and the stand-up script refuses one that is not
+   (2026-09-28). **And the
    addresses the routed ones answer on.**
    Every port answers on `127.0.0.1` only unless its bind adds an address (T3 (a)), so live's
    `.env` also gets the front's address as `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND`, and
@@ -1810,7 +1914,8 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
    `--from trigger`, which stops at the one human step on live's own dashboard (T1c). Never pass
    `--with-demo`: there are no demo tenants, no demo Stalwart and no Nextcloud on live. Mailpit
    starts anyway (§1). Once `SMTP_HOST` names 0133's relay it catches nothing, and whether live
-   runs it at all is 0133 T3's decision.
+   runs it at all is 0133 T3's decision. *(2026-09-28: the relay from the first bring-up, and no
+   catcher on live, 0133; `stand-up-live.sh` refuses `SMTP_HOST=mailpit`.)*
 7. **Check the passwords.** Run T2's step 2 against live, on `ownpace-live_ownpace-network`. The
    control opens and the shipped pairs are refused.
 

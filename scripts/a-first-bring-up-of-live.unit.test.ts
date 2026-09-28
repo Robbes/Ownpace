@@ -77,6 +77,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -128,9 +129,11 @@ const LIVE_ENV: Record<string, string> = {
   POSTGRES_DB: 'openmigrate',
   APP_DB_USER: 'app_user',
   APP_DB_PASSWORD: 'app_password',
-  SMTP_HOST: 'mailpit',
-  NOTIFY_FROM: 'ownpace@ownpace.invalid',
-  NOTIFY_TO: 'operator@ownpace.invalid',
+  // A real relay from the first day, no catcher (0133, 2026-09-28).
+  SMTP_HOST: 'smtp.example.test',
+  SMTP_PORT: '587',
+  NOTIFY_FROM: 'sender-q6@example.test',
+  NOTIFY_TO: 'operator-q6@example.test',
   MAILPIT_BIND: '',
   TRIGGER_APP_ORIGIN: `https://localhost:${PORTS.TRIGGER_TLS_PORT}`,
   TRIGGER_LOGIN_ORIGIN: `https://localhost:${PORTS.TRIGGER_TLS_PORT}`,
@@ -142,7 +145,8 @@ const LIVE_ENV: Record<string, string> = {
   MINIO_ROOT_PASSWORD: 'change-me-minio',
   TRIGGER_DB_PASSWORD: '',
   OWNPACE_REACHABLE_HOSTS: '',
-  BACKUP_RETENTION_DAYS: '0',
+  // The most days a dump taken before a deploy is kept (0134, 2026-09-28).
+  BACKUP_RETENTION_DAYS: '7',
   POSTGRES_BIND: '',
   API_BIND: '',
   TRIGGER_BIND: '',
@@ -180,7 +184,26 @@ const envText = (vars: Record<string, string | undefined>): string =>
     .join('\n')}\n`;
 
 /** Every value in live's .env that is not the script's own constant: none may be printed. */
-const PRIVATE_VALUES = [FRONT, OTA_FRONT, ...Object.values(PORTS), 'live-plane-q9', 'owner-q7@example.test'];
+const PRIVATE_VALUES = [
+  FRONT,
+  OTA_FRONT,
+  ...Object.values(PORTS),
+  'live-plane-q9',
+  'owner-q7@example.test',
+  'smtp.example.test',
+  'sender-q6@example.test',
+  'operator-q6@example.test',
+];
+
+/**
+ * The kernel's ephemeral range as Linux ships it, and live's nine ports
+ * reserved in it: some one by one, some as a range (the fixture's
+ * /proc/sys/net/ipv4, STAND_UP_LIVE_PROC_NET_DIR).
+ */
+const EPHEMERAL_RANGE = '32768\t60999\n';
+const RESERVED = '43001,43090,43123-43127,43443,45000,45432';
+/** The same, and the 41xxx ports the cases on the OTA stack's ports use, which are about those alone. */
+const OTA_CASES_RESERVED = `${RESERVED},41000-41999\n`;
 
 // ---------------------------------------------------------------------------
 // The stubs
@@ -382,6 +405,20 @@ esac
 exit 99
 `;
 
+/**
+ * exposure-check.sh as the tag carries it here: its argv logged; asked about
+ * recorded lines (--from), the real one answers, which is how the script
+ * reads EXPOSURE_ALLOW before anything changes; asked of the machine at the
+ * end (step 7), STUB_EXPOSURE_EXIT.
+ */
+const EXPOSURE_WRAPPER = `#!/usr/bin/env bash
+printf 'exposure-check %s\\n' "$*" >>"$STUB_LOG"
+for a in "$@"; do
+  [ "$a" = --from ] && exec "$(dirname "$0")/exposure-check.real.sh" "$@"
+done
+exit "\${STUB_EXPOSURE_EXIT:-0}"
+`;
+
 /** env-upsert.sh as the tag carries it here: its argv logged, then the real one. */
 const UPSERT_WRAPPER = `#!/usr/bin/env bash
 printf 'env-upsert %s\\n' "$*" >>"$STUB_LOG"
@@ -410,6 +447,10 @@ interface StageOptions {
   head?: 'tag' | 'branch' | 'untagged';
   /** Volumes that exist before the run. */
   volumes?: string[];
+  /** The fixture's ip_local_port_range and ip_local_reserved_ports; null leaves the file out. */
+  proc?: { range?: string | null; reserved?: string | null };
+  /** An edit to the tag's managed.yml. */
+  managedYml?: (text: string) => string;
 }
 
 interface Stage {
@@ -475,14 +516,17 @@ function stage(opts: StageOptions = {}): Stage {
   copyFileSync(join(COMPOSE_DIR, 'env-upsert.sh'), join(compose, 'env-upsert.real.sh'));
   chmodSync(join(compose, 'env-upsert.real.sh'), 0o755);
   writeExec(join(compose, 'env-upsert.sh'), UPSERT_WRAPPER);
-  copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  const managed = readFileSync(join(COMPOSE_DIR, 'managed.yml'), 'utf8');
+  writeFileSync(join(compose, 'managed.yml'), opts.managedYml ? opts.managedYml(managed) : managed);
   copyFileSync(join(COMPOSE_DIR, 'www.yml'), join(compose, 'www.yml'));
   for (const unit of ['ownpace-box-duties.service', 'ownpace-box-duties.timer']) {
     copyFileSync(join(COMPOSE_DIR, 'systemd', unit), join(compose, 'systemd', unit));
   }
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
   if (!opts.omit?.includes('exposure-check.sh')) {
-    writeExec(join(compose, 'exposure-check.sh'), LOGGING_STUB('exposure-check', 'STUB_EXPOSURE_EXIT'));
+    writeExec(join(compose, 'exposure-check.sh'), EXPOSURE_WRAPPER);
+    copyFileSync(join(COMPOSE_DIR, 'exposure-check.sh'), join(compose, 'exposure-check.real.sh'));
+    chmodSync(join(compose, 'exposure-check.real.sh'), 0o755);
   }
   git(root, work, 'add', '-A');
   git(root, work, 'commit', '-q', '-m', 'the release');
@@ -546,8 +590,14 @@ function stage(opts: StageOptions = {}): Stage {
   const sqlLog = join(root, 'sql.log');
   const state = join(root, 'state');
   const http = join(root, 'http');
+  const proc = join(root, 'proc-sys-net-ipv4');
   mkdirSync(state);
   mkdirSync(http);
+  mkdirSync(proc);
+  const range = opts.proc?.range === undefined ? EPHEMERAL_RANGE : opts.proc.range;
+  const reserved = opts.proc?.reserved === undefined ? `${RESERVED}\n` : opts.proc.reserved;
+  if (range !== null) writeFileSync(join(proc, 'ip_local_port_range'), range);
+  if (reserved !== null) writeFileSync(join(proc, 'ip_local_reserved_ports'), reserved);
   writeFileSync(log, '');
   writeFileSync(sqlLog, '');
   writeFileSync(join(state, 'volumes'), (opts.volumes ?? []).map((v) => `${v}\n`).join(''));
@@ -562,6 +612,7 @@ function stage(opts: StageOptions = {}): Stage {
     STUB_ENV_FILE: envFile,
     STAND_UP_LIVE_CHECK_TRIES: '1',
     STAND_UP_LIVE_CHECK_INTERVAL: '0',
+    STAND_UP_LIVE_PROC_NET_DIR: proc,
   };
   const s: Stage = { root, work, compose, envFile, log, sqlLog, http, state, deployLog: join(persist, 'deploys.log'), env, commit };
   answer(s, 'app.ownpace.eu/api/version', 200, { version: VERSION, commit });
@@ -894,11 +945,9 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ['ZITADEL_EXTERNALSECURE not true', { ZITADEL_EXTERNALSECURE: 'false' }, 'ZITADEL_EXTERNALSECURE'],
     ['ZITADEL_TLS_MODE not external', { ZITADEL_TLS_MODE: 'disabled' }, 'ZITADEL_TLS_MODE'],
     ['NODE_ENV not production', { NODE_ENV: 'development' }, 'NODE_ENV'],
-    ['OWNPACE_STAGE=alpha without BACKUP_RETENTION_DAYS=0', { BACKUP_RETENTION_DAYS: '' }, 'BACKUP_RETENTION_DAYS'],
     ['OWNPACE_REACHABLE_HOSTS set', { OWNPACE_REACHABLE_HOSTS: 'nextcloud' }, 'OWNPACE_REACHABLE_HOSTS', 'nextcloud'],
     ["the gate's placeholder Google client", { GOOGLE_OAUTH_CLIENT_ID: 'gate-google-q1' }, 'GOOGLE_OAUTH_CLIENT_ID', 'gate-google-q1'],
     ["the gate's placeholder Dropbox key", { DROPBOX_OAUTH_CLIENT_ID: 'gatedropboxappkey' }, 'DROPBOX_OAUTH_CLIENT_ID', 'gatedropboxappkey'],
-    ['a relay with a .invalid sender', { SMTP_HOST: 'relay-q2.example.test' }, 'NOTIFY_FROM', 'relay-q2.example.test'],
     ['APP_DB_USER not app_user', { APP_DB_USER: 'someone-q4' }, 'APP_DB_USER', 'someone-q4'],
     ['a port left empty', { MAILPIT_PORT: '' }, 'MAILPIT_PORT'],
     ["a port the OTA stack uses by default", { WEB_PORT: '3123' }, 'WEB_PORT'],
@@ -922,7 +971,7 @@ describe("refused before anything changes: live's .env, key by key, never a valu
   it(
     "a port the OTA stack's own .env sets, read from its persisted file and never printed",
     () => {
-      const s = stage({ otaEnv: { ...OTA_ENV, API_PORT: '41999' }, env: { API_PORT: '41999' } });
+      const s = stage({ otaEnv: { ...OTA_ENV, API_PORT: '41999' }, env: { API_PORT: '41999' }, proc: { reserved: OTA_CASES_RESERVED } });
       const r = run(s);
       expectRefused(s, r, '- API_PORT', 'reads', envNow(s));
       expect(r.out).toMatch(/OTA stack/);
@@ -940,7 +989,7 @@ describe("refused before anything changes: live's .env, key by key, never a valu
   ] as const)(
     'a port the OTA stack uses under another key, with nothing listening on it: %s',
     (_label, env, otaEnv, key) => {
-      const s = stage({ env, otaEnv });
+      const s = stage({ env, otaEnv, proc: { reserved: OTA_CASES_RESERVED } });
       const r = run(s);
       expectRefused(s, r, `- ${key}`, 'reads', envNow(s));
       expect(r.out).toMatch(/OTA stack's ports/);
@@ -1044,6 +1093,322 @@ describe("refused before anything changes: live's .env, key by key, never a valu
       expect(r.out).toContain(volume);
       expect(r.out).toMatch(remedy);
       expect(r.out).not.toContain('f00d'.repeat(12));
+    },
+    CASE_MS,
+  );
+});
+
+/** Past every refusal, as far as the first stop (exit 2), with nothing said about `what`. */
+function expectPassed(r: { status: number; out: string }, what: string | RegExp): void {
+  expect(r.status, r.out).toBe(2);
+  expect(r.out).toContain('[stand-up-live] every refusal passed');
+  if (typeof what === 'string') expect(r.out).not.toContain(what);
+  else expect(r.out).not.toMatch(what);
+}
+
+describe("live's BACKUP_RETENTION_DAYS is the most days a dump taken before a deploy is kept (0134): 7 from the first bring-up, never 0 or empty", () => {
+  it.each([
+    ['0, which would tell a closing organisation live keeps no copy', { BACKUP_RETENTION_DAYS: '0' }],
+    ['empty, which the api reads as 7 and refuses on the alpha', { BACKUP_RETENTION_DAYS: '' }],
+    ['empty on a live whose .env does not say alpha', { BACKUP_RETENTION_DAYS: '', OWNPACE_STAGE: '' }],
+    ['left out', { BACKUP_RETENTION_DAYS: undefined }],
+    ['a word', { BACKUP_RETENTION_DAYS: 'seven' }],
+    ['below 0', { BACKUP_RETENTION_DAYS: '-7' }],
+    ['not a whole number', { BACKUP_RETENTION_DAYS: '7.5' }],
+  ] as const)(
+    'refused: %s',
+    (_label, env) => {
+      const s = stage({ env });
+      const r = run(s);
+      expectRefused(s, r, '- BACKUP_RETENTION_DAYS', 'reads', envNow(s));
+      expect(r.out).toMatch(/the most days a dump of its databases taken before a deploy is kept, 7 \(workplan 0134/);
+      expect(r.out).not.toContain('seven');
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'the refusal says the dump and its deletion are the owner\'s, as long as deploy-live.sh says it takes none',
+    () => {
+      // deploy-live.sh leaves step 4, the dump, to the owner, and nothing
+      // deletes one (0132 T6; 0134 T0). A refusal that said live keeps a copy
+      // would have the owner deploy believing a way back exists. When a
+      // script takes the dump, this fails, and the refusal changes with it.
+      const deployLive = readFileSync(join(COMPOSE_DIR, 'deploy-live.sh'), 'utf8');
+      expect(deployLive).toMatch(/It does not open the hold \(step 2\) or dump the database\s*#?\s*\(step 4\): both are the owner's/);
+      const s = stage({ env: { BACKUP_RETENTION_DAYS: '0' } });
+      const r = run(s);
+      expectRefused(s, r, '- BACKUP_RETENTION_DAYS', 'reads', envNow(s));
+      expect(r.out).toContain('Taking the dump and deleting it by then are your steps (0132 T6 step 4): no script takes it or deletes it yet.');
+      expect(r.out).not.toMatch(/\blive (takes|keeps) a copy\b/i);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ["7, the owner's number", '7'],
+    ['another whole number of days', '14'],
+  ])(
+    'taken: %s, on the alpha',
+    (_label, days) => {
+      const s = stage({ env: { BACKUP_RETENTION_DAYS: days, OWNPACE_STAGE: 'alpha' } });
+      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), 'BACKUP_RETENTION_DAYS');
+    },
+    CASE_MS,
+  );
+});
+
+describe("live's mail goes through a real relay from its first day, and no catcher (0133)", () => {
+  it.each([
+    ['SMTP_HOST empty, which sends nothing', { SMTP_HOST: '' }, 'SMTP_HOST'],
+    ['SMTP_HOST the catcher', { SMTP_HOST: 'mailpit' }, 'SMTP_HOST'],
+    ["SMTP_PORT empty, where setup-zitadel.sh would take the catcher's 1025", { SMTP_PORT: '' }, 'SMTP_PORT'],
+    ['SMTP_PORT not a port', { SMTP_PORT: 'port-q9' }, 'SMTP_PORT'],
+    ['NOTIFY_FROM empty', { NOTIFY_FROM: '' }, 'NOTIFY_FROM'],
+    ['NOTIFY_TO empty', { NOTIFY_TO: '' }, 'NOTIFY_TO'],
+    ["NOTIFY_FROM the example's, in .invalid", { NOTIFY_FROM: 'ownpace@ownpace.invalid' }, 'NOTIFY_FROM'],
+    ['NOTIFY_FROM in .invalid, behind a name', { NOTIFY_FROM: "'Ownpace <ownpace@ownpace.invalid>'" }, 'NOTIFY_FROM'],
+    ['NOTIFY_TO a list with one address in .invalid', { NOTIFY_TO: 'operator-q6@example.test,someone@ownpace.invalid' }, 'NOTIFY_TO'],
+  ] as const)(
+    'refused: %s',
+    (_label, env, key) => {
+      const s = stage({ env });
+      const r = run(s);
+      expectRefused(s, r, `- ${key}`, 'reads', envNow(s));
+      expect(r.out).toMatch(/workplan 0133/);
+      expect(shown(r.out)).not.toContain('ownpace.invalid');
+      expect(r.out).not.toContain('port-q9');
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  // env_value takes off single quotes and not double ones, Compose takes off
+  // both, and setup-zitadel.sh reads with env_value: a value in double quotes
+  // is one thing to the containers and another to the identity provider.
+  it.each([
+    ['SMTP_HOST="", which Compose hands the containers as no host at all', { SMTP_HOST: '""' }, 'SMTP_HOST'],
+    ['NOTIFY_TO="", which Compose hands the api as no address at all', { NOTIFY_TO: '""' }, 'NOTIFY_TO'],
+    ['NOTIFY_FROM=""', { NOTIFY_FROM: '""' }, 'NOTIFY_FROM'],
+    ['SMTP_HOST="mailpit", the catcher in double quotes', { SMTP_HOST: '"mailpit"' }, 'SMTP_HOST'],
+    ['SMTP_PORT="587", which setup-zitadel.sh would hand on with its quotes', { SMTP_PORT: '"587"' }, 'SMTP_PORT'],
+    ['a real sender in double quotes, which setup-zitadel.sh would hand on with its quotes', { NOTIFY_FROM: '"sender-q6@example.test"' }, 'NOTIFY_FROM'],
+  ] as const)(
+    'refused, in double quotes: %s',
+    (_label, env, key) => {
+      const s = stage({ env });
+      const r = run(s);
+      expectRefused(s, r, `- ${key}: in double quotes.`, 'reads', envNow(s));
+      expect(r.out).toMatch(/Write it bare, or in single quotes \(workplan 0133\)/);
+      // One refusal for the key: the checks after it are not asked of a quoted value.
+      expect(r.out.split('\n').filter((l) => l.startsWith(`  - ${key}: `))).toHaveLength(1);
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['a sender behind a name', { NOTIFY_FROM: "'Ownpace <sender-q6@example.test>'" }],
+    ['two operators', { NOTIFY_TO: 'operator-q6@example.test,second-q6@example.test' }],
+    ['a relay in single quotes, which env_value and Compose both take off', { SMTP_HOST: "'smtp.example.test'" }],
+  ] as const)(
+    'taken: %s',
+    (_label, env) => {
+      const s = stage({ env });
+      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), /- (SMTP_|NOTIFY_)/);
+    },
+    CASE_MS,
+  );
+});
+
+describe('EXPOSURE_ALLOW is read by exposure-check.sh itself, so the list it takes is the one step 7 takes', () => {
+  it.each([
+    ["in double quotes, as bootstrap-managed.sh's remedy for a space writes it", { EXPOSURE_ALLOW: `"${FRONT},${OTA_FRONT}"` }, OTA_ENV],
+    ['with a space after the comma, in double quotes', { EXPOSURE_ALLOW: `"${FRONT}, ${OTA_FRONT}"` }, OTA_ENV],
+    ["live's TRIGGER_TLS_BIND on loopback, which exposure-check.sh never needs listed", { TRIGGER_TLS_BIND: '127.0.0.1' }, OTA_ENV],
+    ["the OTA stack's MAILPIT_BIND on loopback, likewise", {}, { ...OTA_ENV, MAILPIT_BIND: '127.0.0.1' }],
+  ] as const)(
+    'taken: %s',
+    (_label, env, otaEnv) => {
+      const s = stage({ env, otaEnv });
+      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      expectPassed(r, '- EXPOSURE_ALLOW');
+      expect(called(s, 'exposure-check').some((l) => l.endsWith(' --from -')), 'exposure-check.sh was not asked').toBe(true);
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['a name in it', `${FRONT},${OTA_FRONT},front-q3.example.test`],
+    ['every interface in it', `${FRONT},${OTA_FRONT},0.0.0.0`],
+  ])(
+    'refused, before anything changes, and not only at step 7: %s',
+    (_label, allow) => {
+      const s = stage({ env: { EXPOSURE_ALLOW: allow } });
+      const r = run(s);
+      expectRefused(s, r, '- EXPOSURE_ALLOW: exposure-check.sh refuses it', 'reads', envNow(s));
+      expect(r.out).toMatch(/entry 3/);
+      expect(r.out).not.toContain('front-q3.example.test');
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+});
+
+describe("a port live publishes in the kernel's ephemeral range is refused until it is reserved", () => {
+  /** The eight of live's nine but WEB_PORT, reserved, after a port of something else. */
+  const ALL_BUT_WEB = '8080,43001,43090,43124-43127,43443,45000,45432';
+
+  it(
+    'one of the nine in the range and not reserved: named with its port, and the fix keeps what is reserved',
+    () => {
+      const s = stage({ proc: { reserved: `${ALL_BUT_WEB}\n` } });
+      const r = run(s);
+      expectRefused(s, r, `- WEB_PORT: ${PORTS.WEB_PORT} lies in this machine's ephemeral port range (net.ipv4.ip_local_port_range, 32768 to 60999)`, 'reads');
+      expect(r.out).toMatch(/fails to start with "address already in use"/);
+      expect(r.out).toContain(
+        `echo 'net.ipv4.ip_local_reserved_ports = ${ALL_BUT_WEB},${PORTS.WEB_PORT}' | sudo tee /etc/sysctl.d/90-ownpace-reserved-ports.conf`,
+      );
+      expect(r.out).toContain('sudo sysctl --system');
+      // Only WEB_PORT is named; nothing else that is private is printed.
+      expect(r.out.match(/_PORT: \d+ lies in/g)).toHaveLength(1);
+      for (const v of [FRONT, OTA_FRONT, 'live-plane-q9', 'owner-q7@example.test', 'sender-q6@example.test']) expect(shown(r.out)).not.toContain(v);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'nothing reserved: each of the nine named, and the fix lists them in order',
+    () => {
+      const s = stage({ proc: { reserved: '\n' } });
+      const r = run(s);
+      expectRefused(s, r, '- POSTGRES_PORT: ', 'reads');
+      for (const [key, port] of Object.entries(PORTS)) expect(r.out).toContain(`- ${key}: ${port} lies in`);
+      const sorted = Object.values(PORTS)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .join(',');
+      expect(r.out).toContain(`echo 'net.ipv4.ip_local_reserved_ports = ${sorted}' | sudo tee`);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'on a resume too: a port is bound at every start, not only the first',
+    () => {
+      const s = stage({
+        proc: { reserved: `${ALL_BUT_WEB}\n` },
+        env: { POSTGRES_PASSWORD: 'f00d'.repeat(12), APP_DB_PASSWORD: 'beef'.repeat(12) },
+        volumes: ['ownpace-live_postgres_data'],
+      });
+      const r = run(s, ['--resume']);
+      expectRefused(s, r, `- WEB_PORT: ${PORTS.WEB_PORT} lies in`, 'reads', envNow(s));
+    },
+    CASE_MS,
+  );
+
+  it(
+    "WWW_PORT while WWW_LIVE=true, the site's switch (0139 T10)",
+    () => {
+      const s = stage({ env: { WWW_LIVE: 'true', WWW_PORT: '44003' } });
+      const r = run(s);
+      expectRefused(s, r, '- WWW_PORT: 44003 lies in', 'reads', envNow(s));
+    },
+    CASE_MS,
+  );
+
+  it("one rule for which ports are live's: the bring-up starts Mailpit for an SMTP_HOST live's .env can hold, and Nextcloud only for --with-demo, which both of live's scripts refuse", () => {
+    // stand-up-live.sh's reason for asking MAILPIT_PORT and not NEXTCLOUD_PORT.
+    // A bare `docker compose up` would start both and decides nothing:
+    // bootstrap-managed.sh names its services.
+    const bootstrap = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
+    const list = /local services=\(\n([\s\S]*?)\n {2}\)\n/.exec(bootstrap)?.[1] ?? '';
+    expect(list, "bootstrap-managed.sh's list of services not found").toContain('api web');
+    expect(list.replace(/#.*$/gm, '')).not.toMatch(/\bnextcloud\b|\bmailpit\b/);
+    expect([...bootstrap.matchAll(/services\+=\(nextcloud\)/g)]).toHaveLength(1);
+    expect(bootstrap).toContain('[ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)');
+    expect(bootstrap).toMatch(/catcher_needed\(\) \{\n {2}\[ "\$WITH_DEMO" -eq 1 \] && return 0\n {2}\[ "\$\(env_get SMTP_HOST\)" = "mailpit" \]\n\}/);
+    const deployLive = readFileSync(join(COMPOSE_DIR, 'deploy-live.sh'), 'utf8');
+    expect(deployLive).toMatch(/if \[ "\$arg" = --with-demo \]; then\n\s+refuse /);
+    expect(deployLive, 'deploy-live.sh now asks SMTP_HOST: the reason in stand-up-live.sh changes with it').not.toMatch(/SMTP_HOST/);
+    const standUp = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
+    expect(/^LIVE_PORT_KEYS=\(([^)]*)\)$/m.exec(standUp)?.[1]?.split(' ')).toContain('MAILPIT_PORT');
+    expect(/^DEMO_PORT_KEYS='([^']*)'$/m.exec(standUp)?.[1]?.trim().split(/\s+/)).toEqual(['NEXTCLOUD_PORT']);
+  });
+
+  // 0139 T10's switch is on its own branch on 2026-09-28, and no script here
+  // reads WWW_LIVE yet. Once one does, the name and the value this script
+  // asks must be the ones deploy-live.sh acts on, or WWW_PORT is never asked.
+  const siteSwitchReadElsewhere = readdirSync(COMPOSE_DIR).some(
+    (f) => f.endsWith('.sh') && f !== SCRIPT && readFileSync(join(COMPOSE_DIR, f), 'utf8').includes('WWW_LIVE'),
+  );
+  it.skipIf(!siteSwitchReadElsewhere)(
+    "the site's switch it asks is the one deploy-live.sh acts on, by its name and its value, once 0139 T10 has landed",
+    () => {
+      const owner = join(COMPOSE_DIR, 'www-live.sh');
+      expect(existsSync(owner), "a script reads WWW_LIVE and www-live.sh, which defines the switch on 0139 T10's branch, is not here: point this at where it went").toBe(true);
+      const standUp = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8');
+      const key = /^SITE_SWITCH_KEY=(\w+)$/m.exec(standUp)?.[1];
+      const on = /"\$SITE_SWITCH_KEY"\)" != (\w+) \] \|\| echo WWW_PORT/.exec(standUp)?.[1];
+      expect(key, 'SITE_SWITCH_KEY= not found').toBeTruthy();
+      expect(on, "the value live_port_keys takes for on, not found").toBeTruthy();
+      const dir = mkdtempSync(join(tmpdir(), 'site-switch-'));
+      tempDirs.push(dir);
+      const envFile = join(dir, '.env');
+      writeFileSync(envFile, `${key}=${on}\n`);
+      const r = spawnSync('bash', ['-c', '. "$1" && www_live_switch "$2"', 'switch', owner, envFile], { encoding: 'utf8' });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toBe('on');
+    },
+  );
+
+  it(
+    'a *_PORT beyond the nine that managed.yml publishes',
+    () => {
+      const mailpitPorts = '      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_PORT:-3127}:8025"\n';
+      const s = stage({
+        env: { EXTRA_Q_PORT: '44001' },
+        managedYml: (text) => {
+          expect(text).toContain(mailpitPorts);
+          return text.replace(mailpitPorts, `${mailpitPorts}      - "127.0.0.1:\${EXTRA_Q_PORT:-3998}:8026"\n`);
+        },
+      });
+      const r = run(s);
+      expectRefused(s, r, '- EXTRA_Q_PORT: 44001 lies in', 'reads', envNow(s));
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['the range', { range: null }, 'ip_local_port_range'],
+    ['the reserved list', { reserved: null }, 'ip_local_reserved_ports'],
+  ] as const)(
+    '%s cannot be read, which is never taken for a port outside it',
+    (_label, proc, key) => {
+      const s = stage({ proc });
+      const r = run(s);
+      expectRefused(s, r, `- ${key}: `, 'reads');
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it.each([
+    ['reserved one by one', { reserved: '43001,43090,43123,43124,43126,43127,43443,45000,45432\n' }, {}],
+    ['reserved as one range', { reserved: '43000-45999\n' }, {}],
+    ['reserved in a list among other entries', { reserved: '8080,9100-9200,43000-43999,45000,45432,50000-50010\n' }, {}],
+    ['below the range, and nothing reserved', { range: '46000\t60999\n', reserved: '\n' }, {}],
+    ['WWW_PORT in the range, unreserved, with the site switched off', {}, { WWW_LIVE: 'false', WWW_PORT: '44003' }],
+    ["the demo's NEXTCLOUD_PORT in the range, unreserved: live never publishes it", {}, { NEXTCLOUD_PORT: '44002' }],
+  ] as const)(
+    'taken: %s',
+    (_label, proc, env) => {
+      const s = stage({ proc, env });
+      const r = run(s, [], { STUB_TRIGGER_STOP: 'account' });
+      expectPassed(r, /ephemeral|ip_local_/);
+      expectNothingLeaked(s, r.out);
     },
     CASE_MS,
   );
@@ -1155,7 +1520,8 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
       ]);
       expect(called(s, 'docker').some((l) => l.endsWith('exec -T api printenv NODE_ENV'))).toBe(true);
       expect(called(s, 'docker').some((l) => l.startsWith('docker network ls --filter name=ownpace-live_'))).toBe(true);
-      expect(called(s, 'exposure-check')).toEqual([`exposure-check --env-file ${join(s.compose, '.env')}`]);
+      // Asked of the machine once, at the end; before that only of recorded lines, for EXPOSURE_ALLOW.
+      expect(called(s, 'exposure-check').filter((l) => !l.endsWith(' --from -'))).toEqual([`exposure-check --env-file ${join(s.compose, '.env')}`]);
 
       // The first line of the deploy log, in deploy-live.sh's format.
       const lines = deployLines(s);
