@@ -138,6 +138,13 @@
   - §4.2, §4.6, §9: the list of what was shared belongs to its migration and
     goes when that migration is deleted (privacy-sharing-list (b); the code
     change is not built, see beside §9).
+  - §4.6, §9: the people you migrate for (ADR-0050; managed migration 0031,
+    merged in #1332): a name, and an address when one is given, kept until
+    that person is deleted or the data erased (PURGED_TABLES in
+    offboarding.ts). Deleting a migration leaves the person. The owner
+    approved the English sentence on 2026-09-28. The Dutch says *migratie*,
+    the owner's word (0152 D6); the rest of the Dutch texts still say
+    *verhuizing*.
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
     0139 T3, not built).
@@ -677,6 +684,9 @@ necessary, and aggregated figures that identify nobody.
 
 A migration touches people who never signed up with us. This is what we hold about them.
 
+- **The people you migrate for.** To group a person's migrations you give them a name, and if you
+  like an email address for their grant links. We keep both until you delete that person or your
+  data is erased.
 - **A family member whose account you migrate.** If you send them a grant link, they sign in at
   their own provider and give Ownpace access themselves, from a page that says who asked, from
   which account and to where. We keep that access (encrypted, §4.1), the address of their
@@ -939,6 +949,7 @@ target. We show you the target before anything is written.
 | The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
 | Preflight counts | With the migration they were counted for: until you delete it, or your data is erased. |
 | What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
+| The people you migrate for: each one's name, and an email address if you gave one (§4.6) | Until you delete that person, or your data is erased. Deleting a migration does not delete the person. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |
 | A pass's log lines | 60 days. |
 | The app's own errors and warnings (a category and a reference, no text) | 30 days. |

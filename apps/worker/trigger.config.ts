@@ -52,6 +52,14 @@ export default defineConfig({
   // re-deploy.
   disableConsoleInterceptor: true,
   dirs: ['./src/jobs'],
+  // EVERY TASK NAMES ITS MACHINE (workplan 0143 T1 step 2). The plane's own
+  // default was `small-1x` too, half a CPU and 512 MB, enforced on the
+  // container, and nobody had chosen it. The owner chose it on 2026-09-28
+  // (0143, open question 7), and the stacks' caps are counted in it. A copy
+  // pass and a discovery count name theirs as well, beside what they were
+  // measured at. A change here takes a task re-deploy, and changes what the
+  // caps in `managed.env.example` must be counted in.
+  machine: 'small-1x',
   // Verification counts and samples a real mailbox; an hour is generous
   // headroom, not an expectation.
   maxDuration: 3600,
