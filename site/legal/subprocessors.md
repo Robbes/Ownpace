@@ -42,9 +42,11 @@
        keeps these logs for 7 days. The row names the log, what it holds and the 7 days, as
        privacy §7's does; whether NetBird's agreement states the 7 days is for the lawyer's
        pass. The documentation also lists the signed-in user's ID where NetBird's own sign-in
-       (SSO) is on. It is on now for the ownpace.eu hosts, to keep them private until launch,
-       and goes off on every one of them before the first invitation (the owner, 2026-09-28), so
-       the row names no user ID.
+       (SSO) is on. The owner: "No pin, but SSO on" (2026-09-28), for the hosts NetBird serves.
+       The row names no user ID, which holds only if SSO goes off on every one of them before
+       the first invitation, as proposed and awaiting the owner's confirmation ((d) of privacy's
+       to-do on NetBird); if the owner keeps SSO on for testers, the row names NetBird's sign-in
+       and the user ID first.
      - NetBird's own sources, read 2026-09-28 (privacy's briefing lists them, and the comment
        beside privacy §7 quotes them): the row's log gains the time and the size each way
        (docs, manage/reverse-proxy/access-logs: "Timestamp", "Bytes Uploaded", "Bytes
@@ -53,10 +55,10 @@
      - NetBird, the owner's answers to five questions, 2026-09-28 (privacy's to-do on NetBird,
        (a) to (e), records each): accepted on 2026-08-01; its data-processing agreement covers
        the proxy and its log ("It's covered"); the Where column keeps Germany (EU), the owner's
-       choice ("Take Germany, I'll ask later on"), while the owner asks NetBird; no NetBird
-       sign-in on any ownpace.eu host from the first invitation ("No pin, but SSO on", and SSO
-       off before the first invitation); and NetBird asked in writing about commercial use ("I
-       need to ask commercial usage."). The row does not change.
+       choice ("Take Germany, I'll ask later on"), while the owner asks NetBird; no PIN, and
+       SSO on ("No pin, but SSO on"), whether it goes off before the first invitation still to
+       ask the owner (below); and NetBird asked in writing about commercial use ("I need to ask
+       commercial usage."). The row does not change.
      - Proton: "yes"; the agreement is accepted for the account behind support@ownpace.eu,
        which is Archico B.V.'s, and Proton keeps the service's sent mail in it, which the row
        says. How long those copies stay is privacy §9's: the support-mail rule, until resolved
@@ -75,6 +77,11 @@
        NetBird has stated. If the answer puts the proxy, its log or such a sub-processor outside
        the EU, the row's Where and the opening name it. www.ownpace.eu did not resolve to
        NetBird that day, although the row names it (0132 T1e routes it).
+     - NetBird's sign-in ((d) of privacy's to-do on NetBird), before the first invitation: the
+       owner's "No pin, but SSO on" does not say whether SSO stays on for testers. To ask: should
+       it go off on app., id., status. and www.ownpace.eu before the first invitation (proposed,
+       and the row stands), or stay on for testers (the row then names NetBird's sign-in and the
+       user ID in its log)?
      - NetBird's own sub-processors: its trust center lists 18 entries (Apollo, Auth0, AWS,
        Azure, Datadog, GCP, GitHub, Grafana Cloud, HubSpot, Matomo, Microsoft Clarity twice,
        New Relic, OpenAI, OVHcloud, Plain, Stripe, UpCloud), each with no location, read on

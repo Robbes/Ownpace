@@ -102,9 +102,12 @@
     (manage/reverse-proxy/custom-domains). Who holds the certificate's key,
     and where, is not stated. Its trust center's "TLS 1.2 or newer" is a
     company-wide control that does not name the proxy, so the line claims
-    no TLS version for NetBird's side. NetBird's own sign-in is off on every
-    ownpace.eu host from the first invitation (privacy's to-do on NetBird,
-    (d)), so the line describes none.
+    no TLS version for NetBird's side. The line describes no NetBird
+    sign-in. The owner has NetBird's SSO on ("No pin, but SSO on",
+    2026-09-28); switching it off on every host NetBird serves before the
+    first invitation is proposed and awaits the owner's confirmation
+    (privacy's to-do on NetBird, (d)). If the owner keeps it on for
+    testers, the line names NetBird's sign-in and the user ID in its log.
   - Annex B against privacy §11 as its own pass words it, and against the
     code: row security binds the application's requests and, since #1323
     (d0138607, merged into this branch in c1413b53), the per-tenant background

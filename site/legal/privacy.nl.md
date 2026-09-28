@@ -362,9 +362,9 @@ machine die we zelf beheren, in Nederland.
      agreement were accepted on 2026-08-01. The owner's note: "NetBird GmbH ("NetBird")
      terminates the TLS, and uses WireGuard tunnel with the backend towards the hosting
      provider." Read as: to our machine, which no hosting company holds (above). The owner
-     pointed to https://trust.netbird.io and to
-     https://netbird.io/terms §3.1. Read 2026-09-28: the terms, https://netbird.io/privacy and
-     https://netbird.io/imprint; the trust center's data, from the API its page loads,
+     pointed to https://trust.netbird.io and to https://netbird.io/terms §3.1. Read 2026-09-28:
+     the terms, https://netbird.io/privacy and https://netbird.io/imprint; the trust center's
+     data, from the API its page loads,
      https://api.eu.scytale.ai/views/trust-center/public/page-data (the egress proxy here still
      refuses trust.netbird.io itself); and NetBird's documentation, https://docs.netbird.io, from
      its source, github.com/netbirdio/docs at 33d1b212. What they say:
@@ -394,10 +394,11 @@ machine die we zelf beheren, in Nederland.
        source IP geolocation", and, only where NetBird's own sign-in (SSO) is used, "The
        authenticated user's ID". "For the cloud version of NetBird, access logs are retained for
        7 days." (docs, manage/reverse-proxy/access-logs). The path holds a grant link's secret
-       (/grant/:link). SSO is on now for the ownpace.eu hosts, to keep them private until
-       launch ("No pin, but SSO on"), so for now the log also holds the signed-in user's ID. By
-       the owner's decision (2026-09-28) SSO is off on every one of them before the first
-       invitation, so the log keeps no user ID for testers, and the row names none.
+       (/grant/:link). The owner: "No pin, but SSO on" (2026-09-28), so while SSO is on the
+       log also holds the signed-in user's ID, which the row does not name. Proposed, awaiting
+       the owner's confirmation: SSO off on every host NetBird serves before the first
+       invitation, so the log keeps no user ID for testers and the row holds. If the owner keeps
+       SSO on for testers, the row names NetBird's sign-in and the user ID first.
      - Where: NOT STATED for the proxy or its log, in any source read. The docs: "`eu` is the
        proxy cluster region", and "NetBird operates multiple proxy clusters in different regions"
        (manage/reverse-proxy/custom-domains); NetBird's own clusters run "Wherever the platform
@@ -418,8 +419,8 @@ machine die we zelf beheren, in Nederland.
      The "Where" column keeps Germany (EU), where NetBird GmbH is: the owner's choice, pending
      the owner's question to NetBird (the privacy briefing's to-do on NetBird, (c)). If NetBird's
      answer puts the proxy, its log, or a sub-processor of NetBird's that receives either, outside
-     the EU, "Where" and §8 name it. Before the first invitation, NetBird's sign-in is off on
-     every ownpace.eu host ((d) there). -->
+     the EU, "Where" and §8 name it. Before the first invitation, either NetBird's sign-in is off
+     on every host it serves, as proposed, or the row names it ((d) there, awaiting the owner). -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
