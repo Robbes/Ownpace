@@ -3334,6 +3334,14 @@ worker bundles** — in practice `packages/connectors`, `packages/engines`,
 `packages/orchestration`, `packages/shared`, which is most changes that are not
 purely web. When in doubt, run it: it is idempotent and costs a minute.
 
+**`deploy-tasks.sh` installs this checkout's packages first**
+(`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
+own inside their builds, but the tasks are bundled on this machine from its own
+`node_modules`. Before this step, a pull that changed a dependency rebuilt the
+images and then stopped here: `Could not resolve "undici/…"`, with the api and
+web on the new code and every pass on the old bundle. So `pnpm` must be on this
+machine's PATH; the script refuses by name when it is not.
+
 `set-task-env.sh` is a **different** question and a rarer one. Task containers
 inherit nothing from compose, so the environment is uploaded separately — run
 it only when a value in `.env` that the worker reads has changed (see phase 9).
