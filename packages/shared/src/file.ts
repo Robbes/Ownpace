@@ -105,9 +105,10 @@ export interface FileItem {
    * (workplan 0042 T10, the owner's decision of 2026-09-23): the source's own
    * id, which a rename does not change.
    *
-   * Set only for a Google document, whose every pass copies a fresh export:
-   * two exports of an unchanged document are not byte-identical once the
-   * format is a zip. Where they still are (PDF, SVG), the pair is recorded as
+   * Set only for a document a provider exports: a Google document, whose
+   * every pass copies a fresh export, and two exports of an unchanged document
+   * are not byte-identical once the format is a zip; and, since workplan 0150
+   * T3, a Dropbox Paper doc, whose exports nobody promised are the same twice. Where they still are (PDF, SVG), the pair is recorded as
    * a bytes pair, as before. For every other file the bytes pair a rename, as
    * ADR-0030 has always done, and this stays absent.
    */
@@ -164,8 +165,8 @@ export interface RawFileItem {
    * stored — ADR-0046, workplan 0042 T7.
    *
    * Set only by a source that asked a provider to render something that has no
-   * bytes of its own: today that is Google Drive's `files.export` branch and
-   * nothing else. It changes how `contentHash` is computed, and the NARROWNESS
+   * bytes of its own: Google Drive's `files.export` branch and, since workplan
+   * 0150 T4, Dropbox's `files/export`, and nothing else. It changes how `contentHash` is computed, and the NARROWNESS
    * is the whole safety argument.
    *
    * WHY IT MATTERS. A Google Doc has no bytes; the export comes back in a

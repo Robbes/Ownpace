@@ -182,7 +182,11 @@ describe("what the seed's own failure is read as", () => {
     const res = run("auth");
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("is not the password the role");
-    expect(res.stderr).toContain("ALTER ROLE openmigrate PASSWORD :'pw';");
+    // The remedy is a script that syncs both roles to .env by the owner's
+    // real name, not a recipe that named `openmigrate` whatever the owner
+    // was called (0132 T2; rotate-db-passwords.unit.test.ts runs it renamed).
+    expect(res.stderr).toContain("rotate-db-passwords.sh --sync");
+    expect(res.stderr).toContain("the owner 'openmigrate'");
     // Nothing swallowed: the seed's own words are still printed.
     expect(res.stdout).toContain("password authentication failed");
   });
@@ -190,7 +194,7 @@ describe("what the seed's own failure is read as", () => {
   it("does not read a non-credential failure as drift", () => {
     const res = run("other");
     expect(res.stdout).toContain("ECONNREFUSED");
-    expect(res.stderr).not.toContain("ALTER ROLE");
+    expect(res.stderr).not.toContain("rotate-db-passwords.sh");
   });
 
   it("exits with the seed's status, not one of its own", () => {
@@ -205,7 +209,7 @@ describe("what the seed's own failure is read as", () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("seeded tenant A");
     expect(res.stdout).toContain("expire in 7 days");
-    expect(res.stderr).not.toContain("ALTER ROLE");
+    expect(res.stderr).not.toContain("rotate-db-passwords.sh");
   });
 
   it("never asks Postgres a question the trust line would answer for it", () => {

@@ -121,22 +121,16 @@ if [ "$seed_rc" -ne 0 ]; then
       echo "       the volume HOLDS."
       echo
       echo "       .env is the declaration everything else reads — the API, the pooler's"
-      echo "       auth_query, Zitadel's admin connection — so move the database to it."
-      echo "       From ${SCRIPT_DIR}:"
+      echo "       auth_query, Zitadel's admin connection — so move the database to it:"
       echo
-      cat <<'REMEDY'
-export NEWPG="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | head -1)"
-docker compose -f managed.yml exec -T -e NEWPG postgres psql -U openmigrate -d openmigrate <<'SQL'
-\set pw `printf '%s' "$NEWPG"`
-ALTER ROLE openmigrate PASSWORD :'pw';
-SQL
-unset NEWPG
-REMEDY
+      echo "           ${SCRIPT_DIR}/rotate-db-passwords.sh --sync"
       echo
-      echo "       The local socket inside the container is trusted, which is why that"
-      echo "       works without the password you no longer have. Nothing else needs"
-      echo "       changing: pgbouncer/userlist.txt holds only the powerless lookup role"
-      echo "       and reads every other verifier from Postgres through auth_query."
+      echo "       It sets the owner '${PGUSER_NAME}' and app_user to the values in .env,"
+      echo "       over the container's socket (which is trusted, so it works without the"
+      echo "       password you no longer have), proves both over the network, and prints"
+      echo "       no value. Nothing else needs changing: pgbouncer/userlist.txt holds only"
+      echo "       the powerless lookup role and reads every other verifier from Postgres"
+      echo "       through auth_query."
     } >&2
     ;;
   esac

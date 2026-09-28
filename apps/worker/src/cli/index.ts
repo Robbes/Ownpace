@@ -364,7 +364,7 @@ async function main() {
     // the data types the migration has, each against its own target, or the
     // one this cutover is of. A closure so nothing connects to a target unless
     // `verify` asks for it.
-    runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId, kind),
+    runDataVerification: () => runCutoverGate(pool, tenantId, mappingId, kind),
   };
 
   switch (command) {
