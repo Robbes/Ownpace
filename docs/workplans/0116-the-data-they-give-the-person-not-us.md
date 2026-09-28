@@ -16,10 +16,11 @@ and not one is for Google Photos; the only photo-shaped ones are still `maps.pho
 `streetview.imagery`. Takeout remains the only complete route to a photo library, so nothing
 here changes T3a or T9. §"One claim not checked" is checked: Google's Photos API policy, read
 in full the same day, does forbid using the APIs for *"similar or competing products or
-services"*, beside an allowance for *"user-initiated export transfers"*; the text does not say
-which of the two a migration is, so the gate before any Picker route stands, with the owner.
-[0112](./0112-google-photos-through-takeout.md) §5, corrected the same day, says what the
-Picker actually hands over: no location, transcoded video, no albums or descriptions.
+services"*, beside an allowance for *"user-initiated export transfers"*, and does not say which
+of the two a migration is. It does not have to: [0112](./0112-google-photos-through-takeout.md)
+§5, corrected the same day, says what the Picker actually hands over — no location, transcoded
+video, no albums or descriptions — and the owner decided, the same day, that a Photos API that
+lacks data is not used (0112 T5 withdrawn, decision 7). Google Photos stays with Takeout.
 
 **2026-09-24: the wizard's control for `where: 'target'` comes before the relay (0148 D11).** The
 owner, answering 0148's open question 6: *"the wizard should be able to read a Takeout export from a
@@ -414,12 +415,13 @@ terms rather than a summary of them.
 similar or competing products or services"*, and *"Do not make a substitute for Google
 Photos."* The same page lists *"exporting"* among its approved uses and allows broad access to
 a library only for *"user-initiated export transfers"*. Which side of that line a migration
-into another photo service falls on, the text does not settle, so the gate stands — now
-against a text that has been read rather than a summary of it. The page names three more
+into another photo service falls on, the text does not settle — and on the same day the owner
+took the Picker off the table for a plainer reason: it lacks data (0112 T5, withdrawn; 0112
+decision 7). The question comes back only if a Picker route is ever proposed again, and then
+from a text that has been read rather than a summary of it. The page names three more
 documents that govern these APIs (the Google APIs Terms of Service, the Google Photos User
 Content and Conduct Policy, the UX guidelines), which were not read.
-[0112](./0112-google-photos-through-takeout.md) §5 quotes the rest, beside its T5, the Picker
-button.
+[0112](./0112-google-photos-through-takeout.md) §5 quotes the rest, beside its withdrawn T5.
 
 ## The two providers are not the same shape
 

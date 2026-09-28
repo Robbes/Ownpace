@@ -1,8 +1,19 @@
 # Workplan 0112 — Google Photos, through Takeout
 
-> **In one line:** Superseded by 0116; planned Google Photos migration through Takeout archives: a reader pairing media with JSON sidecars, a `google-photos-archive` source, albums as folders on Nextcloud, the two-monthly incremental pickup and a Picker API button.
+> **In one line:** Superseded by 0116; planned Google Photos migration through Takeout archives: a reader pairing media with JSON sidecars, a `google-photos-archive` source, albums as folders on Nextcloud, the two-monthly incremental pickup, and why the Picker API is not used.
 
 ## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28, later: T5 withdrawn by the owner — Google Photos stays with Takeout.** Asked
+whether T5 should wait on a reading of Google's policy, the owner answered with a rule: *"if
+the Google's Photos APIs for T5 is usable for us at all, then: yes we can use it. If i lacks
+data or is not useable for us, then we dont use it and stay with takeout for Photo's."* The
+entry below already holds the answer: the Picker lacks data — no location on a photo, a
+transcoded copy of a video, no album or description on any item — so T5 is withdrawn (⛔), and
+the policy question needs no answer. The Picker had been weighed before (§"The facts",
+2026-09-02) and kept only as an optional button; what this day added is the data it drops. §5
+stays as the record of why, decision 7 records the rule, and 0116's §"One claim not checked"
+says the same.
 
 **2026-09-28: the Picker does not hand over the originals, and this plan said it did.** T5's
 row, the Picker row of §"The facts" and §5 said the product would download *the originals*
@@ -49,7 +60,7 @@ to be decided before T1 starts; T0 is that decision.
 | T2 The `google-photos-archive` source kind | 📋 Planned (needs T1) | A source whose credential is an archive's location, not an account: a file uploaded, or a file in a Drive or Dropbox the product already reaches. Front door, wizard, connection card, probe (opens the archive, counts), Measured line (items, bytes). |
 | T3 Metadata into the copy, albums as folders | 📋 Planned (needs T2, decision 4) | On write to the file target: taken time and location from the sidecar into the copy's EXIF where the original lacks them; albums as folders; the original bytes in the archive never touched. |
 | T4 The two-monthly pickup | 📋 Planned (needs T2) | The person schedules Takeout's incremental export into Drive or Dropbox once; the product notices each new archive on its existing schedule and imports only what is new, idempotent by content hash. The guide walks the schedule. |
-| T5 Hand over a selection (Picker API) | 📋 Optional (needs T2) | A button for the gap between exports: the person picks in Google's picker, the product downloads what the picker hands over — **not the originals with their data** (corrected 2026-09-28): a photo comes without its location, a video comes transcoded, and no item carries its albums or description. Capped by Google at 2,000 items a session; never a sync. Before it is built, Google's Photos API policy is read again and weighed (§5). |
+| T5 Hand over a selection (Picker API) | ⛔ **Withdrawn 2026-09-28, by owner decision** | The Picker lacks data: a photo comes without its location, a video comes transcoded, and no item carries its albums or description (§"The facts", §5). The owner's rule (decision 7): *"If i lacks data or is not useable for us, then we dont use it and stay with takeout for Photo's."* So Google Photos stays with Takeout. Was: a button for the gap between exports, capped by Google at 2,000 items a session, never a sync; it said the product would download *the originals*, which the Picker never hands over (corrected the same day). |
 | T6 Measure before the move | 📋 Planned (needs T1) | The archive's own numbers on the Measured line: items, bytes, albums, the export's date range — and the note that a Takeout archive is a snapshot with a date. |
 
 ## Why this exists
@@ -75,14 +86,16 @@ frequency**. Both are reachable, with two hard limits that are Google's and not 
 
 The two limits that no design below can remove: **deletions do not propagate** (Takeout
 exports what exists; it says nothing about what was removed), and **the floor is two
-months** (Takeout's schedule; the Picker fills the gap by hand, not by schedule).
+months** (Takeout's schedule; the Picker could only have filled the gap by hand, and it is not
+used — T5 was withdrawn on 2026-09-28, §5).
 
 ## The decision this plan recommends
 
 **Build on Takeout, as an archive source, with the two-monthly pickup as the sync.** It is the
 only route that reaches the whole library with its data, and its incremental schedule is a real
 sync with a frequency — a slow one. The Picker API is worth a button for a recent trip; it is
-not a migration and must never be sold as one.
+not a migration and must never be sold as one. *2026-09-28: not even the button — the Picker
+drops the location, the original video and the albums, and T5 is withdrawn (§5, decision 7).*
 
 What "similar level" honestly means under this design:
 
@@ -161,6 +174,11 @@ appears, the import runs. Nothing is polled at Google itself.
 
 ### 5. The Picker, for the gap
 
+**Withdrawn 2026-09-28 by the owner: the Picker is not used, and Google Photos stays with
+Takeout** (T5, decision 7). The rule the owner gave: use the Photos APIs if they are usable
+for us, and not if they lack data. They lack it, as the second paragraph below records; the
+section is kept as the reason.
+
 T5 is a button on a photos connection: it opens Google's picker, the person selects, and the
 product downloads each picked item into the same tree through the same ledger. It exists
 because two months is long; it is capped at 2,000 items a press by Google and requires a
@@ -174,13 +192,13 @@ description or location field to read instead. So a picked photo arrives without
 the Takeout sidecar would have given it, a video arrives re-encoded, and neither arrives in
 its album. Where the bytes differ from the original's — every video, and every photo that had
 a location — the content hash §4 keys each item on will not match the original when the next
-Takeout brings it. That is this plan's own reason for keeping T5 optional, made stronger: the
-picker hands over a lesser copy of what the next export carries in full.
+Takeout brings it. That was already this plan's reason for keeping T5 optional, and it is why
+T5 is withdrawn: the picker hands over a lesser copy of what the next export carries in full.
 
-**Google's Photos API policy is read again, and weighed, before T5 is built.** The *Photos
-API User Data and Developer Policy* (<https://developers.google.com/photos/support/api-policy>,
-last updated 2025-08-28) was read in full on 2026-09-28, after a search snippet of it surfaced
-*"user-initiated export transfers"*. Three passages bear on T5, quoted rather than interpreted:
+**Google's Photos API policy, as read that day.** The *Photos API User Data and Developer
+Policy* (<https://developers.google.com/photos/support/api-policy>, last updated 2025-08-28)
+was read in full on 2026-09-28, after a search snippet of it surfaced *"user-initiated export
+transfers"*. Three passages bore on T5, quoted rather than interpreted:
 
 - the approved use cases are *"Applications or services for storing, editing, printing,
   exporting, and sharing images and videos"*;
@@ -193,12 +211,13 @@ last updated 2025-08-28) was read in full on 2026-09-28, after a search snippet 
   Photos."*
 
 Whether copying a person's picks into Nextcloud or Immich counts as *exporting* or as serving
-a *competing product* is not something the text settles; it is the owner's call before T5
-starts. The page also sets disclosure, consent, Limited Use and security requirements an app
-must meet, and names three more documents that govern these APIs — the Google APIs Terms of
-Service, the Google Photos User Content and Conduct Policy, and the UX guidelines — none of
-which was read here. It is the same gate as 0116's §"One claim not checked, and it would
-matter", about the Photos API terms.
+a *competing product* is not something the text settles. The owner's decision made the
+question moot: it comes back only if a Picker route is ever proposed again, and then it starts
+from these quotes. The page also sets disclosure, consent, Limited Use and security
+requirements an app must meet, and names three more documents that govern these APIs — the
+Google APIs Terms of Service, the Google Photos User Content and Conduct Policy, and the UX
+guidelines — none of which was read here. 0116's §"One claim not checked, and it would
+matter", about the Photos API terms, records the same.
 
 ## The owner's decisions
 
@@ -219,13 +238,19 @@ matter", about the Photos API terms.
 6. **Whether the two-month sync is offered as "sync" at all.** Recommendation: call it what
    Google makes it — *a scheduled export the product picks up* — and never the word the
    other faces use, so nobody expects deletions to follow.
+7. **Whether the Picker is used at all (T5).** Decided by the owner on 2026-09-28, as a rule:
+   *"if the Google's Photos APIs for T5 is usable for us at all, then: yes we can use it. If i
+   lacks data or is not useable for us, then we dont use it and stay with takeout for
+   Photo's."* It lacks data (§5), so the Picker is not used, and Takeout is the route for
+   Google Photos.
 
 ## Not in this plan
 
 - Google Photos as a live face on the Google account kind. Google closed that route on
   31 March 2025; the guide already says so.
 - Deletions. No route reports them; a person's target keeps what Google no longer has.
-- Anything faster than the Takeout floor, beyond the Picker button.
+- Anything faster than the Takeout floor. (Until 2026-09-28 this said "beyond the Picker
+  button"; T5 is withdrawn, §5, decision 7.)
 - Device backups (Android's own; the guide already says they stay where they are).
 - Immich as a target kind (decision 2's runner-up; its own plan when chosen).
 
