@@ -1168,6 +1168,24 @@ found by somebody eventually reading the right table by hand.
 ./deploy/compose/operator.sh clean <kind> --confirm      # do it
 ```
 
+One check is a precondition rather than a tidy-up: `check role-below-admin`
+lists every membership whose role is `member` or `viewer` (organisation,
+address, role, status), prints `none` when there is none, and exits non-zero
+while there is one. A declined or removed row grants nothing and is not listed.
+Until every write route names its roles, those two roles promise less than they
+allow, and the product no longer grants them (workplan 0137 T7). Run it on
+`ownpace-live` before the first invitation, from live's own checkout, because
+`operator.sh` drives whichever stack the checkout's `.env` names (0132 D7):
+
+```bash
+cd ~/ownpace-live && ./deploy/compose/operator.sh check role-below-admin
+```
+
+Because it gates a step, the full `check` exits 1 too while `role-below-admin`
+finds anything, and `pnpm` then prints its own failure after the report
+(`ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL … Exit status 1` with the pinned pnpm 11).
+The report above that line is still the whole answer, and it wrote nothing.
+
 `check` writes nothing and each finding is printed with the statement or command
 that resolves it. Most kinds are **report-only**: choosing who owns a customer's
 organisation, or withdrawing somebody's invitation, is a decision the script must
