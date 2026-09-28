@@ -33,8 +33,9 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask, logger } from '@trigger.dev/sdk';
-import { tenantCutoverStore, mappingLifecyclePort, auditExportOn, pgDriver } from '@openmig/ledger';
+import { schemaTask } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
+import { tenantCutoverStore, mappingLifecyclePort, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
@@ -42,7 +43,7 @@ import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { asTenantId, asMappingId, renderEvent } from '@openmig/shared';
 import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
-import { log, setAuditExportSink } from '@openmig/shared';
+import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { notifierFromEnv } from '@openmig/connectors';
 
 // Job input schema
@@ -70,7 +71,7 @@ export const runRollback = schemaTask({
   id: 'run-rollback',
   description: 'Rollback',
   schema: RollbackJobSchema,
-  run: async (payload: unknown) => {
+  run: leavesAReference('run-rollback', async (payload: unknown) => {
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
 
@@ -103,6 +104,9 @@ export const runRollback = schemaTask({
     const pool = new Pool({ connectionString: dbUrl });
     // Each audit event this run records, also as one JSON line on its output (0129 T4).
     setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+    // Its errors go to the operator's log page too (0129 T1), under the reference
+    // its failure carries in the plane (0134, open question 3 (a)).
+    setAppEventSink(appEventSinkOn(pgDriver(pool)));
     const db = drizzle(pool, { schema: schemaPg });
     // The cutover ledger is row-secured since migration 0055: every call
     // inside `withTenant`, or a non-superuser session reads nothing.
@@ -113,7 +117,7 @@ export const runRollback = schemaTask({
       // not claim a restore that did not happen; the operator reverts the MX
       // record manually.
       if (options.restoreDns && options.dnsDomain) {
-        logger.warn(
+        log.warn(
           `DNS restore for ${options.dnsDomain} is DEFERRED (verify-only DNS) — revert the MX record manually.`,
         );
       }
@@ -128,9 +132,10 @@ export const runRollback = schemaTask({
         }),
         rolledBackBy: 'trigger-job',
         reason,
-        // `logger` from the SDK, not `ctx.logger`: Trigger.dev v4's
-        // TaskRunContext carries run metadata only and has no logger.
-        log: (message) => logger.info(message),
+        // The shared log, not `ctx.logger`: Trigger.dev v4's TaskRunContext
+        // carries run metadata only and has no logger. Nor the SDK's, which
+        // writes into Trigger.dev's own database (0134, open question 3 (a)).
+        log: (message) => log.info(message),
         ...(options.notifyUsers
           ? {
               notify: async () => {
@@ -165,16 +170,16 @@ export const runRollback = schemaTask({
       // has been told — say so loudly rather than let "success" imply it.
       if (typeof outcome.notified === 'object') {
         log.error('Rollback notification FAILED to send', { error: outcome.notified.failed });
-        logger.error(
+        log.error(
           `The rollback succeeded but its notification did not send: ${outcome.notified.failed}. ` +
             'Nobody has been told — tell them by hand.',
         );
       } else if (outcome.notified === 'sent') {
-        logger.info('Rollback notification sent');
+        log.info('Rollback notification sent');
       }
 
       log.info('Rollback completed successfully');
-      logger.info('Rollback completed successfully');
+      log.info('Rollback completed successfully');
 
       return {
         success: true,
@@ -190,13 +195,13 @@ export const runRollback = schemaTask({
         // Nothing was written. A refused rollback is not a failed cutover,
         // and marking it FAILED would turn "we did not do this" into "we
         // tried and broke it" in the event trail.
-        logger.error(`Rollback refused: ${error.message}${error.hint ? ` ${error.hint}` : ''}`);
+        log.error(`Rollback refused: ${error.message}${error.hint ? ` ${error.hint}` : ''}`);
         throw error;
       }
 
       const err = error as Error;
       log.error('Rollback failed', { error: err.message });
-      logger.error(`Rollback failed: ${err.message}`);
+      log.error(`Rollback failed: ${err.message}`);
 
       // Try to log the failure even if rollback failed
       try {
@@ -213,5 +218,5 @@ export const runRollback = schemaTask({
       // Always release the Postgres pool (never leak it across job runs).
       await pool.end();
     }
-  },
+  }),
 });

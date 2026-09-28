@@ -17,6 +17,7 @@
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
+import { leavesAReference, outcomesForThePlane } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { discoverSource } from '@openmig/core';
 import type {
@@ -25,11 +26,11 @@ import type {
   TenantId,
   MappingId,
 } from '@openmig/shared';
-import { withTenant, PgDiscoveryStore, auditExportOn, pgDriver } from '@openmig/ledger';
+import { withTenant, PgDiscoveryStore, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
-import { DISCOVERY_DOMAINS, log, setAuditExportSink } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 
 /**
  * The sync domains, from the one list (workplan 0113 T5).
@@ -57,6 +58,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 /** Best-effort per-item byte size from a listing item (mail/file carry `.size`). */
 function sizeOf(item: unknown): number | undefined {
@@ -263,7 +267,7 @@ export const runDiscovery = schemaTask({
   description: 'Pre-sync discovery (read-only counts)',
   schema: DiscoveryJobSchema,
   queue: discoveryQueue,
-  run: async (payload: unknown, _context) => {
+  run: leavesAReference('run-discovery', async (payload: unknown, _context) => {
     const typed = payload as DiscoveryJobPayload;
     if (!typed.tenantId) {
       throw new Error('tenantId is required in job payload');
@@ -276,9 +280,15 @@ export const runDiscovery = schemaTask({
 
     const store = tenantScopedStore(pool);
     const tasks = domains.map((domain) => buildTask(pool, tenantId, mappingId, domain));
-    const outcomes = await discoverDomains(tasks, store, tenantId, mappingId);
+    // What the plane keeps of a data type this could not count: its category
+    // and a reference, never the error's words (0134, open question 3 (a)).
+    // The words are in discovery's own row, where the wizard reads them.
+    const outcomes = await outcomesForThePlane(
+      await discoverDomains(tasks, store, tenantId, mappingId),
+      { task: 'run-discovery', tenantId, mappingId },
+    );
 
     log.info('Discovery complete', { outcomes });
     return { outcomes };
-  },
+  }),
 });

@@ -30,6 +30,7 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { schedules } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
@@ -40,12 +41,12 @@ import {
   pruneAppEvents,
   retentionDaysFromEnv,
   runRetentionDaysFromEnv,
-  auditExportOn,
+  appEventSinkOn, auditExportOn,
   pgDriver,
   type PgDatabase,
 } from '@openmig/ledger';
 import { pruneDeclinedAccessRequests } from '@openmig/managed';
-import { log, setAuditExportSink } from '@openmig/shared';
+import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -54,11 +55,14 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 export const managedRetention = schedules.task({
   id: 'managed-retention',
   cron: '17 3 * * *',
-  run: async () => {
+  run: leavesAReference('managed-retention', async () => {
     const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
     const now = new Date();
     const days = retentionDaysFromEnv(process.env.LEDGER_RETENTION_DAYS);
@@ -136,5 +140,5 @@ export const managedRetention = schedules.task({
       appEventsDeleted: events.deleted,
       declinedRequestsDeleted: declined.deleted,
     };
-  },
+  }),
 });
