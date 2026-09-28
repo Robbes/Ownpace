@@ -94,6 +94,31 @@ echo "[deploy-tasks] CLI/SDK version: ${CLI_VERSION}  instance: ${TRIGGER_URL}  
 
 : "${TRIGGER_PROJECT_REF:?Set TRIGGER_PROJECT_REF in deploy/compose/.env — the proj_… ref from the dashboard project settings}"
 
+# THE TASKS ARE BUNDLED FROM THIS CHECKOUT'S node_modules, SO THEY ARE
+# INSTALLED FIRST (the owner, 2026-09-28: "yes, make deploy-tasks.sh run pnpm
+# install").
+#
+# The api and web images install their own packages inside their builds. The
+# tasks do not: `trigger.dev deploy` bundles them with esbuild on this host,
+# from what is installed here. So after a `git pull` that changed a dependency,
+# the images rebuilt fine and this script stopped, with the api and web on the
+# new code and every pass still on the old bundle. On the OTA stack, a checkout
+# last installed before `packages/shared` took undici (workplan 0136) stopped
+# at `Could not resolve "undici/lib/dispatcher/agent.js"` (workplan 0150 T8).
+# The runbook's update steps never said to install, and nothing here did.
+#
+# `--frozen-lockfile`: the lockfile decides. One that disagrees with a
+# package.json stops the deploy here instead of being rewritten on a server.
+# When nothing changed it takes seconds, so it runs every time.
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "[deploy-tasks] ERROR: pnpm is not on PATH. The tasks are bundled from this" >&2
+  echo "               checkout's node_modules, and pnpm installs them. Install it" >&2
+  echo "               (corepack enable), then re-run this script." >&2
+  exit 1
+fi
+echo "[deploy-tasks] installing this checkout's packages (pnpm install --frozen-lockfile)..."
+(cd "${REPO_ROOT}" && pnpm install --frozen-lockfile)
+
 # The CLI version and the INSTALLED SDK must be the same, or the deploy stops
 # and asks a question.
 #
@@ -110,7 +135,8 @@ echo "[deploy-tasks] CLI/SDK version: ${CLI_VERSION}  instance: ${TRIGGER_URL}  
 # Refused rather than suppressed: the condition is a stale install, and the fix
 # is to install. Suppressing the prompt would deploy an image built against one
 # SDK from a checkout pinning another, which is the drift 0018 T0 exists to
-# prevent.
+# prevent. The install above now makes this rare; it stays for an install that
+# left the pinned SDK out.
 INSTALLED_SDK="$(node -p "require('${REPO_ROOT}/apps/worker/node_modules/@trigger.dev/sdk/package.json').version" 2>/dev/null || echo '')"
 if [ -z "$INSTALLED_SDK" ]; then
   echo "[deploy-tasks] ERROR: @trigger.dev/sdk is not installed in apps/worker." >&2
