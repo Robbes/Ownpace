@@ -103,11 +103,10 @@
     and where, is not stated. Its trust center's "TLS 1.2 or newer" is a
     company-wide control that does not name the proxy, so the line claims
     no TLS version for NetBird's side. The line describes no NetBird
-    sign-in. The owner has NetBird's SSO on ("No pin, but SSO on",
-    2026-09-28); switching it off on every host NetBird serves before the
-    first invitation is proposed and awaits the owner's confirmation
-    (privacy's to-do on NetBird, (d)). If the owner keeps it on for
-    testers, the line names NetBird's sign-in and the user ID in its log.
+    sign-in: NetBird's SSO, on for the hosts NetBird serves ("No pin, but
+    SSO on", 2026-09-28), goes off on every ownpace.eu host before the
+    first invitation, the owner's choice ("Off everywhere at launch";
+    privacy's to-do on NetBird, (d)).
   - Annex B against privacy §11 as its own pass words it, and against the
     code: row security binds the application's requests and, since #1323
     (d0138607, merged into this branch in c1413b53), the per-tenant background

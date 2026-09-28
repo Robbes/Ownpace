@@ -395,10 +395,9 @@ machine die we zelf beheren, in Nederland.
        authenticated user's ID". "For the cloud version of NetBird, access logs are retained for
        7 days." (docs, manage/reverse-proxy/access-logs). The path holds a grant link's secret
        (/grant/:link). The owner: "No pin, but SSO on" (2026-09-28), so while SSO is on the
-       log also holds the signed-in user's ID, which the row does not name. Proposed, awaiting
-       the owner's confirmation: SSO off on every host NetBird serves before the first
-       invitation, so the log keeps no user ID for testers and the row holds. If the owner keeps
-       SSO on for testers, the row names NetBird's sign-in and the user ID first.
+       log also holds the signed-in user's ID, which the row does not name. The owner then chose
+       "Off everywhere at launch": SSO off on every ownpace.eu host (app., id., status. and www.)
+       before the first invitation, so the log keeps no user ID for testers and the row names none.
      - Where: NOT STATED for the proxy or its log, in any source read. The docs: "`eu` is the
        proxy cluster region", and "NetBird operates multiple proxy clusters in different regions"
        (manage/reverse-proxy/custom-domains); NetBird's own clusters run "Wherever the platform
@@ -419,8 +418,8 @@ machine die we zelf beheren, in Nederland.
      The "Where" column keeps Germany (EU), where NetBird GmbH is: the owner's choice, pending
      the owner's question to NetBird (the privacy briefing's to-do on NetBird, (c)). If NetBird's
      answer puts the proxy, its log, or a sub-processor of NetBird's that receives either, outside
-     the EU, "Where" and §8 name it. Before the first invitation, either NetBird's sign-in is off
-     on every host it serves, as proposed, or the row names it ((d) there, awaiting the owner). -->
+     the EU, "Where" and §8 name it. Before the first invitation, NetBird's sign-in is off on
+     every ownpace.eu host, the owner's choice ((d) there). -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|

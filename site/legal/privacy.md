@@ -218,8 +218,9 @@
   Status quotes each): NetBird's terms and data-processing agreement were
   accepted on 2026-08-01; the agreement covers the proxy and its log; §7's
   "Where" stays Germany (EU), the owner's choice, while the owner asks
-  NetBird; no PIN, and NetBird's sign-in (SSO) on ("No pin, but SSO on"),
-  whether it goes off before the first invitation still to ask the owner;
+  NetBird; no PIN, and NetBird's sign-in (SSO) on for the hosts NetBird
+  serves ("No pin, but SSO on"), and off on every ownpace.eu host before
+  the first invitation, the owner's choice ("Off everywhere at launch");
   and NetBird is asked in writing about commercial use. No rendered
   sentence changes: the comment beside §7 and the to-do on NetBird, below,
   record them.
@@ -358,11 +359,10 @@
     documentation say, with each address, is in the comment beside §7. The
     owner answered five questions on what none of them states on
     2026-09-28 (0139 Status quotes each answer). (a) and (b) are recorded.
-    (d) is recorded in the owner's words, and what follows from it is still
-    to ask the owner, before the first invitation (Live, below). (c) and
-    (e) are the owner's questions to NetBird (legal@netbird.io, its privacy
-    policy's contact), and what (b) leaves is the lawyer's; none of these
-    blocks the first invitation:
+    (d) is the owner's decision, and a step before the first invitation
+    (Live, below). (c) and (e) are the owner's questions to NetBird
+    (legal@netbird.io, its privacy policy's contact), and what (b) leaves
+    is the lawyer's; none of these blocks the first invitation:
     (a) Its terms and data-processing agreement were accepted on
         2026-08-01.
     (b) Its data-processing agreement, the PDF "Data Processing Agreement
@@ -392,16 +392,17 @@
         PIN, and NetBird's sign-in (SSO) on for the hosts NetBird serves.
         With SSO on, NetBird's sign-in sits in the visitor's path and its
         log also keeps the signed-in user's ID; §7's row names neither.
-        The owner's words do not say whether SSO stays on for testers. To
-        ask the owner: "Should NetBird's SSO go off on app., id., status.
-        and www.ownpace.eu before the first invitation, or stay on for
-        testers?" Proposed, awaiting that answer: off on every host NetBird
-        serves before the first invitation, with no other NetBird sign-in
-        (password or PIN) in its place, so §7's row holds as it stands
-        (Live, below). If the owner keeps SSO on for testers, §7's row in
-        both languages, subprocessors.md's row and dpa.md's Annex B line
-        name NetBird's sign-in and the user ID in its log before the first
-        invitation, and the step under Live goes.
+        Asked which hosts sit behind it and whether that changes before
+        the first tester is invited, the owner chose "Off everywhere at
+        launch": SSO off on every ownpace.eu host, app., id., status. and
+        www.ownpace.eu, before the first invitation. No other NetBird
+        sign-in (password or PIN) takes its place, so no NetBird sign-in
+        sits in the visitor's path, NetBird's log keeps no user ID for
+        testers, and §7's row holds as it stands. A precondition for the
+        first invitation (Live, below). If SSO were ever kept on for a
+        host testers use, §7's row in both languages, subprocessors.md's
+        row and dpa.md's Annex B line would have to name NetBird's sign-in
+        and the user ID in its log.
     (e) NetBird's terms §3.1 forbid to "Resell, sublicense, or commercially
         exploit Hosted Proxy Services unless explicitly authorized in
         writing by NetBird". The owner asks NetBird in writing (the owner:
@@ -414,11 +415,10 @@
     REPORT_MAIL_TO at support@ownpace.eu (ops-notify-addresses (a)); usage
     reports off in the task runner, and Zitadel, ClickHouse and MinIO checked
     (ops-telemetry (a)); the log driver checked (ops-log-driver (a));
-    proposed, awaiting the owner (NetBird (d), above): NetBird's sign-in
-    off on app., id., status. and www.ownpace.eu before the first
-    invitation, checked from outside the NetBird network: a request to each
-    host is answered by the app or the site itself, not by NetBird's
-    sign-in page.
+    NetBird's sign-in off on app., id., status. and www.ownpace.eu before the
+    first invitation, the owner's choice, checked from outside the NetBird
+    network: a request to each host is answered by the app or the site
+    itself, not by NetBird's sign-in page (NetBird (d), above).
   - Build: the close stopping the work already running, so that §9's
     Credentials row holds, or the row reworded to what the code does (terms
     briefing, precondition B); the copy before an update and its deletion
@@ -805,10 +805,9 @@ machine we administer ourselves, in the Netherlands.
        authenticated user's ID". "For the cloud version of NetBird, access logs are retained for
        7 days." (docs, manage/reverse-proxy/access-logs). The path holds a grant link's secret
        (/grant/:link). The owner: "No pin, but SSO on" (2026-09-28), so while SSO is on the
-       log also holds the signed-in user's ID, which the row does not name. Proposed, awaiting
-       the owner's confirmation: SSO off on every host NetBird serves before the first
-       invitation, so the log keeps no user ID for testers and the row holds. If the owner keeps
-       SSO on for testers, the row names NetBird's sign-in and the user ID first.
+       log also holds the signed-in user's ID, which the row does not name. The owner then chose
+       "Off everywhere at launch": SSO off on every ownpace.eu host (app., id., status. and www.)
+       before the first invitation, so the log keeps no user ID for testers and the row names none.
      - Where: NOT STATED for the proxy or its log, in any source read. The docs: "`eu` is the
        proxy cluster region", and "NetBird operates multiple proxy clusters in different regions"
        (manage/reverse-proxy/custom-domains); NetBird's own clusters run "Wherever the platform
@@ -829,8 +828,8 @@ machine we administer ourselves, in the Netherlands.
      The "Where" column keeps Germany (EU), where NetBird GmbH is: the owner's choice, pending
      the owner's question to NetBird (the privacy briefing's to-do on NetBird, (c)). If NetBird's
      answer puts the proxy, its log, or a sub-processor of NetBird's that receives either, outside
-     the EU, "Where" and §8 name it. Before the first invitation, either NetBird's sign-in is off
-     on every host it serves, as proposed, or the row names it ((d) there, awaiting the owner). -->
+     the EU, "Where" and §8 name it. Before the first invitation, NetBird's sign-in is off on
+     every ownpace.eu host, the owner's choice ((d) there). -->
 
 | Sub-processor | What for | Where |
 |---|---|---|

@@ -159,12 +159,11 @@ comments still name them, to say what filled them.
   provider, and whether any of NetBird's own sub-processors receives either. If the answer puts
   the proxy, its log or such a sub-processor outside the EU, privacy §7's *Where*, privacy §8 and
   DPA §12 name it. An owner's to-do, not before the first invitation. (d) *"No pin, but SSO
-  on"*: no PIN, and NetBird's sign-in (SSO) on for the hosts NetBird serves. The owner's words do
-  not say whether SSO stays on for testers; that is still to ask the owner, before the first
-  invitation (*To build or to do*, below). Off is proposed, so that no NetBird sign-in sits in
-  front of the service and NetBird's log keeps no user ID for testers; kept on, privacy §7's row,
-  `subprocessors.md`'s row and DPA Annex B name NetBird's sign-in and the user ID first. (e)
-  Terms §3.1 say the Reverse Proxy cannot be used to *"Resell, sublicense, or
+  on"*: no PIN, and NetBird's sign-in (SSO) on for the hosts NetBird serves; then the owner's
+  choice, *"Off everywhere at launch"*: SSO off on every `ownpace.eu` host, `app.`, `id.`,
+  `status.` and `www.ownpace.eu`, before the first invitation (*To build or to do*, below), so
+  no NetBird sign-in sits in front of the service and NetBird's log keeps no user ID for testers.
+  (e) Terms §3.1 say the Reverse Proxy cannot be used to *"Resell, sublicense, or
   commercially exploit Hosted Proxy Services unless explicitly authorized in writing by
   NetBird"*. *Hosted Proxy Services* is not defined, and the terms do not say whether running
   one's own paid service behind the proxy is commercial exploitation. The owner: *"I need to ask
@@ -371,16 +370,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   *"still needs to be checked."*): remove a test account on the test stack and look at what
   stays. §9 now says the entries are kept as long as we run this sign-in service, because it
   cannot remove them; if the check shows they go, the comment beside §9 has the other wording.
-- *NetBird's sign-in, off or named* (privacy §7's row and the comment beside it; privacy's to-do
-  on NetBird, (d)): the owner, 2026-09-28, *"No pin, but SSO on"*, so NetBird's sign-in (SSO) is
-  on for the hosts NetBird serves. To ask the owner: *"Should NetBird's SSO go off on app., id.,
-  status. and www.ownpace.eu before the first invitation, or stay on for testers?"* Proposed,
-  awaiting that answer: off on every one of them, and no other NetBird sign-in (password or PIN)
-  in its place, so NetBird's log keeps no user ID for testers, as §7's row says. To check: from
-  outside the NetBird network, a request to each of the four hosts is answered by the app, the
-  sign-in service, the status page or the website itself, not by NetBird's sign-in page. If the
-  owner keeps SSO on for testers instead: privacy §7's row (both languages), `subprocessors.md`'s
-  row and DPA Annex B name NetBird's sign-in and the user ID in its log.
+- *No NetBird sign-in in front of the service* (privacy §7's row and the comment beside it;
+  privacy's to-do on NetBird, (d)): the owner, 2026-09-28, *"No pin, but SSO on"*, so NetBird's
+  sign-in (SSO) is on for the hosts NetBird serves; then the owner's choice, *"Off everywhere at
+  launch"*. Before the first invitation it goes off on every `ownpace.eu` host, `app.`, `id.`,
+  `status.` and `www.ownpace.eu`, and no other NetBird sign-in (password or PIN) takes its place,
+  so NetBird's log keeps no user ID for testers, as §7's row says. To check: from outside the
+  NetBird network, a request to each of the four hosts is answered by the app, the sign-in
+  service, the status page or the website itself, not by NetBird's sign-in page.
 - *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
   live's `.env`.
 
