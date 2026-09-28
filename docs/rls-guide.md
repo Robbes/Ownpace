@@ -90,8 +90,9 @@ or points a sink itself, takes anything from `openTaskPools` but the tenant
 pool and its end, or names an `end`, on any name, anywhere but in a function
 it hands to `afterwards` (so a failed run's event reaches the log page, which
 is on that pool, before it closes: `pool.end()` on `const pool = pools.tenant`
-counts as much as `pools.end()`; it reads the task's own file, and an end in
-another file's function that the pool is handed to it does not see), if any
+counts as much as `pools.end()`; it reads the task's own file, so it does not see
+an end inside a function in another file that the pool is handed to; none
+has one), if any
 file but the module names the key's pool, or if the module does anything at
 import. A run still
 receives the owner's URL (§2's `set-task-env.sh` row) until T3 step 2. That

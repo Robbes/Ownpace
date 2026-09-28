@@ -707,7 +707,9 @@ describe('a per-tenant task takes its pools from the one module that builds them
           "writes on the tenant pool, app_user's, and nothing else: the key's pool is the owner, whom row\n" +
           'security never binds (0138 T1 step 2). And whatever it ends, under whatever name (pools.end,\n' +
           'or pool.end on const pool = pools.tenant), it ends in a function handed to afterwards(…), which\n' +
-          "leavesAReference runs once the run's failure is on the operator's log page, on that same pool.",
+          "leavesAReference runs once the run's failure is on the operator's log page, on that same pool.\n" +
+          "Every end counts, whatever object it is on: an end that is not a pool's (a stream's, a range's)\n" +
+          'trips this too, so give it another name or move it out of the job file.',
       ).toEqual([]);
     },
   );

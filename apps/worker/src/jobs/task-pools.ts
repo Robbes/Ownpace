@@ -49,9 +49,9 @@
  * anywhere but in a function it hands to `afterwards`: `pool.end()` on
  * `const pool = pools.tenant` ends this same pool, and when 0138 T1 step 2's
  * re-review put that in run-cutover's `finally`, every guard stayed green
- * until this one counted every end. It reads each job's own file; an end in
- * another file's function that the pool is handed to it does not see, and
- * none has one.
+ * until this one counted every end. It reads each job's own file, so it does
+ * not see an end inside a function in another file that the pool is handed
+ * to; none has one.
  *
  * NO FALLBACK. `APP_DATABASE_URL` unset or empty refuses; `DATABASE_URL` is
  * never used in its place. The API's `getDbPool` falls back to `DATABASE_URL`
