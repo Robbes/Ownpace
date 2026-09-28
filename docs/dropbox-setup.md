@@ -101,8 +101,9 @@ reason. Any other value, or a Google kind such as `document`, stops the mapping 
 loading, and the refusal names the key. A format changed later copies each Paper doc again
 under its new name. The copy in the old format stays, and the Deletions screen lists it as an
 earlier export, never as a deletion. The managed edition takes the same setting as
-`sourceConfig.nativeFilePolicies.paper` on the migration routes (`apps/api/docs/openapi.yaml`);
-its screens do not offer it yet.
+`sourceConfig.nativeFilePolicies.paper` on the migration routes (`apps/api/docs/openapi.yaml`):
+the wizard asks for it on every Dropbox migration, with Markdown suggested, and the migration's
+page changes it under **Export format for Paper docs**.
 
 **Managed** — pick Dropbox in the wizard: the App key, App secret and refresh token all go
 on the source step, stored encrypted. The **Test and save connections** button runs one
@@ -129,8 +130,9 @@ Sharing state, file requests and version history stay behind —
 **Paper docs are refused by name unless the migration names a format** (workplan 0150).
 Dropbox hands a Paper doc over only as an export, in a format §3 chooses. With none chosen,
 each one is refused on its first attempt, before any download, and parked on the Failures
-page as a decision, with the sentence *"Export it from Dropbox yourself, or leave it
-behind."* The rest of the tree carries on. Any other file Dropbox marks as not downloadable is refused and parked the same
+page as a decision, whose sentence names the setting that exports it. The confirm screen
+counts them before Start, while the format can still be chosen. The rest of the tree carries
+on. Any other file Dropbox marks as not downloadable is refused and parked the same
 way: a document Dropbox keeps in a format of its own and offers an export for reads as a
 Paper doc does, and one it offers no export for says there is no file to copy. Paper docs kept outside the Dropbox file tree, on an account with legacy Paper, are never
 listed at all, so they stay behind without a line (0150 T7).

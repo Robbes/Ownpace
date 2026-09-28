@@ -919,6 +919,70 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
   });
 });
 
+describe('CreateMapping — a Dropbox source chooses its Paper docs’ format (workplan 0150 T3 (d))', () => {
+  /**
+   * The owner moved Paper export before the alpha (*"yes, paper export before
+   * the alpha"*). A Paper doc has no file to download, so the migration needs
+   * a format for it, asked where Drive's is asked, with Markdown suggested
+   * (D1): Nextcloud's Text app opens it.
+   */
+  beforeEach(() => {
+    createMock.mockReset();
+  });
+
+  const pickDropbox = () => fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+  const paperBox = () => screen.getByLabelText('Dropbox Paper docs') as HTMLSelectElement;
+
+  /** Walk a Dropbox source to submit, choosing `paper` first unless it is left as suggested. */
+  const submitWith = async (paper?: string) => {
+    renderWizard();
+    pickDropbox();
+    fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
+    satisfySourceStep();
+    if (paper) fireEvent.change(paperBox(), { target: { value: paper } });
+    fireEvent.click(nextButton());
+    fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'Acme papers' } });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    return createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+  };
+
+  it('offers a format for Paper docs, Markdown suggested, and none of Google’s kinds', () => {
+    renderWizard();
+    pickDropbox();
+    expect(paperBox()).toBeVisible();
+    expect(paperBox()).toHaveValue('markdown');
+    expect([...paperBox().options].map((o) => o.value)).toEqual(['refuse', 'markdown', 'html']);
+    expect(screen.queryByLabelText('Google Docs')).toBeNull();
+    // What the suggestion makes of a doc, before anybody presses anything.
+    expect(screen.getByText('Each Paper doc arrives as a .md file you can edit.')).toBeInTheDocument();
+  });
+
+  it('says so, in caution, when Paper docs are to stay behind', () => {
+    renderWizard();
+    pickDropbox();
+    fireEvent.change(paperBox(), { target: { value: 'refuse' } });
+    expect(screen.getByText('Paper docs stay behind in Dropbox, each reported by name.')).toBeInTheDocument();
+  });
+
+  it('sends the suggested format when nobody changed it', async () => {
+    createMock.mockResolvedValue({ id: 'map-dropbox-md' } as never);
+    const posted = await submitWith();
+    expect(posted.sourceType).toBe('dropbox');
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicies: { paper: 'markdown' } });
+  });
+
+  it.each(['html', 'refuse'])('carries %s, when chosen, all the way to the created mapping', async (paper) => {
+    createMock.mockResolvedValue({ id: `map-dropbox-${paper}` } as never);
+    const posted = await submitWith(paper);
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicies: { paper } });
+  });
+});
+
 describe('CreateMapping — a Gmail source (workplan 0044)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
