@@ -289,7 +289,9 @@
       that 7 days with explicit acceptance may stand beside §13's 30 days.
   17. Language: the site prints a note above the Dutch privacy and terms
       pages that the English governs (translationNote in site/copy.mjs), and
-      terms 1.3 §13 keeps that rule. Can it stand for a Dutch-first Alpha
+      terms 1.3 §13 keeps that rule, with an exception for mandatory consumer
+      law that the note leaves out (terms question 15 has the words that
+      would add it). Can it stand for a Dutch-first Alpha
       (alpha briefing q. 2, terms question 15)? Not on the answer page; open.
   18. The breach paragraph: settled. The Alpha conditions stay 1.0 and their
       §4 drops "where that is required" (alpha-version-number (a)), so both
@@ -327,15 +329,17 @@
     REPORT_MAIL_TO at support@ownpace.eu (ops-notify-addresses (a)); usage
     reports off in the task runner, and Zitadel, ClickHouse and MinIO checked
     (ops-telemetry (a)); the log driver checked (ops-log-driver (a)).
-  - Build: the copy before an update and its deletion (rec-copies (a)); the
-    drill off live's duties, with trigger-version.sh backup in the copy
-    before a Trigger.dev upgrade (rec-drill (a)); the end-of-Alpha step for
-    the task records (privacy-task-records (a)); the sharing list deleted
-    with its migration (privacy-sharing-list (b)); the 12-month clean-up of
-    searches and downloads (privacy-search-records (a)); 0135 T8's daily
-    script for sign-in accounts nobody let in, before the first tester
-    (ops-unadmitted-signin-cleanup (a)); the acceptance screen, 0139 T3
-    (terms-acceptance-route (b)); the share mail's privacy line
+  - Build: the close stopping the work already running, so that §9's
+    Credentials row holds, or the row reworded to what the code does (terms
+    briefing, precondition B); the copy before an update and its deletion
+    (rec-copies (a)); the drill off live's duties, with trigger-version.sh
+    backup in the copy before a Trigger.dev upgrade (rec-drill (a)); the
+    end-of-Alpha step for the task records (privacy-task-records (a)); the
+    sharing list deleted with its migration (privacy-sharing-list (b)); the
+    12-month clean-up of searches and downloads (privacy-search-records (a));
+    0135 T8's daily script for sign-in accounts nobody let in, before the
+    first tester (ops-unadmitted-signin-cleanup (a)); the acceptance screen,
+    0139 T3 (terms-acceptance-route (b)); the share mail's privacy line
     (privacy-share-mail-notice (a)); the app's three sentences
     (ops-app-sentences (a)); the read-log query in the operator runbook
     (privacy-read-log-copy (a)).
@@ -745,15 +749,20 @@ target. We show you the target before anything is written.
 
 ## 9. How long we keep it
 
-<!-- True, and so off the list below: Credentials, "nothing uses any of it from then on", since
-     #1320 (d7868276, 0085 T2), merged into this branch in c1413b53. The sync tick starts no pass
-     for a closed organisation (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass under
-     way halts before its next data type (organisation_closed, stopping-a-pass.ts), the
-     credential builders refuse (refuseAClosedOrganisation), and every door that would start
-     work or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). -->
-
 <!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
      markers come off"). The owner's choices of 2026-09-28 are named by their question id.
+     - Credentials, "nothing uses any of it from then on" (terms.md briefing, precondition B):
+       since #1320 (d7868276, 0085 T2), merged into this branch in c1413b53, nothing new starts
+       for a closed organisation. The sync tick starts no pass for it
+       (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass already queued halts before
+       its credentials are built (organisation_closed, stopping-a-pass.ts), the credential
+       builders refuse (refuseAClosedOrganisation), and every door that would start work or use
+       the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work already
+       running is not all stopped: the close cancels only the runs whose row names the
+       orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync
+       pass the cancel did not stop, or a discovery, reads to the end of the data type it is on; a
+       verification or a confirmation already running reads to its end with the stored access.
+       True once the close stops those too, or once the row says what the code does.
      - The copy made right before an update (rec-copies (a)): one copy per update, deleted once
        the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
        lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not

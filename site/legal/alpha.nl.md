@@ -20,7 +20,7 @@
 ## 1. Wat de Alpha is
 
 De Alpha is een proef met de beheerde Ownpace-dienst. Een kleine groep doet mee, en iedereen in
-die groep is zelf uitgenodigd. De Alpha duurt enkele weken.
+die groep is persoonlijk uitgenodigd. De Alpha duurt enkele weken.
 
 **Alleen huishoudens.** U doet mee als particulier, met uw eigen accounts of die van uw gezin.
 Een bedrijf of een andere organisatie kan tijdens de Alpha niet meedoen. Dat de app uw omgeving
@@ -74,7 +74,7 @@ servicevoorwaarden al zegt, is er geen beschikbaarheidsgarantie.
 Wij kunnen de dienst stilzetten, bijvoorbeeld bij een storing of een beveiligingsprobleem. Er
 start dan geen nieuwe ronde, en u ziet dat in de app. Dat kan zonder waarschuwing vooraf.
 
-Tijdens de Alpha werken wij de dienst vaak bij. Een update kan uw verhuizing even stilzetten;
+Tijdens de Alpha werken wij de dienst vaak bij. Een update kan uw verhuizingen even stilzetten;
 wij kondigen niet elke update aan.
 
 Wij kunnen de Alpha ook opnieuw laten beginnen (een reset) of beëindigen. Bij een reset wissen wij
@@ -160,14 +160,14 @@ Na de Alpha gaat de dienst door, onder nieuwe voorwaarden. Misschien verhuist de
 huidige hostingomgeving naar een andere hostingaanbieder.
 
 Wij laten het u minstens 7 dagen van tevoren per e-mail weten. U krijgt dan de nieuwe
-voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizing gaat pas onder de
+voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizingen gaan pas onder de
 nieuwe voorwaarden door als u die in de app hebt aanvaard, zoals in §2. Wilt u liever stoppen,
 sluit dan uw account zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan sluiten
 wij uw account en verhuizen uw gegevens niet mee naar de nieuwe dienst. Uw gegevens worden 7
 dagen later gewist; tot dan kunt u ze alsnog aanvaarden en doorgaan.
 
-Wat u met uw verhuizing al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk geval
-staan.
+Wat u met uw verhuizingen al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk
+geval staan.
 
 ## 12. Ons bereiken
 

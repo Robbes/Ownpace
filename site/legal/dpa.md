@@ -23,14 +23,13 @@
 
   - Annex A's retention. Credentials are kept until the connection or the
     migration that holds them is deleted; after the account closes nothing
-    uses them, and they are destroyed when its data is erased (the owner,
-    0139 open question 3 (a): "keep until deleted or closes"; the terms §11
-    and the Alpha conditions §10 say the same). It said "until the migration
-    ends". "After the account closes nothing uses them" is true since #1320
-    (d7868276, 2026-09-28), merged into this branch in c1413b53, so it is no
-    longer on the list below. Preflight counts go with their migration, as
-    privacy §4.3 and the code say. It said "30 days if no customer
-    relationship follows".
+    uses them, and they are destroyed when its data is erased (the owner, 0139
+    open question 3 (a): "keep until deleted or closes"; the terms §11 and the
+    Alpha conditions §10 say the same). It said "until the migration ends".
+    "After the account closes nothing uses them" is not yet fully true, and is
+    on the list below. Preflight counts go with their migration, as privacy
+    §4.3 and the code say. It said "30 days if no customer relationship
+    follows".
   - The service's mail goes through a provider in Switzerland, which has an
     EU adequacy decision (workplan 0133: Proton AG, which also hosts the
     support mailbox). §8, §12 and Annex A said "EU only"; §12 is retitled.
@@ -92,17 +91,21 @@
     machine through an encrypted tunnel (WireGuard).
   - Annex B against privacy §11 as its own pass words it, and against the
     code: row security binds the application's requests and, since #1323
-    (d0138607, merged into this branch in c1413b53), the per-tenant
-    background tasks, not yet the scheduled jobs that span organisations
-    (workplan 0138 T2 and T3 step 2 move them, on a branch of their own, not
-    merged); the support views pass it by design, each with an operator
-    check. Annex B's "Tenant isolation enforced in the database itself"
-    says none of these limits yet, and its "database roles hold least
-    privilege" does not hold for those jobs, which connect as the database
-    owner, a superuser. The encryption key is held apart from the database,
-    but on the same machine; logs can hold folder and file names, addresses
-    and provider error text; no code was found that reports the negotiated
-    TLS version.
+    (d0138607, merged into this branch in c1413b53), the per-tenant background
+    tasks, not yet the scheduled jobs that span organisations (workplan 0138
+    T2 and T3 step 2 move them, on a branch of their own, not merged); the
+    support views pass it by design, each with an operator check. Annex B's
+    "Tenant isolation enforced in the database itself" says none of these
+    limits yet, and its "database roles hold least privilege" does not hold
+    for those jobs, which connect as the database owner, a superuser, nor for
+    any task run, which still receives the owner's connection string and opens
+    its audit key's pool on it, until 0138 T3 step 2 (SECURITY.md;
+    deploy/compose/set-task-env.sh; apps/worker/src/jobs/task-pools.ts). The
+    API's migrations and its audit key's pool also connect as the owner
+    (docs/rls-guide.md, "Where row security holds today"). The encryption key
+    is held apart from the database, but on the same machine; logs can hold
+    folder and file names, addresses and provider error text; no code was
+    found that reports the negotiated TLS version.
   - Annex B's drafted items: settle each "Open", or take its sentence out.
   - §5 against privacy §4.5: the owner's direct access to the database is
     not recorded (the owner confirmed privacy §4.5's sentence, 2026-09-28,
@@ -111,6 +114,12 @@
     error text, the list of what was shared (other people's addresses; it
     goes with its migration once privacy-sharing-list (b) is built), and the
     audit log.
+  - "After the account closes nothing uses them" (Annex A): since #1320
+    (d7868276, 2026-09-28), merged into this branch in c1413b53, nothing new
+    starts once the account is closed. Work already running is not all
+    stopped: a sync pass or a discovery stops before its next data type, and
+    a verification or a confirmation already running reads to its end with
+    the stored access (terms briefing, precondition B, not fully done).
   - The Status line becomes a Version line the site build can read (0139
     T2), «REGISTERED_ADDRESS» is filled with the address privacy §1 and
     terms §1 print by then, and «SUBPROCESSORS_URL» loses its backticks,

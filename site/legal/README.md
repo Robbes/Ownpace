@@ -261,12 +261,6 @@ conditions (1.0, 2026-09-28). `node site/build.mjs --public --check` then prints
 not done yet. The owner decided each on 2026-09-28 (the answer's id is in brackets). Each is also
 a comment beside the sentence, in both languages, where the text rests on it. **Done:**
 
-- *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10): true
-  since #1320 (`d7868276`, merged 2026-09-28), which is on this branch since `main` was merged
-  into it in `c1413b53`: a closed organisation gets no pass, a pass under way halts before its
-  next data type, the credential builders refuse, and every door that would start work or use
-  the access answers 409 `account_closed`. Its members can still sign in, read and export until
-  the purge.
 - *Problem reports by mail* (privacy §4.5): merged as #1318 (`0c019ab8`, 0130 T5), and on this
   branch. True on live once live's `.env` has no `ZAMMAD_URL`.
 
@@ -275,6 +269,20 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 - *Acceptance, with version and time* (terms §1, Alpha conditions §2 and §11, privacy §4.4;
   terms-acceptance-route (b)): the in-app screen, 0139 T3. The first invitation waits for it and
   its tests.
+- *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
+  DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged
+  2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts
+  for a closed organisation: the sync tick starts no pass, a pass already queued halts before
+  its credentials are built, the credential builders refuse, and every door that would start
+  work or use the access answers 409 `account_closed`. Its members can still sign in, read and
+  export until the purge. Work already running when the account closes is not all stopped. The
+  close asks the orchestrator to cancel only the runs whose row names the orchestrator's run,
+  which only a sync pass records, and a request that fails is only logged
+  (`apps/api/src/close-account.ts`). A sync pass the cancel did not stop, or a discovery, reads
+  to the end of the data type it is on. A verification or a confirmation already running reads
+  the accounts to its end, with the readers it built before the close. To build: those runs
+  record the orchestrator's reference and the close cancels them too, or they check the close
+  between steps. Or the owner rewords the sentence to what the code does.
 - *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
   conditions §6; rec-copies (a)): one copy right before each update: the app's database, the
   sign-in service's database and the roles, and the task runner's database before a Trigger.dev

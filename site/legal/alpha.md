@@ -118,10 +118,14 @@
     once no migration uses it. Deleting a migration removes only access a
     family member gave through a grant link, which they can also withdraw on
     their progress page. Privacy §9's Credentials row says the same. Nothing
-    uses the access after closing: true since #1320 (d7868276, 0085 T2),
-    merged into this branch in c1413b53 (terms briefing, precondition B,
-    done). The access is destroyed at erasure, at the end of the window the
-    tester chose, as terms §11 now says.
+    uses the access after closing: NOT YET FULLY TRUE. Since #1320
+    (d7868276, 0085 T2), merged into this branch in c1413b53, nothing new
+    starts once the account is closed. Work already running is not all
+    stopped: a sync pass or a discovery stops before its next data type, and
+    a verification or a confirmation already running reads to its end with
+    the stored access (terms briefing, precondition B, not fully done). The
+    access is destroyed at erasure, at the end of the window the tester
+    chose, as terms §11 now says.
   - The end of the Alpha (§11). ANSWERED: alpha-s11-erasure-window (b),
     2026-09-28. A tester who has not accepted the new conditions by the day
     they take effect is closed that day, and their data does not move along.
@@ -157,7 +161,9 @@
     here; 0139 T7).
   - Not in these conditions: the company's name, KvK number, VAT number and
     the address (fact-trademark (b), fact-vat (a), rec-address (c)). Terms
-    §1 and privacy §1 carry them; §12 here gives only support@ownpace.eu.
+    §1 and privacy §1 carry the name, KvK and VAT numbers; the address is
+    left out of both during the Alpha (rec-address (c)); §12 here gives only
+    support@ownpace.eu.
 -->
 
 # Alpha conditions

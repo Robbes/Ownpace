@@ -47,14 +47,26 @@
      first invitation waits for that code and its tests. The texts must also
      be served: live's WWW_LIVE is false, and the site build does not yet
      render the Alpha conditions (T10). Today neither exists.
-  B. Done: §11's "From the moment your account is closed, nothing uses the
-     access you gave us.", which the Alpha conditions §10 promise too. True
-     since #1320 (d7868276, 0085 T2, 2026-09-28), merged into this branch in
-     c1413b53: the sync tick starts no pass for a closed organisation, a pass
-     already queued halts before it builds any credentials, the credential
-     builders refuse, and every door that would start work or use the access
-     answers 409 account_closed. The comment beside §11 says so in both
-     languages.
+  B. Not fully done: §11's "From the moment your account is closed, nothing
+     uses the access you gave us.", which the Alpha conditions §10, privacy
+     §9 and the DPA's Annex A promise too. Since #1320 (d7868276, 0085 T2,
+     2026-09-28), merged into this branch in c1413b53, nothing new starts:
+     the sync tick starts no pass for a closed organisation, a pass already
+     queued halts before it builds any credentials, the credential builders
+     refuse, and every door that would start work or use the access answers
+     409 account_closed. Work already running when the account closes is not
+     all stopped. The close asks the orchestrator to cancel only the runs
+     whose row names the orchestrator's run, which only a sync pass records,
+     and a request that fails is only logged (apps/api/src/close-account.ts).
+     A sync pass or a discovery stops at the latest before its next data
+     type, so it reads to the end of the one it is on. A verification or a
+     confirmation already running reads the accounts to its end, with the
+     readers it built before the close (run-verification.ts,
+     run-confirmation-pass.ts). To make the sentence true: the close stops
+     those too (their runs record the orchestrator's reference and the close
+     cancels them, or they check the close between steps), or the owner
+     rewords the sentence to what the code does. The comment beside §11 says
+     so in both languages.
   C. Settled (terms-unbuilt-paid-steps (a)): §6 and §7 keep the order button,
      the confirmation before the first migration, the confirming email and
      "Withdraw from contract" in the app, though none of them is built. They
@@ -231,9 +243,10 @@
       (black list, forum clauses); confirm that, and the wording for business
       customers (was question 9).
   15. §13: language. The text keeps v1.2's rule: the English governs, except
-      where mandatory consumer law provides otherwise, which is also what the
-      note above the Dutch privacy and terms pages says. Can that stand for a
-      Dutch-first Alpha whose testers read Dutch? The alternatives: the Dutch
+      where mandatory consumer law provides otherwise. The note above the
+      Dutch privacy and terms pages says the first half only (the mismatch at
+      the end of this question). Can that stand for a Dutch-first Alpha
+      whose testers read Dutch? The alternatives: the Dutch
       governs for Dutch consumers, or for the Alpha; or, as the first draft of
       1.3 proposed, "These terms are published in Dutch and English, and both
       texts count. If they differ, the reading more favourable to you applies.
@@ -619,14 +632,19 @@ sure you never need this section.
 
 ## 11. Ending it
 
-<!-- "From the moment your account is closed, nothing uses the access you gave us." True since
-     #1320 (d7868276, 0085 T2, 2026-09-28), merged into this branch in c1413b53 (briefing,
-     precondition B, done): the sync tick (ACTIVE_MAPPINGS_SQL in
-     apps/worker/src/jobs/managed-sync-tick.ts, AN_OPEN_ORGANISATION_WHERE) starts no pass for a
-     closed organisation, a pass already queued halts before it builds any credentials
-     (organisation_closed, stopping-a-pass.ts), the credential builders refuse
-     (refuseAClosedOrganisation), and every door that would start work or use the access answers
-     409 account_closed (apps/api/src/closed-organisation.ts). -->
+<!-- "From the moment your account is closed, nothing uses the access you gave us." NOT YET
+     FULLY TRUE (briefing, precondition B, not fully done). Since #1320 (d7868276, 0085 T2,
+     2026-09-28), merged into this branch in c1413b53, nothing new starts: the sync tick
+     (ACTIVE_MAPPINGS_SQL in apps/worker/src/jobs/managed-sync-tick.ts,
+     AN_OPEN_ORGANISATION_WHERE) starts no pass for a closed organisation, a pass already queued
+     halts before it builds any credentials (organisation_closed, stopping-a-pass.ts), the
+     credential builders refuse (refuseAClosedOrganisation), and every door that would start work
+     or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work
+     already running is not all stopped: the close cancels only the runs whose row names the
+     orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync pass
+     the cancel did not stop, or a discovery, reads to the end of the data type it is on; a
+     verification or a confirmation already running reads to its end with the stored access.
+     True once the close stops those too, or once the sentence says what the code does. -->
 
 **You** may close your account at any time: write to support@ownpace.eu. You choose when its
 data is erased: at once, or after 7, 30 or 90 days. We confirm the closing, and the date on

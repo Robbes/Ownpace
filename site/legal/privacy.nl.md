@@ -432,15 +432,20 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 
 ## 9. Hoe lang we het bewaren
 
-<!-- True, and so off the list below: Toegangsgegevens, "gebruikt niets die toegang meer", since
-     #1320 (d7868276, 0085 T2), merged into this branch in c1413b53. The sync tick starts no pass
-     for a closed organisation (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass under
-     way halts before its next data type (organisation_closed, stopping-a-pass.ts), the
-     credential builders refuse (refuseAClosedOrganisation), and every door that would start
-     work or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). -->
-
 <!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
      markers come off"). The owner's choices of 2026-09-28 are named by their question id.
+     - Toegangsgegevens, "gebruikt niets die toegang meer" (terms.md briefing, precondition B):
+       since #1320 (d7868276, 0085 T2), merged into this branch in c1413b53, nothing new starts
+       for a closed organisation. The sync tick starts no pass for it
+       (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass already queued halts before
+       its credentials are built (organisation_closed, stopping-a-pass.ts), the credential
+       builders refuse (refuseAClosedOrganisation), and every door that would start work or use
+       the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work already
+       running is not all stopped: the close cancels only the runs whose row names the
+       orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync
+       pass the cancel did not stop, or a discovery, reads to the end of the data type it is on; a
+       verification or a confirmation already running reads to its end with the stored access.
+       True once the close stops those too, or once the row says what the code does.
      - De kopie vlak voor een update (rec-copies (a)): one copy per update, deleted once the
        update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
        lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not

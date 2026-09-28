@@ -5,9 +5,12 @@
      alinea", so no section or paragraph moves. The owner's answers of
      2026-09-28 are applied here as in terms.md; its briefing names each one.
      §13's language rule is v1.2's, unchanged in v1.3: the English governs,
-     except where mandatory consumer law provides otherwise, as the note the
-     site prints above this page says (translationNote in site/copy.mjs).
-     Whether both texts should count instead is the briefing's question 15.
+     except where mandatory consumer law provides otherwise. The note the site
+     prints above this page (translationNote in site/copy.mjs) says only that
+     the English governs: it leaves out §13's exception for mandatory consumer
+     law, so the rendered page states the rule twice, once without it. The
+     briefing's question 15 has the words that would add it to the note, and
+     asks whether both texts should count instead.
      The briefing for the reviewing lawyer (open questions, what changed in
      each version, and what must be true before the draft marker comes off) is
      the comment at the top of terms.md — it applies to both files. -->
@@ -234,13 +237,18 @@ ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
 ## 11. Beëindigen
 
 <!-- "Vanaf het moment dat uw account gesloten is, gebruikt niets de toegang die u ons gaf nog."
-     True since #1320 (d7868276, 0085 T2, 2026-09-28), merged into this branch in c1413b53
-     (terms.md briefing, precondition B, done): the sync tick (ACTIVE_MAPPINGS_SQL in
-     apps/worker/src/jobs/managed-sync-tick.ts, AN_OPEN_ORGANISATION_WHERE) starts no pass for a
-     closed organisation, a pass already queued halts before it builds any credentials
-     (organisation_closed, stopping-a-pass.ts), the credential builders refuse
-     (refuseAClosedOrganisation), and every door that would start work or use the access answers
-     409 account_closed (apps/api/src/closed-organisation.ts). -->
+     NOT YET FULLY TRUE (terms.md briefing, precondition B, not fully done). Since #1320
+     (d7868276, 0085 T2, 2026-09-28), merged into this branch in c1413b53, nothing new starts:
+     the sync tick (ACTIVE_MAPPINGS_SQL in apps/worker/src/jobs/managed-sync-tick.ts,
+     AN_OPEN_ORGANISATION_WHERE) starts no pass for a closed organisation, a pass already queued
+     halts before it builds any credentials (organisation_closed, stopping-a-pass.ts), the
+     credential builders refuse (refuseAClosedOrganisation), and every door that would start work
+     or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). Work
+     already running is not all stopped: the close cancels only the runs whose row names the
+     orchestrator's run (a sync pass), best effort (apps/api/src/close-account.ts); a sync pass
+     the cancel did not stop, or a discovery, reads to the end of the data type it is on; a
+     verification or a confirmation already running reads to its end with the stored access.
+     True once the close stops those too, or once the sentence says what the code does. -->
 
 **U** kunt uw account op elk moment sluiten: mail naar support@ownpace.eu. U kiest wanneer uw
 gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Wij bevestigen de sluiting, en de datum
