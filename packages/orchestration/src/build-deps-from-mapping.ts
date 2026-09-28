@@ -85,10 +85,11 @@ import { sourceFaceBuilder, type SourceFaceBuilder } from './source-face-builder
 import {
   CredentialRefusalError,
   grantWithdrawnRefusal,
+  organisationClosedRefusal,
   publishedEndpoint,
   isProviderAccountKind,
 } from '@openmig/shared';
-import { PgLedger, PgCursorStore, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
+import { PgLedger, PgCursorStore, organisationIsOpen, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { HANDED_BY_THE_CALLER, withClose, type WithClose } from './deps-lifecycle.ts';
@@ -153,6 +154,34 @@ export function refuseAWithdrawnGrant(mapping: { readonly grantWithdrawnAt: Date
 }
 
 /**
+ * A closed organisation is read by nobody, HERE too (workplan 0085 T2; the
+ * owner's report of 2026-09-28).
+ *
+ * The tick starts no pass for it and a pass under way stops before its next
+ * data type. This is the backstop for everything else that builds a reader of
+ * its accounts: a discovery, a verification, a confirmation, an apply, a
+ * cutover's gate, and a retry of any of them queued before the close. Asked
+ * before the withdrawal and before any credential is decrypted or merged,
+ * from the organisation's status, as the tick and the pass ask it
+ * (`organisationIsOpen`). A reopen sets the status back, and the builders
+ * build again.
+ *
+ * Without the days: they are the managed edition's (`tenant_closure`), and
+ * this package is the appliance's too. The doors in the managed API name them.
+ *
+ * An ordinary error, so the task fails and the plane retries it; each retry is
+ * refused here again. A verification, a confirmation and a cutover's gate open
+ * their targets through `fanOutTargets`, which leaves out a data type it cannot
+ * open. This refusal it passes through instead (`target-fan-out.ts`), so none
+ * of them records a verdict for a closed organisation.
+ */
+export function refuseAClosedOrganisation(open: boolean): void {
+  if (!open) {
+    throw new CredentialRefusalError(organisationClosedRefusal({ closedAt: null, purgeAfter: null }));
+  }
+}
+
+/**
  * Every credential a SOURCE has, in priority order (ADR-0041, owner decision
  * 2026-09-01 — option B).
  *
@@ -213,10 +242,12 @@ export function sourceCredentialsFor(
  * SECURITY: every query in this function runs inside withTenant() on `pool`,
  * the pool the caller handed in, and so does every statement of the ledger and
  * cursor stores it builds (`tenantScopedDb`, workplan 0138 T1 parts 2 and 3).
- * It opens no handle of its own. Row security binds those scopes only when
- * `pool` connects as `app_user` or drops to it; the managed tasks still pass
- * the owner's pool, a superuser, so there each query's own `tenantId` filter
- * is what holds until 0138 T1's switch (docs/rls-guide.md, "Where row security
+ * It opens no handle of its own. Row security binds those scopes when `pool`
+ * connects as `app_user` or drops to it, as the managed tasks' pool does since
+ * 0138 T1's second step (`openTaskPools`, APP_DATABASE_URL): there the
+ * database keeps the scope to this tenant whatever a query's own filter says.
+ * On a superuser's pool (the operator's CLI on the owner's URL) each query's
+ * own `tenantId` filter is what holds (docs/rls-guide.md, "Where row security
  * holds today"). The rate and byte budgets get a plain handle on the same
  * pool: their tables have no row security, by design.
  * The tenantId must come from an authenticated request.
@@ -259,18 +290,21 @@ export async function buildDepsFromMapping(
   if (mappings.length === 0) {
     throw new Error('Mapping not found or access denied');
   }
-  refuseAWithdrawnGrant(mappings[0]!);
   // Mail's own phase (0128 T5), read by the one reader every gate asks, so
-  // this pass and the pass's stop check cannot disagree about it.
-  const mailPhase = await withTenant(pool, tenantId, async (txDb) =>
-    (await readPathPhases(txDb, tenantId, mappingId))?.phaseOf('email'),
-  );
+  // this pass and the pass's stop check cannot disagree about it; and whether
+  // the organisation is open (0085 T2), in the same transaction.
+  const { open, mailPhase } = await withTenant(pool, tenantId, async (txDb) => ({
+    open: await organisationIsOpen(txDb, tenantId),
+    mailPhase: (await readPathPhases(txDb, tenantId, mappingId))?.phaseOf('email'),
+  }));
+  refuseAClosedOrganisation(open);
+  refuseAWithdrawnGrant(mappings[0]!);
   if (mailPhase === undefined) {
     throw new Error('Mapping not found or access denied');
   }
 
   // Load connections and credentials WITHIN tenant context. Row security binds
-  // here only on an app_user pool; the managed tasks pass the owner's (0138).
+  // here on an app_user pool, which the managed tasks pass since 0138 T1.
   const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
     // THE MAPPING'S OWN connections, mailbox → connection (tenant-filtered), with
     // the tenant-role row only as a logged fallback for legacy rows whose
@@ -537,6 +571,7 @@ async function loadDomainConnections(
     if (!mapping || !phases) {
       throw new Error(`Mapping not found or access denied: ${mappingId}`);
     }
+    refuseAClosedOrganisation(await organisationIsOpen(txDb, tenantId));
     refuseAWithdrawnGrant(mapping);
 
     const load = async (role: 'source' | 'target') => {
@@ -687,9 +722,9 @@ export function tenantThrottleLimiter(
  * (never via env) so the managed path is per-tenant safe. Built on `pool`, the
  * caller's, like the mail builder: the connection load inside withTenant, the
  * ledger and cursor stores on `tenantScopedDb`, the rate budget on a plain
- * handle (workplan 0138 T1 parts 2 and 3). Row security binds those scopes only
- * on an app_user pool, and the managed tasks do not pass one yet, so there each
- * query's own tenant filter is what separates tenants until 0138 T1's switch.
+ * handle (workplan 0138 T1 parts 2 and 3). Row security binds those scopes on
+ * an app_user pool, which the managed tasks pass since 0138 T1's second step;
+ * on a superuser's, each query's own tenant filter is what separates tenants.
  */
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'mail'): Promise<WithClose<ReconcileDeps>>;
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'calendar'): Promise<WithClose<CalendarSyncDeps>>;

@@ -1266,7 +1266,11 @@ paths:
             text/html:
               schema: { type: string }
         '409':
-          description: A grant link's consent, on a link that can no longer be used. Nothing was stored.
+          description: |
+            A grant link's consent, on a link that can no longer be used, or
+            for an organisation that was closed after the consent began
+            (workplan 0085 T2): refused before the code is exchanged, and the
+            link is not used up. Nothing was stored.
           content:
             text/html:
               schema: { type: string }
@@ -1620,6 +1624,7 @@ paths:
             probed or stored; the sentence says the export goes in a folder of
             the Nextcloud or WebDAV files the migration writes to.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/AccountClosed' }
         '429': { $ref: '#/components/responses/TooManyTests' }
   /api/connections/{id}:
     delete:
@@ -1703,6 +1708,14 @@ paths:
             `archive_on_server` (workplan 0136 T5): a stored export archive whose
             path is on this service's own machine. Rotating probes the stored
             path first, so it is refused before anything is opened or replaced.
+            Or `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2); nothing was probed or replaced.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
   /api/connections/{id}/test:
     post:
       tags: [Connections]
@@ -1775,7 +1788,15 @@ paths:
             `archive_on_server` (workplan 0136 T5): a stored export archive whose
             path is on this service's own machine, which a managed migration
             cannot read. Refused before anything is opened; the row's `status`
-            becomes `error`, so the list does not show it as connected.
+            becomes `error`, so the list does not show it as connected. Or
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2); nothing was probed or recorded.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
   /api/setup/{side}/{provider}:
     get:
       tags: [Setup]
@@ -1955,6 +1976,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: |
+            Nothing was stored. `duplicate_mapping`: this migration exists
+            already. `migration_cap`: the organisation has as many unfinished
+            migrations as it may (workplan 0143 T2a). `account_closed`
+            (`AccountClosed`): the organisation was closed (workplan 0085 T2),
+            and takes no new migration or credential.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}:
     parameters:
@@ -2060,28 +2094,35 @@ paths:
             active or paused; only a rollback does that), `finished` (done is
             terminal; its one exit is the continuous lane), `before_cutover`
             (the lane is entered from cutover or done). Nothing was written.
+
+            `account_closed` (`AccountClosed`, workplan 0085 T2): a move into a
+            state that runs passes (`continuous`), for an organisation that was
+            closed. Other edits, and a move that stops work, are not refused
+            for that.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error: { type: string, enum: [revision_refused, lifecycle_refused] }
-                  message: { type: string }
-                  hint: { type: string }
-                  code:
-                    type: string
-                    enum: [own_door, after_cutover, finished, before_cutover, unknown]
-                  from: { type: string }
-                  to: { type: string }
-                  refused:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        field:
-                          type: string
-                          enum: [source.type, target.type, source.rootFolderId, target.account]
-                        reason: { type: string }
+                anyOf:
+                  - { $ref: '#/components/schemas/AccountClosed' }
+                  - type: object
+                    properties:
+                      error: { type: string, enum: [revision_refused, lifecycle_refused] }
+                      message: { type: string }
+                      hint: { type: string }
+                      code:
+                        type: string
+                        enum: [own_door, after_cutover, finished, before_cutover, unknown]
+                      from: { type: string }
+                      to: { type: string }
+                      refused:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            field:
+                              type: string
+                              enum: [source.type, target.type, source.rootFolderId, target.account]
+                            reason: { type: string }
     delete:
       tags: [Migrations]
       summary: Delete a migration
@@ -2117,6 +2158,8 @@ paths:
         an operator hold is open the press is refused BEFORE the migration is
         activated, and nothing changes (`PlatformHeld`). A second press on an
         active migration enqueues nothing and is answered `activated: false`.
+        A closed organisation is refused on every press, an active migration's
+        too, before the grant's own answers (`AccountClosed`, workplan 0085 T2).
       responses:
         '200':
           description: Started.
@@ -2130,14 +2173,16 @@ paths:
             Nothing was changed. `Conflict`: the migration is past cutover.
             `grant_withdrawn` or `awaiting_grant`: nobody's grant lets a pass
             read the account, with `reason` saying whose. `platform_held`: an
-            operator hold is open (`PlatformHeld`). `anyOf`, not `oneOf`: a
-            `PlatformHeld` body is an `Error` too.
+            operator hold is open (`PlatformHeld`). `account_closed`: the
+            organisation was closed (`AccountClosed`, workplan 0085 T2).
+            `anyOf`, not `oneOf`: those two bodies are an `Error` too.
           content:
             application/json:
               schema:
                 anyOf:
                   - { $ref: '#/components/schemas/Error' }
                   - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/domains:
     parameters:
@@ -2190,7 +2235,15 @@ paths:
           description: |
             `kind_refused`, with a `reason` that says what to do instead: the
             data type is already there, one side cannot carry it, the last Test
-            measured that it cannot, or the migration is past cutover.
+            measured that it cannot, or the migration is past cutover. Or
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2), and nothing was written.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/domains/{domain}/stop:
     parameters:
@@ -2276,7 +2329,16 @@ paths:
         '409':
           description: |
             `resume_refused`, with `refused` and a `reason`: `not_running`,
-            `not_a_path` or `not_stoppable`, as for a stop.
+            `not_a_path` or `not_stoppable`, as for a stop. Or
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2), and nothing was written. A stop is not refused
+            for that.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/domains/{domain}/end:
     parameters:
@@ -2386,7 +2448,16 @@ paths:
         '409':
           description: |
             `keep_refused`, with `refused` and a `reason`: `not_running`,
-            `not_a_path`, or `stopped` (resume it first, or end it).
+            `not_a_path`, or `stopped` (resume it first, or end it). Or
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2), and nothing was written. Ending one is not
+            refused for that.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/sync:
     parameters:
@@ -2400,7 +2471,9 @@ paths:
         four by default, because no selection means "not selected", not
         "everything".
 
-        A paused migration is refused with `409` naming `/start`.
+        A paused migration is refused with `409` naming `/start`. A closed
+        organisation is refused first, with `account_closed`, whatever the
+        migration's status.
       requestBody:
         required: false
         content:
@@ -2425,14 +2498,16 @@ paths:
           description: |
             Nothing was enqueued. The migration is paused (review discovery and
             start it first), its grant was withdrawn (`grant_withdrawn`), or an
-            operator hold is open (`platform_held`, `PlatformHeld`). `anyOf`,
-            not `oneOf`: a `PlatformHeld` body is an `Error` too.
+            operator hold is open (`platform_held`, `PlatformHeld`), or the
+            organisation was closed (`account_closed`, `AccountClosed`, workplan
+            0085 T2). `anyOf`, not `oneOf`: those two bodies are an `Error` too.
           content:
             application/json:
               schema:
                 anyOf:
                   - { $ref: '#/components/schemas/Error' }
                   - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/cutover:
     parameters:
@@ -2515,7 +2590,9 @@ paths:
             refused, where one did.
 
             `platform_held`: the ledger would allow it, and an operator hold is
-            open (`PlatformHeld`). Nothing was enqueued.
+            open (`PlatformHeld`). `account_closed`: the ledger would allow it,
+            and the organisation was closed (`AccountClosed`, workplan 0085 T2).
+            Nothing was enqueued.
           content:
             application/json:
               schema:
@@ -2528,6 +2605,7 @@ paths:
                       code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path] }
                       state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
                   - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/runs:
     parameters:
@@ -2567,7 +2645,17 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/PlatformHeld' }
+        '409':
+          description: |
+            `platform_held` (`PlatformHeld`): an operator hold is open.
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2). Either way nothing was enqueued or written.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/discovery:
     parameters:
@@ -2824,7 +2912,15 @@ paths:
             application is not configured or may not ask for mail or files. The
             sentence is written to be forwarded to whoever sent the link. The
             body is `{error, reason, reasonNl}`: the sentence in English and
-            in Dutch (workplan 0145 T6).
+            in Dutch (workplan 0145 T6). Or `account_closed` (`AccountClosed`):
+            the organisation that sent the link was closed (workplan 0085 T2),
+            with the same sentence in both languages.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
         '503':
           description: |
             The link could not be checked just now. Ours, not the caller's.
@@ -2901,7 +2997,15 @@ paths:
             (`unreachable_callback`). The body is `{error, reason, reasonNl}`,
             the sentence in English and in Dutch (workplan 0145 T6); for the
             two callback refusals, the operator's own sentence stays verbatim
-            inside both.
+            inside both. Or `account_closed` (`AccountClosed`): the
+            organisation that sent the link was closed (workplan 0085 T2), and
+            no consent begins.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
         '503':
           description: |
             The link could not be checked just now. The body is
@@ -3377,7 +3481,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/PlatformHeld' }
+        '409':
+          description: |
+            `platform_held` (`PlatformHeld`): an operator hold is open.
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2). Either way nothing was enqueued or written.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/deletions/{hash}/receipt:
     parameters:
@@ -3592,7 +3706,17 @@ paths:
                   waitingForCutover: { type: integer, description: Rows left open for their own data type's cutover (workplan 0128 T5, slice 6). }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
-        '409': { description: Not cut over yet — the press refuses with the reason. }
+        '409':
+          description: |
+            Not cut over yet — the press refuses with the reason. Or
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2), and no share is created.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
   /api/migrations/{mappingId}/sharing/apply-folder:
     post:
       tags: [Migrations]
@@ -3668,14 +3792,18 @@ paths:
             Not cut over yet, or a grantee in this folder has no confirmed
             address. The latter carries `grantees` — exactly who is missing —
             so the screen can ask for them rather than saying "some address".
+            Or `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2), and no share is created.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error: { type: string }
-                  reason: { type: string }
-                  grantees: { type: array, items: { type: string } }
+                anyOf:
+                  - { $ref: '#/components/schemas/AccountClosed' }
+                  - type: object
+                    properties:
+                      error: { type: string }
+                      reason: { type: string }
+                      grantees: { type: array, items: { type: string } }
   /api/migrations/{mappingId}/sharing/rescan:
     post:
       tags: [Migrations]
@@ -3699,7 +3827,17 @@ paths:
                   blindSpots: { type: array, items: { type: string } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping. }
-        '409': { description: The mapping records no mailbox to inventory. }
+        '409':
+          description: |
+            The mapping records no mailbox to inventory. Or `account_closed`
+            (`AccountClosed`): the organisation was closed (workplan 0085 T2),
+            and its accounts are not read.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
   /api/migrations/{mappingId}/sharing/{grantId}/decision:
     post:
       tags: [Migrations]
@@ -3732,7 +3870,18 @@ paths:
         '400': { description: Unknown action. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown mapping or row. }
-        '409': { description: The refusal, with its reason verbatim. }
+        '409':
+          description: |
+            The refusal, with its reason verbatim. Or `account_closed`
+            (`AccountClosed`): `apply`, for an organisation that was closed
+            (workplan 0085 T2). Ticking a row off by hand, or skipping it, is
+            not refused for that.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
   /api/migrations/{mappingId}/completion-report:
     get:
       tags: [Migrations]
@@ -3825,7 +3974,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/PlatformHeld' }
+        '409':
+          description: |
+            `platform_held` (`PlatformHeld`): an operator hold is open.
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2). Either way nothing was enqueued or written.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
 
   /api/migrations/{mappingId}/moves/{hash}/receipt:
     parameters:
@@ -3979,7 +4138,17 @@ paths:
               schema: { $ref: '#/components/schemas/ConfirmStartResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/PlatformHeld' }
+        '409':
+          description: |
+            `platform_held` (`PlatformHeld`): an operator hold is open.
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2). Either way nothing was enqueued or written.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
         '502':
           description: The pass could not be enqueued; nothing was written, so nothing is left claiming to run.
           content:
@@ -4179,7 +4348,17 @@ paths:
                   report: { $ref: '#/components/schemas/VerificationRunReport' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/PlatformHeld' }
+        '409':
+          description: |
+            `platform_held` (`PlatformHeld`): an operator hold is open.
+            `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2). Either way nothing was enqueued or written.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/PlatformHeld' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
         '502':
           description: The scan could not be enqueued; the run row is landed as failed with the reason.
           content:
@@ -4758,6 +4937,18 @@ paths:
             text/markdown:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: |
+            `Conflict`: the migration named records no mailbox to inventory.
+            Or `account_closed` (`AccountClosed`): the organisation was closed
+            (workplan 0085 T2), and the report, which reads its accounts with
+            their stored access, is not made.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - { $ref: '#/components/schemas/Refusal' }
+                  - { $ref: '#/components/schemas/AccountClosed' }
         '429': { $ref: '#/components/responses/TooManyTests' }
 
   /api/billing/usage:
@@ -5777,6 +5968,14 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    AccountClosed:
+      description: |
+        `account_closed`: the organisation was closed (workplan 0085 T2), so
+        nothing was started, written or probed. The sentence names the day of
+        the close and the day its data is removed.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AccountClosed' }
     PlatformHeld:
       description: |
         `platform_held`: an operator hold is open (managed migration 0023), so
@@ -6142,6 +6341,42 @@ components:
               reference: { type: string, pattern: '^[0-9a-f]{8}$' }
               code: { type: string, pattern: '^[a-z][a-z0-9_]{0,47}$' }
             required: [reference, code]
+
+    AccountClosed:
+      type: object
+      description: |
+        A door that would start work, re-arm it, or use the access an
+        organisation gave, for an organisation that was closed (workplan 0085
+        T2). `message` and `reason` carry one English sentence that names the
+        day of the close and the day its data is removed from the service;
+        `messageNl` and `reasonNl` carry the same in Dutch, for a page read in
+        that language. Nothing was started, written or probed. Reading, the
+        reopen and the erasure stay open, and after a reopen the same press
+        goes through.
+      properties:
+        error: { type: string, enum: [account_closed] }
+        message: { type: string }
+        messageNl: { type: string }
+        reason: { type: string }
+        reasonNl: { type: string }
+        closedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When it was closed; null when the close's own row could not say.
+        purgeAfter:
+          type: [string, 'null']
+          format: date-time
+          description: When its data is removed from the service; null when the close's own row could not say.
+      required: [error, message, reason, closedAt, purgeAfter]
+
+    Refusal:
+      type: object
+      description: A refusal named by `error`, with the door's own sentence in `reason` or `message`.
+      properties:
+        error: { type: string }
+        reason: { type: string }
+        message: { type: string }
+      required: [error]
 
     PlatformHeld:
       type: object

@@ -64,6 +64,17 @@
  * not", `0` for "we asked and there are none", and the sentence keeps its
  * number-free wording for both. Hard rule 9, in the one place on this panel
  * where a silence could be mistaken for an all-clear.
+ *
+ * ## And a Dropbox migration's Paper docs (workplan 0150 T3 (d))
+ *
+ * D7 chose one key, one panel and one revision rule for both sources. So on a
+ * Dropbox migration this same panel shows `PaperFormatChooser`, titled
+ * *Export format for Paper docs*, the words the Paper refusal names, and
+ * sends `{ paper }` under the same key through the same save. What it says
+ * before and after the press is the same fact about Paper docs: a new format
+ * gives each one a new name, so it is copied again and the old copy stays.
+ * The count after the press counts Paper docs only: the other kinds of
+ * Dropbox's own share their category, and no format here exports them.
  */
 import React from 'react';
 import { Link } from 'react-router';
@@ -72,8 +83,10 @@ import { Settings2 } from 'lucide-react';
 import {
   GOOGLE_EDITOR_KINDS,
   carriesGoogleNativeFiles,
+  isDropboxPaperPolicy,
   mayRevise,
   nativeFilePoliciesOf,
+  type DropboxPaperPolicy,
   type FailuresQueue,
   type GoogleNativeFilePolicy,
   type NativeFilePolicies,
@@ -87,6 +100,8 @@ import {
   NativeFilePolicyChooser,
   type NativeFilePolicyByKind,
 } from './NativeFilePolicyChooser.tsx';
+import { PaperFormatChooser } from './PaperFormatChooser.tsx';
+import type { StringKey } from '../i18n/strings.ts';
 
 /**
  * The policy this migration is running under, as a value the chooser can show.
@@ -132,9 +147,37 @@ export function policiesInForce(
   });
 }
 
-/** Whether two choices differ for any kind. */
-function differs(a: NativeFilePolicyByKind, b: NativeFilePolicyByKind): boolean {
-  return GOOGLE_EDITOR_KINDS.some((kind) => a[kind] !== b[kind]);
+/**
+ * The format a Dropbox migration's Paper docs arrive in, as the chooser shows
+ * it (workplan 0150 T3 (d)): the one it holds, and `refuse` where it holds
+ * none or one this screen does not know, which is what its source does then
+ * (D1), for the reason `policyInForce` gives.
+ */
+export function paperInForce(
+  sourceConfig: { readonly nativeFilePolicies?: unknown } | undefined,
+): DropboxPaperPolicy {
+  const own = sourceConfig?.nativeFilePolicies;
+  const paper = typeof own === 'object' && own !== null ? (own as Record<string, unknown>).paper : undefined;
+  return isDropboxPaperPolicy(paper) ? paper : 'refuse';
+}
+
+/**
+ * A migration's formats, kind by kind, as the route takes them under
+ * `nativeFilePolicies`: Google's four kinds, or Dropbox's one.
+ */
+type FormatsByKind = Readonly<Record<string, string>>;
+
+/** Whether two choices differ for any kind either names. */
+function differs(a: FormatsByKind, b: FormatsByKind): boolean {
+  return Object.keys({ ...a, ...b }).some((kind) => a[kind] !== b[kind]);
+}
+
+/** A choice as a string, for an effect to key on: the object is new on every render. */
+function keyOf(formats: FormatsByKind): string {
+  return Object.keys(formats)
+    .sort()
+    .map((kind) => `${kind}:${formats[kind]}`)
+    .join(',');
 }
 
 /**
@@ -158,6 +201,47 @@ export function refusedByPolicy(queue: FailuresQueue | undefined): number | unde
   ).length;
 }
 
+/**
+ * How many of a Dropbox migration's failures are Paper docs its format left
+ * behind (workplan 0150 T3 (d)), with `refusedByPolicy`'s `undefined`.
+ *
+ * By the name the row carries, `.paper` or `.papert`: a Paper doc refused is
+ * listed under its own name, and the other kinds of Dropbox's own are
+ * `policy_refused` too, which no format here exports. Counting them would
+ * promise the next pass tries files it never will.
+ */
+export function refusedPaperDocs(queue: FailuresQueue | undefined): number | undefined {
+  if (queue === undefined) return undefined;
+  return [...queue.needsDecision, ...queue.retrying].filter(
+    (f) => f.category === 'policy_refused' && /\.papert?$/i.test(f.displayName ?? ''),
+  ).length;
+}
+
+/** The connection kind whose formats are its Paper docs' (0150 T3 (d)). */
+const DROPBOX = 'dropbox';
+
+/** What the panel says, by whose formats it holds: the one place the two differ in words. */
+const WORDS: Readonly<
+  Record<'google' | 'paper', Readonly<Record<'title' | 'consequence' | 'consequenceWhy' | 'refusedBefore' | 'refusedBeforeCount' | 'refusedBeforeWhy', StringKey>>>
+> = {
+  google: {
+    title: 'settings.exportPolicy',
+    consequence: 'settings.exportPolicy.consequence',
+    consequenceWhy: 'settings.exportPolicy.consequence.why',
+    refusedBefore: 'settings.exportPolicy.refusedBefore',
+    refusedBeforeCount: 'settings.exportPolicy.refusedBefore.count',
+    refusedBeforeWhy: 'settings.exportPolicy.refusedBefore.why',
+  },
+  paper: {
+    title: 'settings.exportPolicy.paper',
+    consequence: 'settings.exportPolicy.paper.consequence',
+    consequenceWhy: 'settings.exportPolicy.paper.consequence.why',
+    refusedBefore: 'settings.exportPolicy.paper.refusedBefore',
+    refusedBeforeCount: 'settings.exportPolicy.paper.refusedBefore.count',
+    refusedBeforeWhy: 'settings.exportPolicy.paper.refusedBefore.why',
+  },
+};
+
 const ExportPolicyPanel: React.FC<{
   mappingId: string;
   /** The connection kind this migration reads from. */
@@ -171,13 +255,18 @@ const ExportPolicyPanel: React.FC<{
 }> = ({ mappingId, sourceType, domains, current }) => {
   const t = useT();
   const queryClient = useQueryClient();
-  const inForce = policiesInForce(current);
+  // WHOSE FORMATS THESE ARE (0150 T3 (d)): a Dropbox migration's one kind,
+  // Paper, or Google's four. Held as the map the route takes, so the save and
+  // the comparison below are the same for both.
+  const paper = sourceType === DROPBOX;
+  const words = WORDS[paper ? 'paper' : 'google'];
+  const inForce: FormatsByKind = paper ? { paper: paperInForce(current) } : policiesInForce(current);
   // A key, because `inForce` is a new object on every render and an effect
   // keyed on it would reset the choice each time anything re-rendered.
-  const inForceKey = GOOGLE_EDITOR_KINDS.map((kind) => inForce[kind]).join(',');
-  const [chosen, setChosen] = React.useState<NativeFilePolicyByKind>(inForce);
+  const inForceKey = keyOf(inForce);
+  const [chosen, setChosen] = React.useState<FormatsByKind>(inForce);
   const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState<NativeFilePolicyByKind | null>(null);
+  const [saved, setSaved] = React.useState<FormatsByKind | null>(null);
   const [refused, setRefused] = React.useState<
     ReadonlyArray<{ field: string; reason: string }>
   >([]);
@@ -193,7 +282,7 @@ const ExportPolicyPanel: React.FC<{
     enabled: saved !== null,
     staleTime: 30_000,
   });
-  const refusedCount = refusedByPolicy(queues?.[mappingId]);
+  const refusedCount = (paper ? refusedPaperDocs : refusedByPolicy)(queues?.[mappingId]);
 
   // What the mapping holds is the source of truth, and it changes under this
   // panel every time a save lands and the query refetches. Without this, a
@@ -202,7 +291,7 @@ const ExportPolicyPanel: React.FC<{
   // Keyed on `inForceKey`, which IS `current`'s meaning: keyed on the object,
   // this would run on every render.
   React.useEffect(() => {
-    setChosen(policiesInForce(current));
+    setChosen(inForce);
   }, [inForceKey]);
   const changed = differs(chosen, inForce);
 
@@ -211,7 +300,9 @@ const ExportPolicyPanel: React.FC<{
   // The two questions the wizard asks before offering this control, asked
   // again here so the settings panel and the wizard cannot disagree about
   // whose migration the question belongs to.
-  if (!carriesGoogleNativeFiles(sourceType) || !domains.includes('file')) return null;
+  // And a Dropbox migration's Paper docs since 0150 T3 (d): the wizard asks
+  // every Dropbox migration that carries files (D1), so this does too.
+  if (!(paper || carriesGoogleNativeFiles(sourceType)) || !domains.includes('file')) return null;
 
   const save = async () => {
     setSaving(true);
@@ -246,17 +337,26 @@ const ExportPolicyPanel: React.FC<{
     <section className="mt-8 p-4 bg-white border border-gray-200 rounded-lg">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
         <Settings2 className="w-4 h-4 text-gray-500" />
-        {t('settings.exportPolicy')}
+        {t(words.title)}
       </h3>
       {verdict.allowed ? (
         <>
           <div className="mt-3">
-            <NativeFilePolicyChooser
-              id="settings-native-file-policy"
-              value={chosen}
-              onChange={setChosen}
-              disabled={saving}
-            />
+            {paper ? (
+              <PaperFormatChooser
+                id="settings-paper-format"
+                value={chosen.paper as DropboxPaperPolicy}
+                onChange={(next) => setChosen({ paper: next })}
+                disabled={saving}
+              />
+            ) : (
+              <NativeFilePolicyChooser
+                id="settings-native-file-policy"
+                value={chosen as NativeFilePolicyByKind}
+                onChange={setChosen}
+                disabled={saving}
+              />
+            )}
           </div>
           {/* BEFORE the press, and only when something would actually change:
               restating it under a chooser nobody has touched is noise, and the
@@ -265,8 +365,8 @@ const ExportPolicyPanel: React.FC<{
             <Hint
               tone="caution"
               className="mt-3"
-              text={t('settings.exportPolicy.consequence')}
-              why={t('settings.exportPolicy.consequence.why')}
+              text={t(words.consequence)}
+              why={t(words.consequenceWhy)}
             />
           )}
           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -291,7 +391,9 @@ const ExportPolicyPanel: React.FC<{
               that silently emptied a queue of decisions would be the bulk
               mutation this codebase refuses to make. The link is for watching
               it happen, not a second button. */}
-          {saved !== null && (
+          {/* Not after Paper docs are set to be left behind: no pass tries
+              them in a format then, and the sentence would say one does. */}
+          {saved !== null && !(paper && saved.paper === 'refuse') && (
             <Hint
               className="mt-2"
               // The number when we have one, and the same sentence without it
@@ -302,12 +404,12 @@ const ExportPolicyPanel: React.FC<{
               // owner's own thirty read `unknown` until next attempted (§7).
               text={
                 refusedCount !== undefined && refusedCount > 0
-                  ? t('settings.exportPolicy.refusedBefore.count', {
+                  ? t(words.refusedBeforeCount, {
                       count: String(refusedCount),
                     })
-                  : t('settings.exportPolicy.refusedBefore')
+                  : t(words.refusedBefore)
               }
-              why={t('settings.exportPolicy.refusedBefore.why')}
+              why={t(words.refusedBeforeWhy)}
             />
           )}
           {saved !== null && (

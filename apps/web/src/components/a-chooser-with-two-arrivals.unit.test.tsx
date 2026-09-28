@@ -37,6 +37,8 @@ import {
 } from '@openmig/shared';
 import { nativeKindKey } from '../i18n/native-kind-key.ts';
 import { STRINGS } from '../i18n/strings.ts';
+import { PaperFormatChooser, SUGGESTED_PAPER_FORMAT } from './PaperFormatChooser.tsx';
+import { DROPBOX_PAPER_POLICIES, parseDropboxSource } from '@openmig/shared';
 
 /** What the reader actually sees, so the assertion reads the dictionary the
  *  component reads rather than a second copy of these words. */
@@ -252,5 +254,47 @@ describe('an editable format for every kind', () => {
     await userEvent.click(screen.getByRole('button', { name: EN['wizard.nativePolicy.editable'] }));
     expect(selectFor('spreadsheet').value).toBe('export-odf');
     expect(selectFor('document').value).toBe('export-office');
+  });
+});
+
+describe('the Paper chooser, held the same way (workplan 0150 T3 (d))', () => {
+  /**
+   * The same question for a Dropbox migration's Paper docs, asked by the same
+   * two screens through one control. Its select is held against the list the
+   * shared parser accepts, so a format offered here is one both editions
+   * store and the source exports, and a format added there reaches it.
+   */
+  const paperSelect = () => screen.getByLabelText(EN['wizard.paperFormat']) as HTMLSelectElement;
+
+  it('offers every policy the shared parser accepts, and nothing else', () => {
+    render(<PaperFormatChooser value={SUGGESTED_PAPER_FORMAT} onChange={() => {}} />);
+    const offered = [...paperSelect().options].map((o) => o.value);
+    expect([...offered].sort()).toEqual([...DROPBOX_PAPER_POLICIES].sort());
+    for (const paper of offered) {
+      expect(parseDropboxSource({ nativeFilePolicies: { paper } }).nativeFilePolicies).toEqual({ paper });
+    }
+  });
+
+  it('suggests Markdown (D1), and names the file a doc becomes under each format', () => {
+    expect(SUGGESTED_PAPER_FORMAT).toBe('markdown');
+    const { rerender } = render(<PaperFormatChooser value="markdown" onChange={() => {}} />);
+    expect(screen.getByText(EN['wizard.paperFormat.arrives'].replace('{ext}', '.md'))).toBeInTheDocument();
+    rerender(<PaperFormatChooser value="html" onChange={() => {}} />);
+    expect(screen.getByText(EN['wizard.paperFormat.arrives'].replace('{ext}', '.html'))).toBeInTheDocument();
+    rerender(<PaperFormatChooser value="refuse" onChange={() => {}} />);
+    expect(screen.getByText(EN['wizard.paperFormat.leftBehind'])).toBeInTheDocument();
+  });
+
+  it('hands the choice back as the policy it is', async () => {
+    const chosen: string[] = [];
+    render(<PaperFormatChooser value="markdown" onChange={(next) => chosen.push(next)} />);
+    await userEvent.selectOptions(paperSelect(), 'html');
+    expect(chosen).toEqual(['html']);
+  });
+
+  it('names the kind on the confirm screen, not as Google files', () => {
+    expect(nativeKindKey('paper')).toBe('discovery.refusedNative.kind.paper');
+    expect(STRINGS.en['discovery.refusedNative.kind.paper']).toBe('Dropbox Paper docs');
+    expect(STRINGS.nl['discovery.refusedNative.kind.paper']).not.toBe(STRINGS.en['discovery.refusedNative.kind.paper']);
   });
 });

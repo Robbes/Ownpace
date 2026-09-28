@@ -127,10 +127,17 @@ describe('every field an audit event carries is classified for the export', () =
   });
 });
 
-/** Each task file that opens the database: a process of its own, one per run. */
-const tasks = sources.filter(
-  (f) => f.startsWith('apps/worker/src/jobs/') && readFileSync(join(REPO, f), 'utf8').includes('new Pool('),
-);
+/**
+ * Each task file that opens the database: a process of its own, one per run.
+ * A per-tenant task opens it through `openTaskPools` (0138 T1), which points
+ * the audit lines itself; a cross-tenant job still builds its own pool.
+ */
+const TASK_POOLS = 'apps/worker/src/jobs/task-pools.ts';
+const tasks = sources.filter((f) => {
+  if (!f.startsWith('apps/worker/src/jobs/') || f === TASK_POOLS) return false;
+  const text = readFileSync(join(REPO, f), 'utf8');
+  return text.includes('new Pool(') || text.includes('openTaskPools(');
+});
 
 describe('every process that writes audit events points its lines at its output', () => {
   it('finds the tasks, so the check below is not vacuous', () => {
@@ -142,7 +149,12 @@ describe('every process that writes audit events points its lines at its output'
   it.each(['apps/selfhost/src/index.ts', 'apps/api/src/index.ts', 'apps/worker/src/index.ts', ...tasks])(
     '%s',
     (file) => {
-      expect(readFileSync(join(REPO, file), 'utf8')).toContain('setAuditExportSink(auditExportOn(');
+      // Its own wiring, or the task-pools module's, whose own is checked below.
+      const text = readFileSync(join(REPO, file), 'utf8');
+      expect(
+        text.includes('setAuditExportSink(auditExportOn(') || text.includes('openTaskPools('),
+        `${file} points no audit line at its output: neither setAuditExportSink(auditExportOn(…)) nor openTaskPools()`,
+      ).toBe(true);
     },
   );
 
@@ -157,6 +169,18 @@ describe('every process that writes audit events points its lines at its output'
     // The operator's download reads the same key on the same connection, so a
     // person is the same pseudonym in a downloaded line as in the printed one.
     expect(api).toContain('setAuditKeyDriver(pgDriver(auditKeyPool))');
+  });
+
+  it("a per-tenant task reads the key on a pool of its own: its tenant pool is app_user, which may not (0138 T1 part 5)", () => {
+    const pools = readFileSync(join(REPO, TASK_POOLS), 'utf8');
+    const wiring = pools.slice(pools.indexOf('setAuditExportSink(auditExportOn('));
+    const sink = wiring.slice(0, wiring.indexOf(';'));
+
+    expect(sink, `${TASK_POOLS} points no audit line anywhere`).toContain('auditExportOn(');
+    expect(sink).toContain('auditKey');
+    expect(sink).not.toContain('tenant');
+    // One connection, on the owner's URL, as the API's is.
+    expect(pools).toMatch(/new Pool\(\{ connectionString: ownerUrl, max: 1\b/);
   });
 });
 

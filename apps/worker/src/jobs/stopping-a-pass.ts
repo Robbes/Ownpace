@@ -11,11 +11,12 @@
  *
  * They live HERE, and not in `run-delta-sync.ts` where they are used, for a
  * reason the guard `an-integration-test-is-handed-its-database.unit.test.ts`
- * makes concrete: that module builds a `Pool` from `DATABASE_URL` at import
- * and throws without one. A test that has been handed a database — which is
- * the only kind this repository allows — then cannot import it without
- * setting `DATABASE_URL` itself, and "the fix is always to pass the handle,
- * never to set `DATABASE_URL` from a test". So the rules sit in a module with
+ * makes concrete: that module opens its pools at import (`openTaskPools`,
+ * from `APP_DATABASE_URL` and, for the audit key, `DATABASE_URL`) and throws
+ * without them. A test that has been handed a database — which is the only
+ * kind this repository allows — then cannot import it without setting both
+ * itself, and "the fix is always to pass the handle, never to set
+ * `DATABASE_URL` from a test". So the rules sit in a module with
  * no import side effects at all: `mappingStillRuns` takes the pool it should
  * use, and the tests hand it one.
  */
@@ -23,7 +24,7 @@
 import type { Pool } from 'pg';
 import { pathRunsNow } from '@openmig/shared';
 import type { TenantId, MappingId } from '@openmig/shared';
-import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
+import { organisationIsOpen, readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
 
 /**
  * Is this mapping still one a pass may run for?
@@ -61,17 +62,24 @@ export async function mappingStillRuns(
 
 /**
  * Why a pass stops before its next data type: the migration no longer runs
- * (paused, finished or gone), or the person who granted it access took the
- * grant back (workplan 0108 T8 (c), ledger migration 0063).
+ * (paused, finished or gone), the person who granted it access took the grant
+ * back (workplan 0108 T8 (c), ledger migration 0063), or the organisation was
+ * closed (workplan 0085 T2; the owner's report of 2026-09-28).
  */
-export type PassHalt = 'no_longer_runs' | 'grant_withdrawn';
+export type PassHalt = 'no_longer_runs' | 'grant_withdrawn' | 'organisation_closed';
 
 /**
- * `mappingStillRuns`, saying which of the two it is, because the run log and
+ * `mappingStillRuns`, saying which of the three it is, because the run log and
  * the cutover's refusal owe the owner different sentences: *paused* is
  * something they did, *withdrawn* is something somebody else did, and it needs
- * a new grant rather than a press of Resume.
+ * a new grant rather than a press of Resume, and *closed* is undone only by a
+ * reopen.
  *
+ * The close is asked FIRST, in the same transaction as the migration's phases:
+ * it is the organisation's, it stops every one of its migrations whatever
+ * their own state, and a Resume would not lift it. A pass the tick enqueued in
+ * the minute before the close has no run row for the close to cancel, and a
+ * retry has none either; this is where both stop, before anything is built.
  * A withdrawal is checked AFTER the lifecycle: a paused migration whose grant
  * was also withdrawn is stopped either way, and the pause is the older fact.
  */
@@ -80,7 +88,10 @@ export async function whyThePassStops(
   tenantId: TenantId,
   mappingId: MappingId,
 ): Promise<PassHalt | null> {
-  return withTenant(db, tenantId, async (tx) => haltFrom(await readPathPhases(tx, tenantId, mappingId)));
+  return withTenant(db, tenantId, async (tx) => {
+    if (!(await organisationIsOpen(tx, tenantId))) return 'organisation_closed';
+    return haltFrom(await readPathPhases(tx, tenantId, mappingId));
+  });
 }
 
 /**
@@ -98,8 +109,9 @@ export function haltFrom(phases: MigrationPhases | null): PassHalt | null {
 
 /**
  * What a pass does before one data type (workplan 0128 T5): stop, when the
- * migration itself no longer runs or its grant was withdrawn; move on past this
- * data type, when the migration still runs and this data type does not (its own
+ * migration itself no longer runs, its grant was withdrawn, or its organisation
+ * was closed (0085 T2); move on past this data type, when the migration still
+ * runs and this data type does not (its own
  * cutover past its grace period, ended, or stopped by its owner, 0128 T4), so the
  * next one still gets its turn; and otherwise run it.
  *
@@ -123,7 +135,11 @@ export async function passStepBefore(
   mappingId: MappingId,
   domain: string,
 ): Promise<PassStep> {
-  return withTenant(db, tenantId, async (tx) => stepFrom(await readPathPhases(tx, tenantId, mappingId), domain));
+  return withTenant(db, tenantId, async (tx) => {
+    // The organisation first, as `whyThePassStops` asks it (0085 T2).
+    if (!(await organisationIsOpen(tx, tenantId))) return { halt: 'organisation_closed' };
+    return stepFrom(await readPathPhases(tx, tenantId, mappingId), domain);
+  });
 }
 
 /** `passStepBefore`'s decision, from the phases already read. */

@@ -223,8 +223,8 @@ describe('a format the file does not offer is refused as the setting’s doing',
     expect(isDecisionError(err)).toBe(true);
     expect((err as Error).message).toBe(
       '"Notes.paper" is a Dropbox Paper doc, and Dropbox does not offer it as html, the format this ' +
-        'migration exports Paper docs in, so nothing was copied. Choose another format for Paper ' +
-        'docs, or leave it behind.',
+        'migration exports Paper docs in, so nothing was copied. Choose another format under Export ' +
+        'format for Paper docs, or leave it behind.',
     );
   });
 
@@ -280,7 +280,7 @@ describe('with no format chosen, nothing changes (D1)', () => {
       const err = await refusal(source, doc!);
       expect(calls).toEqual([]);
       expect(statedFailureCategoryOf(err)).toBe('policy_refused');
-      expect((err as Error).message).toContain('"Notes.paper" is a Dropbox Paper doc. Dropbox hands one over only as an export');
+      expect((err as Error).message).toContain('"Notes.paper" is a Dropbox Paper doc: it has no file to copy until Dropbox exports one');
     }
   });
 

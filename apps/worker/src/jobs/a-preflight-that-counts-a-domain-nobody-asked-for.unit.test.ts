@@ -43,8 +43,10 @@
 import { describe, it, expect } from 'vitest';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 
-// The job builds a Pool at module load and refuses without a URL. Nothing here
+// The job opens its pools at module load (openTaskPools) and refuses without
+// either URL: app_user's, and the owner's for the audit key. Nothing here
 // connects — `pg` builds the pool lazily and every query below is the stub.
+process.env.APP_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 process.env.DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 
 const { domainsToCount } = await import('./run-discovery.ts');

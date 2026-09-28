@@ -4,6 +4,14 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, the Photos sentence left on purpose is gone.** On branch
+`claude/loving-goodall-24prqs`; not merged. `google-workspace-setup.md` no longer asks the reader
+to say so if they need their photos moved: its Photos paragraph now ends as the Google guide's
+`{#photos}` does, at the **Export archive** card, and links `archive-setup.md` for how to ask
+Google for a Takeout and where it has to be. §1's *Left on purpose* held it back while the card
+could not work on managed; D10 kept the card there, tagged experimental, and T9 reads the export
+from a folder of the destination's own Nextcloud or WebDAV files.
+
 **2026-09-28, the parked follow-up:** a help center beyond these guides (the same `docs/guides`
 text as a help section on `www.ownpace.eu`, later Zammad's Knowledge Base) is planned in
 [0151](./0151-a-help-center.md) and parked whole; the owner: *"yes, write the help center

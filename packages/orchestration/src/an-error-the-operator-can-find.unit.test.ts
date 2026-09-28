@@ -113,11 +113,19 @@ describe('the managed worker records the same event', () => {
 
 describe('every process points the recorder at its own database', () => {
   it.each([
-    ['the managed worker', 'apps/worker/src/jobs/run-delta-sync.ts'],
-    ['the command-line worker', 'apps/worker/src/index.ts'],
+    // The per-tenant tasks and the command-line worker point it through the
+    // one module that builds their pools (workplan 0138 T1), at the tenant pool.
+    ['the managed worker and the command-line worker, through their pools', 'apps/worker/src/jobs/task-pools.ts'],
     ['the appliance', 'apps/selfhost/src/index.ts'],
     ['the API', 'apps/api/src/index.ts'],
   ])('%s', (_who, path) => {
     expect(read(path)).toMatch(/setAppEventSink\(appEventSinkOn\(/);
+  });
+
+  it.each([
+    ['the managed worker', 'apps/worker/src/jobs/run-delta-sync.ts'],
+    ['the command-line worker', 'apps/worker/src/index.ts'],
+  ])('%s opens its pools through that module', (_who, path) => {
+    expect(read(path)).toMatch(/\bopenTaskPools\(\)/);
   });
 });

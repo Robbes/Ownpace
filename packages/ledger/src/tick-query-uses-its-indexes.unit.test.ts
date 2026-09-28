@@ -32,6 +32,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
+import { AN_OPEN_ORGANISATION_WHERE } from './organisation-open.ts';
 import type { LedgerDriver, LedgerConnection } from './driver.ts';
 
 // UUID family 5a8b0000-…, unused elsewhere in the repo.
@@ -62,7 +63,12 @@ const INACTIVE_MAPPINGS = 500;
 let driver: LedgerDriver;
 let conn: LedgerConnection;
 
-/** The tick's own query, verbatim from `managed-sync-tick.ts`. */
+/**
+ * The tick's own query, from `managed-sync-tick.ts`, cut to the parts whose
+ * plan this file pins: the two history reads, the enumeration, and the
+ * organisation's status (workplan 0085 T2), which the tick asks of every
+ * migration it chooses. The tenant is looked up by its primary key.
+ */
 const TICK_SQL = `SELECT m.id, m.tenant_id, m.schedule,
               (SELECT max(r.started_at) FROM run r
                 WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id) AS last_started,
@@ -70,7 +76,8 @@ const TICK_SQL = `SELECT m.id, m.tenant_id, m.schedule,
                 WHERE r.tenant_id = m.tenant_id AND r.mapping_id = m.id
                   AND r.status = 'running') AS running
          FROM mailbox_mapping m
-        WHERE m.status = 'active'`;
+        WHERE m.status = 'active'
+          AND ${AN_OPEN_ORGANISATION_WHERE}`;
 
 async function explain(sql: string): Promise<string> {
   const { rows } = await conn.query<Record<string, string>>(`EXPLAIN ${sql}`);

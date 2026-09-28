@@ -68,6 +68,22 @@ export const STATE_TABLE = {
     done: { key: 'state.lifecycle.done', tone: 'emerald' },
     continuous: { key: 'state.lifecycle.continuous', tone: 'blue' },
   },
+  /** Where a migration is, in a person's words (workplan 0154 T1 (a)),
+   *  from `stageOf` in shared. The lifecycle above stays the operator's.
+   *
+   *  The colours follow the lifecycle's where the two meet: paused is
+   *  yellow, the copying phases blue, and the ends emerald. *Kept in step*
+   *  is the green of a lane that runs. *Not started* is grey, because
+   *  nothing is wrong with it. */
+  stage: {
+    not_started: { key: 'state.stage.not_started', tone: 'gray' },
+    paused: { key: 'state.stage.paused', tone: 'yellow' },
+    copying: { key: 'state.stage.copying', tone: 'blue' },
+    kept_in_step: { key: 'state.stage.kept_in_step', tone: 'green' },
+    ready_to_switch: { key: 'state.stage.ready_to_switch', tone: 'emerald' },
+    switching: { key: 'state.stage.switching', tone: 'blue' },
+    done: { key: 'state.stage.done', tone: 'emerald' },
+  },
   /** Per-domain pass state (migration_status.state).
    *
    *  `stopped` is YELLOW, the colour of a paused migration, and never the

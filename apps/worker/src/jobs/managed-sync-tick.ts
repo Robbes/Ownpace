@@ -7,7 +7,9 @@
  * restores ADR-0004's original architecture, which the poller was always an
  * interim for).
  *
- * Every minute: enumerate `status = 'active'` mappings across ALL tenants
+ * Every minute: enumerate `status = 'active'` mappings across ALL tenants,
+ * of open organisations only (`tenant.status = 'active'`; a closed one gets
+ * no pass, workplan 0085 T2)
  * (the owner `DATABASE_URL` connection bypasses RLS for this trusted,
  * system-level enumeration — the exact trust boundary the poller documented),
  * evaluate each mapping's own `schedule` cron via `isSyncDue`, and trigger
@@ -50,7 +52,14 @@ import {
   setAppEventSink, setAuditExportSink,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { A_PATH_KEPT_AFTER_A_CUTOVER_WHERE, CUTOVER_STILL_COPIES_WHERE, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import {
+  AN_OPEN_ORGANISATION_WHERE,
+  A_PATH_KEPT_AFTER_A_CUTOVER_WHERE,
+  CUTOVER_STILL_COPIES_WHERE,
+  appEventSinkOn,
+  auditExportOn,
+  pgDriver,
+} from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { readOpenPause, recordTickBeat, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
@@ -229,7 +238,14 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
           -- nothing reads their account until they grant it again, so no pass
           -- is started for it. The pass's own re-read and the source builder
           -- refuse it as well; this is where it costs nothing.
-          AND m.grant_withdrawn_at IS NULL`;
+          AND m.grant_withdrawn_at IS NULL
+          -- A closed organisation (0085 T2; the owner, 2026-09-28): nothing
+          -- uses the access it gave, so no pass is started for any of its
+          -- migrations, in any of the three branches above. The close leaves
+          -- each migration's status alone, so a reopen, which sets the
+          -- organisation active again, is picked up here at the next tick.
+          -- The pass's own re-read and the builders refuse it as well.
+          AND ${AN_OPEN_ORGANISATION_WHERE}`;
 
 export { STALE_RUN_AFTER_MS };
 

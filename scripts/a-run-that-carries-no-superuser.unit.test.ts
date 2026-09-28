@@ -17,10 +17,13 @@
  * security to a superuser, so every run held a credential that reads past every
  * policy and can run programs on the database server, for nothing.
  *
- * `DATABASE_URL` is the owner's credential as well, through the pooler, and
- * that one every task reads today. It goes in T3 step 2, once T1 has moved the
- * per-tenant tasks to `app_user` and T2's jobs have a role of their own. Until
- * then it is the one exception below, on a list that may only shrink.
+ * `DATABASE_URL` is the owner's credential as well, through the pooler. Since
+ * T1's second step (2026-09-28) the per-tenant tasks read tenant data as
+ * `app_user` (`APP_DATABASE_URL`) and read this one only for the audit key's
+ * pool of one (`task-pools.ts`), while the six jobs that span organisations
+ * still connect with it. It goes in T3 step 2, once T2's jobs and that key's
+ * pool have a role of their own. Until then it is the one exception below, on
+ * a list that may only shrink.
  *
  * WHAT IS CHECKED. The upload block is read whole, and a part of it this cannot
  * read is a failure, not a skip: every line of the `variables` literal and of
@@ -58,8 +61,9 @@ const SCRIPT = readFileSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh'), '
  */
 const OWNER_URL_UNTIL_T3_STEP_2: Record<string, string> = {
   DATABASE_URL:
-    'every task reads it today (0138 §1); T1 moves the per-tenant tasks to APP_DATABASE_URL, ' +
-    'T2 and T3 step 2 give the cross-tenant jobs a role that is not a superuser, and then this goes',
+    'the six cross-tenant jobs connect with it, and the per-tenant tasks read it for the audit ' +
+    "key's pool of one alone, their tenant data being on APP_DATABASE_URL since 0138 T1 step 2; " +
+    'T2 and T3 step 2 give both a role that is not a superuser, and then this goes',
 };
 
 /**
