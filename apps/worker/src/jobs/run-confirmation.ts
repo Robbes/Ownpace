@@ -39,14 +39,14 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { Pool } from 'pg';
-import { PgRateBudget, plainDb, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { PgRateBudget, plainDb } from '@openmig/ledger';
+import { openTaskPools } from './task-pools.ts';
 import {
   DEFAULT_THROTTLE_CONFIG,
   DISCOVERY_DOMAINS,
   asMappingId,
   asTenantId,
-  log, setAppEventSink, setAuditExportSink,
+  log,
 } from '@openmig/shared';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
@@ -70,17 +70,12 @@ const ConfirmationJobSchema = z.object({
   domains: z.array(z.enum(DISCOVERY_DOMAINS)).optional(),
 });
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
-
-const pool = new Pool({ connectionString: DATABASE_URL });
-// Each audit event this task records, also as one JSON line on its output (0129 T4).
-setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
-// Its errors go to the operator's log page too (0129 T1), under the reference
-// its failure carries in the plane (0134, open question 3 (a)).
-setAppEventSink(appEventSinkOn(pgDriver(pool)));
+// Its pools, from the one module that builds a per-tenant task's (0138 T1):
+// the tenant pool on APP_DATABASE_URL, app_user, under row security, and the
+// audit key's pool of one on the owner's URL. It points this process's sinks
+// too: the operator's log page (0129 T1) at the tenant pool, the audit lines
+// (0129 T4) at the key's pool, the one read app_user may not make.
+const { tenant: pool } = openTaskPools();
 
 export const runConfirmationTask = schemaTask({
   id: 'run-confirmation',

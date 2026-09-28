@@ -69,19 +69,30 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   download read the pseudonym key through it, and no tenant's rows. It is held
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
   (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
-  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **every task
-  connects with it today** (below). `docs/rls-guide.md` §2 carries the full table, and a guard
-  fails if a script composes an owner URL without appearing in it.
+  `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **the six jobs
+  that span organisations connect with it**, and the per-tenant tasks read their audit key with it
+  (below). `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script composes
+  an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
   row-level security is in force on its request path (workplan 0011 T1). If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
-- **The deployed Trigger.dev tasks do not use `APP_DATABASE_URL` yet.** `set-task-env.sh` uploads
-  two URLs, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both:
-  `DATABASE_URL` (the owner, through the pooler), which every task connects with, for tenant data
-  too; and `APP_DATABASE_URL`, which no task reads. So row security does not bind the tasks:
-  there, what keeps one organisation's rows from another is each query's own tenant filter.
-  Workplan 0138 moves the per-tenant tasks to `app_user`; `docs/rls-guide.md`, "Where row security
-  holds today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
+- **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, the six that
+  span organisations as the owner.** `set-task-env.sh` uploads two URLs, beside
+  `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both. Since workplan 0138
+  T1 step 2 the per-tenant tasks (a pass, a discovery, a verification, a confirmation, an apply, a
+  cutover's preparation, a rollback) take their pools from `openTaskPools`
+  (`apps/worker/src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, under row security,
+  and one connection on `DATABASE_URL` for the audit export's key (`deployment_key`, which
+  `app_user` may not read). A task run without `APP_DATABASE_URL` refuses to start, naming it; it
+  never falls back to the owner. The six scheduled jobs (the sync tick, retention, the purge of
+  closed organisations, the digest, the drift detector and group discovery) still connect with
+  `DATABASE_URL`, and there each query's own tenant filter is what keeps one organisation's rows
+  from another; 0138 T2 and T3 step 2 are the rest. The sync tick needs `APP_DATABASE_URL` as
+  well: it imports the pass's task (`run-delta-sync`) to enqueue it, and that module opens its
+  pools when it is loaded, so without it no tick runs. The API's request path and the per-tenant
+  tasks now share `app_user`'s server connections at PgBouncer (`pgbouncer.ini`, beside
+  `default_pool_size`, says what that holds). `docs/rls-guide.md`, "Where row security holds
+  today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
   `set-task-env.sh` uploaded a third, `DIRECT_DATABASE_URL` (the owner, straight to
   `postgres:5432`), which no task read, since no task runs migrations. It no longer does, but a
   plane that stored it keeps it until it is deleted once: `docs/managed-bring-up.md`, "Once, after
@@ -1461,7 +1472,12 @@ steps for a tester's report. The items below are causes it points to.
 
 - **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
   and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
-  exists). The tasks do not read it yet: they connect with `DATABASE_URL` (workplan 0138).
+  exists). The per-tenant tasks read it too (workplan 0138 T1 step 2): a pass, discovery,
+  verification, confirmation, apply, cutover or rollback run that fails at once with
+  *"APP_DATABASE_URL is required"* is a task environment without it, or with it blank, which
+  `set-task-env.sh` uploads. **The sync tick fails the same way**, every tick, and with it every
+  scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. The other
+  five scheduled jobs connect with `DATABASE_URL` alone.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.

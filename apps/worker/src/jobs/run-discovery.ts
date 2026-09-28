@@ -6,8 +6,8 @@
  * can show them before the owner green-lights the migration. Enqueued on demand from the API
  * (POST /api/migrations/:id/discover). Builds each domain's source from the DB
  * (`buildDomainDepsFromMapping`, on this job's pool) and writes counts inside `withTenant`. Both run
- * as the owner, on this job's pool, which reads `DATABASE_URL`. Row security does not bind them; each
- * query's own tenant filter does the separating (docs/rls-guide.md, "Where row security holds
+ * as `app_user`, on the tenant pool `openTaskPools` builds from `APP_DATABASE_URL`, so row security
+ * binds them as well as each query's own tenant filter (docs/rls-guide.md, "Where row security holds
  * today"; workplan 0138 T1).
  *
  * Trigger: manual (API-initiated).
@@ -18,7 +18,7 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
 import { leavesAReference, outcomesForThePlane } from './what-a-run-leaves.ts';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
 import { discoverSource } from '@openmig/core';
 import type {
   DiscoveryStore,
@@ -26,11 +26,12 @@ import type {
   TenantId,
   MappingId,
 } from '@openmig/shared';
-import { withTenant, PgDiscoveryStore, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { withTenant, PgDiscoveryStore } from '@openmig/ledger';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { discoverDomains, type DomainDiscoveryTask } from '@openmig/orchestration/discovery';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
-import { DISCOVERY_DOMAINS, log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, log } from '@openmig/shared';
+import { openTaskPools } from './task-pools.ts';
 
 /**
  * The sync domains, from the one list (workplan 0113 T5).
@@ -50,17 +51,12 @@ const DiscoveryJobSchema = z.object({
 
 type DiscoveryJobPayload = z.infer<typeof DiscoveryJobSchema>;
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
-
-const pool = new Pool({ connectionString: DATABASE_URL });
-// Each audit event this task records, also as one JSON line on its output (0129 T4).
-setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
-// Its errors go to the operator's log page too (0129 T1), under the reference
-// its failure carries in the plane (0134, open question 3 (a)).
-setAppEventSink(appEventSinkOn(pgDriver(pool)));
+// Its pools, from the one module that builds a per-tenant task's (0138 T1):
+// the tenant pool on APP_DATABASE_URL, app_user, under row security, and the
+// audit key's pool of one on the owner's URL. It points this process's sinks
+// too: the operator's log page (0129 T1) at the tenant pool, the audit lines
+// (0129 T4) at the key's pool, the one read app_user may not make.
+const { tenant: pool } = openTaskPools();
 
 /** Best-effort per-item byte size from a listing item (mail/file carry `.size`). */
 function sizeOf(item: unknown): number | undefined {
@@ -70,8 +66,8 @@ function sizeOf(item: unknown): number | undefined {
 
 /**
  * A DiscoveryStore whose every op runs inside `withTenant` (tenant context set). That is the shape
- * row security needs, and it binds once the pool is `app_user`'s; today it is the owner's (workplan
- * 0138 T1). One transaction per op mirrors the migration_status writes in run-delta-sync.
+ * row security needs, and it binds, the pool being `app_user`'s since workplan 0138 T1. One
+ * transaction per op mirrors the migration_status writes in run-delta-sync.
  */
 function tenantScopedStore(scopePool: Pool): DiscoveryStore {
   return {

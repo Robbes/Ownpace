@@ -269,10 +269,11 @@ class TenantScopedClient {
  * occurs nowhere), and the client above refuses those statements rather than
  * let one through.
  *
- * On a superuser's connection, which the managed tasks connect with until 0138
- * T1's switch, the scope changes nothing a statement sees: Postgres applies no
- * policy to a superuser. On `app_user`, a statement sees this tenant's rows and
- * no other's, whatever its own `WHERE` says.
+ * On a superuser's connection, which the managed tasks connected with until
+ * 0138 T1's second step, the scope changes nothing a statement sees: Postgres
+ * applies no policy to a superuser. On `app_user`, which they connect as since
+ * (`openTaskPools`), a statement sees this tenant's rows and no other's,
+ * whatever its own `WHERE` says.
  *
  * NODE-POSTGRES ONLY. The statement goes on the `pg` client under a connection
  * `pgDriver` handed out. A PGlite driver's connection is not one, and speaks

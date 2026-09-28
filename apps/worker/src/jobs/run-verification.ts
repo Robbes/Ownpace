@@ -25,10 +25,10 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
-import { asTenantId, asMappingId, log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
-import { withTenant, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { asTenantId, asMappingId, log } from '@openmig/shared';
+import { withTenant } from '@openmig/ledger';
+import { openTaskPools } from './task-pools.ts';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
@@ -43,17 +43,12 @@ const VerificationJobSchema = z.object({
   runId: z.string().uuid(),
 });
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
-
-const pool = new Pool({ connectionString: DATABASE_URL });
-// Each audit event this task records, also as one JSON line on its output (0129 T4).
-setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
-// Its errors go to the operator's log page too (0129 T1), under the reference
-// its failure carries in the plane (0134, open question 3 (a)).
-setAppEventSink(appEventSinkOn(pgDriver(pool)));
+// Its pools, from the one module that builds a per-tenant task's (0138 T1):
+// the tenant pool on APP_DATABASE_URL, app_user, under row security, and the
+// audit key's pool of one on the owner's URL. It points this process's sinks
+// too: the operator's log page (0129 T1) at the tenant pool, the audit lines
+// (0129 T4) at the key's pool, the one read app_user may not make.
+const { tenant: pool } = openTaskPools();
 
 /** Mark the run terminal. One place, so done and failed cannot diverge on shape. */
 async function landRun(
