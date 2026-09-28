@@ -83,6 +83,13 @@ tags:
     description: The tenant record and its members.
   - name: Migrations
     description: Creating, scoping, running and finishing a migration.
+  - name: People
+    description: |
+      The person a migration is for (ADR-0050, amended 2026-09-28): a name,
+      and optionally an address, with that person's migrations under it. A
+      person has no state of its own, and changes nothing about a migration.
+      The appliance answers `GET /people` in the same shapes, with one
+      implicit person holding every migration it is configured with.
   - name: Operating
     description: The three decision queues, verification, and applying a deletion.
   - name: Decisions
@@ -4463,6 +4470,117 @@ paths:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /api/people:
+    get:
+      tags: [People]
+      summary: Everyone being moved, with their migrations
+      description: |
+        Oldest first, each person with their migrations' states and those
+        states counted. A person has no state of its own: a screen reads what
+        to say about one from their migrations (hard rule 10). `unassigned`
+        lists the migrations that belong to nobody, which is every migration
+        made before people existed.
+
+        A read that fails answers 500 with a reference, never an empty list.
+      responses:
+        '200':
+          description: The people, and the migrations that are nobody's.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeopleResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [People]
+      summary: Add a person to move
+      description: |
+        A name, and optionally an email address. The address is stored with
+        the person for grant links (0108); nothing sends mail to it yet. Not
+        refused for a closed organisation: a person is a name, and starts no
+        work.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePerson' }
+      responses:
+        '201':
+          description: The person, with no migrations yet.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/people/{personId}/migrations:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    post:
+      tags: [People]
+      summary: Add a migration to a person
+      description: |
+        A migration belongs to one person at most. Adding one that is already
+        this person's changes nothing and answers 200. One that is somebody
+        else's stays theirs: 409 `with_another_person`, naming whose.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddPersonMigration' }
+      responses:
+        '201':
+          description: Added. The person, with their migrations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
+        '200':
+          description: It was already theirs. Nothing changed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            `person_not_found` or `migration_not_found`: this organisation has
+            no such person, or no such migration.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: '`with_another_person`: the migration is already somebody else''s.'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - type: object
+                    required: [personId]
+                    properties:
+                      personId: { type: string, format: uuid, description: The person it belongs to. }
+
+  /api/people/{personId}:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    delete:
+      tags: [People]
+      summary: Delete a person, and no migration
+      description: |
+        The person goes. Their migrations are not deleted: they belong to
+        nobody again, and the answer lists them. Deleting a migration is its
+        own two-press delete (`DELETE /api/migrations/{mappingId}`).
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonDeleted' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /api/decisions:
     get:
       tags: [Decisions]
@@ -5827,6 +5945,12 @@ components:
       required: true
       description: The migration's id.
       schema: { type: string, format: uuid }
+    PersonId:
+      name: personId
+      in: path
+      required: true
+      description: The person's id, from `GET /api/people`.
+      schema: { type: string, format: uuid }
     DecisionId:
       name: decisionId
       in: path
@@ -6192,6 +6316,95 @@ components:
               type: integer
               description: Open steps needing an administrator — why a setup is stuck.
             complete: { type: boolean }
+    PersonMigration:
+      type: object
+      description: One of a person's migrations, and where it is.
+      required: [id, status]
+      properties:
+        id:
+          type: string
+          description: The id this edition's migration routes take. A uuid on managed.
+        status:
+          type: string
+          enum: [paused, active, cutover, done, continuous]
+    LifecycleCounts:
+      type: object
+      description: How many migrations are in each state. Every state is present, zero included.
+      required: [paused, active, cutover, done, continuous]
+      properties:
+        paused: { type: integer, minimum: 0 }
+        active: { type: integer, minimum: 0 }
+        cutover: { type: integer, minimum: 0 }
+        done: { type: integer, minimum: 0 }
+        continuous: { type: integer, minimum: 0 }
+    Person:
+      type: object
+      description: |
+        A person being moved (ADR-0050, amended 2026-09-28). No state of its
+        own: `counts` is their migrations' states, counted.
+      required: [id, implicit, displayName, email, createdAt, migrations, counts]
+      properties:
+        id:
+          type: string
+          description: A uuid on managed. `implicit` for the appliance's one person.
+        implicit:
+          type: boolean
+          description: True for the appliance's one person, who has no row, no name and no address.
+        displayName:
+          type: [string, 'null']
+          maxLength: 200
+          description: The name that titles the person's card. Null only for the implicit person.
+        email:
+          type: [string, 'null']
+          maxLength: 254
+          description: |
+            Stored when somebody gives one, for grant links (0108). Nothing
+            sends mail to it yet.
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+          description: Null only for the implicit person.
+        migrations:
+          type: array
+          description: Oldest first.
+          items: { $ref: '#/components/schemas/PersonMigration' }
+        counts: { $ref: '#/components/schemas/LifecycleCounts' }
+    PeopleResponse:
+      type: object
+      required: [people, unassigned]
+      properties:
+        people:
+          type: array
+          description: Oldest first.
+          items: { $ref: '#/components/schemas/Person' }
+        unassigned:
+          type: array
+          description: Migrations that belong to nobody, oldest first. Always empty on the appliance.
+          items: { $ref: '#/components/schemas/PersonMigration' }
+    CreatePerson:
+      type: object
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 200, description: Trimmed. }
+        email:
+          type: [string, 'null']
+          maxLength: 254
+          description: Optional. An empty string is no address.
+    AddPersonMigration:
+      type: object
+      required: [mappingId]
+      properties:
+        mappingId: { type: string, format: uuid }
+    PersonDeleted:
+      type: object
+      required: [deleted, unassigned]
+      properties:
+        deleted: { type: boolean, const: true }
+        unassigned:
+          type: array
+          description: The person's migrations, which belong to nobody again. None was deleted.
+          items: { type: string, format: uuid }
+
     Error:
       type: object
       description: Every refusal has this shape. `message` is meant to be shown to a person as-is.

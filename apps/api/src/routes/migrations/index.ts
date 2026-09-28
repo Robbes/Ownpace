@@ -809,10 +809,12 @@ export function sourceConfigOverride(
  * that goes wrong. The rule itself decides nothing here; it decides in
  * `shared`, where both editions call it.
  *
- * ONLY the fields this route can act on. `name` and `schedule` are permitted
- * by the table and are not collected, because this route does not write them
- * yet: collecting them would put them through a refusal check they pass and
- * change nothing, which reads like support they do not have.
+ * ONLY the fields this route can act on. `schedule` is collected since the
+ * route writes it (the owner, 2026-09-28): the table permits it, and asking
+ * keeps the table the one place that says so. `name` is permitted by the table
+ * and is not collected, because this route does not write it yet: collecting
+ * it would put it through a refusal check it passes and change nothing, which
+ * reads like support it does not have.
  *
  * A field is proposed when it is PRESENT, not when it differs from what is
  * stored. "May this change at all" is a property of the field, so a body
@@ -821,13 +823,17 @@ export function sourceConfigOverride(
  * refuse, which is a second answer to a question the table already answers.
  */
 export function proposedRevisions(
-  body: Pick<z.infer<typeof UpdateMappingSchema>, 'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig'>,
+  body: Pick<
+    z.infer<typeof UpdateMappingSchema>,
+    'sourceType' | 'targetType' | 'sourceConfig' | 'targetConfig' | 'syncConfig'
+  >,
 ): readonly RevisableField[] {
   const proposed: RevisableField[] = [];
   if (body.sourceType !== undefined) proposed.push('source.type');
   if (body.targetType !== undefined) proposed.push('target.type');
   if (body.sourceConfig?.rootFolderId !== undefined) proposed.push('source.rootFolderId');
   if (body.targetConfig?.username !== undefined) proposed.push('target.account');
+  if (body.syncConfig?.schedule !== undefined) proposed.push('schedule');
   return proposed;
 }
 
@@ -1774,20 +1780,27 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
         'contacts need no mail server.',
     });
   }
-  if (body.syncConfig.schedule !== undefined) {
-    const cronProblem = describeCronScheduleProblem(body.syncConfig.schedule);
-    if (cronProblem) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['syncConfig', 'schedule'],
-        message:
-          `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
-          'The scheduler could not evaluate it and would fall back to syncing every ' +
-          '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
-      });
-    }
-  }
+  if (body.syncConfig.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
 });
+
+/**
+ * A schedule the tick cannot evaluate, refused on the box it was typed in.
+ *
+ * One function for both doors, create and update, so a cadence refused at
+ * create is not one the migration page can store afterwards, in other words.
+ */
+function refuseUnreadableSchedule(ctx: IssueSink, schedule: string): void {
+  const cronProblem = describeCronScheduleProblem(schedule);
+  if (!cronProblem) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['syncConfig', 'schedule'],
+    message:
+      `The sync schedule is not a valid cron expression: ${cronProblem}. ` +
+      'The scheduler could not evaluate it and would fall back to syncing every ' +
+      '15 minutes, silently ignoring the cadence you stated — so it is refused here instead.',
+  });
+}
 
 /** Exported for the retraction guard too: the update path must refuse the
  *  withdrawn modes with the same words as create (sync-mode.unit.test.ts).
@@ -1812,21 +1825,27 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
  * fire.
  *
  * Widening what PARSES is not widening what is WRITTEN. The handler writes
- * status, mode, pattern and the export policy; every other field goes through
- * `mayRevise` first, which is the point of the table. The comment above says
+ * status, mode, pattern, the export policy and the schedule; every other field
+ * goes through `mayRevise` first, which is the point of the table. The comment above says
  * "a partial body may legitimately omit" fields — this makes that true of the
  * nested objects too, which is what it always meant.
  *
- * `syncConfig` is deliberately left alone: this route does not write a schedule
- * yet, and loosening a shape nothing reads would be a change with no caller.
+ * AND `syncConfig` CARRIES THE SCHEDULE ONLY (the owner, 2026-09-28: the
+ * schedule can be changed on the migration page). Create's shape defaults
+ * `domains` to `['email']`, and zod 4 applies that default inside `.partial()`
+ * too, so every update body parsed to a `syncConfig` claiming email, whatever
+ * it sent, and the route echoed it back. A data type is added through
+ * `POST …/domains`, never through this route, so `domains` is not read here.
  */
 export const UpdateMappingSchema = CreateMappingBase.partial()
   .extend({
     sourceConfig: CreateMappingBase.shape.sourceConfig.partial().optional(),
     targetConfig: CreateMappingBase.shape.targetConfig.partial().optional(),
+    syncConfig: z.object({ schedule: z.string().optional() }).optional(),
   })
   .superRefine((body, ctx) => {
     if (body.sourceConfig) refuseUnreadableExportFormat(ctx, body.sourceConfig);
+    if (body.syncConfig?.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
   });
 
 /**
@@ -2866,6 +2885,13 @@ router.put(
       }
       if ('pattern' in body && body.pattern) {
         updateData.pattern = body.pattern as 'shared_s' | 'distribution_d' | undefined;
+      }
+      // THE SCHEDULE (the owner, 2026-09-28: it can be changed on the
+      // migration page). Read by the tick on every firing (`isSyncDue`), from
+      // the last pass's start, so the next pass follows it without anything
+      // else to reschedule. Already refused above if the tick could not read it.
+      if (body.syncConfig?.schedule !== undefined) {
+        updateData.schedule = body.syncConfig.schedule;
       }
 
       /**

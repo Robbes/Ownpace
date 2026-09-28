@@ -2925,6 +2925,15 @@ report_markdown() { # report_markdown <label> <path> <heading it must carry>
 # outage twice. The database half has no such excuse.
 report_json "readiness (database)" "/api/ready" '.database' up
 report_json "readiness (verdict)" "/api/ready" '.status'
+# THE PEOPLE BEING MOVED (ADR-0050, amended 2026-09-28; workplan 0153 T2).
+#
+# What the Migrations page lists, read under the tenant's own policies on a real
+# Postgres and a real `app_user`, which no unit test is. The demo tenant has
+# named nobody, so how many there are is not the assertion: that both lists are
+# lists is. `type` and not `length`, because `null | length` is 0 in jq, and a
+# missing key would pass as an empty list.
+report_json "people (the people)" "/api/people" '.people | type' array
+report_json "people (the migrations with nobody)" "/api/people" '.unassigned | type' array
 # WHAT THIS DEPLOYMENT SAYS ITS OWN GOOGLE APPLICATION CARRIES (ADR-0041).
 #
 # The wizard reads this route rather than a compiled-in constant, because

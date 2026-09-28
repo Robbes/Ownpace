@@ -124,6 +124,16 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
     `INSERT INTO grant_link_allowance (tenant_id, live_links, set_by) VALUES ($1, 30, 'operator.sh fixture')`,
     [tenantId],
   );
+  // A person being moved, and the migration that is theirs (ADR-0050, managed
+  // 0031): a name and an address, which is what an erasure is for.
+  const { rows: [person] } = await conn.query<{ id: string }>(
+    `INSERT INTO person (tenant_id, display_name, email) VALUES ($1, $2, $3) RETURNING id`,
+    [tenantId, `Anna ${suffix}`, `anna-${suffix}@example.test`],
+  );
+  await conn.query(
+    `INSERT INTO person_migration (mapping_id, person_id, tenant_id) VALUES ($1, $2, $3)`,
+    [map, person!.id, tenantId],
+  );
   // Seeded because the purge names them: without a row, "it was deleted" is a
   // vacuous truth and the assertion proves nothing.
   await conn.query(
@@ -421,6 +431,9 @@ describe('purging a tenant', () => {
     }>(`SELECT purged_at, purged_counts, retained_invoice_ids FROM erasure_record`);
     expect(rows[0]?.purged_at).toBeInstanceOf(Date);
     expect(rows[0]?.purged_counts?.item).toBe(1);
+    // Named in the list, so counted: the cascade alone would have removed them unreported.
+    expect(rows[0]?.purged_counts?.person).toBe(1);
+    expect(rows[0]?.purged_counts?.person_migration).toBe(1);
     expect(rows[0]?.retained_invoice_ids).toHaveLength(1);
     expect(result.retainedInvoiceIds).toHaveLength(1);
   });

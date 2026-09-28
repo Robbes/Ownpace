@@ -70,4 +70,4 @@ grotere pakketten liggen bewust boven hun eigen kostprijs, zodat de kleinere kun
 één persoon die één mailbox verhuist is nergens een winstgevende klant, en dat is precies de
 persoon voor wie dit gebouwd is.
 
-Btw komt erbij waar die van toepassing is. Zelf draaien is gratis en blijft dat.
+Alle prijzen zijn inclusief btw. Zelf draaien is gratis en blijft dat.

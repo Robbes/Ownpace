@@ -360,8 +360,8 @@ tenant_id = (current_setting('app.current_tenant', true))::uuid
 ```
 
 The newer migrations wrap the setting in `NULLIF(…, '')`, and `tenant` compares
-its own `id`. Asked of `pg_policies` on 2026-09-27: 32 tables (126 policies)
-still use the plain form above, 7 the `NULLIF` form.
+its own `id`. Asked of `pg_policies` on 2026-09-28: 32 tables (126 policies)
+still use the plain form above, 9 the `NULLIF` form.
 
 No context set → no rows leak either way. On the `NULLIF` form it is zero rows.
 On the plain form it is zero rows on a connection that never held a tenant,
@@ -385,7 +385,11 @@ the tenant, each set transaction-locally by its own helper in `db.ts`:
   `mapping_link`.
 
 `grant_link_allowance` has one policy for every command, on the tenant, and
-`vat_consultation` has SELECT and INSERT only. Read the policies themselves in
+`vat_consultation` has SELECT and INSERT only. `person` has one policy for every
+command, on the tenant. `person_migration`'s adds to it that a row it writes
+names a migration of that tenant (managed `0031`). Its key already holds the
+person to that tenant, and a key is checked past row security, so the policy is
+what holds the migration. Read the policies themselves in
 `pg_policies`; this paragraph is a map, not the contract.
 
 None of this binds a superuser. "Where row security holds today" says which
@@ -393,7 +397,7 @@ connections are one.
 
 ## The RLS tables (all FORCEd)
 
-Asked of `pg_class` on 2026-09-27, with both chains applied: 43 tables, every
+Asked of `pg_class` on 2026-09-28, with both chains applied: 45 tables, every
 one `FORCE`d. `force-rls.unit.test.ts` (ledger chain) and
 `force-rls-managed.unit.test.ts` (managed chain) ask the same catalog, so this
 list is a snapshot and those tests are the check.
@@ -406,11 +410,11 @@ list is a snapshot and those tests are the check.
 `run`, `run_event`, `scope_selection`, `setup_step`, `share_grant`,
 `sync_checkpoint`, `tenant`, `verification`, `verification_run`.
 
-**The managed chain** (`packages/managed/migrations`, managed only), 15:
+**The managed chain** (`packages/managed/migrations`, managed only), 17:
 `access_request`, `billing_party`, `bytes_moved`, `grant_link_allowance`,
-`invoice`, `occupancy_peak`, `payment_method`, `platform_operator`,
-`platform_pause`, `support_read`, `tenant_closure`, `tenant_member`,
-`tenant_pricing`, `usage_metric`, `vat_consultation`.
+`invoice`, `occupancy_peak`, `payment_method`, `person`, `person_migration`,
+`platform_operator`, `platform_pause`, `support_read`, `tenant_closure`,
+`tenant_member`, `tenant_pricing`, `usage_metric`, `vat_consultation`.
 
 `cutover_state` and `cutover_event` came under row security in `0055`. The
 cutover job, the rollback job and the operator CLI read those two through
