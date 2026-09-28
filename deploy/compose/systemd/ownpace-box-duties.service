@@ -1,6 +1,7 @@
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
-# provisioning token's clock, the Trigger.dev drill, the exposure check, the
-# organisation count and the site's (0139 T10). A user unit, started by
+# provisioning token's clock, the backstop of the copy before an update
+# (0139), the exposure check, the organisation count and the site's (0139
+# T10). A user unit, started by
 # ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
 # "Live's daily duties".
 [Unit]

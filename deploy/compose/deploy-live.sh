@@ -9,10 +9,11 @@
 # deploy log and the GitHub release all name the same thing. `git pull` is never
 # run there.
 #
-# WHAT IT DOES: 0132 T6's steps 3 and 5 to 7, and step 9. Run from live's
+# WHAT IT DOES: 0132 T6's steps 3 to 7, and step 9. Run from live's
 # checkout, with the hold already open (step 2):
 #
 #   3. checks that the drain is done: no pass in flight
+#   4. takes the copy before the update (below): copy-before-update.sh take
 #   5. git fetch --tags origin, git checkout --detach <tag>
 #   6. pnpm install --frozen-lockfile, then
 #      bootstrap-managed.sh --from data, never with --with-demo. The bring-up
@@ -65,12 +66,29 @@
 # the same tag, the hold still on, does. The OTA site (www.ota.ownpace.eu,
 # ownpace-www, from the OTA stack's checkout) is never touched.
 #
-# WHAT IT DOES NOT DO. It does not open the hold (step 2) or dump the database
-# (step 4): both are the owner's, before it; --dry-run (below) says whether
-# the dump is the only way back. It does not LIFT the hold (step
+# THE COPY BEFORE THE UPDATE (workplan 0139, the owner's answer rec-copies
+# (a), 2026-09-28; 0132 T6 step 4). Right before the checkout, after every
+# refusal, with the hold on and nothing in flight, it runs
+#
+#   copy-before-update.sh take [--trigger] <tag>
+#
+# the checkout's own copy, which dumps the app's database, the sign-in
+# service's database and the roles, each read back, into
+# ~/.persistent/<project>/copy-before-update; with --trigger, which this passes
+# when the tag moves the Trigger.dev pin in managed.yml over anything the
+# comparison below names (or cannot compare), the task runner's database too.
+# A copy whose update is not proven yet is kept instead, and no second one is
+# taken: after a deploy that did not take it is still the copy of what ran
+# before. A take that fails or refuses (a copy of a proven update still there:
+# delete it first) refuses the deploy, before anything moves. The copy goes
+# once the update is proven, by the owner's `copy-before-update.sh delete`,
+# and after day 6 whatever happens, by the daily duties' backstop.
+#
+# WHAT IT DOES NOT DO. It does not open the hold (step 2): that is the
+# owner's, before it. It does not LIFT the hold (step
 # 8): the owner lifts it after looking at what this printed, and watches the
 # tick's next summary and one of their own migrations complete a pass on the
-# new tasks. It checks the drain; it does not wait for it. And it does not
+# new tasks, and then deletes the copy. It checks the drain; it does not wait for it. And it does not
 # check NODE_ENV: 0132 T4's check is not built (managed.yml still defaults it
 # to `development`), so there is nothing to ask yet, and it says so.
 #
@@ -162,16 +180,18 @@
 #
 # --dry-run: EVERY REFUSAL AND THE VERDICT, THEN STOP. It runs everything the
 # deploy runs before the checkout moves: each refusal above, the fetch of step
-# 5 (it adds tags and moves nothing), and one-way or reversible, said by the
+# 5 (it adds tags and moves nothing), one-way or reversible, said by the
 # same function over the same deploys.log and HEAD, comparing through git's
-# objects. Then it says that it stopped, and exits 0. It checks nothing out,
+# objects, and the copy's own question, `copy-before-update.sh take --dry-run`,
+# which refuses what the take would refuse and writes nothing. Then it says
+# that it stopped, and exits 0. It checks nothing out,
 # runs no pnpm install, no bring-up and none of step 7's checks, builds
 # nothing in the checkout (with WWW_LIVE=true the site's test build is among
 # the refusals, in a directory of its own), and writes no line to
 # deploys.log. Whether the log can be appended to it asks of what is there,
 # the file or the nearest directory that exists, and makes neither. Run it
-# with the hold on and the drain done, before step 4: when it says one-way, a
-# dump taken then is the only way back that is not forward. A refusal exits 1,
+# with the hold on and the drain done: when it says one-way, the copy the
+# deploy takes is the only way back that is not forward. A refusal exits 1,
 # as in the deploy.
 #
 # WHAT IT PRINTS. Never a value from the .env: a refusal names the key. The
@@ -434,12 +454,24 @@ main() {
   local verdict="${reversibility%%$'\n'*}"
   printf '%s\n' "${reversibility#*$'\n'}"
 
+  # ---- The copy before the update (workplan 0139; T6 step 4) -----------------------
+  # The checkout's own copy-before-update.sh, which says what it did. In a dry
+  # run it answers the same question and writes nothing.
+  local -a copy_args=(take)
+  [ -z "$dry_run" ] || copy_args+=(--dry-run)
+  if trigger_moves "$commit" "${bases[@]}"; then copy_args+=(--trigger); fi
+  copy_args+=("$tag")
+  say "the copy before the update: copy-before-update.sh ${copy_args[*]}"
+  "${SCRIPT_DIR}/copy-before-update.sh" "${copy_args[@]}" ||
+    refuse "the copy before the update was not taken (copy-before-update.sh, above). Live keeps one copy of what ran before each update, until the update is proven (workplan 0139), and does not move without it." \
+      "Do what it says, then run this again."
+
   # ---- --dry-run stops here, before anything moves ---------------------------------
   if [ -n "$dry_run" ]; then
     echo
     say "dry run: a deploy of ${tag} now would be ${verdict}."
     if [ "$verdict" = one-way ]; then
-      say "dry run: dump live's database now, with the hold still on, if you want a way back that is not forward (workplan 0132 T6 step 4; the operator runbook's Backup & restore). Then run this again without --dry-run."
+      say "dry run: after it, the way back is forward, or the copy the deploy takes right before its checkout, until day 6 (copy-before-update.sh; the operator runbook's The copy before an update). Run this again without --dry-run to deploy it."
     else
       say "dry run: run this again without --dry-run to deploy it."
     fi
@@ -536,6 +568,7 @@ main() {
   say "the deploy took: ${tag} (${commit}) runs, and answered every check."
   printf '%s\n' "${reversibility#*$'\n'}"
   say "The hold is still on. Lift it yourself, after looking (workplan 0132 T6 step 8): the tick's next summary shows passes started, and one of your own migrations should complete a pass on the new tasks."
+  say "Then the update is proven: delete the copy taken before it, ./deploy/compose/copy-before-update.sh delete, which checks all three. Not proven by day 6: roll back from the copy (docs/operator-runbook.md, The copy before an update). The daily duties delete it after day 6 whatever happens."
   log_deploy "$deploy_log" "$tag" "$commit" took "$verdict"
   # The next deploy refuses a tree that is not clean, so say it now.
   if ! dirty="$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal)"; then
@@ -622,6 +655,26 @@ comparison_bases() {
     }' "$log"
 }
 
+# trigger_moves <new> <base>… — true when the Trigger.dev pin in managed.yml
+# at <new> is not the one at every base (each a comparison_bases line), or
+# cannot be compared with one: the copy before the update then holds the task
+# runner's database too. The error errs towards taking it.
+trigger_moves() {
+  local new="$1" entry base new_pins old_pins
+  shift
+  new_pins="$(image_pins "$new" 'triggerdotdev\/')" || new_pins=''
+  [ -n "$new_pins" ] || return 0
+  for entry in "$@"; do
+    base="${entry%%$'\t'*}"
+    [ -n "$base" ] || continue
+    [ "$base" != - ] || return 0
+    git -C "$REPO_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null || return 0
+    old_pins="$(image_pins "$base" 'triggerdotdev\/')" || old_pins=''
+    [ "$old_pins" = "$new_pins" ] || return 0
+  done
+  return 1
+}
+
 # image_pins <commit> <pattern> — the image lines of managed.yml at that commit
 # that match, sorted, or nothing.
 image_pins() {
@@ -693,7 +746,7 @@ compare_releases() {
     say "one-way: after ${tag}, deploying a tag this stack ran before is no way back."
     printf '    %s\n' "${over[@]}"
     say "  The API refuses an older build against a migrated schema, and the Trigger.dev and identity-provider planes migrate their own schemas one way (workplan 0146 T5)."
-    say "  The way back, if this tag misbehaves, is forward: a fix, a new tag, this script. A dump taken before this deploy (0132 T6 step 4) is the only other."
+    say "  The way back, if this tag misbehaves, is forward: a fix, a new tag, this script. The copy this script takes right before its checkout (copy-before-update.sh) is the only other, until day 6."
   else
     say "reversible: over each of those, ${tag} adds, changes or removes no migration file in either chain, and moves neither the Trigger.dev nor the identity-provider pin in managed.yml."
     say "  If it misbehaves, ${back:-the release that ran before it} can be deployed again with this script."
@@ -774,6 +827,7 @@ did_not_take() {
     printf '[deploy-live] the deploy did not take: %s is checked out, and\n' "$tag"
     printf '    %s\n' "$@"
     printf '[deploy-live] The hold stays on. Nothing was lifted. Fix the cause and run this again with %s, or name another tag; the next deploy is compared with %s too.\n' "$tag" "$tag"
+    printf '[deploy-live] The copy before this update is kept (copy-before-update.sh): it is of what ran before, and the next deploy keeps it too. Not proven by day 6: roll back from it (docs/operator-runbook.md, The copy before an update).\n'
     log_deploy "$log" "$tag" "$commit" did-not-take "$verdict"
   } >&2
   exit 3

@@ -4,6 +4,102 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, latest: the copy before an update, and the drill off live (T6; the owner's answers
+rec-copies (a) and rec-drill (a))**, built on branch
+`claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged. Nothing has run
+on the machine: live is not stood up (0132 T1b), and the scripts have run only against the
+stand-ins in their guards.
+
+- **What it answers.** The owner, 2026-09-28: *"deletes only after proven successful upgrade, so
+  we already have one backup copy of what actually works. What about the drill?"*, and then one
+  copy per update, deleted once the update is proven and never kept past day 7, and the drill on
+  the test stack only. Privacy §9 and the Alpha conditions §6 (*"until that update is shown to
+  work, and never longer than 7 days"*) promise it, on draft PR #1317, whose
+  `site/legal/README.md` (*To build or to do*) is the spec: *"one copy right before each update:
+  the app's database, the sign-in service's database and the roles, and the task runner's
+  database before a Trigger.dev upgrade. It is deleted once the update is proven
+  (`deploy-live.sh` logged it as taken, one pass completed, and the hold lifted), and never kept
+  past day 7; if the update is not proven by day 6, roll back from the copy. To build: one script
+  and one directory for the copy, a delete step, a daily backstop that deletes anything older
+  than 6 days, and `dump-idp.sh` writing into the same place or refusing on live."* And: *"the
+  drill comes off live's duties in `box-duties.sh` and stays on the test stack.
+  `trigger-version.sh backup` becomes part of the copy before a Trigger.dev upgrade on live,
+  under the rule above."*
+- **One script, one directory.** `deploy/compose/copy-before-update.sh`, and
+  `~/.persistent/ownpace-live/copy-before-update/`, 700 with its files 600, never taken from the
+  shell: the backstop looks there and nowhere else. Each command refuses a `.env` without live's
+  marker.
+  - `take <tag>`: the app's database (`pg_dump --format=custom`, read back with the server's own
+    `pg_restore --list`), the sign-in service's database and the roles (`dump-idp.sh --dir`
+    that directory), with `--trigger` the task runner's (`trigger-version.sh backup
+    before-<tag>`, verified), and the note last (`copy-before-update.txt`: when, before which
+    tag, from which release, the files, the rule). A part that fails leaves nothing of the run.
+    A copy whose update is not proven is kept and no second one is taken: after a deploy that did
+    not take it is still the copy of what ran before, and `--trigger` adds the task runner's
+    database to it when it lacks it. A copy whose update is proven refuses: delete it first.
+    Files there without a note, a dump by hand, become part of the copy. `--dry-run` writes
+    nothing.
+  - `delete`: refuses unless `deploys.log` has a `took` line at or after the moment the copy was
+    taken, no hold that began at or before that line is still on, and a pass (an initial copy or
+    an incremental one) that started after it succeeded, each read from live's database as the
+    owner over the container's socket, with the superuser checked and one SELECT. A database it
+    cannot read proves nothing.
+  - `expire`: deletes the copy once it is older than 6 days, its age the note's time or its
+    oldest file's, whichever is older; on day 6 it keeps it and fails, saying to roll back from
+    it today or to delete it. It reads no database.
+- **`deploy-live.sh`** takes it right before its checkout, after every refusal, with the hold on
+  and nothing in flight: 0132 T6 step 4 is no longer the owner's. `--trigger` when the
+  Trigger.dev pin at the tag differs from, or cannot be compared with, anything the one-way
+  comparison names. A take that fails or refuses refuses the deploy with nothing moved. The dry
+  run asks `take --dry-run`. A deploy that took ends by naming the delete step and day 6; one
+  that did not take says the copy is kept.
+- **The drill off live.** `box-duties.sh`'s second duty is now `copies`,
+  `copy-before-update.sh expire`, and it names `trigger-version.sh` nowhere. `trigger-version.sh`
+  refuses `drill` on a `.env` that is or may be live's, and there its `backup`, `backups` and
+  `restore` use the copy's directory; a `MANAGED_BACKUP_DIR` naming another is refused before
+  any docker call. On the OTA stack the gate's drill is as it was.
+- **`dump-idp.sh` on live** writes into the copy's directory and refuses a `--dir` naming any
+  other, before any docker call; on the OTA stack it is as it was. **`stand-up-live.sh`**
+  refuses a tag without `copy-before-update.sh`, and its `BACKUP_RETENTION_DAYS` refusal says
+  what takes the copy and what deletes it.
+- **Docs.** The operator runbook: *The copy before an update (ownpace-live)* under *Backup &
+  restore*, with the rollback by day 6 in eight steps, and its `BACKUP_RETENTION_DAYS`
+  paragraph. The bring-up: §8g, the stand-up's `.env` step, *Live's daily duties* (the drill
+  paragraph, the `copies` row, five duties, the Trigger.dev rollback), the deploy's steps 3 to 6,
+  its refusals and `--dry-run`, the Trigger.dev upgrade and *What this does not cover*. The
+  service unit's comment, word for word in the bring-up. The comments in `managed.env.example`,
+  `managed.yml` and `erasure-timeline.ts`, which said the dump was the owner's. `stack-kind.sh`'s
+  list of the scripts that read the marker.
+- **Rehearsed.** Step 4 of the rollback, the app database's, on Postgres 16 with both migration
+  chains applied (`scripts/local-pg.sh`), after a simulated update (a column, a table and a
+  row): with a session still open, `pg_restore --clean --if-exists --create` stopped at its
+  `DROP DATABASE` (*"is being accessed by other users"*), which is why the runbook stops
+  `pgbouncer` too; with none, the database came back as dumped, without the three, owned as
+  before and with `app_user`'s grants. The proof's SELECT answered `yes|0|1` there for a lifted
+  hold and a pass after the deploy.
+- **Proved, guard first.** `scripts/one-copy-before-each-update.unit.test.ts`, new, 60 cases.
+  On `main`'s scripts 57 fail; the 3 that pass are controls (`dump-idp.sh` on the OTA stack,
+  `--dir` naming the copy's directory spelled another way, the OTA stack's drill). Changed with
+  it, before the scripts: `a-duty-the-gate-used-to-do` fails 17 of 63 on `main` (the drill with
+  no form for live, `trigger-version.sh` named nowhere, `copies` where `drill` was, the backstop
+  end to end), `a-deploy-from-a-named-tag` 10 of 132 (eight cases for the copy, and the one-way
+  dry run's words twice), `a-first-bring-up-of-live` 2 of 156, `a-way-back-before-every-upgrade`
+  1 of 19; `one-rule-for-a-release-tag` gains the stand-in its dry run now asks, and fails
+  nothing. 87 of 444 in all; with the change, all pass. `two-stacks-on-one-box` found a quote in
+  the new script its reader could not follow, rewritten. Eighteen mutations each turned a guard
+  red, each restored after: no copy in the deploy; never `--trigger`; a failed take ignored;
+  `--dry-run` given to the deploy and not the dry run; the backstop at 7 days; the hold not
+  checked; any run counted as a pass; a took line before the copy counted; a second copy over an
+  unproven first; a failed take's parts left behind; the directory taken from the shell; the
+  note's time ignored; the superuser not checked; the drill back in live's duties; `dump-idp.sh`
+  anywhere on live; the drill allowed on live; `MANAGED_BACKUP_DIR` followed on live; a tag
+  without the script taken by the stand-up.
+- **Not true yet, or not built.** A deploy started from a checkout without the step takes no
+  copy: live's first tag must hold it, which `stand-up-live.sh` now checks. Nobody is told on
+  day 6 but the journal (0142). The 6 days are a constant beside live's
+  `BACKUP_RETENTION_DAYS=7`, not read from it. #1317's texts still say this item is not built;
+  that branch changes them once this merges. The whole rollback has not been run on a stack.
+
 **2026-09-28: T10, the production site deployed with live (0131 §6, group R7; T0 fact 6)**,
 built on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged.
 Nothing has run on the machine. Live is not stood up (0132 T1b), and the scripts have run only
@@ -701,7 +797,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T6 What is kept, and for how long, made true | 🔨 **The copy before an update, and the drill off live, built 2026-09-28** (rec-copies (a), rec-drill (a)) on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, **not merged**: `copy-before-update.sh`, taken by `deploy-live.sh` right before its checkout, deleted by the owner once the update is proven and by the daily duties after day 6, and no drill on live; 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form still goes with T1 — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |

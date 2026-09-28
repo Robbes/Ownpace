@@ -429,7 +429,9 @@ the one option that is not.
 ## Backup & restore (§22.1)
 
 `ownpace-live`, the stack testers use, takes no backups during the alpha
-([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md), D1). This
+([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md), D1), apart
+from one copy made right before each update, kept until the update is proven and never past
+day 7: [The copy before an update](#the-copy-before-an-update-ownpace-live), below. This
 recipe is for a deployment that does. What losing live's machine costs, and what you do then, is
 in [If the machine is lost during the alpha](#if-the-machine-is-lost-during-the-alpha).
 
@@ -460,7 +462,10 @@ docker compose -f managed.yml exec -T postgres \
 ```
 
 It dumps the provider's database and the server's roles into `~/ownpace-dumps/<project>/`,
-readable by you alone, and reads the dump back with the server's own `pg_restore --list`. Beside
+readable by you alone, and reads the dump back with the server's own `pg_restore --list`.
+On `ownpace-live` it writes into the copy before an update's directory and nowhere else, and
+refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds that dump
+(workplan 0139). Beside
 them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
 and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
 server, going back replaces the database only: its roles are still there, and restoring them would
@@ -475,6 +480,76 @@ Notes:
   credentials and `ZITADEL_MASTERKEY` the provider's data. Keep a copy off the host, apart from the
   dumps. Restore with the api and zitadel stopped, roles first. This procedure has not been drilled
   for the managed edition (the appliance's has: `test/e2e/selfhost-backup-restore.e2e.test.ts`).
+
+### The copy before an update (ownpace-live)
+
+What the privacy policy (§9) and the Alpha conditions (§6) promise: one copy, made right before
+each update, kept *"until that update is shown to work, and never longer than 7 days"* (the
+owner's answers rec-copies (a) and rec-drill (a), 2026-09-28;
+[workplan 0139](./workplans/0139-the-legal-gate-for-the-alpha.md)). One script,
+[`copy-before-update.sh`](../deploy/compose/copy-before-update.sh), and one directory,
+`~/.persistent/ownpace-live/copy-before-update`, readable by you alone:
+
+- **Taken** by `deploy-live.sh`, right before its checkout, with the hold on and nothing in
+  flight (`copy-before-update.sh take <tag>`): the app's database, the sign-in service's
+  database and the roles (through `dump-idp.sh`), and, when the tag moves the Trigger.dev pin,
+  the task runner's database (`trigger-version.sh backup before-<tag>`), each read back. The
+  note `copy-before-update.txt` names when it was taken, the tag it was taken before, the
+  release that ran (`from=`) and every file. A copy whose update is not proven yet is kept
+  instead of a second one: it is of what ran before.
+- **Deleted once the update is proven**, by you, from `~/ownpace-live`:
+  `./deploy/compose/copy-before-update.sh delete`. It refuses unless `deploys.log` says a
+  deploy took since the copy was taken, the hold that covered that deploy is lifted, and a pass
+  that started after it succeeded.
+- **Deleted after day 6 whatever happens**, by the daily duties' `copies`
+  (`copy-before-update.sh expire`), so it never reaches day 7. On day 6 that duty fails in the
+  journal, to say today is the last day to roll back.
+- **The drill is not live's.** It runs on the test stack only, in the gate; on live
+  `trigger-version.sh` refuses `drill`, and its `backup` writes into this directory only, as
+  `dump-idp.sh` does.
+
+**Rolling back from it, by day 6**, when the update is not proven and will not be. From
+`~/ownpace-live`, the copy's directory as `C=~/.persistent/ownpace-live/copy-before-update`:
+
+1. **The hold on, the drain done.** Start the hold again if you lifted it, and wait for
+   `0 pass(es) still in flight` in the tick's log. Anything testers did since the update is
+   lost with the database; their migrations adopt what the targets hold on their next pass.
+2. **Read the note:** `cat "$C/copy-before-update.txt"`. `from=` is the release that ran
+   before, the one to go back to; the files are listed below it.
+3. **Stop everything that connects to the databases:**
+   `docker compose -f deploy/compose/managed.yml stop api zitadel pgbouncer trigger-supervisor`,
+   and `trigger-api` too when the copy holds the task runner's database. A database with a
+   session still open cannot be replaced: `pg_restore` stops at its `DROP DATABASE` with
+   *"is being accessed by other users"*. Stop whatever that names, and run the step again.
+4. **The app's database**, replaced by the copy's, as it was dumped, with its owner and grants:
+
+   ```bash
+   docker exec -i ownpace-live-db sh -c 'pg_restore -U "$POSTGRES_USER" -d postgres --clean --if-exists --create' \
+     < "$C"/openmigrate-ownpace-live-<stamp>.dump
+   ```
+
+5. **The sign-in service's database**, the same way, with the `zitadel-ownpace-live-<stamp>.dump`
+   beside it: step 3 of the note `dump-idp.sh` wrote there (`zitadel-ownpace-live-<stamp>.txt`).
+   The roles only on a new server: on the same one they are still there, and restoring them
+   would set the provider's database password back.
+6. **The task runner's database**, only when the copy has a `triggerdb-<stamp>-before-<tag>.sql.gz`:
+
+   ```bash
+   ./deploy/compose/trigger-version.sh restore "$C"/triggerdb-<stamp>-before-<tag>.sql.gz --yes
+   ```
+
+7. **Deploy the release that ran before**, the note's `from=`, the hold still on:
+   `./deploy/compose/deploy-live.sh <that tag>`. It says one-way, keeps the copy (its update
+   is not proven), brings every service up at that release and runs its checks. The restored
+   database still carries the hold that was on when the copy was taken.
+8. **Lift the hold, watch a pass complete**, then `./deploy/compose/copy-before-update.sh
+   delete`: the rollback is the update the copy now proves.
+
+Step 4's command was rehearsed on 2026-09-28 against Postgres 16 with both migration chains
+applied, after a simulated update (a column, a table and a row added): with a session still
+open it stopped at the `DROP DATABASE`; with none, the database came back as dumped, without
+the three, with its owner and `app_user`'s grants. The sign-in service's way back was rehearsed
+the same way for `dump-idp.sh` (its header). The whole sequence has not been run on a stack.
 
 ## If the machine is lost during the alpha
 
@@ -760,12 +835,11 @@ Nothing in this repository backs up the application database yet (see
 use, takes none during the alpha and sets `7` (the owner's answer of
 2026-09-28 to
 [workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)'s
-open question 1): its databases are dumped before each deploy, with the
-commands under *Backup & restore*, and each dump is deleted after at most
-seven days. Both are the owner's steps for now. `deploy-live.sh` takes no dump
-(0132 T6 step 4 comes before it), and nothing deletes one, so delete each dump
-by its seventh day, whether or not a deploy followed. The automatic copy and
-its deletion are not built yet.
+open question 1): one copy of its databases is made right before each update,
+by `deploy-live.sh`, and deleted once the update is proven, or after six days
+by the daily duties, so never past day 7
+([The copy before an update](#the-copy-before-an-update-ownpace-live); workplan
+0139).
 If your backups are kept for a month, a deployment left on the default promises
 a date it cannot honour. `0` is a valid answer for a deployment that takes no
 backups, and produces different wording rather than the same date twice. The
