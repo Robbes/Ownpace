@@ -837,6 +837,7 @@ reading a file drops off its entry by itself.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/zitadel-db-password.sh`
 
@@ -3754,6 +3755,7 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/trigger-magic-link.sh`
+- `deploy/compose/www.yml`
 
 ### [ui-build-output](../scripts/ui-build-output.unit.test.ts)
 

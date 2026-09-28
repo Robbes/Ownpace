@@ -2,7 +2,48 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T10 (b), the site's second copy (0131 §6, group R7, step 9)**, built on branch
+`claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, not merged.
+
+- **The names.** `www.yml` keeps `name: ownpace-www` as the default. Its `container_name` is now
+  `${COMPOSE_PROJECT_NAME}`, so under the default the container is still `ownpace-www`. Compose
+  5.1.1 gives the service the same configuration hash as on `main`, so the next `up -d` does not
+  recreate the OTA site. A second copy names its own project with `-p` on every command, and its
+  container and network follow. It sets its own `WWW_PORT` and `WWW_BIND` in its checkout's
+  `.env`.
+- **Why `-p` and not the `.env`.** `www.yml` reads the same `.env` as `managed.yml`. Live's
+  `.env` will set `COMPOSE_PROJECT_NAME=ownpace-live` (0132 T1b, decided, not stood up yet), so in
+  live's checkout a bare `docker compose -f deploy/compose/www.yml` would put the site in live's
+  own project (checked with `docker compose config` against a stand-in `.env`). There each file sees the other's containers as orphans. Nothing in a
+  compose file can refuse the bare command. `www.yml`'s header, the bring-up's section on the
+  public site and `managed.env.example` say so.
+- **A refusal nobody meant is gone.** On `main`, that bare command fails on a machine where the OTA
+  site runs: the fixed `container_name` is the OTA site's own and is taken, the conflict 0132 T1
+  names. Now the container takes live's project's name, so the command succeeds as soon as live's
+  `.env` has a `WWW_PORT` of its own, which a copy from that checkout needs anyway (checked with
+  `docker compose config`, not on a machine). That is the price of a second copy that can start.
+  `www.yml`'s header and the bring-up say so.
+- **Proved.** `scripts/two-stacks-on-one-box.unit.test.ts` gains a block for `www.yml`, 6 cases, 4
+  of which fail on `main`: the fixed `container_name`, `ownpace-www` written in four places besides
+  `name:` (the container name and three comments), the two copies sharing a container name, and no
+  `-p` in the header. It renders the file under two projects and checks that they share no container
+  name, network, volume or host port, that the OTA site's container is still `ownpace-www`, and that
+  the header says the refusal above is gone. Four mutations fail it: no `container_name`, and a
+  fixed network name, host port or volume name.
+- **What addressed the container by name.** Nothing in `deploy/` or `scripts/` runs a command
+  against it. The healthcheck asks `127.0.0.1` inside the container, and the status page's
+  `Website` row asks `STATUS_SITE_URL`. The incident runbook's `Website` row now says that a copy
+  brought up with `-p` takes the same `-p`.
+- **T0's fact 6 is not decided here.** The change is harmless to the OTA site whichever way it is
+  answered: the site keeps its project and its container name.
+- **For the owner, if fact 6 puts `www.ownpace.eu` on the reference machine:** knowing that a
+  bare command in live's checkout is no longer refused, one of three: `-p` on every command for
+  live's copy, and the name it takes; a directory and a `.env` of the site's own, so that a bare
+  command is safe; or a check on live's side that refuses when live's project holds a `www`
+  service. Then that copy's `WWW_PORT` and `WWW_BIND`, and the route from `www.ownpace.eu` to that
+  port, as in 0132 T1e.
 
 **2026-09-27, late: T9 written (0131 §6, group M3, step 6, its second half)** on branch
 `claude/mailbox-sync-errors-c2xsw2-one-way-to-report-a-vulnerability`, not merged, as the owner
@@ -225,7 +266,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form still goes with T1 — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | 🔨 **(b) built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, **not merged**: `www.yml`'s container is named after its project, and a second copy names its own with `-p`; the rest 📋 **Proposed** — *was:* 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
