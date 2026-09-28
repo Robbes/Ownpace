@@ -41,9 +41,15 @@
 #   M migrations        odd ones mail (email), even ones files (file), on
 #                       `*/15 * * * *` — what the wizard sends for "every 15
 #                       minutes". A migration that never ran is due at once
-#                       (sync-due.ts), so every first copy starts on the next
+#                       (sync-due.ts), so every first copy is due on the next
 #                       tick, and after that every pass falls due at the same
-#                       quarter hour: the peaks worth measuring
+#                       quarter hour: the peaks worth measuring. The tick
+#                       starts no more of them at once than the stack's caps
+#                       (0143 T1): MAX_PASSES_IN_FLIGHT, blank for 3, and
+#                       MAX_PASSES_PER_ORGANISATION, blank for 2, longest-
+#                       waiting first, and the next as a pass ends. To measure
+#                       the machine at another cap, set it in the stack's .env
+#                       and run set-task-env.sh before the sitting.
 #
 # The connection rows copy the demo's sealed credentials as they are: nothing
 # is decrypted or encrypted again, so the script needs no key. No member is
@@ -419,10 +425,14 @@ do_seed() {
   say "rows written:"
   printf '  %s\n' "${rows[@]}"
   local mail=$((N * ((M + 1) / 2))) files=$((N * (M / 2)))
+  local cap per
+  cap="$(env_value "$ENV_FILE" MAX_PASSES_IN_FLIGHT)"
+  per="$(env_value "$ENV_FILE" MAX_PASSES_PER_ORGANISATION)"
   say "seeded ${N} organisations, $((N * M)) migrations (${mail} mail, ${files} files), on ${SCHEDULE}," \
     "each under its own folder ${FOLDER_PREFIX}${tag}-oNN-mNN on the demo targets." \
-    "A migration that never ran is due at once, so the tick starts all of them within the minute, and then every quarter hour." \
-    "Start --sample first, and --remove when the sitting ends."
+    "A migration that never ran is due at once. The tick starts ${cap:-3} at a time on this stack, ${per:-2} per organisation," \
+    "longest-waiting first, and the next as a pass ends: MAX_PASSES_IN_FLIGHT and MAX_PASSES_PER_ORGANISATION, read from" \
+    "${ENV_FILE}, which the tick has once set-task-env.sh has uploaded them. Start --sample first, and --remove when the sitting ends."
 }
 
 # ---------------------------------------------------------------------------

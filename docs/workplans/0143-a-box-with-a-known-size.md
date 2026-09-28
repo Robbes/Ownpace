@@ -4,6 +4,52 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, afternoon: T1 step 3's tick half merged in #1296 (`67b3e9e`), and live's number
+set.** Asked to put live's number in live's `.env`, the owner answered: *"i added
+'MAX_PASSES_IN_FLIGHT=6'"*. The tick reads it once live runs a build with #1296, whose bring-up
+uploads it to the task environment (`deploy-live.sh` runs `bootstrap-managed.sh`, which runs
+`set-task-env.sh`). The OTA stack's `.env` leaves it blank, for 3. Step 2 and the plane's limit
+still wait for the kill code of the owner's Dropbox passes (0150, open question 1).
+
+**2026-09-28, midday: T1 step 3's tick half built (0131 §6, group M4, step 6)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-tick-that-knows-the-box-size`, not merged.
+
+- **The cap, in the tick.** After phase 2, `managed-sync-tick.ts` counts the copying passes in
+  flight (`PASSES_IN_FLIGHT_SQL`: open run rows of `BILLABLE_RUN_KINDS`, younger than
+  `STALE_RUN_AFTER_MS`), on the stack and per organisation. `withinCapacity` then takes the
+  eligible migrations longest-waiting first, one that never ran first and the id breaking a tie,
+  while the stack and the organisation both have room. The rest are `heldForCapacity` in the
+  summary, beside `heldBack` and the new `inFlight`, and one line gives their count.
+- **The numbers.** `MAX_PASSES_IN_FLIGHT`, blank for 3, which is the OTA stack's; live's `.env`
+  sets 6 (open question 7). `MAX_PASSES_PER_ORGANISATION`, blank for 2 (open question 1).
+  `set-task-env.sh` uploads both. `managed.env.example` gives the formula for live, from the
+  memory both stacks may use (open question 8). A value that is not a whole number of at least 1
+  stops the tick, naming it, and the incident runbook's row for scheduled syncs says so.
+- **What the count cannot see.** A pass the plane has not started has no run row. The next tick
+  usually picks the same migration again, and that second pass waits on the migration's own
+  queue. A migration that waited longer can start beside it, so the last minute's passes that
+  have not started can pass the cap. The plane's limit is the backstop (below).
+- **The rehearsal says so.** `rehearse-capacity.sh --seed` no longer says the tick starts every
+  migration within the minute. It names the two caps it reads from the stack's `.env`, and
+  `docs/performance.md` says the sitting sets them to the numbers it measures (T9).
+- **Proved** by `apps/worker/src/jobs/a-tick-that-knows-the-box-size.unit.test.ts`, 17 cases, 16
+  of which fail on the tick before this. They cover:
+  - §3's two cases;
+  - the order, a tie, a full stack, and an organisation's own choices;
+  - the count, executed on the ledger's schema in PGlite;
+  - the defaults and the refusals;
+  - the tick read as text: it counts, chooses after phase 2 from every eligible migration, and
+    enqueues only what it chose.
+
+  27 of 27 mutations killed.
+- **What is left of T1:** step 2, the explicit preset, and the plane's environment limit, which
+  open question 7 set at 6 and 3. That limit counts every run, the tick's own and a cutover
+  waiting on its final sync among them, and the docker supervisor keeps a waiting run's slot
+  (step 1). At exactly the tick's cap, a stack full of passes would hold back the tick itself. So
+  the limit goes back to the owner, proposed a little above the cap. Both wait for the kill code
+  of the owner's Dropbox passes (0150, open question 1): if the kill is the memory, the pass
+  preset grows, and the numbers with it.
+
 **2026-09-28, late morning: open questions 7 and 8 answered, and what holds the machine's memory.**
 
 - **Open question 7:** *"yes, as proposed"*. Every task stays on `small-1x`. Live's `prod`
@@ -497,7 +543,7 @@ unproved until then:
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
@@ -922,6 +968,9 @@ The answers are written in this block.
   > passes at its own cap − the appliance nightly's stack (`e2e.yml`) − 20% headroom) ÷ the pass
   > preset's memory, or ÷ T9's measured peak when the supervisor does not enforce the preset.
 
+  *(Built 2026-09-28, see the Status block. The formula starts from the memory both stacks may
+  use, 20 GB, rather than the host's (open question 8), and step 1 found the preset enforced.)*
+
 **Why the tick and not only the plane.** A run waiting in the plane's queue has no run row, so
 the tick queues its migration again every minute (§1). If step 1 finds the plane's environment
 limit can be set, it is set a little above `MAX_PASSES_IN_FLIGHT` as a backstop, to leave room for
@@ -960,7 +1009,8 @@ line. It gives the formula above, and T9's measured figure for both stacks' resi
 
   A text check, in the manner of `a-drain-that-only-said-so`, confirms the tick enqueues only
   what the function chose. It fails today, because neither exists and the tick enqueues every
-  due migration.
+  due migration. *(Built 2026-09-28: 17 cases, 16 of which fail on the tick before it. See the
+  Status block.)*
 - If step 1 finds the enforcement setting, `scripts/a-supervisor-that-holds-its-runs.unit.test.ts`
   finds it in `trigger-supervisor`'s environment.
 

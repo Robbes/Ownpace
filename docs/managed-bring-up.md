@@ -1805,6 +1805,12 @@ this prints `7`:
 docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
 ```
 
+A stack that moves from `0` to a number of days later, because it starts
+keeping a copy, does so before the first invitation, or only while no
+organisation closed under `0` still waits for its purge: its erasure record
+keeps the `0` it was given, and a copy taken before that purge would hold its
+rows while the tester was told the erasure is complete (workplan 0134 T0).
+
 ### 8h. A person to write to *(only on the stack testers use)*
 
 A tester who is stuck before signing in cannot reach the report form (8f): it
@@ -1943,7 +1949,12 @@ the mount (for a second copy, with its own `-p`).
 not: a public build must point at the production app, and a test build must
 not. A `--public` build with unfilled legal placeholders is refused too — the
 output used to claim "every placeholder must be filled" and then publish
-anyway.
+anyway. So is one while a legal page it renders says on its *Version* line
+that it is a draft or not yet published, naming the file (workplan 0139 T2).
+Today every one of them does, until the owner's final text replaces it.
+`--public --check` refuses it as well: it prints how many legal pages are
+marked draft and exits 1, so a check run before a deploy stops what the build
+would stop. Its last line is still the placeholder count.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain
@@ -2973,6 +2984,10 @@ thing. One script moves it:
    logged. **If it says one-way** and you want a way back that is not a fix
    and a new tag, dump live's database now, with the hold still on (the
    operator runbook's *Backup & restore*). Nothing takes a dump for you.
+   First check that live's `BACKUP_RETENTION_DAYS` is N and not `0` (§8g).
+   Keep the dump until the next deploy succeeds and never longer than N days,
+   and nothing deletes it for you either: delete it by its N-th day, whether
+   or not a deploy followed (workplan 0134 T0 step 4).
 4. From `~/ownpace-live`:
 
    ```bash

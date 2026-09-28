@@ -2,7 +2,7 @@
 
 /** Types for the Dropbox file source (workplan 0055). */
 
-import type { TokenProvider } from '@openmig/shared';
+import type { FileItem, TokenProvider } from '@openmig/shared';
 
 /**
  * The one seam to the world — a fetch-shaped function, so a unit test can be
@@ -64,7 +64,38 @@ export interface DropboxEntry {
   readonly client_modified?: string;
   /** Dropbox's own block hash — stable per content, the cheap change signal. */
   readonly content_hash?: string;
+  /**
+   * False for a file `files/download` will not hand over (workplan 0150 T5).
+   * Dropbox's spec: *"If true, file can be downloaded directly; else the file
+   * must be exported."* A Paper doc is one. Absent reads as downloadable, as
+   * every file was treated before this was read.
+   */
+  readonly is_downloadable?: boolean;
+  /**
+   * How such a file can be exported. The spec says it *"must be set if
+   * is_downloadable is set to false"*: `export_as` is the default format and
+   * `export_options` the others.
+   */
+  readonly export_info?: {
+    readonly export_as?: string;
+    readonly export_options?: ReadonlyArray<string>;
+  };
 }
+
+/**
+ * What the listing learnt about a file Dropbox hands over only as an export
+ * (workplan 0150 T5), carried on the listed item so `fetch` can refuse it
+ * before a download is asked for.
+ */
+export interface DropboxExportOnly {
+  /** The name's extension, lower-cased, without the dot: the kind's label (`paper`). */
+  readonly kind: string;
+  /** The formats Dropbox offers to export it in, `export_as` first; empty when it offers none. */
+  readonly formats: ReadonlyArray<string>;
+}
+
+/** A listed Dropbox file: a `FileItem`, marked when Dropbox hands it over only as an export. */
+export type DropboxFileItem = FileItem & { readonly exportOnly?: DropboxExportOnly };
 
 export interface DropboxListFolderResponse {
   readonly entries: ReadonlyArray<DropboxEntry>;

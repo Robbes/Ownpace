@@ -15,6 +15,12 @@
  * explicitly (the scheduler's scope_selection query — a job must never touch
  * a domain the owner did not select, the #207 lesson).
  *
+ * No more at once than the box was sized for (workplan 0143 T1): the due
+ * mappings start longest-waiting first, while fewer copying passes than
+ * `MAX_PASSES_IN_FLIGHT` run on this stack and fewer than
+ * `MAX_PASSES_PER_ORGANISATION` of the mapping's organisation
+ * (`withinCapacity`). The rest wait for a later tick.
+ *
  * Overlap safety, two layers:
  *  - a mapping with a `run` row currently `running` is skipped this tick;
  *  - `run-delta-sync` runs on a concurrency-1 queue partitioned by
@@ -227,6 +233,142 @@ export const ACTIVE_MAPPINGS_SQL = `SELECT m.id, m.tenant_id, m.schedule,
 
 export { STALE_RUN_AFTER_MS };
 
+/**
+ * AS MANY PASSES AS THE BOX WAS SIZED FOR (workplan 0143 T1 step 3, the alpha
+ * minimum).
+ *
+ * The tick used to enqueue every due migration, so the passes running at once
+ * were the migrations that fell due in the same minute, and nothing stood
+ * between that number and the machine but the plane's own limit, 300 per
+ * environment (0143, Status). Each pass is a container held to 512 MB
+ * (`small-1x`, enforced by the supervisor), and the two stacks on the machine
+ * have 20 GB between them (0143, open question 8).
+ *
+ * So the tick counts the copying passes already in flight, on this stack and
+ * per organisation, and starts no more than the two caps leave room for:
+ *
+ *   MAX_PASSES_IN_FLIGHT         passes at once on this stack. Blank is 3, the
+ *                                OTA stack's number; live's .env says 6 (0143,
+ *                                open question 7).
+ *   MAX_PASSES_PER_ORGANISATION  passes at once of one organisation. Blank is 2
+ *                                (0143, open question 1).
+ *
+ * Each stack's tick counts only its own runs, since each stack has a database
+ * and a plane of its own, so the two stacks' numbers together must fit the
+ * machine. `managed.env.example` gives the formula.
+ *
+ * LONGEST-WAITING FIRST. With a cap, the order decides who waits, so it can no
+ * longer be whatever Postgres returns: a migration that never ran goes first,
+ * then the one whose newest run started longest ago.
+ *
+ * WHAT THE COUNT CANNOT SEE. A pass has no run row until a runner starts it
+ * (`run-delta-sync.ts` opens it), so a pass this tick enqueued a minute ago
+ * and the plane has not started yet is not counted. The next tick usually
+ * picks the same migration again, since it is still due and has still waited
+ * longest; that second pass waits behind the first on the migration's own
+ * queue, so it is a spare delta and not one more pass in flight. A migration
+ * that has waited longer and falls due in between can start beside it, so the
+ * cap can be passed by the passes of the last minute that have not started.
+ * The plane's own limit, set a little above the cap, is the backstop for that
+ * (0143 T1). Passes somebody starts by hand (Sync now, `/start`, a cutover's
+ * final sync) are counted once they run, and are not stopped here; the cap
+ * on migrations per organisation bounds them (0143 T2a).
+ */
+export const DEFAULT_MAX_PASSES_IN_FLIGHT = 3;
+export const DEFAULT_MAX_PASSES_PER_ORGANISATION = 2;
+
+/**
+ * One cap from its variable: unset or empty is the default. Anything but a
+ * whole number of at least 1 stops the tick, naming it, as
+ * `MAX_MIGRATIONS_PER_ORGANISATION` stops the api: an operator who wrote `six`
+ * believes the machine is held to six, and a cap quietly read as another
+ * number is found out by the machine.
+ */
+export function passCapFromEnv(name: string, raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(
+      `${name} must be a whole number, at least 1 — got ${JSON.stringify(raw)}. ` +
+        `Leave it unset for the default of ${fallback}.`,
+    );
+  }
+  return n;
+}
+
+export interface PassCaps {
+  /** Passes at once on this stack. */
+  readonly inFlight: number;
+  /** Passes at once of one organisation. */
+  readonly perOrganisation: number;
+}
+
+/** The copying passes running on this stack when the tick counts. */
+export interface PassesInFlight {
+  readonly total: number;
+  /** By organisation; one that is absent has none running. */
+  readonly byOrganisation: ReadonlyMap<string, number>;
+}
+
+/** What the choice reads of a due migration. */
+export interface Waiting {
+  readonly id: string;
+  readonly tenant_id: string;
+  /** When its newest run started; null when it never ran. */
+  readonly last_started: Date | null;
+}
+
+/**
+ * The copying passes in flight, per organisation: open run rows of the kinds a
+ * pass writes (`$2`, `BILLABLE_RUN_KINDS`), younger than the staleness window
+ * (`$1`, `STALE_RUN_AFTER_MS`). A row older than that is a pass that was
+ * killed and holds no memory, and counting it would take a slot for ever: the
+ * defect `STALE_RUN_AFTER_MS` exists for, in a new place. The drain's count
+ * under a hold uses the same window, over every kind. The partial index on
+ * running rows (`ix_run_active`, ledger migration 0023) serves it.
+ */
+export const PASSES_IN_FLIGHT_SQL = `SELECT tenant_id::text AS tenant_id, count(*)::int AS running
+         FROM run
+        WHERE status = 'running'
+          AND started_at > now() - ($1::int * interval '1 millisecond')
+          AND kind = ANY($2::text[])
+        GROUP BY tenant_id`;
+
+/**
+ * Which due migrations the tick starts now, and how many wait for a free pass.
+ *
+ * Longest-waiting first, taking each while this stack and its organisation
+ * both have room, and passing over one whose organisation has none. The id
+ * breaks a tie, so the same migrations get the same answer every tick. Pure,
+ * so `a-tick-that-knows-the-box-size` can drive it without a database, a
+ * runner or a queue.
+ */
+export function withinCapacity<T extends Waiting>(
+  due: readonly T[],
+  running: PassesInFlight,
+  caps: PassCaps,
+): { readonly chosen: T[]; readonly heldForCapacity: number } {
+  let total = running.total;
+  const byOrganisation = new Map(running.byOrganisation);
+  const chosen: T[] = [];
+  for (const m of [...due].sort(longestWaitingFirst)) {
+    if (total >= caps.inFlight) break;
+    const own = byOrganisation.get(m.tenant_id) ?? 0;
+    if (own >= caps.perOrganisation) continue;
+    chosen.push(m);
+    total += 1;
+    byOrganisation.set(m.tenant_id, own + 1);
+  }
+  return { chosen, heldForCapacity: due.length - chosen.length };
+}
+
+function longestWaitingFirst(a: Waiting, b: Waiting): number {
+  const aStarted = a.last_started?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const bStarted = b.last_started?.getTime() ?? Number.NEGATIVE_INFINITY;
+  if (aStarted !== bStarted) return aStarted < bStarted ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 export const managedSyncTick = schedules.task({
   id: 'managed-sync-tick',
   cron: '* * * * *',
@@ -303,6 +445,23 @@ export const managedSyncTick = schedules.task({
       await recordTickBeat(drizzle(pool), new Date());
       return summary;
     }
+
+    // The caps, read every tick, so a changed value holds from the next
+    // minute: a run reads its environment when it starts. Read before the
+    // enumeration, so a value that is not a number stops the tick before it
+    // starts anything.
+    const caps: PassCaps = {
+      inFlight: passCapFromEnv(
+        'MAX_PASSES_IN_FLIGHT',
+        process.env.MAX_PASSES_IN_FLIGHT,
+        DEFAULT_MAX_PASSES_IN_FLIGHT,
+      ),
+      perOrganisation: passCapFromEnv(
+        'MAX_PASSES_PER_ORGANISATION',
+        process.env.MAX_PASSES_PER_ORGANISATION,
+        DEFAULT_MAX_PASSES_PER_ORGANISATION,
+      ),
+    };
 
     const { rows } = await pool.query<TickRow>(ACTIVE_MAPPINGS_SQL, [
       STALE_RUN_AFTER_MS,
@@ -393,7 +552,7 @@ export const managedSyncTick = schedules.task({
       due.map((m) => ({ id: m.id, tenantId: m.tenant_id }))
     );
 
-    const toEnqueue: { row: TickRow; domains: DiscoveryDomain[] }[] = [];
+    const eligible: (TickRow & { readonly domains: DiscoveryDomain[] })[] = [];
     for (const m of due) {
       // Absent from the map means no included rows: no scope_selection row is
       // "not selected", never "default to everything".
@@ -402,28 +561,55 @@ export const managedSyncTick = schedules.task({
         skippedNoDomains++;
         continue;
       }
-      toEnqueue.push({ row: m, domains });
+      eligible.push({ ...m, domains });
     }
 
-    // Phase 3 — enqueue concurrently, bounded. A failure to enqueue ONE
+    // Phase 3 — no more than the box was sized for (workplan 0143 T1 step 3):
+    // count the copying passes in flight, and take the longest-waiting of the
+    // eligible while the caps leave room. After phase 2, so a migration with
+    // nothing selected never takes a slot.
+    const { rows: counted } = await pool.query<{ tenant_id: string; running: number }>(
+      PASSES_IN_FLIGHT_SQL,
+      [STALE_RUN_AFTER_MS, [...BILLABLE_RUN_KINDS]],
+    );
+    const byOrganisation = new Map(counted.map((c) => [c.tenant_id, Number(c.running)] as const));
+    const inFlight: PassesInFlight = {
+      total: [...byOrganisation.values()].reduce((sum, n) => sum + n, 0),
+      byOrganisation,
+    };
+    const capacity = withinCapacity(eligible, inFlight, caps);
+    const toEnqueue = capacity.chosen;
+    if (capacity.heldForCapacity > 0) {
+      // The count, never the migrations: which ones wait changes every
+      // minute, and the order that decides it is the code above.
+      log.info(
+        `[sync-tick] ${capacity.heldForCapacity} due migration(s) wait for a free pass: ` +
+          `${inFlight.total} of at most ${caps.inFlight} already run on this stack, ` +
+          `at most ${caps.perOrganisation} per organisation ` +
+          '(MAX_PASSES_IN_FLIGHT, MAX_PASSES_PER_ORGANISATION). ' +
+          'The longest-waiting start first, on a later tick.',
+      );
+    }
+
+    // Phase 4 — enqueue concurrently, bounded. A failure to enqueue ONE
     // mapping must not cost the others their turn: before this the loop threw
     // out of the whole tick, so a single bad mapping stopped every mapping
     // after it in the list, once a minute, invisibly.
     let triggered = 0;
     const failures: string[] = [];
-    await mapWithConcurrency(toEnqueue, ENQUEUE_CONCURRENCY, async ({ row, domains }) => {
+    await mapWithConcurrency(toEnqueue, ENQUEUE_CONCURRENCY, async (m) => {
       try {
         await runDeltaSync.trigger(
-          { tenantId: row.tenant_id, mappingId: row.id, domains },
+          { tenantId: m.tenant_id, mappingId: m.id, domains: m.domains },
           {
-            concurrencyKey: row.id,
-            tags: [`tenant:${row.tenant_id}`, `mapping:${row.id}`],
+            concurrencyKey: m.id,
+            tags: [`tenant:${m.tenant_id}`, `mapping:${m.id}`],
           }
         );
         triggered++;
       } catch (err) {
-        failures.push(row.id);
-        log.error(`[sync-tick] mapping ${row.id}: could not enqueue this pass:`, err);
+        failures.push(m.id);
+        log.error(`[sync-tick] mapping ${m.id}: could not enqueue this pass:`, err);
       }
     });
 
@@ -432,6 +618,8 @@ export const managedSyncTick = schedules.task({
       triggered,
       notDue,
       heldBack,
+      heldForCapacity: capacity.heldForCapacity,
+      inFlight: inFlight.total,
       skippedRunning,
       staleRuns,
       skippedNoDomains,

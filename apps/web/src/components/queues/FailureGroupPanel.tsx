@@ -52,9 +52,10 @@ import { Hint } from '../Hint.tsx';
 import { ActionButton, Refused, Resolved } from './primitives.tsx';
 import { DecisionRefusedError, decideFailureGroup } from '../../services/operating-service.ts';
 import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
-// The same nine sentences the row above prints, from the same map: the
-// group and its members have to be called one thing.
-import { FAILURE_KEY } from '../../i18n/failure-key.ts';
+// The same sentences the rows print, chosen the same way, by category and by
+// the migration's source (0150 D9): the group and its members have to be
+// called one thing.
+import { remedyKey } from '../../i18n/failure-key.ts';
 import { SendItToUs } from '../SendItToUs.tsx';
 
 /**
@@ -170,7 +171,9 @@ export const FailureGroupPanel: React.FC<{
   mappingId: string;
   /** EVERY failed row on this screen — both sections. See the docblock. */
   failures: readonly ItemFailure[];
-}> = ({ mappingId, failures }) => {
+  /** The migration's source kind, from the queue, for the remedy (0150 D9). */
+  sourceKind?: string;
+}> = ({ mappingId, failures, sourceKind }) => {
   const t = useT();
   const queryClient = useQueryClient();
   const [domain, setDomain] = React.useState('');
@@ -271,7 +274,7 @@ export const FailureGroupPanel: React.FC<{
               <span className="text-xs text-gray-700 flex-1 min-w-[10rem]">
                 {g.category ? (
                   <>
-                    {t(FAILURE_KEY[g.category])} <SendItToUs category={g.category} />
+                    {t(remedyKey(g.category, sourceKind))} <SendItToUs category={g.category} />
                   </>
                 ) : (
                   // NOT PRESSABLE, and it says why rather than sitting there

@@ -30,6 +30,7 @@
  */
 
 import type {
+  FailureCategory,
   FileFolder,
   FileItem,
   FileSource,
@@ -38,9 +39,11 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
-import { fileVersion } from '@openmig/shared';
+import { fileVersion, markNeedsDecision, withFailureCategory } from '@openmig/shared';
 import type {
   DropboxEntry,
+  DropboxExportOnly,
+  DropboxFileItem,
   DropboxFileSourceConfig,
   DropboxListFolderResponse,
   DropboxTransport,
@@ -58,6 +61,98 @@ type DropboxResponse = Awaited<ReturnType<DropboxTransport>>;
 
 const DEFAULT_API_BASE = 'https://api.dropboxapi.com/2';
 const DEFAULT_CONTENT_BASE = 'https://content.dropboxapi.com/2';
+
+/**
+ * THE KINDS DROPBOX CALLS PAPER (workplan 0150 T2), by the extension it lists
+ * them under, and the words a person reads for each.
+ */
+const PAPER_KINDS: ReadonlyMap<string, string> = new Map([
+  ['paper', 'Paper doc'],
+  ['papert', 'Paper template'],
+]);
+
+/**
+ * A FILE DROPBOX HANDS OVER ONLY AS AN EXPORT, REFUSED BY NAME (workplan 0150
+ * T5 and T6 (a); the owner's decisions D1, D5, D6 and D9, 2026-09-26).
+ *
+ * Until this, a Paper doc went to `files/download` like any file, and Dropbox
+ * answered 409 `unsupported_file`. That came back as a bare `Error`, with no
+ * stated category, so the row read `source_refused` (*"the old account would
+ * not hand this over"*), and with no decision mark, so it was tried on five
+ * passes and then waited on a person without being parked (0150 T1, read on
+ * the owner's migration).
+ *
+ * Now the listing says so first (`is_downloadable: false`), and this is thrown
+ * before any download, split the way Drive's `NativeFileRefused` is, by
+ * whether a setting would change the answer:
+ *
+ *  - `policy_refused` for a kind Dropbox exports. Dropbox would hand the file
+ *    over as an export, and this service does not make exports yet (0150 T4,
+ *    after the alpha, D6), so the destination was never asked. A Paper doc is
+ *    always this (D9). Its remedy on the Failures page is Dropbox's own
+ *    sentence, chosen by the migration's source, which names no setting until
+ *    0150 T3 adds one.
+ *  - `source_refused` for a kind Dropbox offers no export for (D5): no setting
+ *    will ever make a file of it.
+ *
+ * Both are decisions, so the file is parked on its first attempt and never
+ * counts toward a pass's 25 failures in a row (T6 (a)).
+ */
+export class DropboxNativeRefused extends Error {
+  constructor(name: string, kind: string, exportable: boolean) {
+    const paper = PAPER_KINDS.get(kind);
+    let category: FailureCategory;
+    let message: string;
+    if (paper) {
+      category = 'policy_refused';
+      message =
+        `"${name}" is a Dropbox ${paper}. Dropbox hands one over only as an export, and this ` +
+        'service does not export Paper docs yet, so nothing was copied. Export it from Dropbox ' +
+        'yourself, or leave it behind.';
+    } else if (exportable) {
+      category = 'policy_refused';
+      message =
+        `"${name}" is a document Dropbox keeps in a format of its own` +
+        (kind ? ` (.${kind})` : '') +
+        '. Dropbox hands one over only as an export, and this service does not export these ' +
+        'yet, so nothing was copied. Export it from Dropbox yourself, or leave it behind.';
+    } else {
+      category = 'source_refused';
+      message =
+        `"${name}" cannot be downloaded from Dropbox, and Dropbox offers no export for it, so ` +
+        'there is no file to copy. Accept leaving it behind.';
+    }
+    super(message);
+    this.name = 'DropboxNativeRefused';
+    markNeedsDecision(this);
+    withFailureCategory(category, this);
+  }
+}
+
+/** The name's extension, lower-cased and without the dot; '' when it has none. */
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+}
+
+/** What a listing says about a file Dropbox hands over only as an export. */
+function exportOnlyOf(entry: DropboxEntry): DropboxExportOnly {
+  const info = entry.export_info;
+  const formats = [info?.export_as, ...(info?.export_options ?? [])].filter(
+    (format): format is string => typeof format === 'string' && format !== '',
+  );
+  return { kind: extensionOf(entry.name), formats: [...new Set(formats)] };
+}
+
+/** The `.tag` of a Dropbox error body, when it is JSON that has one. */
+function dropboxErrorTag(body: string): string | undefined {
+  try {
+    const tag = (JSON.parse(body) as { error?: { '.tag'?: unknown } }).error?.['.tag'];
+    return typeof tag === 'string' ? tag : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** A transport that stamps each request with a freshly minted Bearer token. */
 export function dropboxTransport(tokens: TokenProvider): DropboxTransport {
@@ -380,6 +475,16 @@ export class DropboxFileSource implements FileSource {
     });
     if (!response.ok) {
       const text = await response.text().catch(() => '(no body)');
+      // THE ANSWER THE OWNER'S MIGRATION MET (0150 T1), for a file the listing
+      // did not mark: 409 `unsupported_file` is Dropbox's *"This file type
+      // cannot be downloaded directly; use export instead."* It is stated as
+      // the same refusal, so a listing that carried no `is_downloadable`
+      // still parks the file by name. Any other answer stays an ordinary
+      // failure, retried and read from its words.
+      if (response.status === 409 && dropboxErrorTag(text) === 'unsupported_file') {
+        const name = item.name ?? item.path;
+        throw new DropboxNativeRefused(name, extensionOf(name), true);
+      }
       throw new Error(
         `Dropbox refused the download of "${item.path}" (${response.status}): ${text.slice(0, 300)}`,
       );
@@ -388,6 +493,20 @@ export class DropboxFileSource implements FileSource {
   }
 
   async fetch(item: FileItem): Promise<RawFileItem> {
+    // A FILE DROPBOX HANDS OVER ONLY AS AN EXPORT (0150 T5), refused here,
+    // before any download and before the size below chooses between a buffer
+    // and a stream. A streamed file is downloaded inside `open()`, under the
+    // destination's write, where a refusal would be recorded as the
+    // destination's. The listing has already said so, so no request is spent
+    // asking.
+    const exportOnly = (item as DropboxFileItem).exportOnly;
+    if (exportOnly) {
+      throw new DropboxNativeRefused(
+        item.name ?? item.path,
+        exportOnly.kind,
+        exportOnly.formats.length > 0,
+      );
+    }
     const ref = item.sourceRef;
     if (!ref) {
       throw new Error(`No Dropbox file id recorded for "${item.path}" — cannot fetch it.`);
@@ -434,7 +553,7 @@ export class DropboxFileSource implements FileSource {
     return { item, content: new Uint8Array(await response.arrayBuffer()) };
   }
 
-  private toFileItem(entry: DropboxEntry): FileItem | undefined {
+  private toFileItem(entry: DropboxEntry): DropboxFileItem | undefined {
     const path = this.relativePath(entry);
     if (!path || !entry.id) return undefined;
     return {
@@ -452,6 +571,10 @@ export class DropboxFileSource implements FileSource {
       modifiedAt: entry.server_modified ?? entry.client_modified ?? new Date(0).toISOString(),
       // The source's own handle — stable across renames, unlike the path.
       sourceRef: entry.id,
+      // Marked here, where Dropbox says so, and refused by `fetch` (0150 T5).
+      // Only an explicit `false`: absent is how every file listed before, and
+      // `download` still states the refusal if Dropbox then answers with it.
+      ...(entry.is_downloadable === false ? { exportOnly: exportOnlyOf(entry) } : {}),
     };
   }
 }

@@ -33,9 +33,19 @@
  * eventually found, and no assertion here would have caught it either.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import {
+  readFileSync,
+  writeFileSync,
+  cpSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  existsSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // `prices.mjs` refuses to resolve APP_URL without being told which app it is
@@ -216,7 +226,9 @@ describe('both locales are complete', () => {
   });
 
   it('ships a Dutch translation of each legal document', () => {
-    for (const f of ['privacy', 'terms']) {
+    // `alpha` is drafted before the build renders it (workplan 0139 T2, T10),
+    // Dutch first; the pair is held to the same shape from the first draft.
+    for (const f of ['privacy', 'terms', 'alpha']) {
       const en = read(`site/legal/${f}.md`);
       const nl = read(`site/legal/${f}.nl.md`);
       // Section numbering is kept identical on purpose, so the two can be
@@ -321,5 +333,232 @@ describe('the site is drawn in the logo’s colours', () => {
       `(0x${hex.slice(1, 3)}, 0x${hex.slice(3, 5)}, 0x${hex.slice(5, 7)})`.toUpperCase();
     expect(logo.toUpperCase(), 'the site teal is not the logo teal').toContain(asPy(teal!));
     expect(logo.toUpperCase(), 'the site mint is not the logo mint').toContain(asPy(mint!));
+  });
+});
+
+/**
+ * A LEGAL PAGE THAT SAYS IT IS A DRAFT IS NOT PUBLISHED (workplan 0139 T2).
+ *
+ * `--public` already refuses a page with an unfilled placeholder. It did not
+ * refuse one with every placeholder filled whose *Version* line still read
+ * "draft for legal review — not yet published": an indexable page saying of
+ * itself that it is not published. The build now refuses that too, naming the
+ * file, and reads the version line only, outside HTML comments.
+ *
+ * `--public --check` refuses it as well. A check before a deploy runs
+ * `--public --check` and reads its placeholder count; when that check passed a
+ * site the build then refused, the deploy learnt it only after the app had
+ * moved (the review of 0139 T2).
+ *
+ * Run against a COPY of `site/` with fixture legal files, in a child process:
+ * the refusal lives where the build is run directly, and the real texts carry
+ * placeholders (which refuse first) and draft version lines on purpose until
+ * the owner's final-text PR. A copy also keeps these builds out of the real
+ * `site/dist`.
+ */
+describe('a public build refuses a legal page whose version line says draft', () => {
+  const SITE = HERE;
+  let copy = '';
+  const LEGAL_DOCS = [
+    ['privacy.md', 'Privacy policy', 'Version'],
+    ['privacy.nl.md', 'Privacyverklaring', 'Versie'],
+    ['terms.md', 'Terms of service', 'Version'],
+    ['terms.nl.md', 'Servicevoorwaarden', 'Versie'],
+  ] as const;
+
+  /** A legal page with every placeholder filled, and the given version line. */
+  const page = (title: string, versionLine: string, body = 'Contact: support@ownpace.eu.') =>
+    `<!-- a fixture -->\n\n# ${title}\n\n${versionLine}\n**Last updated:** 2026-09-28\n\n## 1. Who\n\n${body}\n`;
+
+  /** Writes all four legal files final, except the overrides. */
+  function legal(overrides: Partial<Record<(typeof LEGAL_DOCS)[number][0], string>> = {}) {
+    for (const [file, title, label] of LEGAL_DOCS) {
+      writeFileSync(join(copy, 'legal', file), overrides[file] ?? page(title, `**${label}:** 2.0`));
+    }
+  }
+
+  function build(opts: { public: boolean; check?: boolean }) {
+    rmSync(join(copy, 'dist'), { recursive: true, force: true });
+    const args = [...(opts.public ? ['--public'] : []), ...(opts.check ? ['--check'] : [])];
+    const r = spawnSync('node', [join(copy, 'build.mjs'), ...args], {
+      cwd: copy,
+      env: {
+        ...process.env,
+        OWNPACE_APP_URL: opts.public ? 'https://app.ownpace.eu' : 'https://app.ota.ownpace.eu',
+      },
+      encoding: 'utf8',
+    });
+    return {
+      status: r.status,
+      out: `${r.stdout}\n${r.stderr}`,
+      wrote: existsSync(join(copy, 'dist', 'index.html')),
+    };
+  }
+
+  /** The two counts `--check` prints, read as a caller before a deploy reads them. */
+  const counts = (out: string) => ({
+    placeholders: /^\[site\] \d+ pages across \d+ locales, (\d+) unfilled placeholder\(s\)$/m.exec(out)?.[1],
+    draftLines: /^\[site\] (\d+) legal page\(s\) marked draft on their version line/m.exec(out)?.[1],
+  });
+
+  beforeAll(() => {
+    copy = realpathSync(mkdtempSync(join(tmpdir(), 'site-public-')));
+    cpSync(SITE, copy, {
+      recursive: true,
+      filter: (src) => !src.split(sep).includes('dist') && !src.split(sep).includes('node_modules'),
+    });
+  });
+  afterAll(() => {
+    if (copy) rmSync(copy, { recursive: true, force: true });
+  });
+
+  it('builds --public when every version line is final, so the refusal is a check and not a ban', () => {
+    legal();
+    const r = build({ public: true });
+    expect(r.status, r.out).toBe(0);
+    expect(r.wrote).toBe(true);
+    expect(readFileSync(join(copy, 'dist', 'robots.txt'), 'utf8')).toContain('Allow: /');
+  });
+
+  it('refuses --public for a draft version line, naming that file and writing nothing', () => {
+    legal({ 'terms.nl.md': page('Servicevoorwaarden', '**Versie:** 2.0 (concept)') });
+    const r = build({ public: true });
+    expect(r.status, 'the build published a page that says it is a draft').not.toBe(0);
+    expect(r.wrote, 'the refused build still wrote dist/').toBe(false);
+    expect(r.out).toContain('site/legal/terms.nl.md');
+    expect(r.out).toContain('**Versie:** 2.0 (concept)');
+    for (const other of ['privacy.md', 'privacy.nl.md', 'site/legal/terms.md:']) {
+      expect(r.out, `the refusal names ${other}, whose version line is final`).not.toContain(
+        other.includes('/') ? other : `site/legal/${other}`,
+      );
+    }
+  });
+
+  it.each([
+    ['draft', 'privacy.md', 'Privacy policy', '**Version:** 2.0 (Draft for legal review)'],
+    ['concept', 'privacy.md', 'Privacy policy', '**Version:** 2.0 CONCEPT'],
+    ['not yet published', 'privacy.md', 'Privacy policy', '**Version:** 2.0 (not yet published)'],
+    ['nog niet gepubliceerd', 'privacy.nl.md', 'Privacyverklaring', '**Versie:** 2.0 (Nog niet gepubliceerd)'],
+    ['ontwerp', 'privacy.nl.md', 'Privacyverklaring', '**Versie:** 2.0 (Ontwerpversie)'],
+    ['voorlopig', 'privacy.nl.md', 'Privacyverklaring', '**Versie:** 2.0, voorlopig'],
+  ] as const)('refuses --public when the version line says "%s", in any case', (_word, file, title, line) => {
+    legal({ [file]: page(title, line) });
+    const r = build({ public: true });
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toContain(`site/legal/${file}`);
+  });
+
+  it('reads the version line only: the word elsewhere on the page is not a draft', () => {
+    legal({
+      'privacy.md': page('Privacy policy', '**Version:** 2.0', 'This is not a draft, and no concept.'),
+    });
+    const r = build({ public: true });
+    expect(r.status, r.out).toBe(0);
+  });
+
+  it("reads it outside HTML comments: a briefing's old draft line above the final one is not the page's", () => {
+    // The lawyer's briefing is an HTML comment at the top of each document, and
+    // may quote an earlier version line. The build must read the page's own.
+    const briefing = '<!--\n  History, for the lawyer:\n  **Version:** 9 (draft for legal review)\n-->\n\n';
+    legal({ 'privacy.md': briefing + page('Privacy policy', '**Version:** 2.0') });
+    const r = build({ public: true });
+    expect(r.status, `the build read a version line inside a comment\n${r.out}`).toBe(0);
+    expect(r.wrote).toBe(true);
+  });
+
+  it('and a final-looking line in a comment does not hide a draft version line above it', () => {
+    const below = '\n<!--\n**Version:** 2.0\n-->\n';
+    legal({ 'privacy.md': page('Privacy policy', '**Version:** 2.0 (draft)') + below });
+    const r = build({ public: true });
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toContain('site/legal/privacy.md: **Version:** 2.0 (draft)');
+  });
+
+  it('refuses --public for a legal page with no version line, since it cannot be told from a draft', () => {
+    legal({ 'terms.md': page('Terms of service', '**Applies to:** the service') });
+    const r = build({ public: true });
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toContain('site/legal/terms.md');
+  });
+
+  it('refuses a legal page in SOURCE that is not in the nav, as the conditions may be (0139 T10)', () => {
+    // The build renders pages outside PAGE_KEYS (the 404 page). A legal
+    // document added to SOURCE and rendered that way is still refused: the
+    // refusal reads SOURCE's legal/ entries, not the nav's.
+    const file = join(copy, 'build.mjs');
+    const original = readFileSync(file, 'utf8');
+    const patched = original.replace(
+      /export const SOURCE = \{\n {2}en: \{/,
+      "export const SOURCE = {\n  en: { alpha: 'legal/alpha.md',",
+    );
+    expect(patched, 'the fixture no longer finds SOURCE in site/build.mjs').not.toBe(original);
+    const alpha = join(copy, 'legal', 'alpha.md');
+    const alphaOriginal = readFileSync(alpha, 'utf8');
+    try {
+      writeFileSync(file, patched);
+      writeFileSync(alpha, page('Alpha conditions', '**Version:** 0.2 (draft for legal review)'));
+      legal();
+      const r = build({ public: true });
+      expect(r.status, r.out).not.toBe(0);
+      expect(r.out).toContain('site/legal/alpha.md: **Version:** 0.2 (draft for legal review)');
+    } finally {
+      writeFileSync(file, original);
+      writeFileSync(alpha, alphaOriginal);
+    }
+  });
+
+  it('still builds a test site from drafts, since that is what a test host is for', () => {
+    legal({
+      'privacy.md': page('Privacy policy', '**Version:** 2.0 (draft)'),
+      'terms.nl.md': page('Servicevoorwaarden', '**Versie:** 2.0 (concept)'),
+    });
+    const r = build({ public: false });
+    expect(r.status, r.out).toBe(0);
+    expect(r.wrote).toBe(true);
+    expect(readFileSync(join(copy, 'dist', 'robots.txt'), 'utf8')).toContain('Disallow: /');
+  });
+
+  it('--public --check refuses what --public refuses: it counts the draft lines and exits non-zero', () => {
+    legal({ 'terms.md': page('Terms of service', '**Version:** 2.0 (draft for legal review)') });
+    const r = build({ public: true, check: true });
+    expect(r.status, `--public --check passed a site --public refuses\n${r.out}`).not.toBe(0);
+    expect(r.wrote, '--check wrote dist/').toBe(false);
+    // The placeholder count is still printed, in the shape a caller reads.
+    expect(counts(r.out), r.out).toEqual({ placeholders: '0', draftLines: '1' });
+    expect(r.out).toContain('site/legal/terms.md: **Version:** 2.0 (draft for legal review)');
+  });
+
+  it('--public --check passes with every version line final, and says 0', () => {
+    legal();
+    const r = build({ public: true, check: true });
+    expect(r.status, r.out).toBe(0);
+    expect(counts(r.out), r.out).toEqual({ placeholders: '0', draftLines: '0' });
+    // The placeholder count stays the last line, where a caller is told to look.
+    expect(r.out.trim().split('\n').at(-1)).toMatch(/unfilled placeholder\(s\)$/);
+  });
+
+  it('--check without --public counts the draft lines and passes, as a test build does', () => {
+    legal({ 'privacy.nl.md': page('Privacyverklaring', '**Versie:** 2.0 (concept)') });
+    const r = build({ public: false, check: true });
+    expect(r.status, r.out).toBe(0);
+    expect(counts(r.out).draftLines, r.out).toBe('1');
+    expect(r.out).toContain('site/legal/privacy.nl.md');
+  });
+
+  it("refuses today's real texts on their version lines, once their placeholders are filled", () => {
+    // The owner's final-text PR removes the words. Until then --public refuses
+    // every one of the four, which is intended: they say "not yet published".
+    for (const [file] of LEGAL_DOCS) {
+      const real = read(`site/legal/${file}`).replace(/«[A-Z_]+»/g, 'filled');
+      writeFileSync(join(copy, 'legal', file), real);
+    }
+    const r = build({ public: true });
+    expect(r.status, r.out).not.toBe(0);
+    for (const [file] of LEGAL_DOCS) expect(r.out).toContain(`site/legal/${file}`);
+    // And --public --check says so before a deploy, where it used to report
+    // `0 unfilled placeholder(s)` and pass.
+    const check = build({ public: true, check: true });
+    expect(check.status, check.out).not.toBe(0);
+    expect(counts(check.out), check.out).toEqual({ placeholders: '0', draftLines: '4' });
   });
 });
