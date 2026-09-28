@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 179 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 183 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -317,6 +317,10 @@ reading a file drops off its entry by itself.
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 
+### `apps/web/src/components/SupportLine.tsx`
+
+- [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
+
 ### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -350,6 +354,14 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `apps/web/src/pages/Grant.tsx`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
+### `apps/web/src/pages/Grant.unit.test.tsx`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
 ### `apps/web/src/pages/Login.tsx`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
@@ -379,6 +391,10 @@ reading a file drops off its entry by itself.
 
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 
+### `apps/web/src/services/legal-links.ts`
+
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
 ### `apps/web/src/services/mapping-service.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -398,6 +414,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/vite.config.ts`
 
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -621,6 +638,7 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
@@ -654,6 +672,7 @@ reading a file drops off its entry by itself.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
@@ -668,6 +687,7 @@ reading a file drops off its entry by itself.
 - [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
+- [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
@@ -768,12 +788,15 @@ reading a file drops off its entry by itself.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts) — A password check that was valid for zero seconds, and the general rule that would have stopped it.
 - [a-false-jq-could-not-report](../scripts/a-false-jq-could-not-report.unit.test.ts) — A `false` THE READER COULD NOT REPORT.
+- [a-project-for-one-organisation](../scripts/a-project-for-one-organisation.unit.test.ts) — A PROJECT FOR ONE ORGANISATION (workplan 0135 T2).
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
+- [one-organisation-counted](../scripts/one-organisation-counted.unit.test.ts) — ONE ORGANISATION, COUNTED (workplan 0135 T3).
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
@@ -794,6 +817,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+- [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
@@ -1748,6 +1772,8 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 - [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
 - [the-test-site-sent-people-to-production](../scripts/the-test-site-sent-people-to-production.unit.test.ts) — THE TEST SITE HANDED VISITORS TO PRODUCTION.
@@ -1764,9 +1790,14 @@ reading a file drops off its entry by itself.
 
 ### `site/legal/privacy.nl.md`
 
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `site/legal/terms.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
+### `site/legal/terms.nl.md`
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
@@ -1789,6 +1820,7 @@ reading a file drops off its entry by itself.
 
 ### `site/security-txt.mjs`
 
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
 ### `site/tsconfig.json`
@@ -2350,6 +2382,7 @@ A HELPDESK THE API WAS NEVER HANDED.
 Reads:
 
 - `apps/api/src/services/zammad.ts`
+- `apps/web/src/components/SupportLine.tsx`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `docs/managed-bring-up.md`
@@ -2623,6 +2656,21 @@ Reads:
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
 
+### [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts)
+
+A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+
+Reads:
+
+- `apps/web/src/pages/Grant.tsx`
+- `apps/web/src/pages/Grant.unit.test.tsx`
+- `apps/web/src/services/legal-links.ts`
+- `apps/web/vite.config.ts`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `site/build.mjs`
+- `site/security-txt.mjs`
+
 ### [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts)
 
 A POOL THAT HAD NOT HAPPENED YET.
@@ -2668,6 +2716,14 @@ Reads:
 - `scripts/exposure-probe-ports.mjs`
 - `scripts/exposure-probe.mjs`
 - `scripts/exposure-probe.unit.test.ts`
+
+### [a-project-for-one-organisation](../scripts/a-project-for-one-organisation.unit.test.ts)
+
+A PROJECT FOR ONE ORGANISATION (workplan 0135 T2).
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
 
 ### [a-proof-that-was-written-down](../scripts/a-proof-that-was-written-down.unit.test.ts)
 
@@ -3237,6 +3293,16 @@ Reads:
 - `packages/core/src/dav-sync.ts`
 - `packages/shared/src/ports.ts`
 
+### [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts)
+
+AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
+
+Reads:
+
+- `deploy/compose/managed.yml`
+- `deploy/compose/setup-zitadel.sh`
+- `deploy/compose/smoke-managed.sh`
+
 ### [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts)
 
 The three scripts a managed bring-up cannot get wrong, tested.
@@ -3393,9 +3459,12 @@ The published legal surface gets a guard, for three reasons that nothing else in
 
 Reads:
 
+- `site/build.mjs`
 - `site/legal/README.md`
 - `site/legal/privacy.md`
+- `site/legal/privacy.nl.md`
 - `site/legal/terms.md`
+- `site/legal/terms.nl.md`
 
 ### [lessons](../scripts/lessons.unit.test.ts)
 
@@ -3459,6 +3528,14 @@ Reads:
 ### [notice-and-trademark](../scripts/notice-and-trademark.unit.test.ts)
 
 NOTICE carries the one restriction this project places on an otherwise permissive licence (ADR-0040), so it gets a guard.
+
+### [one-organisation-counted](../scripts/one-organisation-counted.unit.test.ts)
+
+ONE ORGANISATION, COUNTED (workplan 0135 T3).
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
 
 ### [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts)
 

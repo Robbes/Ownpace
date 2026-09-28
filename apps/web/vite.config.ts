@@ -1,9 +1,10 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { readFileSync } from 'fs';
+import { legalSiteFrom } from './src/services/legal-links';
 
 // WHAT BUILD IS THIS — stamped in, because a bundle cannot ask at runtime what
 // it was built from.
@@ -23,6 +24,19 @@ import { readFileSync } from 'fs';
 const rootPkg = JSON.parse(
   readFileSync(path.resolve(__dirname, '../../package.json'), 'utf-8'),
 ) as { version?: string };
+
+// A LEGAL SITE THE LINKS CANNOT USE STOPS THE BUILD (workplan 0139 T10). The
+// grant page reads `VITE_LEGAL_SITE_URL` through `services/legal-links.ts`
+// while it renders, and that module throws on a value that is not an http(s)
+// origin. The web app has no error boundary, so such a bundle would load the
+// grant and then show a blank page to every recipient. The same check runs
+// here, on the env the bundle will carry, so the owner meets it instead.
+const legalSiteChecked = (): Plugin => ({
+  name: 'ownpace:legal-site-url',
+  configResolved(config) {
+    legalSiteFrom(config.env);
+  },
+});
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -45,7 +59,7 @@ export default defineConfig(({ mode }) => ({
   // the browser ignores `@import "tailwindcss"`, and every screen renders with
   // no utilities at all — which is exactly what shipped until 2026-08-06, in
   // both editions, because nothing asserted the CSS had been built.
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), legalSiteChecked()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
