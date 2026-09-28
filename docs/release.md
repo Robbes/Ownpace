@@ -5,9 +5,12 @@ existed only as narrative inside that workplan and only its author could
 repeat it. Everything here is ordinary git and GitHub; the workflows do the
 publishing.
 
-The **root `package.json` is the single version source** (workspace packages
+The **root `package.json` is the version source** (workspace packages
 stay `0.0.0` deliberately — they are never published individually). The
 `/version` endpoints and the Windows build stamp both read it.
+`apps/api/docs/openapi.yaml`'s `info.version` is a copy, held to it by
+`scripts/a-release-that-names-itself.unit.test.ts`, so the bump below names
+both.
 
 ## 1. Before the tag
 
@@ -15,7 +18,10 @@ stay `0.0.0` deliberately — they are never published individually). The
 - [ ] `CHANGELOG.md`: rename `[Unreleased]` to the version + date, and start a
       fresh empty `[Unreleased]` above it. The release body links to this
       section — it is the release's prose.
-- [ ] Bump `version` in the root `package.json` to the version being cut.
+- [ ] Bump `version` in the root `package.json` to the version being cut, and
+      `info.version` in `apps/api/docs/openapi.yaml` to the same: the API
+      contract's copy, which `scripts/a-release-that-names-itself.unit.test.ts`
+      fails on while the two differ.
 - [ ] **Upgrade gates against the PREVIOUS release** (these skip silently
       without the ref present — a skip here is a hole, not a pass):
   - [ ] `git fetch origin tag <previous-tag>` and run

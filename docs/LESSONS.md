@@ -108,6 +108,10 @@ reading a file drops off its entry by itself.
 
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
+### `apps/api/docs/openapi.yaml`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `apps/api/package.json`
 
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
@@ -327,6 +331,10 @@ reading a file drops off its entry by itself.
 
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
+### `apps/web/src/components/Layout.unit.test.tsx`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `apps/web/src/components/ProviderConsent.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -439,6 +447,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/vite.config.ts`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -3025,9 +3034,12 @@ Reads:
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 - `CHANGELOG.md`
+- `apps/api/docs/openapi.yaml`
 - `apps/web/src/components/Layout.tsx`
+- `apps/web/src/components/Layout.unit.test.tsx`
 - `apps/web/src/pages/Login.tsx`
 - `apps/web/src/services/build-identity.ts`
+- `apps/web/vite.config.ts`
 - `docs/release.md`
 - `packages/ledger/src/migrate-upgrade.unit.test.ts`
 - `scripts/package-appliance.mjs`

@@ -4,9 +4,13 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28: T0 answered.** The owner: *"The version name (0146 T0): ok"*. That accepts T0's
-recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy to `ownpace-live`; no
-rename before the alpha or on a live stack; no last squash. Open questions 1 and 2 are answered.
+**2026-09-28: T0 answered.** The owner's words were *"The version name (0146 T0): ok, what do I
+do?"*, and later *"3. The version name: List what i need to do and when."* The owner named no
+option and no item. "ok" was read as accepting T0's whole recommendation: `v0.2.0-alpha.1`, then
+`alpha.2`, `alpha.3` for each deploy to `ownpace-live`; no rename before the alpha or on a live
+stack; and no last squash. That is a reading of one word, not three answers given one by one. The
+owner has not objected since: the later message asks what to do and when, and names no other
+version, rename or squash. Open questions 1 and 2 are recorded as answered on that reading.
 
 **2026-09-28, build: T2 step 1, built on branch
 `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged.** Nothing is
@@ -18,14 +22,18 @@ tagged. Steps 4 to 6 are the owner's.
   `## [0.2.0-alpha.1] - 2026-09-29`, the planned tag date, with T2's floor. Its first paragraph
   says the section lists changes only up to mid-August (the newest date it names is 2026-08-11)
   and points to `docs/feature-matrix.md`. It replaces *"Everything since rc.1 — 209 commits"*,
-  which is no longer true. The pricing sentence now names `pricing.ts` in `@openmig/managed`
-  (ADR-0036), not `@openmig/shared`. The rest of the text is unchanged. T1's curated section is
+  which is no longer true. The pricing sentence no longer names `@openmig/shared`, where the prices
+  are not, and names no package: `pricing.ts` in `@openmig/managed` is where they moved on
+  2026-08-19 (ADR-0036), after the mid-August the first paragraph stops at. *"A single source"* is
+  true on both sides of the move. The rest of the text is unchanged. T1's curated section is
   for a later alpha. If the tag comes later than 2026-09-29, the heading's date is early: a fix
   must land before the commit that is tagged, or it is not in the tag.
-- **The issue template.** `bug_report.yml`'s Build field shows the managed form,
-  `v0.2.0-alpha.1 · abc1234`, and says where it is: the bottom of the sidebar and the sign-in page.
-  It also shows the appliance's first log line, `[appliance] build 0.2.0-alpha.1 (abc1234def56)`.
-  `start.mjs` prints twelve characters of commit (`git rev-parse --short=12` in
+- **The issue template.** `bug_report.yml`'s Build field shows the stamp's form,
+  `v0.2.0-alpha.1 · abc1234`, and says where it is: the bottom of the sidebar on the managed
+  service and the self-host Docker image, and on managed the sign-in page too. It sends a Windows
+  appliance tester to the first log line, `[appliance] build 0.2.0-alpha.1 (abc1234def56)`, and
+  says a Docker image prints that line with `unknown` for the commit. Where it has a commit,
+  `start.mjs` prints twelve characters of it (`git rev-parse --short=12` in
   `scripts/package-appliance.mjs`), not the six the old example showed. The placeholder is the
   managed form.
 - **`docs/release.md`** says six `skipIf(!HAVE_REF)` tests, as
@@ -51,8 +59,71 @@ tagged. Steps 4 to 6 are the owner's.
 - **The shared-chain gate, on this branch.** With `v0.1.0-rc.1` fetched, all six
   `skipIf(!HAVE_REF)` tests in `migrate-upgrade.unit.test.ts` ran, and none was skipped. This is
   not the tagged commit, so `release.md`'s run at that commit still counts.
+- **The review, the same day.** Four nits, in the same branch.
+  - `apps/api/docs/openapi.yaml`'s `info.version` still said `0.1.0-rc.1`, a fourth copy of the
+    version. It says `0.2.0-alpha.1`, the guard's new block (d) holds it to the root
+    `package.json`, and `release.md`'s bump step names it. The other `0.1.0-rc.1`s are not copies
+    of the current version, and stay. They name rc.1 as the release before: `README.md`,
+    `deploy/selfhost/README.md` and `selfhost.env.example`, the default reference of
+    `migrate-upgrade.unit.test.ts`, `two-chains.unit.test.ts` and `upgrade-drill.sh`, and workflow
+    comments. Or they use it as a tag that exists, in the check's own tests. Or they are examples
+    of a form: the `Version` schema's example in the same file, the Windows runbook's log line, and
+    the web tests' fixtures.
+  - On a Docker self-host the log line says `unknown` where the commit goes. `.dockerignore` keeps
+    `.git` out of the image build, so the packager's `git rev-parse` fails, while the image's
+    `GIT_SHA` reaches the bundle and `OPENMIG_COMMIT`, so the stamp has it. The stamp is in the
+    sidebar in both editions (`Layout.tsx` renders it outside every edition condition); the
+    sign-in page is managed-only (`ManagedOnly` in `AppRoutes.tsx`). The form said so, and sent
+    every self-host tester to the sidebar first; the second review, below, narrowed that. Block
+    (c) gained a case: the form sends a self-host tester to the sidebar before the log line and
+    says what a Docker image prints, the image's build context has no `.git`, the image stages its
+    payload with the packager, and the packager's commit is `unknown` unless git answers.
+    `Layout.unit.test.tsx` rendered the stamp in each edition.
+  - T0's record above quotes the owner's words in full and says how "ok" was read.
+  - The changelog's pricing sentence names no package (the changelog bullet above).
+  - **Mutations: nine, each red, each restored.** `openapi.yaml` back at `0.1.0-rc.1`, and the
+    root version bumped alone, fail (d). The form's text before the review, the form without the
+    Docker sentence, the form with the log line before the sidebar, `.git` dropped from
+    `.dockerignore`, the packager's commit read from `GIT_SHA`, and the Dockerfile without its
+    packager step fail the new case in (c). `<BuildStamp />` in `Layout.tsx`
+    behind `!selfHost` fails the appliance's case in `Layout.unit.test.tsx`.
+- **The second review, the same day.** Four minor findings, all taken, in the same branch.
+  - The Windows appliance's sidebar does not show `v0.2.0-alpha.1 · abc1234`.
+    `windows-payload.yml` and `pnpm package:appliance` build the bundle without `GIT_SHA`, so the
+    bundle has no commit while the server's `/version` has the packager's, and `describeBuild`
+    renders `UI v0.2.0-alpha.1 · API v0.2.0-alpha.1 · <commit>`, which reads like a stale bundle.
+    The form now sends managed and Docker testers to the sidebar, and Windows testers to the log
+    line, which has the commit there. Block (c)'s case holds that sentence by sentence: one sends
+    a Docker tester to the sidebar, each that names the sidebar names managed or Docker and
+    neither Windows nor both editions, and the Windows appliance is sent to the log line. Its
+    check that the sidebar comes before the log line went with the advice it held. A new case
+    holds the half the first review only asserted, that a published Docker image's sidebar has
+    the commit: `images.yml` passes `GIT_SHA=${{ github.sha }}` in both of its build steps, the
+    Dockerfile's build stage puts it in the environment before `build:selfhost`, `vite.config.ts`
+    reads it into `VITE_COMMIT`, the runtime stage sets `OPENMIG_COMMIT` from it, and `start.mjs`
+    does not overwrite that (`??=`). The guard's comment says an image built without `GIT_SHA`
+    shows the version alone.
+  - `Layout.unit.test.tsx` looked for the stamp anywhere on the page. It now looks in the
+    `<aside>` only, and checks that nothing in the sidebar comes after it.
+  - `release.md`'s opening still called the root `package.json` the *single* version source. It
+    now calls it the version source, and names `openapi.yaml`'s `info.version` as a copy the guard
+    holds to it.
+  - The T2 row lists the reviews' work.
+  - **Mutations: eleven, each red, each restored.** The form with the first review's text, with
+    the Windows appliance sent to the sidebar, with no Docker tester sent there, and with "the
+    appliance" for "the Windows appliance" fail the form's case. `images.yml`'s retry step without
+    `GIT_SHA`, the Dockerfile's `ENV GIT_SHA` after the bundle's build, its runtime stage without
+    `OPENMIG_COMMIT`, `vite.config.ts` reading `VITE_COMMIT` alone, and `start.mjs` assigning
+    `OPENMIG_COMMIT` with `=` fail the new case. `<BuildStamp />` moved into the top bar fails
+    both of `Layout.unit.test.tsx`'s cases; moved above Sign out, it fails the managed one.
+  - **Not done here.** `windows-payload.yml` and `pnpm package:appliance` should pass `GIT_SHA`
+    to `build:selfhost`, so that the Windows sidebar stops showing a false mismatch. That is
+    outside this branch, and the form stays true after it.
 - **Not proved.** No tag is cut, so the check has not run on a real one. Nothing has run on
-  `ownpace-live`, which is not stood up (0132 T1b).
+  `ownpace-live`, which is not stood up (0132 T1b). No Docker image was built for the review: the
+  `unknown` is read from the Dockerfile, `.dockerignore` and the packager, not from a container's
+  log. No Windows payload was built either: its sidebar's `UI … · API …` is read from
+  `windows-payload.yml`, `vite.config.ts` and `describeBuild`.
 - **Waits for the owner.** The pull request's merge, before the commit to tag is picked: the
   tagged commit must carry the bump. Step 4, the drill from rc.1 on the reference machine (open
   question 3). Step 5, the commit: the managed gate's last two scheduled runs green, the newer on
@@ -286,9 +357,9 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok"*. `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
+| T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok, what do I do?"*, read as accepting the whole recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash. The owner named no item, and has not objected since (Status, 2026-09-28) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | Step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, and `release.md`'s count of six. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push — *was:* steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | Step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push — *was:* steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
@@ -1127,10 +1198,12 @@ and response window (0135 T7).
 1. **The name (T0).** `v0.2.0-alpha.1` (recommended), `v0.1.0-rc.2`, or another? And is every
    deploy to `ownpace-live` during the alpha a new `alpha.N` tag (recommended, since T5 deploys
    only tags)? *Answered 2026-09-28: `v0.2.0-alpha.1`, and `alpha.N` for each deploy, as
-   recommended.* The owner: *"The version name (0146 T0): ok"*.
+   recommended.* The owner: *"The version name (0146 T0): ok, what do I do?"*, read as accepting
+   all of T0's recommendation (Status, 2026-09-28).
 2. **Renames (T0).** None before the alpha, and none on a live stack after it (recommended, and what
    ADR-0040 already says)? Or is there a name the owner wants changed while it is still cheap?
-   *Answered 2026-09-28, with question 1: no rename, and no last squash (T0 items 2 and 3).*
+   *Answered 2026-09-28, with question 1 and on the same reading of "ok": no rename, and no last
+   squash (T0 items 2 and 3).*
 3. **The drill from rc.1 (T2).** `release.md` requires it before a tag, and it has never run
    non-vacuously. It needs the reference machine for as long as the drill takes. Run it before the
    alpha tag (recommended), or tag without it and record the skip as a hole, since the alpha is
