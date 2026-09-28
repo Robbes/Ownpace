@@ -4,6 +4,38 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: T2's tables and API are built, and named *person* by the owner (0131 §6, R8
+step 3, taken on at the owner's word "Take it on")**, in #1332. Building them found `/moves` taken: on the
+appliance it is the queue of items a source put somewhere else, and the web app has a page there.
+Asked, the owner chose *"person / people (Recommended)"* for the name in code and in the API.
+ADR-0050 is amended in place, with a table of the old names and the new.
+
+- **Managed migration 0031:** `person` (a name, and an address or none) and `person_migration`,
+  keyed on the migration, so a migration belongs to one person at most. Both have forced row
+  security. A key holds a row to a person of its own organisation, and the policy holds it to
+  a migration of it. `mailbox_mapping` gains no column. Erasure purges both.
+- **`/api/people`** (`apps/api/src/routes/people.ts`, `@openmig/managed`'s `people.ts`):
+  - `GET` lists everyone with their migrations' states and counts, and the migrations with nobody
+    as `unassigned`;
+  - `POST` creates a person;
+  - `POST /{personId}/migrations` adds a migration: again changes nothing, and somebody else's
+    answers 409;
+  - `DELETE /{personId}` deletes a person and no migration.
+
+  All four are in the OpenAPI spec.
+- **The appliance** answers `GET /people` with one implicit person holding every configured
+  migration, and refuses the writes with `one_person_here`. The shapes are
+  `packages/shared/src/people.ts`, and a test holds both editions to one shape.
+- **Proved by:**
+  - `people-under-rls` (19 cases). With the policy's migration check and the person key's tenant
+    taken out, three of them fail;
+  - `people.unit.test.ts` (20 cases), with each answer's keys held to the spec's schema;
+  - `one-person-on-the-appliance` (5 cases) and `one-answer-from-both-editions` (6 cases);
+  - the erasure test, whose fixture now seeds a person and counts both tables in the receipt.
+    With the two tables taken off `PURGED_TABLES`, two of its cases fail.
+- **Next:** T3 (the Migrations page lists people) and T5 (a page per person, at `/people/:id`)
+  read `GET /api/people`. They are R's, in the split's order.
+
 **2026-09-28, night: ADR-0050 accepted by the owner (T0, T2; 0131 §6, R8's split)**, recorded in
 #1327. Asked what the pull request needed, and told its eight rules and the choices
 inside them, the owner answered *"accept"*: as proposed, rule 8 included. The ADR's operative
@@ -115,9 +147,9 @@ person, and a flow that fills it.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. `move` is internal only. |
+| T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen (to confirm live). (d) A raw state word on Finish. |
-| T2 ADR-0050: a move is a person's migrations | 🟡 **ADR-0050 accepted 2026-09-28 (#1327); the tables and the API next; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
+| T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 📋 **Proposed; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
@@ -314,8 +346,10 @@ The owner answered this plan's open questions the same evening (quoted in the St
   - **On screen, a person's migrations have no noun of their own:** the card carries the
     person's name. One migration is one data type from one old account to one new account,
     the unit the site counts (*"4 migraties tegelijk"*).
-  - ***Move* is the internal name of the grouping:** ADR-0050, the `move` table, the API's
-    `/moves`. It is never a word on screen, the way *mapping* is kept today (`GLOSSARY.md`).
+  - ***Person* is the code's name for the grouping:** ADR-0050 (amended 2026-09-28), the
+    `person` table, the API's `/people`. It was *move* until the owner's answer that night,
+    because `/moves` is the moved-items queue. On screen a person is only ever their name, and
+    *people* in a count, the way *mapping* stays off screen today (`GLOSSARY.md`).
 - **D7 — *Accounts*, and no Dashboard.** *"yes and yes"*.
   - The menu entry *Connections* becomes *Accounts*.
   - The Dashboard goes, and Migrations is the landing page after sign-in.
@@ -339,11 +373,12 @@ The owner answered this plan's open questions the same evening (quoted in the St
   ours.
 - **The glossary is changed first** (`GLOSSARY.md`), then `strings.ts`:
   - *migration* is shown per data type;
-  - *move* is internal, like *mapping*;
+  - *person* is the code's name for the grouping, and on screen a person is their name;
   - *Accounts* replaces *Connections*.
 
-(b) **ADR-0050**, drafted in T2, was accepted by the owner on 2026-09-28 (#1327). T3 builds on it
-once T2's tables land. Its *move* is the internal name only (D6).
+(b) **ADR-0050**, drafted in T2, was accepted by the owner on 2026-09-28 (#1327). T2's tables and
+API are built, and T3 builds on them. The owner renamed its *move* to *person* in code the same
+night, because `/moves` is the moved-items queue (the ADR's amendment).
 
 ### T1 — four faults the audit found (before the first invitation, first)
 
@@ -388,6 +423,15 @@ Each is its own pull request, each with its own guard. They do not wait for T2.
 one raw word, fixed now, and T2 of 0145 builds on it. **Built in #1316.**
 
 ### T2 — ADR-0050: a move is a person's migrations (before the first invitation)
+
+**Built 2026-09-28, under the names of the owner's amendment:**
+- `person` and `person_migration (mapping_id, person_id, tenant_id)` (managed migration 0031);
+- `GET` and `POST /api/people`, `POST /api/people/{personId}/migrations` and
+  `DELETE /api/people/{personId}`;
+- the appliance's `GET /people`, with one implicit person;
+- `unassigned` for what the text below calls *Not in a move yet*.
+
+The proposal as the owner accepted it follows, under its first names.
 
 The proposed decision, to be written as `docs/adr/0050-a-move-is-a-persons-migrations.md` with
 its operative rules:
@@ -455,7 +499,7 @@ tsx` are updated in the same pull request.
 - On a phone each card stacks, and its actions have names and targets a thumb can hit, as 0145 T7 (b) asks for the Migrations rows.
 - The empty state says what to do first, in one sentence, with *Start a migration*.
 - A failed read shows as a failure, not an empty list (hard rule 9; `test/ui/managed-ui.ui.test.
-  ts` already asserts it for migrations, and it is extended to moves).
+  ts` already asserts it for migrations, and it is extended to people).
 
 ### T4 — *Start a migration*: who, from where, what, to where (before the first invitation)
 
@@ -523,7 +567,7 @@ on its heading, as 0145 T3 built for the wizard.
 
 **Underneath,** the flow creates one migration per pair of old and new account, holding the
 ticked data types, named *"{person} — {provider} to {destination}"*. It adds them to the
-person's grouping (ADR-0050's `move`).
+person (ADR-0050's `person`, `POST /api/people/{personId}/migrations`).
 The schedule is daily at 02:00, the default today, and can be changed on the migration later (T5).
 
 **The four-step wizard stays reachable** as *Add one migration by hand* on the person's page and
@@ -534,8 +578,9 @@ descriptors and examples.
 
 ### T5 — a page per person (before the first invitation)
 
-`/moves/:id` holds the following, drawn in `wf-person-page.svg`. The path keeps the internal
-name, as `/mappings/:id` does (D6).
+`/people/:id` holds the following, drawn in `wf-person-page.svg`. The path keeps the code's
+name, as `/mappings/:id` does (D6). It is not `/moves/:id`: `/moves` is the moved-items queue's
+page on the appliance.
 
 - the person's name;
 - where from and where to;
@@ -686,8 +731,8 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
 - **Mail and files in Google's one consent on a deployment that has not declared the restricted
   scopes.** That needs Google's restricted-scope assessment for the product's own client, which
   is ADR-0041's and 0089 T5's question, not a UX change.
-- **Recreating a person's shared mailboxes and groups as part of a move.** That is 0027's.
-- **Billing per move.** A move is not billed. Paths are (ADR-0014).
+- **Recreating a person's shared mailboxes and groups as part of their migrations.** That is 0027's.
+- **Billing per person.** A person is not billed. Paths are (ADR-0014).
 - **The site.** That is 0152.
 
 ## Open questions
