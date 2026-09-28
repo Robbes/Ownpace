@@ -146,6 +146,12 @@ export const FAILURE_CATEGORIES = [
    * destination was never asked — a setting on the mapping is what changed
    * the answer, and changing it back makes the item eligible again.
    *
+   * One kind is here before its setting exists (workplan 0150, D9): a Dropbox
+   * Paper doc, which Dropbox hands over only as an export this build does not
+   * make yet. Its remedy is chosen by the migration's source as well as this
+   * category, and names no setting until 0150 T3 adds the format per kind;
+   * T3 takes this paragraph out again.
+   *
    * Never matched from prose: it is STATED by the code that refused (see the
    * module comment). Nothing a provider says can mean this, because no
    * provider was involved.

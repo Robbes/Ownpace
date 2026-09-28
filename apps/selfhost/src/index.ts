@@ -1799,6 +1799,10 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             needsDecision: failures.filter((f) => f.needsDecision),
             retrying: failures.filter((f) => !f.needsDecision),
             howToResolve: FAILURE_GUIDANCE,
+            // The source's kind, so the page can choose a remedy by source as
+            // well as by category (workplan 0150 D9). Managed reads its
+            // connection's kind; both say `dropbox` for Dropbox.
+            sourceKind: m.config.source.type,
           };
         }
         return sendJson(res, 200, out);
