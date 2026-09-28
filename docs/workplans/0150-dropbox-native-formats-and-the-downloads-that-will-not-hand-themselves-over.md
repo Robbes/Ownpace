@@ -4,10 +4,156 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night, later: the same wall at cutover, closed (T1; 0131 §6, group M8)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-checksum-that-downloaded-the-whole-file`, not merged.
+
+- **What was found.** Verification reads a sample of the copied files back from the target and
+  hashes them (§20). The WebDAV writer's `contentHashFor` read each sampled file whole into memory
+  first, as its client read every response. A sample is any file a migration copied, so a sampled
+  video on a pass machine of half a gigabyte would kill a verification the way the uploads killed
+  the passes. It was found while reading the client for the entry below. It never ran on the
+  owner's migration, which has not reached its cutover.
+- **Done on this branch.**
+  - The writer's client takes `stream`, as the WebDAV source's does, and hands a streamed
+    response back unread.
+  - `contentHashFor` asks for a stream on a whole-file hash and hashes the file as it arrives.
+  - `container-parts` still reads the bytes whole. A container is opened to be hashed, and it is
+    a rendering this product asked for.
+  - A refused read cancels its stream. A read that breaks off is `undefined`, never a hash of part
+    of a file.
+- **Proved** by `a-checksum-that-downloaded-the-whole-file` (6 cases). Among them, a real 64 MiB
+  file through the real client and `fetch` holds 0 MiB three quarters in, where it held 48. 5 of 5
+  mutations killed.
+- **Both memory tests now settle before they read.** The server stops for a moment, then two full
+  collections run a turn apart. Unsettled, a reading could count memory that was freed but not yet
+  swept: 0 to 5 MiB over 20 runs of the upload test, and up to 32 MiB here. Settled, both read 0
+  in 10 runs with the fix, and 52 and 48 MiB without it.
+
+**2026-09-28, night: what killed every pass, found and fixed (T1's open half; 0131 §6, group M8)**
+on branch `claude/mailbox-sync-errors-c2xsw2-an-upload-that-kept-every-byte`, not merged. From the
+owner's readings on the OTA stack, with the migration's id left out, and measured here.
+
+- **The kill, from the plane's own record.**
+  - On 2026-09-25, five passes from 13:24 to 17:00 UTC ended `COMPLETED_SUCCESSFULLY` after 50 to
+    52 minutes: each stopped at the 50-minute soft deadline.
+  - From 18:00 that day every pass ended `CRASHED`, *"Process exited with code -1 after signal
+    SIGKILL."*, after 40 to 51 minutes on `small-1x`. That is nine up to 2026-09-26 10:08, and the
+    two started today at 17:23 and 17:25.
+  - In the same hours the plane ran 179 passes of other migrations to completion.
+- **That is memory.** `small-1x` gives a run half a gigabyte, and the supervisor enforces it (0143
+  T1 step 1). The kernel ends a process at that limit with SIGKILL. Trigger.dev reads exit code
+  137, or V8's own out-of-memory handler, as `TASK_PROCESS_OOM_KILLED`. A process ended by a signal
+  has no exit code, so it reads *"code -1 after signal SIGKILL"* (`internalErrorFromUnexpectedExit`,
+  v4.5.16).
+- **While copying, not at the end.** The ledger holds 1,351 files copied, one adopted and one
+  failed (the Paper doc), of 55,245. The newest copy was written at 18:52 today, as the last pass
+  died. No pass has reached the end of the account.
+- **What held the memory: every file above 8 MB, whole.**
+  - Such a file crosses as a stream (`FileBody`), so that nothing holds it, and the WebDAV writer
+    sends it with Node's `fetch`.
+  - Unless a request's redirect mode is `error`, fetch sends a clone of the request and keeps the
+    original, in case a redirect has to send it again (`httpNetworkOrCacheFetch`). Cloning a
+    stream body tees it (`cloneBody`), and the original's branch is never read. It keeps every
+    chunk the upload sends.
+  - A file of a few hundred megabytes, or a few large ones in flight together (four at a time),
+    took a pass past half a gigabyte. The next pass met the same file again.
+  - The writer's own tests pass it a client of their own, so no test ran the real client's `fetch`.
+- **Measured** on Node 24.21.0 (undici 7.29.1), the tasks' runtime (`runtime: 'node-24'`):
+
+  | | Peak | Held after |
+  |---|---|---|
+  | A 128 MiB upload, as it was | 166 MiB | 103 MiB |
+  | The same, with `redirect: 'error'` | 48 MiB | none |
+  | Three 256 MiB files through `DropboxFileSource.fetch` and `upsertFile`, as it was | 432 MiB | 260 MiB |
+  | The same, fixed | 195 MiB | none |
+
+  With the egress rule on, the last two read 421 and 256 MiB before, and 218 and 5 MiB after.
+- **Done on this branch.**
+  - `STREAMED_REQUEST_INIT` in `file-body.ts` holds `duplex: 'half'` and `redirect: 'error'`, and
+    says why.
+  - Both clients that send a stream, the WebDAV writer's and the WebDAV source's, spread it, and
+    no other request carries it.
+  - Refusing a redirect loses nothing. Fetch could not follow one with a stream body anyway, and a
+    303 would have turned the upload into a GET that sends nothing.
+  - **Proved** by `an-upload-that-kept-every-byte` (engines, 3 cases) and
+    `a-dav-upload-that-would-keep-every-byte` (connectors, 2 cases). Among them, a real 64 MiB
+    upload through the real `fetch` holds 0 to 1 MiB three quarters in, where it held 52. 7 of 7
+    mutations killed.
+- **What proves it on the OTA stack:** the first pass after this is deployed copies past the files
+  the passes died on, and ends `COMPLETED_SUCCESSFULLY` or at its deadline, not `CRASHED`.
+- **Not the cause:** the folder walk and the bin read each hold every entry of the account at once
+  (29 MiB on 55,245 files, and more with tombstones). Since #1324 (`14a9383`) they read a page at a
+  time. That lowers what a pass holds once it reaches every folder, which no pass has yet done.
+- **The start screen's count (D5)** landed at 17:30:24: 55,245 files, and one Paper doc refused
+  under the migration's policy at the time. The pass had begun at 17:23, before it landed. Whether
+  Start should wait for the count is the owner's to decide, and was asked the same evening.
+**2026-09-28, evening, later: T1's open half, the kill read, and a first fix (0131 §6, group M8)**
+merged in #1324 (`14a9383`).
+From the owner, on the OTA stack, from the plane's own record, with the migration's id left out.
+
+- **The passes.**
+  - On 2026-09-25, five passes from 13:24 to 17:00 UTC ended `COMPLETED_SUCCESSFULLY` after 50 to
+    52 minutes: each stopped at the 50-minute soft deadline.
+  - From 18:00 that day to 10:08 the next, nine ended `CRASHED`. Each reads
+    `TASK_PROCESS_EXITED_WITH_NON_ZERO_CODE`, *"Process exited with code -1 after signal
+    SIGKILL."*, after 40 to 51 minutes. Two were tried a second time and died again.
+  - Today's pass, started at 17:23 on the tasks deployed that evening, died the same way after 45
+    minutes. Every one ran on `small-1x`.
+  - In the same hours the plane ran 179 passes of other migrations to completion, so the plane is
+    not the cause.
+- **Why that is memory.**
+  - `small-1x` gives a run half a gigabyte, and the supervisor enforces it (0143 T1 step 1).
+  - A process that reaches the container's limit is killed by the kernel with SIGKILL.
+  - Trigger.dev records `TASK_PROCESS_OOM_KILLED` only for exit code 137, or when V8's own
+    out-of-memory handler is in stderr. A process ended by a signal has no exit code, so it reads
+    *"code -1 after signal SIGKILL"* (`internalErrorFromUnexpectedExit` in
+    `packages/core/src/v3/errors.ts`, v4.5.16).
+  - The hour's hard limit would read `MAX_DURATION_EXCEEDED`, and it was 9 to 20 minutes away.
+- **Where: a prime suspect, not yet proved.** *Corrected in the entry above:* not where. The
+  passes died while copying, and none reached the steps below; Node's `fetch` held each uploaded
+  file whole.
+  - The kills began with the first pass after five that had stopped at their deadline. That fits
+    a step that runs only on a pass that reached every folder.
+  - Three steps run only then, and each holds the whole account at once:
+    1. the bin read (`listTrashedPaths`);
+    2. the tombstones as keys, with one ledger read each (`resolveDiscardedItems`);
+    3. every placed row, for the move detector (`placedItems`).
+  - The bin read held the most. It gathered every entry of a recursive listing with
+    `include_deleted` into one array before it looked at any: every live file, and every tombstone
+    Dropbox keeps. The folder walk that starts each pass did the same with every live file.
+- **Measured** with a scratch benchmark, not committed, on synthetic entries shaped like Dropbox's,
+  beside the owner's 55,245 files. It reads what the bin read holds at its last page, above the
+  baseline, after garbage collection:
+
+  | Tombstones | Before | After |
+  |---|---|---|
+  | none | 29.2 MiB | 1.1 MiB |
+  | 200,000 | 68.9 MiB | 22.1 MiB |
+  | 900,000 | 210.8 MiB | 95.9 MiB |
+
+  - The folder walk held 29.2 MiB before, and 1.1 MiB after.
+  - Past about a million entries both stop at the 1,000-page guard, which the pass reads as a bin
+    it could not read.
+  - For scale, a tick used 190 MB of its 512 (0143).
+- **Not known:**
+  - how many tombstones the owner's account lists. With many, the keys and the ledger reads after
+    the bin read still hold them all, and this fix is not enough alone;
+  - whether memory also grows across the walk itself.
+- **Done on this branch.** `listPages` hands a listing over a page at a time. The folder walk and
+  the bin read each finish a page before they ask for the next. A listing that never stops paging
+  is still refused, and `listSince` still reads one folder whole. **Proved** by
+  `a-bin-read-that-held-the-whole-account` (4 cases); 5 of 5 mutations killed.
+- **What proves it:** the first pass on the OTA stack after this is deployed ends
+  `COMPLETED_SUCCESSFULLY` and closes its run. If it dies again, the run container's memory, read
+  every 30 seconds while it runs, says where (open question 1).
+- **The start screen's count (D5)** landed at 17:30:24: 55,245 files, and one Paper doc refused
+  under the migration's policy at the time. The pass had begun at 17:23, before it landed. The
+  screen does not hold Start while it counts (#1314's open point), and whether it should is the
+  owner's to decide.
+
 **2026-09-28, evening: T8 begun on the OTA stack, T2's listing read, and a tasks deploy that could
-not build (0131 §6, group M8)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-bundle-built-from-a-stale-install`, not merged. The owner
-ran the steps written for T8 after #1311 and #1314.
+not build (0131 §6, group M8)**, merged in #1322 (`979ef36`). The owner ran the steps written for
+T8 after #1311 and #1314.
 
 - **T2's listing of the owner's account (open question 3).**
   - **What it holds:** 55,245 files and 320 folders. Exactly one is a Paper doc, and none is a
@@ -22,6 +168,8 @@ ran the steps written for T8 after #1311 and #1314.
     `--versions` diff around an edit.
 - **T1's kill code:** the plane's `TaskRun` held no `run-delta-sync` row for the migration.
   Whether that history is gone is being read, with a count per task that prints no payload.
+  *Corrected in the entry above:* the rows were there, and a query by the migration's own run tag
+  found them.
 - **For T1:** every pass lists all 55,245 files, because the source keeps no change feed per
   folder (its header says why). That alone makes a pass long.
 - **The tasks deploy failed, after the images had rebuilt.**
@@ -330,7 +478,7 @@ written with 0144 T2 (D6). **Since 2026-09-28 also T3 and T4** (D6, amended): th
 
 | Task | Status | Evidence |
 |---|---|---|
-| T1 the live failure, read from the wire | 🟡 **Partly diagnosed** (2026-09-25; corrected 2026-09-26). The open half ⏳ **Owner** (open question 1); 2026-09-28: every pass since 2026-09-25 was killed before it ended, and which kill is owed | **Known.** The owner's managed migration met a Paper doc (`.paper`), and `files/download` answered 409 `unsupported_file`. This plan first quoted the error as `Dropbox refused the download of "…paper" (409): {"error":{".tag":"unsupported_file"}}`, with the path shortened. The full text, and the screen or row it was read from, were not recorded (open question 1). `download()` throws a bare `Error` with no stated category and no decision mark (`dropbox-file-source.ts`:383-385). Dropbox's spec says what the tag means: *"This file type cannot be downloaded directly; use :route:`export` instead."* (`files.stone`:1002-1005). **Not as first written.** (a) The row reads `source_refused`, not `target_refused`. `fetchRaw` is `sided('source', deps.fetchRaw)` (`domain-sync.ts`:880), and the matching rule turns a source-side refusal into `source_refused` (`failure-category.ts`:324-328, :366). So the owner is told the old account would not hand the file over (`strings.ts`:1340-1341). The code has worked this way since 2026-09-17. Only a `.paper` listed above 8 MiB would read `target_refused`, because it is downloaded inside `body.open()` (`dropbox-file-source.ts`:411-417) under the target's `upsert` (`domain-sync.ts`:892). (b) One file cannot stop a pass. `consecutiveFailures` lives for one pass (:969). Only an item fetched and written resets it (:1713); an item skipped before the fetch does not (:1402-1414), and neither does one that waits on a person (:1444-1456). The per-item catch carries on (:1746). The file is tried on 5 passes, then waits on a person and is not fetched again (`MAX_ITEM_ATTEMPTS`, `ports.ts`:1896; `domain-sync.ts`:332, :1445). Its `parked_at` stays NULL, because only a decision error is parked (:1860; `ledger.ts`:564, :844). **Open: why "no other file moves".** First read the owner's pass summaries (created, skipped, failed, needs decision), whether any pass ended with a stop, and the `.paper` rows (`last_error_category`, `attempt_count`, `parked_at`), with how many have `attempt_count` below 5. Candidates: (1) once the other files are copied, later passes show created 0 and skipped N beside one failure, which can read as "nothing moved". (2) An account holding 25 or more Paper docs: once the rest of the tree is copied, every Paper doc still being retried counts toward 25 in that pass, whatever folder it is in, and the 25th stops the pass (`PassAbortError`, :1909-1916). A stopped pass does not reach the folders listed after the 25th failure, so new or changed files there do not move until the Paper docs reach the ceiling. #1182's root-path 409 is ruled out for the passes that show the Paper 409, because those passes listed the root first (`domain-sync.ts`:1170). 0128's per-data-type stop (#1174, #1179) is not yet ruled out. |
+| T1 the live failure, read from the wire | 🟡 **Partly diagnosed** (2026-09-25; corrected 2026-09-26). The open half ✅ **answered 2026-09-28**: every pass from 2026-09-25 18:00 was killed for memory while copying, because Node's `fetch` held every uploaded file above 8 MB whole; fixed by `STREAMED_REQUEST_INIT`; the proof on the OTA stack ⏳ (open question 1) | **Known.** The owner's managed migration met a Paper doc (`.paper`), and `files/download` answered 409 `unsupported_file`. This plan first quoted the error as `Dropbox refused the download of "…paper" (409): {"error":{".tag":"unsupported_file"}}`, with the path shortened. The full text, and the screen or row it was read from, were not recorded (open question 1). `download()` throws a bare `Error` with no stated category and no decision mark (`dropbox-file-source.ts`:383-385). Dropbox's spec says what the tag means: *"This file type cannot be downloaded directly; use :route:`export` instead."* (`files.stone`:1002-1005). **Not as first written.** (a) The row reads `source_refused`, not `target_refused`. `fetchRaw` is `sided('source', deps.fetchRaw)` (`domain-sync.ts`:880), and the matching rule turns a source-side refusal into `source_refused` (`failure-category.ts`:324-328, :366). So the owner is told the old account would not hand the file over (`strings.ts`:1340-1341). The code has worked this way since 2026-09-17. Only a `.paper` listed above 8 MiB would read `target_refused`, because it is downloaded inside `body.open()` (`dropbox-file-source.ts`:411-417) under the target's `upsert` (`domain-sync.ts`:892). (b) One file cannot stop a pass. `consecutiveFailures` lives for one pass (:969). Only an item fetched and written resets it (:1713); an item skipped before the fetch does not (:1402-1414), and neither does one that waits on a person (:1444-1456). The per-item catch carries on (:1746). The file is tried on 5 passes, then waits on a person and is not fetched again (`MAX_ITEM_ATTEMPTS`, `ports.ts`:1896; `domain-sync.ts`:332, :1445). Its `parked_at` stays NULL, because only a decision error is parked (:1860; `ledger.ts`:564, :844). **Open: why "no other file moves".** First read the owner's pass summaries (created, skipped, failed, needs decision), whether any pass ended with a stop, and the `.paper` rows (`last_error_category`, `attempt_count`, `parked_at`), with how many have `attempt_count` below 5. Candidates: (1) once the other files are copied, later passes show created 0 and skipped N beside one failure, which can read as "nothing moved". (2) An account holding 25 or more Paper docs: once the rest of the tree is copied, every Paper doc still being retried counts toward 25 in that pass, whatever folder it is in, and the 25th stops the pass (`PassAbortError`, :1909-1916). A stopped pass does not reach the folders listed after the 25th failure, so new or changed files there do not move until the Paper docs reach the ceiling. #1182's root-path 409 is ruled out for the passes that show the Paper 409, because those passes listed the root first (`domain-sync.ts`:1170). 0128's per-data-type stop (#1174, #1179) is not yet ruled out. **Answered 2026-09-28 (Status):** from 2026-09-25 18:00 every pass was killed for memory while copying, before any reached the end of the account (1,351 of 55,245 files copied). Node's `fetch` held every file above 8 MB whole while it uploaded it. Neither candidate above is what ended them, nor the bin read, suspected first; it and the folder walk read a page at a time since #1324. |
 | T2 the native-format inventory, before any code | 📋 **Proposed** (the rule, from the API spec); the listing's tool ✅ **merged 2026-09-28** in #1300 (`scripts/dropbox-native-inventory.mjs`, naming no file); the owner's listing ✅ **read 2026-09-28** (open question 3: (a), (c) and (d) answered; (b) waits on an edit) | **The rule.** Dropbox states on every listed file whether it must be exported. `is_downloadable` means *"If true, file can be downloaded directly; else the file must be exported."* `export_info` *"must be set if is_downloadable is set to false"*. It holds `export_as` (the default format) and `export_options` (the others) (`files.stone`:822-826, :693-702). The kind table keys on these fields, with the extension as the kind's label. `DropboxEntry` carries neither field today (`dropbox-file-source.types.ts`:56-67). T5 needs only this rule. T3 and T4 also need the listing. **Record from a real listing, per kind** (open question 3): `is_downloadable`; `export_info`; whether `files/export` answers, and with which `export_format` values; the listed size; and whether `content_hash`, `rev` or `server_modified` moves after an edit. The version decides a rewrite (`domain-sync.ts`:350-354; `dropbox-file-source.ts`:451). **Kinds to look for:** `.paper` and `.papert`. `.web`, Dropbox's own shortcut: reported as not downloadable, and one report (rclone issue #8391) says it exports in a `url` format; not checked. Any `.gdoc`/`.gsheet`/`.gslides` left in the account: the spec's own export example turns `Prime_Numbers.gsheet` into `Prime_Numbers.xlsx` (`files.stone`:1664, :1682). `.url` and `.webloc` are ordinary files that download and migrate today; they are not native kinds. |
 | T3 the arrival format per kind, chosen by the user and named at listing | 📋 **Decided 2026-09-26** (D1, D4, D5, D7, D8). **Before** the alpha since 2026-09-28 (D6, amended) — *was:* after the alpha. (b) the name at listing ✅ **merged 2026-09-28** in #1301 (`2dc3d4f`); (a) and (c) ✅ **merged 2026-09-28** in #1310 (`cd74069`); (d) ✅ **merged 2026-09-28** in #1311 (`dee0a33`), and its start screen's wait for a new count in #1314 (`9d5296b`) | The owner asked that the user picks the format that arrives (*The owner's words*). **(a) The values.** A kind's choices are the wire's `export_format` strings for it: `html` and `markdown` for Paper, which is what rclone sends (rclone `master` at `9dc8b71a`, `backend/dropbox/dropbox.go`:141-144). Each file's choice is checked against its `export_as` and `export_options`, as rclone does (:1802-1806). The stored setting may use repo-style names mapped to them. A kind with no export path offers no format. No format chosen means refuse (D1). The wizard shows the Paper picker for every Dropbox migration that carries files, and suggests Markdown (D1). **(b) The name is chosen at listing.** The sync loop writes under the listed path and keeps only the bytes from `fetch()` (`dav-sync.ts`:382, :392, :406; `webdav-target-writer.ts`:252, :799). So `listSince`/`toFileItem` name each native entry under the policy in force, as Drive's `exportedNameUnder` does (`google-drive-source.ts`:227-237, :466). The rule is D4's: the suffix is appended, so `Notes.paper` arrives as `Notes.paper.md`. That name is the natural key. Each entry carries `formerPaths` for its names under every other policy, `refuse` included (`google-drive-source.ts`:1116; `dav-sync.ts`:409). So a switch closes a row parked under the old name (`supersedeFormerNames`, `ports.ts`:1683). `sourceIdentity` is the Dropbox id; its comment says it is set only for a Google document today (`file.ts`:103-114). `listKeys` uses the same naming, because it answers from the same listing (`dropbox-file-source.ts`:273-280). `listTrashedPaths` cannot: a tombstone (`.tag: "deleted"`) carries neither `is_downloadable` nor `export_info`, only the fields every entry has and `is_restorable` (`files.stone`:765-788, :896-899), and the source reads only its `.tag` and `path_display` (`dropbox-file-source.ts`:301-314). So a tombstone is the one place the rule falls back to the extension (`.paper`, `.papert`): `listTrashedPaths` emits both the listed name (`Notes.paper`) and the name under the policy in force. A key no ledger row holds resolves to nothing downstream (:296-299), and a row parked under `refuse` still carries the listed name. Drive's own bin read does not rename at all (`google-drive-source.ts`:864, in `originalPathOf`). The version stays the listing's `fileVersion(content_hash, server_modified)` (`dropbox-file-source.ts`:451; ADR-0046, #1083), never the export's hash. **(c) The places the setting passes through,** as Drive's does. D7: the key is `nativeFilePolicies`, reused with a `paper` kind. So the Google-typed kinds and values widen (`google-native-coverage.ts`:110; `config.ts`:214, :1278-1283), and the update door's check becomes source-aware: today it runs the Google parser for every source and would answer 400 (`apps/api/src/routes/migrations/index.ts`:1760). Export a `parseDropboxSource` from the Dropbox branch (`config.ts`:1046-1052, today inside the private `parseSource`, :977) and call it from the create and update doors, as Drive's `parseGoogleDriveSource` is called (`index.ts`:195). It then becomes the one authority for both editions. Today managed builds the Dropbox config itself (`index.ts`:201-205), and the create door's gate and that config drop a setting sent today without a word (:509, :201-205). The factory hands the source `rootPath` and the endpoints only (`dropbox-source-factory.ts`:97-101). Managed's builder hands it `rootPath` only, read straight from the stored JSON (`build-deps-from-mapping.ts`:1110-1111); it reads the policy through the same parser, as the create door does. The wizard's gate and the settings panel's both ask `carriesGoogleNativeFiles` (`CreateMapping.tsx`:1364-1365; `ExportPolicyPanel.tsx`:214; `google-native-coverage.ts`:248). Also: the panel's title (`strings.ts`:557 EN, :2890 NL); the Dropbox remedy sentence T5 adds (D9), which from T3 on names the new setting, while `failure.policyRefused` stays Drive's, word for word (`strings.ts`:1328-1329, :2403-2404); the `source.nativeFilePolicy` revision rule, its consequence and snapshot (`config-revision.ts`:66, :136-145, :394), with 0125's wording; `openapi.yaml`:1885-1898; and the appliance's mapping key with `dropbox-setup.md` §3. The web `MaskedConfigSchema` already names both keys (`mapping-service.ts`:211-238), so D7 needs nothing there. The values stay `z.string()`, with no API enum. T8's export half, on the existing mapping, needs the update door. **(d) Before Start.** Add a `nativeRefusals()` count on `DropboxFileSource` for the confirm screen (`run-discovery.ts`:167-170; `native-refusals.tsx`). It counts `policy_refused` files only, as Drive's does, because the confirm line offers a format as the remedy (`google-drive-source.ts`:459, :1206-1209; `strings.ts`:117-118). Add a `paper` entry in `native-kind-key.ts`, with EN/NL `discovery.refusedNative.kind.paper`; today an unknown kind reads "Google files" (`strings.ts`:105). **(e) Done when** ADR-0046's operative rule names Dropbox: a rewrite follows the listing's version, and a renamed export is paired by the Dropbox id (D8). **Guards:** a listing under a Paper format names the entry and its `formerPaths`, and a second pass creates nothing (extend `dropbox-file-source.unit.test.ts`:111; fails today, because no entry is renamed). The tombstone tests (:322) pin that a deleted `.paper` is emitted under both names. A PUT to `/api/migrations/:mappingId` on a Dropbox migration carrying a `paper` format in `nativeFilePolicies` is accepted and written (400 today, from `UpdateMappingSchema`, `index.ts`:1760): add a Dropbox case beside the 400 case in `apps/api/src/routes/migrations/a-format-that-had-to-fit-all-four-kinds.unit.test.ts`:349, and a merge case in `a-setting-the-route-dropped-in-silence`. Extend `a-policy-the-client-threw-away` and the chooser guard `a-chooser-one-google-kind-could-not-reach`, or add a Dropbox sibling. |
 | T4 the export path | 📋 **Decided 2026-09-26** (D2, D8). **Before** the alpha since 2026-09-28 (D6, amended) — *was:* after the alpha. ✅ **Merged 2026-09-28** in the source, with T3 (b), in #1301 (`2dc3d4f`) | `POST https://content.dropboxapi.com/2/files/export` with `Dropbox-API-Arg: {"path": <id>, "export_format": <value>}`. It uses the same content host and header argument as `download()` (`files.stone`:2753-2764, `host = "content"`, `style = "download"`), the same id (`sourceRef`, `dropbox-file-source.ts`:454), and the same scope, `files.content.read`, which the consent asks for since #1194 (`DROPBOX_CONSENT_SCOPES`, `dropbox-consent.ts`:50-53, set on the URL at :80) and which every migration's token must carry (`DROPBOX_REQUIRED_SCOPES`, :38-41). **A preview route (D2).** Dropbox marks it `is_preview = true`, *"subject to breaking changes without notice"* (`stone_cfg.stone`:11-13); `files/download` is not marked (`files.stone`:2727-2736). A contract test pins the request and the result, and T8 records the live answer. An answer the code does not recognise stays an ordinary, retryable failure (T5). **The result** is `export_metadata` (`name`, `size`, `export_hash`, `paper_revision`) plus `file_metadata`, in the `Dropbox-API-Result` response header (`files.stone`:1669-1690). There is no `e_tag`. The name comes from the listing (T3 (b)). The header can only confirm it, through an optional `headers` on `DropboxTransport`'s response, added like `body?` (`dropbox-file-source.types.ts`:18-35). **Before the size gate, always buffered.** `fetch()` decides the kind before `item.size > STREAM_FILES_LARGER_THAN_BYTES` (`dropbox-file-source.ts`:411, 8 MiB). An export returns `content` with `item.size = bytes.byteLength`. It never returns a `FileBody` whose `sizeBytes` is the `.paper` listing size (:415), which the target would send as `Content-Length` (`webdav-target-writer.ts`:958). Drive does the same (`google-drive-source.ts`:948, :968, :994). The export is read as bytes, never as text. **Done when** ADR-0046's amendment (D8) covers the export as built. **Guard:** a `.paper` listed above 8 MiB under an export policy returns buffered `content` from one `files/export` call, and never a body. Add it as a Dropbox sibling of `a-drive-file-that-has-no-size-until-it-exists`. It fails today, because the file goes to `files/download` in the streamed branch. |
@@ -595,17 +743,31 @@ listed `content_hash` is the `.paper`'s block hash, never the export's (T3 (b)).
    *Recommended:* read them before anything is built. They decide T1's open half, and whether T8
    counts for 0141 T3. *Partly answered 2026-09-28:* one row, `source_refused`, 5 attempts, not
    parked. *Later the same day:* the error text in full, and the passes: ten, and none ended
-   (Status). *Still owed:* which kill ended them, from the plane's own record. It prints no payload
-   or message:
+   (Status). *Answered later still:* each was killed for memory while copying, SIGKILL on
+   `small-1x` (Status), read from the plane's own record by the migration's run tag. The read
+   prints no payload; blank out any file name a message holds before pasting it anywhere:
 
    ```bash
    docker exec -i ownpace-managed-trigger-db psql -U trigger -d triggerdb <<'SQL'
-   SELECT "createdAt", status, error->>'type' AS type, error->>'code' AS code,
-          round("usageDurationMs" / 60000.0) AS minutes, "machinePreset", "attemptNumber"
+   SELECT "createdAt", "friendlyId", status, "taskVersion", error->>'code' AS code,
+          left(error->>'message', 160) AS message, "machinePreset", "attemptNumber",
+          round(extract(epoch FROM ("updatedAt" - coalesce("startedAt", "createdAt"))) / 60) AS ran_min
      FROM "TaskRun"
-    WHERE "taskIdentifier" = 'run-delta-sync' AND payload LIKE '%MIGRATION-ID%'
+    WHERE "taskIdentifier" = 'run-delta-sync' AND 'mapping:MIGRATION-ID' = ANY("runTags")
     ORDER BY "createdAt" DESC LIMIT 20;
    SQL
+   ```
+
+   *Still owed:* the first pass after the fix is deployed, read the same way. If it dies too, the
+   run container's memory while it runs says where. A run's container is named `runner-` and its
+   `friendlyId` without `run_`. Its memory, every 30 seconds, stopped with Ctrl-C:
+
+   ```bash
+   while true; do
+     docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' |
+       sed -n "s/^runner-/$(date -u +%H:%M:%S) runner-/p"
+     sleep 30
+   done | tee -a pass-memory.log
    ```
 2. **The owner's words (*The owner's words*).** The request for a format picker, and the report
    that one file stops everything, were never recorded word for word, with a date and a place. If

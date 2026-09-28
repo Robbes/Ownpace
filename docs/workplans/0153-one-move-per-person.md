@@ -4,6 +4,29 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: ADR-0050 accepted by the owner (T0, T2; 0131 §6, R8's split)**, recorded in
+#1327. Asked what the pull request needed, and told its eight rules and the choices
+inside them, the owner answered *"accept"*: as proposed, rule 8 included. The ADR's operative
+section carries its rules, and `OPERATIVE.md` is regenerated. **Nothing is built yet.** The
+`move` and `move_member` tables and the API are T2's next step (0131 §6, R8 step 3), and T3 and T5
+build on them.
+
+**2026-09-28, night: the tiles and the six icons are components, built beside R (0131 §6, R8's
+split)**, merged in #1325. They are §5's first two rows, and T3, T4 and T5 take them as they
+are.
+
+- **`ProviderTile`** (`apps/web/src/components/ProviderTile.tsx`) draws `tiles.svg`: the
+  initial on the site's teal for an account a person leaves, and on its mint for where the data
+  goes. The letter comes from a table of wizard types, and a connection kind is read as its type
+  first, so `gmail` and `google_drive` both draw G. The tile is `aria-hidden`, and the name is
+  always written beside it.
+- **`DataTypeIcon` and `DataTypeLabel`** (`apps/web/src/components/icons/data-type-icons.tsx`)
+  draw `icons.svg`'s six, element for element. The label writes the data type's name with
+  `DOMAIN_STRING_KEY`, so no new word was needed.
+- **Proved by** `an-icon-drawn-twice` (12 cases) and `ProviderTile.unit.test.tsx` (15 cases).
+  Four mutations were each caught: a redrawn mail path, a teal that differs from the site's, a
+  type with no letter, and a letter a screen reader would read.
+
 **2026-09-28, night: T1 (a) and (d), each proved by its guard, in #1315 and #1316.** The plan
 merged in #1321, so the two pull requests record themselves here. Both carry these same lines,
 so they merge in either order.
@@ -92,9 +115,9 @@ person, and a flow that fills it.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's words and the ADR | 🟡 **Words decided 2026-09-28 (D6, D7); ADR-0050's acceptance ⏳ owner, before T2 merges** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. `move` is internal only. |
+| T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. `move` is internal only. |
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen (to confirm live). (d) A raw state word on Finish. |
-| T2 ADR-0050: a move is a person's migrations | 📋 **Proposed; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
+| T2 ADR-0050: a move is a person's migrations | 🟡 **ADR-0050 accepted 2026-09-28 (#1327); the tables and the API next; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
 | T3 The Migrations page lists people | 📋 **Proposed; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
@@ -319,8 +342,8 @@ The owner answered this plan's open questions the same evening (quoted in the St
   - *move* is internal, like *mapping*;
   - *Accounts* replaces *Connections*.
 
-(b) **ADR-0050**, drafted in T2, needs the owner's acceptance before T3 builds on it. Its
-*move* is the internal name only (D6).
+(b) **ADR-0050**, drafted in T2, was accepted by the owner on 2026-09-28 (#1327). T3 builds on it
+once T2's tables land. Its *move* is the internal name only (D6).
 
 ### T1 — four faults the audit found (before the first invitation, first)
 
@@ -635,6 +658,10 @@ references, not specifications to the pixel.
 | `wf-migrations-page.svg`, `wf-migrations-phone.svg` | T3 | Layout, order and wording of the list and its top line. Cards stack at 390 pixels. |
 | `wf-start-a-migration.svg` | T4, T7 | The six screens in order, with the folds T7 asks for. Each step's gate checks only what it shows (0067). |
 | `wf-person-page.svg` | T5, and 0154 T1, T2 and T4 | The stage line, the rows per data type with totals and ranges, and the cutover steps as one list with counts. |
+
+**The first two rows are built** as `ProviderTile` and `DataTypeIcon` / `DataTypeLabel`
+(Status, 2026-09-28, night). A redraw changes the drawing and the component in the same pull
+request, or `an-icon-drawn-twice` and the tile's colour test fail.
 
 **Colours and type are the app's existing Tailwind tokens.** The one new pair is the site's
 `TEAL #0E4F4A` and `MINT #7FD4C1` for the tiles, which 0152 T9 already brings to the sign-in

@@ -301,17 +301,29 @@ export class DropboxFileSource implements FileSource {
     return response.json();
   }
 
-  /** The whole tree under one listing: `list_folder` recursive + continue. */
-  private async listAll(
+  /**
+   * A LISTING, A PAGE AT A TIME: `list_folder` + continue (workplan 0150 T1).
+   *
+   * The two readers of the WHOLE tree, `listFolders` and `listTrashedPaths`,
+   * walk these pages and keep only what they need: the folders, and the
+   * tombstones' paths. They used to gather every entry into one array first.
+   * On the owner's account that is 55,245 files, and for the bin read every
+   * tombstone Dropbox still keeps as well, on a pass machine of half a
+   * gigabyte. The bin read runs only on a pass that reached every folder, and
+   * of what such a pass holds at its end it held the most. It was suspected
+   * first when every pass of the owner's migration was killed for memory, but
+   * those passes died while copying, of an upload that kept each file whole
+   * (`STREAMED_REQUEST_INIT`), and none reached it (T1, T8).
+   */
+  private async *listPages(
     path: string,
     recursive: boolean,
     includeDeleted = false,
-  ): Promise<DropboxEntry[]> {
+  ): AsyncGenerator<ReadonlyArray<DropboxEntry>> {
     // The hint applies only when the listing targets a NON-EMPTY configured
     // ROOT — an empty root is the API's own spelling and cannot mis-root; a
     // 409 on a subfolder is a genuinely deleted folder, not a mis-rooting.
     const context = path === this.rootPath && this.rootPath !== '' ? this.rootPath : undefined;
-    const entries: DropboxEntry[] = [];
     let page = (await this.rpc(
       'files/list_folder',
       {
@@ -322,7 +334,7 @@ export class DropboxFileSource implements FileSource {
       },
       context,
     )) as DropboxListFolderResponse;
-    entries.push(...page.entries);
+    yield page.entries;
     let hops = 0;
     while (page.has_more) {
       if (++hops > 1000) {
@@ -334,8 +346,14 @@ export class DropboxFileSource implements FileSource {
       page = (await this.rpc('files/list_folder/continue', {
         cursor: page.cursor,
       })) as DropboxListFolderResponse;
-      entries.push(...page.entries);
+      yield page.entries;
     }
+  }
+
+  /** One folder's listing, whole, for `listSince`, which hands its items on. */
+  private async listAll(path: string): Promise<DropboxEntry[]> {
+    const entries: DropboxEntry[] = [];
+    for await (const page of this.listPages(path, false)) entries.push(...page);
     return entries;
   }
 
@@ -349,10 +367,13 @@ export class DropboxFileSource implements FileSource {
 
   async listFolders(): Promise<ReadonlyArray<FileFolder>> {
     const out: FileFolder[] = [{ path: '' }];
-    for (const entry of await this.listAll(this.rootPath, true)) {
-      if (entry['.tag'] !== 'folder') continue;
-      const path = this.relativePath(entry);
-      if (path) out.push({ path, name: entry.name });
+    // Page by page, keeping the folders only (see `listPages`).
+    for await (const page of this.listPages(this.rootPath, true)) {
+      for (const entry of page) {
+        if (entry['.tag'] !== 'folder') continue;
+        const path = this.relativePath(entry);
+        if (path) out.push({ path, name: entry.name });
+      }
     }
     return out;
   }
@@ -421,7 +442,7 @@ export class DropboxFileSource implements FileSource {
   ): Promise<{ items: ReadonlyArray<RawFileItem>; nextCursor: SyncCursor }> {
     const apiPath = folder.path === '' ? this.rootPath : `${this.rootPath}/${folder.path}`;
     const items: RawFileItem[] = [];
-    for (const entry of await this.listAll(apiPath, false)) {
+    for (const entry of await this.listAll(apiPath)) {
       if (entry['.tag'] !== 'file') continue;
       const item = this.toFileItem(entry);
       if (item) items.push({ item });
@@ -468,26 +489,30 @@ export class DropboxFileSource implements FileSource {
   async listTrashedPaths(): Promise<TrashListing> {
     const out = new Set<string>();
     let unnameable = 0;
-    for (const entry of await this.listAll(this.rootPath, true, true)) {
-      if (entry['.tag'] !== 'deleted') continue;
-      // The listing is already rooted, so an entry Dropbox gave no
-      // `path_display` for is not out of scope — it is one we cannot name
-      // (see `TrashListing`). Counted, not dropped.
-      if (!entry.path_display) {
-        unnameable += 1;
-        continue;
-      }
-      const path = this.relativePath(entry);
-      if (!path) continue;
-      out.add(path);
-      // A DELETED PAPER DOC, UNDER THE NAME IT ARRIVED BY (0150 T3 (b)). A
-      // tombstone carries neither `is_downloadable` nor `export_info`, only
-      // the fields every entry has, so this is the one place the kind is read
-      // from the extension. Its row holds the name the export gave it, so
-      // that name is evidence too. A key no row holds resolves to nothing.
-      const exportAs = PAPER_KINDS.has(extensionOf(entry.name)) && this.paperPolicy !== 'refuse' ? this.paperPolicy : undefined;
-      if (exportAs !== undefined && !entry.name.toLowerCase().endsWith(PAPER_SUFFIX[exportAs])) {
-        out.add(`${path}${PAPER_SUFFIX[exportAs]}`);
+    // Page by page, keeping the tombstones' paths only (see `listPages`): the
+    // whole account's live entries come through this listing too.
+    for await (const page of this.listPages(this.rootPath, true, true)) {
+      for (const entry of page) {
+        if (entry['.tag'] !== 'deleted') continue;
+        // The listing is already rooted, so an entry Dropbox gave no
+        // `path_display` for is not out of scope — it is one we cannot name
+        // (see `TrashListing`). Counted, not dropped.
+        if (!entry.path_display) {
+          unnameable += 1;
+          continue;
+        }
+        const path = this.relativePath(entry);
+        if (!path) continue;
+        out.add(path);
+        // A DELETED PAPER DOC, UNDER THE NAME IT ARRIVED BY (0150 T3 (b)). A
+        // tombstone carries neither `is_downloadable` nor `export_info`, only
+        // the fields every entry has, so this is the one place the kind is read
+        // from the extension. Its row holds the name the export gave it, so
+        // that name is evidence too. A key no row holds resolves to nothing.
+        const exportAs = PAPER_KINDS.has(extensionOf(entry.name)) && this.paperPolicy !== 'refuse' ? this.paperPolicy : undefined;
+        if (exportAs !== undefined && !entry.name.toLowerCase().endsWith(PAPER_SUFFIX[exportAs])) {
+          out.add(`${path}${PAPER_SUFFIX[exportAs]}`);
+        }
       }
     }
     return {

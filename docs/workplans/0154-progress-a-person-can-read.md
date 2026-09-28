@@ -4,6 +4,38 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: T1 (a), the stages in words, built beside R (0131 §6, R8's split)**,
+merged in #1326. Nothing renders them yet: T1 (b) to (d) and the pages that show them (0153
+T3, T5) are R's.
+
+- **`stageOf`** (`packages/shared/src/stage.ts`) reads one data type's facts:
+  - its phase, from `path-phase.ts` or the migration's status;
+  - whether its owner stopped it;
+  - its pass state;
+  - whether a pass has completed once (`lastSyncedAt`);
+  - the check, and the failures that block Finish.
+
+  It answers with §3's seven stages. *Ready to switch* asks `finishTransition`, the Finish
+  button's own decision, rather than restating what blocks it. A data type the migration does
+  not copy (`skipped`) has no stage, and neither has a phase the table does not know: hard rule
+  9, never a guess.
+- **`leastAdvancedStage`** gives a person's stage, and a migration's from its data types. A data
+  type that has not started does not pull the rest back to *Not started* unless nothing has
+  started. That is the drawing's reading (`wf-person-page.svg`): Anna is *Copying* while the
+  photos wait for a Takeout export. *Paused* ranks below *Copying*, because a person's line says
+  what holds them back. Open question 3 still asks whether a person's card shows a stage at all.
+- **The words** are in the glossary's States table first, then `strings.ts` in both languages,
+  as the `stage` entity of `StateChip`, with no new colour.
+- **Proved by:**
+  - `a-stage-for-every-state` (25 cases): every lifecycle word and every pass state is decided,
+    each row of §3's table holds, and Finish's refusal keeps a data type at *Kept in step*;
+  - the ledger's `every-path-state-has-a-stage` (6 cases), where `PATH_STATES` lives;
+  - `a-stage-with-no-word` (3 cases), which holds the chip's stages equal to `STAGES`.
+
+  Four mutations were each caught: no stage for `continuous`, none for a `ready` path, *Ready
+  to switch* over a failure that blocks Finish, and a not-started data type pulling a person
+  back.
+
 **2026-09-28, evening: all of it before the alpha.** The owner: *"before we start Alpha i want
 this fixed/completed."* So T3 (b), T5 and T8 join the minimum, and 0131 T5's row for this plan is
 the whole plan.
@@ -27,7 +59,7 @@ of a move after it. The evening's answer puts everything before.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 One line that says where a person's migrations are | 📋 **Proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
+| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) to (d) proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | 📋 **Proposed; before the first invitation** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | 📋 **Proposed; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
@@ -125,6 +157,9 @@ owner's.
 | *Ready to switch* / *Klaar om over te stappen* | the check passed and nothing blocks Finish |
 | *Switching* / *Bezig met overstappen* | in cutover, in the grace period (0128) |
 | *Done* / *Afgerond* | finished |
+
+**Built** as `stageOf` and `leastAdvancedStage` in `packages/shared/src/stage.ts` (Status,
+2026-09-28, night).
 
 The table is a function in `packages/shared`, next to the lifecycle it reads. A test fails when a
 lifecycle or phase value has no stage. That is `a-sixth-state-added-to-only-one-list`'s pattern:
