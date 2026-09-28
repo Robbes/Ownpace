@@ -4,6 +4,27 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: the dump before an upgrade, by script (T7, *Before an upgrade*).** On branch
+`claude/mailbox-sync-errors-c2xsw2-a-way-back-before-every-upgrade`, not merged. The dump before
+v4.19.1 was four commands pasted from a chat. The owner asked the same day, with open question 12
+in view: *"Can you give script i can use more often? since i need it for each update"*.
+
+- **`deploy/compose/dump-idp.sh`**, run in the stack's own checkout, dumps that stack's provider
+  database (`pg_dump --format=custom`) and the server's roles into `~/ownpace-dumps/<project>/`,
+  readable by the owner alone. Nothing is overwritten.
+- **It keeps only a dump that reads back**, through the server's own `pg_restore --list`, with
+  entries. An empty or unreadable one leaves nothing behind.
+- **A note beside them** names the image that was running, the pin, the entry count, and a
+  fingerprint of the master key the dump needs, never the key. It also gives the way back with
+  the exact file names.
+- **The way back was rehearsed** on a scratch Postgres 16 against a simulated upgrade: a new
+  column, a new table and a new row. The note's own restore command, pasted, dropped and recreated
+  the database as dumped, with its owner and grants. On the same server the roles are not
+  restored, since that would set the provider's database password back to the dumped one.
+- **It changes nothing on the stack**, and its guard, `a-way-back-before-every-upgrade`, holds
+  that every `docker` call it makes is a read. The runbook's *Backup & restore* and the pin
+  watch's issue name it.
+
 **2026-09-28: T7 (b), the weekly watch, built; its first run found v4.19.2 (open question 12).**
 On branch `claude/mailbox-sync-errors-c2xsw2-a-pin-that-knows-it-is-behind`, not merged. The pin's
 move to v4.19.1 merged first, in #1285 (`f839929`).
@@ -839,7 +860,9 @@ database before the upgrade, on live above all. That dump is a way back for the 
 promise to testers. 0134 decides whether it becomes a rule. The runbook's recipe
 (`docs/operator-runbook.md`, *Backup & restore*) covers that database since #1137, merged
 2026-09-24, and says that a dump is of no use without the stack's `.env`, whose
-`ZITADEL_MASTERKEY` decrypts the provider's data.
+`ZITADEL_MASTERKEY` decrypts the provider's data. Since 2026-09-28 one command takes it, in the
+stack's checkout: `./deploy/compose/dump-idp.sh`. It reads the dump back and writes the way back
+beside it (Status, 2026-09-28).
 
 **SECURITY.md.** Since #1137, merged 2026-09-24, it names the identity provider among what
 Dependabot leaves alone, so `idp-security-md-dependabot-overclaim` is fixed. T7 names the watch

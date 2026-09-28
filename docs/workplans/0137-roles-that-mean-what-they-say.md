@@ -2,7 +2,7 @@
 
 > **In one line:** Role enforcement in the managed API: a role matrix amending ADR-0035, `requireRole` on write routes with a route-table guard, owner-role guards, audit rows for deletes, credential swaps and cutover preparation, viewer-aware web buttons.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that a
 person with the role *viewer* in an organisation can delete a migration, replace the target's
@@ -28,16 +28,110 @@ Testers use `ownpace-live`, a fresh stack without the demo (0132 T1b), so T7's c
 `member` and `viewer` rows is made there, and an invitee's verification code comes from live's own
 catcher until 0133's relay exists.
 
+**2026-09-28: the owner answered T0, and T7 is built on branch
+`claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged.** The owner chose
+(b) of open question 1: *"6. The Roles (0137 T0): b"*. Testers invite nobody and share progress
+links, and until T2 lands the product offers owner and admin only.
+
+- **The API.** `InviteMemberSchema` and `UpdateMemberRoleSchema` in `members.ts` accept `owner`
+  and `admin`. Any other role, sent as a string in a body with nothing else wrong, answers 400
+  before the database is touched, with `{ error: 'owner_or_admin_only', message }` and the
+  message *"During the alpha, a person can only be an owner or an admin."* A body with no role,
+  or with a bad address as well, keeps the `Validation error` answer with every issue in
+  `details`. That is the shape of `too_many_tests` (0136 T3): a code, the English beside it, and
+  the Team page says the sentence in the reader's language through `ownerOrAdminOnly` in
+  `apps/web/src/services/api.ts` (*"Tijdens de alfa kan iemand alleen eigenaar of beheerder
+  zijn."*, with *alfa* as the shipped Dutch copy spells it). An admin's owner invitation still
+  answers 403 (T3 (a)).
+- **The Team page** offers owner and admin, defaults an invitation to admin, and says in one line
+  what an admin can do. A row that already holds `member` or `viewer` still shows it, as an option
+  that cannot be chosen, and offers owner and admin.
+- **The admin line, checked against the code.** T0's draft says an admin can do everything the
+  owner can except close or delete the organisation, allow deletions and make somebody an owner.
+  The owner-only acts in `apps/api/src/routes` today are closing and reopening
+  (`POST /api/tenants/:tenantId/close`, `…/reopen`), `DELETE /api/tenants/:tenantId`, which is
+  owner-only and answers the owner 410, because closing is how an organisation ends, the
+  deletions flag (`PATCH …/:mappingId/apply-deletions`), which also sets auto-applying relocations
+  (`autoApplyRelocations`) and is owner-only to turn on and to turn off, and granting owner
+  (`members.ts`). So the line reads *"except close or reopen the organisation, turn applying
+  deletions or auto-applying relocations on or off, and make somebody an owner"* / *"behalve de
+  organisatie sluiten of heropenen, het toepassen van verwijderingen of het automatisch toepassen
+  van verplaatsingen aan- of uitzetten en iemand eigenaar maken"*, in the product's own words for
+  the two flags (`applyFlag.on`, `autoApply.on`). It differs from the draft in three places:
+  reopening is the owner's too, deleting is not a separate act, and an admin cannot turn deletions
+  off either. 0139's alpha conditions, which carry T0's sentence, should take the same words.
+- **Listing the rows below admin.** `./deploy/compose/operator.sh check role-below-admin`, a new
+  report-only kind in `operator-housekeeping.ts`: every `tenant_member` row whose role is `member`
+  or `viewer` and whose status is not `declined` or `removed`, as address, role, status and
+  organisation. It prints `none` when there are none, and exits 1 while there is one (the kind's
+  new `gates` field), and so does the full `check`. `docs/managed-bring-up.md` says to run it
+  from live's own checkout, `cd ~/ownpace-live && ./deploy/compose/operator.sh check
+  role-below-admin`, before the first invitation. It has not been run there.
+- **Proved.**
+  - `apps/api/src/routes/tenants/a-role-that-promises-less-than-it-allows.unit.test.ts`, 10 cases
+    against PGlite as `app_user`: an owner inviting a `viewer` or a `member` gets 400 and no row;
+    a change to `viewer` or `member` gets 400 and the row keeps its role; owner and admin are still
+    granted; a `member` row moves up to admin; an admin inviting an owner gets 403. Five of them
+    fail on `main`'s `members.ts`.
+  - `apps/web/src/pages/a-role-that-promises-less-than-it-allows.unit.test.tsx`, 13 cases: no
+    `member` or `viewer` option in the invite select, admin the default, the admin line in both
+    languages, a `member` or `viewer` row shown and offered owner and admin, and the refusal in
+    Dutch on a Dutch page. Nine fail on `main`'s `Tenants.tsx`.
+  - `members.integration.test.ts` invites as admin and demotes the last owner to admin, and asserts
+    the last-owner sentence, so its 400 is still that guard's. It and the housekeeping integration
+    case ran against a local Postgres 16 (`scripts/local-pg.sh`): 18 and 14 passed. The check ran
+    by hand against the same database: `none` and exit 0, then one line and exit 1 with an invited
+    viewer.
+- **Not done:** the check on `ownpace-live`. T2's PR widens the schemas again and replaces these
+  tests with T6's.
+
+**2026-09-28, later: the review's fixes, on the same branch, not merged.**
+
+- **The admin line** said an admin could not *allow* deletions or automatic moves, which read as
+  though an admin could turn them off. `PATCH …/apply-deletions` is owner-only in both directions,
+  so the line now says *turn … on or off*, in the product's words for the two flags (the bullet
+  above). The Dutch refusal says *alfa*, as `alpha.note.lead` and `alpha.nothingCharged` do.
+- **The owner-only acts are read from the routes.** The API test file now reads
+  `apps/api/src/routes` for every `requireRole` whose roles are `owner` alone and every place a
+  route reads `req.userRole`, and pins the six it finds (the four owner-only routes above and the
+  two `grantsOwnerWithoutPermission` call sites). A new owner-only route from T2, or T3 (b)'s
+  guard on demoting an owner, fails it with a message that sends the reader back to
+  `tenants.invite.adminCan`. It failed when one `requireRole('owner', 'admin')` in `decisions.ts`
+  was made owner-only for the run, and passed again when it was put back.
+- **The refusal answers the role alone.** It answered the alpha's sentence to any body with an
+  issue at `role`, hiding a bad address beside it, and to a body with no role at all. Now it
+  answers it only when a string role is the only thing wrong.
+- **`role-below-admin` skips `declined` and `removed`,** as every other membership check in the
+  file does: those rows grant nothing, and a declined one is a refusal 0099 keeps. Its remedy
+  prints one statement, the `UPDATE` to admin, and names the Team page's Remove for the other
+  choice; it printed the `UPDATE` and a `DELETE` one under the other, which pasted together
+  promote somebody and then delete them.
+- **The Team page test** for another person's row now demotes a second owner to admin, so it
+  still tells "arm your own demotion" from "arm every demotion". The build had turned its
+  member-to-viewer demotion into a member-to-admin promotion, which passes either way.
+- **Proved.** The API file has 16 cases (the refusal with a bad address beside it, with no role,
+  with a non-string role, a change with no role, and the two route-reading cases are new), the
+  housekeeping unit file 24, the web file 13, `Tenants.unit.test.tsx` 22. The Team page test
+  failed when `isSelf &&` was dropped from `changeRole` for the run. `members.integration.test.ts`
+  and the housekeeping integration file, with a declined and a removed row added, ran against a
+  local Postgres (`scripts/local-pg.sh`): 18 and 14 passed. By hand on the same database,
+  `check role-below-admin` said `none` and exited 0 with only a declined viewer and a removed
+  member in an organisation, and printed one line, one `UPDATE`, and exit 1 once an invited
+  viewer was added; the full `check` exited 1 as well.
+- **Not changed:** the web `MemberStatusSchema` has no `declined`, while `GET …/members` returns
+  declined rows, so one declined invitation makes the Team page's list fail to read. That predates
+  T7 and goes to its own change.
+
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha rule for a second person in a tester's organisation | ⏳ **Owner** | §4 and open question 1. Recommended: testers add nobody and share progress links, and T7 keeps the product from offering a role that promises less than it allows. |
+| T0 The alpha rule for a second person in a tester's organisation | ✅ **Answered 2026-09-28: (b)**, *"6. The Roles (0137 T0): b"* | §4 and open question 1. Testers add nobody and share progress links, and T7 keeps the product from offering a role that promises less than it allows. The sentence goes to 0139's alpha conditions, with T7's checked wording for what an admin can do. |
 | T1 The role matrix, written down | 📋 **Proposed** (D1, D2) | §3. An amendment to ADR-0035: which acts are owner only, owner and admin, or open to every role, and what a member may do that a viewer may not. |
 | T2 Every write route names its roles, and a guard fails when one does not | 📋 **Proposed** (D2) | §3. Named role constants on 34 of the 36 ungated writes, and an allowlist with reasons for the other two; a route-table guard in `scripts/` that fails today. |
 | T3 The owner role is guarded on every door | 📋 **Proposed**; (a) the invite half ✅ **done** in #1137, merged 2026-09-24 | §3. An admin cannot invite as owner (done). The last-owner guard counts active owners only, in one transaction. An admin cannot demote or remove an owner (with T1). |
 | T4 Who deleted it, who replaced the password, who prepared the cutover | 📋 **Proposed** | §3. An `audit_log` row with the actor for deleting a migration or a connection, replacing credentials, and preparing a cutover. |
 | T5 The web app shows a viewer no button it cannot press | 📋 **Proposed**, after T2 | §3. One table in the web app that mirrors T1, checked against the API's. |
 | T6 A viewer and a member are refused, and a test says so | 📋 **Proposed**, with T2 | §3. 403 cases for every gated write, driven by T2's table; the migrations suite stops asserting that a member may delete. |
-| T7 Until T2 lands: nobody is invited or moved below admin | 📋 **Proposed**, advised before the first invitation (T0) | §3. The invite and role-change routes and the Team page offer owner and admin only. T2's PR undoes it. |
+| T7 Until T2 lands: nobody is invited or moved below admin | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged** (2026-09-28); the check not yet run on `ownpace-live` | §3 and the Status block. The invite and role-change routes answer 400 `owner_or_admin_only` for any role but owner and admin; the Team page offers those two, defaults to admin and says what an admin can do; `operator.sh check role-below-admin` lists the rows below admin and exits 1 while there is one. T2's PR undoes it. |
 
 ## 1. What there is today
 
@@ -219,16 +313,27 @@ a new data type) waits for the end of the alpha.
 The owner chooses one of the options in open question 1, and the alpha conditions (0139) carry
 the sentence. A draft, Dutch first:
 
-- NL: *"Nodig tijdens de alpha niemand anders uit in uw organisatie. Wil iemand een migratie
-  volgen, stuur dan de voortgangslink van die migratie: die toont aantallen en status, nooit de
-  inhoud. Nodigt u toch iemand uit, doe dat dan als beheerder, en weet dat een beheerder alles kan
-  wat u kunt, behalve de organisatie sluiten of verwijderen, verwijderingen toestaan en iemand
+- NL: *"Nodig tijdens de alfa niemand anders uit in uw organisatie. Wil iemand een verhuizing
+  volgen, stuur dan de voortgangslink van die verhuizing: die toont aantallen en status, nooit de
+  inhoud. Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat een
+  beheerder alles kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen van
+  verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand
   eigenaar maken."*
 - EN: *"During the alpha, do not invite anyone else into your organisation. If somebody wants to
   follow a migration, send them that migration's progress link: it shows counts and states, never
   content. If you do invite someone, invite them as an admin, and know that an admin can do
-  everything you can except close or delete the organisation, allow deletions and make somebody
-  an owner."*
+  everything you can except close or reopen the organisation, turn applying deletions or
+  auto-applying relocations on or off, and make somebody an owner."*
+
+**Answered 2026-09-28: (b)**, *"6. The Roles (0137 T0): b"*. The draft above is the alpha
+conditions' §8 (0139 T2, `site/legal/alpha.nl.md`), reworded the same day: *alfa* and
+*verhuizing*, the product's and the legal texts' words; the role given to the person invited,
+which *"doe dat dan als beheerder"* left open; and the last clause, checked against the code when
+T7 was built, which reads *"behalve de organisatie sluiten of heropenen,
+het toepassen van verwijderingen of het automatisch toepassen van verplaatsingen aan- of
+uitzetten en iemand eigenaar maken"* / *"except close or reopen the organisation, turn applying
+deletions or auto-applying relocations on or off, and make somebody an owner"*: the Team page's
+line says that, and the Status block gives the routes.
 
 "Voortgangslink" and "progress link" are the product's own words (`viewLink.title`:
 *"Voortgangslinks"*, *"Progress links"*). The progress link is 0122's: `GET /api/view/:link`
@@ -387,7 +492,7 @@ role-from-row"*, names the new suite.
 The stopgap, if the first invitation goes out before T2 and T6 are merged.
 
 - `InviteMemberSchema` and `UpdateMemberRoleSchema` in `members.ts` accept `owner` and `admin`.
-  Anything else is a 400 with one sentence: *"Tijdens de alpha kan iemand alleen eigenaar of
+  Anything else is a 400 with one sentence: *"Tijdens de alfa kan iemand alleen eigenaar of
   beheerder zijn."* / *"During the alpha, a person can only be an owner or an admin."*
 - The Team page offers owner and admin, defaults to admin, and says in one line what an admin can
   do.
@@ -398,6 +503,10 @@ The stopgap, if the first invitation goes out before T2 and T6 are merged.
 Guard: an owner inviting a `viewer` gets 400 and no row (today 201), and a web test finds no
 `viewer` or `member` option in the role select. T2's PR widens the schemas again and replaces
 these tests with T6's.
+
+**Built 2026-09-28**, on branch `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`,
+not merged (the Status block). The third bullet is `./deploy/compose/operator.sh check
+role-below-admin`, which exits 1 while any such row exists.
 
 ## 4. Explaining the risk (D2)
 
@@ -479,7 +588,8 @@ last, because it mirrors T2's table.
 
 ## Open questions
 
-1. **The alpha rule for a second person (T0).**
+1. **The alpha rule for a second person (T0).** **Answered 2026-09-28: (b)**, *"6. The Roles
+   (0137 T0): b"*. T7 is built (the Status block).
    - **(a)** Testers add nobody, and progress links are for anyone who wants to watch. The
      conditions say so. The product does not enforce it.
    - **(b)** (a) and T7: if a tester invites somebody anyway, the product offers owner and admin
