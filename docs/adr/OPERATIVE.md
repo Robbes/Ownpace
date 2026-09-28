@@ -918,7 +918,7 @@ Nothing in this amendment is built. It records the decision the three tasks in
 ## [ADR-0050: A move is a person's migrations](./0050-a-move-is-a-persons-migrations.md)
 
 - **ACCEPTED; THE TABLES AND THE API BUILT, THE PAGES NOT YET (2026-09-28).** `person`,
-  `person_migration` and `/api/people` are 0153 T2's, built. The pages are 0153 T3 and T5: until
+  `person_migration` and `/api/people` are 0153 T2's, built in #1332. The pages are 0153 T3 and T5: until
   they land, the Migrations page lists migrations, and nothing on screen groups them.
 - **The name in code is *person*** (the amendment): the tables `person` and `person_migration`,
   the API's `/people`, and the shapes in `packages/shared/src/people.ts`. Never *move*: `/moves`

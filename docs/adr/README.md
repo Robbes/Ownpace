@@ -75,7 +75,7 @@ first.
 | [0047](./0047-a-rollback-is-a-setback.md) | A rollback is a setback — one implementation, both callers, and the mapping resumes | Accepted 2026-08-23 (the owner's definition); built 2026-09-19 — `performRollback` in core, the CLI and the job over it, gated against a real ledger |
 | [0048](./0048-the-mapping-hears-the-cutover.md) | The mapping hears the cutover — `execute` and `complete` write the lifecycle they change | Accepted 2026-09-19; built 2026-09-20 — `enterCutover` / `closeCutover` in core, the CLI over them; what a cutover stops, a rollback resumes. **Amended 2026-09-24**: it copies until the grace period ends (0128 T2) |
 | [0049](./0049-a-door-that-asked-nobody.md) | A door that asked nobody — the mapping update route consults the lifecycle | Accepted 2026-09-20 — `updateTransition` in shared (twenty-five cells, agreeing with the four doors beside it), `PUT /api/migrations/:id` answers 409 `lifecycle_refused` before any write; and the Finish page's lane switch sends the verb the route serves |
-| [0050](./0050-a-move-is-a-persons-migrations.md) | A move is a person's migrations | **Accepted 2026-09-28**, by the owner, as proposed; **amended 2026-09-28**: the name in code is *person*, because `/moves` is the moved-items queue. **The tables and the API are built** (workplan 0153 T2); the pages are 0153 T3 and T5 |
+| [0050](./0050-a-move-is-a-persons-migrations.md) | A move is a person's migrations | **Accepted 2026-09-28**, by the owner, as proposed; **amended 2026-09-28**: the name in code is *person*, because `/moves` is the moved-items queue. **The tables and the API are built** (workplan 0153 T2, #1332); the pages are 0153 T3 and T5 |
 
 ## Reading the statuses
 

@@ -4,7 +4,7 @@
   needed, and told its eight rules and the choices inside them, the owner answered
   *"accept"*, rule 8 included. **Amended 2026-09-28**, by the owner: the name in code and in the
   API is *person*, not *move* ([the amendment](#amendment-2026-09-28-the-name-in-code-is-person)).
-  **The tables and the API are built** (workplan 0153 T2). The pages are 0153's T3 and T5.
+  **The tables and the API are built** (workplan 0153 T2, #1332). The pages are 0153's T3 and T5.
 - **Date:** 2026-09-28; accepted 2026-09-28; amended 2026-09-28
 - **Deciders:** owner
 - **Relates to:** [ADR-0014](./0014-cost-recovery-billing.md) (a path is billed, never a move),
@@ -20,7 +20,7 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **ACCEPTED; THE TABLES AND THE API BUILT, THE PAGES NOT YET (2026-09-28).** `person`,
-  `person_migration` and `/api/people` are 0153 T2's, built. The pages are 0153 T3 and T5: until
+  `person_migration` and `/api/people` are 0153 T2's, built in #1332. The pages are 0153 T3 and T5: until
   they land, the Migrations page lists migrations, and nothing on screen groups them.
 - **The name in code is *person*** (the amendment): the tables `person` and `person_migration`,
   the API's `/people`, and the shapes in `packages/shared/src/people.ts`. Never *move*: `/moves`
