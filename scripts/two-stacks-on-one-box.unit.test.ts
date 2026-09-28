@@ -980,3 +980,156 @@ describe("a script run from a shell that names the other stack touches neither",
     expect(r.err).toContain('unset COMPOSE_PROJECT_NAME');
   });
 });
+
+// ---------------------------------------------------------------------------
+// The public site: a second copy beside the OTA one (workplan 0139 T10 (b))
+// ---------------------------------------------------------------------------
+
+/**
+ * THE SITE TAKES ITS NAMES FROM ITS PROJECT TOO (workplan 0139 T10 (b)).
+ *
+ * `www.yml` had the shape `managed.yml` had before 0132 T1: `name: ownpace-www`
+ * and `container_name: ownpace-www`. Each checkout has its own `site/dist`,
+ * and `WWW_PORT` is a variable, so the fixed container name was the one thing
+ * that stopped a second copy, from live's checkout, starting beside the OTA
+ * test site: `docker compose -p` does not namespace a `container_name`.
+ *
+ * The same pattern as the rest of this file. `name: ownpace-www` stays the
+ * default, so the OTA site keeps its project, and its container keeps the name
+ * `ownpace-www` that everything addressing it uses. A second copy names its own
+ * project with `-p`, and every name follows it. Rendered under two projects,
+ * the two copies share no container, network, volume or host port.
+ *
+ * WHAT IT DOES NOT MAKE TRUE. `www.yml` reads the same `.env` as `managed.yml`.
+ * In a checkout whose `.env` sets `COMPOSE_PROJECT_NAME` (live's), a bare
+ * `docker compose -f deploy/compose/www.yml` puts the site in that stack's own
+ * project, where each sees the other's containers as orphans. Only `-p` keeps
+ * it out, and nothing in a compose file can refuse the bare command. Before
+ * this, the fixed `container_name` refused it by accident wherever the OTA site
+ * runs: the name was taken. That refusal is gone with the fixed name. So the
+ * header of `www.yml` has to say both, and the last case holds it to that.
+ */
+const WWW = 'deploy/compose/www.yml';
+/** The OTA site's project: the default, and the one place it may be written. */
+const WWW_DEFAULT = 'ownpace-www';
+const WWW_DEFAULT_LINE = new RegExp(`^name: ${WWW_DEFAULT}$`);
+/** Any name of its own. Which one live's copy takes is the owner's (0139 T10). */
+const SECOND_SITE = `${LIVE}-www`;
+const site = { file: WWW, text: read(WWW) };
+const siteCompose = parseYaml(site.text) as Compose;
+
+interface Site {
+  project: string;
+  containers: string[];
+  networks: string[];
+  volumes: string[];
+  hostPorts: string[];
+}
+
+/** What Compose would name everything in `www.yml`, for one project and one `.env`. */
+function renderSite(project: string, dotenv: Record<string, string>): Site {
+  const env = { ...dotenv, COMPOSE_PROJECT_NAME: project };
+  const topName = (key: string, def: { name?: string; external?: boolean } | null | undefined): string =>
+    def?.name ? interpolate(def.name, env) : def?.external ? key : `${project}_${key}`;
+  const out: Site = { project, containers: [], networks: [], volumes: [], hostPorts: [] };
+  const declared = siteCompose.networks ?? {};
+  for (const [key, svc] of Object.entries(siteCompose.services)) {
+    out.containers.push(svc.container_name ? interpolate(svc.container_name, env) : `${project}-${key}-1`);
+    const keys = !svc.networks
+      ? ['default']
+      : Array.isArray(svc.networks)
+        ? svc.networks
+        : Object.keys(svc.networks);
+    for (const k of keys) out.networks.push(topName(k, declared[k]));
+    for (const p of svc.ports ?? []) {
+      const parts = interpolate(typeof p === 'object' ? String(p.published ?? '') : String(p), env)
+        .replace(/\/(tcp|udp)$/, '')
+        .split(':');
+      if (typeof p !== 'object' && parts.length === 1) continue;
+      const host = typeof p === 'object' ? parts[0]! : parts.length === 3 ? parts[1]! : parts[0]!;
+      if (!/^\d+$/.test(host)) throw new Error(`${key}: cannot read the host port of ${JSON.stringify(p)}`);
+      out.hostPorts.push(host);
+    }
+  }
+  out.volumes = Object.entries(siteCompose.volumes ?? {}).map(([k, d]) => topName(k, d));
+  return out;
+}
+
+describe("the public site: a second copy beside the OTA one takes its names from its project (0139 T10)", () => {
+  const otaSite = renderSite(WWW_DEFAULT, {});
+  const secondSite = renderSite(SECOND_SITE, { WWW_PORT: '20125' });
+
+  it('read www.yml and rendered it', () => {
+    // Vacuity: an empty rendering shares nothing and would pass every case.
+    expect(Object.keys(siteCompose.services)).toContain('www');
+    expect(
+      linesOf(site).filter(({ line }) => WWW_DEFAULT_LINE.test(line)),
+      `www.yml must keep \`name: ${WWW_DEFAULT}\`: the OTA site's project and container are named after it`,
+    ).toHaveLength(1);
+    expect(otaSite.containers.length).toBe(Object.keys(siteCompose.services).length);
+    expect(otaSite.networks.length).toBeGreaterThan(0);
+    expect(otaSite.hostPorts.length).toBeGreaterThan(0);
+    expect(secondSite.hostPorts.length).toBe(otaSite.hostPorts.length);
+  });
+
+  it('every container_name in www.yml is derived from the project', () => {
+    const fixed = linesOf(site).filter(
+      ({ line }) => /^\s+container_name:/.test(line) && !line.includes('${COMPOSE_PROJECT_NAME}'),
+    );
+    expect(
+      where(fixed),
+      '`docker compose -p` does not namespace container_name: a second copy of the site cannot\n' +
+        'start while the OTA one exists',
+    ).toEqual([]);
+  });
+
+  it(`\`${WWW_DEFAULT}\` is written only once, as the default, and no other stack's project at all`, () => {
+    // As for `ownpace-managed` above, comments included: a command in a comment
+    // gets pasted, and in a second copy's checkout it would reach the OTA site.
+    const other = new RegExp(`${esc(OTA)}|${esc(LIVE)}[-_]`);
+    const hits = linesOf(site).filter(
+      ({ line }) => (line.includes(WWW_DEFAULT) && !WWW_DEFAULT_LINE.test(line)) || other.test(line),
+    );
+    expect(
+      where(hits),
+      'the site\'s project is chosen by -p (or COMPOSE_PROJECT_NAME), then www.yml\'s `name:`; a\n' +
+        'second copy of the default is a place that does not follow when a second copy sets its own',
+    ).toEqual([]);
+  });
+
+  it(`the OTA site's container is still \`${WWW_DEFAULT}\`, so what addresses it keeps working`, () => {
+    expect(otaSite.containers).toEqual([WWW_DEFAULT]);
+  });
+
+  it('two copies share no container name, network, volume or host port', () => {
+    expect(shared(otaSite.containers, secondSite.containers), 'container names').toEqual([]);
+    expect(shared(otaSite.networks, secondSite.networks), 'networks').toEqual([]);
+    expect(shared(otaSite.volumes, secondSite.volumes), 'volumes').toEqual([]);
+    expect(
+      shared(otaSite.hostPorts, secondSite.hostPorts),
+      'host ports, once each sets its own WWW_PORT',
+    ).toEqual([]);
+    for (const s of [otaSite, secondSite]) {
+      expect(
+        [...s.containers, ...s.networks, ...s.volumes].filter((n) => !n.startsWith(s.project)),
+        `a name ${s.project} does not own`,
+      ).toEqual([]);
+    }
+  });
+
+  it("www.yml's header tells a second copy to use -p, why the .env is not enough, and that a refusal is gone", () => {
+    const header = site.text.slice(0, site.text.search(/^name:/m));
+    expect(header, 'a second copy is brought up with its own -p').toMatch(
+      /docker compose -p \S+ -f deploy\/compose\/www\.yml/,
+    );
+    expect(
+      header,
+      "the .env beside www.yml is the stack's, and its COMPOSE_PROJECT_NAME names the stack",
+    ).toContain('COMPOSE_PROJECT_NAME');
+    expect(
+      header,
+      'before 0139 T10 the fixed container_name refused a bare command in a stack\'s checkout; the\n' +
+        'header must say that refusal is gone, so the owner chooses between -p and the rest knowing it',
+    ).toMatch(/this refusal is gone/);
+  });
+});
