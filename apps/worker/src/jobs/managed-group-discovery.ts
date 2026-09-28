@@ -8,7 +8,7 @@
  * is, and both are tested without a database. THIS FILE IS ONLY THE WIRING:
  * where each read goes (below), the token, the `group_def` store and the
  * schedule. It is the same shape as `managed-drift-detect.ts` on purpose; the
- * two run an hour apart and differ in what they ask the directory, not in how.
+ * two run half an hour apart and differ in what they ask the directory, not in how.
  *
  * Groups are read per SOURCE CONNECTION rather than per tenant, because that
  * is what a discovered group's identity is keyed on: the same address found on

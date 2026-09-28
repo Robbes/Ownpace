@@ -241,7 +241,7 @@ restored from a copy after each, and the files compared with it):
 | M6 | A fourth job put on `SPLIT` without a reason: `managed-retention` moved there with `''` | 9 unit |
 | M7 | The list reads more than ids: `SELECT id, name, settings FROM tenant …` | 1 unit; integration green (it still hands back ids) |
 | M7b | The cross-tenant half reading a per-organisation table: group discovery's old list (`connection` joined to `tenant`, with `config`) added to the module | 1 unit |
-| M8 | Every organisation's digest stores scoped to the first organisation asked | unit green (every read is in a scope); integration 1, B's digest reads nothing of B's and stays quiet, `sent: 1` |
+| M8 | Every organisation's digest stores scoped to the first organisation asked | unit green (every read is in a scope); integration 1. On `ed8aa77a`'s seed B's digest read nothing of B's and stayed quiet, `sent: 1`; on the review's fuller seed B's mail still goes out and the send's audit row is refused in A's scope (*"recording the send time failed"*), so `{ warnings, errors }` is not empty |
 | M9 | The digest's organisation row read outside its scope | 1 unit; integration 1, *"is on the list of active organisations, and its own row reads nothing in its own scope"* |
 | M10 | Group discovery's sources read outside the scope | 1 unit; integration 2, `sources: 0` for both organisations |
 | M11 | The drift detector opens its pools at its module's top again | 1 unit, and `a-detector-that-knows-the-microsoft-account` fails at import (7 skipped); integration fails at import |
