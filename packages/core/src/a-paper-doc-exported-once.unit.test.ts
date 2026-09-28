@@ -14,6 +14,8 @@
  *  - an edit in Paper moves that version, and the doc is exported again;
  *  - a Paper doc parked by name before a format was chosen is copied once one
  *    is, and its parked row is closed, not left on the Failures page;
+ *  - a format switched later copies it again under the new name, and the copy
+ *    in the old format stays, as an earlier export, never as a deletion (T3 (c));
  *  - a renamed Paper doc is paired by its Dropbox id and reported as moved,
  *    never as deleted in Dropbox (D8).
  */
@@ -168,6 +170,24 @@ describe('a Paper doc exported as Markdown, through the sync loop', () => {
     const chosen = await w.pass('markdown');
     expect(chosen.written).toEqual(['Notes.paper.md']);
     expect(await w.ledger.listFailures(TENANT, MAPPING, 'file')).toEqual([]);
+  });
+
+  it('is copied again under its new name when the format is switched, and the old copy is an earlier export', async () => {
+    // What the revision rule tells a person who switches the format (T3 (c)):
+    // the copy in the old format stays, and is never read as deleted in Dropbox.
+    const w = world([paper('Notes.paper')]);
+    await w.pass('markdown');
+    const switched = await w.pass('html');
+    expect(switched.written).toEqual(['Notes.paper.html']);
+    expect(switched.result.earlierExports).toBe(1);
+    expect(switched.result.deletions).toEqual([]);
+    expect(switched.result.moves).toEqual([]);
+    expect(w.stored.has('t/root:Notes.paper.md'), 'nothing on the target is removed').toBe(true);
+
+    const next = await w.pass('html');
+    expect(next.written).toEqual([]);
+    expect(next.result.deletions).toEqual([]);
+    expect(next.result.earlierExports, 'marked once, not every pass').toBe(0);
   });
 
   it('is reported as moved when renamed in Dropbox, paired by its id, never as deleted', async () => {

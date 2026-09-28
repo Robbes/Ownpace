@@ -49,6 +49,7 @@ import {
   nativeFilePoliciesOf,
   type NativeFilePolicies,
 } from './google-native-coverage.ts';
+import type { DropboxNativeFilePolicies } from './dropbox-native-policy.ts';
 
 /**
  * The fields a revision rule exists for, in the vocabulary BOTH editions can
@@ -132,16 +133,20 @@ const RULES: ReadonlyArray<Rule> = [
      * for a Doc as for a deck, so a second row would be a second copy of this
      * one. The consequence says "whose format changes" because a change to one
      * kind re-copies that kind and leaves the other three alone.
+     *
+     * AND FOR A DROPBOX PAPER DOC's (workplan 0150 T3, D7): the same key,
+     * with a `paper` kind, and the same reason it is safe, since a Paper
+     * doc's name is its format's too (D4).
      */
     field: 'source.nativeFilePolicy',
     verdict: {
       allowed: true,
       consequence:
         'Items already copied keep the format they were copied in — this tool never ' +
-        'overwrites what is on the new system. Every Google document whose format changes ' +
-        'is copied again under the name the new format gives it; the copy in the old ' +
-        'format stays, and the Deletions screen lists it as an earlier export, never as a ' +
-        'deletion.',
+        'overwrites what is on the new system. Every exported document whose format ' +
+        'changes, a Google document or a Dropbox Paper doc, is copied again under the name ' +
+        'the new format gives it; the copy in the old format stays, and the Deletions ' +
+        'screen lists it as an earlier export, never as a deletion.',
     },
   },
   {
@@ -371,7 +376,7 @@ export function revisionSnapshotOf(config: {
     readonly type: string;
     readonly rootFolderId?: unknown;
     readonly nativeFilePolicy?: GoogleNativeFilePolicy | undefined;
-    readonly nativeFilePolicies?: NativeFilePolicies | undefined;
+    readonly nativeFilePolicies?: NativeFilePolicies | DropboxNativeFilePolicies | undefined;
   };
   readonly target: { readonly type: string; readonly user?: unknown };
 }): RevisionSnapshot {
@@ -391,7 +396,18 @@ export function revisionSnapshotOf(config: {
     ...('user' in target && typeof target.user === 'string'
       ? { 'target.account': target.user }
       : {}),
-    'source.nativeFilePolicy': nativeFilePolicySnapshot(source),
+    // A Dropbox source's formats are its Paper docs' (0150 T3): the one kind,
+    // recorded effective, so a mapping that never set it reads `refuse`, as
+    // every Dropbox snapshot stored before this does.
+    'source.nativeFilePolicy':
+      source.type === 'dropbox'
+        ? ((source.nativeFilePolicies as DropboxNativeFilePolicies | undefined)?.paper ?? 'refuse')
+        : nativeFilePolicySnapshot(
+            source as {
+              readonly nativeFilePolicy?: GoogleNativeFilePolicy | undefined;
+              readonly nativeFilePolicies?: NativeFilePolicies | undefined;
+            },
+          ),
   };
 }
 

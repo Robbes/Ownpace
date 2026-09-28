@@ -124,8 +124,11 @@ describe('the route honours the rule rather than restating it', () => {
     // Hard rule 5: a value the appliance's mapping file refuses must not be one
     // this route stores. One parser, both editions — the same argument
     // `parseGoogleDriveSource`'s own header makes. The route reads the format
-    // through `exportFormatOverride`, and that reads it through the parser.
-    expect(SOURCE).toContain('exportFormatOverride(body.sourceConfig ?? {})');
+    // through `exportFormatOverride`, and that reads it through the parser; a
+    // Dropbox migration's through `dropboxFormatOverride` (0150 T3 (c)).
+    expect(SOURCE).toContain('const sentConfig = body.sourceConfig ?? {};');
+    expect(SOURCE).toContain('exportFormatOverride(sentConfig)');
+    expect(SOURCE).toContain('dropboxFormatOverride(sentConfig)');
     expect(() => exportFormatOverride({ nativeFilePolicy: 'export_office' })).toThrow(
       /source\.nativeFilePolicy: unsupported "export_office"/,
     );
