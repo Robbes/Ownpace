@@ -124,6 +124,14 @@ own_addresses() {
     case "$entry" in *:*:*) ;; *) entry="${entry%%:*}" ;; esac
     _own_add "$entry" NEXTCLOUD_TRUSTED_DOMAINS
   done
+  # Comma-separated, as exposure-check.sh reads it (0132 T3 (b)). It lists every
+  # address any container on the machine is published on, the other stack's
+  # and the site's among them, which this file's own *_BIND lines may not name.
+  local -a allowed=()
+  IFS=',' read -r -a allowed <<<"$(_own_value "$file" EXPOSURE_ALLOW)"
+  for entry in "${allowed[@]}"; do
+    _own_add "${entry//[[:space:]]/}" EXPOSURE_ALLOW
+  done
 
   unset -f _own_add _own_value
   for i in "${!values[@]}"; do printf '%s\t%s\n' "${values[$i]}" "${labels[$i]}"; done
