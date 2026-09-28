@@ -951,6 +951,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.drill.yml`
 
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -968,6 +969,10 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
+
+### `deploy/selfhost/config/mapping.json.example`
+
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 
 ### `deploy/selfhost/selfhost.env.example`
 
@@ -1744,6 +1749,10 @@ reading a file drops off its entry by itself.
 
 - [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts) — A MEASUREMENT THAT ACCEPTS ONE FIELD AS EVIDENCE FOR ANOTHER RECOMMENDS A DESIGN ON A CAPABILITY IT NEVER MEASURED.
 
+### `scripts/dropbox-native-inventory.mjs`
+
+- [a-listing-that-names-no-file](../scripts/a-listing-that-names-no-file.unit.test.ts) — A LISTING THAT NAMES NO FILE: the inventory of what a real Dropbox will not hand over as a file (workplan 0150 T2).
+
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1833,6 +1842,10 @@ reading a file drops off its entry by itself.
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
+### `scripts/upgrade-drill.sh`
+
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
+
 ### `scripts/workplan-index.mjs`
 
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
@@ -1854,6 +1867,14 @@ reading a file drops off its entry by itself.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
 ### `site/legal/README.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
+### `site/legal/alpha.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
+### `site/legal/alpha.nl.md`
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
@@ -2316,6 +2337,16 @@ Reads:
 - `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
 
+### [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts)
+
+The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
+
+Reads:
+
+- `deploy/selfhost/compose.drill.yml`
+- `deploy/selfhost/config/mapping.json.example`
+- `scripts/upgrade-drill.sh`
+
 ### [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts)
 
 A DUTY THE GATE USED TO DO (workplan 0132 T7).
@@ -2582,6 +2613,14 @@ Reads:
 
 - `deploy/compose/env-read.sh`
 - `scripts/dav-target-probe.mjs`
+
+### [a-listing-that-names-no-file](../scripts/a-listing-that-names-no-file.unit.test.ts)
+
+A LISTING THAT NAMES NO FILE: the inventory of what a real Dropbox will not hand over as a file (workplan 0150 T2).
+
+Reads:
+
+- `scripts/dropbox-native-inventory.mjs`
 
 ### [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts)
 
@@ -3630,6 +3669,8 @@ Reads:
 
 - `site/build.mjs`
 - `site/legal/README.md`
+- `site/legal/alpha.md`
+- `site/legal/alpha.nl.md`
 - `site/legal/privacy.md`
 - `site/legal/privacy.nl.md`
 - `site/legal/terms.md`

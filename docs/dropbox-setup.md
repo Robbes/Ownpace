@@ -108,7 +108,18 @@ deployment's other half.
 
 ## What does not migrate (stated, not implied)
 
-Sharing state, file requests, Paper docs and version history stay behind —
-`docs/feature-matrix.md` carries the full per-type picture. Deletions are detected by
-absence-counting (two clean passes); a Dropbox "rewind"/deleted-entry read is not
-yet supported.
+Sharing state, file requests and version history stay behind —
+`docs/feature-matrix.md` carries the full per-type picture.
+
+**Paper docs are refused by name** (workplan 0150). Dropbox hands a Paper doc over only
+as an export, and this service does not export them yet. Each one is refused on its first
+attempt, before any download, and parked on the Failures page as a decision, with the
+sentence *"Export it from Dropbox yourself, or leave it behind."* The rest of the tree
+carries on. Any other file Dropbox marks as not downloadable is refused and parked the same
+way: a document Dropbox keeps in a format of its own and offers an export for reads as a
+Paper doc does, and one it offers no export for says there is no file to copy. Paper docs kept outside the Dropbox file tree, on an account with legacy Paper, are never
+listed at all, so they stay behind without a line (0150 T7).
+
+Deletions: Dropbox's own tombstones are read (`include_deleted`) as positive deletion
+evidence, and absence-counting (two clean passes) covers what they do not say. A Dropbox
+"rewind" is not read.

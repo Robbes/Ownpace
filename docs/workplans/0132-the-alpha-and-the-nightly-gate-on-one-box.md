@@ -2410,7 +2410,15 @@ is generated and has been in no log. On the OTA stack it guards a demo.
 4. **A way back.** Should the owner dump live's application database before each deploy and keep
    the dump until the next one, so that a bad deploy can be undone? D5 says no backups and no
    obligations. This dump would be a rollback aid for the owner, not a promise to testers. 0134
-   should say either way.
+   should say either way. **Answered 2026-09-28, by 0134 open question 1: yes, its (b).** The
+   owner: *"database copy before live deployment: i think that might be more safe to do make a
+   backup?"* Read, in 0134, as a rollback copy on the machine and not as backups (0134 T5 stays
+   parked); the owner confirmed that reading by naming N the same day, *"7 days is ok"*. Live's two databases are dumped before each
+   deploy of live (T6, step 4) and kept on the machine until the next deploy succeeds, never
+   longer than N days, which is live's `BACKUP_RETENTION_DAYS`: 7. No dump is taken while a stack
+   reads `0` (0134 T0). T6 step 4 below still says to keep the dump
+   until the next deploy, and T7's duties do not delete one: 0134 T0 step 4 deletes a dump older
+   than N days by hand until one of them does.
 5. **Values that are not on 0020's list.** Moot for live, whose masterkey and client secrets are
    its own from the start (T1d, 0140). For the OTA stack, parked with row 24. The question as it
    was asked: 0020 does not name `ZITADEL_MASTERKEY` or the OAuth client secrets as leaked. If the

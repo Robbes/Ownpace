@@ -3805,7 +3805,13 @@ paths:
     get:
       tags: [Operating]
       summary: Items that would not migrate
-      description: Each carries the reason verbatim from the server that refused it.
+      description: |
+        Each carries the reason verbatim from the server that refused it.
+        The queue also names the migration's source (`sourceKind`, the source
+        connection's kind: `dropbox`, `google`, …), because a remedy is chosen
+        by source as well as by category: a Dropbox Paper doc is
+        `policy_refused`, and Drive's sentence for that names a setting
+        Dropbox does not have (workplan 0150 D9).
       responses:
         '200':
           description: The failure queue.
