@@ -33,11 +33,12 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { schedules } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgLedger, PgDecisionStore, auditExportOn, pgDriver, readGraceEndedWithoutAChoice, withTenant } from '@openmig/ledger';
-import { log, createNotifier, asTenantId, asMappingId, setAuditExportSink } from '@openmig/shared';
+import { PgLedger, PgDecisionStore, appEventSinkOn, auditExportOn, pgDriver, readGraceEndedWithoutAChoice, withTenant } from '@openmig/ledger';
+import { log, createNotifier, asTenantId, asMappingId, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
 import { runDigest, type DigestTenant, type DigestMapping } from './managed-digest-run.ts';
 
@@ -48,6 +49,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 const db = drizzle(pool, { schema: schemaPg });
 const ledger = new PgLedger(db);
 const decisions = new PgDecisionStore(db);
@@ -88,7 +92,7 @@ export const managedDigest = schedules.task({
   // twelve hours late, and the whole point is reaching somebody before their
   // day starts.
   cron: '0 8 * * *',
-  run: async () => {
+  run: leavesAReference('managed-digest', async () => {
     const channel = notifierFromEnv(process.env, (m) => log.warn(m));
     if (!channel.config.enabled) {
       // Said out loud every morning rather than returning quietly: an
@@ -179,5 +183,5 @@ export const managedDigest = schedules.task({
 
     log.info('[digest]', summary);
     return summary;
-  },
+  }),
 });

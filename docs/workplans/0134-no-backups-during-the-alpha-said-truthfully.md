@@ -2,7 +2,73 @@
 
 > **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS=0` so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: open question 3 (a) built (0131 §6, group M3, step 4's second half)**, not
+merged. What a task run leaves in `triggerdb` is now a reference and a category, and a tester's
+words stay out of it: a failed run's error, discovery's output and the run's logs.
+
+- **A failed run's error.** Every task's `run` is wrapped in `leavesAReference`
+  (`apps/worker/src/jobs/what-a-run-leaves.ts`), so whatever it throws leaves as, for example,
+  `run-discovery failed (network). Reference 1a2b3c4d.` The words go to the container's output
+  on a line with the same reference, and the operator's log page gets `task.<id>.failed`. A pass's
+  data type keeps the reference its own catch already records as `sync.<domain>.failed`:
+  `email sync failed (source_refused). Reference ….`
+  - The class still decides the retry. A pass that stopped itself after items failed in a row, and
+    a task's own verdict (an `AbortTaskRunError`, such as a refused cutover), fail once. Everything
+    else is retried, as before.
+  - It is done inside `run`, because Trigger.dev's `run()` span records the exception it sees before
+    any `catchError` hook could replace it. *[upstream]* `TriggerTracer.startActiveSpan` and
+    `TaskExecutor`, 4.5.16.
+- **Discovery's output.** A data type it could not count keeps its category and a reference. The
+  words stay in discovery's own row, where the wizard reads them, and the log page gets
+  `discovery.<domain>.failed`. Nothing reads a run's output back.
+- **The run's logs.** `trigger.config.ts` sets `disableConsoleInterceptor: true`. *[upstream]*
+  With it on, a deployed run copied every `console.*` line into the plane's store and wrote it to
+  the container's output too; with it off, only the second happens. So the smoke's runner-log
+  capture reads what it read before. The six tasks that used the SDK's `logger`, which writes to the
+  plane directly, now use `log`.
+- **Every task points its errors at the log page.** Only `run-delta-sync` did before, so a
+  `recordAppEvent` in any other task recorded nothing.
+- **Proved.** `apps/worker/src/jobs/a-run-that-kept-a-testers-words.unit.test.ts`, 54 cases.
+  - It runs the failure path with invented words (a folder and an address): the error that leaves
+    holds neither, in its message, its stack or its JSON; the container's output holds them under
+    the error's reference; the event has that reference and category; a data type's recorded
+    reference is kept and nothing is recorded twice; a verdict and a pass's stop still fail once.
+  - It runs discovery's outcomes the same way, and reads every one of the fourteen task files: each
+    runs inside `leavesAReference` under its own id, none uses the SDK's `logger`, each sets the
+    event sink. It reads the config for the interceptor.
+  - On `main` it cannot load, because the module does not exist. With only the module added, 36 of
+    the 54 fail: every case about the tasks and the config.
+  - **Mutations: 18, all killed:** the interceptor left on; one task outside the wrapper; an
+    ordinary error kept as it was; the words in the sentence; a pass's stop retried; a task's
+    verdict retried; an error made twice; no event for a failed run; another reference for the
+    words; no words in the output; a pass's recorded reference ignored; the payload's ids dropped;
+    discovery keeping the words; discovery's event not recorded; `run-discovery` returning the
+    words; a task logging through the SDK again; a task without the sink; `run-delta-sync`
+    rethrowing the words.
+- **Guards that changed with the rule.** `a-deliberate-stop-that-was-retried` asserted that a
+  pass's abort keeps its own sentence, and that every other error reaches Trigger.dev as the same
+  object. Now the first says the pass stopped itself, with a category and a reference and without
+  the last item's words, and the others assert the class alone: an ordinary error, a lookalike and
+  a thrown string are retried, not aborted. Its cases for an abort failing once and for an error
+  made twice stand. Four guards that found a task's body by `run: async (` find it by the wrapped
+  line now.
+- **The runbook** says where a task's words are now: three table rows, and a troubleshooting entry
+  for a failure that reads only a category and a reference.
+- **What is left.**
+  - The change takes a task re-deploy: the nightly gate's, on the OTA stack; live's, from its tag.
+  - Runs from before it keep what they held. Live has run no tester's pass yet.
+  - T1 (c)'s checks, run on live after a tester's first pass, confirm that the store holds no words.
+  - `run-rollback` is started by hand only, from the dashboard, and its payload holds what the
+    operator types there: a reason and a DNS domain. Nothing in the product starts it.
+- **One departure, and open question 6.** (a) said the words go to the container's output for a
+  month. A task's container is removed when its run ends (the supervisor's default, `AutoRemove`),
+  so a task's words last as long as its run. Most failures are also written where a person reads
+  them, in the application's own records: a pass's run log and status, discovery's row, a
+  verification run, an apply receipt, a cutover's ledger. The erasure reaches those. A failure
+  outside them, such as a tick that could not reach its database, keeps its category and reference
+  after the run, and not its words.
 
 **2026-09-27, evening: the owner answered open question 3: (a)**, *"1a"*. What a failed run,
 discovery and a run's logs would leave in Trigger.dev's own database carries a reference and a
@@ -180,7 +246,7 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS=0` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
-| T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
+| T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day. That (a) built 2026-09-28, not merged: a run's error, discovery's output and its logs leave Trigger.dev a reference and a category — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
 | T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
 | T3 What a lost machine costs, written down | ✅ **done** in #1238, merged 2026-09-27: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
@@ -713,7 +779,8 @@ before the first invitation. T5 waits for its trigger.
      the container output (a month), as the Test button's answer already does (0136 T3). Then the
      dumps hold nothing of a tester's, keeping them stays harmless, and `0` stays true.
      *Recommended.* It is a change to the worker and orchestration, M's to build.
-     **Answered 2026-09-27: (a)**, *"1a"*.
+     **Answered 2026-09-27: (a)**, *"1a"*. **Built 2026-09-28** (the Status block), with one
+     departure: a task's words last as long as its container, which is open question 6.
    - **(b) Stop dumping live's `triggerdb` for the alpha**, and say in the privacy text that
      Trigger.dev keeps a run's error text until the alpha ends and the stack is reset.
    - **(c) Prune by age.** Dumps kept at most N days, with `BACKUP_RETENTION_DAYS` = N, and a job
@@ -723,3 +790,14 @@ before the first invitation. T5 waits for its trigger.
    a warning only? *(2026-09-27: still owed. T1 (b) builds the proposal, on its branch.)*
 5. **An alpha that outgrows D2.** More than 20 people, or a charge, is no longer the alpha D1 was
    answered for. Should that fire T5's trigger as well? Recommended: yes.
+6. **A task's words after its run (2026-09-28).** Open question 3's (a) is built, with the words a
+   task writes going to its container's output. The supervisor removes a task's container when
+   its run ends, so those words last as long as the run, not a month. Choose between:
+   - **(a) Enough for the alpha.** The application's own records keep what a person acts on: a
+     pass's run log and status, discovery's row, a verification run, an apply receipt, a cutover's
+     ledger. The log page keeps every failure's reference and category for a month. The erasure
+     reaches all of these, and nothing else keeps a tester's words. *Recommended.*
+   - **(b) A month on the host.** Docker's `journald` log driver, set in the daemon's own
+     configuration on the reference machine, with a month's retention. It keeps a removed
+     container's output, the API's included. It is the owner's machine setting, and a second place
+     that holds testers' words, which the erasure does not reach.

@@ -24,11 +24,12 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { schedules } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgDecisionStore, PgPolicyPresetStore, auditExportOn, pgDriver } from '@openmig/ledger';
-import { log, renderEvent, asTenantId, setAuditExportSink, type DirectoryListing } from '@openmig/shared';
+import { PgDecisionStore, PgPolicyPresetStore, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { log, renderEvent, asTenantId, setAppEventSink, setAuditExportSink, type DirectoryListing } from '@openmig/shared';
 import {
   createTokenProvider,
   listTenantMailboxes,
@@ -51,6 +52,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 const db = drizzle(pool, { schema: schemaPg });
 
 /** The one HTTP client this task needs; Graph speaks plain JSON over fetch. */
@@ -123,7 +127,7 @@ export const managedDriftDetect = schedules.task({
   // 07:00 UTC — before the 08:00 digest, so a mailbox found this morning is
   // in the summary the owner reads an hour later rather than waiting a day.
   cron: '0 7 * * *',
-  run: async () => {
+  run: leavesAReference('managed-drift-detect', async () => {
     const channel = notifierFromEnv(process.env, (m) => log.warn(m));
     const decisions = new PgDecisionStore(db);
     const presets = new PgPolicyPresetStore(db);
@@ -217,5 +221,5 @@ export const managedDriftDetect = schedules.task({
     const result = { tenants: tenants.length, raised, autoResolved, alreadyPending, blindSpots };
     log.info('[drift-detect]', result);
     return result;
-  },
+  }),
 });

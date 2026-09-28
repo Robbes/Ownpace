@@ -841,7 +841,7 @@ decide, so the disappearance goes in a queue.
 | Where | What it tells you |
 |---|---|
 | `GET /deletions` | `confirmed`, `watching` and `acknowledged`, each with the collection it vanished from, its `evidence`, and `absentPasses` |
-| appliance log / task run log | one warning per domain per pass, with a count |
+| appliance log / task container output, while its run lasts | one warning per domain per pass, with a count |
 
 **`evidence` is the field to read first.** There are two ways we come to believe
 an item is gone, and they are different in kind, not in degree.
@@ -902,7 +902,7 @@ earlier export', not as 'deleted in Google'."*).
 |---|---|
 | `GET /deletions` → `earlierExports.waiting` | each old copy, with its collection, its key, and `exportedAs`: the key of the document's current copy |
 | `GET /deletions` → `earlierExports.kept` | the ones the owner has kept |
-| appliance log / task run log | one line per pass that finds new ones, with a count |
+| appliance log / task container output, while its run lasts | one line per pass that finds new ones, with a count |
 
 - A pass marks the old copy once it lists the document under its new name and
   no longer lists the old name. Only our own copies are marked (`copied`,
@@ -1121,7 +1121,7 @@ tool never does on its own (hard rule 2).
 | Where | What it tells you |
 |---|---|
 | `GET /moves` | `open` and `acknowledged`, each with `from` and `to` |
-| appliance log / task run log | one warning per domain per pass, with a count |
+| appliance log / task container output, while its run lasts | one warning per domain per pass, with a count |
 
 Two answers for every move, and a third that exists only for one kind:
 
@@ -1348,6 +1348,15 @@ steps for a tester's report. The items below are causes it points to.
 - **Runner containers die in under a second with no logs:** almost always the image platform —
   set `DEPLOY_IMAGE_PLATFORM` to match `uname -m` and redeploy. `smoke-managed.sh` captures
   runner logs live precisely because `AutoRemove` destroys them.
+- **A failed task run says only a category and a reference:** by design since 2026-09-28
+  (workplan 0134, open question 3 (a)). Trigger.dev keeps a run's error, output and logs with no
+  limit, so no tester's words go there. The error reads, for example, `email sync failed
+  (source_refused). Reference 1a2b3c4d.`, and discovery's output keeps a category and a
+  reference for a data type it could not count. Find the reference on the operator log page
+  (`sync.<data type>.failed`, `discovery.<data type>.failed` or `task.<task id>.failed`), and the
+  words in the migration's own run history, where most failures are also written. A task's own
+  lines go to its container's output only: `docker logs -f` on the runner while it runs, and
+  gone once `AutoRemove` removes it (0134, open question 6).
 - **Dashboard Runs page is empty while runs exist in postgres:** the runs LIST is served from
   ClickHouse; without run-replication it renders empty. Cosmetic — ACCEPTED (0020 T7 decision,
   2026-08-01): the smoke and the DB rows are the operational truth, the Tasks tab still works,
