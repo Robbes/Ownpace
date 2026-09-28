@@ -39,18 +39,33 @@
 
 import { BlockList, isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
-import type { Agent as UndiciAgent, buildConnector as UndiciBuildConnector } from 'undici';
-// UNDICI'S AGENT AND CONNECTOR BY THEIR OWN PATHS, not its index. Importing
-// `undici` installs its own Agent as the process's global dispatcher when none
-// is set yet, and Node's built-in `fetch` reads that same global: every other
-// request in the process, in both editions, would then go through a different
-// client than the one it was written against. These two modules carry no such
-// side effect. Static imports, so the task bundle (esbuild, through the
-// Trigger.dev CLI) carries them; a `require` built at run time it cannot see.
-// Their types are in `undici-internals.d.ts`, beside this file, which the
-// root TypeScript program includes; undici ships none for these paths.
+import type { Dispatcher, buildConnector as UndiciBuildConnector } from 'undici';
+// UNDICI'S AGENT, CONNECTOR AND ADAPTER BY THEIR OWN PATHS, not its index.
+// Importing `undici` installs its own Agent as the process's global dispatcher
+// when none is set yet, and Node's built-in `fetch` reads that same global:
+// every other request in the process, in both editions, would then go through
+// a different client than the one it was written against. These three modules
+// carry no such side effect; `lib/global.js`, which undici's index and its own
+// `fetch` both load, is the one that does. Static imports, so the task bundle
+// (esbuild, through the Trigger.dev CLI) carries them; a `require` built at run
+// time it cannot see. Their types are in `undici-internals.d.ts`, beside this
+// file, which the root TypeScript program includes; undici ships none for
+// these paths.
+//
+// THE ADAPTER, since undici 8. Node's own `fetch` is the undici Node bundles
+// (6 in Node 22, 7 in Node 24), and it drives a dispatcher with the first
+// handler API: `onConnect`, `onHeaders`, `onData`, `onComplete`. undici 8's
+// Agent takes only the second (`onRequestStart` and the rest) and refuses the
+// first as `invalid onRequestStart method`, so with the rule on every request
+// to a tenant's host failed as "fetch failed", and a refusal read as the
+// provider's (Dependabot's #1281). `Dispatcher1Wrapper` is undici's own bridge
+// for exactly this caller: it is what undici 8 installs for older fetches in
+// the global slot they read. It wraps a first-API handler, passes a second-API
+// one through, and keeps such a request on HTTP/1.1, which Node's `fetch` asked
+// for anyway.
 import Agent from 'undici/lib/dispatcher/agent.js';
 import buildConnector from 'undici/lib/core/connect.js';
+import Dispatcher1Wrapper from 'undici/lib/dispatcher/dispatcher1-wrapper.js';
 
 /**
  * Every range a host we are asked to reach may not resolve into.
@@ -243,7 +258,7 @@ export function checkedConnector(rule: ReachableHostRule, connect: Connector): C
 }
 
 /** The switched-on rule and the dispatcher that carries it, or nothing (the appliance). */
-let active: { readonly rule: ReachableHostRule; readonly dispatcher: UndiciAgent } | undefined;
+let active: { readonly rule: ReachableHostRule; readonly dispatcher: Dispatcher } | undefined;
 
 /**
  * Switch the rule on for this process. The managed API and the managed task
@@ -260,7 +275,8 @@ export function refuseInternalAddresses(
     allow: new Set([...(options.allow ?? [])].map((name) => name.toLowerCase().replace(/\.$/, ''))),
     resolve: options.resolve ?? resolveAll,
   };
-  const dispatcher = new Agent({ connect: checkedConnector(rule, buildConnector({})) });
+  // Wrapped for Node's own `fetch`, which speaks the first handler API (see the imports above).
+  const dispatcher = new Dispatcher1Wrapper(new Agent({ connect: checkedConnector(rule, buildConnector({})) }));
   const mine = { rule, dispatcher };
   active = mine;
   return () => {
