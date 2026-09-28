@@ -4444,11 +4444,15 @@ paths:
                   to:
                     oneOf:
                       - type: object
-                        description: By mail, to these addresses (`REPORT_MAIL_TO`, else `NOTIFY_TO`).
+                        description: |
+                          By mail. `addresses` is the support mailbox `REPORT_MAIL_TO`
+                          names. When that is empty, reports go to `NOTIFY_TO`, the
+                          operator's own list, and `addresses` is absent: that list
+                          is never shown to a member.
                         properties:
                           kind: { type: string, enum: [mail] }
-                          addresses: { type: array, items: { type: string } }
-                        required: [kind, addresses]
+                          addresses: { type: array, items: { type: string }, minItems: 1 }
+                        required: [kind]
                       - type: object
                         description: To the owner's Zammad.
                         properties:

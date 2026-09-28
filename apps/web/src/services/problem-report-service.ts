@@ -31,9 +31,14 @@ export async function fetchReportingAvailable(): Promise<boolean> {
   }
 }
 
-/** Where a report would go: the addresses its mail is sent to, or the owner's helpdesk. */
+/**
+ * Where a report would go: by mail, with the support mailbox's addresses when
+ * the service names them, or the owner's helpdesk. A service that sends
+ * reports to its operator's own address names none, and the form then says
+ * the support team without an address.
+ */
 export type ReportRecipient =
-  | { readonly kind: 'mail'; readonly addresses: readonly string[] }
+  | { readonly kind: 'mail'; readonly addresses?: readonly string[] }
   | { readonly kind: 'helpdesk' };
 
 /**
@@ -55,9 +60,10 @@ function isRecipient(value: unknown): value is ReportRecipient {
   if (to.kind === 'helpdesk') return true;
   return (
     to.kind === 'mail' &&
-    Array.isArray(to.addresses) &&
-    to.addresses.length > 0 &&
-    to.addresses.every((a) => typeof a === 'string' && a !== '')
+    (to.addresses === undefined ||
+      (Array.isArray(to.addresses) &&
+        to.addresses.length > 0 &&
+        to.addresses.every((a) => typeof a === 'string' && a !== '')))
   );
 }
 

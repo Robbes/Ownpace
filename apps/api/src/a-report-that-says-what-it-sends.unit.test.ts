@@ -25,11 +25,13 @@
  *   report carries starts with a label of its own list;
  * - **what support needs, from the records:** the role, the organisation's
  *   status and its closing dates, the migration on the page (its state, the
- *   grant given or withdrawn, the grant link, and each data type's state,
- *   category, side and reference), whether the report's reference is a current
- *   failure, the service hold, the scheduler, and the two accounts' providers
- *   and last test; and the browser, from the request's own header, on one line
- *   and capped;
+ *   grant given or withdrawn, a withdrawal winning over a token still stored,
+ *   the newest grant link's state and never a progress link's, and each data
+ *   type's state, category, side and reference, a reference the column should
+ *   never hold written `unrecognised`), whether the report's reference is a
+ *   current failure, the service hold, the scheduler, and the two accounts'
+ *   providers and last test; and the browser, from the request's own header,
+ *   on one line and capped;
  * - **never a name, an address or a provider's words.** A provider's error
  *   text, an item's name, a folder, an account's name, address and token, the
  *   organisation's name and phone, and a category nobody wrote, all planted in
@@ -41,7 +43,9 @@
  * - **facts that cannot be read do not stop a report** (the owner: "Send
  *   anyway"): it goes with `Facts: could not be read [ref …]`, and the error
  *   is recorded under that reference; so does one that takes too long;
- * - **the preview is signed-in, for the reporter's organisation, and limited.**
+ * - **the preview is signed-in, for the reporter's organisation, and limited,**
+ *   and names the support mailbox's address only when `REPORT_MAIL_TO` does:
+ *   reports sent to `NOTIFY_TO`, the operator's own list, say no address.
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
@@ -92,6 +96,8 @@ const SOURCE_BOX = '0130fac7-e29b-41d4-a716-446655440013';
 const TARGET_BOX = '0130fac7-e29b-41d4-a716-446655440014';
 const MAPPING = '0130fac7-e29b-41d4-a716-446655440015';
 const WITHDRAWN = '0130fac7-e29b-41d4-a716-446655440016';
+/** A migration whose grant was withdrawn with a token still stored, and with links of every state. */
+const LINKED = '0130fac7-e29b-41d4-a716-446655440017';
 const OTHER_CONN = '0130fac7-e29b-41d4-a716-446655440021';
 const OTHER_BOX = '0130fac7-e29b-41d4-a716-446655440022';
 const OTHER_MAPPING = '0130fac7-e29b-41d4-a716-446655440023';
@@ -280,6 +286,24 @@ beforeAll(async () => {
      VALUES ($1, $2, $3, 'cutover', $4)`,
     [OTHER_MAPPING, OTHER, OTHER_BOX, CANARY.theirs],
   );
+  // Withdrawn, with a token still stored beside the withdrawal: the withdrawal
+  // is what holds (`viewGrantFor`). Its grant links, oldest first: one
+  // revoked, one expired, and the newest grant link, used; then a progress
+  // link, live, newer than all of them, which grants nothing.
+  await sql(
+    `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, source_secret_ref, grant_withdrawn_at)
+     VALUES ($1, $2, $3, 'active', $4, '2026-09-25T09:00:00Z')`,
+    [LINKED, TENANT, SOURCE_BOX, CANARY.token],
+  );
+  await sql(
+    `INSERT INTO mapping_link
+       (tenant_id, mapping_id, purpose, secret_hash, created_by, created_at, expires_at, used_at, revoked_at) VALUES
+       ($1, $2, 'grant', 'hash-revoked', $3, now() - interval '4 days', now() + interval '3 days', NULL, now() - interval '4 days'),
+       ($1, $2, 'grant', 'hash-expired', $3, now() - interval '3 days', now() - interval '1 day', NULL, NULL),
+       ($1, $2, 'grant', 'hash-used', $3, now() - interval '2 days', now() + interval '5 days', now() - interval '1 day', NULL),
+       ($1, $2, 'view', 'hash-view', $3, now() - interval '1 hour', now() + interval '30 days', NULL, NULL)`,
+    [TENANT, LINKED, CANARY.address],
+  );
   // Our migration: mail failing at the source, with its reference and the
   // provider's own words; calendar done; contacts failing under a category
   // somebody wrote into the column by hand, which no vocabulary has.
@@ -415,6 +439,45 @@ describe('what support needs, from the records', () => {
       expect(never.body.lines).toContain('Grant: not given');
     } finally {
       await sql(`UPDATE mailbox_mapping SET grant_withdrawn_at = '2026-09-20T08:00:00Z' WHERE id = $1`, [WITHDRAWN]);
+    }
+  });
+
+  it('reads the newest grant link and never a progress link, and a withdrawal over a token still stored', async () => {
+    const res = await preview(app(), { page: `/mappings/${LINKED}` });
+    expect(res.status, res.text).toBe(200);
+    expect(res.body.lines).toEqual(
+      expect.arrayContaining([
+        `Migration: ${LINKED}, active`,
+        'Grant: withdrawn on 2026-09-25',
+        'Grant link: used',
+        'Data types: none recorded yet',
+      ]),
+    );
+    expect(res.text).not.toContain(CANARY.token);
+  });
+
+  it('writes a reference that is not one as unrecognised, and never what the column held', async () => {
+    // The column has had a CHECK since migration 0061, so the database refuses
+    // such a value today; the vetting here is the net under it. The CHECK is
+    // dropped for this case only, to plant one.
+    const planted = 'see /Documents/canary-contract.pdf';
+    await sql(`ALTER TABLE migration_status DROP CONSTRAINT migration_status_last_error_reference_check`);
+    try {
+      await sql(
+        `INSERT INTO migration_status
+           (tenant_id, mapping_id, domain, state, last_error_category, failed_side, last_error_reference)
+         VALUES ($1, $2, 'file', 'failed', 'quota_exceeded', 'target', $3)`,
+        [TENANT, LINKED, planted],
+      );
+      const res = await preview(app(), { page: `/mappings/${LINKED}` });
+      expect(res.body.lines).toContain('Data type file: failed, quota_exceeded, target side, reference unrecognised');
+      expect(res.text).not.toContain('canary-contract');
+    } finally {
+      await sql(`DELETE FROM migration_status WHERE mapping_id = $1`, [LINKED]);
+      await sql(
+        `ALTER TABLE migration_status ADD CONSTRAINT migration_status_last_error_reference_check
+           CHECK (last_error_reference IS NULL OR last_error_reference ~ '^[0-9a-f]{8}$')`,
+      );
     }
   });
 
@@ -622,6 +685,20 @@ describe('the preview is signed-in, for the reporter’s organisation, and limit
     const res = await preview(app(), { page: '/grant/abc.secret/google?code=x' });
     expect(res.body.lines[0]).toBe('Page: /grant/:link/google?...');
     expect(res.text).not.toContain('abc.secret');
+  });
+
+  it("names no address when reports go to the operator's own, to a viewer or anybody, and still sends there", async () => {
+    const withoutSupport = Object.fromEntries(Object.entries(MAIL).filter(([key]) => key !== 'REPORT_MAIL_TO'));
+    for (const env of [{ ...MAIL, REPORT_MAIL_TO: '' }, { ...MAIL, REPORT_MAIL_TO: '  ' }, withoutSupport]) {
+      const { sent, mailTransport } = relay();
+      const a = app({ env, mailTransport });
+      const res = await preview(a, { page: '/' }, { 'x-test-role': 'viewer' });
+      expect(res.status, res.text).toBe(200);
+      expect(res.body.to).toEqual({ kind: 'mail' });
+      expect(res.text).not.toContain(MAIL.NOTIFY_TO);
+      await request(a).post('/api/problem-reports').send({ description: 'It stopped', page: '/' }).expect(201);
+      expect(sent[0]!.to).toEqual([MAIL.NOTIFY_TO]);
+    }
   });
 
   it('answers 503 on a service that takes no reports', async () => {

@@ -158,16 +158,16 @@ message subjects do not appear in them.**
 **Reports.** *Report a problem* in the app, and *Report this link* on the page a link opens, send
 a report to our support team. During the Alpha, a report goes by email to support@ownpace.eu, a
 mailbox at Proton, through the mail provider in §7. A report from the app carries what you write,
-a screenshot if you add one, and facts from our records, which the form lists before you send:
-the page you were on, the reference and kind of an error on it, your organisation's id and status,
-your role, the version of the service, the state of the migration on that page and of each data
-type in it, whether access was given through a link, which providers its two accounts are with
-and whether their last test passed, whether the service is on hold or its scheduler has stopped,
-and the name your browser gives itself. A report from a link carries what you write, the address
-you want an answer at if you give one, and what the link is for: the organisation and the
-migration, who made the link, the two accounts, and whether access was given. **A report contains
-the content of your mail, files or calendars, a subject, a folder name or a provider's error text
-only if you put it in what you write or in the screenshot.**
+a screenshot if you add one, the email address you sign in with, so we can reply, and these facts,
+which the form lists before you send: the page you were on, the reference and kind of an error on
+it, your organisation's id and status, your role, the version of the service, the state of the
+migration on that page and of each data type in it, whether access was given through a link, which
+providers its two accounts are with and whether their last test passed, whether the service is on
+hold or its scheduler has stopped, and the name your browser gives itself. A report from a link
+carries what you write, the address you want an answer at if you give one, and what the link is
+for: the organisation and the migration, who made the link, the two accounts, and whether access
+was given. **A report contains the content of your mail, files or calendars, a subject, a folder
+name or a provider's error text only if you put it in what you write or in the screenshot.**
 
 To run and support the service, a small number of named operators on our side can view
 **service metadata** about your account: your workspace's name and status, each migration's

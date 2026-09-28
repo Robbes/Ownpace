@@ -27,14 +27,16 @@
  * (`a-screenshot-anyone-can-make.unit.test.tsx`).
  *
  * What goes with it (workplan 0130 T6, Part A): above Send, where the report
- * goes (the support team, by email to the address the service sends to, or
- * its helpdesk) and where the reply goes, and a fold, *What we send with
- * this*, with every line of facts the report will carry, as the API answers
- * them from the same function that writes them into the mail. They are the
- * server's own words, in English, shown as they are sent (ADR-0024's prose
- * boundary). When they cannot be had, the fold lists what the form itself
- * knows and says the rest is read when the report is sent. Nothing shown is
- * sent back: the server reads the facts again
+ * goes (the support team, by email to the support mailbox when the service
+ * names it, or its helpdesk; never the operator's own address) and where the
+ * reply goes, and a fold, *What we send with this*, with every line of facts
+ * the report will carry, as the API answers them from the same function that
+ * writes them into the mail. They are the server's own words, in English,
+ * shown as they are sent (ADR-0024's prose boundary), and marked `lang="en"`
+ * for a screen reader. When they cannot be had, the fold lists what the form
+ * itself knows, in the reader's language, under an introduction of its own,
+ * and says the rest is read when the report is sent. Nothing shown is sent
+ * back: the server reads the facts again
  * (`a-report-that-says-what-it-sends.unit.test.tsx`).
  */
 
@@ -143,11 +145,13 @@ const ReportProblem: React.FC = () => {
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const goesTo = preview.data
-    ? preview.data.to.kind === 'mail'
-      ? t('report.goesTo.mail', { address: preview.data.to.addresses.join(', ') })
-      : t('report.goesTo.helpdesk')
-    : t('report.goesTo');
+  const to = preview.data?.to;
+  const goesTo =
+    to?.kind === 'helpdesk'
+      ? t('report.goesTo.helpdesk')
+      : to?.kind === 'mail' && to.addresses
+        ? t('report.goesTo.mail', { address: to.addresses.join(', ') })
+        : t('report.goesTo');
 
   const send = useMutation({
     mutationFn: async () =>
@@ -382,15 +386,21 @@ const ReportProblem: React.FC = () => {
           {email && <p>{t('report.replyTo', { email })}</p>}
           <details>
             <summary className="cursor-pointer select-none font-medium text-gray-900">{t('report.facts')}</summary>
-            <p className="mt-2">{t('report.facts.more')}</p>
             {preview.data ? (
-              <ul className="mt-2 space-y-1 font-mono text-xs text-gray-800 break-words">
-                {preview.data.lines.map((line, i) => (
-                  <li key={i}>{line}</li>
-                ))}
-              </ul>
+              <>
+                <p className="mt-2">{t('report.facts.more')}</p>
+                {/* The service's own lines, in English whatever the page's
+                    language, and marked so: a Dutch screen reader reads
+                    them with English sounds (WCAG 3.1.2). */}
+                <ul lang="en" className="mt-2 space-y-1 font-mono text-xs text-gray-800 break-words">
+                  {preview.data.lines.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </>
             ) : (
               <>
+                <p className="mt-2">{t('report.facts.known')}</p>
                 <ul className="mt-2 list-disc ml-5 space-y-1">
                   <li>{t('report.page', { page })}</li>
                   {reference && <li>{t('report.reference', { reference })}</li>}

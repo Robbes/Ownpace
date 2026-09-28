@@ -118,17 +118,17 @@ mapnamen en onderwerpregels er niet in voorkomen**.
 **Meldingen.** *Een probleem melden* in de app, en *Deze link melden* op de pagina die een link
 opent, sturen een melding naar ons supportteam. Tijdens de Alpha gaat een melding per e-mail naar
 support@ownpace.eu, een mailbox bij Proton, via de mailprovider uit §7. Een melding uit de app
-bevat wat u schrijft, een schermafbeelding als u die toevoegt, en feiten uit onze gegevens, die
-het formulier opsomt voordat u verstuurt: de pagina waarop u was, de referentie en het soort van
-een fout daarop, het id en de status van uw organisatie, uw rol, de versie van de dienst, de stand
-van de migratie op die pagina en van elk gegevenstype daarin, of er via een link toegang is
-gegeven, bij welke aanbieders de twee accounts ervan zijn en of hun laatste test slaagde, of de
-dienst is gepauzeerd of de planner stilstaat, en de naam die uw browser zichzelf geeft. Een
-melding via een link bevat wat u schrijft, het adres waarop u antwoord wilt als u dat geeft, en
-waar de link voor is: de organisatie en de migratie, wie de link heeft gemaakt, de twee accounts,
-en of er toegang is gegeven. **Een melding bevat de inhoud van uw mail, bestanden of agenda's, een
-onderwerpregel, een mapnaam of een foutmelding van een aanbieder alleen als u die zelf in uw tekst
-of op de schermafbeelding zet.**
+bevat wat u schrijft, een schermafbeelding als u die toevoegt, het e-mailadres waarmee u inlogt,
+zodat we kunnen antwoorden, en deze feiten, die het formulier opsomt voordat u verstuurt: de
+pagina waarop u was, de referentie en het soort van een fout daarop, het id en de status van uw
+organisatie, uw rol, de versie van de dienst, de stand van de migratie op die pagina en van elk
+gegevenstype daarin, of er via een link toegang is gegeven, bij welke aanbieders de twee accounts
+ervan zijn en of hun laatste test slaagde, of de dienst is gepauzeerd of de planner stilstaat, en
+de naam die uw browser zichzelf geeft. Een melding via een link bevat wat u schrijft, het adres
+waarop u antwoord wilt als u dat geeft, en waar de link voor is: de organisatie en de migratie,
+wie de link heeft gemaakt, de twee accounts, en of er toegang is gegeven. **Een melding bevat de
+inhoud van uw mail, bestanden of agenda's, een onderwerpregel, een mapnaam of een foutmelding van
+een aanbieder alleen als u die zelf in uw tekst of op de schermafbeelding zet.**
 
 Om de dienst te kunnen leveren en ondersteunen kan een klein aantal met naam bekende
 beheerders aan onze kant **dienstmetadata** over uw account inzien: de naam en status van uw

@@ -4,6 +4,46 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T6 Part A, the review's seven findings fixed.** On the same branch, not merged:
+
+- **The preview no longer hands out the operator's address.** With `REPORT_MAIL_TO` empty,
+  reports go to `NOTIFY_TO`, the operator's own list, and `GET /preview` gave that list to every
+  signed-in member, a viewer too. Now `reportMailConfigFrom` records whether `to` is the support
+  mailbox (`supportMailbox`, true only when `REPORT_MAIL_TO` names it), and the preview answers
+  `{ kind: 'mail' }` without addresses otherwise; the form then says *"Goes to the Ownpace support
+  team."* / *"Gaat naar het supportteam van Ownpace."*. `openapi.yaml` and step 8f of
+  `docs/managed-bring-up.md` say so.
+- **Privacy §4.5, EN and NL,** names the sign-in address among what a report from the app carries,
+  *so we can reply* / *zodat we kunnen antwoorden* (the mail's `Reply to` line, its Reply-To, and a
+  Zammad ticket's customer), and says *these facts* / *deze feiten* where it said *facts from our
+  records*: the page, the build and the browser are not records. Version lines untouched.
+- **The fold** says *"…exactly as our support team reads them, in English"* only above the
+  service's lines, which are marked `lang="en"` (WCAG 3.1.2, for a Dutch screen reader); when
+  they cannot be had, the form's own list has an introduction of its own (`report.facts.known`).
+  *From our records* is gone from the fold's sentences.
+- **Step 8f** no longer says the form showed every line: it showed the fact lines, `Page` to
+  `Browser`, unless the preview could not be read, and `Reply to` and `Report reference` are added
+  on sending.
+
+Guards: the API's `a-report-that-says-what-it-sends` (23, was 20) adds a migration whose grant was
+withdrawn with a token still stored, with a revoked and an expired grant link, a newer used one
+and a newest progress link (*Grant: withdrawn on …*, *Grant link: used*); a malformed
+`last_error_reference`, planted with the column's CHECK (0061) dropped for that case, written
+*reference unrecognised* and never itself; and `REPORT_MAIL_TO` empty, blank or absent giving a
+viewer `{ kind: 'mail' }`, no address, while the report still goes to `NOTIFY_TO`.
+`a-report-that-reaches-support-by-mail` expects the new field. The web guard (22, was 16) waits
+for the service's first line before comparing, with the preview answering 30 ms late: before the
+fix the Dutch case compared the form's own list to the lines and failed; it checks `lang="en"`,
+the fallback's own introduction in both languages, and the address left out when the service
+names none. Real Postgres (`local-pg.sh`, 16): the integration file, 2 of 2. 15 mutations, all
+killed: the grant link always `live`, the oldest grant link, a progress link counted, a token
+winning over a withdrawal, the reference passed through unvetted (the five that survived the
+review), the preview handing out `NOTIFY_TO`, `supportMailbox` set by an empty `REPORT_MAIL_TO`,
+never naming the support mailbox; and in the web app the lines without `lang`, `lang="en"` on the
+Dutch fallback, the English promise above the fallback, a recipient without addresses refused, a
+"by email to" with no address, *from our records* back in the fold, and the fold's introduction
+dropped.
+
 **2026-09-28: a report that says what it sends (T6, Part A).** A report carried the page, the
 error's reference and category, the organisation's id and the build, and support's first answer
 was always a question. The proposal (what a report could carry by itself, and why not an

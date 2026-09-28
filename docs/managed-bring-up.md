@@ -1773,13 +1773,15 @@ status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
 line for each data type and the two accounts' providers, `Reference match`,
 `Service hold`, `Scheduler` and `Browser`; then `Reply to` (the customer's
 sign-in address) and `Report reference`, the report's own. The form showed the
-customer every one of those lines before they sent it, under *What we send with
-this*. When the database could not be read, the report still arrives, with
-`Facts: could not be read [ref …]` in place of the records' lines; the log page
-finds that reference as `report.facts-unread`. Its **Reply-To** is that sign-in address
-too, so pressing Reply should answer them. With `NOTIFY_FROM` and
-`REPORT_MAIL_TO` both `support@ownpace.eu`, as on live, the mail goes from the
-mailbox to itself, and a mail client may answer such a mail to its own address;
+customer the fact lines, `Page` to `Browser`, under *What we send with this*
+before they sent it, unless that preview could not be read; `Reply to` and
+`Report reference` are added on sending. When the database could not be read,
+the report still arrives, with `Facts: could not be read [ref …]` in place of
+the records' lines; the log page finds that reference as `report.facts-unread`.
+Its **Reply-To** is that sign-in address too, so pressing Reply should answer
+them. With `NOTIFY_FROM` and `REPORT_MAIL_TO` both `support@ownpace.eu`, as on
+live, the mail goes from the mailbox to itself, and a mail client may answer
+such a mail to its own address;
 check the To field before you send, and if it shows the support address, write
 to the body's `Reply to` address instead. The screenshot is attached, after the
 same check of its first bytes a Zammad ticket gets. There is no ticket number,
@@ -1787,6 +1789,9 @@ so the customer is told the *report reference* instead, and that the reply
 comes by email; search the mailbox for it when they quote it (the log page
 does not know it). An empty `REPORT_MAIL_TO` sends reports to `NOTIFY_TO`, so
 on a stack still pointed at Mailpit the form works and Mailpit catches them.
+The form then says only *Goes to the Ownpace support team.*, without an
+address: `NOTIFY_TO` is your own list, and every signed-in member can open the
+form. Only an address `REPORT_MAIL_TO` names is shown to them.
 
 **The relay is shared.** On live, the API's relay login is the one the identity
 provider sends its sign-in codes with (workplan 0133). So at most 50 report

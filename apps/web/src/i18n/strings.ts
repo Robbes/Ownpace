@@ -86,16 +86,19 @@ const en = {
     'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
   // Where a report goes and what goes with it (workplan 0130 T6). The lines in
   // the fold are the server's own, shown as they are sent, in English; these
-  // are the words around them.
+  // are the words around them. `report.facts.more` stands above those lines
+  // only; when they cannot be had, `report.facts.known` stands above what the
+  // form itself knows, in the reader's language.
   'report.goesTo': 'Goes to the Ownpace support team.',
   'report.goesTo.mail': 'Goes to the Ownpace support team, by email to {address}.',
   'report.goesTo.helpdesk': "Goes to the Ownpace support team's helpdesk.",
   'report.facts': 'What we send with this',
   'report.facts.more':
-    'What you write, and your screenshot if you add one. With them go these lines from our records, exactly as our support team reads them, in English:',
-  'report.facts.reading': 'Reading the rest from our records…',
+    'What you write, and your screenshot if you add one. With them go these lines, exactly as our support team reads them, in English:',
+  'report.facts.known': 'What you write, and your screenshot if you add one. With them go:',
+  'report.facts.reading': 'Looking up the rest…',
   'report.facts.unshown':
-    'The rest could not be shown just now. When you send the report, we read it from our records again, and it goes with the report.',
+    'The rest could not be shown just now. When you send the report, we look it up again, and it goes with the report.',
   'report.page': 'the page you were on: {page}',
   'report.reference': 'the reference on your screen: {reference}',
   'report.category': 'the kind of error: {category}',
@@ -2621,10 +2624,11 @@ const nl: Record<keyof typeof en, string> = {
   'report.goesTo.helpdesk': 'Gaat naar de helpdesk van het supportteam van Ownpace.',
   'report.facts': 'Wat we meesturen',
   'report.facts.more':
-    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan deze regels uit onze gegevens mee, precies zoals ons supportteam ze leest, in het Engels:',
-  'report.facts.reading': 'De rest lezen we uit onze gegevens…',
+    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan deze regels mee, precies zoals ons supportteam ze leest, in het Engels:',
+  'report.facts.known': 'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan mee:',
+  'report.facts.reading': 'De rest zoeken we op…',
   'report.facts.unshown':
-    'De rest kon nu niet worden getoond. Als u de melding verstuurt, lezen we die opnieuw uit onze gegevens, en die gaat met de melding mee.',
+    'De rest kon nu niet worden getoond. Als u de melding verstuurt, zoeken we die opnieuw op, en die gaat met de melding mee.',
   'report.page': 'de pagina waarop u was: {page}',
   'report.reference': 'de referentie op uw scherm: {reference}',
   'report.category': 'het soort fout: {category}',

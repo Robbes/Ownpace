@@ -12,11 +12,15 @@
  * *Wat we meesturen*, a fold above Send, the lines exactly as the support team
  * reads them, from the same function that writes them into the mail
  * (`apps/api/src/a-report-that-says-what-it-sends.unit.test.ts` holds the two
- * to one another). And above Send, where the report goes: the support team,
- * by email to the address the service is set up with, or its helpdesk.
+ * to one another), marked as English for a screen reader. And above Send,
+ * where the report goes: the support team, by email to the support mailbox
+ * the service names, or its helpdesk; without an address when the service
+ * names none, as it does when reports go to its operator's own.
  *
  * When the lines cannot be had, the fold still lists what the form itself
- * knows, and says the rest is read on sending and goes with the report.
+ * knows, under an introduction of its own that promises no English lines, and
+ * says the rest is read on sending and goes with the report. The lines are
+ * waited for, not whichever list is on the page first.
  *
  * The link form, for somebody without an account, now says what it already
  * sends: the organisation, the migration, the two accounts and who made the
@@ -72,11 +76,16 @@ const LINES = [
 const BY_MAIL = { to: { kind: 'mail', addresses: ['support@ownpace.eu'] }, lines: LINES };
 const ON_HELPDESK = { to: { kind: 'helpdesk' }, lines: LINES };
 
-/** The API, as the form asks it: whether it takes reports, and the lines a report would carry. */
-function answers(preview: unknown | Error) {
+/**
+ * The API, as the form asks it: whether it takes reports, and the lines a
+ * report would carry, after `delayMs` when a test wants the preview to arrive
+ * after the fold is opened.
+ */
+function answers(preview: unknown | Error, delayMs = 0) {
   getMock.mockImplementation(async (url: string) => {
     if (url === '/problem-reports/available') return { data: { available: true } };
     if (url === '/problem-reports/preview') {
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
       if (preview instanceof Error) throw preview;
       return { data: preview };
     }
@@ -127,14 +136,29 @@ describe('what we send with this', () => {
     ['en', EN],
     ['nl', NL],
   ] as const)('lists every line the report will carry, exactly as the service will send it (%s)', async (locale, L) => {
-    answers(BY_MAIL);
+    // The preview arrives after the fold is open, while the form's own list is
+    // still there: the lines are waited for, not whichever list came first.
+    answers(BY_MAIL, 30);
     renderPage(FROM, locale);
     const fold = await openFold(L);
-    const items = await within(fold).findAllByRole('listitem');
+    await within(fold).findByText(LINES[0]!);
+    const items = within(fold).getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual(LINES);
     for (const item of items) expect(item).toBeVisible();
     // What the person adds is named too: their words and a screenshot.
     expect(within(fold).getByText(L['report.facts.more'])).toBeVisible();
+    expect(within(fold).queryByText(L['report.facts.known'])).toBeNull();
+  });
+
+  it.each([
+    ['en', EN],
+    ['nl', NL],
+  ] as const)("marks the service's lines as English, for a screen reader (%s)", async (locale, L) => {
+    answers(BY_MAIL);
+    renderPage(FROM, locale);
+    const fold = await openFold(L);
+    const first = await within(fold).findByText(LINES[0]!);
+    expect(first.closest('ul')).toHaveAttribute('lang', 'en');
   });
 
   it('asks the service for the lines of the page it came from, with its reference and category', async () => {
@@ -157,14 +181,35 @@ describe('what we send with this', () => {
     expect(summary.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('still lists what the form itself knows when the lines could not be had, and says the rest goes with it', async () => {
-    answers(new Error('Network Error'));
-    renderPage(FROM);
-    const fold = await openFold(EN);
-    expect(await within(fold).findByText(EN['report.facts.unshown'])).toBeVisible();
-    expect(within(fold).getByText(EN['report.page'].replace('{page}', `/mappings/${MAPPING}/failures`))).toBeVisible();
-    expect(within(fold).getByText(EN['report.reference'].replace('{reference}', 'a1b2c3d4'))).toBeVisible();
-    expect(within(fold).getByText(EN['report.category'].replace('{category}', 'auth_expired'))).toBeVisible();
+  it.each([
+    ['en', EN],
+    ['nl', NL],
+  ] as const)(
+    'still lists what the form itself knows when the lines could not be had, and says the rest goes with it (%s)',
+    async (locale, L) => {
+      answers(new Error('Network Error'));
+      renderPage(FROM, locale);
+      const fold = await openFold(L);
+      expect(await within(fold).findByText(L['report.facts.unshown'])).toBeVisible();
+      const page = within(fold).getByText(L['report.page'].replace('{page}', `/mappings/${MAPPING}/failures`));
+      expect(page).toBeVisible();
+      expect(within(fold).getByText(L['report.reference'].replace('{reference}', 'a1b2c3d4'))).toBeVisible();
+      expect(within(fold).getByText(L['report.category'].replace('{category}', 'auth_expired'))).toBeVisible();
+      // In the reader's language, under an introduction of its own: not the
+      // sentence that promises the service's lines, in English.
+      expect(within(fold).getByText(L['report.facts.known'])).toBeVisible();
+      expect(within(fold).queryByText(L['report.facts.more'])).toBeNull();
+      expect(page.closest('ul')).not.toHaveAttribute('lang');
+    },
+  );
+
+  it('says the lines are shown as the support team reads them, and not that they all come from the records', () => {
+    for (const L of [EN, NL]) {
+      expect(L['report.facts.more']).toMatch(L === EN ? /in English:$/ : /in het Engels:$/);
+      for (const key of ['report.facts.more', 'report.facts.known', 'report.facts.reading', 'report.facts.unshown'] as const) {
+        expect(L[key], key).not.toMatch(/our records|onze gegevens/);
+      }
+    }
   });
 
   it('reads an answer it does not understand as no answer', async () => {
@@ -212,6 +257,23 @@ describe('where it goes, said above Send', () => {
     renderPage(FROM);
     expect(await screen.findByText(EN['report.goesTo'])).toBeVisible();
   });
+
+  it.each([
+    ['en', EN],
+    ['nl', NL],
+  ] as const)(
+    "the support team, without an address, when the service names none (the operator's own) (%s)",
+    async (locale, L) => {
+      answers({ ...BY_MAIL, to: { kind: 'mail' } });
+      renderPage(FROM, locale);
+      const fold = await openFold(L);
+      // The answer is read, lines and all: only the address is not there.
+      await within(fold).findByText(LINES[0]!);
+      expect(screen.getByText(L['report.goesTo'])).toBeVisible();
+      const byMail = L['report.goesTo.mail'].split('{address}')[0]!;
+      expect(screen.queryByText((text) => text.startsWith(byMail))).toBeNull();
+    },
+  );
 
   it('never an address it made up', () => {
     for (const L of [EN, NL]) {

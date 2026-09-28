@@ -107,13 +107,24 @@ export interface ProblemReportDeps {
   readonly factsDeadlineMs?: number;
 }
 
-/** Where a report goes, as the form says it: the addresses a mail goes to, or the helpdesk. */
+/**
+ * Where a report goes, as the form says it: by mail, with the support
+ * mailbox's addresses when `REPORT_MAIL_TO` names them, or the helpdesk.
+ */
 export type ReportRecipient =
-  | { readonly kind: 'mail'; readonly addresses: readonly string[] }
+  | { readonly kind: 'mail'; readonly addresses?: readonly string[] }
   | { readonly kind: 'helpdesk' };
 
+/**
+ * The addresses only when they are the support mailbox's. With `REPORT_MAIL_TO`
+ * empty, reports go to `NOTIFY_TO`, the operator's own list of addresses a
+ * person reads, and every signed-in member may ask this, a viewer too: that
+ * list is never handed to a browser, and the form says the support team
+ * without an address.
+ */
 function recipientOf(channel: ReportChannel): ReportRecipient {
-  return channel.kind === 'mail' ? { kind: 'mail', addresses: channel.mail.to } : { kind: 'helpdesk' };
+  if (channel.kind === 'zammad') return { kind: 'helpdesk' };
+  return channel.mail.supportMailbox ? { kind: 'mail', addresses: channel.mail.to } : { kind: 'mail' };
 }
 
 export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
