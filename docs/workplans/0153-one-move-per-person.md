@@ -4,6 +4,50 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: the Migrations page lists people (T3's first half, with T6's words; 0131
+§6, R8 step 4, built beside R at the owner's word *"continue on the rest"*)**, in this pull
+request.
+
+- **One card per person** (`apps/web/src/pages/Mappings.tsx`), read from `GET /api/people`
+  beside the migrations list. A card shows:
+  - the person's name, and one stage: the least advanced of their migrations' (*"One stage per
+    person"*);
+  - one line saying where from and where to, in words: *"From Google and Dropbox to Soverin and
+    Nextcloud"* (`providerName`, which names the company a person leaves);
+  - a line per data type, with its two tiles, its stage and its last pass;
+  - a count of what needs the person, linked to *Needs you* (`/decisions`) until T5's page exists.
+- **Every migration keeps its controls:** sync or pause, *Review and start*, open, and delete in
+  two presses. Its own page has neither Delete nor a sync. The whole migration opens it, as the
+  table's row did (owner feedback 2026-08-11).
+- **Migrations that belong to nobody**, which is every one made before people existed, are
+  listed under *Not with a person yet*. Each is added to a person in one press. *Add a person*
+  takes a name, and an address or none. On the appliance, the one implicit person is called
+  *Your migrations*, and nothing offers to add people.
+- **Add a migration** on a card opens the wizard with `?person=`. The new migration is added to
+  the person before its green light. When that add is refused, the green light's page says so
+  in the server's words, and the migration waits under *Not with a person yet*.
+- **The words** are T6 (b)'s: *Start a migration* / *Migratie starten* and *Needs you* /
+  *Wacht op u*. The new ones went into `GLOSSARY.md` first (*person* / *persoon*), then
+  `strings.ts`, in both languages.
+- **A failed read** of the migrations or of the people is a failure on screen, never an empty
+  list (hard rule 9). When what needs a person cannot be read, the card says it could not
+  count, never zero.
+- **Proved by:**
+  - `Mappings.unit.test.tsx` (30 cases);
+  - `CreateMapping.unit.test.tsx` (3 new cases) and `ConfirmMapping.unit.test.tsx` (3 new);
+  - `ProviderTile.unit.test.tsx` (10 new);
+  - `managed-ui.ui.test.ts` in a real browser (13 cases; the people read's failure is new).
+
+  **Mutations:**
+  - with the whole-migration click taken out, the unit case and the browser's dead-row case fail;
+  - with the actions' stop taken out, a Pause press opens the migration, and the unit case fails;
+  - with the wizard's refused add swallowed, its case fails.
+- **Not yet, T3's second half:** Migrations as the landing page, the Dashboard's going with
+  `/dashboard` redirected, and the menu (*Accounts*, *Needs you* with its count, *Help*, *Team*).
+  Two things wait on 0154 T2: until the list carries the check, a migration whose check passed
+  shows *Kept in step* rather than *Ready to switch*, and the one-line progress on each row
+  waits for the totals.
+
 **2026-09-28, night: the owner's answers for the rest of R8 (asked by the writing session, which
 the owner told to *"continue on the rest"*).**
 
@@ -163,7 +207,7 @@ person, and a flow that fills it.
 | T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
-| T3 The Migrations page lists people | 📋 **Proposed; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
+| T3 The Migrations page lists people | 🟡 **First half built: the page lists people, with T6's words (this pull request). The landing page, the Dashboard's going and the menu are next; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |

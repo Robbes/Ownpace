@@ -1,70 +1,122 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
+/**
+ * MIGRATIONS: ONE CARD PER PERSON (workplan 0153 T3; ADR-0050, amended by the
+ * owner on 2026-09-28).
+ *
+ * The page lists people, not rows. A card is a person's name, where their data
+ * comes from and goes to, one line per data type with its stage in words (0154
+ * T1), and a count of what needs them. A person's stage is the least advanced
+ * of their migrations' (the owner, 2026-09-28: *"One stage per person"*); the
+ * lifecycle words stay the operator's, on the migration's own page.
+ *
+ * A PERSON CHANGES NOTHING ABOUT A MIGRATION, so every migration keeps its own
+ * controls here, as the table had them: *Trigger sync* or *Pause* while it
+ * runs, *Review and start* for a draft, *Open*, and *Delete* in two presses.
+ * The migration's own page has no Delete and no Sync now, so a list without
+ * them would have taken away the only way to either.
+ *
+ * Migrations that belong to nobody, which is every one made before people
+ * existed, are listed under the cards, each with one press to add it to a
+ * person, and a person can be added there.
+ *
+ * THREE READS. The migrations and the people make the page: if either fails,
+ * the page says so and shows neither cards nor an empty state (hard rule 9).
+ * What needs a person only counts: when that read fails, the counts say they
+ * could not be taken, never zero.
+ *
+ * The stage is read from what the list carries: the lifecycle, and whether a
+ * pass has completed. A migration whose check passed shows *Kept in step*
+ * here, not *Ready to switch*, until the list carries the check (0154 T2).
+ */
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { FolderGit2, Plus, Play, Pause, Trash2, Edit, AlertCircle } from 'lucide-react';
 import {
-  FolderGit2,
-  Plus,
-  MoreVertical as _MoreVertical,
-  Play,
-  Pause,
-  Trash2,
-  Edit,
-  AlertCircle
-} from 'lucide-react';
-import { mappingApi } from '../services/mapping-service.ts';
+  leastAdvancedStage,
+  stageOf,
+  type MappingAttention,
+  type Person,
+  type Stage,
+} from '@openmig/shared';
+import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
+import {
+  addMigrationToPerson,
+  createPerson,
+  fetchAttention,
+  fetchPeople,
+} from '../services/operating-service.ts';
 import { serverMessage } from '../services/api.ts';
 import StateChip from '../components/StateChip.tsx';
+import ProviderTile, { providerName } from '../components/ProviderTile.tsx';
+import { DataTypeLabel } from '../components/icons/data-type-icons.tsx';
 import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 
+/** A migration's stage, from what the list carries (see the header). */
+export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): Stage | undefined {
+  return stageOf({ phase: m.status, completedOnce: Boolean(m.lastSyncAt) });
+}
+
+/** What needs a person about one migration: its queues. Undefined when the count could not be taken. */
+export function waitingOn(a: MappingAttention | undefined, attentionRead: boolean): number | undefined {
+  if (!attentionRead) return undefined;
+  if (!a) return 0;
+  if ((a.blindSpots?.length ?? 0) > 0) return undefined;
+  return a.failuresWaiting + a.deletionsWaiting + a.movesWaiting + a.pendingDecisions;
+}
+
+/** The names on one side of a person's migrations, once each, in the order met. */
+function providerNames(migrations: readonly MappingListItem[], side: 'sourceType' | 'targetType'): string[] {
+  const names: string[] = [];
+  for (const m of migrations) {
+    const kind = m[side];
+    // The route's word for a connection it could not find: no name to say.
+    if (kind === 'unknown') continue;
+    const name = providerName(kind, side === 'sourceType' ? 'source' : 'target');
+    if (!names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+type SyncOutcome = { state: 'pending' } | { state: 'failed'; text: string };
+
 const Mappings: React.FC = () => {
   const t = useT();
-  const navigate = useNavigate();
-  const { relativeToNow } = useFormatters();
+  const { relativeToNow, list } = useFormatters();
   const queryClient = useQueryClient();
-  const { data: allMappings, isLoading, error, refetch } = useQuery({
-    queryKey: ['mappings'],
-    queryFn: mappingApi.list,
-  });
+  const navigate = useNavigate();
+
+  const mappingsQuery = useQuery({ queryKey: ['mappings'], queryFn: mappingApi.list });
+  const peopleQuery = useQuery({ queryKey: ['people'], queryFn: fetchPeople });
+  const attentionQuery = useQuery({ queryKey: ['attention'], queryFn: fetchAttention });
 
   /**
-   * `?status=` — where the dashboard's counts LAND (workplan 0074).
-   *
-   * The five tiles counted the lifecycle states and were plain `<div>`s: the
-   * obvious question a count raises is *which ones?*, and clicking it did
-   * nothing. Filtering here rather than on the tile keeps one list with one
-   * set of row actions, and makes the filter a URL somebody can share or
-   * bookmark instead of component state that dies on a refresh.
-   *
-   * An unknown status filters to nothing rather than silently showing
-   * everything — an empty list under a banner naming the filter is an answer;
-   * a full list under a filter that did not apply is a lie.
+   * `?status=` — where the dashboard's counts land (workplan 0074). Filters
+   * the migrations; a card with none left is not shown. An unknown status
+   * filters to nothing rather than showing everything: an empty page under a
+   * banner naming the filter is an answer, a full one under a filter that did
+   * not apply is a lie.
    */
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get('status');
-  const mappings = statusFilter
-    ? allMappings?.filter((m) => m.status === statusFilter)
-    : allMappings;
 
-  // Per-row sync outcome (0033 T3). The old handleSync caught failures with
-  // console.error only — the operator who clicked saw nothing. A refusal now
-  // renders under the row with the server's words verbatim; success clears
-  // the marker and the refetched row is the feedback.
-  const [syncOutcomes, setSyncOutcomes] = React.useState<
-    Record<string, { state: 'pending' } | { state: 'failed'; text: string }>
-  >({});
-
-  // Delete arming (0037 T5). The Trash button used to have NO onClick — a
-  // dead control on the exact path an admin takes after a botched run. It
-  // arms rather than firing on one click (hard rule 2's posture); what it
-  // asks for at the second press is a plain yes, and the row below says why
-  // that is the honest weight.
-  /** Which row is armed for deletion, if any — the first of the two presses. */
+  // Per-migration sync outcome (0033 T3): a refusal renders under the
+  // migration with the server's words, never only in the console.
+  const [syncOutcomes, setSyncOutcomes] = React.useState<Record<string, SyncOutcome>>({});
+  // Delete arming (0037 T5): two presses, and the sentence between them says
+  // what goes and what is not touched.
   const [deleteArm, setDeleteArm] = React.useState<{ id: string } | null>(null);
   const [deleteFailed, setDeleteFailed] = React.useState<string | null>(null);
   const [deletePending, setDeletePending] = React.useState(false);
+
+  const refreshLists = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['mappings'] }),
+      queryClient.invalidateQueries({ queryKey: ['people'] }),
+    ]);
+  };
 
   const handleDelete = async (mappingId: string) => {
     setDeletePending(true);
@@ -72,7 +124,7 @@ const Mappings: React.FC = () => {
     try {
       await mappingApi.delete(mappingId);
       setDeleteArm(null);
-      await refetch();
+      await refreshLists();
     } catch (error) {
       setDeleteFailed(serverMessage(error));
     } finally {
@@ -81,12 +133,9 @@ const Mappings: React.FC = () => {
   };
 
   /**
-   * Pause (0121, live 2026-09-11). The row for an ACTIVE mapping showed one
-   * control, a Play that triggers a pass now — and nothing to stop the
-   * passes. The migration that was looping on a broken target could only be
-   * halted by stopping the worker containers. `paused` is a lifecycle the
-   * product has had all along: the tick skips it and the confirm screen
-   * resumes it — it just had no button.
+   * Pause (0121). Refreshes this list AND the migration's own cached page
+   * (2026-09-17): the list alone left `['mapping', id]` saying `active`, with
+   * a Pause button offered on a paused migration.
    */
   const handlePause = async (mappingId: string) => {
     setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'pending' } }));
@@ -96,16 +145,9 @@ const Mappings: React.FC = () => {
         const { [mappingId]: _done, ...rest } = o;
         return rest;
       });
-      // This row and the migration's OWN page (2026-09-17). `refetch()` alone
-      // refreshed the list and left `['mapping', id]` saying `active` for five
-      // minutes — the owner's Active-here-Paused-there, in the other
-      // direction, with a Pause button offered on a paused migration.
       await forgetMappingLifecycle(queryClient, mappingId);
     } catch (error) {
-      setSyncOutcomes((o) => ({
-        ...o,
-        [mappingId]: { state: 'failed', text: serverMessage(error) },
-      }));
+      setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'failed', text: serverMessage(error) } }));
     }
   };
 
@@ -117,16 +159,13 @@ const Mappings: React.FC = () => {
         const { [mappingId]: _done, ...rest } = o;
         return rest;
       });
-      await refetch();
+      await refreshLists();
     } catch (error) {
-      setSyncOutcomes((o) => ({
-        ...o,
-        [mappingId]: { state: 'failed', text: serverMessage(error) },
-      }));
+      setSyncOutcomes((o) => ({ ...o, [mappingId]: { state: 'failed', text: serverMessage(error) } }));
     }
   };
 
-  if (isLoading) {
+  if (mappingsQuery.isLoading || peopleQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -134,13 +173,194 @@ const Mappings: React.FC = () => {
     );
   }
 
+  const failures = [
+    ...(mappingsQuery.error != null ? [{ lead: t('mappings.loadFailed'), error: mappingsQuery.error }] : []),
+    ...(peopleQuery.error != null ? [{ lead: t('people.loadFailed'), error: peopleQuery.error }] : []),
+  ];
+
+  const allMappings = mappingsQuery.data ?? [];
+  const byId = new Map(allMappings.map((m) => [m.id, m]));
+  const shown = (m: MappingListItem) => !statusFilter || m.status === statusFilter;
+  const people = peopleQuery.data?.people ?? [];
+  const attentionRead = attentionQuery.isSuccess;
+  const attentionById = new Map((attentionQuery.data?.mappings ?? []).map((a) => [a.mappingId, a]));
+
+  // Each person's migrations, as the list has them; one the list does not
+  // have is not shown (the list is what exists).
+  const cards = people.map((person) => ({
+    person,
+    migrations: person.migrations.map((pm) => byId.get(pm.id)).filter((m): m is MappingListItem => Boolean(m)),
+  }));
+  const grouped = new Set(cards.flatMap((c) => c.migrations.map((m) => m.id)));
+  const withNobody = allMappings.filter((m) => !grouped.has(m.id));
+
+  const needsOf = (migrations: readonly MappingListItem[]): number | undefined => {
+    let total = 0;
+    for (const m of migrations) {
+      const n = waitingOn(attentionById.get(m.id), attentionRead);
+      if (n === undefined) return undefined;
+      total += n;
+    }
+    return total;
+  };
+
+  const namedPeople = people.filter((p) => !p.implicit);
+  const canAddPeople = !people.some((p) => p.implicit);
+  const nothingAtAll = allMappings.length === 0 && people.length === 0;
+  const needYou = cards.filter((c) => (needsOf(c.migrations) ?? 0) > 0).length;
+
+  const migrationBlock = (m: MappingListItem, extra?: React.ReactNode) => {
+    const stage = listStage(m);
+    const outcome = syncOutcomes[m.id];
+    return (
+      <div key={m.id} className="py-3 border-t border-gray-100 first:border-t-0">
+        {/* The whole migration opens it, as the table's row did (owner
+            feedback 2026-08-11: a list where only a small icon navigates is
+            a hunt). The name is also a real link, for a keyboard and a
+            middle click, and the actions stop the click, so a button never
+            doubles as the way in. */}
+        <div
+          data-migration={m.id}
+          className="-mx-2 px-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+          onClick={() => navigate(`/mappings/${m.id}`)}
+        >
+          {/* The actions wrap onto their own line on a phone, rather than
+              running off the edge (0073: a control that cannot be reached does
+              not exist). */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              to={`/mappings/${m.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm font-medium text-gray-900 hover:underline"
+            >
+              {m.name}
+            </Link>
+            <div className="flex flex-wrap items-center gap-3" onClick={(e) => e.stopPropagation()}>
+              {m.status === 'active' ? (
+                <>
+                  <button
+                    onClick={() => void handleSync(m.id, 'delta')}
+                    disabled={outcome?.state === 'pending'}
+                    className="p-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={t('mappings.action.triggerSync')}
+                    aria-label={t('mappings.action.triggerSync')}
+                  >
+                    <Play className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => void handlePause(m.id)}
+                    disabled={outcome?.state === 'pending'}
+                    className="p-1 text-amber-600 hover:text-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={t('mappings.action.pause')}
+                    aria-label={t('mappings.action.pause')}
+                  >
+                    <Pause className="w-5 h-5" />
+                  </button>
+                </>
+              ) : m.status === 'paused' ? (
+                // A paused migration's green light lives on the confirm screen
+                // (0037 T2); a Play here would post a sync the server refuses.
+                <Link to={`/mappings/${m.id}/confirm`} className="text-green-700 hover:text-green-900 text-sm font-medium">
+                  {t('mappings.action.reviewAndStart')}
+                </Link>
+              ) : (
+                <button
+                  onClick={() => void handleSync(m.id, 'full')}
+                  disabled={outcome?.state === 'pending'}
+                  className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={t('mappings.action.startSync')}
+                  aria-label={t('mappings.action.startSync')}
+                >
+                  <Play className="w-5 h-5" />
+                </button>
+              )}
+              <Link to={`/mappings/${m.id}`} aria-label={t('mappings.action.open')} className="p-1 text-blue-600 hover:text-blue-800">
+                <Edit className="w-5 h-5" />
+              </Link>
+              <button
+                onClick={() => {
+                  setDeleteFailed(null);
+                  setDeleteArm((arm) => (arm?.id === m.id ? null : { id: m.id }));
+                }}
+                className="p-1 text-red-600 hover:text-red-800"
+                title={t('mappings.action.delete')}
+                aria-label={t('mappings.action.delete')}
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <ul className="mt-1">
+            {m.domains.map((domain) => (
+              <li key={domain} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-1 text-sm">
+                <DataTypeLabel domain={domain} size={18} />
+                <span className="flex items-center gap-2 text-gray-700">
+                  <ProviderTile type={m.sourceType} role="source" size={20} />
+                  <span aria-hidden="true">→</span>
+                  <ProviderTile type={m.targetType} role="target" size={20} />
+                </span>
+                {stage && <StateChip entity="stage" state={stage} />}
+                <span className="text-gray-500">
+                  {m.lastSyncAt ? t('people.lastPass', { when: relativeToNow(m.lastSyncAt) }) : t('people.noPassYet')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {extra}
+        {deleteArm?.id === m.id && (
+          <div className="mt-2 px-3 py-3 rounded-lg bg-red-50 text-sm text-red-900">
+            <Hint className="" tone="body" label="more" text={t('mappings.delete.explain')} why={t('mappings.delete.more')} />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => void handleDelete(m.id)}
+                disabled={deletePending}
+                className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('mappings.delete.confirm')}
+              </button>
+              <button
+                onClick={() => {
+                  setDeleteArm(null);
+                  setDeleteFailed(null);
+                }}
+                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                {t('mappings.delete.cancel')}
+              </button>
+            </div>
+            {deleteFailed !== null && (
+              <p className="mt-2">
+                <span className="font-medium">{t('mappings.delete.failed')}</span> {deleteFailed}
+              </p>
+            )}
+          </div>
+        )}
+        {outcome?.state === 'failed' && (
+          <p className="mt-2 px-3 py-2 rounded-lg bg-red-50 text-sm text-red-800">
+            <span className="font-medium">{t('mappings.syncFailed')}</span> {outcome.text}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('mappings.title')}</h1>
-          <p className="text-gray-500 mt-1">{t('mappings.subtitle')}</p>
+          {failures.length === 0 && people.length > 0 && (
+            <p className="text-gray-600 mt-1">
+              {people.length === 1 ? t('people.count.one') : t('people.count.many', { n: people.length })}
+              {attentionRead && needYou > 0 && (
+                <>
+                  {' · '}
+                  {needYou === 1 ? t('people.needYou.one') : t('people.needYou.many', { n: needYou })}
+                </>
+              )}
+            </p>
+          )}
         </div>
         <Link
           to="/mappings/new"
@@ -151,38 +371,31 @@ const Mappings: React.FC = () => {
         </Link>
       </div>
 
-      {/* A filter has to be VISIBLE and reversible, or the next person to open
-          this link reports a missing migration (0074). */}
-      {statusFilter && error == null && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+      {statusFilter && failures.length === 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
           <span className="text-blue-900">
             {t('mappings.filtered.lead')} {t(`state.lifecycle.${statusFilter}` as StringKey)}
           </span>
-          <button
-            type="button"
-            onClick={() => setSearchParams({})}
-            className="text-blue-700 underline hover:no-underline"
-          >
+          <button type="button" onClick={() => setSearchParams({})} className="text-blue-700 underline hover:no-underline">
             {t('mappings.filtered.clear')}
           </button>
         </div>
       )}
 
-      {/* Failed read ≠ empty list (hard rule 9 / 0033 T2). Before this branch
-          existed, a failed fetch fell through `mappings?.length === 0`
-          (undefined ≠ 0) into the table branch and rendered empty headers — "no
-          mappings" said about a list we could not read. That masking is what
-          hid the T1 schema break for as long as it existed. */}
-      {error != null ? (
+      {failures.length > 0 ? (
         <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 text-red-800 text-sm">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">{t('mappings.loadFailed')}</p>
-            <p className="mt-1">{serverMessage(error)}</p>
+            {failures.map((f) => (
+              <React.Fragment key={f.lead}>
+                <p className="font-medium">{f.lead}</p>
+                <p className="mt-1">{serverMessage(f.error)}</p>
+              </React.Fragment>
+            ))}
             <p className="mt-1">{t('mappings.loadFailedNotEmpty')}</p>
           </div>
         </div>
-      ) : mappings?.length === 0 ? (
+      ) : nothingAtAll ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <FolderGit2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mappings.empty.title')}</h3>
@@ -196,225 +409,211 @@ const Mappings: React.FC = () => {
           </Link>
         </div>
       ) : (
-        /* overflow-x-AUTO, not hidden (workplan 0073). Five nowrap columns are
-           wider than a phone, and `overflow-hidden` CLIPPED the overflow with
-           no way to scroll to it — so the actions column, Delete included, was
-           simply unreachable on Android: the owner could not delete a migration
-           at all. Same defect as 0068 T9's Connections row, in a table instead
-           of a flex row. A control that exists but cannot be touched is a
-           control that does not exist. */
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('mappings.th.name')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('mappings.th.sourceTarget')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('mappings.th.status')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('mappings.th.lastSync')}
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('mappings.th.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {mappings?.map((mapping) => (
-                <React.Fragment key={mapping.id}>
-                {/* The whole row opens the migration (owner feedback 2026-08-11:
-                    a list where only a small icon navigates is a hunt). The name
-                    is ALSO a real link so middle-click/ctrl+click and keyboard
-                    focus work; the actions cell stops propagation so its own
-                    buttons never double as row navigation. */}
-                <tr
-                  className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate(`/mappings/${mapping.id}`)}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <FolderGit2 className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <div className="ml-4">
-                        <Link
-                          to={`/mappings/${mapping.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm font-medium text-gray-900 hover:underline"
-                        >
-                          {mapping.name}
-                        </Link>
-                        <div className="text-sm text-gray-500">
-                          {mapping.domains.join(', ')}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-900">
-                      <span className="font-medium">{mapping.sourceType}</span>
-                      <span className="mx-2 text-gray-400">→</span>
-                      <span className="font-medium">{mapping.targetType}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {/* The canonical lifecycle words, translated — StateChip
-                        (0035 T1). 'error' is not a mapping state and never
-                        arrives; failures live on the runs and failure queues. */}
-                    <StateChip entity="lifecycle" state={mapping.status} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {mapping.lastSyncAt
-                      ? relativeToNow(mapping.lastSyncAt)
-                      : t('mappings.never')}
-                  </td>
-                  <td
-                    className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
-                    onClick={(e) => e.stopPropagation()}
+        <>
+          {cards.map(({ person, migrations }) => {
+            const visible = migrations.filter(shown);
+            if (statusFilter && visible.length === 0) return null;
+            const stage = leastAdvancedStage(migrations.map(listStage));
+            const needs = needsOf(migrations);
+            const from = providerNames(migrations, 'sourceType');
+            const to = providerNames(migrations, 'targetType');
+            const headingId = `person-${person.id}`;
+            return (
+              <section key={person.id} aria-labelledby={headingId} className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 id={headingId} className="text-lg font-semibold text-gray-900">
+                      {person.displayName ?? t('people.implicit')}
+                    </h2>
+                    {stage && <StateChip entity="stage" state={stage} />}
+                  </div>
+                  {needs === undefined ? (
+                    attentionQuery.isLoading ? null : <span className="text-sm text-gray-600">{t('people.needsUnknown')}</span>
+                  ) : needs > 0 ? (
+                    <Link to="/decisions" className="text-sm font-medium text-blue-700 hover:underline">
+                      {t('people.needsYou', { n: needs })} →
+                    </Link>
+                  ) : null}
+                </div>
+                {from.length > 0 && to.length > 0 && (
+                  <p className="mt-1 text-sm text-gray-600">{t('people.fromTo', { from: list(from), to: list(to) })}</p>
+                )}
+                <div className="mt-3">
+                  {visible.length === 0 ? (
+                    <p className="text-sm text-gray-500">{t('people.noneYet')}</p>
+                  ) : (
+                    visible.map((m) => migrationBlock(m))
+                  )}
+                </div>
+                {!person.implicit && (
+                  <Link
+                    to={`/mappings/new?person=${encodeURIComponent(person.id)}`}
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
                   >
-                    <div className="flex items-center justify-end space-x-2">
-                      {mapping.status === 'active' ? (
-                        <>
-                          <button
-                            onClick={() => handleSync(mapping.id, 'delta')}
-                            disabled={syncOutcomes[mapping.id]?.state === 'pending'}
-                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={t('mappings.action.triggerSync')}
-                          >
-                            <Play className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handlePause(mapping.id)}
-                            disabled={syncOutcomes[mapping.id]?.state === 'pending'}
-                            className="text-amber-600 hover:text-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={t('mappings.action.pause')}
-                            aria-label={t('mappings.action.pause')}
-                          >
-                            <Pause className="w-5 h-5" />
-                          </button>
-                        </>
-                      ) : mapping.status === 'paused' ? (
-                        /* A paused mapping's green light lives on the confirm
-                           screen (0037 T2). The Play button this row used to
-                           render sent a sync the server answers with a 409
-                           telling the operator to POST /start — a route no
-                           button could reach. */
-                        <Link
-                          to={`/mappings/${mapping.id}/confirm`}
-                          className="text-green-600 hover:text-green-800 text-sm font-medium"
-                        >
-                          {t('mappings.action.reviewAndStart')}
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => handleSync(mapping.id, 'full')}
-                          disabled={syncOutcomes[mapping.id]?.state === 'pending'}
-                          className="text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={t('mappings.action.startSync')}
-                        >
-                          <Play className="w-5 h-5" />
-                        </button>
-                      )}
-                      <Link
-                        to={`/mappings/${mapping.id}`}
-                        aria-label={t('mappings.action.open')}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setDeleteFailed(null);
-                          setDeleteArm((arm) =>
-                            arm?.id === mapping.id ? null : { id: mapping.id },
-                          );
-                        }}
-                        className="text-red-600 hover:text-red-800"
-                        title={t('mappings.action.delete')}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {deleteArm?.id === mapping.id && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-3 bg-red-50 text-sm text-red-900">
-                      {/* ASKING TWICE, NOT ASKING FOR DICTATION (owner,
-                          2026-09-03: "deleting a migration force me to type
-                          the name again. Why?? … no data is lost in
-                          source/target, right? So this is over the top. Even,
-                          i think i typed it over, but it was not recognized,
-                          so i cant delete my migration.").
-
-                          Both halves of that were right. The gate compared
-                          the typed text to `mapping.name` byte for byte — no
-                          trim, no case — so a name carrying a space nobody
-                          can see in a placeholder locked the button forever,
-                          with no sentence saying why. A confirmation that can
-                          refuse a correct answer is not a safety measure.
-
-                          And the weight was misplaced. Typing a name to
-                          confirm is what you ask for when the thing cannot be
-                          got back: a dropped database, a deleted account.
-                          This deletes rows in OUR database — the migration's
-                          configuration and what it recorded about its own
-                          copies. Every FK to `mailbox_mapping` cascades, and
-                          all of them are ours. Nothing reaches the source or
-                          the target: this product only writes to a provider
-                          inside a sync or a gated apply (ADR-0024), never
-                          from a screen. So the honest gate is two presses and
-                          a sentence saying exactly that. */}
-                      <Hint className="" tone="body" label="more" text={t('mappings.delete.explain')} why={t('mappings.delete.more')} />
-                      <div className="mt-2 flex items-center gap-2">
-                        <button
-                          onClick={() => void handleDelete(mapping.id)}
-                          disabled={deletePending}
-                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {t('mappings.delete.confirm')}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setDeleteArm(null);
-                            setDeleteFailed(null);
-                          }}
-                          className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                        >
-                          {t('mappings.delete.cancel')}
-                        </button>
-                      </div>
-                      {deleteFailed !== null && (
-                        <p className="mt-2">
-                          <span className="font-medium">{t('mappings.delete.failed')}</span>{' '}
-                          {deleteFailed}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
+                    <Plus className="w-4 h-4" />
+                    {t('people.addMigration')}
+                  </Link>
                 )}
-                {syncOutcomes[mapping.id]?.state === 'failed' && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-2 bg-red-50 text-sm text-red-800">
-                      {/* The server's refusal verbatim — for a paused mapping
-                          the 409 names what to do next. */}
-                      <span className="font-medium">{t('mappings.syncFailed')}</span>{' '}
-                      {(syncOutcomes[mapping.id] as { text: string }).text}
-                    </td>
-                  </tr>
-                )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </section>
+            );
+          })}
+
+          {withNobody.filter(shown).length > 0 && (
+            <section aria-labelledby="people-unassigned" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+              <h2 id="people-unassigned" className="text-lg font-semibold text-gray-900">
+                {t('people.unassigned.title')}
+              </h2>
+              {namedPeople.length > 0 && <p className="mt-1 text-sm text-gray-600">{t('people.unassigned.hint')}</p>}
+              <div className="mt-3">
+                {withNobody
+                  .filter(shown)
+                  .map((m) =>
+                    migrationBlock(
+                      m,
+                      namedPeople.length > 0 ? <AddToPerson mappingId={m.id} people={namedPeople} /> : undefined,
+                    ),
+                  )}
+              </div>
+            </section>
+          )}
+
+          {canAddPeople && !statusFilter && <NewPerson />}
+        </>
       )}
     </div>
+  );
+};
+
+/** One press to add a migration that belongs to nobody to a person (ADR-0050 rule 2). */
+const AddToPerson: React.FC<{ mappingId: string; people: readonly Person[] }> = ({ mappingId, people }) => {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const id = React.useId();
+  const [personId, setPersonId] = React.useState(people[0]?.id ?? '');
+  const [pending, setPending] = React.useState(false);
+  const [failed, setFailed] = React.useState<string | null>(null);
+
+  const add = async () => {
+    setPending(true);
+    setFailed(null);
+    try {
+      await addMigrationToPerson(personId, mappingId);
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+    } catch (error) {
+      setFailed(serverMessage(error));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label htmlFor={id} className="text-gray-700">
+          {t('people.addTo')}
+        </label>
+        <select
+          id={id}
+          value={personId}
+          onChange={(e) => setPersonId(e.target.value)}
+          className="px-2 py-1 border border-gray-300 rounded-lg"
+        >
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.displayName}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void add()}
+          disabled={pending || personId === ''}
+          className="px-3 py-1 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          {t('people.addTo.submit')}
+        </button>
+      </div>
+      {failed !== null && (
+        <p role="alert" className="mt-1 text-sm text-red-800">
+          <span className="font-medium">{t('people.addTo.failed')}</span> {failed}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/** A person to add migrations to: a name, and an address for a grant link or none. */
+const NewPerson: React.FC = () => {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const nameId = React.useId();
+  const emailId = React.useId();
+  const [name, setName] = React.useState('');
+  const [email, setEmail] = React.useState('');
+  const [pending, setPending] = React.useState(false);
+  const [failed, setFailed] = React.useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPending(true);
+    setFailed(null);
+    try {
+      await createPerson({ displayName: name, email: email === '' ? null : email });
+      setName('');
+      setEmail('');
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+    } catch (error) {
+      setFailed(serverMessage(error));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={(e) => void submit(e)} className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+      <h2 className="text-lg font-semibold text-gray-900">{t('people.new.title')}</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor={nameId} className="block text-sm font-medium text-gray-700">
+            {t('people.new.name')}
+          </label>
+          <input
+            id={nameId}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={200}
+            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+        <div>
+          <label htmlFor={emailId} className="block text-sm font-medium text-gray-700">
+            {t('people.new.email')}
+          </label>
+          <input
+            id={emailId}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={254}
+            autoComplete="off"
+            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+      </div>
+      <button
+        type="submit"
+        disabled={pending || name.trim() === ''}
+        className="mt-3 px-4 py-2 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+      >
+        {t('people.new.submit')}
+      </button>
+      {failed !== null && (
+        <p role="alert" className="mt-2 text-sm text-red-800">
+          <span className="font-medium">{t('people.new.failed')}</span> {failed}
+        </p>
+      )}
+    </form>
   );
 };
 
