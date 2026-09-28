@@ -7,7 +7,7 @@ import {
   needsAcknowledgement,
 } from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
-import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
+import { scopeFamilyOfConnectionKind, scopeManifestFor } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -205,9 +205,15 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   // and Planner and mentioning Drive nowhere.
   //
   // An unrecognised source narrows to the rows true of every source rather
-  // than falling back to a provider: `scopeFamilyOf` returns undefined and the
+  // than falling back to a provider: the lookup returns undefined and the
   // filter is given nothing, which under-tells instead of mis-telling.
-  const family = scopeFamilyOf(mapping.data?.sourceType ?? '');
+  //
+  // THE KIND, NOT THE TYPE (workplan 0153 T1 (a)). The detail route answers
+  // `sourceType` with the source CONNECTION KIND (`google_drive`, `o365`),
+  // not the mapping file's type (`google-drive`) that `scopeFamilyOf` reads
+  // on the appliance's own page. Asked in the wrong vocabulary, a Drive
+  // migration had no family and was shown every provider's rows.
+  const family = scopeFamilyOfConnectionKind(mapping.data?.sourceType ?? '');
   const scoped =
     manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
 
@@ -274,6 +280,15 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
 
       {/* Scope manifest (§11.2) */}
       {scoped && <ScopeManifestPanel manifest={scoped} />}
+      {/* "I could not read it" is not "there is nothing to say" (hard rule 9).
+          Without this line a manifest that failed to load, or failed to parse,
+          left the screen where somebody decides whether to start with no
+          "does not migrate" list and no sign that one was missing. */}
+      {manifest.isError && (
+        <p className="text-sm text-red-600" role="alert">
+          {t('confirm.manifestError')} {serverMessage(manifest.error)}
+        </p>
+      )}
 
       {/* The server's sentence, not the transport's: a refused Start (an
           operator hold, 0132 T6 (b), or a grant still awaited or withdrawn)

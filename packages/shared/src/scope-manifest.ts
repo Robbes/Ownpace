@@ -13,14 +13,20 @@
  * asked what they are leaving. `standards` is the honest label for a source
  * that is an endpoint rather than a product — a bare IMAP server, a CalDAV
  * URL — where there is no vendor whose extras could stay behind.
+ *
+ * A LIST AS WELL AS A TYPE, because a client has to validate `appliesTo` when
+ * it parses the manifest off the wire, and a second copy of these six words in
+ * a schema is how the two would come to disagree (workplan 0153 T1 (a)).
  */
-export type ScopeFamily =
-  | 'google'
-  | 'microsoft'
-  | 'dropbox'
-  | 'box'
-  | 'archive'
-  | 'standards';
+export const SCOPE_FAMILIES = [
+  'google',
+  'microsoft',
+  'dropbox',
+  'box',
+  'archive',
+  'standards',
+] as const;
+export type ScopeFamily = (typeof SCOPE_FAMILIES)[number];
 
 /**
  * EVERY SOURCE TYPE'S FAMILY, held by the compiler rather than by memory.
@@ -70,6 +76,68 @@ const SCOPE_FAMILY: Record<SourceConfig['type'], ScopeFamily> = {
  */
 export function scopeFamilyOf(sourceType: string): ScopeFamily | undefined {
   return (SCOPE_FAMILY as Record<string, ScopeFamily | undefined>)[sourceType];
+}
+
+/**
+ * THE SAME QUESTION, ASKED IN THE MANAGED EDITION'S VOCABULARY (workplan 0153
+ * T1 (a)).
+ *
+ * `SCOPE_FAMILY` above is keyed by the mapping file's source TYPE, which is
+ * what the appliance's confirm page holds. The managed migration route answers
+ * with the CONNECTION KIND instead (`sourceType: sourceConn?.kind`), the
+ * column's older vocabulary: `google_drive` with an underscore, `o365` for
+ * both of the customer-registered Microsoft cards, and `imap` and `apple` for
+ * rows whose mapping file would say `imap-oauth2`, `caldav` or `carddav`.
+ * Looked up in the table above, every one of those answered `undefined`, and
+ * `scopeManifestFor` given no family keeps only the rows true of every source
+ * — which, once the web schema had stripped `appliesTo` off every row, was
+ * every row. So a Google Drive migration was confirmed under SharePoint, Teams
+ * and Planner.
+ *
+ * A second table rather than one lookup that tries both vocabularies: `gmail`,
+ * `google`, `microsoft`, `dropbox`, `box` and `archive` are one word in both,
+ * but `imap` exists only as a kind and `caldav` only as a type here, and a
+ * lookup that guessed which it had been handed would one day answer for a
+ * string in the wrong one. `a-source-kind-with-no-scope-family.unit.test.ts`
+ * in `apps/api` walks every source type the create door accepts through
+ * `sourceKindFor`, so a kind added there without a row here fails the build.
+ */
+const SCOPE_FAMILY_OF_SOURCE_KIND: Readonly<Record<string, ScopeFamily>> = {
+  // Any IMAP server, by protocol: an endpoint, not a product.
+  imap: 'standards',
+  // `o365` is the customer's own Entra registration, which both the IMAP and
+  // the Graph card store; `microsoft` is the account card (workplan 0114).
+  o365: 'microsoft',
+  microsoft: 'microsoft',
+  gmail: 'google',
+  google_drive: 'google',
+  google_calendar: 'google',
+  google_contacts: 'google',
+  google: 'google',
+  // Apple publishes no API for its own Mail, Calendar or Contacts: the row is
+  // reached over IMAP and DAV with an app-specific password (workplan 0115),
+  // and `source-face-builders.ts` builds it with the same `imap` and `dav`
+  // builders as Soverin. Their configs are `imap-oauth2`, `caldav` and
+  // `carddav`, which the table above calls `standards`: one account, one
+  // answer, whichever vocabulary asks.
+  apple: 'standards',
+  dropbox: 'dropbox',
+  box: 'box',
+  archive: 'archive',
+};
+
+/**
+ * The family of a SOURCE connection kind, or `undefined` for a string that is
+ * not one (a target kind, or the detail route's `'unknown'` when the
+ * connection row is missing). Undefined narrows the manifest to the rows true
+ * of every source, which under-tells rather than mis-tells.
+ *
+ * Own-property lookup, so `constructor` or `toString` is not a kind.
+ */
+export function scopeFamilyOfConnectionKind(kind: string): ScopeFamily | undefined {
+  return Object.prototype.hasOwnProperty.call(SCOPE_FAMILY_OF_SOURCE_KIND, kind)
+    ? SCOPE_FAMILY_OF_SOURCE_KIND[kind]
+    : undefined;
 }
 
 import type { SourceConfig } from './config.ts';
