@@ -234,10 +234,13 @@ ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
 ## 11. Beëindigen
 
 <!-- "Vanaf het moment dat uw account gesloten is, gebruikt niets de toegang die u ons gaf nog."
-     True on main since #1320 (d7868276, 0085 T2, 2026-09-28): the sync tick (ACTIVE_MAPPINGS_SQL
-     in apps/worker/src/jobs/managed-sync-tick.ts) skips a closed organisation, and a pass
-     already queued halts before it builds any credentials. This branch has not merged main
-     since that commit; merging it brings the fix (terms.md briefing, precondition B). -->
+     True since #1320 (d7868276, 0085 T2, 2026-09-28), merged into this branch in c1413b53
+     (terms.md briefing, precondition B, done): the sync tick (ACTIVE_MAPPINGS_SQL in
+     apps/worker/src/jobs/managed-sync-tick.ts, AN_OPEN_ORGANISATION_WHERE) starts no pass for a
+     closed organisation, a pass already queued halts before it builds any credentials
+     (organisation_closed, stopping-a-pass.ts), the credential builders refuse
+     (refuseAClosedOrganisation), and every door that would start work or use the access answers
+     409 account_closed (apps/api/src/closed-organisation.ts). -->
 
 **U** kunt uw account op elk moment sluiten: mail naar support@ownpace.eu. U kiest wanneer uw
 gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Wij bevestigen de sluiting, en de datum

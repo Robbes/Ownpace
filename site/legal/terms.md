@@ -47,12 +47,14 @@
      first invitation waits for that code and its tests. The texts must also
      be served: live's WWW_LIVE is false, and the site build does not yet
      render the Alpha conditions (T10). Today neither exists.
-  B. §11: "From the moment your account is closed, nothing uses the access you
-     gave us." The Alpha conditions §10 promise the same. True on main since
-     #1320 (d7868276, 0085 T2, 2026-09-28): the sync tick skips a closed
-     organisation, and a pass already queued halts before it builds any
-     credentials. This branch has not merged main since that commit; the
-     comment beside §11 says so in both languages.
+  B. Done: §11's "From the moment your account is closed, nothing uses the
+     access you gave us.", which the Alpha conditions §10 promise too. True
+     since #1320 (d7868276, 0085 T2, 2026-09-28), merged into this branch in
+     c1413b53: the sync tick starts no pass for a closed organisation, a pass
+     already queued halts before it builds any credentials, the credential
+     builders refuse, and every door that would start work or use the access
+     answers 409 account_closed. The comment beside §11 says so in both
+     languages.
   C. Settled (terms-unbuilt-paid-steps (a)): §6 and §7 keep the order button,
      the confirmation before the first migration, the confirming email and
      "Withdraw from contract" in the app, though none of them is built. They
@@ -617,11 +619,14 @@ sure you never need this section.
 
 ## 11. Ending it
 
-<!-- "From the moment your account is closed, nothing uses the access you gave us." True on main
-     since #1320 (d7868276, 0085 T2, 2026-09-28): the sync tick (ACTIVE_MAPPINGS_SQL in
-     apps/worker/src/jobs/managed-sync-tick.ts) skips a closed organisation, and a pass already
-     queued halts before it builds any credentials. This branch has not merged main since that
-     commit; merging it brings the fix (briefing, precondition B). -->
+<!-- "From the moment your account is closed, nothing uses the access you gave us." True since
+     #1320 (d7868276, 0085 T2, 2026-09-28), merged into this branch in c1413b53 (briefing,
+     precondition B, done): the sync tick (ACTIVE_MAPPINGS_SQL in
+     apps/worker/src/jobs/managed-sync-tick.ts, AN_OPEN_ORGANISATION_WHERE) starts no pass for a
+     closed organisation, a pass already queued halts before it builds any credentials
+     (organisation_closed, stopping-a-pass.ts), the credential builders refuse
+     (refuseAClosedOrganisation), and every door that would start work or use the access answers
+     409 account_closed (apps/api/src/closed-organisation.ts). -->
 
 **You** may close your account at any time: write to support@ownpace.eu. You choose when its
 data is erased: at once, or after 7, 30 or 90 days. We confirm the closing, and the date on

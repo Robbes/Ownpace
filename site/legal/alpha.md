@@ -118,10 +118,10 @@
     once no migration uses it. Deleting a migration removes only access a
     family member gave through a grant link, which they can also withdraw on
     their progress page. Privacy §9's Credentials row says the same. Nothing
-    uses the access after closing: true on main since #1320 (0085 T2); this
-    branch has not merged main since that commit (terms briefing,
-    precondition B). The access is destroyed at erasure, at the end of the
-    window the tester chose, as terms §11 now says.
+    uses the access after closing: true since #1320 (d7868276, 0085 T2),
+    merged into this branch in c1413b53 (terms briefing, precondition B,
+    done). The access is destroyed at erasure, at the end of the window the
+    tester chose, as terms §11 now says.
   - The end of the Alpha (§11). ANSWERED: alpha-s11-erasure-window (b),
     2026-09-28. A tester who has not accepted the new conditions by the day
     they take effect is closed that day, and their data does not move along.

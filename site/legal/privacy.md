@@ -9,7 +9,9 @@
   applies to both. v1.1 (2026-08-30) is in this file's history.
 
   v1.2 brings the policy in line with the code on main (683525c8, which
-  includes #1302 and #1303's row security), with the owner's decisions of
+  includes #1302 and #1303's row security; and, since main was merged into
+  this branch in c1413b53, #1320's closed organisation and #1323's
+  per-tenant tasks under row security), with the owner's decisions of
   2026-09-24 to 2026-09-28, and with the Alpha conditions (alpha.md, v1.0, the
   owner's), which prevail during the Alpha where they differ. A review of the
   first draft the same day checked it against that code and corrected it; the
@@ -88,12 +90,12 @@
     wizard's "Use SSL/TLS" (useSsl), which turns TLS off altogether, not
     certificate checking (tlsVerify is in no API schema); ADR-0037 §5's floors
     are not built. Row security as SECURITY.md and docs/rls-guide.md state it
-    on main since #1323 (d0138607, not merged into this branch yet): every
-    route of the app and the per-tenant background tasks, the support views
+    since #1323 (d0138607), merged into this branch in c1413b53: every route
+    of the app and the per-tenant background tasks, the support views
     passing it by design with an operator check, the scheduled jobs that span
-    organisations not yet. A breach paragraph that tells the person, as the
-    owner answered; the vulnerability channel as SECURITY.md (0139 open
-    question 5).
+    organisations not yet (0138 T2 and T3 step 2, not merged). A breach
+    paragraph that tells the person, as the owner answered; the
+    vulnerability channel as SECURITY.md (0139 open question 5).
   - §13: during the Alpha, alpha §11 sets the notice before what follows.
   - Words: "tenant" and "workspace" became "organisation"; the Dutch
     "beheerders" for our operators no longer collides with the admin role.
@@ -743,10 +745,15 @@ target. We show you the target before anything is written.
 
 ## 9. How long we keep it
 
+<!-- True, and so off the list below: Credentials, "nothing uses any of it from then on", since
+     #1320 (d7868276, 0085 T2), merged into this branch in c1413b53. The sync tick starts no pass
+     for a closed organisation (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass under
+     way halts before its next data type (organisation_closed, stopping-a-pass.ts), the
+     credential builders refuse (refuseAClosedOrganisation), and every door that would start
+     work or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). -->
+
 <!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
      markers come off"). The owner's choices of 2026-09-28 are named by their question id.
-     - Credentials, "nothing uses any of it from then on": true on main since #1320 (d7868276,
-       a closed organisation gets no pass), which this branch has not merged yet.
      - The copy made right before an update (rec-copies (a)): one copy per update, deleted once
        the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
        lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
@@ -849,10 +856,13 @@ scheduled jobs that span organisations do not work under it yet; there, each que
 on your organisation keeps them apart. Logs written to keep credentials and message content out
 (§4.5 says what they can still name).
 
-<!-- The background tasks under row-level security: true on main since #1323 (d0138607, 0138 T1
-     step 2: the eight per-tenant tasks connect as app_user), which this branch has not merged
-     yet. The scheduled jobs that span organisations still connect as the database owner
-     (SECURITY.md, docs/rls-guide.md on main); 0138 T2 and T3 step 2 move them. -->
+<!-- The background tasks under row-level security: true since #1323 (d0138607, 0138 T1 step 2),
+     merged into this branch in c1413b53. The eight per-tenant tasks and the standalone worker
+     connect as app_user on APP_DATABASE_URL (openTaskPools, apps/worker/src/jobs/task-pools.ts).
+     The six scheduled jobs that span organisations (the sync tick, retention, the purge of closed
+     organisations, the digest, the drift detector, group discovery) still connect as the
+     database owner on DATABASE_URL (SECURITY.md; docs/rls-guide.md, "Where row security holds
+     today"); 0138 T2 and T3 step 2 move them, on a branch of their own, not merged. -->
 
 **If a breach happens.** If a breach of security affects your personal data, we report it to
 the Autoriteit Persoonsgegevens where the law requires that, and we tell you.

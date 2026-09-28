@@ -262,9 +262,11 @@ not done yet. The owner decided each on 2026-09-28 (the answer's id is in bracke
 a comment beside the sentence, in both languages, where the text rests on it. **Done:**
 
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10): true
-  on `main` since #1320 (`d7868276`, merged 2026-09-28): a closed organisation gets no pass, and
-  no door that starts work. This branch has not merged `main` since, so it lands here with the
-  next merge of `main`.
+  since #1320 (`d7868276`, merged 2026-09-28), which is on this branch since `main` was merged
+  into it in `c1413b53`: a closed organisation gets no pass, a pass under way halts before its
+  next data type, the credential builders refuse, and every door that would start work or use
+  the access answers 409 `account_closed`. Its members can still sign in, read and export until
+  the purge.
 - *Problem reports by mail* (privacy §4.5): merged as #1318 (`0c019ab8`, 0130 T5), and on this
   branch. True on live once live's `.env` has no `ZAMMAD_URL`.
 

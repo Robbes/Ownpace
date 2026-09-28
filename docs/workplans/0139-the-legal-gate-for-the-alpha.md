@@ -4,7 +4,55 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, latest: the owner answered all 71 questions on the answer page, and the texts
+**2026-09-28, latest: `main` merged, and the notes that waited for #1320 and #1323 say what
+holds**, same branch (draft PR #1317). `main` at `55aa4c6a` was merged into this branch in
+`c1413b53` (a merge; one conflict, `docs/workplans/README.md`, which is generated and was
+regenerated). It brings #1320 (`d7868276`, 0085 T2) and #1323 (`d0138607`, 0138 T1 step 2),
+which notes in the texts and in this plan waited for. Each claim was checked against the merged
+tree's code, and each note now says what holds on this branch:
+
+- ***Nothing uses your access after closing*** (privacy §9, terms §11, Alpha conditions §10,
+  DPA Annex A): true. The sync tick starts no pass for a closed organisation
+  (`AN_OPEN_ORGANISATION_WHERE` in `ACTIVE_MAPPINGS_SQL`, `managed-sync-tick.ts`); a pass under
+  way halts before its next data type (`organisation_closed`, `stopping-a-pass.ts`); the
+  credential builders refuse (`refuseAClosedOrganisation`); every door that would start work or
+  use the access answers 409 `account_closed` (`apps/api/src/closed-organisation.ts`); and the
+  drift detector and group discovery read open organisations only. A member can still sign in,
+  read and export until the purge: the close sets `tenant.status` alone, and reading, export and
+  `authenticate` never ask. So the item is off privacy §9's *NOT YET TRUE* list (a comment says
+  why, in both languages), terms precondition B is done, and the terms comments beside §11, the
+  Alpha and DPA briefings, `site/legal/README.md`, T7's row and 0155 §1 and T5 say so. The
+  rendered sentences were already final; none changed.
+- ***Row-level security*** (privacy §11, this plan's §1, the DPA briefing): the app's requests
+  and, since #1323, the eight per-tenant background tasks and the standalone worker, which
+  connect as `app_user` on `APP_DATABASE_URL` (`openTaskPools`,
+  `apps/worker/src/jobs/task-pools.ts`). The six scheduled jobs that span organisations (the
+  sync tick, retention, the purge of closed organisations, the digest, the drift detector, group
+  discovery) still connect as the database owner on `DATABASE_URL`; 0138 T2 and T3 step 2 move
+  them, on a branch of their own, not merged, and nothing here claims them. Privacy §11 already
+  said exactly that in both languages; only its comments changed. **Not borne out by the code:**
+  `dpa.md`'s Annex B, *"Tenant isolation enforced in the database itself through row-level
+  security … database roles hold least privilege"*, says none of these limits, and the six jobs
+  connect as a superuser. It is not rendered and stays for the one pass before the first
+  business customer (dpa-unpublished-until-business (a)); the briefing's to-do now names both.
+- ***The pricing page*** (terms-s6-reverse-charge (a)): fixed in `cb1031fe`, *"All prices include
+  VAT."* / *"Alle prijzen zijn inclusief btw."*; the terms briefing and this plan already said so.
+- ***Still not true, for reasons of their own***, unchanged, each comment saying what makes it
+  true: `TRUST_PROXY` and both nginx logs on live, the telemetry opt-outs, the acceptance screen
+  (T3), the copy before an update and its script, the drill off live, the sharing list deleted
+  with its migration, the 12-month clean-up, 0135 T8's daily script, the sign-in history check,
+  the log driver, and Proton's mailbox pruned by hand.
+- **Proved.** `npx vitest run --project unit scripts/legal-docs.unit.test.ts site/site.unit.test.ts
+  scripts/a-policy-link-that-answers.unit.test.ts scripts/one-way-to-report-a-vulnerability.unit.test.ts
+  scripts/workplan-index.unit.test.ts scripts/lessons.unit.test.ts`: 6 files, 295 tests pass.
+  `OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs --check`: *"4 legal page(s)
+  marked draft"* and *"14 pages across 2 locales, 0 unfilled placeholder(s)"*; `--public
+  --check` still refuses, for the draft markers alone. The workplan, lessons and ADR indexes'
+  `--check`s and `commit-convention.mjs origin/main HEAD` pass. Each English text and its Dutch
+  one keep the same headings, table rows, list items, links and section references, and no *je*,
+  *jij* or *jouw* outside comments; only comments changed in them.
+
+**2026-09-28, later: the owner answered all 71 questions on the answer page, and the texts
 follow**, on branch `claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited`
 (draft PR #1317). The questions still open below (*For the owner*, the briefings' questions for
 the lawyer and the owner, and the recommendations on the address, the two addresses, the copies,
@@ -105,9 +153,9 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
     privacy-signin-history and privacy-task-records; *"no backups"* has one exception. §10:
     *"What we hold about you ourselves (§4), we send you in a common file format if you ask."*
     §11: row-level security covers the app's requests and the background tasks that run
-    migrations, and not yet the scheduled jobs that span organisations, as `SECURITY.md` says on
-    `main` since #1323 (d0138607), which this branch has not merged yet (a hidden comment says
-    so). §12: a grant link for a child under 16 is completed by the parent with the child. §13: a
+    migrations, and not yet the scheduled jobs that span organisations, as `SECURITY.md` says
+    since #1323 (d0138607), on this branch since `main` was merged into it in `c1413b53` (a
+    hidden comment says so). §12: a grant link for a child under 16 is completed by the parent with the child. §13: a
     link to the policy's history on GitHub, per language, which also shows unpublished drafts.
     The briefing lists every answer by id, keeps the lawyer's questions 1 to 20 with what is left
     for the lawyer, describes the four data flows for Google's verification (question 15, as the
@@ -215,9 +263,9 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
   markers alone. A script found the same headings, table rows (privacy 32), list items, links and
   section references in each English text and its Dutch one, and no *je*, *jij* or *jouw* in the
   Dutch outside comments. `node scripts/workplan-index.mjs --write` and `node scripts/lessons.mjs
-  --write`, then all three `--check`s (with `adr-operative.mjs`), pass. The index lists 0152 to
-  0154 as missing on this branch: they are on `main` (#1321), and the next merge of `main`
-  regenerates it.
+  --write`, then all three `--check`s (with `adr-operative.mjs`), pass. The index listed 0152 to
+  0154 as missing on this branch: they were on `main` (#1321); the merge of `main` in
+  `c1413b53` brought them, and the regenerated index lists them.
 
 **2026-09-28, earlier: the owner's answers to *For the owner*, applied where they are clear**, on
 branch `claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited` (draft PR
@@ -406,7 +454,8 @@ entry below. Both texts keep their draft marker. The Alpha conditions are not ed
 - **Kept, with the draft marker, a comment beside the sentence in both languages, and a line in
   `site/legal/README.md`'s *Before the draft markers come off*** (the owner's decisions, which
   code on its way makes true): *nothing uses your access after closing* (privacy §9, terms §11;
-  the closed-organisation fix, uncommitted); the copy before an update *never longer than 7
+  the closed-organisation fix, uncommitted then; true since #1320, `d7868276`, on this branch
+  since `c1413b53`); the copy before an update *never longer than 7
   days*, now naming the sign-in service's copy too (privacy §9; `dump-idp.sh` keeps every dump,
   and the service's copy is taken and deleted by hand); *reports by mail* (privacy §4.5; 0130
   T5, on its branch).
@@ -627,7 +676,8 @@ the same with 1.3 for the terms. The Alpha conditions (1.0, the owner's) are not
   1. *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10): the
      sync tick's `ACTIVE_MAPPINGS_SQL` (`managed-sync-tick.ts`) never reads the organisation's
      status, so a closed organisation still gets new passes until the purge. A fix is queued,
-     *"Stop sync passes for closed organisations"*.
+     *"Stop sync passes for closed organisations"*. *(Since: #1320, `d7868276`, made it true;
+     on this branch since `c1413b53`.)*
   2. *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
      conditions §6): taken and deleted by hand (0134 T0 step 4; `stand-up-live.sh`: *"no script
      takes it or deletes it yet"*), and `deploy/compose/dump-idp.sh`, run before each upgrade of
@@ -1425,7 +1475,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its agreement accepted (dpa-netbird-agreement (a)), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; ⏳ **Owner**: NetBird's acceptance date, where its proxy and log run, and its own sub-processors — *was:* the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8), server logs with Docker's default (ops-log-driver (a)); the code for each 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
-| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *nothing uses your access after closing* is true on `main` since #1320 (`d7868276`, merged 2026-09-28), not yet merged into this branch; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
+| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *nothing uses your access after closing* is true since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions, and `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
@@ -1572,7 +1622,16 @@ credentials at its end.
   that the eight per-tenant jobs in `apps/worker/src/jobs/` open their pool from
   `DATABASE_URL`, which `set-task-env.sh` composes from the owner role. Checked here: all eight
   `run-*.ts` jobs read `process.env.DATABASE_URL`. So the sentence holds for the application's
-  requests and not yet for the background tasks. 0138 hands the wording to this plan.
+  requests and not yet for the background tasks. 0138 hands the wording to this plan. *Since
+  2026-09-28:* #1323 (`d0138607`, 0138 T1 step 2), on this branch since `c1413b53`, has the
+  eight per-tenant tasks and the standalone worker connect as `app_user` on `APP_DATABASE_URL`
+  (`openTaskPools`, `apps/worker/src/jobs/task-pools.ts`), so the sentence holds for the app's
+  requests and the per-tenant background tasks. The six scheduled jobs that span organisations
+  (the sync tick, retention, the purge of closed organisations, the digest, the drift detector,
+  group discovery) still connect as the owner on `DATABASE_URL`; 0138 T2 and T3 step 2 move
+  them, on a branch of their own, not merged. Privacy §11 says exactly that, in both languages;
+  `dpa.md`'s Annex B keeps its unqualified sentence for the one pass before the first business
+  customer, and its briefing says what that pass must write.
 - **A separately held key.** Privacy §11 says credentials are encrypted *"under a separately held
   key"*. 0134 §1 notes that the key is held apart from the database, in `.env`, but on the same
   machine, and hands the wording to this plan.

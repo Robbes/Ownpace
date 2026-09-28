@@ -96,12 +96,14 @@ except where `main` is named.
   (`apps/api/src/scripts/operator-close.ts`, 0139 T7): closes an organisation with the window the
   tester chose (0, 7, 30 or 90 days, `CLOSE_WINDOWS_DAYS`), and records it in the audit log. The
   offboarding module says closing *"makes the account read-only"*, and the purge comes when the
-  window runs out (`packages/managed/src/offboarding.ts`). On `main` since #1320 (d7868276), a
-  member of a closed organisation can still sign in, read and export until the purge:
-  `apps/api/src/closed-organisation.ts` says *"Reading, export, the close itself and the reopen
-  are never refused"* and *"`authenticate` never asks, because the owner reopens through it"*.
-  So the completion report and the confirmed list's CSV can be downloaded during the window.
-  This holds on this branch only once it merges `main`.
+  window runs out (`packages/managed/src/offboarding.ts`). Since #1320 (d7868276), on this
+  branch since `main` was merged into it in `c1413b53`, a member of a closed organisation can
+  still sign in, read and export until the purge: `apps/api/src/closed-organisation.ts` says
+  *"Reading, export, the close itself and the reopen are never refused"* and *"`authenticate`
+  never asks, because the owner reopens through it"*, and the close changes `tenant.status`
+  alone, not the members' own status. So the completion report and the confirmed list's CSV
+  (`GET /:mappingId/completion-report`, `GET /:mappingId/confirmed-list/export`, neither asking
+  `refusedAsClosed`) can be downloaded during the window.
 - **The purge** deletes the tables in `PURGED_TABLES`, `item` among them, and leaves an erasure
   record with dates and counts. After the purge nothing is left to export: the records must be
   made before it.
@@ -275,8 +277,7 @@ member's rows never appear.
   stored. Both languages.
 - **Owner only**: a member who is not the owner sees no button, and the route answers 403.
 - **It works while the organisation is closed and not yet purged**: a member of a closed
-  organisation can still sign in and read (§1; on `main` since #1320, on this branch once it
-  merges `main`).
+  organisation can still sign in and read (§1; since #1320, on this branch since `c1413b53`).
 - Before the first invitation it is not needed: the operator's command covers every promise.
 
 **Guard.** An integration test beside `me.integration.test.ts`: the owner gets the file with the

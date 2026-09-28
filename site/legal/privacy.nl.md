@@ -10,7 +10,7 @@
      (what changed in each version, the owner's answers of 2026-09-28 by
      question id, and the open questions) is the comment at the top of
      privacy.md — it applies to both files. The comments beside §1, §4.4,
-     §4.5, §7, §8 and §9 below are the same as there. -->
+     §4.5, §7, §8, §9 and §11 below are the same as there. -->
 
 # Privacyverklaring
 
@@ -432,10 +432,15 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 
 ## 9. Hoe lang we het bewaren
 
+<!-- True, and so off the list below: Toegangsgegevens, "gebruikt niets die toegang meer", since
+     #1320 (d7868276, 0085 T2), merged into this branch in c1413b53. The sync tick starts no pass
+     for a closed organisation (AN_OPEN_ORGANISATION_WHERE in managed-sync-tick.ts), a pass under
+     way halts before its next data type (organisation_closed, stopping-a-pass.ts), the
+     credential builders refuse (refuseAClosedOrganisation), and every door that would start
+     work or use the access answers 409 account_closed (apps/api/src/closed-organisation.ts). -->
+
 <!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
      markers come off"). The owner's choices of 2026-09-28 are named by their question id.
-     - Toegangsgegevens, "gebruikt niets die toegang meer": true on main since #1320 (d7868276,
-       a closed organisation gets no pass), which this branch has not merged yet.
      - De kopie vlak voor een update (rec-copies (a)): one copy per update, deleted once the
        update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
        lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
@@ -540,10 +545,13 @@ De geplande taken die over organisaties heen lopen, werken er nog niet onder; da
 eigen filter van elke query op uw organisatie ze gescheiden. Logs zijn zo geschreven dat
 toegangsgegevens en berichtinhoud er niet in staan (§4.5 zegt wat ze nog wel kunnen noemen).
 
-<!-- De achtergrondtaken onder row-level security: true on main since #1323 (d0138607, 0138 T1
-     step 2: the eight per-tenant tasks connect as app_user), which this branch has not merged
-     yet. The scheduled jobs that span organisations still connect as the database owner
-     (SECURITY.md, docs/rls-guide.md on main); 0138 T2 and T3 step 2 move them. -->
+<!-- De achtergrondtaken onder row-level security: true since #1323 (d0138607, 0138 T1 step 2),
+     merged into this branch in c1413b53. The eight per-tenant tasks and the standalone worker
+     connect as app_user on APP_DATABASE_URL (openTaskPools, apps/worker/src/jobs/task-pools.ts).
+     The six scheduled jobs that span organisations (the sync tick, retention, the purge of closed
+     organisations, the digest, the drift detector, group discovery) still connect as the
+     database owner on DATABASE_URL (SECURITY.md; docs/rls-guide.md, "Where row security holds
+     today"); 0138 T2 and T3 step 2 move them, on a branch of their own, not merged. -->
 
 **Als er een datalek is.** Raakt een beveiligingsincident uw persoonsgegevens, dan melden we
 dat aan de Autoriteit Persoonsgegevens waar de wet dat vereist, en melden we het u.
