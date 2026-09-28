@@ -7,6 +7,10 @@
  *   node site/build.mjs            # build
  *   node site/build.mjs --check    # build to memory and report, writing nothing
  *
+ * `--check` with `--public` exits 1 when a legal page's *Version* line says it
+ * is a draft, as the `--public` build refuses it (workplan 0139 T2). Its
+ * placeholder count stays a count, which a caller reads.
+ *
  * WHY IT IMPORTS NOTHING. `site/` depends on no workspace package and no
  * npm dependency, deliberately, twice over: workplan 0086 T7 wants the public
  * pages splittable into their own deploy without a migration, and the
@@ -23,7 +27,7 @@
  *
  * THE «PLACEHOLDER» TOKENS in the legal documents are rendered VISIBLY, as a
  * marked span, and the build prints how many it found. They are drafts
- * (site/legal/README.md lists all twelve); a draft that looks finished is the
+ * (site/legal/README.md lists every one); a draft that looks finished is the
  * thing to avoid, so on this site an unfilled placeholder is loud.
  */
 
@@ -981,6 +985,72 @@ function build() {
 }
 
 /**
+ * A LEGAL PAGE WHOSE VERSION LINE SAYS DRAFT IS NOT PUBLISHED (workplan 0139 T2).
+ *
+ * The placeholder refusal below stops a page that is visibly unfinished. It did
+ * not stop one that looks finished and was never approved: every placeholder
+ * filled, and the *Version* line still reading "draft for legal review — not
+ * yet published". An indexable page that says of itself that it is not
+ * published is a contradiction any tester can read, and the version is what a
+ * tester accepts (0139 T3).
+ *
+ * So a `--public` build refuses every legal page it renders (the `legal/`
+ * entries of `SOURCE`, in `PAGE_KEYS` or not: a page can be rendered outside
+ * the nav, as the 404 page is) whose version line holds one of `DRAFT_WORDS`,
+ * and one with no version line at all, which cannot be told apart from a draft.
+ * Only that line is read, outside HTML comments, where the lawyer's briefings
+ * say "DRAFT" on purpose. The words match anywhere in the line and in any case,
+ * so a Dutch compound such as "conceptversie" or "ontwerpversie" is caught too:
+ * a false alarm costs a reworded version line, a miss costs a published draft.
+ *
+ * `--public --check` counts them and exits 1 as well. A check that passed what
+ * the build then refuses is a deploy that moves the app first and finds out
+ * about the site after, which is what a check before a deploy exists to stop.
+ *
+ * Until the owner's final-text pull request removes the words, every `--public`
+ * build refuses. That is intended: privacy and terms say "not yet published"
+ * about themselves.
+ *
+ * Exported so `scripts/legal-docs.unit.test.ts` reads each document's version
+ * line the way this build does, instead of keeping a copy of the pattern.
+ */
+export const VERSION_LINE = /^\*\*(?:Version|Versie):\*\*/;
+export const DRAFT_WORDS = /draft|concept|ontwerp|voorlopig|not yet published|nog niet gepubliceerd/i;
+
+/** A legal text's *Version* line, read outside HTML comments; `undefined` when it has none. */
+export function versionLineOf(text) {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => VERSION_LINE.test(l));
+}
+
+/** `site/legal/<file>: <why>` for each legal page a public build must not publish. */
+function unpublishableLegalPages() {
+  const out = [];
+  for (const locale of LOCALES) {
+    for (const src of Object.values(SOURCE[locale]).filter((s) => s.startsWith('legal/'))) {
+      const line = versionLineOf(readFileSync(join(HERE, src), 'utf8'));
+      if (line === undefined) out.push(`site/${src}: no **Version:** or **Versie:** line`);
+      else if (DRAFT_WORDS.test(line)) out.push(`site/${src}: ${line}`);
+    }
+  }
+  return out;
+}
+
+/** Why `--public` refuses these pages, naming each: the build throws it, `--check` prints it. */
+function draftRefusal(unpublishable) {
+  return (
+    `--public makes this site indexable, and ${unpublishable.length} legal page(s) say on their\n` +
+    'version line that they are a draft or not yet published (or have no version line):\n' +
+    unpublishable.map((u) => `  ${u}\n`).join('') +
+    'Publish the text the owner and the lawyer approved, whose version line says neither\n' +
+    '(site/legal/README.md), or build without --public.'
+  );
+}
+
+/**
  * Exported so `site/site.unit.test.ts` can inspect every rendered page without
  * a build step and without touching the filesystem. Importing this module
  * therefore renders but writes NOTHING — the writing happens only when the
@@ -1021,6 +1091,19 @@ const runDirectly = process.argv[1] && import.meta.url === pathToFileURL(process
 
 if (runDirectly && process.argv.includes('--check')) {
   for (const p of rendered) console.log(`  ${p.file.padEnd(26)} ${p.html.length} bytes`);
+  // The draft version lines are refused here as the build refuses them, so a
+  // `--public --check` that passes is a `--public` build that writes.
+  const unpublishable = unpublishableLegalPages();
+  console.log(`[site] ${unpublishable.length} legal page(s) marked draft on their version line, or with none`);
+  if (PUBLIC && unpublishable.length > 0) {
+    console.error(draftRefusal(unpublishable));
+    process.exitCode = 1;
+  } else {
+    for (const u of unpublishable) console.log(`  ${u}`);
+  }
+  // A deploy that checks a tag's site before it moves anything reads this line
+  // (0139 T10), so it stays the last, in its shape, and the count stays a count
+  // under --public.
   console.log(`[site] ${rendered.length} pages across ${LOCALES.length} locales, ${drafts} unfilled placeholder(s)`);
 } else if (runDirectly) {
   // A PUBLIC BUILD WITH UNFILLED PLACEHOLDERS IS NOT A WARNING, IT IS A STOP.
@@ -1038,6 +1121,8 @@ if (runDirectly && process.argv.includes('--check')) {
         'Fill them — see site/legal/README.md — or build without --public.',
     );
   }
+  const unpublishable = unpublishableLegalPages();
+  if (PUBLIC && unpublishable.length > 0) throw new Error(draftRefusal(unpublishable));
   emptyDist();
   for (const p of rendered) {
     const dest = join(DIST, p.file);
@@ -1063,6 +1148,12 @@ if (runDirectly && process.argv.includes('--check')) {
     console.log(
       `[site] ${drafts} unfilled placeholder token(s) rendered visibly — see site/legal/README.md.\n` +
         `[site] This build is fine for a test host and MUST NOT be published publicly.`,
+    );
+  }
+  if (unpublishable.length > 0) {
+    console.log(
+      `[site] ${unpublishable.length} legal page(s) still marked draft on their version line; ` +
+        'a --public build refuses them.',
     );
   }
 }

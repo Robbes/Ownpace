@@ -4,6 +4,13 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, afternoon: T1 step 3's tick half merged in #1296 (`67b3e9e`), and live's number
+set.** Asked to put live's number in live's `.env`, the owner answered: *"i added
+'MAX_PASSES_IN_FLIGHT=6'"*. The tick reads it once live runs a build with #1296, whose bring-up
+uploads it to the task environment (`deploy-live.sh` runs `bootstrap-managed.sh`, which runs
+`set-task-env.sh`). The OTA stack's `.env` leaves it blank, for 3. Step 2 and the plane's limit
+still wait for the kill code of the owner's Dropbox passes (0150, open question 1).
+
 **2026-09-28, midday: T1 step 3's tick half built (0131 §6, group M4, step 6)** on branch
 `claude/mailbox-sync-errors-c2xsw2-a-tick-that-knows-the-box-size`, not merged.
 
@@ -536,7 +543,7 @@ unproved until then:
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half 🔨 **built 2026-09-28** on branch `claude/mailbox-sync-errors-c2xsw2-a-tick-that-knows-the-box-size`, not merged: 3 passes at once on a stack unless its `.env` says otherwise (live 6), and 2 per organisation, longest-waiting first | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |

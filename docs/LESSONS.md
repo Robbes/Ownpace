@@ -1749,6 +1749,10 @@ reading a file drops off its entry by itself.
 
 - [a-folder-that-is-one-row-not-two-hundred](../scripts/a-folder-that-is-one-row-not-two-hundred.unit.test.ts) — A MEASUREMENT THAT ACCEPTS ONE FIELD AS EVIDENCE FOR ANOTHER RECOMMENDS A DESIGN ON A CAPABILITY IT NEVER MEASURED.
 
+### `scripts/dropbox-native-inventory.mjs`
+
+- [a-listing-that-names-no-file](../scripts/a-listing-that-names-no-file.unit.test.ts) — A LISTING THAT NAMES NO FILE: the inventory of what a real Dropbox will not hand over as a file (workplan 0150 T2).
+
 ### `scripts/every-service-somebody-starts.unit.test.ts`
 
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1863,6 +1867,14 @@ reading a file drops off its entry by itself.
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
 ### `site/legal/README.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
+### `site/legal/alpha.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
+### `site/legal/alpha.nl.md`
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
@@ -2601,6 +2613,14 @@ Reads:
 
 - `deploy/compose/env-read.sh`
 - `scripts/dav-target-probe.mjs`
+
+### [a-listing-that-names-no-file](../scripts/a-listing-that-names-no-file.unit.test.ts)
+
+A LISTING THAT NAMES NO FILE: the inventory of what a real Dropbox will not hand over as a file (workplan 0150 T2).
+
+Reads:
+
+- `scripts/dropbox-native-inventory.mjs`
 
 ### [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts)
 
@@ -3649,6 +3669,8 @@ Reads:
 
 - `site/build.mjs`
 - `site/legal/README.md`
+- `site/legal/alpha.md`
+- `site/legal/alpha.nl.md`
 - `site/legal/privacy.md`
 - `site/legal/privacy.nl.md`
 - `site/legal/terms.md`
