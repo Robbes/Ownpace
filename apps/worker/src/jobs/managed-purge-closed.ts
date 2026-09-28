@@ -9,6 +9,13 @@
  * FILE IS ONLY THE WIRING: the pool, the schedule, the quiesce check and the
  * log line.
  *
+ * The pool is the system role's (`SYSTEM_DATABASE_URL`, `ownpace_system`,
+ * workplan 0138 T3 step 2): it bypasses row security, which an erasure across
+ * organisations needs, and is not a superuser. Managed migration 0032 grants
+ * it DELETE on every table in `PURGED_TABLES`, reading each only by the
+ * column that picks the organisation's rows, and the few reads and updates
+ * the purge makes besides; until step 2 this was the owner's connection.
+ *
  * ## Why it refuses to purge a tenant with a run in flight
  *
  * `item` IS the idempotency ledger. Purging it while a pass is running tells
@@ -64,11 +71,19 @@ import {
 import { HttpTokenRevoker } from '@openmig/connectors';
 import { revokeStoredCredentials } from '@openmig/orchestration/revoke-stored-credentials';
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
+// The system role, `ownpace_system`, which spans organisations and is not a
+// superuser (workplan 0138 T3 step 2; managed migration 0032 grants it what
+// this job sends and nothing else). Never DATABASE_URL, the database owner,
+// which no run holds any more: there is no fallback to it.
+const SYSTEM_DATABASE_URL = process.env.SYSTEM_DATABASE_URL?.trim();
+if (!SYSTEM_DATABASE_URL) {
+  throw new Error(
+    'SYSTEM_DATABASE_URL is required: managed-purge-closed spans organisations as the system role, ownpace_system, ' +
+      'and never as the database owner (DATABASE_URL), which no run holds. ' +
+      'deploy/compose/set-task-env.sh uploads it (workplan 0138 T3 step 2).',
+  );
 }
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({ connectionString: SYSTEM_DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
 // Its errors go to the operator's log page too (0129 T1), under the reference

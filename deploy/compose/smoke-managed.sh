@@ -5637,6 +5637,35 @@ else
   fail_at "the cutover ledger was not taken back: $left_state state row(s) and $left_events event(s) remain on the demo mail mapping"
 fi
 
+# ---------- the jobs across organisations, as the system role (0138 T3 step 2) ----------
+#
+# The sync tick, retention and the purge of closed organisations connect as
+# `ownpace_system` since workplan 0138 T3 step 2, and so do the split jobs'
+# list and every task's audit key: SYSTEM_DATABASE_URL, which set-task-env.sh
+# uploads in place of the owner's DATABASE_URL, deleted from the store. The
+# bring-up asked Postgres, before it uploaded the URL, that the role is no
+# superuser and may create no role, and refused otherwise; this asks again at
+# the end of the run, when every task this deploy put on the plane has had its
+# turn, and asks whether the one job that runs every minute is still running:
+# the tick writes its beat at the end of every run it completes, as the system
+# role now, and a role missing a grant the tick needs stops the beat
+# (a-system-role-that-is-not-the-owner proves the grants on a throwaway
+# database; this is the stack). Five minutes is the readiness route's own
+# threshold (GET /api/ready/scheduler, TICK_LATE_AFTER_MS).
+note "the jobs across organisations, as the system role (0138 T3 step 2)"
+system_role="$(q "SELECT r.rolsuper || '|' || r.rolcreaterole || '|' || r.rolcreatedb || '|' || r.rolreplication || '|' || r.rolbypassrls || '|' || r.rolcanlogin || '|' || (SELECT count(*) FROM pg_auth_members m WHERE m.member = r.oid) FROM pg_roles r WHERE r.rolname = 'ownpace_system'" 2>&1 | tail -n1)"
+if [ "$system_role" = "false|false|false|false|true|true|0" ]; then
+  echo "ownpace_system: no superuser, may create no role or database, does not replicate, BYPASSRLS, logs in, a member of no role"
+else
+  fail_at "ownpace_system is not the role managed migration 0032 made it: '${system_role:-<no such role>}' (superuser|createrole|createdb|replication|bypassrls|login|memberships; expected false|false|false|false|true|true|0)"
+fi
+tick_beat="$(q "SELECT CASE WHEN now() - beat_at < interval '5 minutes' THEN 'fresh' ELSE 'stale since ' || beat_at::text END FROM sync_tick_beat WHERE task = 'managed-sync-tick'" 2>&1 | tail -n1)"
+if [ "$tick_beat" = "fresh" ]; then
+  echo "the sync tick beat within the last five minutes, on the system role"
+else
+  fail_at "the sync tick has not completed a run in five minutes (${tick_beat:-no beat at all}): it connects as ownpace_system since 0138 T3 step 2, so read its runs on the plane for a refusal naming a table or SYSTEM_DATABASE_URL"
+fi
+
 # ---------- verdict ----------
 note "verdict"
 api_restart_check "$API_STARTED_AT"

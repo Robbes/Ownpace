@@ -10,7 +10,8 @@
  * row security never binds, so what kept one organisation's rows from
  * another's there was each query's own `WHERE`. The owner answered open
  * question 3 on 2026-09-28, *"split them"*: the list of active organisations
- * comes from the owner's connection (`activeOrganisations`, `task-pools.ts`),
+ * comes from a connection that sees every organisation (`activeOrganisations`,
+ * `task-pools.ts`; the owner's until 0138 T3 step 2, the system role's since),
  * and everything read or written for one organisation goes through its scope
  * on the tenant pool `openTaskPools` builds, `app_user`, as a per-tenant pass
  * does since T1.
@@ -58,9 +59,10 @@
  *
  * Handed its database (`an-integration-test-is-handed-its-database`): it reads
  * `TEST_DATABASE_URL`, derives `app_user`'s URL from it as
- * `a-pass-under-row-security` does, hands `openTaskPools` and
- * `activeOrganisations` an environment of its own built from the two, and
- * never reads or sets `DATABASE_URL`. The directory and the groups a source
+ * `a-pass-under-row-security` does, and the system role's (the owner's
+ * connection with its role set to `ownpace_system` at the start, 0138 T3
+ * step 2), hands `openTaskPools` and `activeOrganisations` an environment of
+ * its own built from the two, and never reads or sets `DATABASE_URL`. The directory and the groups a source
  * lists are answered here, not asked of Microsoft; the addresses are invented
  * and nothing is contacted.
  *
@@ -101,8 +103,20 @@ function asAppUser(url: string): string {
   return parsed.toString();
 }
 
+/**
+ * The system role, which the list and the audit key are read as since 0138 T3
+ * step 2: the owner's connection with its role set at the start to
+ * `ownpace_system`, so every statement runs as that role and nothing needs its
+ * password, which only `a-system-role-that-is-not-the-owner` sets.
+ */
+function asSystemRole(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set('options', '-c role=ownpace_system');
+  return parsed.toString();
+}
+
 /** The two URLs a run receives (set-task-env.sh), for this database. */
-const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), DATABASE_URL: PG_CONNECTION_STRING });
+const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), SYSTEM_DATABASE_URL: asSystemRole(PG_CONNECTION_STRING) });
 
 const P = '0138e000-e29b-41d4-a716-4466554400';
 const A = `${P}a1`;
@@ -333,6 +347,12 @@ async function ranAsTheApplicationRole(pools: JobsPools, asked: readonly Pool[])
     "SELECT current_user AS role, current_setting('is_superuser') AS superuser",
   );
   expect(who.rows[0]).toEqual({ role: 'app_user', superuser: 'off' });
+  // And the key's, which reads deployment_key alone, the system role's: no
+  // superuser since 0138 T3 step 2.
+  const key = await pools.key.query<{ role: string; superuser: string }>(
+    "SELECT current_user AS role, current_setting('is_superuser') AS superuser",
+  );
+  expect(key.rows[0]).toEqual({ role: 'ownpace_system', superuser: 'off' });
   expect(asked).toContain(pools.tenant);
   expect(
     asked.filter((p) => p !== pools.tenant && p !== pools.key),
@@ -344,7 +364,7 @@ async function ranAsTheApplicationRole(pools: JobsPools, asked: readonly Pool[])
 }
 
 describe('the list: which organisations are active, on a connection that sees them all', () => {
-  it('names A and B and not the closed C, on the owner\'s connection', async () => {
+  it('names A and B and not the closed C, on the system role\'s connection', async () => {
     const listed = await activeOrganisations(taskEnv());
     expect(listed).toContain(A);
     expect(listed).toContain(B);
@@ -363,7 +383,7 @@ describe('the list: which organisations are active, on a connection that sees th
       await app.end();
     }
     const appUser = asAppUser(PG_CONNECTION_STRING);
-    await expect(activeOrganisations({ APP_DATABASE_URL: appUser, DATABASE_URL: appUser })).rejects.toThrow(
+    await expect(activeOrganisations({ APP_DATABASE_URL: appUser, SYSTEM_DATABASE_URL: appUser })).rejects.toThrow(
       /row security/,
     );
   });

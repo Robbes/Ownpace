@@ -98,7 +98,12 @@
 #   5. bootstrap-managed.sh --from trigger. It stops twice for you (exit 2):
 #      live's own Trigger.dev account, organisation and project on its
 #      dashboard, then the deploy CLI's login under live's own profile. This
-#      says what to do and exits 2; run it again with --resume.
+#      says what to do and exits 2; run it again with --resume. Its `tasks`
+#      phase asks live's Postgres that the system role (ownpace_system,
+#      workplan 0138 T3 step 2) is no superuser and may create no role,
+#      refuses if it is or may, sets its password from SYSTEM_DB_PASSWORD
+#      (which step 2's `--only env` generated), and only then uploads the
+#      task environment, with the system role's URL and without the owner's.
 #   6. apps/worker/package.json put back when the task deploy changed only its
 #      last newline (deploy-live.sh refuses a tree that is not clean).
 #   7. The checks, all of them, then the verdict: /api/version at

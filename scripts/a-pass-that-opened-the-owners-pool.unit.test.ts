@@ -101,6 +101,22 @@
  *      It reads each file's own imports: an owner's pool handed on through a
  *      module none of them imports directly would be out of its sight. No
  *      file on CROSS_TENANT exports a pool.
+ *   8. No task reads the owner's URL at all (0138 T3 step 2). The files on
+ *      CROSS_TENANT are of two kinds, each closed. ON_THE_SYSTEM_ROLE: the
+ *      three jobs that span organisations whole and `task-pools.ts` (the
+ *      split jobs' list and the audit key's pool), which run in a task and
+ *      read `SYSTEM_DATABASE_URL` and no other database URL: the system role,
+ *      `ownpace_system`, which is not a superuser, may not create roles or
+ *      databases, and holds `BYPASSRLS` and the grants its statements need
+ *      (managed migration 0032). AT_THE_MACHINE: the operator's CLI and
+ *      `direct-url.ts`, which never run in a task and may read the owner's
+ *      URL for the person who runs them, and never read the system role's.
+ *      No other file reads `SYSTEM_DATABASE_URL`. Until step 2 the four read
+ *      `DATABASE_URL`, the owner, a superuser, and `set-task-env.sh` uploaded
+ *      it to every run; it uploads the system role's URL now and deletes the
+ *      owner's from the store (`a-run-that-carries-no-superuser`). There is
+ *      no fallback either way: a file that read both names would be one
+ *      `DATABASE_URL` in `.env` away from the owner again.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -120,8 +136,8 @@
  * WHAT "READS A DATABASE URL" MEANS HERE. Any name ending in `DATABASE_URL`
  * other than `APP_DATABASE_URL` (so `DATABASE_URL`, `DIRECT_DATABASE_URL`, the
  * builders' old `TEST_DATABASE_URL || DATABASE_URL` fallback, and T3 step 2's
- * system variable, which the T3 guard, `a-run-that-carries-no-superuser`, only
- * lets go up under such a name), used as a property (`process.env.X`,
+ * `SYSTEM_DATABASE_URL`, which the T3 guard, `a-run-that-carries-no-superuser`,
+ * only lets go up under such a name), used as a property (`process.env.X`,
  * `env.X`), an element (`env['X']`), a destructured binding (`{ X } = …`) or a
  * string whose whole text is the name (`getEnv('X')`). Parsed, not grepped: a
  * comment or an error message that mentions the name is not a read.
@@ -163,25 +179,52 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CROSS_TENANT: Record<string, string> = {
   'apps/worker/src/jobs/managed-sync-tick.ts':
     'which mappings are due across every organisation, how many runs are in flight, ' +
-    'whether the platform is on hold (0138 T2)',
+    'whether the platform is on hold (0138 T2); as the system role since T3 step 2',
   'apps/worker/src/jobs/managed-retention.ts':
-    'prunes across organisations, each one only as far as its last issued invoice (0138 T2)',
+    'prunes across organisations, each one only as far as its last issued invoice (0138 T2); ' +
+    'as the system role since T3 step 2',
   'apps/worker/src/jobs/managed-purge-closed.ts':
     'finds closed organisations whose window has run out, revokes their stored ' +
-    'credentials and removes their data (0138 T2)',
+    'credentials and removes their data (0138 T2); as the system role since T3 step 2',
   'apps/worker/src/cli/index.ts':
     "the operator's cutover CLI, run at the machine by whoever runs the deployment, never as a task",
   'apps/worker/src/jobs/task-pools.ts':
-    "the owner's URL for two things that hold no organisation's rows. The audit key's pool: one " +
-    'connection, reading deployment_key, which ledger migration 0062 closes to app_user (0138 T1 ' +
-    "part 5). And the list of organisations the SPLIT jobs visit (activeOrganisations): one " +
+    "the system role's URL for two things that hold no organisation's rows. The audit key's pool: " +
+    'one connection, reading deployment_key, which ledger migration 0062 closes to app_user (0138 ' +
+    "T1 part 5). And the list of organisations the SPLIT jobs visit (activeOrganisations): one " +
     "connection, one statement, the ids of the active organisations and nothing else, closed " +
-    'before it returns (0138 T2). Every tenant read and write goes to APP_DATABASE_URL; T3 step 2 ' +
-    'moves both to the system role',
+    'before it returns (0138 T2). Every tenant read and write goes to APP_DATABASE_URL. Both were ' +
+    "the owner's until T3 step 2",
   'packages/ledger/src/direct-url.ts':
     'migrationConnectionString reads the variables from an environment its caller ' +
     'passes; its callers are the API and the seed, and no task calls it',
 };
+
+/**
+ * The CROSS_TENANT files that run in a task (rule 8, 0138 T3 step 2). Each
+ * reads `SYSTEM_DATABASE_URL`, the system role, and no other database URL:
+ * never `DATABASE_URL`, the owner, a superuser on the managed stack, which
+ * `set-task-env.sh` no longer uploads and deletes from the store.
+ */
+const ON_THE_SYSTEM_ROLE: readonly string[] = Object.freeze([
+  'apps/worker/src/jobs/managed-sync-tick.ts',
+  'apps/worker/src/jobs/managed-retention.ts',
+  'apps/worker/src/jobs/managed-purge-closed.ts',
+  'apps/worker/src/jobs/task-pools.ts',
+]);
+
+/**
+ * The CROSS_TENANT files that never run in a task (rule 8): they read the
+ * owner's URL, or the direct one, for the person who runs them at the
+ * machine, and never the system role's.
+ */
+const AT_THE_MACHINE: readonly string[] = Object.freeze([
+  'apps/worker/src/cli/index.ts',
+  'packages/ledger/src/direct-url.ts',
+]);
+
+/** The one database URL a task reads across organisations (rule 8). */
+const SYSTEM_URL = 'SYSTEM_DATABASE_URL';
 
 /**
  * The per-tenant tasks: each asks about one organisation, and takes its pools
@@ -1136,7 +1179,7 @@ describe('who reads a database URL other than the application role', () => {
     // If the parse or the walk stops matching, this goes red rather than every
     // case below passing over nothing.
     expect(files.length).toBeGreaterThan(100);
-    expect(readers.get('apps/worker/src/jobs/managed-sync-tick.ts')).toEqual(['DATABASE_URL']);
+    expect(readers.get('apps/worker/src/jobs/managed-sync-tick.ts')).toEqual(['SYSTEM_DATABASE_URL']);
     expect(readers.get('apps/worker/src/cli/index.ts')).toEqual(['DATABASE_URL']);
     // The fallback the builders carried until T1 part 2, both halves a read.
     expect(
@@ -1193,6 +1236,47 @@ describe('who reads a database URL other than the application role', () => {
           'on CROSS_TENANT with its reason, and its own entry in OWNER_URL_HELPERS.',
       ).toEqual([]);
     }
+  });
+});
+
+describe("no task reads the owner's URL: the jobs across organisations read the system role's (rule 8)", () => {
+  it('CROSS_TENANT is the system role\'s task files and the machine\'s, each once', () => {
+    expect([...ON_THE_SYSTEM_ROLE, ...AT_THE_MACHINE].sort()).toEqual(Object.keys(CROSS_TENANT).sort());
+    expect(new Set([...ON_THE_SYSTEM_ROLE, ...AT_THE_MACHINE]).size).toBe(ON_THE_SYSTEM_ROLE.length + AT_THE_MACHINE.length);
+  });
+
+  it.each(ON_THE_SYSTEM_ROLE.map((f) => [f]))('%s reads SYSTEM_DATABASE_URL, and no other database URL', (file) => {
+    expect(
+      readers.get(file) ?? [],
+      `${file} reads ${readers.get(file)?.join(', ') ?? 'no database URL'}. A task that spans organisations\n` +
+        `connects as the system role, ${SYSTEM_URL}, and nothing else: DATABASE_URL is the database owner,\n` +
+        'a superuser on the managed stack, which set-task-env.sh no longer uploads and deletes from the store\n' +
+        '(0138 T3 step 2). A fallback from one to the other is one DATABASE_URL in .env away from the owner.',
+    ).toEqual([SYSTEM_URL]);
+  });
+
+  it.each(AT_THE_MACHINE.map((f) => [f]))('%s runs at the machine and reads no SYSTEM_DATABASE_URL', (file) => {
+    expect(readers.has(file), `${file} reads no database URL: its entry is stale`).toBe(true);
+    expect(readers.get(file)).not.toContain(SYSTEM_URL);
+  });
+
+  it('no file but the system role\'s task files reads SYSTEM_DATABASE_URL', () => {
+    const reading = [...readers.entries()].filter(([f, names]) => names.includes(SYSTEM_URL) && !ON_THE_SYSTEM_ROLE.includes(f));
+    expect(
+      reading.map(([f]) => f),
+      `${reading.map(([f]) => f).join(', ')} reads ${SYSTEM_URL}, the system role, which reads past row security\n` +
+        'on every table it is granted. A per-tenant task or a split job reads APP_DATABASE_URL (0138 T1, T2).',
+    ).toEqual([]);
+  });
+
+  it("no scanned file that runs in a task reads the owner's names, DATABASE_URL or DIRECT_DATABASE_URL", () => {
+    const owners = [...readers.entries()].filter(
+      ([f, names]) => !AT_THE_MACHINE.includes(f) && names.some((n) => n === 'DATABASE_URL' || n === 'DIRECT_DATABASE_URL'),
+    );
+    expect(
+      owners.map(([f, names]) => `${f}: ${names.join(', ')}`),
+      "No task run holds the owner's URL since 0138 T3 step 2, and none may read it.",
+    ).toEqual([]);
   });
 });
 

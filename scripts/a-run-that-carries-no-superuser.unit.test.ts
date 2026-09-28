@@ -17,15 +17,27 @@
  * security to a superuser, so every run held a credential that reads past every
  * policy and can run programs on the database server, for nothing.
  *
- * `DATABASE_URL` is the owner's credential as well, through the pooler. Since
- * T1's second step (2026-09-28) the per-tenant tasks read tenant data as
- * `app_user` (`APP_DATABASE_URL`) and read this one only for the audit key's
- * pool of one (`task-pools.ts`), the three jobs split in two read their list
- * of organisations with it and each organisation as `app_user` (T2), and the
- * three jobs that span organisations whole still connect with it. It goes in
- * T3 step 2, once those jobs, the list and that key's pool have a role of
- * their own. Until then it is the one exception below, on
- * a list that may only shrink.
+ * `DATABASE_URL` was the owner's credential as well, through the pooler, and
+ * went in T3 step 2 (2026-09-28). By then the per-tenant tasks read tenant
+ * data as `app_user` (`APP_DATABASE_URL`, T1) and the digest, the drift
+ * detector and group discovery each organisation's rows as `app_user` too
+ * (T2), and what still read the owner's URL was the three jobs that span
+ * organisations whole, the split jobs' list of organisations, and the audit
+ * key's pool of one. Those connect as `ownpace_system` now, a role that is not
+ * a superuser, may not create roles or databases, belongs to no role, and
+ * holds `BYPASSRLS` and the grants its statements need
+ * (`packages/managed/migrations/0032_a_system_role_that_is_not_the_owner.sql`),
+ * under `SYSTEM_DATABASE_URL`. So no value the upload carries may be composed
+ * from the owner's user or password, under any name, and neither of the names
+ * the owner went up under may go up again.
+ *
+ * AND THE STORE FORGETS THEM. `envvars.upload` sends the variables it is given
+ * and nothing else, so leaving a name out of the upload does not take it out
+ * of the store: a plane that held `DIRECT_DATABASE_URL` kept it after step 1
+ * until the owner deleted it by hand. Step 2 deletes both of the owner's names
+ * itself, after the upload has gone through (a failed upload leaves the old
+ * tasks the URL they read), and then refuses when the list the store answers
+ * still holds either: the list, not what a delete answered, is the check.
  *
  * WHAT IS CHECKED. The upload block is read whole, and a part of it this cannot
  * read is a failure, not a skip: every line of the `variables` literal and of
@@ -36,16 +48,18 @@
  * through the script's assignments, as deep as they go, and one that reaches
  * `$POSTGRES_USER` or `$POSTGRES_PASSWORD`, braced or not, is the owner's
  * whatever it is called. `set -a` exports all of `.env` to the node process, so
- * a read this cannot name is a read it cannot judge. The last block puts back
- * each way review found around the first version, and expects it caught.
+ * a read this cannot name is a read it cannot judge. The system role's URL is
+ * held to its name and to `${SYSTEM_DB_PASSWORD}`, which the script refuses to
+ * go on without, with no default a password could hide in. The last block puts
+ * back each way review found around the first version, and each way back to
+ * the owner step 2 closed, and expects it caught.
  *
  * WHAT IS NOT. A value `.env` itself holds under a name that says nothing: the
- * optional list's NAMES are checked, the values in `.env` are not. And the
- * store. Removing a variable from this script does not remove it from the
- * store, because `envvars.upload` sends only the variables it is given. A plane
- * that held `DIRECT_DATABASE_URL` keeps it until somebody deletes it once,
- * which `docs/managed-bring-up.md` ("Updating a running deployment") writes
- * down as the operator's step. No test here can see a running stack's store.
+ * optional list's NAMES are checked, the values in `.env` are not. Whether the
+ * role the URL names is what the migration made it: the bring-up asks Postgres
+ * that before this script runs (`db_roles_system_fit`,
+ * `a-superuser-the-bring-up-would-have-uploaded`). And the store itself: no
+ * test here can see a running stack's, which is why the script reads it back.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -57,26 +71,27 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = readFileSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh'), 'utf8');
 
 /**
- * The owner-composed variables the upload may still carry, each with the step
- * that removes it. It may only shrink: T3 step 2 empties it, and its PR deletes
- * the exception from the test below.
+ * The names the database owner went up under, each with the step that stopped
+ * it. The script deletes both from the store on every run, and neither may be
+ * uploaded again, under any value.
  */
-const OWNER_URL_UNTIL_T3_STEP_2: Record<string, string> = {
-  DATABASE_URL:
-    'the three jobs that span organisations whole connect with it, the three split jobs read their ' +
-    "list of organisations with it (0138 T2), and every task reads it for the audit key's pool of " +
-    'one, their tenant data being on APP_DATABASE_URL since 0138 T1 step 2 and T2; T3 step 2 gives ' +
-    'all three a role that is not a superuser, and then this goes',
+const OWNER_NAMES: Record<string, string> = {
+  DATABASE_URL: 'T3 step 2: the jobs across organisations, their list and the audit key connect as the system role',
+  DIRECT_DATABASE_URL: 'T3 step 1: no task reads it, and no task runs migrations',
 };
+
+/** The role the jobs across organisations connect as (managed migration 0032), and its password in `.env`. */
+const SYSTEM_ROLE = 'ownpace_system';
+const SYSTEM_PASSWORD = 'SYSTEM_DB_PASSWORD';
 
 /**
  * The database URLs the upload may carry, by the name a task reads, each with
- * the variable the script hands node. T3 step 2 adds its system role's URL
- * here, under a name 0138 T4 reads as a database URL, and takes DATABASE_URL
- * out.
+ * the variable the script hands node: the application role's, and since T3
+ * step 2 the system role's, under a name 0138 T4 reads as a database URL.
  */
+const SYSTEM_SOURCE = 'TASK_SYSTEM_DATABASE_URL';
 const DATABASE_URL_UPLOADS: Record<string, string> = {
-  DATABASE_URL: 'TASK_DATABASE_URL',
+  SYSTEM_DATABASE_URL: SYSTEM_SOURCE,
   APP_DATABASE_URL: 'TASK_APP_DATABASE_URL',
 };
 
@@ -98,7 +113,7 @@ const OWNER = /\$\{?POSTGRES_(?:USER|PASSWORD)\b/;
 const CREDENTIAL_NAME = /DATABASE_URL$|^POSTGRES_|^PG[A-Z]+$|^DB_/;
 const POSTGRES_URL = /postgres(?:ql)?:\/\//;
 
-type Rule = 'shape' | 'traced' | 'direct' | 'owner' | 'ratchet' | 'credential' | 'url-name';
+type Rule = 'shape' | 'traced' | 'direct' | 'owner' | 'owner-name' | 'system' | 'deletes' | 'credential' | 'url-name';
 
 interface Reading {
   required: Array<{ name: string; source: string }>;
@@ -226,35 +241,102 @@ function read(script: string): Reading {
       flag('traced', `${name} is uploaded from process.env.${source}, and no ${source}="…" \\ line hands it to node`);
   }
 
-  if (code.includes('DIRECT_DATABASE_URL'))
+  // The one place the name may stand: the list of names the script deletes.
+  const ownerNamesLiteral = /^\s*const OWNER_NAMES = \[[^\]\n]*\];\s*$/m;
+  if (code.replace(ownerNamesLiteral, '').includes('DIRECT_DATABASE_URL'))
     flag(
       'direct',
       'set-task-env.sh names DIRECT_DATABASE_URL again. It is the database owner,\n' +
         'straight to Postgres past the pooler, and no task reads it: the tasks do not run\n' +
         'migrations (the API, the appliance and the seed do). Every run of every task would\n' +
-        'hold it, because Trigger.dev stores variables per environment.',
+        'hold it, because Trigger.dev stores variables per environment. It may stand in\n' +
+        'OWNER_NAMES alone, the names the script deletes from the store.',
     );
 
-  const ownerSources = new Set(required.filter((u) => u.name in OWNER_URL_UNTIL_T3_STEP_2).map((u) => u.source));
   for (const name of new Set([...reads, ...optional])) {
-    if (OWNER.test(composition(name)) && !ownerSources.has(name))
+    if (OWNER.test(composition(name)))
       flag(
         'owner',
         `process.env.${name} is made from $POSTGRES_USER or $POSTGRES_PASSWORD: the database owner, a\n` +
           'superuser on this stack, whom row security never binds. Every run of every task would hold it.\n' +
-          'Upload the application role (APP_DB_USER) instead, or, for a job that spans\n' +
-          'organisations, the role 0138 T3 step 2 creates.',
+          'Upload the application role (APP_DB_USER), or, for a job that spans organisations, the\n' +
+          `system role (${SYSTEM_ROLE}, SYSTEM_DATABASE_URL), which 0138 T3 step 2 created for it.`,
       );
   }
-  for (const name of Object.keys(OWNER_URL_UNTIL_T3_STEP_2)) {
-    const upload = required.find((u) => u.name === name);
-    if (!upload || !OWNER.test(composition(upload.source)))
+  for (const { name } of [...required, ...optional.map((n) => ({ name: n }))]) {
+    if (OWNER_NAMES[name] !== undefined)
       flag(
-        'ratchet',
-        `${name} is no longer uploaded as the owner. If that is 0138 T3 step 2, delete it\n` +
-          'from OWNER_URL_UNTIL_T3_STEP_2: the list only shrinks.',
+        'owner-name',
+        `${name} is uploaded again. It is the name the database owner went up under until 0138\n` +
+          `${OWNER_NAMES[name]}. No task reads it (a-pass-that-opened-the-owners-pool), and the script\n` +
+          'deletes it from the store on every run: uploaded, it would be put back and deleted in one run.',
       );
   }
+
+  // The system role's URL: uploaded, under its own name, from its own variable,
+  // composed from the role's name and SYSTEM_DB_PASSWORD, which the script
+  // refuses to go on without.
+  const system = required.find((u) => u.name === 'SYSTEM_DATABASE_URL');
+  if (!system || system.source !== SYSTEM_SOURCE)
+    flag(
+      'system',
+      'SYSTEM_DATABASE_URL is not uploaded from TASK_SYSTEM_DATABASE_URL. The jobs that span organisations,\n' +
+        "their list and the audit key's pool read it and refuse to start without it (0138 T3 step 2).",
+    );
+  // Its composition, not the line that hands it to node (`NAME="$NAME" \`).
+  const systemAssigned = assigned(SYSTEM_SOURCE).filter(
+    (value) => value !== `"$${SYSTEM_SOURCE}"`,
+  );
+  const systemUrl = systemAssigned.length === 1 ? systemAssigned[0]! : '';
+  if (
+    !POSTGRES_URL.test(systemUrl) ||
+    !systemUrl.includes(`//${SYSTEM_ROLE}:\${${SYSTEM_PASSWORD}}@`) ||
+    new RegExp(`\\$\\{${SYSTEM_PASSWORD}[^}]`).test(systemUrl)
+  )
+    flag(
+      'system',
+      `TASK_SYSTEM_DATABASE_URL is not postgresql://${SYSTEM_ROLE}:\${${SYSTEM_PASSWORD}}@…, assigned once: ` +
+        `${systemAssigned.join(' | ') || '(not assigned)'}\n` +
+        `The migration creates ${SYSTEM_ROLE} by that name, and its password is .env's ${SYSTEM_PASSWORD},\n` +
+        'which the bring-up sets on the role. A default after the name would be a password written here.',
+    );
+  const refusal = shell.indexOf(`: "\${${SYSTEM_PASSWORD}:?`);
+  const composed = shell.indexOf(`${SYSTEM_SOURCE}=`);
+  if (refusal === -1 || composed === -1 || refusal > composed)
+    flag(
+      'system',
+      `the script does not refuse an empty ${SYSTEM_PASSWORD} before it composes the system role's URL.\n` +
+        'Postgres takes an empty password as none, and the URL would go up with nothing in it.',
+    );
+
+  // The owner's names, deleted from the store after the upload, and the list read back.
+  const namesLiterals = [...block.matchAll(/^\s*const OWNER_NAMES = \[([^\]\n]*)\];\s*$/gm)];
+  const deleted = (namesLiterals[0]?.[1] ?? '').match(/"[A-Z_]+"/g)?.map((n) => n.slice(1, -1)).sort() ?? [];
+  if (namesLiterals.length !== 1 || deleted.join() !== Object.keys(OWNER_NAMES).sort().join())
+    flag(
+      'deletes',
+      `OWNER_NAMES is not one list of ${Object.keys(OWNER_NAMES).sort().join(' and ')}: ${deleted.join(', ') || '(none)'}.\n` +
+        'Leaving a name out of the upload does not take it out of the store (T3 step 1); each is deleted.',
+    );
+  const loop = /for \(const name of OWNER_NAMES\) \{\n\s*try \{\n\s*await envvars\.del\(ref, slug, name\);/.exec(block);
+  const upload = block.indexOf('await envvars.upload(');
+  if (!loop)
+    flag('deletes', 'no `for (const name of OWNER_NAMES)` loop deletes each name with envvars.del(ref, slug, name).');
+  else if (upload === -1 || loop.index < upload)
+    flag(
+      'deletes',
+      'the owner names are deleted before the upload. A failed upload would then leave the old tasks without\n' +
+        'the URL they read, and the new ones without theirs: delete after the upload has gone through.',
+    );
+  const listed = block.indexOf('await envvars.list(');
+  const checked = block.indexOf('OWNER_NAMES.includes(', listed);
+  if (listed === -1 || checked === -1 || block.indexOf('process.exit(1)', checked) === -1)
+    flag(
+      'deletes',
+      'the list the store answers after the upload is not checked for the owner names, with exit 1 when\n' +
+        'one is left. A delete that answers "not found" is not proof the plane never held the name\n' +
+        '(reset-trigger.sh records it once): the list is the check.',
+    );
 
   for (const name of optional) {
     if (CREDENTIAL_NAME.test(name))
@@ -290,14 +372,15 @@ describe('a task run carries no owner connection it does not need', () => {
     // If the shape of the script changes, this goes red instead of every case
     // below passing over an empty list.
     const names = REAL.required.map((u) => u.name);
-    expect(names).toContain('DATABASE_URL');
+    expect(names).toContain('SYSTEM_DATABASE_URL');
     expect(names).toContain('APP_DATABASE_URL');
     expect(names).toContain('SECRET_ENCRYPTION_KEY');
     expect(REAL.optional).toContain('SMTP_HOST');
     // The tracing works on a value it must find: the application role's URL is
-    // composed here from APP_DB_USER. The cases at the end show the owner test
-    // finding what it must.
+    // composed here from APP_DB_USER, the system role's from its own name and
+    // password. The cases at the end show the owner test finding what it must.
     expect(REAL.composition('TASK_APP_DATABASE_URL')).toContain('${APP_DB_USER');
+    expect(REAL.composition('TASK_SYSTEM_DATABASE_URL')).toContain(`${SYSTEM_ROLE}:\${${SYSTEM_PASSWORD}}@`);
     // And T4 still counts the same names as a database URL.
     expect(readFileSync(join(REPO_ROOT, T4_GUARD), 'utf8')).toContain(DB_URL_NAME.source);
   });
@@ -315,9 +398,20 @@ describe('a task run carries no owner connection it does not need', () => {
     expect(found('direct'), found('direct').join('\n')).toEqual([]);
   });
 
-  it('uploads no owner-composed value but the one T3 step 2 removes', () => {
+  it('uploads no value composed from the owner, under any name (0138 T3 step 2)', () => {
     expect(found('owner'), found('owner').join('\n\n')).toEqual([]);
-    expect(found('ratchet'), found('ratchet').join('\n')).toEqual([]);
+  });
+
+  it('uploads nothing under a name the owner went up under, DATABASE_URL or DIRECT_DATABASE_URL', () => {
+    expect(found('owner-name'), found('owner-name').join('\n\n')).toEqual([]);
+  });
+
+  it('uploads the system role\'s URL, composed from its name and SYSTEM_DB_PASSWORD, and refuses without one', () => {
+    expect(found('system'), found('system').join('\n\n')).toEqual([]);
+  });
+
+  it('deletes the stored DATABASE_URL and DIRECT_DATABASE_URL after the upload, and reads the list back', () => {
+    expect(found('deletes'), found('deletes').join('\n\n')).toEqual([]);
   });
 
   it('passes no database credential through under a name of its own', () => {
@@ -344,6 +438,17 @@ const compose = (...steps: Array<(s: string) => string>) => (s: string) => steps
 
 /** A line of the script's own, a prefix in front of `node -e`, an entry in `variables`. */
 const ASSIGN = (add: string) => afterLine('TASK_APP_DATABASE_URL="postgresql://', add);
+/** The system role's URL as the script composes it, and the lines that carry it. */
+const SYSTEM_URL_ASSIGNED = 'TASK_SYSTEM_DATABASE_URL="postgresql://ownpace_system:${SYSTEM_DB_PASSWORD}@';
+const OWNER_DATABASE_URL =
+  'TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"';
+const UPLOAD_LINE = '  await envvars.upload(ref, slug, { variables, override: true });\n';
+/** Take out the line that starts with `starting`, at the start of a line. */
+const dropLine = (starting: string) => (s: string) => {
+  const at = s.indexOf(`\n${starting}`);
+  if (at === -1) return s;
+  return s.slice(0, at) + s.slice(s.indexOf('\n', at + 1));
+};
 const PREFIX = (add: string) => afterLine('  TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \\', add);
 const ENTRY = (add: string) => afterLine('    SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,', add);
 const AFTER_LITERAL = (add: string) => (s: string) =>
@@ -423,10 +528,55 @@ const COMES_BACK: Array<[string, (s: string) => string, Rule[]]> = [
     ),
     ['url-name'],
   ],
+  // Each way back to the owner that 0138 T3 step 2 closed.
   [
-    'DATABASE_URL composed from another role, its entry kept',
-    (s) => s.replace('TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD', 'TASK_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD'),
-    ['ratchet'],
+    'DATABASE_URL uploaded again, the owner through the pooler, as it was before step 2',
+    compose(
+      ASSIGN(OWNER_DATABASE_URL),
+      PREFIX('  TASK_DATABASE_URL="$TASK_DATABASE_URL" \\'),
+      ENTRY('    DATABASE_URL: process.env.TASK_DATABASE_URL,'),
+    ),
+    ['owner', 'owner-name'],
+  ],
+  [
+    "DATABASE_URL uploaded again, carrying the system role's URL",
+    ENTRY('    DATABASE_URL: process.env.TASK_SYSTEM_DATABASE_URL,'),
+    ['owner-name'],
+  ],
+  [
+    "the system role's URL composed from the owner's user and password",
+    (s) => s.replace('postgresql://ownpace_system:${SYSTEM_DB_PASSWORD}@', 'postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@'),
+    ['owner', 'system'],
+  ],
+  [
+    "the system role's URL with a password written in as its default",
+    (s) => s.replace(SYSTEM_URL_ASSIGNED, SYSTEM_URL_ASSIGNED.replace('${SYSTEM_DB_PASSWORD}', '${SYSTEM_DB_PASSWORD:-system_password}')),
+    ['system'],
+  ],
+  ['no refusal of an empty SYSTEM_DB_PASSWORD', dropLine(': "${SYSTEM_DB_PASSWORD:?'), ['system']],
+  ["the system role's URL not uploaded", dropLine('    SYSTEM_DATABASE_URL: process.env.TASK_SYSTEM_DATABASE_URL,'), ['system']],
+  [
+    'the stored DATABASE_URL left in the store',
+    (s) => s.replace('const OWNER_NAMES = ["DATABASE_URL", "DIRECT_DATABASE_URL"];', 'const OWNER_NAMES = ["DIRECT_DATABASE_URL"];'),
+    ['deletes'],
+  ],
+  [
+    'the owner names listed, and nothing deleted',
+    (s) => s.replace('      await envvars.del(ref, slug, name);\n      console.log("[set-task-env] deleted", name + ": ', '      console.log("[set-task-env] would delete", name + ": '),
+    ['deletes'],
+  ],
+  [
+    'the owner names deleted before the upload',
+    (s) =>
+      s
+        .replace(UPLOAD_LINE, '')
+        .replace('  const list = await envvars.list(ref, slug);\n', `${UPLOAD_LINE}  const list = await envvars.list(ref, slug);\n`),
+    ['deletes'],
+  ],
+  [
+    'the list read back and not checked',
+    (s) => s.replace('.filter((name) => OWNER_NAMES.includes(name))', '.filter(() => false)'),
+    ['deletes'],
   ],
   [
     'an envvars call other than upload, list and del',

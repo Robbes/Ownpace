@@ -4,23 +4,32 @@
 #
 # Task containers inherit NOTHING from compose: every run gets only what the
 # trigger platform stores for the project's environment. Before this script,
-# DATABASE_URL / APP_DATABASE_URL / SECRET_ENCRYPTION_KEY were hand-entered in
+# the database URLs and SECRET_ENCRYPTION_KEY were hand-entered in
 # the dashboard — whose env form misbehaved over the TLS front during the
 # 2026-08-01 bring-up; the path that actually worked was the SDK's
 # `envvars.upload`, which this script wraps. Rotation is now: change .env,
 # run this, redeploy if needed.
 #
 # Reads deploy/compose/.env (the same file the stack runs on) and uploads:
-#   DATABASE_URL       — owner role, at the IN-NETWORK address (the pooler;
-#                        runners join the compose network, so `localhost` here
-#                        would point a task at itself). The three scheduled
-#                        jobs that span organisations whole connect with it,
-#                        as a superuser row security never binds; the digest,
-#                        the drift detector and group discovery read only
-#                        their list of organisations with it (workplan 0138
-#                        T2); and every task that opens openTaskPools reads
-#                        it for its audit key's pool of one. Workplan 0138 T3
-#                        step 2 moves all three off it.
+#   SYSTEM_DATABASE_URL — the system role, ownpace_system, at the IN-NETWORK
+#                        address (the pooler; runners join the compose
+#                        network, so `localhost` here would point a task at
+#                        itself), with .env's SYSTEM_DB_PASSWORD, which
+#                        ensure-env-secrets.sh generates and the bring-up sets
+#                        on the role (bootstrap-managed.sh, its `tasks`
+#                        phase, after asking Postgres that the role is no
+#                        superuser and may create no role). The three
+#                        scheduled jobs that span organisations whole (the
+#                        sync tick, retention, the purge) connect with it; the
+#                        digest, the drift detector and group discovery read
+#                        only their list of organisations with it (workplan
+#                        0138 T2); and every task that opens openTaskPools
+#                        reads it for its audit key's pool of one. The role
+#                        bypasses row security, which those questions across
+#                        organisations need, and is not a superuser, may
+#                        create no role or database, and holds the grants its
+#                        statements need and no others (managed migration
+#                        0032; workplan 0138 T3 step 2).
 #   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address. The
 #                        eight per-tenant tasks read and write tenant data
 #                        through it (workplan 0138 T1), so do the three split
@@ -56,29 +65,42 @@
 #                        emptied list must take effect in the next run rather
 #                        than leave the old names admitted.
 #
-# NOT DIRECT_DATABASE_URL, and not by accident (workplan 0138 T3 step 1). This
-# script uploaded it until that step: the owner again, straight to
-# postgres:5432 past the pooler. No task reads it. The tasks do not run
-# migrations — the API, the appliance and the seed do. The two functions that
-# read this variable, migrationConnectionString and poolerInFront
-# (packages/ledger/src/direct-url.ts), are called by the API and the seed alone;
-# scripts/a-pass-that-opened-the-owners-pool.unit.test.ts fails if the worker
-# or another package calls them.
-# Trigger.dev stores variables per environment, not per task, so every run of
-# every task held a superuser credential it never used.
-# scripts/a-run-that-carries-no-superuser.unit.test.ts fails if the name comes
-# back anywhere in this script outside a comment line, or if a value this
-# script composes from the owner's user or password is uploaded under any name
-# but DATABASE_URL (which T3 step 2 removes). It cannot see what .env holds.
+# NOT THE DATABASE OWNER, UNDER ANY NAME (workplan 0138 T3). Trigger.dev stores
+# variables per environment, not per task, so what this uploads every run of
+# every task holds. It uploaded the owner, a superuser whom row security never
+# binds and who may run programs on the database server, twice over:
+#   DIRECT_DATABASE_URL until T3 step 1, straight to postgres:5432 past the
+#                        pooler. No task reads it; the tasks do not run
+#                        migrations (the API, the appliance and the seed do).
+#   DATABASE_URL       until T3 step 2, through the pooler, for the three jobs
+#                        that span organisations, the split jobs' list and the
+#                        audit key, all of which read SYSTEM_DATABASE_URL now.
+# scripts/a-run-that-carries-no-superuser.unit.test.ts fails if a value this
+# script composes from the owner's user or password is uploaded under any
+# name, if either name is uploaded again, if DIRECT_DATABASE_URL is named
+# anywhere but the list below, or if the system role's URL is composed from
+# anything but its name and SYSTEM_DB_PASSWORD. It cannot see what .env holds.
 #
-# Leaving it out of the upload does NOT take it out of the store. `upload`
-# sends the variables it is given and nothing else (the SDK posts them to the
-# environment's import endpoint), and nothing here shows the platform dropping
-# a variable it was not sent. A plane that held it keeps it until it is deleted
-# once: docs/managed-bring-up.md, "Updating a running deployment". Until then
-# FORCE_REWRITE below does not rewrite it either, since it deletes only what it
-# uploads, so after a key rotation that leftover would be the one unreadable
-# secret that stops every run.
+# AND THE STORE FORGETS THEM, BECAUSE THIS DELETES THEM. Leaving a name out of
+# the upload does NOT take it out of the store: `upload` sends the variables
+# it is given and nothing else (the SDK posts them to the environment's import
+# endpoint), and a plane that held DIRECT_DATABASE_URL kept it after step 1
+# until the owner deleted it by hand. So after the upload has gone through
+# (a failed upload leaves the old tasks the URL they read), this deletes both
+# of the owner's names, prints what each delete answered, and reads the list
+# back: when the store still holds either, it fails. A delete that answers
+# "not found" is not proof the plane never held the name (reset-trigger.sh
+# records a case where it was not); the list is the check. It also keeps a
+# later key rotation whole: FORCE_REWRITE below rewrites only what this
+# uploads, and a leftover on the old key would be the one unreadable secret
+# that stops every run.
+#
+# ON THE FIRST RUN AFTER STEP 2 LANDS, the tasks deployed before it still read
+# DATABASE_URL, and this deletes it before deploy-tasks.sh has put the new
+# tasks in their place: from here to the end of that deploy, a run the old
+# tasks start refuses at its start (the tick's, every minute, among them).
+# The bring-up runs the two back to back, and a live deploy runs under the
+# hold; afterwards nothing reads the name.
 #
 # `override: true` on purpose: this file is the source of truth, and a stale
 # dashboard value silently winning over a rotated .env is exactly the failure
@@ -164,6 +186,7 @@ TRIGGER_ENV="$(trigger_env "${ENV_FILE}")" || exit 1
 : "${TRIGGER_PROJECT_REF:?set TRIGGER_PROJECT_REF in .env (dashboard project settings, proj_...)}"
 : "${TRIGGER_SECRET_KEY:?set TRIGGER_SECRET_KEY in .env (the prod tr_prod_... key)}"
 : "${SECRET_ENCRYPTION_KEY:?set SECRET_ENCRYPTION_KEY in .env}"
+: "${SYSTEM_DB_PASSWORD:?set SYSTEM_DB_PASSWORD in .env: ./deploy/compose/ensure-env-secrets.sh generates it, and the bring-up sets it on the system role (workplan 0138 T3 step 2)}"
 
 if [ ! -d "$REPO_ROOT/apps/worker/node_modules/@trigger.dev/sdk" ]; then
   echo "FATAL: apps/worker/node_modules/@trigger.dev/sdk missing — run: pnpm install" >&2
@@ -177,8 +200,11 @@ fi
 # max 10; the job's own plus one per domain), so without pooling the
 # server-connection ceiling is concurrent-passes times up to twenty.
 # DB_HOST=postgres DB_PORT=5432 in .env is the rollback, same as the API's.
-TASK_DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD:-openmigrate_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
 TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
+# The system role by the name managed migration 0032 creates it under, with no
+# default for its password: an empty one is refused above, and a default here
+# would be a password in a public repository.
+TASK_SYSTEM_DATABASE_URL="postgresql://ownpace_system:${SYSTEM_DB_PASSWORD}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
 
 # WAIT FOR THE WEBAPP BEFORE UPLOADING TO IT.
 #
@@ -219,7 +245,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   TRIGGER_SECRET_KEY="$TRIGGER_SECRET_KEY" \
   TRIGGER_PROJECT_REF="$TRIGGER_PROJECT_REF" \
   TRIGGER_ENV="$TRIGGER_ENV" \
-  TASK_DATABASE_URL="$TASK_DATABASE_URL" \
+  TASK_SYSTEM_DATABASE_URL="$TASK_SYSTEM_DATABASE_URL" \
   TASK_APP_DATABASE_URL="$TASK_APP_DATABASE_URL" \
   SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
   OAUTH2_CLIENT_ID="${OAUTH2_CLIENT_ID:-}" \
@@ -256,7 +282,7 @@ const { envvars } = require("@trigger.dev/sdk");
   const ref = process.env.TRIGGER_PROJECT_REF;
   const slug = process.env.TRIGGER_ENV;
   const variables = {
-    DATABASE_URL: process.env.TASK_DATABASE_URL,
+    SYSTEM_DATABASE_URL: process.env.TASK_SYSTEM_DATABASE_URL,
     APP_DATABASE_URL: process.env.TASK_APP_DATABASE_URL,
     SECRET_ENCRYPTION_KEY: process.env.SECRET_ENCRYPTION_KEY,
   };
@@ -350,11 +376,32 @@ const { envvars } = require("@trigger.dev/sdk");
     }
   }
   await envvars.upload(ref, slug, { variables, override: true });
+  // The names the database owner went up under, deleted from the store after
+  // the upload has gone through: DATABASE_URL until workplan 0138 T3 step 2,
+  // DIRECT_DATABASE_URL until its step 1. No task reads either. A name left
+  // out of the upload stays in the store, so each is deleted here, and what
+  // the delete answered is printed; the list below is the check.
+  const OWNER_NAMES = ["DATABASE_URL", "DIRECT_DATABASE_URL"];
+  for (const name of OWNER_NAMES) {
+    try {
+      await envvars.del(ref, slug, name);
+      console.log("[set-task-env] deleted", name + ": the database owner, which no run holds (workplan 0138 T3)");
+    } catch (e) {
+      console.log("[set-task-env] could not delete", name + ":", e && e.message ? e.message : e);
+    }
+  }
   const list = await envvars.list(ref, slug);
-  console.log(
-    "[set-task-env] upload OK — env now holds:",
-    list.map((v) => v.name).sort().join(", ")
-  );
+  const names = list.map((v) => v.name).sort();
+  console.log("[set-task-env] upload OK — env now holds:", names.join(", "));
+  const kept = names.filter((name) => OWNER_NAMES.includes(name));
+  if (kept.length > 0) {
+    console.error(
+      "[set-task-env] FAILED: the task environment still holds " + kept.join(" and ") +
+        ", the database owner, which every run would receive. Delete it by hand" +
+        " (docs/managed-bring-up.md, the owner names in the task environment) and run this again."
+    );
+    process.exit(1);
+  }
 })().catch((e) => {
   console.error("[set-task-env] FAILED:", e && e.message ? e.message : e);
   process.exit(1);

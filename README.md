@@ -113,10 +113,12 @@ no worker container. Tenant isolation is enforced at runtime in the API (FORCE R
 non-owner role + a tenant-membership auth gate), in the eight per-tenant Trigger.dev tasks,
 which connect as the same non-owner role (workplan 0138 T1), and in everything the digest, the
 drift detector and group discovery read for one organisation: they take the list of organisations
-from the owner's connection and read each one as itself (workplan 0138 T2). The three scheduled
-jobs that span organisations whole still connect as the database owner, a superuser, so in those
-it rests on each query's own tenant filter until the rest of workplan 0138 lands
-([`docs/rls-guide.md`](./docs/rls-guide.md) says where row security holds and where it does not).
+from a connection that sees them all and read each one as itself (workplan 0138 T2). The three
+scheduled jobs that span organisations whole connect as a system role that bypasses row security
+and is not a superuser, with the grants their statements need and no others (workplan 0138 T3
+step 2), so in those it rests on each query's own tenant filter; no task holds the database
+owner's credential ([`docs/rls-guide.md`](./docs/rls-guide.md) says where row security holds and
+where it does not).
 `apply`/`verify` run asynchronously with receipts, and the compose operator stack is
 live-verified (`docs/operator-runbook.md`, `smoke-managed.sh`).
 Billing is not live yet: the Mollie webhook marks an invoice paid (tested with Mollie mocked),

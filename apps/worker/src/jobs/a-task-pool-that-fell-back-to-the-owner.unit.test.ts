@@ -13,12 +13,15 @@
  *     API's `getDbPool` falls back, for the appliance's sake; a task that did
  *     would be quietly back on the owner, a superuser, and every scope in it
  *     would change nothing again, with nothing to say so.
- *   - the audit key's pool: ONE connection, on `DATABASE_URL`, the owner's,
+ *   - the audit key's pool: ONE connection, on `SYSTEM_DATABASE_URL`, the
+ *     system role's (0138 T3 step 2; the owner's `DATABASE_URL` until then),
  *     for the one read `app_user` may not make, `deployment_key` (ledger
  *     migration 0062). The audit export reads its pseudonym key there. On the
  *     tenant pool the read is refused, and the event is kept while its line is
  *     lost, every line, in silence but for a warning. It is the API's
- *     `auditKeyPool` (apps/api/src/index.ts), in a task.
+ *     `auditKeyPool` (apps/api/src/index.ts), in a task. It refuses to start
+ *     without `SYSTEM_DATABASE_URL` and never reads `DATABASE_URL` in its
+ *     place: no run holds the owner's URL since step 2.
  *
  * It also points the process's two sinks: the audit export at the key's pool,
  * and the operator's log page (app events, which `app_user` may insert) at the
@@ -37,10 +40,11 @@
  * The three jobs split in two (0138 T2: the digest, the drift detector and
  * group discovery) take their pools from it too, and ask their one question
  * across organisations through `activeOrganisations`: which organisations are
- * active, as ids. That list is read on the owner's URL, never on
- * `APP_DATABASE_URL`, where with no organisation set it would find none and
- * every such job would visit nobody and call it a quiet morning. So it
- * refuses without `DATABASE_URL`, asks first whether its connection sees every
+ * active, as ids. That list is read on the system role's URL (the owner's
+ * until 0138 T3 step 2), never on `APP_DATABASE_URL`, where with no
+ * organisation set it would find none and every such job would visit nobody
+ * and call it a quiet morning, and never on `DATABASE_URL`. So it refuses
+ * without `SYSTEM_DATABASE_URL`, asks first whether its connection sees every
  * organisation and refuses when it does not, and closes its one connection
  * before it answers. Here without a database: its pool's `query` answers.
  *
@@ -54,6 +58,7 @@ import { ACTIVE_ORGANISATIONS_SQL, activeOrganisations, openTaskPools, type Task
 
 const APP = 'postgresql://app_user:not-a-password@pgbouncer.example.invalid:6432/ownpace';
 const OWNER = 'postgresql://ownpace:not-a-password@pgbouncer.example.invalid:6432/ownpace';
+const SYSTEM = 'postgresql://ownpace_system:not-a-password@pgbouncer.example.invalid:6432/ownpace';
 
 /** node-postgres keeps what it was given; its types do not say so. */
 const optionsOf = (pool: unknown) =>
@@ -106,7 +111,7 @@ describe('the tenant pool is the application role, or nothing', () => {
   });
 
   it('builds it on APP_DATABASE_URL, and never on the owner\'s URL', () => {
-    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER });
+    const pools = open({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM, DATABASE_URL: OWNER });
 
     expect(optionsOf(pools.tenant).connectionString).toBe(APP);
     expect(optionsOf(pools.tenant).connectionString).not.toBe(OWNER);
@@ -116,7 +121,7 @@ describe('the tenant pool is the application role, or nothing', () => {
     // The key's pool is the owner, whom row security never binds. Handed back,
     // a job could take it for its tenant pool in one token, and every guard
     // stayed green (0138 T1 step 2's review, three such changes, 486 tests).
-    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER });
+    const pools = open({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM, DATABASE_URL: OWNER });
 
     expect(Object.keys(pools).sort()).toEqual(['end', 'tenant']);
     for (const value of Object.values(pools)) {
@@ -125,44 +130,53 @@ describe('the tenant pool is the application role, or nothing', () => {
   });
 });
 
-describe('the audit key has a pool of its own, of one connection, on the owner\'s URL', () => {
-  it('reads the key where app_user may not: one connection, the owner\'s, closed a second after', async () => {
+describe('the audit key has a pool of its own, of one connection, on the system role\'s URL', () => {
+  it('reads the key where app_user may not: one connection, the system role\'s, closed a second after', async () => {
     const asked = watchConnections();
-    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER }, () => {});
+    const pools = open({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM, DATABASE_URL: OWNER }, () => {});
 
     anAuditEvent();
 
     await vi.waitFor(() => expect(asked).toHaveLength(1));
     const [keyPool] = asked as [Pool];
     expect(keyPool).not.toBe(pools.tenant);
-    expect(optionsOf(keyPool).connectionString).toBe(OWNER);
+    // The system role's, although the owner's URL is in the same environment.
+    expect(optionsOf(keyPool).connectionString).toBe(SYSTEM);
     expect(optionsOf(keyPool).max).toBe(1);
     expect(optionsOf(keyPool).idleTimeoutMillis).toBeLessThanOrEqual(1_000);
     // A dropped idle connection is a warning, not the end of the process.
     expect(keyPool.listenerCount('error')).toBeGreaterThanOrEqual(1);
   });
 
-  it('refuses to start without DATABASE_URL, since every audit line would then be lost', () => {
-    expect(() => openTaskPools({ APP_DATABASE_URL: APP })).toThrow(/DATABASE_URL/);
+  it('refuses to start without SYSTEM_DATABASE_URL, since every audit line would then be lost', () => {
+    expect(() => openTaskPools({ APP_DATABASE_URL: APP })).toThrow(/SYSTEM_DATABASE_URL/);
     expect(() => openTaskPools({ APP_DATABASE_URL: APP })).toThrow(/audit/);
+    expect(() => openTaskPools({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: '  ' })).toThrow(/SYSTEM_DATABASE_URL/);
+  });
+
+  it("never reads the owner's DATABASE_URL in its place (0138 T3 step 2)", () => {
+    // A run no longer holds it (set-task-env.sh deletes it), and a fallback to
+    // it would put the key's pool back on a superuser wherever it is set.
+    expect(() => openTaskPools({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).toThrow(/SYSTEM_DATABASE_URL/);
+    expect(() => openTaskPools({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).toThrow(/never DATABASE_URL/);
   });
 });
 
 describe('the sinks it points: the key asked of its pool, the operator\'s events of the tenant pool', () => {
   it('asks the key\'s pool, never the tenant pool, for the key an audit line is made with', async () => {
     const asked = watchConnections();
-    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER }, () => {});
+    const pools = open({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM, DATABASE_URL: OWNER }, () => {});
 
     anAuditEvent();
 
     await vi.waitFor(() => expect(asked).toHaveLength(1));
     expect(asked[0]).not.toBe(pools.tenant);
-    expect(optionsOf(asked[0]).connectionString).toBe(OWNER);
+    expect(optionsOf(asked[0]).connectionString).toBe(SYSTEM);
   });
 
   it('records the operator\'s events on the tenant pool, which app_user may insert into', async () => {
     const asked = watchConnections();
-    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER }, () => {});
+    const pools = open({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM, DATABASE_URL: OWNER }, () => {});
 
     await recordAppEvent({ level: 'error', event: 'task.pool_check', reference: '0138c0de' });
 
@@ -187,7 +201,7 @@ describe('importing it does nothing', () => {
   });
 });
 
-describe('the list a split job visits: the active organisations, on the owner\'s URL, closed before it answers', () => {
+describe('the list a split job visits: the active organisations, on the system role\'s URL, closed before it answers', () => {
   /** Every statement the list's pool is asked, and the pool, answered without a database. */
   const answering = (seesEveryOrganisation: boolean) => {
     const asked: Array<{ pool: Pool; text: string }> = [];
@@ -202,22 +216,28 @@ describe('the list a split job visits: the active organisations, on the owner\'s
     return asked;
   };
 
-  it('refuses without DATABASE_URL, and never reads the list on APP_DATABASE_URL in its place', async () => {
+  it('refuses without SYSTEM_DATABASE_URL, and never reads the list on APP_DATABASE_URL or DATABASE_URL in its place', async () => {
     const asked = answering(true);
-    await expect(activeOrganisations({ APP_DATABASE_URL: APP })).rejects.toThrow(/DATABASE_URL is required/);
-    await expect(activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: '  ' })).rejects.toThrow(/DATABASE_URL/);
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP })).rejects.toThrow(/SYSTEM_DATABASE_URL is required/);
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: '  ' })).rejects.toThrow(
+      /SYSTEM_DATABASE_URL/,
+    );
+    // The owner's URL, right there, is not taken either (0138 T3 step 2).
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).rejects.toThrow(
+      /SYSTEM_DATABASE_URL is required/,
+    );
     expect(asked).toEqual([]);
   });
 
-  it('asks one connection on the owner\'s URL for the ids of the active organisations, and ends it', async () => {
+  it('asks one connection on the system role\'s URL for the ids of the active organisations, and ends it', async () => {
     const asked = answering(true);
-    const ids = await activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER });
+    const ids = await activeOrganisations({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM, DATABASE_URL: OWNER });
 
     expect(ids).toEqual(['0138d000-e29b-41d4-a716-4466554400a1', '0138d000-e29b-41d4-a716-4466554400b1']);
     expect(asked.map((a) => a.text)).toContain(ACTIVE_ORGANISATIONS_SQL);
     const [pool] = new Set(asked.map((a) => a.pool));
     expect(new Set(asked.map((a) => a.pool)).size).toBe(1);
-    expect(optionsOf(pool).connectionString).toBe(OWNER);
+    expect(optionsOf(pool).connectionString).toBe(SYSTEM);
     expect(optionsOf(pool).max).toBe(1);
     // Closed before it answered: the list holds nothing past its one read.
     expect(pool!.ended).toBe(true);
@@ -231,7 +251,7 @@ describe('the list a split job visits: the active organisations, on the owner\'s
     // Postgres, where the FORCEd policies bind it: with no organisation set,
     // `tenant` answers no row, and every split job would visit nobody.
     const asked = answering(false);
-    await expect(activeOrganisations({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER })).rejects.toThrow(
+    await expect(activeOrganisations({ APP_DATABASE_URL: APP, SYSTEM_DATABASE_URL: SYSTEM })).rejects.toThrow(
       /row security/,
     );
     expect(asked.map((a) => a.text)).not.toContain(ACTIVE_ORGANISATIONS_SQL);

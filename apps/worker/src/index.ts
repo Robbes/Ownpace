@@ -70,7 +70,8 @@ Examples:
 Environment Variables:
   APP_DATABASE_URL     PostgreSQL connection string as app_user (required): the
                        ledger, under row security, as the tasks use it
-  DATABASE_URL         the database owner's (required), for the audit key alone
+  SYSTEM_DATABASE_URL  the system role's, ownpace_system (required), for the
+                       audit key alone; never the database owner's
   OAUTH2_ACCESS_TOKEN  OAuth2 access token for O365 (if using XOAUTH2)
 `);
       process.exit(0);
@@ -104,8 +105,9 @@ async function main() {
 
   // Its pools the way the per-tenant tasks take theirs (0138 T1 step 2): the
   // ledger on APP_DATABASE_URL, app_user, under row security, and the audit
-  // key's pool of one on the owner's URL. `openTaskPools` refuses without
-  // either, and points the sinks: a failed domain on the operator's log page
+  // key's pool of one on the system role's URL (SYSTEM_DATABASE_URL, 0138 T3
+  // step 2). `openTaskPools` refuses without either, and never takes the
+  // owner's DATABASE_URL in their place, and points the sinks: a failed domain on the operator's log page
   // (0129 T1), the audit lines (0129 T4) on the key's pool.
   const pools = openTaskPools();
   // Every statement of the ledger, the cursors and the status store in this

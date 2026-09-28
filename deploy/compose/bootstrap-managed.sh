@@ -1776,11 +1776,84 @@ phase_app() {
 }
 
 # ---------------------------------------------------------------------------
+# THE SYSTEM ROLE, ASKED BEFORE ITS URL GOES TO EVERY RUN (workplan 0138 T3
+# step 2).
+#
+# The Trigger.dev jobs that span organisations (the sync tick, retention, the
+# purge), the split jobs' list of organisations and every task's audit key
+# connect as `ownpace_system` through SYSTEM_DATABASE_URL, which set-task-env.sh
+# uploads to the environment every run of every task receives. Managed
+# migration 0032 creates the role with no superuser bit, no right to create a
+# role or a database, BYPASSRLS, and no password; the api applies it when it
+# starts (the app phase), so it exists by now.
+#
+# A migration says what the role was made as, not what it is: roles are
+# cluster-global, and anyone with the owner's socket can ALTER one or make it a
+# member of the owner. So the catalog is asked here, every bring-up, and
+# anything but a fit role stops the bring-up before a password is set and
+# before set-task-env.sh uploads the URL: a superuser, a role that may create
+# roles or databases or replicate, a member of any role (whose rights it takes
+# with SET ROLE), one without BYPASSRLS (the jobs would find no organisation
+# and call it a quiet night) or without LOGIN, or none at all. Then .env's
+# SYSTEM_DB_PASSWORD, which ensure-env-secrets.sh generated, is set on it over
+# the database's socket, and proven where the tasks connect: over the stack's
+# network and through the pooler. Every run sets it again, so .env is the one
+# place it lives, as it is for the other secrets there.
+#
+# scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts runs the
+# question against a stand-in, and holds this order: fit, set, prove, then the
+# upload.
+system_role_ready() {
+  local pw rc=0 role channel asked why verdict
+  pw="$(env_get SYSTEM_DB_PASSWORD)"
+  if [ -z "$pw" ]; then
+    # A .env from before workplan 0138 T3 step 2, brought up from a phase past
+    # `env`: deploy-live.sh runs --from data, so live's first deploy of a tag
+    # that carries this would otherwise stop here, after the api had already
+    # migrated. ensure-env-secrets.sh fills in a MISSING secret and never
+    # replaces one, so running it here changes nothing else that is set.
+    note "SYSTEM_DB_PASSWORD is not in .env yet: generating it with ensure-env-secrets.sh (it fills in missing secrets only)"
+    "${SCRIPT_DIR}/ensure-env-secrets.sh"
+    pw="$(env_get SYSTEM_DB_PASSWORD)"
+  fi
+  [ -n "$pw" ] || die "SYSTEM_DB_PASSWORD is still empty in ${ENV_FILE} after ensure-env-secrets.sh (above)."
+  # set-task-env.sh puts it in a URL as it is, as managed.yml does the others.
+  [[ "$pw" =~ ^[A-Za-z0-9._~-]+$ ]] ||
+    die "SYSTEM_DB_PASSWORD holds a character a URL does not carry as it is, and set-task-env.sh puts it in SYSTEM_DATABASE_URL. Use hex (openssl rand -hex 24); its value is not printed."
+  # shellcheck source=deploy/compose/db-roles.sh
+  . "${SCRIPT_DIR}/db-roles.sh"
+  db_roles_init "$ENV_FILE" || die "the checkout's compose project could not be read (above)."
+  db_roles_system_fit || rc=$?
+  case "$rc" in
+    0) ;;
+    1) die "REFUSED, before its password is set or its URL uploaded: ${DB_ROLES_WHY}. Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as managed migration 0032 made it (docs/managed-bring-up.md, 'The system role'), then run this again." ;;
+    *) die "could not ask Postgres what ${DB_ROLES_SYSTEM} may do, so its URL is not uploaded: ${DB_ROLES_WHY}" ;;
+  esac
+  note "${DB_ROLES_SYSTEM}: no superuser, may create no role or database, a member of no role, BYPASSRLS (workplan 0138 T3 step 2)"
+  db_roles_system_set "$pw" || die "could not set ${DB_ROLES_SYSTEM}'s password: ${DB_ROLES_WHY}"
+  rc=0
+  db_roles_system_prove "$pw" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    while IFS='|' read -r role channel asked why; do
+      [ -n "$role" ] || continue
+      case "$asked" in 0) verdict='opens' ;; 1) verdict='REFUSED' ;; *) verdict='could not be asked' ;; esac
+      echo "!!!   ${role} over the ${channel}: ${verdict}${why:+ (${why})}" >&2
+    done <<<"$DB_ROLES_PROOF"
+    die "${DB_ROLES_SYSTEM} does not open with SYSTEM_DB_PASSWORD where the tasks connect (above); its URL is not uploaded."
+  fi
+  note "${DB_ROLES_SYSTEM} opens with SYSTEM_DB_PASSWORD over the network and through the pooler"
+}
+
+# ---------------------------------------------------------------------------
 phase_tasks() {
-  say tasks "task environment variables, then the deploy"
+  say tasks "the system role, task environment variables, then the deploy"
   load_env
   [ -n "$(env_get TRIGGER_PROJECT_REF)" ] ||
     die "TRIGGER_PROJECT_REF is not set — the 'account' phase has not been completed."
+
+  # The role the jobs across organisations connect as, asked and readied
+  # before its URL is uploaded (above).
+  system_role_ready
 
   # Env before deploy, deliberately. Task containers inherit NOTHING from
   # compose; a deploy that lands before the environment exists runs once

@@ -46,9 +46,10 @@ type Tick = typeof import('./managed-sync-tick.ts');
 let tick: Tick;
 
 beforeAll(async () => {
-  // Importing the tick opens a Pool, which throws without DATABASE_URL. It is
+  // Importing the tick opens a Pool, which throws without SYSTEM_DATABASE_URL
+  // (the system role, 0138 T3 step 2). It is
   // never used here.
-  process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
+  process.env.SYSTEM_DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
   // And the pass it triggers, run-delta-sync, opens its pools at import through
   // openTaskPools, which refuses without APP_DATABASE_URL (0138 T1).
   process.env.APP_DATABASE_URL ??= 'postgres://unused:unused@tick.test.invalid/none';

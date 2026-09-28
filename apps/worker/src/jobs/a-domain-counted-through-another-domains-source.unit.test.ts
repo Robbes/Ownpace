@@ -73,7 +73,7 @@ vi.mock('@openmig/orchestration/build-deps-from-mapping', () => ({
 // connects — `pg` builds the pool lazily, and every source is the stub above —
 // but the variables have to be there before the import runs.
 process.env.APP_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
-process.env.DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
+process.env.SYSTEM_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 
 const { buildTask } = await import('./run-discovery.ts');
 

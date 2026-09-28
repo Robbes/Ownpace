@@ -20,7 +20,7 @@
  * — which is the property that matters and the one a reader can check.
  *
  * Importing this module has SIDE EFFECTS (a Pool at import, which throws
- * without DATABASE_URL), so the variable is set before a dynamic import — the
+ * without SYSTEM_DATABASE_URL), so the variable is set before a dynamic import — the
  * same shape, and the same reason, as the digest's test.
  */
 
@@ -31,7 +31,7 @@ let ACTIVE_MAPPINGS_SQL: string;
 let STALE_RUN_AFTER_MS: number;
 
 beforeAll(async () => {
-  process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
+  process.env.SYSTEM_DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/none';
   // And the pass it triggers, run-delta-sync, opens its pools at import through
   // openTaskPools, which refuses without APP_DATABASE_URL (0138 T1).
   process.env.APP_DATABASE_URL ??= 'postgres://unused:unused@tick.test.invalid/none';
