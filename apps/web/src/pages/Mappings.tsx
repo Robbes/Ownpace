@@ -59,12 +59,22 @@ export function listStage(m: Pick<MappingListItem, 'status' | 'lastSyncAt'>): St
   return stageOf({ phase: m.status, completedOnce: Boolean(m.lastSyncAt) });
 }
 
-/** What needs a person about one migration: its queues. Undefined when the count could not be taken. */
+/**
+ * What waits on a person about one of their migrations (0153 T3 (a)): its
+ * failures, deletions and moves waiting, and each data type whose grace period
+ * ended while nobody chose. Undefined when the count could not be taken.
+ *
+ * NOT THE ORGANISATION'S DECISIONS. A new mailbox belongs to no migration yet,
+ * so no person's card can claim it; the attention read hangs the count on
+ * whichever migration reported first, and adding it here gave that person
+ * somebody else's work. *Needs you* (`/decisions`) lists them. Nor *Ready to
+ * switch*: the card says that in its stage.
+ */
 export function waitingOn(a: MappingAttention | undefined, attentionRead: boolean): number | undefined {
   if (!attentionRead) return undefined;
   if (!a) return 0;
   if ((a.blindSpots?.length ?? 0) > 0) return undefined;
-  return a.failuresWaiting + a.deletionsWaiting + a.movesWaiting + a.pendingDecisions;
+  return a.failuresWaiting + a.deletionsWaiting + a.movesWaiting + (a.graceEnded?.length ?? 0);
 }
 
 /** The names on one side of a person's migrations, once each, in the order met. */

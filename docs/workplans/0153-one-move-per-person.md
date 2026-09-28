@@ -14,7 +14,10 @@
   - one line saying where from and where to, in words: *"From Google and Dropbox to Soverin and
     Nextcloud"* (`providerName`, which names the company a person leaves);
   - a line per data type, with its two tiles, its stage and its last pass;
-  - a count of what needs the person, linked to *Needs you* (`/decisions`) until T5's page exists.
+  - a count of what waits on the person: failures, deletions and moves, and a data type whose
+    grace period ended while nobody chose. It links to *Needs you* (`/decisions`) until T5's page
+    exists. The organisation's decisions about a new mailbox belong to no migration, so they
+    are on that page and on no card.
 - **Every migration keeps its controls:** sync or pause, *Review and start*, open, and delete in
   two presses. Its own page has neither Delete nor a sync. The whole migration opens it, as the
   table's row did (owner feedback 2026-08-11).
@@ -32,7 +35,7 @@
   list (hard rule 9). When what needs a person cannot be read, the card says it could not
   count, never zero.
 - **Proved by:**
-  - `Mappings.unit.test.tsx` (30 cases);
+  - `Mappings.unit.test.tsx` (31 cases);
   - `CreateMapping.unit.test.tsx` (3 new cases) and `ConfirmMapping.unit.test.tsx` (3 new);
   - `ProviderTile.unit.test.tsx` (10 new);
   - `managed-ui.ui.test.ts` in a real browser (13 cases; the people read's failure is new).
@@ -40,7 +43,8 @@
   **Mutations:**
   - with the whole-migration click taken out, the unit case and the browser's dead-row case fail;
   - with the actions' stop taken out, a Pause press opens the migration, and the unit case fails;
-  - with the wizard's refused add swallowed, its case fails.
+  - with the wizard's refused add swallowed, its case fails;
+  - with the organisation's decisions added back to a person's count, its case fails.
 - **Not yet, T3's second half:** Migrations as the landing page, the Dashboard's going with
   `/dashboard` redirected, and the menu (*Accounts*, *Needs you* with its count, *Help*, *Team*).
   Two things wait on 0154 T2: until the list carries the check, a migration whose check passed

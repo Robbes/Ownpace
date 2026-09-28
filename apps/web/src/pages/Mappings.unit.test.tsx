@@ -219,6 +219,21 @@ describe('Migrations — one card per person (0153 T3)', () => {
     expect(screen.getByText(/1 needs you/)).toBeInTheDocument();
   });
 
+  it("counts a grace period nobody chose, and not the organisation's decisions, which are nobody's card", async () => {
+    listMock.mockResolvedValue([MAIL, FILES]);
+    peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+    attentionMock.mockResolvedValue({
+      mappings: [
+        quiet('m-mail', { pendingDecisions: 4, graceEnded: ['email'] }),
+        quiet('m-files', { movesWaiting: 1, readyForCutover: true }),
+      ],
+    });
+
+    renderMappings();
+
+    expect(await screen.findByRole('link', { name: 'Needs you: 2 →' })).toBeInTheDocument();
+  });
+
   it('says it could not count, never zero, when what needs the person cannot be read', async () => {
     listMock.mockResolvedValue([MAIL, FILES]);
     peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
