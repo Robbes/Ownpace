@@ -5,7 +5,7 @@
  * id-only payload to enqueue. Kept free of the trigger client / router imports
  * so it is cheaply unit-testable. Payloads carry ids only — never message
  * content (§12/§17); the worker loads connections/credentials filtered by
- * tenant. Row security does not bind the tasks yet (workplan 0138).
+ * tenant, and as `app_user`, under row security, since workplan 0138 T1.
  */
 
 /**

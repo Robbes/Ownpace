@@ -12,7 +12,6 @@
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask, queue } from '@trigger.dev/sdk';
-import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import {
   autoApplyRelocations,
@@ -37,9 +36,6 @@ import {
   withTenant,
   PgMigrationStatusStore,
   RunStore,
-  appEventSinkOn,
-  auditExportOn,
-  pgDriver,
 } from '@openmig/ledger';
 import { PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
@@ -50,9 +46,8 @@ import {
   domainDeadline,
   domainFailedEvent,
   recordAppEvent,
-  setAppEventSink,
-  setAuditExportSink,
 } from '@openmig/shared';
+import { openTaskPools } from './task-pools.ts';
 
 /**
  * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
@@ -177,17 +172,12 @@ const DeltaSyncJobSchema = z.object({
 
 type DeltaSyncJobPayload = z.infer<typeof DeltaSyncJobSchema>;
 
-// Database connection from environment
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
-
-// Create a persistent pool for jobs
-const pool = new Pool({ connectionString: DATABASE_URL });
-// This process's errors and warnings go to the operator's log page (0129 T1).
-setAppEventSink(appEventSinkOn(pgDriver(pool)));
-setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its pools, from the one module that builds a per-tenant task's (0138 T1):
+// the tenant pool on APP_DATABASE_URL, app_user, under row security, and the
+// audit key's pool of one on the owner's URL. It points this process's sinks
+// too: the operator's log page (0129 T1) at the tenant pool, the audit lines
+// (0129 T4) at the key's pool, the one read app_user may not make.
+const { tenant: pool } = openTaskPools();
 
 // NOTHING ABOUT BILLING LIVES HERE ANY MORE (workplan 0121 T3).
 //
@@ -482,8 +472,9 @@ export const runDeltaSync = schemaTask({
             deadlinePause?: DeadlinePause;
           };
           if (domain === 'email') {
-            // SECURITY: Build deps with tenant scoping: the builder's queries filter by tenant.
-            // Row security does not bind this pool, the owner's (workplan 0138).
+            // SECURITY: Build deps with tenant scoping: the builder's queries filter by tenant,
+            // and every one runs in the tenant's scope on this job's app_user pool, where
+            // row security binds it too (workplan 0138 T1).
             const deps = await buildDepsFromMapping(pool, tenantId, mappingId);
             try {
               const pass = await runShadowPass({

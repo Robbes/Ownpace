@@ -37,28 +37,59 @@
  * changes nothing.
  *
  * T1's first step (2026-09-28: every handle a pass uses is scoped to its
- * tenant) lands these two, and a case beside the second that shows why that
- * step changes nothing on today's connection: on the owner's pool, a
- * superuser's, the same scoped handle counts every organisation's rows. The
- * jobs themselves still connect as the owner until T1's second step, the
- * switch of connection, which adds the third assertion: that a pass run on
- * the application role reads its rows, and that an audit event it records
- * still prints its line (T1 part 5).
+ * tenant) landed these two, and a case beside the second that shows why that
+ * step changed nothing on the connection the jobs then used: on the owner's
+ * pool, a superuser's, the same scoped handle counts every organisation's
+ * rows. T1's second step, the switch of connection, moves the jobs onto the
+ * pools `openTaskPools` (`task-pools.ts`) builds, and adds the third:
  *
+ *   3. a pass on the pools its task opens runs as `app_user` and sees its
+ *      organisation alone, and the rest of what it touches works there too:
+ *      an audit event it records still prints its line (T1 part 5: the key is
+ *      read on a pool of its own, since `app_user` may not read
+ *      `deployment_key`), the operator's log page takes its events, the rate
+ *      and byte budgets spend, and its run row, status, first-copy bytes and
+ *      confirmation reads land. On the jobs as they were before the switch,
+ *      one pool on `DATABASE_URL`, the first of these fails: the pool is the
+ *      owner's and counts every organisation. Moved to `APP_DATABASE_URL` with
+ *      the audit sink left on the same pool, the second fails: the key read is
+ *      refused and the line never prints.
+
  * Handed its database (`an-integration-test-is-handed-its-database`): it reads
  * `TEST_DATABASE_URL` and derives `app_user`'s URL from it, as
  * `a-pause-nobody-could-press.integration.test.ts` does, and never reads or
- * sets `DATABASE_URL`. The builders are called with the pool, as every job
+ * sets `DATABASE_URL`: the third assertion hands `openTaskPools` an
+ * environment of its own, built from the same two URLs. The builders are called with the pool, as every job
  * calls them. The addresses are invented and nothing here is contacted.
  *
  * UUID family: 0138a000-e29b-41d4-a716-44665544xxxx.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
-import { createPgDb, tenantScopedDb, type PgDatabase } from '@openmig/ledger';
-import { asMappingId, asTenantId } from '@openmig/shared';
+import {
+  PgByteBudget,
+  PgMigrationStatusStore,
+  PgRateBudget,
+  RunStore,
+  createPgDb,
+  mappingLifecyclePort,
+  plainDb,
+  tenantScopedDb,
+  withTenant,
+  type PgDatabase,
+} from '@openmig/ledger';
+import { PgBytesMovedStore } from '@openmig/managed';
+import {
+  asMappingId,
+  asTenantId,
+  log,
+  recordAppEvent,
+  setAppEventSink,
+  setAuditExportSink,
+} from '@openmig/shared';
+import { confirmationRecorder } from '@openmig/orchestration/run-confirmation-pass';
 import {
   buildDepsFromMapping,
   buildDomainDepsFromMapping,
@@ -67,6 +98,9 @@ import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-d
 import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
 import { runCutoverGate } from './cutover-gate.ts';
 import { mappingNameOf } from './run-rollback.ts';
+import { passStepBefore } from './stopping-a-pass.ts';
+import { openTaskPools, type TaskPools } from './task-pools.ts';
+import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
 if (!PG_CONNECTION_STRING) {
@@ -97,6 +131,8 @@ const A_CALENDARS = `${P}33`;
 const A_CALENDARS_NAME = 'Calendars to the new place';
 /** What A's calendar migration recorded, which the gate must count on `app_user`. */
 const A_CALENDAR_ITEMS = 3;
+/** A's fourth migration, cut over, which a rollback puts back to active: it records an audit event. */
+const A_RETURNING = `${P}34`;
 const B_SOURCE = `${P}41`;
 const B_TARGET = `${P}42`;
 const B_SOURCE_BOX = `${P}51`;
@@ -173,6 +209,10 @@ beforeAll(async () => {
     INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, target_folder_prefix, name, mode, status)
     VALUES (${A_CALENDARS}, ${A}, ${A_ACCOUNT_BOX}, ${A_TARGET_BOX}, 'calendars', ${A_CALENDARS_NAME}, 'mirror', 'active')
     ON CONFLICT (id) DO NOTHING`);
+  await owner.execute(sql`
+    INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, target_folder_prefix, mode, status)
+    VALUES (${A_RETURNING}, ${A}, ${A_MAIL_BOX}, ${A_TARGET_BOX}, 'returning', 'mirror', 'cutover')
+    ON CONFLICT (id) DO UPDATE SET status = 'cutover'`);
   await owner.execute(sql`DELETE FROM scope_selection WHERE tenant_id IN (${A}, ${B})`);
   await owner.execute(sql`
     INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES
@@ -180,6 +220,7 @@ beforeAll(async () => {
       (${A}, ${A_ACCOUNT}, 'contact', true),
       (${A}, ${A_ACCOUNT}, 'task', true),
       (${A}, ${A_CALENDARS}, 'calendar', true),
+      (${A}, ${A_RETURNING}, 'email', true),
       (${B}, ${B_MAPPING}, 'email', true)`);
   // A's tasks stopped by their owner; B's rows are there to be not seen.
   await owner.execute(sql`DELETE FROM path_lifecycle WHERE tenant_id IN (${A}, ${B})`);
@@ -187,6 +228,9 @@ beforeAll(async () => {
     INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at, stopped_at) VALUES
       (${A}, ${A_ACCOUNT}, 'task', 'active', now(), now()),
       (${B}, ${B_MAPPING}, 'email', 'active', now(), now())`);
+  await owner.execute(sql`
+    INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at) VALUES
+      (${A}, ${A_RETURNING}, 'email', 'cutover', now())`);
   await owner.execute(sql`DELETE FROM item WHERE tenant_id IN (${A}, ${B})`);
   for (let i = 1; i <= A_CALENDAR_ITEMS; i++) {
     await owner.execute(sql`
@@ -200,7 +244,24 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const table of ['item', 'cursor', 'path_lifecycle', 'scope_selection', 'mailbox_mapping', 'mailbox', 'connection']) {
+  for (const table of [
+    'app_event',
+    'rate_budget',
+    'byte_budget',
+    'bytes_moved',
+    'occupancy_peak',
+    'audit_log',
+    'run_event',
+    'run',
+    'migration_status',
+    'item',
+    'cursor',
+    'path_lifecycle',
+    'scope_selection',
+    'mailbox_mapping',
+    'mailbox',
+    'connection',
+  ]) {
     await owner?.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE tenant_id IN (${A}, ${B})`);
   }
   await owner?.execute(sql`DELETE FROM tenant WHERE id IN (${A}, ${B})`);
@@ -298,14 +359,188 @@ describe('second: an unscoped probe on the handle a store was given counts its o
   });
 
   it('and on the owner\'s connection, a superuser\'s, the same scope changes nothing', async () => {
-    // Why scoping every handle, T1's first step, changes no pass on the
-    // connection the jobs still use: Postgres applies no policy to a
+    // Why scoping every handle, T1's first step, changed no pass on the
+    // connection the jobs then used: Postgres applies no policy to a
     // superuser, so a handle scoped to A on the owner's own pool counts every
-    // organisation's rows. Only the switch of connection, T1's second step,
-    // can make a pass read less, and it lands with the third assertion the
-    // header names.
+    // organisation's rows. And why the scopes alone were not the fix: only the
+    // switch of connection, T1's second step, puts them under the policies,
+    // and the third assertion below is what shows it did.
     const everyOrganisations = await countOf(owner, 'connection');
     expect(everyOrganisations).toBeGreaterThanOrEqual(A_CONNECTIONS + 2);
     expect(await countOf(tenantScopedDb(owner.$pool, A), 'connection')).toBe(everyOrganisations);
+  });
+});
+
+describe('third: a pass on the pools its task opens runs as the application role, and all of it works there', () => {
+  /** The two URLs a run receives (set-task-env.sh), for this database: app_user's and the owner's. */
+  const taskEnv = () => ({ APP_DATABASE_URL: asAppUser(PG_CONNECTION_STRING), DATABASE_URL: PG_CONNECTION_STRING });
+
+  /** The audit lines the task's sink printed, and what it warned. */
+  let lines: string[];
+  let warnings: string[];
+  let pools: TaskPools;
+
+  beforeAll(() => {
+    lines = [];
+    pools = openTaskPools(taskEnv(), { write: (line) => lines.push(line) });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterAll(async () => {
+    setAuditExportSink(undefined);
+    setAppEventSink(undefined);
+    await pools?.end();
+    await pools?.auditKey.end();
+  });
+
+  const watchWarnings = () => {
+    warnings = [];
+    vi.spyOn(log, 'warn').mockImplementation((...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    });
+  };
+
+  /** Wait for the n-th line, or for the warning that says it will not come. */
+  const theLine = async (n: number): Promise<Record<string, unknown>> => {
+    await vi.waitFor(
+      () => {
+        if (lines.length < n && !warnings.some((w) => w.includes('[audit-export]'))) throw new Error('not yet');
+      },
+      { timeout: 15_000, interval: 50 },
+    );
+    expect(warnings.filter((w) => w.includes('[audit-export]')), 'the audit line was not written').toEqual([]);
+    expect(lines).toHaveLength(n);
+    return JSON.parse(lines[n - 1]!) as Record<string, unknown>;
+  };
+
+  it('connects as app_user, and a pass scoped to its organisation sees that organisation alone', async () => {
+    // The pass's builders on this pool, as every job calls them: on the owner's
+    // pool, which the jobs used before the switch, this counts every organisation.
+    const mail = await buildDepsFromMapping(pools.tenant, A, A_MAIL);
+    try {
+      expect(await countOf(handleOf(mail.ledger), 'connection')).toBe(A_CONNECTIONS);
+      expect(await countOf(tenantScopedDb(pools.tenant, A), 'tenant')).toBe(1);
+    } finally {
+      await mail.close();
+    }
+    // Because the pool is app_user's, not a superuser's.
+    const who = await pools.tenant.query<{ role: string; superuser: string }>(
+      "SELECT current_user AS role, current_setting('is_superuser') AS superuser",
+    );
+    expect(who.rows[0]).toEqual({ role: 'app_user', superuser: 'off' });
+    // And the step a pass asks before each data type finds the migration.
+    expect(await passStepBefore(pools.tenant, asTenantId(A), asMappingId(A_MAIL), 'email')).toEqual({ run: true });
+  });
+
+  it('prints the line of an audit event it records, on the key\'s own pool', async () => {
+    watchWarnings();
+    // The rollback's own door, as run-rollback builds it: the status, the
+    // paths, the month's peak and the audit row in one scope, on the tenant pool.
+    await mappingLifecyclePort(pools.tenant, A, A_RETURNING, 'trigger-job', {
+      onSlotsTaken: raiseThePeakWhereThereIsOne(asTenantId(A)),
+    }).setStatus({ from: 'cutover', to: 'active', via: 'rollback' });
+
+    const line = await theLine(1);
+    const attributes = line.Attributes as Record<string, unknown>;
+    expect(line.Body).toBe('mapping.status');
+    expect(attributes['ownpace.tenant.id']).toBe(A);
+    expect(line.Resource).toEqual({ 'service.name': 'ownpace-worker' });
+
+    // The rows landed as A's, asked of the owner.
+    const after = (await owner.execute(sql`
+      SELECT (SELECT status FROM mailbox_mapping WHERE id = ${A_RETURNING}) AS status,
+             (SELECT state FROM path_lifecycle WHERE mapping_id = ${A_RETURNING} AND domain = 'email') AS path,
+             (SELECT count(*)::int FROM occupancy_peak WHERE tenant_id = ${A}) AS peaks,
+             (SELECT count(*)::int FROM audit_log WHERE tenant_id = ${A} AND action = 'mapping.status') AS audits`)) as unknown as {
+      rows: Array<{ status: string; path: string; peaks: number; audits: number }>;
+    };
+    expect(after.rows[0]).toEqual({ status: 'active', path: 'active', peaks: 1, audits: 1 });
+
+    // And through the pass's own ledger, whose every statement is a scope.
+    const mail = await buildDepsFromMapping(pools.tenant, A, A_MAIL);
+    try {
+      await mail.ledger.recordAuditEvent(asTenantId(A), {
+        actor: 'system:auto-apply',
+        action: 'relocation.applied',
+        entity: 'item',
+      });
+    } finally {
+      await mail.close();
+    }
+    const second = await theLine(2);
+    expect(second.Body).toBe('relocation.applied');
+    expect((second.Attributes as Record<string, unknown>)['ownpace.tenant.id']).toBe(A);
+
+    // Read on the key's own pool, which is not app_user: app_user may not read
+    // deployment_key (ledger 0062), and there the line is lost.
+    const key = await pools.auditKey.query<{ role: string }>('SELECT current_user AS role');
+    expect(key.rows[0]!.role).not.toBe('app_user');
+  });
+
+  it('writes the operator\'s log page on the application role, which may insert an event and read none', async () => {
+    watchWarnings();
+    await recordAppEvent({ level: 'error', event: 'task.row_security_check', reference: '0138a0e1', tenantId: A });
+
+    expect(warnings.filter((w) => w.includes('[app-event]'))).toEqual([]);
+    const events = (await owner.execute(
+      sql`SELECT count(*)::int AS n FROM app_event WHERE reference = '0138a0e1' AND tenant_id = ${A}`,
+    )) as unknown as { rows: Array<{ n: number }> };
+    expect(events.rows[0]!.n).toBe(1);
+  });
+
+  it('spends the rate and byte budgets on a plain handle, their tables having no row security', async () => {
+    await new PgRateBudget(plainDb(pools.tenant), { tenantId: A, requestsPerSecond: 50 }).acquire('dav', 'p-0138');
+    const bytes = new PgByteBudget(plainDb(pools.tenant), { bytesPerDay: 1_000 });
+    await bytes.spend(A, 'p-0138', 10);
+    expect((await bytes.state(A, 'p-0138')).spentBytes).toBe(10);
+
+    const rows = (await owner.execute(sql`
+      SELECT (SELECT count(*)::int FROM rate_budget WHERE tenant_id = ${A} AND provider = 'p-0138') AS rate,
+             (SELECT spent_bytes::int FROM byte_budget WHERE tenant_id = ${A} AND provider = 'p-0138') AS bytes`)) as unknown as {
+      rows: Array<{ rate: number; bytes: number }>;
+    };
+    expect(rows.rows[0]).toEqual({ rate: 1, bytes: 10 });
+  });
+
+  it('opens and closes its run, marks its status and counts its first copy, inside its scope', async () => {
+    const tenant = asTenantId(A);
+    const mapping = asMappingId(A_MAIL);
+    const runId = await withTenant(pools.tenant, A, (db) =>
+      new RunStore(db).startRun({ tenantId: tenant, mappingId: mapping, kind: 'incremental', trigger: 'schedule' }),
+    );
+    await withTenant(pools.tenant, A, async (db) => {
+      await new RunStore(db).logEvent(tenant, runId, 'info', 'a pass under row security', { domain: 'email' });
+      const status = new PgMigrationStatusStore(db);
+      await status.initDomainStatus(tenant, mapping, 'email');
+      await status.markInProgress(tenant, mapping, 'email');
+      await status.markCompleted(tenant, mapping, 'email');
+      await new PgBytesMovedStore(db).add(tenant, 2_048);
+      await new RunStore(db).finishRun(runId, 'succeeded', { itemsProcessed: 1 });
+    });
+
+    const rows = (await owner.execute(sql`
+      SELECT (SELECT status FROM run WHERE id = ${runId} AND tenant_id = ${A}) AS run,
+             (SELECT count(*)::int FROM run_event WHERE run_id = ${runId} AND tenant_id = ${A}) AS events,
+             (SELECT state FROM migration_status WHERE tenant_id = ${A} AND mapping_id = ${A_MAIL} AND domain = 'email') AS status,
+             (SELECT count(*)::int FROM bytes_moved WHERE tenant_id = ${A}) AS moved`)) as unknown as {
+      rows: Array<{ run: string; events: number; status: string; moved: number }>;
+    };
+    expect(rows.rows[0]).toEqual({ run: 'succeeded', events: 1, status: 'completed', moved: 1 });
+  });
+
+  it('pages what a confirmation reads in its organisation\'s scope', async () => {
+    const recorder = confirmationRecorder(pools.tenant, asTenantId(A));
+    const seen: string[] = [];
+    for await (const row of recorder.itemsToConfirm({
+      tenantId: asTenantId(A),
+      mappingId: asMappingId(A_CALENDARS),
+      domain: 'calendar',
+    })) {
+      seen.push(row.naturalKeyHash);
+    }
+    expect(seen).toHaveLength(A_CALENDAR_ITEMS);
   });
 });

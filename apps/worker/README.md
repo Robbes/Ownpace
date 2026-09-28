@@ -44,6 +44,12 @@ TRIGGER_SECRET_KEY=tr_prod_...
 - Task-runtime env (`DATABASE_URL`, `APP_DATABASE_URL`,
   `SECRET_ENCRYPTION_KEY`) is uploaded once per environment with
   `deploy/compose/set-task-env.sh` — runners do not read the compose `.env`.
+  The per-tenant tasks take their pools from `openTaskPools`
+  (`src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`, as `app_user`
+  under row security, and one connection on `DATABASE_URL` for the audit
+  export's key alone. A run without `APP_DATABASE_URL` refuses to start; it
+  never falls back to the owner. The six scheduled jobs connect with
+  `DATABASE_URL` (workplan 0138, `docs/rls-guide.md`).
 
 ## Deploy
 
@@ -80,8 +86,11 @@ control planes:
 pnpm exec tsx apps/worker/src/index.ts --config mapping.json --once
 ```
 
-Secrets come from env only (`DATABASE_URL` required), never the config
-file. It calls the same `runAllDomains` the editions run, so it cannot
+Secrets come from env only, never the config file. It takes its pools the
+way the per-tenant tasks do (`openTaskPools`, workplan 0138 T1), so it needs
+both URLs: `APP_DATABASE_URL`, `app_user`, for the ledger, whose every
+statement runs in the config's tenant's scope, and `DATABASE_URL`, the
+owner's, for the audit key alone. It calls the same `runAllDomains` the editions run, so it cannot
 drift from them silently, and the sync it runs is the ordinary
 non-destructive shadow pass. Use it to debug a connector or reproduce a
 support case end to end without booting an edition; it has no live caller

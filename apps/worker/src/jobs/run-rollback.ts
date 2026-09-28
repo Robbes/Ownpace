@@ -35,14 +35,15 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { tenantCutoverStore, mappingLifecyclePort, appEventSinkOn, auditExportOn, pgDriver, withTenant } from '@openmig/ledger';
+import { tenantCutoverStore, mappingLifecyclePort, withTenant } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
 import { and, eq } from 'drizzle-orm';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { asTenantId, asMappingId, renderEvent } from '@openmig/shared';
 import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
-import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { log } from '@openmig/shared';
+import { openTaskPools } from './task-pools.ts';
 import { notifierFromEnv } from '@openmig/connectors';
 
 // Job input schema
@@ -118,17 +119,14 @@ export const runRollback = schemaTask({
       options,
     });
 
-    // Initialize database
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      throw new Error('DATABASE_URL environment variable required');
-    }
-    const pool = new Pool({ connectionString: dbUrl });
-    // Each audit event this run records, also as one JSON line on its output (0129 T4).
-    setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
-    // Its errors go to the operator's log page too (0129 T1), under the reference
-    // its failure carries in the plane (0134, open question 3 (a)).
-    setAppEventSink(appEventSinkOn(pgDriver(pool)));
+    // This run's pools, from the one module that builds a per-tenant task's
+    // (0138 T1): the tenant pool on APP_DATABASE_URL, app_user, under row
+    // security, and the audit key's pool of one on the owner's URL. It points
+    // the sinks too: the operator's log page (0129 T1) at the tenant pool, and
+    // the audit lines (0129 T4), the mapping's status change among them, at the
+    // key's, the one read app_user may not make.
+    const pools = openTaskPools();
+    const pool = pools.tenant;
     // The cutover ledger is row-secured since migration 0055: every call
     // inside `withTenant`, or a non-superuser session reads nothing.
     const cutoverPersistence = tenantCutoverStore(pool, asTenantId(tenantId));
@@ -223,8 +221,9 @@ export const runRollback = schemaTask({
 
       throw error;
     } finally {
-      // Always release the Postgres pool (never leak it across job runs).
-      await pool.end();
+      // Always release the tenant pool (never leak it across job runs). The
+      // key's pool closes its own connection a second after its last read.
+      await pools.end();
     }
   }),
 });

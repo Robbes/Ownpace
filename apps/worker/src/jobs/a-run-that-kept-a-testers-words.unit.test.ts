@@ -229,7 +229,17 @@ describe('every task', () => {
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s points its errors at the operator’s log page', (_file, code) => {
-    expect(code).toContain('setAppEventSink(appEventSinkOn(pgDriver(pool)));');
+    // Itself, on its own pool (a job that spans organisations), or through
+    // openTaskPools (a per-tenant one, 0138 T1), which points it at the
+    // tenant pool: the case below.
+    expect(
+      code.includes('setAppEventSink(appEventSinkOn(pgDriver(pool)));') || code.includes('openTaskPools()'),
+    ).toBe(true);
+  });
+
+  it('openTaskPools points a per-tenant task’s errors at its tenant pool, where app_user may insert them', () => {
+    const code = readFileSync(join(HERE, 'task-pools.ts'), 'utf8');
+    expect(code).toContain('setAppEventSink(appEventSinkOn(pgDriver(tenant)));');
   });
 });
 

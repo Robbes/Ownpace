@@ -212,10 +212,12 @@ export function sourceCredentialsFor(
  * SECURITY: every query in this function runs inside withTenant() on `pool`,
  * the pool the caller handed in, and so does every statement of the ledger and
  * cursor stores it builds (`tenantScopedDb`, workplan 0138 T1 parts 2 and 3).
- * It opens no handle of its own. Row security binds those scopes only when
- * `pool` connects as `app_user` or drops to it; the managed tasks still pass
- * the owner's pool, a superuser, so there each query's own `tenantId` filter
- * is what holds until 0138 T1's switch (docs/rls-guide.md, "Where row security
+ * It opens no handle of its own. Row security binds those scopes when `pool`
+ * connects as `app_user` or drops to it, as the managed tasks' pool does since
+ * 0138 T1's second step (`openTaskPools`, APP_DATABASE_URL): there the
+ * database keeps the scope to this tenant whatever a query's own filter says.
+ * On a superuser's pool (the operator's CLI on the owner's URL) each query's
+ * own `tenantId` filter is what holds (docs/rls-guide.md, "Where row security
  * holds today"). The rate and byte budgets get a plain handle on the same
  * pool: their tables have no row security, by design.
  * The tenantId must come from an authenticated request.
@@ -269,7 +271,7 @@ export async function buildDepsFromMapping(
   }
 
   // Load connections and credentials WITHIN tenant context. Row security binds
-  // here only on an app_user pool; the managed tasks pass the owner's (0138).
+  // here on an app_user pool, which the managed tasks pass since 0138 T1.
   const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
     // THE MAPPING'S OWN connections, mailbox → connection (tenant-filtered), with
     // the tenant-role row only as a logged fallback for legacy rows whose
@@ -686,9 +688,9 @@ export function tenantThrottleLimiter(
  * (never via env) so the managed path is per-tenant safe. Built on `pool`, the
  * caller's, like the mail builder: the connection load inside withTenant, the
  * ledger and cursor stores on `tenantScopedDb`, the rate budget on a plain
- * handle (workplan 0138 T1 parts 2 and 3). Row security binds those scopes only
- * on an app_user pool, and the managed tasks do not pass one yet, so there each
- * query's own tenant filter is what separates tenants until 0138 T1's switch.
+ * handle (workplan 0138 T1 parts 2 and 3). Row security binds those scopes on
+ * an app_user pool, which the managed tasks pass since 0138 T1's second step;
+ * on a superuser's, each query's own tenant filter is what separates tenants.
  */
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'mail'): Promise<WithClose<ReconcileDeps>>;
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'calendar'): Promise<WithClose<CalendarSyncDeps>>;

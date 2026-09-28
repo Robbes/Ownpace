@@ -501,13 +501,206 @@ Still open: the pre-step-1 baseline (above), before this branch merges; T1 step 
 2, and the owner's one-off deletion (2026-09-27); T5 step 2, after T1 to T3; the permission
 report's pool (T5 step 1's note).
 
+**2026-09-28, later still: T1 step 2 built: the per-tenant tasks connect as the application role**
+(parts 1 and 5), on branch
+`claude/ownpace-public-readiness-y7orc6-the-tasks-connect-as-the-application-role`, on `main` at
+83eb73ed (#1302 merged by the owner), not merged. What changed:
+
+- **`openTaskPools`** (`apps/worker/src/jobs/task-pools.ts`, part 1): the one place a per-tenant
+  task's pools are built, with nothing done at import. It builds two. The tenant pool is on
+  `APP_DATABASE_URL`, `app_user`; it refuses to start when that is unset or blank and never takes
+  `DATABASE_URL` in its place. The audit key's pool is ONE connection on `DATABASE_URL`, closed a
+  second after its last use, with an error handler, for `deployment_key` alone (part 5, the API's
+  `auditKeyPool` in a task). A missing `DATABASE_URL` refuses too, since every audit line would
+  be lost. It points the process's sinks: the operator's log page at the tenant pool (`app_user`
+  may insert an `app_event`), the audit export at the key's pool. `end()` ends the tenant pool
+  only; the key's pool closes its own connection, so a line whose key read is under way as a run
+  finishes is not cut off.
+- **The eight jobs** take their pool from it: six at their top, as before, and `run-cutover` and
+  `run-rollback` per run, ending the tenant pool in their `finally` as before. None reads
+  `DATABASE_URL` or points a sink itself. `run-confirmation`'s rate budget was already on the
+  job's pool (step 1), so it is on `app_user` now.
+- **The standalone worker** (`apps/worker/src/index.ts`) takes its pools the same way: its ledger,
+  cursors and status store on `tenantScopedDb(pools.tenant, config.tenantId)`, and its phase read
+  inside `withTenant`. It needs `APP_DATABASE_URL` now (help text and worker README say so), and
+  left `CROSS_TENANT`.
+- **T4's ratchet is gone.** `KNOWN_REMOVED_BY_T1`, `_AS_LANDED`, `_AT_MOST` and the case that
+  pinned them are deleted; `task-pools.ts` is on `CROSS_TENANT` with its reason, the owner's URL for
+  the key alone. T3's `OWNER_URL_UNTIL_T3_STEP_2` stays until E, its reason rewritten.
+- **Everything a pass touches, asked of `app_user`.** Every read and write a per-tenant pass makes
+  was listed (the eight jobs, `cutover-gate.ts`, `stopping-a-pass.ts`, the builders,
+  `build-reindexers.ts`, `build-confirmation-readers.ts`, `run-confirmation-pass.ts`,
+  `enabled-domains.ts`, the cutover store, the mapping port, the month's peak). All run inside
+  `withTenant` or `tenantScopedDb`, bar the budgets (`plainDb`) and the app-event sink. No
+  `packages/core`, `packages/connectors` or `packages/engines` file opens the database. The grants,
+  asked of the catalog with both chains applied: `app_user` may select, insert, update and delete
+  on `rate_budget` and `byte_budget`, neither has row security, may only insert on `app_event`,
+  has nothing on `deployment_key`, and has what each pass statement needs on the row-secured
+  tables it touches (`occupancy_peak` and `bytes_moved` without delete, which no pass does). None
+  was missing (§3 T1, *"What it will find"*). The guard below writes through each of them.
+- **Comments and tests.** `stopping-a-pass.ts`, `db.ts` (`tenantScopedDb`),
+  `build-deps-from-mapping.ts` (three), `run-discovery.ts` (two), `run-delta-sync.ts` (one) and
+  `job-resolution.ts` said the tasks run as the owner, and say what holds now. Ten unit tests that
+  import a job, or the tick, which imports `run-delta-sync`, set `APP_DATABASE_URL` beside
+  `DATABASE_URL` first. `a-run-that-kept-a-testers-words` accepts `openTaskPools()` as a job's log
+  page wiring and checks the module's; `every-audit-field-is-classified` accepts it as a job's
+  audit wiring and checks, as it does the API's, that the key is read on its own pool of one on the
+  owner's URL and not on the tenant pool.
+
+**The guards, and how they failed first.** Written before the build, each run against the code on
+`main` at 83eb73ed:
+
+- `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`, with the ratchet deleted and three new
+  rules: a task file is on `PER_TENANT` or `CROSS_TENANT`; a `PER_TENANT` file and the standalone
+  worker call `openTaskPools` and point no sink; `task-pools.ts` has no top-level statement that
+  runs anything. **28 of 76 cases failed**: the eight jobs and the standalone worker read
+  `DATABASE_URL` and are on no list, the eight build a pool, the nine do not call `openTaskPools`,
+  and `task-pools.ts` does not exist.
+- `apps/worker/src/jobs/a-task-pool-that-fell-back-to-the-owner.unit.test.ts` (new, 7 cases): the
+  refusals, the two pools, which pool each sink asks for a connection (without a database, by
+  which pool's `connect` is called), and an import with no `APP_DATABASE_URL`. **Failed at
+  import**: no module.
+- `scripts/every-audit-field-is-classified.unit.test.ts`: **1 of 23 failed**, the new case that
+  reads the key's wiring in `task-pools.ts`.
+- `apps/worker/src/jobs/a-pass-under-row-security.integration.test.ts` gains its third
+  assertion, six cases on the pools `openTaskPools` opens: it connects as `app_user` and a pass's
+  handle counts its organisation's three connections and one tenant, and the step before a data
+  type finds the migration; an audit event prints its line, twice, once through the rollback's own
+  mapping port (status, paths, the month's peak and the audit row in one scope) and once through
+  the pass's ledger; the log page takes an event; the budgets spend; the run, its event, the
+  status and the first-copy bytes land; a confirmation pages its three items. Against a stand-in
+  module wired the way the jobs were on `main` (one pool on `DATABASE_URL`, both sinks on it) **1
+  of 12 failed**: *"expected 5 to be 3"*, the owner's pool counting every organisation's
+  connections. Against the switch done naively (one pool on `APP_DATABASE_URL`, both sinks on it)
+  **1 of 12 failed**: *"[audit-export] a line was not written (permission denied for table
+  deployment_key)"*. On this branch all 12 pass.
+
+**Mutations, each red** (the guards above, and the log-page guard, run after each; restored from a
+copy after each):
+
+| # | Mutation | Red |
+|---|---|---|
+| 1 | `run-verification` back on `new Pool({ connectionString: process.env.DATABASE_URL })` | 5 unit cases in 3 files |
+| 2 | `openTaskPools` falls back: `APP_DATABASE_URL ?? DATABASE_URL` | 1 unit (the refusal); integration green, both set |
+| 3 | The key's pool removed: the audit sink on the tenant pool | 2 unit; integration, the line not written |
+| 4 | The key's pool on `APP_DATABASE_URL` | 2 unit; integration, the line not written |
+| 5 | One scope removed: the mail builder's cursors on `plainDb` | integration, *invalid input syntax for type uuid: ""* |
+| 6 | A per-tenant job put back on an exemption list (`run-delta-sync` on `CROSS_TENANT`) | 2 unit |
+| 6b | The same, with the job reading `DATABASE_URL` again | 2 unit |
+| 7 | `task-pools.ts` builds a `new Pool()` at import | 1 unit |
+| 7b | `task-pools.ts` calls `openTaskPools()` at import | 1 unit, and the module's own test file fails to import |
+| 8 | The standalone worker on the owner (`createPgDb(process.env.DATABASE_URL)`) | 3 unit |
+| 9 | `run-rollback` points the audit sink at its tenant pool after `openTaskPools` | 1 unit |
+| 10 | The key's pool without its error handler | 1 unit |
+| 11 | A ninth task file on neither list | 1 unit |
+| 12 | The log page's events on the key's pool | 2 unit; integration green (the owner may insert too) |
+
+**PgBouncer: decided to keep `default_pool_size = 25`, and documented it** (`pgbouncer.ini`,
+beside the setting; `docs/operator-runbook.md`, the two roles). Since this step the API's request
+path and every per-tenant task share `app_user`'s server connections; before it, the tasks used the
+owner's. The evidence:
+
+- In transaction mode a client holds a server connection for one transaction. Every tenant scope
+  is one transaction: a store's statement (`BEGIN`, the tenant, the statement, `COMMIT`; 1.33 ms on
+  a local Postgres, the review fixes' entry above) or a short `withTenant` block. No scope in the
+  pass path awaits a source or a target inside it; the confirmation pages and batches for that
+  reason (`run-confirmation-pass.ts`).
+- A pass holds at most one open transaction per item worker (`DEFAULT_CONCURRENCY`, 4), and the tick
+  starts at most `MAX_PASSES_IN_FLIGHT` passes (3 on the OTA stack, 6 on live, 0143 T1). Measured on
+  a local Postgres 16 as `app_user`, each pass on a pool of its own as the jobs build them, running
+  `PgLedger.find` and `recordIfAbsent` on `tenantScopedDb` in a loop and counting the backends with
+  an open transaction (`pg_stat_activity`, `xact_start` set) for 8 seconds:
+
+  | Passes × workers | Network time per item | Open transactions: mean | p99 | max |
+  |---|---|---|---|---|
+  | 6 × 4 | none (the busiest case) | 18.3 | 24 | 24 |
+  | 6 × 4 | 20 ms | 8.5 | 24 | 24 |
+  | 6 × 4 | 200 ms | 0.8 | 10 | 20 |
+  | 3 × 4 | none | 9.3 | 12 | 12 |
+
+  The ceiling is passes × workers, 24 on live, under the 25 before the API asks for any. Past 25 a
+  query waits for the next `COMMIT` (milliseconds), then the reserve's 5 after 3 s; the
+  `query_wait_timeout` of 120 s is not in reach. Hand-started runs (a verification, a
+  confirmation, a cutover's final sync) are outside the tick's cap and add to a burst the same way.
+- The server-side total does not grow: the per-tenant load moved from the owner's pair to
+  `app_user`'s, and the owner's pair now serves the six scheduled jobs and the audit key's one
+  connection per task.
+
+Not measured: the same through a real PgBouncer (none on this machine) and on the OTA stack. The
+revisit trigger is written beside the setting: `MAX_PASSES_IN_FLIGHT` times the pass concurrency
+past about 24, or `SHOW POOLS` showing `app_user`'s `cl_waiting` above 0 for more than a moment.
+
+**Wall time: what the owner compares.** This session cannot reach the OTA stack. §3 asks for one
+pass's wall time before and after; the baseline is from before step 1 (the review fixes' entry
+above). Three nightlies are to compare:
+
+1. **Before**: the scheduled E2E (managed) run of 2026-09-28 on `a0897c0b`, before #1302.
+2. **Step 1 alone**: the first scheduled run whose `main` contains #1302 and not this step. It
+   separates the transaction per statement (step 1) from the switch.
+3. **After**: the first scheduled run whose `main` contains this step.
+
+Where each shows: the job log of E2E (managed), in the smoke's output
+(`./deploy/compose/smoke-managed.sh`, tee'd to the log and to the artifact
+`managed-e2e-evidence-<run id>`, file `smoke-managed-<run id>.log`, kept 7 days, so the first
+one's artifact lapses on 2026-10-05; the job log is kept longer). Two lines, one per pass the smoke
+asks for: `sync (mail): the pass finished after Ns — itemsProcessed=…` and `sync (dav): …`. N is
+counted in 2 s polls from the enqueue to the terminal `run` row, so it includes the wait for a
+runner. The pass alone is in the OTA stack's own `run` rows, if retention has not pruned them:
+`finished_at - started_at`, and `stats->'domainSeconds'` per data type, for the smoke's two
+mappings, `a0000000-0000-4000-8000-0000000000d1` and `b0000000-0000-4000-8000-0000000000d1`, on
+the three nights' dates. What to expect of the switch itself: no extra round trip. The tenant
+pool connects as `app_user`, so there is no `SET LOCAL ROLE`, as §3 once expected; what is added
+is Postgres evaluating each policy's predicate. Measured locally as the review fixes' entry
+measured step 1 (`PgLedger.find` on `tenantScopedDb`, 1,500 calls per figure, the owner's pool and
+`app_user`'s alternating, eight pairs over two runs on a loaded machine): the owner 1.11 to 2.43
+ms, `app_user` 1.22 to 2.04 ms. In six pairs `app_user` was slower by 0.11 to 0.71 ms, in the two
+that opened each run the owner was slower by 0.56 and 0.85 ms; the median difference is about 0.3
+ms. So the shape, not the size on the stack. A difference between 2 and 3 larger than the
+nightly's own spread between two runs of the same code is the thing to look at.
+
+**Where the build departs from §3:**
+
+- **The key's pool reads `DATABASE_URL`, not `DIRECT_DATABASE_URL`.** The API's reads the direct
+  URL; a run has no direct URL since T3 step 1. Two statements, each its own transaction, so the
+  pooler's transaction mode is no obstacle.
+- **The module refuses without `DATABASE_URL` as well**, for the key. T3 step 2 (E) renames what
+  it reads with the upload.
+- **The standalone worker moved too**, and left `CROSS_TENANT`. §3 T4 had it there as the dev
+  entrypoint.
+- **Two more guards changed than §3 names**, because they read the jobs' wiring as text:
+  `every-audit-field-is-classified` and `a-run-that-kept-a-testers-words`, each now also checking
+  the module.
+- **The tick imports `run-delta-sync`**, so its process builds the per-tenant pools at import too,
+  lazily, with no connection until one is used, and needs `APP_DATABASE_URL` present, which every
+  run has. Its own sinks, set after, stay on its own pool.
+
+**For the owner, on a stack.** Nothing by hand: `APP_DATABASE_URL` is uploaded every night, and
+`set-task-env.sh` runs before `deploy-tasks.sh`. One consequence to know: a stale `app_user`
+password on a plane now stops every per-tenant task, where before it stopped only the API. The
+password rotation already re-uploads both URLs (`docs/managed-bring-up.md`, "Changing the database
+passwords", step 3). Live takes this from a tag, as any change (0132 T1g).
+
+Gates: `pnpm -s typecheck` green; `eslint` on the 31 changed TypeScript files clean. Unit tests
+all passed: `packages/ledger`, `apps/worker`, `packages/orchestration`, `apps/selfhost` (the
+appliance, which already passed its handles and runs unchanged) and `packages/core`, 265 files
+and 2649 tests; `apps/api`, `packages/managed`, `packages/shared` and `packages/connectors`, 318
+files and 4284 tests; `scripts`, 198 files and 3484 tests, `a-connection-the-docs-did-not-know-about`
+among them. Integration against a Postgres 16 with both chains (`scripts/local-pg.sh`), as its
+owner, a superuser, the row-security guard deriving `app_user` from it: every Postgres-only
+integration file in `packages/ledger`, `apps/worker` and `packages/orchestration`, 23 files and
+217 tests. The four that need Stalwart or Nextcloud were not run. The three indexes are current.
+Nothing was exercised against a running stack.
+
+Still open: the wall-time comparison (above); T2 (PR D); T3 step 2 (PR E), with the owner's one-off
+deletion (2026-09-27); T5 step 2 (PR F); the permission report's pool (T5 step 1's note).
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
-| T1 Per-tenant tasks read and write as the application role | Step 1 🔨 **built 2026-09-28**, not merged (parts 2 to 4). Step 2 📋 **Proposed** (parts 1 and 5, the switch). Both before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and (on `main`) the audit sink's key. Changing the URL is not enough on its own: under row security, a query with no tenant set reads nothing. |
+| T1 Per-tenant tasks read and write as the application role | Step 1 ✅ **done** in #1302, merged 2026-09-28 (parts 2 to 4). Step 2 🔨 **built 2026-09-28**, not merged (parts 1 and 5, the switch). Both before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and the audit sink's key (step 2 reads it on a pool of one of its own). Step 2: the eight jobs and the standalone worker take their pools from `openTaskPools` (`task-pools.ts`), `app_user` on `APP_DATABASE_URL`, with no fallback. Wall time before and after: the owner compares three nightlies (Status, 2026-09-28, later still). |
 | T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only: split, open question 3 answered 2026-09-28. |
 | T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27; deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed**, before the first invitation (T0 (a), 2026-09-28) | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
-| T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. T1 empties `KNOWN_REMOVED_BY_T1` and deletes it: step 1 took the three orchestration files off (11 to 8), step 2 takes the eight jobs. |
+| T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet; the ratchet emptied and deleted by T1 step 2 (2026-09-28, not merged) | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it landed first as a ratchet: T1 step 1 took the three orchestration files off `KNOWN_REMOVED_BY_T1` (11 to 8), step 2 took the eight jobs and deleted the list, and added `task-pools.ts` to `CROSS_TENANT` for the audit key alone, with rules that every task file is per-tenant or cross-tenant and every per-tenant one takes its pools from `openTaskPools`. |
 | T5 The documents say which connection the tasks use | ✅ **Step 1 done** in #1218, merged 2026-09-27. Step 2 📋 **Proposed**, after T1 to T3 | §3. Step 1: what is true today, and an owner pool in the API that §1 missed (Status, 2026-09-27). Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
 
 ## 1. What there is today
@@ -526,8 +719,12 @@ report's pool (T5 step 1's note).
   `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`,
   `run-apply-relocation`, `run-cutover` and `run-rollback`. There are six scheduled jobs:
   `managed-sync-tick`, `managed-retention`, `managed-purge-closed`, `managed-digest`,
-  `managed-drift-detect` and `managed-group-discovery`.
-- **What they do not read.** No task reads `APP_DATABASE_URL` or `DIRECT_DATABASE_URL`. No code
+  `managed-drift-detect` and `managed-group-discovery`. *Since T1 step 2 (Status, 2026-09-28) the
+  eight per-tenant jobs take their pools from `openTaskPools`, on `APP_DATABASE_URL`; the six
+  scheduled ones are unchanged.*
+- **What they do not read.** *(T1 step 2, Status 2026-09-28, changed the first half: the eight
+  per-tenant jobs read `APP_DATABASE_URL` through `openTaskPools`, and `DATABASE_URL` for the
+  audit key alone.)* No task reads `APP_DATABASE_URL` or `DIRECT_DATABASE_URL`. No code
   in `apps/worker/src` or `packages/*/src` reads `APP_DATABASE_URL`; in the worker it appears only
   in its README. Its one runtime reader is the API's `getDbPool`
   (`apps/api/src/middleware/auth.ts`), which `managed.yml` gives the application role. The one
@@ -560,6 +757,8 @@ report's pool (T5 step 1's note).
   `app_user`, so every line would have failed, and it now reads the key on a one-connection owner
   pool (`auditKeyPool`, `apps/api/src/index.ts`, commit 3f5a217). A task moved to `app_user`
   would meet the same refusal. The audit event would be kept and its line lost.
+  *T1 step 2 (Status, 2026-09-28) gave the per-tenant tasks the same answer: a key pool of one
+  on the owner's URL, in `openTaskPools`.*
 - **Much of a pass is not inside `withTenant` at all.** `PgLedger` and `PgCursorStore` are built
   over a plain drizzle handle and filter by `tenant_id` in their own queries. `enabledDomains`
   (`enabled-domains.ts`) and `targetProviderKey` (`build-confirmation-readers.ts`) run

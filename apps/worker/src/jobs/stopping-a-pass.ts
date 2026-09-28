@@ -11,11 +11,12 @@
  *
  * They live HERE, and not in `run-delta-sync.ts` where they are used, for a
  * reason the guard `an-integration-test-is-handed-its-database.unit.test.ts`
- * makes concrete: that module builds a `Pool` from `DATABASE_URL` at import
- * and throws without one. A test that has been handed a database — which is
- * the only kind this repository allows — then cannot import it without
- * setting `DATABASE_URL` itself, and "the fix is always to pass the handle,
- * never to set `DATABASE_URL` from a test". So the rules sit in a module with
+ * makes concrete: that module opens its pools at import (`openTaskPools`,
+ * from `APP_DATABASE_URL` and, for the audit key, `DATABASE_URL`) and throws
+ * without them. A test that has been handed a database — which is the only
+ * kind this repository allows — then cannot import it without setting both
+ * itself, and "the fix is always to pass the handle, never to set
+ * `DATABASE_URL` from a test". So the rules sit in a module with
  * no import side effects at all: `mappingStillRuns` takes the pool it should
  * use, and the tests hand it one.
  */
