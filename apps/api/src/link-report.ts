@@ -2,7 +2,9 @@
 
 /**
  * REPORT THIS LINK (workplan 0108 T8 (d); the owner, 2026-09-24: a report goes
- * to *"the problem report forms"*, the Zammad of workplan 0130).
+ * to *"the problem report forms"*, the Zammad of workplan 0130). Where the
+ * service has no Zammad, the same note goes as one mail to its support mailbox,
+ * as the signed-in form's report does (the owner, for the alpha, 2026-09-28).
  *
  * The other half of T8 (a). The grant page says who asked, from which account
  * and to which destination, so that the person can judge the request. This is
@@ -52,9 +54,8 @@
  * like the facts is read as theirs.
  */
 
-import { z } from 'zod';
 import type { ViewGrant } from '@openmig/shared';
-import { MAX_DESCRIPTION, type ReportRefusal } from './problem-report.ts';
+import { MAX_DESCRIPTION, oneLine, REPLY_ADDRESS, type ReportRefusal } from './problem-report.ts';
 
 export type ReportedLink = 'grant' | 'view';
 
@@ -63,9 +64,6 @@ export interface LinkReport {
   /** Where the owner's answer goes, when the reporter left an address. */
   readonly replyTo?: string;
 }
-
-/** The same shape the public access-request door accepts. */
-const REPLY_ADDRESS = z.string().trim().email().max(320);
 
 /** Read a report from a request body, or say which field is wrong. */
 export function parseLinkReport(body: unknown): LinkReport | ReportRefusal {
@@ -123,16 +121,32 @@ const ACCESS: Readonly<Record<ViewGrant['state'], string>> = {
   none: 'not given',
 };
 
-/** A value typed by somebody, kept to one line: any control character or line separator becomes a space. */
-function oneLine(value: string): string {
-  return value.replace(/[\p{Cc}\u2028\u2029]+/gu, ' ').trim();
-}
-
 /** `nextcloud at cloud.example.org, as dest@example.org`, or as much of it as is known. */
 function destination(to: NonNullable<LinkReportFacts['to']>): string {
   const provider = oneLine(to.provider);
   const where = to.host ? `${provider} at ${oneLine(to.host)}` : provider;
   return to.account ? `${where}, as ${oneLine(to.account)}` : where;
+}
+
+/** The title a link report goes by: fixed, since it is shown wherever the report is listed. */
+function linkReportTitle(facts: LinkReportFacts): string {
+  return `Ownpace: a ${LINK_NAME[facts.link]} was reported`;
+}
+
+/** The facts, one line each, from the rows; the ticket's note and the mail both start with them. */
+function factLines(report: LinkReport, facts: LinkReportFacts): string[] {
+  return [
+    `Link: ${facts.linkId} (${LINK_NAME[facts.link]})`,
+    `Organisation: ${oneLine(facts.organisation)} (${facts.tenantId})`,
+    `Migration: ${facts.mappingId} (${facts.state})`,
+    ...(facts.issuedBy ? [`Issued by: ${oneLine(facts.issuedBy)}`] : []),
+    `From: ${facts.from ? oneLine(facts.from) : 'no account named'}`,
+    `To: ${facts.to ? destination(facts.to) : 'no destination'}`,
+    `Access: ${ACCESS[facts.access]}`,
+    report.replyTo === undefined
+      ? 'Reply to: none. The reporter left no address, so nobody can be answered'
+      : `Reply to: ${report.replyTo} (typed by the reporter, not verified)`,
+  ];
 }
 
 /**
@@ -150,29 +164,51 @@ export function linkReportTicketFor(
   if (report.replyTo === undefined && ownUserId === undefined) {
     throw new Error('A report without a reply address is filed under the helpdesk\'s own user, and none was given.');
   }
-  const title = `Ownpace: a ${LINK_NAME[facts.link]} was reported`;
-  const lines = [
-    `Link: ${facts.linkId} (${LINK_NAME[facts.link]})`,
-    `Organisation: ${oneLine(facts.organisation)} (${facts.tenantId})`,
-    `Migration: ${facts.mappingId} (${facts.state})`,
-    ...(facts.issuedBy ? [`Issued by: ${oneLine(facts.issuedBy)}`] : []),
-    `From: ${facts.from ? oneLine(facts.from) : 'no account named'}`,
-    `To: ${facts.to ? destination(facts.to) : 'no destination'}`,
-    `Access: ${ACCESS[facts.access]}`,
-    report.replyTo === undefined
-      ? 'Reply to: none. The reporter left no address, so nobody can be answered'
-      : `Reply to: ${report.replyTo} (typed by the reporter, not verified)`,
-  ];
+  const title = linkReportTitle(facts);
   return {
     title,
     group,
     customer_id: report.replyTo === undefined ? ownUserId : `guess:${report.replyTo}`,
     article: {
       subject: title,
-      body: `${lines.join('\n')}\n\nWhat they wrote:\n${report.description}`,
+      body: `${factLines(report, facts).join('\n')}\n\nWhat they wrote:\n${report.description}`,
       type: 'note',
       internal: true,
       content_type: 'text/plain',
     },
+  };
+}
+
+/**
+ * The first line of a link report's mail. In Zammad the note is internal and
+ * the reporter never sees it. A mail has no internal note, so it has no
+ * Reply-To either, and the reporter's address is only the `Reply to:` line.
+ */
+export const LINK_REPORT_MAIL_WARNING =
+  'For support only: Reply does not reach the reporter. To answer them, write a new mail to the address on the "Reply to" line, and leave these facts out of it.';
+
+/**
+ * The mail a link report becomes when the service has no Zammad (the owner, for
+ * the alpha, 2026-09-28). The ticket's title and note, the same facts in the
+ * same order, and after them the report's own reference, which the person is
+ * answered with in place of a ticket number.
+ *
+ * NEVER A REPLY-TO, not even the address the reporter typed. The note names
+ * what a progress link does not show (who issued the link, the accounts) and
+ * what neither page shows (the ids), and the address is typed by somebody with
+ * no account, unverified. Pressing Reply on a mail quotes all of it to that
+ * address, and a warning line would have to be read and acted on every time.
+ * Without the header, the owner answers by writing a new mail to the `Reply
+ * to:` line's address, and nothing is quoted unless they paste it.
+ */
+export function linkReportMailFor(
+  report: LinkReport,
+  facts: LinkReportFacts,
+  reference: string,
+): { readonly subject: string; readonly body: string } {
+  const lines = [...factLines(report, facts), `Report reference: ${reference}`];
+  return {
+    subject: linkReportTitle(facts),
+    body: `${LINK_REPORT_MAIL_WARNING}\n\n${lines.join('\n')}\n\nWhat they wrote:\n${report.description}`,
   };
 }

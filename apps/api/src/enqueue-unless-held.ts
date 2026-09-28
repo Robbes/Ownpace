@@ -1,8 +1,9 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * The one way this API enqueues a task, and the platform hold at every door
- * (workplan 0132 T6 (b); 0131 §6 R7 step 4).
+ * The one way this API enqueues a task, and the platform hold and a closed
+ * organisation at every door (workplan 0132 T6 (b); 0131 §6 R7 step 4; 0085
+ * T2).
  *
  * An operator hold (managed migration 0023, `routes/platform-pause.ts`) is a
  * drain: start nothing new, wait until the tick's log says no pass is still
@@ -53,18 +54,31 @@
  * this API's other refusals are. The banner above every screen has its own
  * default in the reader's language (`pause.hold.default` in the web app).
  *
+ * ## A closed organisation (0085 T2)
+ *
+ * Closing an organisation stops everything that would start a pass, and these
+ * eight doors all would. So the close is read here too, in the same
+ * transaction as the hold and before it: 409 `account_closed`, with the
+ * sentence that names the close and the day the data is removed
+ * (`closed-organisation.ts`), and nothing enqueued or written. The close
+ * comes first because it outlasts a hold: once the hold is lifted, the
+ * organisation is still closed. A reopen sets it open again, and the next
+ * press goes through.
+ *
  * ## A read that fails is not "no hold"
  *
  * Hard rule 9. The error goes to the door's own catch, which answers 500. A
- * hold that could not be read must not start the pass it would have stopped.
+ * hold or a close that could not be read must not start the pass it would
+ * have stopped.
  */
 
 import type { Response } from 'express';
 import type { Pool } from 'pg';
 import type { LedgerDriver } from '@openmig/ledger';
-import { readOpenPause } from '@openmig/managed';
+import { readOpenPause, readOrganisationClosure } from '@openmig/managed';
 import { getTriggerClient } from '@openmig/scheduler';
 import { withTenantDb } from './middleware/auth.ts';
+import { accountClosedAnswer } from './closed-organisation.ts';
 
 type Trigger = ReturnType<typeof getTriggerClient>['tasks']['trigger'];
 
@@ -76,7 +90,8 @@ export const HELD_DEFAULT =
   'We have paused copying while we update the platform. Nothing was started. Try again when copying resumes.';
 
 /**
- * Ask the platform hold; answer 409 and return null while one is open.
+ * Ask whether the organisation is closed, then the platform hold; answer 409
+ * and return null when either stops the press.
  *
  * Otherwise returns the enqueue. The client is built when the enqueue is
  * called, not here, so a deployment without `TRIGGER_SECRET_KEY` still fails
@@ -87,7 +102,14 @@ export async function enqueueUnlessHeld(
   tenantId: string,
   source: Pool | LedgerDriver,
 ): Promise<Enqueue | null> {
-  const hold = await withTenantDb(tenantId, source, (db) => readOpenPause(db));
+  const { closure, hold } = await withTenantDb(tenantId, source, async (db) => ({
+    closure: await readOrganisationClosure(db, tenantId),
+    hold: await readOpenPause(db),
+  }));
+  if (closure) {
+    res.status(409).json(accountClosedAnswer(closure));
+    return null;
+  }
   if (hold) {
     const sentence = hold.message ?? HELD_DEFAULT;
     res.status(409).json({

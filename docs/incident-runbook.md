@@ -26,8 +26,9 @@ wake anyone.
   when a row stays red for three minutes, and again when it is green again, where `ALERT_ENABLED`
   is `true` (0142 T1): on live, once 0133's relay carries its mail. The mail names the row below.
   On the OTA stack it is off, and the page has to be looked at.
-- **A tester's report,** through the report form where a Zammad is configured (0130), or by mail to
-  the address in the alpha conditions (0131 T5).
+- **A tester's report,** through the report form (0130), which on live sends it as a mail to the
+  support mailbox (no Zammad runs during the alpha, 0130 T5), or by mail to the address in the
+  alpha conditions (0131 T5).
 - **GitHub's own notifications:** a red scheduled run (the nightly gate on the OTA stack, and the
   lanes 0141 T13 makes evidence), and an issue the weekly image watch opens (0135 T7, 0146 T8).
   GitHub sends these where the account's notification settings say, which cannot be seen from

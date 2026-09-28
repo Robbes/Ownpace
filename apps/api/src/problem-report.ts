@@ -4,10 +4,12 @@
  * A PROBLEM REPORT THAT REACHES A PERSON (workplan 0130 T1, T2).
  *
  * What a customer sends from "Report a problem", read and checked here, and the
- * Zammad ticket it becomes. The owner's decisions (0130 D1, D2): the owner's
- * own, self-hosted Zammad, and a form in the app. What he asked a report to
- * carry: *"the URL they on, the error they see (screenshot or similar)"*, so he
- * can see it, write back, and help.
+ * Zammad ticket it becomes, or the mail. The owner's decisions (0130 D1, D2):
+ * the owner's own, self-hosted Zammad, and a form in the app. For the alpha
+ * (2026-09-28), a service with no Zammad sends the same report as one mail to
+ * its support mailbox instead; a Zammad, when there is one, still wins. What
+ * the owner asked a report to carry: *"the URL they on, the error they see
+ * (screenshot or similar)"*, so they can see it, write back, and help.
  *
  * Pure: the route does the network, this does the deciding, so every rule
  * below is tested without either.
@@ -30,8 +32,14 @@
  * reporting a problem is not asked to copy it off the page.
  */
 
+import { z } from 'zod';
 import { buildIdentity, type BuildIdentity } from '@openmig/core';
-import { APP_EVENT_REFERENCE, isFailureCategory, type FailureCategory } from '@openmig/shared';
+import {
+  APP_EVENT_REFERENCE,
+  isFailureCategory,
+  type FailureCategory,
+  type MailAttachment,
+} from '@openmig/shared';
 import { loggableUrl } from './access-log.ts';
 
 /** The most a description may hold. A report, not an essay, and a bound on the body. */
@@ -157,6 +165,48 @@ function buildLine(build: BuildIdentity): string {
   return `Build: v${build.version} · ${commit}`;
 }
 
+/** A value typed by somebody, kept to one line: any control character or line separator becomes a space. */
+export function oneLine(value: string): string {
+  return value.replace(/[\p{Cc}\u2028\u2029]+/gu, ' ').trim();
+}
+
+/**
+ * One address a reply may go to: the shape the public access-request door
+ * accepts, and a link report's typed address. Not a list, and nothing a
+ * header could be built from but the address itself.
+ */
+export const REPLY_ADDRESS = z.string().trim().email().max(320);
+
+/** The title a report goes by: `Ownpace: ` and its first line, kept to one line and 80 characters. */
+function titleFor(report: ProblemReport): string {
+  // One line whatever the person typed: in a mail this is the Subject header,
+  // where a carriage return would start a header of its own.
+  const firstLine = oneLine(report.description.split('\n')[0]!);
+  return `Ownpace: ${firstLine.length > 80 ? `${firstLine.slice(0, 79)}…` : firstLine}`;
+}
+
+/**
+ * What the person wrote, then the facts under it: the page, the reference and
+ * category when there is one, the organisation, the build. The ticket's article
+ * and the mail's body are both exactly this, so the two ways a report travels
+ * cannot say different things.
+ */
+function reportText(report: ProblemReport, reporter: Reporter, build: BuildIdentity): string {
+  const facts = [
+    `Page: ${report.page}`,
+    ...(report.reference ? [`Reference: ${report.reference}`] : []),
+    ...(report.category ? [`Category: ${report.category}`] : []),
+    ...(reporter.tenantId ? [`Organisation: ${reporter.tenantId}`] : []),
+    buildLine(build),
+  ];
+  return `${report.description}\n\n---\n${facts.join('\n')}`;
+}
+
+/** The screenshot's file name, by the type its own first bytes gave it. */
+function screenshotName(type: ScreenshotType): string {
+  return type === 'image/png' ? 'screenshot.png' : 'screenshot.jpg';
+}
+
 /**
  * The Zammad ticket a report becomes (Zammad's REST API, `POST /api/v1/tickets`).
  *
@@ -173,22 +223,14 @@ export function ticketFor(
   group: string,
   build: BuildIdentity = buildIdentity(),
 ) {
-  const firstLine = report.description.split('\n')[0]!.trim();
-  const title = `Ownpace: ${firstLine.length > 80 ? `${firstLine.slice(0, 79)}…` : firstLine}`;
-  const facts = [
-    `Page: ${report.page}`,
-    ...(report.reference ? [`Reference: ${report.reference}`] : []),
-    ...(report.category ? [`Category: ${report.category}`] : []),
-    ...(reporter.tenantId ? [`Organisation: ${reporter.tenantId}`] : []),
-    buildLine(build),
-  ];
+  const title = titleFor(report);
   return {
     title,
     group,
     customer_id: `guess:${reporter.email}`,
     article: {
       subject: title,
-      body: `${report.description}\n\n---\n${facts.join('\n')}`,
+      body: reportText(report, reporter, build),
       type: 'web',
       internal: false,
       content_type: 'text/plain',
@@ -196,7 +238,7 @@ export function ticketFor(
         ? {
             attachments: [
               {
-                filename: report.screenshot.type === 'image/png' ? 'screenshot.png' : 'screenshot.jpg',
+                filename: screenshotName(report.screenshot.type),
                 data: report.screenshot.data,
                 'mime-type': report.screenshot.type,
               },
@@ -204,5 +246,61 @@ export function ticketFor(
           }
         : {}),
     },
+  };
+}
+
+/** A report as one mail, for a transport that fills in From and To itself. */
+export interface ReportMail {
+  readonly subject: string;
+  readonly body: string;
+  readonly replyTo?: string;
+  readonly attachments?: readonly MailAttachment[];
+}
+
+/**
+ * The mail a report becomes when the service has no Zammad (the owner, for the
+ * alpha, 2026-09-28: *"b"*, a mail to the support mailbox through the relay
+ * that already sends the product's mail).
+ *
+ * The ticket's title as the Subject, the ticket's article as the body, and the
+ * screenshot, already checked by its first bytes, as its one attachment. Two
+ * lines more than the ticket:
+ *
+ * - `Reply to:`, the reporter's sign-in address, written in the body as well
+ *   as in the Reply-To header. On live the mail goes from the support address
+ *   to itself, and a client may answer such a mail to its own To, or a
+ *   provider may drop the header; the body line is what still names who to
+ *   write to. The header is set only when the address is one valid address,
+ *   so an identity provider's odd claim (`a@x, b@y`) cannot add a second
+ *   recipient to the owner's reply; the line then says so.
+ * - `Report reference:`, which the person is answered with in place of a
+ *   ticket number, so that what they quote can be found in the mailbox. Named
+ *   so it is not taken for the error's `Reference:` above it, an app event's.
+ */
+export function reportMailFor(
+  report: ProblemReport,
+  reporter: Reporter,
+  reference: string,
+  build: BuildIdentity = buildIdentity(),
+): ReportMail {
+  const address = REPLY_ADDRESS.safeParse(reporter.email);
+  const replyLine = address.success
+    ? `Reply to: ${address.data} (sign-in address)`
+    : `Reply to: none. The sign-in address is not one address a reply can go to: ${oneLine(reporter.email)}`;
+  return {
+    subject: titleFor(report),
+    body: `${reportText(report, reporter, build)}\n${replyLine}\nReport reference: ${reference}`,
+    ...(address.success ? { replyTo: address.data } : {}),
+    ...(report.screenshot
+      ? {
+          attachments: [
+            {
+              filename: screenshotName(report.screenshot.type),
+              contentType: report.screenshot.type,
+              base64: report.screenshot.data,
+            },
+          ],
+        }
+      : {}),
   };
 }

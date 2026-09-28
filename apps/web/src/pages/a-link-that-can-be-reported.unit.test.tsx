@@ -96,7 +96,7 @@ beforeEach(() => {
   grantReadMock.mockResolvedValue(SUBJECT);
   viewReadMock.mockResolvedValue(VIEW({ state: 'granted' }));
   availableMock.mockResolvedValue(true);
-  sendMock.mockResolvedValue('41001');
+  sendMock.mockResolvedValue({ ticket: '41001' });
 });
 
 describe('on the grant page', () => {
@@ -241,10 +241,10 @@ describe('the service', () => {
     expect(await linkReportApi.available('view', 'abc.def/x')).toBe(true);
     expect(getMock).toHaveBeenCalledWith('/view/abc.def%2Fx/report');
     const body = { description: 'x', replyTo: 'reporter@example.invalid' };
-    expect(await linkReportApi.send('grant', 'abc.def', body)).toBe('41001');
+    expect(await linkReportApi.send('grant', 'abc.def', body)).toEqual({ ticket: '41001' });
     expect(postMock).toHaveBeenCalledWith('/grant/abc.def/report', body);
     // And without an address, as the form sends it when none was given.
-    expect(await linkReportApi.send('view', 'abc.def', { description: 'x' })).toBe('41001');
+    expect(await linkReportApi.send('view', 'abc.def', { description: 'x' })).toEqual({ ticket: '41001' });
     expect(postMock).toHaveBeenLastCalledWith('/view/abc.def/report', { description: 'x' });
   });
 

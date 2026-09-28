@@ -19,10 +19,28 @@
  * Plain text only, deliberately: these messages are short, they carry the
  * server's own words, and an HTML body would invite formatting the one thing
  * that must not be reformatted — a verbatim diagnostic.
+ *
+ * A problem report goes out through here too (workplan 0130, the owner's
+ * choice for the alpha of 2026-09-28), with the same TLS rules as every other
+ * message: plain text, a Reply-To naming the reporter, and at most their
+ * screenshot attached.
  */
 
 import { createTransport, type Transporter } from 'nodemailer';
 import type { MailTransport, SmtpSettings } from '@openmig/shared';
+
+/**
+ * How long a send may wait on the relay, in milliseconds, at each of
+ * nodemailer's three waits: the TCP connection, the server's greeting, and
+ * any silence after that. Left out, nodemailer's own defaults hold (two
+ * minutes, thirty seconds and ten minutes), which suits a digest a job sends
+ * and nobody watches. A person who pressed Send stops waiting sooner.
+ */
+export interface SmtpTimeouts {
+  readonly connectionMs: number;
+  readonly greetingMs: number;
+  readonly socketMs: number;
+}
 
 /**
  * Build a transport from resolved settings.
@@ -34,14 +52,24 @@ import type { MailTransport, SmtpSettings } from '@openmig/shared';
  * Failures are not caught here. A send that fails must reach the caller —
  * `createNotifier` documents why — and the natural place to decide what a
  * failed notification means is the job that asked for it, not this file.
+ *
+ * `timeouts` only for a send somebody is waiting on: a problem report
+ * (workplan 0130), whose web client gives up after thirty seconds.
  */
-export function smtpTransport(smtp: SmtpSettings): MailTransport {
+export function smtpTransport(smtp: SmtpSettings, timeouts?: SmtpTimeouts): MailTransport {
   let transporter: Transporter | undefined;
 
   const connect = (): Transporter => {
     transporter ??= createTransport({
       host: smtp.host,
       port: smtp.port,
+      ...(timeouts
+        ? {
+            connectionTimeout: timeouts.connectionMs,
+            greetingTimeout: timeouts.greetingMs,
+            socketTimeout: timeouts.socketMs,
+          }
+        : {}),
       // Implicit TLS on 465; STARTTLS is negotiated automatically otherwise.
       secure: smtp.secure,
       // A LOGIN IS NEVER SENT IN THE CLEAR (workplan 0133 T2, item 5). Without
@@ -66,6 +94,19 @@ export function smtpTransport(smtp: SmtpSettings): MailTransport {
       to: [...message.to],
       subject: message.subject,
       text: message.body,
+      // A problem report's (workplan 0130): the reporter, so a reply reaches
+      // them, and the screenshot they chose. Nothing else sets either.
+      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+      ...(message.attachments && message.attachments.length > 0
+        ? {
+            attachments: message.attachments.map((file) => ({
+              filename: file.filename,
+              content: file.base64,
+              encoding: 'base64',
+              contentType: file.contentType,
+            })),
+          }
+        : {}),
     });
   };
 }

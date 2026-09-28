@@ -51,7 +51,7 @@
  * nothing and reports it as an account with nothing in it.
  */
 
-import { DISCOVERY_DOMAINS, log, type DiscoveryDomain } from '@openmig/shared';
+import { ACCOUNT_CLOSED, DISCOVERY_DOMAINS, isCredentialRefusal, log, type DiscoveryDomain } from '@openmig/shared';
 
 /** Domains the verification gate knows about, in its own spelling. */
 export type VerificationDomain = 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks';
@@ -92,7 +92,8 @@ export interface OpenedTarget {
  *
  * Throwing is a normal answer: a mapping with no DAV connection configured has
  * no calendar target, and that domain is left out rather than failing the whole
- * fan-out. The reason is logged.
+ * fan-out. The reason is logged. One refusal is not about a domain: a closed
+ * organisation (`account_closed`, workplan 0085 T2) fails the whole fan-out.
  */
 export type OpenTarget = (domain: DiscoveryDomain) => Promise<OpenedTarget>;
 
@@ -156,6 +157,12 @@ export async function fanOutTargets<T>(args: {
     try {
       opened = await args.open(domain);
     } catch (err) {
+      // A closed organisation is refused for every domain, not this one
+      // (workplan 0085 T2). Leaving each domain out would record a verdict
+      // after the close: a verification of nothing but NOT_VERIFIABLE, a
+      // confirmation of nothing, still the latest after a reopen. So it fails
+      // the fan-out, and the task fails with the close's own sentence.
+      if (isCredentialRefusal(err) && err.refusal.code === ACCOUNT_CLOSED) return releaseAndRethrow(err);
       // Not a failure of the fan-out. A mapping with no connection for this
       // domain has no target for it, and leaving the domain OUT is the honest
       // outcome: the gate reports it unverifiable, and a confirmation leaves

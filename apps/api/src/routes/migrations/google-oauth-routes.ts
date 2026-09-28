@@ -19,6 +19,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, getDbPool } from '../../middleware/auth.ts';
+import { closedOrganisation } from '../../closed-organisation.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
   EXCHANGE_FOR_THE_LINK_HOLDER,
@@ -215,6 +216,13 @@ router.post('/google/authorize', authenticate, (req: AuthenticatedRequest, res: 
 const FOR_THE_LINK_HOLDER_AFTER_GOOGLE: Readonly<Record<ExchangeRefusalCode, Bilingual>> =
   EXCHANGE_FOR_THE_LINK_HOLDER;
 
+/** One pool for the close's read, built on first use rather than per request. */
+let _closurePool: ReturnType<typeof getDbPool> | null = null;
+function closurePool(): ReturnType<typeof getDbPool> {
+  if (!_closurePool) _closurePool = getDbPool();
+  return _closurePool;
+}
+
 /**
  * ONE callback address for two flows, because Google is told one redirect URI
  * and a second would have to be registered by every customer (workplan 0108
@@ -287,6 +295,21 @@ router.get('/google/callback', async (req: Request, res: Response) => {
   if (!code) {
     return refuse(400, link ? NOTHING_CAME_BACK : noCodeFrom('google'), 'unused');
   }
+  // A grant link's consent begun before its organisation was closed (0085
+  // T2): refused before the code is exchanged, so the organisation's client is
+  // not used and nothing is stored. The link is not spent; a reopen can use
+  // it. `storeGrantedToken` asks again, inside its own transaction.
+  if (link) {
+    let closed;
+    try {
+      closed = await closedOrganisation(link.tenantId, closurePool());
+    } catch (error) {
+      // Not read is not open (hard rule 9): nothing is exchanged or stored.
+      log.error('[api] reading whether a grant link’s organisation was closed failed:', error);
+      return refuse(500, NOT_KEPT, 'unused');
+    }
+    if (closed) return refuse(409, { en: closed.reason, nl: closed.reasonNl }, 'unused');
+  }
   const outcome = await exchangeCode({
     code,
     clientId: pending.clientId,
@@ -331,7 +354,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     // 403 for the wrong account: the link is good, the person is not the one
     // it was for. 409 for a link that can no longer be used.
     const reason = { en: stored.reason, nl: stored.reasonNl };
-    return stored.linkStillWorks ? refuse(403, reason, 'works') : refuse(409, reason);
+    return stored.linkStillWorks
+      ? refuse(403, reason, 'works')
+      : refuse(409, reason, stored.linkUnused ? 'unused' : undefined);
   }
 
   // ADR-0035's second lifetime, handed over at the one moment this person is

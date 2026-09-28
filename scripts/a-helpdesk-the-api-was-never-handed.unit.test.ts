@@ -19,6 +19,12 @@
  *
  * EMPTY BY DEFAULT, because empty is "no form", which is today's behaviour and
  * the right one for a stack whose owner runs no helpdesk.
+ *
+ * AND THE MAILBOX (the owner, for the alpha, 2026-09-28): without a Zammad, a
+ * report goes by mail to `REPORT_MAIL_TO`, read by `reportMailConfigFrom` in
+ * `apps/api/src/services/report-channel.ts`. The same trap applies to it, so
+ * its names are read from that function's body too. Empty is `NOTIFY_TO`, which
+ * the relay's own guard (`the-mail-the-api-could-not-send`) already holds.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -30,15 +36,23 @@ import { parse as parseYaml } from 'yaml';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(REPO_ROOT, path), 'utf8');
 
-/** The names `zammadConfigFrom` reads, from its own body. */
-function helpdeskNames(): string[] {
-  const source = read('apps/api/src/services/zammad.ts');
-  const start = source.indexOf('export function zammadConfigFrom');
-  expect(start, 'zammadConfigFrom moved or was renamed').toBeGreaterThan(-1);
+/** The names a function reads from `env`, from its own body. */
+function namesReadBy(file: string, fn: string): string[] {
+  const source = read(file);
+  const start = source.indexOf(`export function ${fn}`);
+  expect(start, `${fn} moved or was renamed`).toBeGreaterThan(-1);
   const rest = source.slice(start + 1);
   const next = rest.search(/\nexport (async function|function|const|interface|type|class) /);
   const body = next === -1 ? rest : rest.slice(0, next);
   return [...new Set([...body.matchAll(/\benv\.([A-Z][A-Z0-9_]*)\b/g)].map((m) => m[1]!))];
+}
+
+/** The names `zammadConfigFrom` and `reportMailConfigFrom` read. */
+function helpdeskNames(): string[] {
+  return [
+    ...namesReadBy('apps/api/src/services/zammad.ts', 'zammadConfigFrom'),
+    ...namesReadBy('apps/api/src/services/report-channel.ts', 'reportMailConfigFrom'),
+  ];
 }
 
 function apiEnvironment(): Record<string, unknown> {
@@ -55,8 +69,8 @@ describe('problem reports can be switched on for a managed stack', () => {
   const passed = apiEnvironment();
   const example = read('deploy/compose/managed.env.example');
 
-  it('finds the three settings, so an empty comparison cannot pass', () => {
-    expect(names).toEqual(expect.arrayContaining(['ZAMMAD_URL', 'ZAMMAD_TOKEN', 'ZAMMAD_GROUP']));
+  it('finds the four settings, so an empty comparison cannot pass', () => {
+    expect(names).toEqual(expect.arrayContaining(['ZAMMAD_URL', 'ZAMMAD_TOKEN', 'ZAMMAD_GROUP', 'REPORT_MAIL_TO']));
   });
 
   it.each(names.map((name) => [name] as const))('the api container is handed %s', (name) => {
@@ -65,7 +79,7 @@ describe('problem reports can be switched on for a managed stack', () => {
       `the api reads ${name}, but managed.yml never passes it to the api service. Compose passes\n` +
         'nothing it has not been told to pass, so setting it in .env does nothing.',
     ).toContain(name);
-    expect(passed[name], `${name} must default to empty: empty means no form is offered.`).toBe(
+    expect(passed[name], `${name} must default to empty: empty is no Zammad, and NOTIFY_TO for the mail.`).toBe(
       `\${${name}:-}`,
     );
   });
