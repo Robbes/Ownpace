@@ -39,7 +39,8 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
-import { DROPBOX_PAPER_POLICIES, fileVersion, markNeedsDecision, withFailureCategory } from '@openmig/shared';
+import { DROPBOX_PAPER_POLICIES, fileVersion, log, markNeedsDecision, withFailureCategory } from '@openmig/shared';
+import { fetchWithRateLimitRetry } from './http-rate-limit.ts';
 import type {
   DropboxEntry,
   DropboxExportOnly,
@@ -207,15 +208,60 @@ function dropboxErrorTag(body: string): string | undefined {
   }
 }
 
-/** A transport that stamps each request with a freshly minted Bearer token. */
-export function dropboxTransport(tokens: TokenProvider): DropboxTransport {
+/**
+ * THE ANSWERS DROPBOX GIVES FOR ITS OWN TROUBLE, asked again a few times
+ * (2026-09-28). A 500 is *"An error occurred on the Dropbox servers"*, and
+ * 502 and 504 come from its edge. One of them, a 500 on `files/list_folder`
+ * reading *"unexpected error occurred"*, ended the files for a whole pass of
+ * the owner's migration: the listing threw, and nothing asked twice.
+ *
+ * Every call this source makes only reads, so asking again cannot do anything
+ * twice. 429 and 503 are not here: `fetchWithRateLimitRetry` waits those out,
+ * as hard rule 4 asks, and until now this connector never used it.
+ */
+const DROPBOX_OWN_TROUBLE: ReadonlySet<number> = new Set([500, 502, 504]);
+
+/** Asked this many times in all before Dropbox's own trouble is handed back. */
+export const DROPBOX_TROUBLE_ATTEMPTS = 4;
+
+/** 1 s, 2 s, 4 s: seven seconds at most, before the answer goes to the caller. */
+const troublePauseMs = (attempt: number): number => 1000 * 2 ** (attempt - 1);
+
+/**
+ * A transport that stamps each request with a freshly minted Bearer token,
+ * waits out a 429 or 503 through `fetchWithRateLimitRetry`, and asks again
+ * after Dropbox's own 500, 502 or 504, `DROPBOX_TROUBLE_ATTEMPTS` times in
+ * all. The last answer is handed back as it came, so the caller's error
+ * quotes Dropbox's own words, as before.
+ *
+ * `pauseMs` is the wait before each new attempt, for a test to make zero.
+ */
+export function dropboxTransport(
+  tokens: TokenProvider,
+  { pauseMs = troublePauseMs }: { readonly pauseMs?: (attempt: number) => number } = {},
+): DropboxTransport {
   return async (url, init) => {
-    const token = await tokens.getToken();
-    return fetch(url, {
-      method: init.method,
-      headers: { ...init.headers, Authorization: `Bearer ${token.accessToken}` },
-      ...(init.body !== undefined ? { body: init.body } : {}),
-    });
+    for (let attempt = 1; ; attempt++) {
+      const token = await tokens.getToken();
+      const response = await fetchWithRateLimitRetry(
+        url,
+        {
+          method: init.method,
+          headers: { ...init.headers, Authorization: `Bearer ${token.accessToken}` },
+          ...(init.body !== undefined ? { body: init.body } : {}),
+        },
+        'dropbox',
+      );
+      if (!DROPBOX_OWN_TROUBLE.has(response.status) || attempt >= DROPBOX_TROUBLE_ATTEMPTS) return response;
+      // Read to the end, so the connection can be used again.
+      await response.text().catch(() => undefined);
+      const wait = pauseMs(attempt);
+      log.warn(
+        `[dropbox] ${response.status} from ${new URL(url).pathname}; asking again in ${wait}ms ` +
+          `(${attempt + 1} of ${DROPBOX_TROUBLE_ATTEMPTS})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
   };
 }
 
