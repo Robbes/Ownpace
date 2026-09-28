@@ -75,11 +75,16 @@ policies (`apps/worker/src/jobs/a-pass-under-row-security.integration.test.ts`
 builds them on `app_user` and checks they see one organisation, that the
 writes read back, and that an audit event still prints its line). The audit
 export reads its key, which `app_user` may not, on a pool of one of the
-owner's, and nothing else goes there.
+owner's, and nothing else goes there: `openTaskPools` hands a task the tenant
+pool and its end, and keeps the key's pool for the sink.
 `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` fails if a file in
 `apps/worker/src` or `packages/*/src` that is not on its closed list reads a
 database URL other than `APP_DATABASE_URL`, if a per-tenant task builds a pool
-or points a sink itself, or if the module does anything at import. A run still
+or points a sink itself, takes anything from `openTaskPools` but the tenant
+pool and its end, or ends that pool anywhere but in `afterwards` (so a failed
+run's event reaches the log page, which is on that pool, before it closes), if
+any file but the module names the key's pool, or if the module does anything
+at import. A run still
 receives the owner's URL (§2's `set-task-env.sh` row) until T3 step 2. The
 permission report's pool is not in 0138's task table yet (its Status block,
 2026-09-27), and that guard does not read `apps/api`.

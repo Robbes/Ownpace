@@ -22,17 +22,23 @@
  *
  * It also points the process's two sinks: the audit export at the key's pool,
  * and the operator's log page (app events, which `app_user` may insert) at the
- * tenant pool. Nothing here needs a database: node-postgres builds a pool
- * without connecting, and the sinks are told apart by which pool is asked for
- * a connection. Whether the tenant pool really is `app_user` and the line
- * really prints is asked of Postgres by `a-pass-under-row-security`
- * (integration). Whether each job takes its pools from here, and whether this
- * module does anything at import, is `a-pass-that-opened-the-owners-pool`'s.
+ * tenant pool. It hands the job the tenant pool and a way to end it, and never
+ * the key's pool: the owner's connection bypasses row security, and a job
+ * that could reach it could read tenant data on it with every guard green
+ * (0138 T1 step 2's review). So the key's pool is found here the way the sink
+ * finds it, as the pool asked for a connection. Nothing here needs a database:
+ * node-postgres builds a pool without connecting, and the sinks are told apart
+ * by which pool is asked for a connection. Whether the tenant pool really is
+ * `app_user` and the line really prints is asked of Postgres by
+ * `a-pass-under-row-security` (integration). Whether each job takes its pools
+ * from here, takes only the tenant pool, and whether this module does anything
+ * at import, is `a-pass-that-opened-the-owners-pool`'s.
  *
  * The addresses are invented; nothing here is contacted.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { Pool } from 'pg';
 import { exportAuditEvent, recordAppEvent, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { openTaskPools, type TaskPools } from './task-pools.ts';
 
@@ -50,14 +56,35 @@ const open = (env: Record<string, string | undefined>, write?: (line: string) =>
   return pools;
 };
 
+/**
+ * Every pool asked for a connection, in order, none of them connecting: the
+ * key's pool is the one that is not the tenant pool.
+ */
+const watchConnections = () => {
+  const asked: Pool[] = [];
+  vi.spyOn(Pool.prototype, 'connect').mockImplementation(function (this: Pool) {
+    asked.push(this);
+    return Promise.reject(new Error('nothing here connects'));
+  } as never);
+  return asked;
+};
+
+/** An audit event, as a rollback records one: its line needs the key. */
+const anAuditEvent = () =>
+  exportAuditEvent({
+    id: '0138c000-e29b-41d4-a716-446655440001',
+    at: '2026-09-28T12:00:00.000000Z',
+    tenantId: '0138c000-e29b-41d4-a716-4466554400a1',
+    actor: 'trigger-job',
+    action: 'mapping.status_changed',
+  });
+
 afterEach(async () => {
   setAuditExportSink(undefined);
   setAppEventSink(undefined);
   vi.restoreAllMocks();
-  for (const pools of opened.splice(0)) {
-    await pools.end();
-    await pools.auditKey.end();
-  }
+  // The key's pools connected to nothing, and close their own connection.
+  for (const pools of opened.splice(0)) await pools.end();
 });
 
 describe('the tenant pool is the application role, or nothing', () => {
@@ -74,18 +101,35 @@ describe('the tenant pool is the application role, or nothing', () => {
     expect(optionsOf(pools.tenant).connectionString).toBe(APP);
     expect(optionsOf(pools.tenant).connectionString).not.toBe(OWNER);
   });
+
+  it('hands the job the tenant pool and its end, and no pool on the owner\'s URL', () => {
+    // The key's pool is the owner, whom row security never binds. Handed back,
+    // a job could take it for its tenant pool in one token, and every guard
+    // stayed green (0138 T1 step 2's review, three such changes, 486 tests).
+    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER });
+
+    expect(Object.keys(pools).sort()).toEqual(['end', 'tenant']);
+    for (const value of Object.values(pools)) {
+      if (value instanceof Pool) expect(optionsOf(value).connectionString).toBe(APP);
+    }
+  });
 });
 
 describe('the audit key has a pool of its own, of one connection, on the owner\'s URL', () => {
-  it('reads the key where app_user may not: one connection, the owner\'s, closed a second after', () => {
-    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER });
+  it('reads the key where app_user may not: one connection, the owner\'s, closed a second after', async () => {
+    const asked = watchConnections();
+    const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER }, () => {});
 
-    expect(pools.auditKey).not.toBe(pools.tenant);
-    expect(optionsOf(pools.auditKey).connectionString).toBe(OWNER);
-    expect(optionsOf(pools.auditKey).max).toBe(1);
-    expect(optionsOf(pools.auditKey).idleTimeoutMillis).toBeLessThanOrEqual(1_000);
+    anAuditEvent();
+
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    const [keyPool] = asked as [Pool];
+    expect(keyPool).not.toBe(pools.tenant);
+    expect(optionsOf(keyPool).connectionString).toBe(OWNER);
+    expect(optionsOf(keyPool).max).toBe(1);
+    expect(optionsOf(keyPool).idleTimeoutMillis).toBeLessThanOrEqual(1_000);
     // A dropped idle connection is a warning, not the end of the process.
-    expect(pools.auditKey.listenerCount('error')).toBeGreaterThanOrEqual(1);
+    expect(keyPool.listenerCount('error')).toBeGreaterThanOrEqual(1);
   });
 
   it('refuses to start without DATABASE_URL, since every audit line would then be lost', () => {
@@ -96,31 +140,23 @@ describe('the audit key has a pool of its own, of one connection, on the owner\'
 
 describe('the sinks it points: the key asked of its pool, the operator\'s events of the tenant pool', () => {
   it('asks the key\'s pool, never the tenant pool, for the key an audit line is made with', async () => {
+    const asked = watchConnections();
     const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER }, () => {});
-    const key = vi.spyOn(pools.auditKey, 'connect').mockRejectedValue(new Error('the key pool was asked'));
-    const tenant = vi.spyOn(pools.tenant, 'connect').mockRejectedValue(new Error('the tenant pool was asked'));
 
-    exportAuditEvent({
-      id: '0138c000-e29b-41d4-a716-446655440001',
-      at: '2026-09-28T12:00:00.000000Z',
-      tenantId: '0138c000-e29b-41d4-a716-4466554400a1',
-      actor: 'trigger-job',
-      action: 'mapping.status_changed',
-    });
+    anAuditEvent();
 
-    await vi.waitFor(() => expect(key).toHaveBeenCalled());
-    expect(tenant).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]).not.toBe(pools.tenant);
+    expect(optionsOf(asked[0]).connectionString).toBe(OWNER);
   });
 
   it('records the operator\'s events on the tenant pool, which app_user may insert into', async () => {
+    const asked = watchConnections();
     const pools = open({ APP_DATABASE_URL: APP, DATABASE_URL: OWNER }, () => {});
-    const key = vi.spyOn(pools.auditKey, 'connect').mockRejectedValue(new Error('the key pool was asked'));
-    const tenant = vi.spyOn(pools.tenant, 'connect').mockRejectedValue(new Error('the tenant pool was asked'));
 
     await recordAppEvent({ level: 'error', event: 'task.pool_check', reference: '0138c0de' });
 
-    expect(tenant).toHaveBeenCalledTimes(1);
-    expect(key).not.toHaveBeenCalled();
+    expect(asked).toEqual([pools.tenant]);
   });
 });
 

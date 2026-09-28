@@ -21,14 +21,29 @@
  *     operator's log page's events, which `app_user` may insert (ledger 0059).
  *     Until 0138 T1's second step every job built its pool from `DATABASE_URL`,
  *     the owner, a superuser on the managed stack, whom Postgres never binds.
- *   - `auditKey`, on `DATABASE_URL`: the owner, ONE connection, closed a second
- *     after its last use, for the one read `app_user` may not make: the
+ *   - the audit key's, on `DATABASE_URL`: the owner, ONE connection, closed a
+ *     second after its last use, for the one read `app_user` may not make: the
  *     deployment's pseudonym key in `deployment_key` (ledger 0062). The audit
  *     export reads it the first time a line is written. On the tenant pool the
  *     read is refused, and the event is kept while its line is lost, every
  *     line. It is the API's `auditKeyPool` (`apps/api/src/index.ts`), in a
  *     task. It reads no organisation's rows. T3 step 2 moves it to the system
  *     role, which is granted `deployment_key`.
+ *
+ * THE JOB GETS THE TENANT POOL ALONE. The key's pool goes to the audit sink
+ * and nowhere else: it is the owner, whom row security never binds, and a job
+ * handed it could read and write tenant data on it in one token. Until 0138 T1
+ * step 2's review it was handed back, as `auditKey`, and three such one-token
+ * changes to three jobs left all 486 tests of every guard green. The
+ * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` guard now holds a
+ * job to `tenant` and `end`, and every file but this one to never naming
+ * `auditKey`.
+ *
+ * ENDED AFTER THE FAILURE IS RECORDED. A job that opens its pools per run
+ * (run-cutover, run-rollback) ends them in `afterwards(() => pools.end())`,
+ * which `leavesAReference` runs once a failure is on the operator's log page,
+ * whose sink is on the tenant pool. Ended in the run's own `finally`, the pool
+ * was gone before the failure's event was written, and the event was lost.
  *
  * NO FALLBACK. `APP_DATABASE_URL` unset or empty refuses; `DATABASE_URL` is
  * never used in its place. The API's `getDbPool` falls back to `DATABASE_URL`
@@ -61,15 +76,18 @@ import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 /** The environment a task reads its two URLs from: `process.env`, or a test's own. */
 export type TaskEnv = Readonly<Record<string, string | undefined>>;
 
+/**
+ * What a job gets: the tenant pool, and its end. Not the key's pool, which the
+ * audit sink holds and nothing else (see the file header).
+ */
 export interface TaskPools {
   /** `app_user`, on `APP_DATABASE_URL`: every tenant read and write, inside its scope. */
   readonly tenant: Pool;
-  /** The owner, on `DATABASE_URL`: one connection, for `deployment_key` alone. */
-  readonly auditKey: Pool;
   /**
-   * End the tenant pool. The key's pool is left to close its own connection a
-   * second after its last read, as the API's does: ending it here could cut
-   * off a line whose key read is still under way as a run finishes.
+   * End the tenant pool: in `afterwards`, so a failure is recorded on it first.
+   * The key's pool is left to close its own connection a second after its
+   * last read, as the API's does: ending it here could cut off a line whose
+   * key read is still under way as a run finishes.
    */
   end(): Promise<void>;
 }
@@ -117,9 +135,9 @@ export function openTaskPools(env: TaskEnv = process.env, options: TaskPoolOptio
   // its pseudonyms made with the key read on the key's own pool.
   setAuditExportSink(auditExportOn(pgDriver(auditKey), { 'service.name': 'ownpace-worker' }, options.write));
 
+  // The tenant pool alone: the key's stays with its sink.
   return {
     tenant,
-    auditKey,
     end: () => tenant.end(),
   };
 }

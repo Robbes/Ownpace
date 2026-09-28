@@ -94,9 +94,25 @@ export const runRollback = schemaTask({
   id: 'run-rollback',
   description: 'Rollback',
   schema: RollbackJobSchema,
-  run: leavesAReference('run-rollback', async (payload: unknown) => {
+  run: leavesAReference('run-rollback', async (payload: unknown, _context, afterwards) => {
     const typedPayload = payload as RollbackJobPayload;
     const { tenantId, mappingId, reason, options } = typedPayload;
+
+    // This run's pools, from the one module that builds a per-tenant task's
+    // (0138 T1): the tenant pool on APP_DATABASE_URL, app_user, under row
+    // security, and the audit key's pool of one on the owner's URL. It points
+    // the sinks too: the operator's log page (0129 T1) at the tenant pool, and
+    // the audit lines (0129 T4), the mapping's status change among them, at the
+    // key's, the one read app_user may not make. Opened first, so that even a
+    // refusal below reaches the log page; opening them is no rollback action.
+    const pools = openTaskPools();
+    // Ended once the run is over, never leaked across runs, and, when it
+    // failed, only after leavesAReference has put the failure on the log page,
+    // which is on this pool: ended in this function's own `finally`, it was
+    // gone before the event was written. The key's pool closes its own
+    // connection a second after its last read.
+    afterwards(() => pools.end());
+    const pool = pools.tenant;
 
     // Built here, before any rollback action, for one reason: if the channel
     // is not configured, the caller finds out while everything is still
@@ -119,14 +135,6 @@ export const runRollback = schemaTask({
       options,
     });
 
-    // This run's pools, from the one module that builds a per-tenant task's
-    // (0138 T1): the tenant pool on APP_DATABASE_URL, app_user, under row
-    // security, and the audit key's pool of one on the owner's URL. It points
-    // the sinks too: the operator's log page (0129 T1) at the tenant pool, and
-    // the audit lines (0129 T4), the mapping's status change among them, at the
-    // key's, the one read app_user may not make.
-    const pools = openTaskPools();
-    const pool = pools.tenant;
     // The cutover ledger is row-secured since migration 0055: every call
     // inside `withTenant`, or a non-superuser session reads nothing.
     const cutoverPersistence = tenantCutoverStore(pool, asTenantId(tenantId));
@@ -220,10 +228,6 @@ export const runRollback = schemaTask({
       }
 
       throw error;
-    } finally {
-      // Always release the tenant pool (never leak it across job runs). The
-      // key's pool closes its own connection a second after its last read.
-      await pools.end();
     }
   }),
 });

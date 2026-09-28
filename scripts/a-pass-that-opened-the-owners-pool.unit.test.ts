@@ -29,6 +29,17 @@
  *   4. `task-pools.ts` does nothing when it is imported. A job imports it at its
  *      top; a pool it built, or a sink it set, at import would be one the job
  *      did not ask for, in every file that imports a job to test it.
+ *   5. What `openTaskPools` hands back, such a file takes the tenant pool of,
+ *      and its `end` inside `afterwards(…)`, and nothing else; and no file but
+ *      the module names the key's pool. The module handed the jobs the key's
+ *      pool, the owner's, until review found that one token
+ *      (`const { auditKey: pool } = openTaskPools()`) put a pass back on a
+ *      superuser with all 486 tests of every guard here and beside the jobs
+ *      green (0138 T1 step 2's review). And `end` goes through `afterwards`,
+ *      which `leavesAReference` runs once a failure is recorded, because the
+ *      operator's log page is on the tenant pool: ended in the run's own
+ *      `finally`, it was gone before the wrapper recorded run-cutover's or
+ *      run-rollback's failure there.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -312,13 +323,8 @@ function definesATask(file: string, text: string): boolean {
   return found;
 }
 
-/**
- * How a file gets its pools and points its sinks: whether it imports
- * `openTaskPools` from the task-pools module and calls it, and which of the two
- * sink setters it calls itself.
- */
-function poolWiring(file: string, text: string): { opensTaskPools: boolean; setsSinks: string[] } {
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+/** The local names a file imports `openTaskPools` under, from the task-pools module. */
+function openTaskPoolsNames(sf: ts.SourceFile): Set<string> {
   const local = new Set<string>();
   for (const st of sf.statements) {
     if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue;
@@ -330,6 +336,101 @@ function poolWiring(file: string, text: string): { opensTaskPools: boolean; sets
       }
     }
   }
+  return local;
+}
+
+/** What a file may take from what `openTaskPools` hands back. `end` means: inside `afterwards(…)`. */
+const MAY_TAKE: readonly string[] = ['end', 'tenant'];
+
+/**
+ * What a file takes from what `openTaskPools` hands back: each property it
+ * reads, whether off the call, out of a destructuring, or off a name the whole
+ * was bound to; `end` only where it sits inside a call of `afterwards`, the
+ * third argument `leavesAReference` hands a run (`end, outside afterwards`
+ * elsewhere); and `the whole` wherever the lot is handed on, spread or kept
+ * under another name, since what is done with it then is out of sight. Names
+ * are matched in the whole file, not per scope: a job has one such binding.
+ */
+function takenFromTaskPools(file: string, text: string): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const local = openTaskPoolsNames(sf);
+  const taken = new Set<string>();
+  const insideAfterwards = (node: ts.Node): boolean => {
+    for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'afterwards') return true;
+    }
+    return false;
+  };
+  const take = (name: string, at: ts.Node) =>
+    taken.add(name === 'end' && !insideAfterwards(at) ? 'end, outside afterwards' : name);
+  const above = (node: ts.Node): ts.Node => {
+    let up = node.parent;
+    while (ts.isParenthesizedExpression(up) || ts.isNonNullExpression(up) || ts.isAsExpression(up)) up = up.parent;
+    return up;
+  };
+  const bound = new Set<string>();
+  const calls = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && local.has(node.expression.text)) {
+      const up = above(node);
+      if (ts.isPropertyAccessExpression(up)) take(up.name.text, up);
+      else if (ts.isVariableDeclaration(up) && ts.isObjectBindingPattern(up.name)) {
+        for (const el of up.name.elements) {
+          const key = el.propertyName ?? el.name;
+          if (el.dotDotDotToken) taken.add('the whole');
+          else take(ts.isIdentifier(key) || ts.isStringLiteralLike(key) ? key.text : 'the whole', el);
+        }
+      } else if (ts.isVariableDeclaration(up) && ts.isIdentifier(up.name)) bound.add(up.name.text);
+      else taken.add('the whole');
+    }
+    ts.forEachChild(node, calls);
+  };
+  calls(sf);
+  const uses = (node: ts.Node) => {
+    if (ts.isIdentifier(node) && bound.has(node.text)) {
+      const parent = node.parent;
+      const declared = ts.isVariableDeclaration(parent) && parent.name === node;
+      const aPropertyName =
+        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+        (ts.isPropertyAssignment(parent) && parent.name === node) ||
+        (ts.isBindingElement(parent) && parent.propertyName === node);
+      if (declared || aPropertyName) {
+        // The binding itself, or another object's property of the same name.
+      } else if (ts.isPropertyAccessExpression(parent) && parent.expression === node) take(parent.name.text, parent);
+      else if (ts.isVariableDeclaration(parent) && ts.isObjectBindingPattern(parent.name) && parent.initializer === node) {
+        for (const el of parent.name.elements) {
+          const key = el.propertyName ?? el.name;
+          if (el.dotDotDotToken) taken.add('the whole');
+          else take(ts.isIdentifier(key) || ts.isStringLiteralLike(key) ? key.text : 'the whole', el);
+        }
+      } else taken.add('the whole');
+    }
+    ts.forEachChild(node, uses);
+  };
+  if (bound.size > 0) uses(sf);
+  return [...taken].sort();
+}
+
+/** Whether a file names the key's pool as code: an identifier or a string, not a comment. */
+function namesTheKeyPool(file: string, text: string): boolean {
+  if (!text.includes('auditKey')) return false;
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  let found = false;
+  const visit = (node: ts.Node) => {
+    if ((ts.isIdentifier(node) || ts.isStringLiteralLike(node)) && node.text === 'auditKey') found = true;
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/**
+ * How a file gets its pools and points its sinks: whether it imports
+ * `openTaskPools` from the task-pools module and calls it, and which of the two
+ * sink setters it calls itself.
+ */
+function poolWiring(file: string, text: string): { opensTaskPools: boolean; setsSinks: string[] } {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const local = openTaskPoolsNames(sf);
   let opensTaskPools = false;
   const setsSinks = new Set<string>();
   const visit = (node: ts.Node) => {
@@ -550,6 +651,58 @@ describe('a per-tenant task takes its pools from the one module that builds them
       poolWiring('shape.ts', `${imp} openTaskPools(); setAuditExportSink(auditExportOn(pgDriver(pools.tenant), {}));`)
         .setsSinks,
     ).toEqual(['setAuditExportSink']);
+  });
+
+  it.each([...PER_TENANT, STANDALONE_WORKER].map((f) => [f]))(
+    '%s takes the tenant pool from openTaskPools, and its end only inside afterwards',
+    (file) => {
+      const taken = takenFromTaskPools(file, texts.get(file)!);
+      expect(taken, `${file} takes nothing from openTaskPools: the case above should have said so`).not.toEqual([]);
+      expect(
+        taken.filter((t) => !MAY_TAKE.includes(t)),
+        `${file} takes ${taken.join(', ')} from what openTaskPools hands back. A per-tenant task reads and\n` +
+          "writes on the tenant pool, app_user's, and nothing else: the key's pool is the owner, whom row\n" +
+          'security never binds (0138 T1 step 2). And it ends that pool inside afterwards(…), which\n' +
+          "leavesAReference runs once the run's failure is on the operator's log page, on that same pool.",
+      ).toEqual([]);
+    },
+  );
+
+  it('no file but task-pools.ts names the key\'s pool', () => {
+    expect(namesTheKeyPool(TASK_POOLS, texts.get(TASK_POOLS)!), `${TASK_POOLS} no longer names auditKey`).toBe(true);
+    const naming = files.filter((f) => f !== TASK_POOLS && namesTheKeyPool(f, texts.get(f)!));
+    expect(
+      naming,
+      `${naming.join(', ')} names auditKey, the owner's pool of one for deployment_key, which only\n` +
+        'task-pools.ts may hold: on it row security never binds (0138 T1 step 2).',
+    ).toEqual([]);
+  });
+
+  it('sees what a file takes from openTaskPools, in each shape review found', () => {
+    const imp = "import { openTaskPools } from './task-pools.ts';";
+    const takes = (code: string) => takenFromTaskPools('shape.ts', `${imp}\n${code}`);
+    // The three one-token changes review made, each green on every guard then.
+    expect(takes('const { auditKey: pool } = openTaskPools();')).toEqual(['auditKey']);
+    expect(takes('const pool = openTaskPools().auditKey;')).toEqual(['auditKey']);
+    expect(takes('const pools = openTaskPools(); const pool = pools.auditKey;')).toEqual(['auditKey']);
+    // The shapes the jobs use.
+    expect(takes('const { tenant: pool } = openTaskPools();')).toEqual(['tenant']);
+    expect(takes('const pools = openTaskPools(); const pool = pools.tenant; afterwards(() => pools.end());')).toEqual(
+      ['end', 'tenant'],
+    );
+    // The end in the run's own finally, before the failure is recorded.
+    expect(takes('const pools = openTaskPools(); try { run(pools.tenant); } finally { await pools.end(); }')).toEqual([
+      'end, outside afterwards',
+      'tenant',
+    ]);
+    // The lot handed on, or taken apart later.
+    expect(takes('const pools = openTaskPools(); helper(pools);')).toEqual(['the whole']);
+    expect(takes('const { ...rest } = openTaskPools();')).toEqual(['the whole']);
+    expect(takes('const pools = openTaskPools(); const { auditKey } = pools;')).toEqual(['auditKey']);
+    expect(takes('helper(openTaskPools());')).toEqual(['the whole']);
+    // And a comment that names the key's pool names nothing.
+    expect(namesTheKeyPool('shape.ts', '// the auditKey pool')).toBe(false);
+    expect(namesTheKeyPool('shape.ts', 'const p = pools.auditKey;')).toBe(true);
   });
 
   it('task-pools.ts is on CROSS_TENANT for the key alone, and does nothing when it is imported', () => {

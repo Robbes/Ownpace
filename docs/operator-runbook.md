@@ -88,7 +88,9 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   never falls back to the owner. The six scheduled jobs (the sync tick, retention, the purge of
   closed organisations, the digest, the drift detector and group discovery) still connect with
   `DATABASE_URL`, and there each query's own tenant filter is what keeps one organisation's rows
-  from another; 0138 T2 and T3 step 2 are the rest. The API's request path and the per-tenant
+  from another; 0138 T2 and T3 step 2 are the rest. The sync tick needs `APP_DATABASE_URL` as
+  well: it imports the pass's task (`run-delta-sync`) to enqueue it, and that module opens its
+  pools when it is loaded, so without it no tick runs. The API's request path and the per-tenant
   tasks now share `app_user`'s server connections at PgBouncer (`pgbouncer.ini`, beside
   `default_pool_size`, says what that holds). `docs/rls-guide.md`, "Where row security holds
   today", lists every connection and whether the policies bind it. Until 0138 T3 step 1,
@@ -1405,8 +1407,10 @@ steps for a tester's report. The items below are causes it points to.
   and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
   exists). The per-tenant tasks read it too (workplan 0138 T1 step 2): a pass, discovery,
   verification, confirmation, apply, cutover or rollback run that fails at once with
-  *"APP_DATABASE_URL is required"* is a task environment without it, which `set-task-env.sh`
-  uploads; the six scheduled jobs still connect with `DATABASE_URL`.
+  *"APP_DATABASE_URL is required"* is a task environment without it, or with it blank, which
+  `set-task-env.sh` uploads. **The sync tick fails the same way**, every tick, and with it every
+  scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. The other
+  five scheduled jobs connect with `DATABASE_URL` alone.
 - **"fail-closed" errors with no tenant context:** expected when a query runs without
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.

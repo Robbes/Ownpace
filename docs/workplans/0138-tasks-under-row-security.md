@@ -632,12 +632,15 @@ past about 24, or `SHOW POOLS` showing `app_user`'s `cl_waiting` above 0 for mor
 
 **Wall time: what the owner compares.** This session cannot reach the OTA stack. §3 asks for one
 pass's wall time before and after; the baseline is from before step 1 (the review fixes' entry
-above). Three nightlies are to compare:
+above). Three E2E (managed) runs are to compare, each on `main`, all three green:
 
-1. **Before**: the scheduled E2E (managed) run of 2026-09-28 on `a0897c0b`, before #1302.
-2. **Step 1 alone**: the first scheduled run whose `main` contains #1302 and not this step. It
-   separates the transaction per statement (step 1) from the switch.
-3. **After**: the first scheduled run whose `main` contains this step.
+1. **Before**: #209, scheduled, 2026-09-28 10:02 UTC, on `a0897c0b`, before #1302.
+2. **Step 1 alone**: #211, dispatched on `main` at `4991094a`, 2026-09-28 14:55 UTC, which
+   contains #1302 and not this step. It separates the transaction per statement (step 1) from the
+   switch. It exists already: had this step waited for the next scheduled run, one that merged
+   before it would have left none. A later scheduled run between the two merges is a second sample,
+   if there is one.
+3. **After**: the first run whose `main` contains this step, scheduled or dispatched.
 
 Where each shows: the job log of E2E (managed), in the smoke's output
 (`./deploy/compose/smoke-managed.sh`, tee'd to the log and to the artifact
@@ -645,10 +648,17 @@ Where each shows: the job log of E2E (managed), in the smoke's output
 one's artifact lapses on 2026-10-05; the job log is kept longer). Two lines, one per pass the smoke
 asks for: `sync (mail): the pass finished after Ns — itemsProcessed=…` and `sync (dav): …`. N is
 counted in 2 s polls from the enqueue to the terminal `run` row, so it includes the wait for a
-runner. The pass alone is in the OTA stack's own `run` rows, if retention has not pruned them:
-`finished_at - started_at`, and `stats->'domainSeconds'` per data type, for the smoke's two
-mappings, `a0000000-0000-4000-8000-0000000000d1` and `b0000000-0000-4000-8000-0000000000d1`, on
-the three nights' dates. What to expect of the switch itself: no extra round trip. The tenant
+runner. The pass alone is in the OTA stack's own `run` rows, if retention has not pruned them,
+and it is picked out BY ITS RUN ID, never by the date: every E2E (managed) run, a branch's
+dispatch as well, deploys its own checkout's tasks to the same OTA plane (`e2e-managed.yml`,
+"Bring the stack up": `bootstrap-managed.sh --from data --with-demo`, whose `tasks` phase runs
+`deploy-tasks.sh`), and runs #205 to #211 deployed seven different builds on 2026-09-28 alone; the seed
+leaves both demo mappings active too, so the tick runs them every quarter hour on whatever build
+is deployed then. The line just above each `finished after` line, `sync (mail): {…"runId":"…"…}`,
+prints the enqueue's answer, and `run-delta-sync` stores that id on its row as
+`orchestrator_ref` (the smoke follows the pass by the same column):
+`SELECT finished_at - started_at, stats->'domainSeconds' FROM run WHERE orchestrator_ref = '<the
+runId from that E2E run's log>'`. What to expect of the switch itself: no extra round trip. The tenant
 pool connects as `app_user`, so there is no `SET LOCAL ROLE`, as §3 once expected; what is added
 is Postgres evaluating each policy's predicate. Measured locally as the review fixes' entry
 measured step 1 (`PgLedger.find` on `tenantScopedDb`, 1,500 calls per figure, the owner's pool and
@@ -694,10 +704,98 @@ Nothing was exercised against a running stack.
 Still open: the wall-time comparison (above); T2 (PR D); T3 step 2 (PR E), with the owner's one-off
 deletion (2026-09-27); T5 step 2 (PR F); the permission report's pool (T5 step 1's note).
 
+**2026-09-28, later still: review fixes for step 2, same branch, not merged.** Review found one
+blocking thing and six minor ones (one of them twice). Each is fixed here, in one more commit:
+
+- **The jobs were handed the owner's pool (blocking).** `openTaskPools` returned the key's pool,
+  `auditKey`, beside the tenant pool, and nothing kept a job from taking it. Review changed one
+  token in each of three jobs (`const { auditKey: pool } = openTaskPools()` in `run-verification`,
+  `openTaskPools().auditKey` in `run-delta-sync`, `pools.auditKey` in `run-rollback`), and all 486
+  tests of the 31 unit files that guard this stayed green; the integration guard never loads a
+  job's own pool. A pass could have gone back to the superuser with every guard green. `TaskPools`
+  now carries `tenant` and `end` alone, and the key's pool belongs to the audit sink and to
+  nothing else. The module's own test finds it the way the sink does, as the pool asked for a
+  connection (a spy on `Pool.prototype.connect`), and so does the integration guard, which asks it
+  who it is. `a-pass-that-opened-the-owners-pool` gains two rules: a `PER_TENANT` file and the
+  standalone worker take `tenant` from what `openTaskPools` hands back, and `end` only inside
+  `afterwards(…)`, and nothing else (read off the call, out of a destructuring or off a binding,
+  and the lot handed on counts as taking all of it); and no file but the module names `auditKey`.
+- **A failed cutover's or rollback's event never reached the log page.** Both open their pools per
+  run and ended the tenant pool in their own `finally`, which runs before `leavesAReference`
+  records the failure. The sink, which is on that pool, then met *"Cannot use a pool after calling
+  end on the pool"*, and `recordAppEvent` said so as a warning: the plane's error carried a
+  reference that named no event. Not new (`main` ended its one pool the same way), but this step
+  redrew that contract. `leavesAReference` now hands a run a third argument, `afterwards`, and ends
+  what the run handed it there once the run has returned or its failure is recorded, last handed
+  first; an end that fails is logged and changes neither the plane's error nor the output.
+  `run-cutover` and `run-rollback` call `afterwards(() => pools.end())` as soon as they open their
+  pools, and `run-rollback` now opens them first, before its notify check, whose refusal also left
+  a reference with no event (in a fresh process the sink was not pointed yet).
+- **The sync tick needs `APP_DATABASE_URL` too.** It imports `run-delta-sync`, which opens its pools
+  when it is loaded, so without it no tick runs, and no scheduled sync. The runbook's
+  troubleshooting line sent the operator to the per-tenant runs only. It, the runbook's two roles
+  and `managed.env.example` now say so.
+- **SECURITY.md** still said 0138 *moves the tasks to the application role*. It now says what T2
+  and T3 step 2 do, as the SAD's §17.1 row does.
+- **The wall-time comparison** (above) picked a pass out by the date, which mixes builds, and waited
+  for a scheduled run that may never come. It now names #211 as the step-1-alone run and picks a
+  pass out by its run id (`orchestrator_ref`), which the smoke prints.
+- **Comments.** `job-resolution.ts`'s second copy of *"Row security does not bind the tasks yet"*,
+  and the integration guard's opening, now in the past tense, with its lost ` *` back.
+
+**The guards, and how they failed first**, each run against this branch's previous commit
+(df9d5d4f):
+
+- Unit, three files: **6 of 147 failed**. In `a-pass-that-opened-the-owners-pool`, `run-cutover` and
+  `run-rollback` take *"end, outside afterwards"*. In `a-run-that-kept-a-testers-words`, the three
+  new cases on `afterwards` (*"afterwards is not a function"*; the order was only
+  `['recorded task.run-cutover.failed']`). In `a-task-pool-that-fell-back-to-the-owner`, *"expected
+  [ 'auditKey', 'end', 'tenant' ] to deeply equal [ 'end', 'tenant' ]"*. A seventh case, added
+  next, that a task opening its pools in its run opens them before anything it throws and ends them
+  in `afterwards`, failed on the previous `run-cutover` and `run-rollback` (*"expected … to contain
+  'afterwards(() => pools.end());'"*). The rule that no file but the module names `auditKey` passed
+  there, no job naming it yet; review's three changes turn it red (A1 to A3 below).
+- Integration, `a-pass-under-row-security`: **1 of 13 failed**, the new last case. Its first half,
+  the pools ended in the run's own `finally`, lost the event with the warning review quoted, on the
+  previous code as on this; its second half, through `afterwards`, ended no pool (*"expected false
+  to be true"*).
+
+**Mutations, each red** (the four unit guards and the integration guard; `tsc` where a job names
+the key's pool):
+
+| # | Mutation | Red |
+|---|---|---|
+| A1 | `run-verification` takes the key's pool: `const { auditKey: pool } = openTaskPools()` (review's first change) | `tsc`; 2 unit (it takes `auditKey`; it names it) |
+| A2 | `run-delta-sync`: `openTaskPools().auditKey` (review's second) | `tsc`; 2 unit |
+| A3 | `run-rollback`: `pools.auditKey` (review's third) | `tsc`; 2 unit |
+| A4 | The module hands the key's pool back again, in its type and its return | 1 unit (what it hands back) |
+| A5 | Handed back, and `run-verification` takes it for its tenant pool: review's whole regression, `tsc` green | 3 unit |
+| B1 | `run-cutover` ends its pools in its own `finally` again | 2 unit |
+| B2 | `run-rollback` opens its pools after the notify refusal again | 1 unit |
+| B3 | The wrapper ends what the run opened before it records the failure | 2 unit; integration, the event lost |
+| B4 | The wrapper never ends it | 3 unit; integration, the pool not ended |
+| B5 | The wrapper lets a failed end replace the plane's error | 1 unit |
+| B6 | `run-rollback` no longer ends its pools | 1 unit |
+| 2 | `openTaskPools` falls back: `APP_DATABASE_URL ?? DATABASE_URL` (re-run) | 1 unit |
+| 3 | The key's pool removed: the audit sink on the tenant pool (re-run) | 3 unit; integration, the line not written |
+| 4 | The key's pool on `APP_DATABASE_URL` (re-run) | 3 unit; integration, the line not written |
+| 10 | The key's pool without its error handler (re-run) | 1 unit |
+| 12 | The log page's events on the key's pool (re-run) | 2 unit; integration (the old shape's event lands, on the key's pool, which nothing ended) |
+
+The re-runs are the step's own mutations that touch what changed here: the module's test now finds
+the key's pool by the connection the sink asks for, and still catches each.
+
+Gates: `pnpm -s typecheck` green; `eslint` on the 9 changed TypeScript files clean. Unit tests:
+`apps/worker`, `packages/orchestration`, `packages/ledger`, `packages/core` and `apps/selfhost`, 265
+files and 2654 tests; `scripts` and `apps/api/src/routes/migrations`, 241 files and 4086 tests,
+`a-connection-the-docs-did-not-know-about` among them. Integration, on a throwaway Postgres 16 with
+both chains (`scripts/local-pg.sh`), the row-security guard as `app_user`: the same 23 files, 218
+tests. The three indexes are current. Nothing was exercised against a running stack.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
-| T1 Per-tenant tasks read and write as the application role | Step 1 ✅ **done** in #1302, merged 2026-09-28 (parts 2 to 4). Step 2 🔨 **built 2026-09-28**, not merged (parts 1 and 5, the switch). Both before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and the audit sink's key (step 2 reads it on a pool of one of its own). Step 2: the eight jobs and the standalone worker take their pools from `openTaskPools` (`task-pools.ts`), `app_user` on `APP_DATABASE_URL`, with no fallback. Wall time before and after: the owner compares three nightlies (Status, 2026-09-28, later still). |
+| T1 Per-tenant tasks read and write as the application role | Step 1 ✅ **done** in #1302, merged 2026-09-28 (parts 2 to 4). Step 2 🔨 **built 2026-09-28**, not merged (parts 1 and 5, the switch). Both before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and the audit sink's key (step 2 reads it on a pool of one of its own). Step 2: the eight jobs and the standalone worker take their pools from `openTaskPools` (`task-pools.ts`), `app_user` on `APP_DATABASE_URL`, with no fallback. Wall time before and after: the owner compares three E2E (managed) runs, #209, #211 and the first with step 2 (Status, 2026-09-28, later still). |
 | T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only: split, open question 3 answered 2026-09-28. |
 | T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27; deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed**, before the first invitation (T0 (a), 2026-09-28) | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
 | T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet; the ratchet emptied and deleted by T1 step 2 (2026-09-28, not merged) | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it landed first as a ratchet: T1 step 1 took the three orchestration files off `KNOWN_REMOVED_BY_T1` (11 to 8), step 2 took the eight jobs and deleted the list, and added `task-pools.ts` to `CROSS_TENANT` for the audit key alone, with rules that every task file is per-tenant or cross-tenant and every per-tenant one takes its pools from `openTaskPools`. |

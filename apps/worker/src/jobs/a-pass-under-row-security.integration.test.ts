@@ -4,13 +4,14 @@
  * A PASS UNDER ROW SECURITY (workplan 0138 T1).
  *
  * The API's request path connects as `app_user`, so row security filters every
- * query it makes. The Trigger.dev tasks connect as the database owner, a
- * superuser on the managed stack, whom Postgres never binds, so in the task
- * plane the boundary between organisations rests on each query's own `WHERE`
- * (0138 §1). T1 moves the per-tenant tasks onto `app_user`. Changing the URL
- * alone would not do it: under row security a read with no tenant set is not
- * refused, it answers nothing, and a pass whose handles were not scoped would
- * copy nothing and could still end as if it had succeeded.
+ * query it makes. Until T1's second step the Trigger.dev tasks connected as the
+ * database owner, a superuser on the managed stack, whom Postgres never binds,
+ * so in the task plane the boundary between organisations rested on each
+ * query's own `WHERE` (0138 §1); the six scheduled jobs still do, until T2 and
+ * T3 step 2. T1 moved the per-tenant tasks onto `app_user`. Changing the URL
+ * alone would not have done it: under row security a read with no tenant set
+ * is not refused, it answers nothing, and a pass whose handles were not scoped
+ * would copy nothing and could still end as if it had succeeded.
  *
  * So this seeds two organisations as the owner, builds a pass's handles for
  * organisation A the way the jobs build them, on a pool that connects as
@@ -53,14 +54,22 @@
  *      one pool on `DATABASE_URL`, the first of these fails: the pool is the
  *      owner's and counts every organisation. Moved to `APP_DATABASE_URL` with
  *      the audit sink left on the same pool, the second fails: the key read is
- *      refused and the line never prints.
-
+ *      refused and the line never prints. The key's pool is found the way the
+ *      sink finds it, as the pool asked for a connection: `openTaskPools`
+ *      hands a job the tenant pool alone. And a run that opens its pools and
+ *      fails still leaves its event on the log page, which is on the tenant
+ *      pool: `leavesAReference` records the failure before it runs the end
+ *      the run left it in `afterwards`. Ended in the run's own `finally`, as
+ *      run-cutover and run-rollback ended it until the step's review, the
+ *      event is lost, and the last case shows that too.
+ *
  * Handed its database (`an-integration-test-is-handed-its-database`): it reads
  * `TEST_DATABASE_URL` and derives `app_user`'s URL from it, as
  * `a-pause-nobody-could-press.integration.test.ts` does, and never reads or
  * sets `DATABASE_URL`: the third assertion hands `openTaskPools` an
- * environment of its own, built from the same two URLs. The builders are called with the pool, as every job
- * calls them. The addresses are invented and nothing here is contacted.
+ * environment of its own, built from the same two URLs. The builders are
+ * called with the pool, as every job calls them. The addresses are invented
+ * and nothing here is contacted.
  *
  * UUID family: 0138a000-e29b-41d4-a716-44665544xxxx.
  */
@@ -100,6 +109,7 @@ import { runCutoverGate } from './cutover-gate.ts';
 import { mappingNameOf } from './run-rollback.ts';
 import { passStepBefore } from './stopping-a-pass.ts';
 import { openTaskPools, type TaskPools } from './task-pools.ts';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
 
 const PG_CONNECTION_STRING = process.env.TEST_DATABASE_URL;
@@ -379,6 +389,8 @@ describe('third: a pass on the pools its task opens runs as the application role
   let lines: string[];
   let warnings: string[];
   let pools: TaskPools;
+  /** The key's pool, once the sink has asked it for a connection: nothing hands it out. */
+  const keyPools: Pool[] = [];
 
   beforeAll(() => {
     lines = [];
@@ -393,7 +405,7 @@ describe('third: a pass on the pools its task opens runs as the application role
     setAuditExportSink(undefined);
     setAppEventSink(undefined);
     await pools?.end();
-    await pools?.auditKey.end();
+    for (const keyPool of keyPools) if (!keyPool.ended && !keyPool.ending) await keyPool.end();
   });
 
   const watchWarnings = () => {
@@ -437,6 +449,9 @@ describe('third: a pass on the pools its task opens runs as the application role
 
   it('prints the line of an audit event it records, on the key\'s own pool', async () => {
     watchWarnings();
+    // Every pool asked for a connection, so the key's can be found: the first
+    // line reads the key, and until then only the tenant pool and the key's are asked.
+    const connect = vi.spyOn(Pool.prototype, 'connect');
     // The rollback's own door, as run-rollback builds it: the status, the
     // paths, the month's peak and the audit row in one scope, on the tenant pool.
     await mappingLifecyclePort(pools.tenant, A, A_RETURNING, 'trigger-job', {
@@ -444,6 +459,7 @@ describe('third: a pass on the pools its task opens runs as the application role
     }).setStatus({ from: 'cutover', to: 'active', via: 'rollback' });
 
     const line = await theLine(1);
+    const asked = [...new Set(connect.mock.contexts as Pool[])];
     const attributes = line.Attributes as Record<string, unknown>;
     expect(line.Body).toBe('mapping.status');
     expect(attributes['ownpace.tenant.id']).toBe(A);
@@ -475,8 +491,12 @@ describe('third: a pass on the pools its task opens runs as the application role
     expect((second.Attributes as Record<string, unknown>)['ownpace.tenant.id']).toBe(A);
 
     // Read on the key's own pool, which is not app_user: app_user may not read
-    // deployment_key (ledger 0062), and there the line is lost.
-    const key = await pools.auditKey.query<{ role: string }>('SELECT current_user AS role');
+    // deployment_key (ledger 0062), and there the line is lost. One connection.
+    expect(asked).toContain(pools.tenant);
+    keyPools.push(...asked.filter((p) => p !== pools.tenant));
+    expect(keyPools).toHaveLength(1);
+    expect(keyPools[0]!.options.max).toBe(1);
+    const key = await keyPools[0]!.query<{ role: string }>('SELECT current_user AS role');
     expect(key.rows[0]!.role).not.toBe('app_user');
   });
 
@@ -542,5 +562,45 @@ describe('third: a pass on the pools its task opens runs as the application role
       seen.push(row.naturalKeyHash);
     }
     expect(seen).toHaveLength(A_CALENDAR_ITEMS);
+  });
+
+  // Last, since it opens pools of its own, and they point this process's sinks.
+  it('leaves a failed run\'s event on the log page before the pools the run opened are ended', async () => {
+    watchWarnings();
+    const referenceOf = (error: unknown) => /Reference ([0-9a-f]{8})\.$/.exec((error as Error).message)![1]!;
+    const eventsWith = async (reference: string) =>
+      (
+        (await owner.execute(
+          sql`SELECT count(*)::int AS n FROM app_event WHERE reference = ${reference} AND tenant_id = ${A}`,
+        )) as unknown as { rows: Array<{ n: number }> }
+      ).rows[0]!.n;
+    const payload = { tenantId: A, mappingId: A_RETURNING };
+
+    // The shape run-cutover and run-rollback had, first, so the case is not
+    // vacuous: the pools ended in the run's own `finally`, before the wrapper
+    // records the failure on the tenant pool, and the event is lost.
+    const endedFirst = leavesAReference('run-rollback', async (_payload: unknown) => {
+      const opened = openTaskPools(taskEnv(), { write: () => {} });
+      try {
+        throw new Error('the rollback failed');
+      } finally {
+        await opened.end();
+      }
+    });
+    const lost = referenceOf(await endedFirst(payload, {}).catch((e: unknown) => e));
+    expect(await eventsWith(lost)).toBe(0);
+    expect(warnings.filter((w) => w.includes(`(ref ${lost}) could not be recorded`))).toHaveLength(1);
+
+    // As they end them now: in `afterwards`, which the wrapper runs once the
+    // event is written.
+    let opened: TaskPools | undefined;
+    const endedAfter = leavesAReference('run-rollback', async (_payload: unknown, _context: unknown, afterwards) => {
+      opened = openTaskPools(taskEnv(), { write: () => {} });
+      afterwards(() => opened!.end());
+      throw new Error('the rollback failed');
+    });
+    const kept = referenceOf(await endedAfter(payload, {}).catch((e: unknown) => e));
+    expect(await eventsWith(kept)).toBe(1);
+    expect(opened!.tenant.ended).toBe(true);
   });
 });

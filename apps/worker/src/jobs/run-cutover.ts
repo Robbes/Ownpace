@@ -327,7 +327,7 @@ export const runCutover = schemaTask({
   id: 'run-cutover',
   description: 'Cutover preparation (final sync + verification gate)',
   schema: CutoverJobSchema,
-  run: leavesAReference('run-cutover', async (payload: unknown) => {
+  run: leavesAReference('run-cutover', async (payload: unknown, _context, afterwards) => {
     const { tenantId, mappingId, domain, options } = payload as CutoverJobPayload;
 
     appLog.info('Starting cutover preparation', { tenantId, mappingId, domain, options });
@@ -338,6 +338,12 @@ export const runCutover = schemaTask({
     // the sinks too: the operator's log page (0129 T1) at the tenant pool, the
     // audit lines (0129 T4) at the key's, the one read app_user may not make.
     const pools = openTaskPools();
+    // Ended once the run is over, never leaked across runs, and, when it
+    // failed, only after leavesAReference has put the failure on the log page,
+    // which is on this pool: ended in this function's own `finally`, it was
+    // gone before the event was written. The key's pool closes its own
+    // connection a second after its last read.
+    afterwards(() => pools.end());
     const pool = pools.tenant;
     // Every ledger call inside `withTenant`: cutover_state and cutover_event
     // are row-secured since migration 0055, and a session that is not a
@@ -427,10 +433,6 @@ export const runCutover = schemaTask({
       // converges: it finds FAILED and takes it back to PREPARING).
       if (!policy.retry) throw new AbortTaskRunError(err.message);
       throw error;
-    } finally {
-      // Always release the tenant pool (never leak it across job runs). The
-      // key's pool closes its own connection a second after its last read.
-      await pools.end();
     }
   }),
 });
