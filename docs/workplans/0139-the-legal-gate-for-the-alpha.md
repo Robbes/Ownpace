@@ -4,6 +4,28 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later still: the owner answered the nine questions, and both texts follow.**
+
+1. *"Yes, add this in the Dutch version."* A tester who has not accepted the new conditions by
+   the day they take effect: we close the account, the data does not move along to the new
+   service, and it is erased as §10 and the privacy policy describe. §11, both languages.
+2. *"Verhuizing is plural in Dutch, so leave it as is."* The Dutch keeps *"Uw verhuizing"* for
+   every migration; the English says *"Your migrations"* and *"with your migrations"*.
+3. *"ok."* From the current hosting environment to another hosting provider, as it stands.
+4. *"yes."* §6: *"That copy does not leave the hosting environment."*
+5. *"yes, we need that. I haven't seen it funcitonal yet."* The report form (0130, `ZAMMAD_URL`,
+   `ZAMMAD_TOKEN`, `ZAMMAD_GROUP` in live's `.env`, a Zammad the owner runs) is on in live for the
+   whole Alpha, so §12's *Report a problem* is true. T0 fact 3 below is answered by it, and the
+   form's working on live joins what waits for the first invitation (0131 T5's 0130 row).
+6. *"We do tell the tester."* §4: *"Wij melden u een datalek"* / *"We tell you about a data
+   breach"*, where that is required.
+7. *"explain context, i dont get it."* Explained in chat: the italics in §2 name privacy §9 by its
+   heading, and the heading reads *"Hoe lang we het bewaren"*; the words stay as the heading has
+   them.
+8. *"keep."* §4's heading stays *"Geen verplichtingen, beide kanten uit"*.
+9. *"update."* The briefing's first line says *"VERSION 1.0, 2026-09-28: the owner's text for the
+   Alpha; the lawyer's pass (0139 T1) is deferred."*
+
 **2026-09-28, later: the owner's review of T2.** The owner edited both files on GitHub, on PR
 #1293 (`bc210146`, the Dutch; `983f487d`, the English), and wrote: *"I did review on the Alpha in
 PR 1293. I see some differences: the english offers some more info then the dutch version, like
@@ -838,6 +860,8 @@ is not rendered by the build, and 0086 T5 owns it.
 2. **The support mailbox.** Which provider hosts `support@ownpace.eu`, and does a person read it
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
 3. **Zammad.** Is the report form (0130) configured on live, and where does that Zammad run?
+   **Supplied 2026-09-28:** *"yes, we need that. I haven't seen it funcitonal yet."* The form is
+   on in live for the whole Alpha; where its Zammad runs is still the owner's to say.
 4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys will live's `.env` set?
 5. **Organisations in the alpha.** Is any tester a business rather than a household (open
    question 6)? **Supplied 2026-09-28:** *"tester: households only for now."*

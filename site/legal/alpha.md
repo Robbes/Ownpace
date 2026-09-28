@@ -1,6 +1,7 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
-  DRAFT FOR LEGAL REVIEW — v0.1, 2026-09-28. This comment never renders (the
+  VERSION 1.0, 2026-09-28: the owner's text for the Alpha; the lawyer's pass
+  (0139 T1) is deferred. This comment never renders (the
   site generator strips HTML comments); it is the briefing for the reviewing
   lawyer, beside the ones at the top of privacy.md and terms.md.
   alpha.nl.md mirrors this file section for section, and the Dutch is the text
@@ -125,8 +126,8 @@ There is no service level. We promise no speed, no completion date and no time t
 may stop at any time (§10), and we may stop the Alpha (§5).
 
 Our duties for your data remain. We keep it secure, and keep it no longer than the privacy
-policy and §6 and §10 here say. We report a data breach where that is required, and answer your
-requests about your rights.
+policy and §6 and §10 here say. We tell you about a data breach where that is required, and
+answer your requests about your rights.
 
 ## 5. No promise of availability
 
@@ -147,7 +148,7 @@ accounts you connected, your migrations and their history, and your Ownpace sign
 
 One exception. Right before each update of the service, we make one copy of the databases. That
 copy exists only to undo a failed update. We keep it until the next update succeeds, and never
-longer than 7 days. The backup doesn't leave the hosting environment. If your account is erased,
+longer than 7 days. That copy does not leave the hosting environment. If your account is erased,
 your data can stay in that copy for at most 7 days.
 
 If the Alpha environment is lost, those records, and that copy, are lost with it. Your data is
@@ -209,12 +210,12 @@ After the Alpha, the service carries on, under new conditions. It may then move 
 hosting environment to another hosting provider.
 
 We tell you by email at least 7 days in advance. You get the new conditions, and we say where your
-data would then go. Your migration carries on under the new conditions only once you have
+data would then go. Your migrations carry on under the new conditions only once you have
 accepted them. If you would rather stop, close your account as in §10. If you have not accepted
-them by the day they take effect, your data does not move along to the new service. Your data is
-then erased as §10 and the privacy policy describe.
+them by the day they take effect, we close your account, and your data does not move along to the
+new service. Your data is then erased as §10 and the privacy policy describe.
 
-What you have already copied to your new provider with your migration stays there in any case.
+What you have already copied to your new provider with your migrations stays there in any case.
 
 ## 12. Reaching us
 

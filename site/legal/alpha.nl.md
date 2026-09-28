@@ -53,7 +53,7 @@ Er is geen serviceniveau. Wij beloven geen snelheid, geen opleverdatum en geen h
 op elk moment stoppen (§10) en wij mogen de Alpha stoppen (§5).
 
 Onze plichten voor uw gegevens blijven wel. Wij beveiligen ze en bewaren ze niet langer dan de
-privacyverklaring en §6 en §10 hier zeggen. Wij melden een datalek als dat nodig is, en
+privacyverklaring en §6 en §10 hier zeggen. Wij melden u een datalek als dat nodig is, en
 beantwoorden uw verzoeken over uw rechten.
 
 ## 5. Geen belofte over beschikbaarheid
@@ -143,9 +143,9 @@ huidige hostingomgeving naar een andere hostingaanbieder.
 Wij laten het u minstens 7 dagen van tevoren per e-mail weten. U krijgt dan de nieuwe
 voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizing gaat pas onder de
 nieuwe voorwaarden door als u die hebt aanvaard. Wilt u liever stoppen, sluit dan uw account
-zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan verhuizen uw gegevens niet mee
-naar de nieuwe dienst. Uw gegevens worden dan gewist zoals §10 en de privacyverklaring
-beschrijven.
+zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan sluiten wij uw account en
+verhuizen uw gegevens niet mee naar de nieuwe dienst. Uw gegevens worden dan gewist zoals §10 en
+de privacyverklaring beschrijven.
 
 Wat u met uw verhuizing al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk geval
 staan.
