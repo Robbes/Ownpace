@@ -1356,6 +1356,13 @@ const en = {
   // the button by its own label (`failures.retry`), so a reader can find both.
   'failure.policyRefused':
     'Not migrated yet: Google files in a format the new account cannot receive. Choose one both sides can handle under Export format for Google files, then press Try again \u2014 or leave these items behind.',
+  // The same category on a DROPBOX migration (workplan 0150 D9, the owner's
+  // choice of 2026-09-26): a Paper doc, which Dropbox hands over only as an
+  // export this service does not make yet. There is no setting to name until
+  // 0150 T3 adds one, so this names none, and Drive's sentence above stays as
+  // the owner worded it. `remedyKey` chooses between the two by source.
+  'failure.policyRefused.dropbox':
+    'Not migrated: Dropbox Paper docs, and other documents Dropbox keeps in a format of its own, which this service does not export yet. Export them from Dropbox yourself, or leave them behind.',
   // The tenth category (0143 T4), the owner's choice of 2026-09-27: a file
   // larger than this service copies, refused before a byte was read. No
   // setting changes the answer, so the remedy names none.
@@ -1950,6 +1957,15 @@ const en = {
   'tenants.invite.hint': 'No email yet; tell them yourself, and they appear below as invited.',
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
+  // Workplan 0137 T7: the two roles the alpha offers, and what the second one
+  // may do. Checked against the API's owner-only routes: close and reopen
+  // (tenants/index.ts), the applying-deletions and auto-applying-relocations
+  // flags, owner-only in both directions (operating-routes.ts), and granting
+  // owner (members.ts). `a-role-that-promises-less-than-it-allows.unit.test.ts`
+  // in apps/api pins that set and fails when it changes.
+  'tenants.invite.adminCan':
+    'An admin can do everything an owner can, except close or reopen the organisation, turn applying deletions or auto-applying relocations on or off, and make somebody an owner.',
+  'tenants.ownerOrAdminOnly': 'During the alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
     'How often a summary of waiting decisions is emailed; an empty one is never sent.',
@@ -2526,6 +2542,8 @@ const nl: Record<keyof typeof en, string> = {
     'Dit account heeft bereikt wat de provider per dag toestaat. Het hervat morgen vanzelf \u2014 u hoeft niets te doen.',
   'failure.policyRefused':
     'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies er een dat beide kanten aankunnen onder Exportformaat voor Google-bestanden en klik op Probeer opnieuw \u2014 of laat deze items achter.',
+  'failure.policyRefused.dropbox':
+    'Niet gemigreerd: Dropbox Paper-documenten, en andere documenten die Dropbox in een eigen formaat bewaart, die deze dienst nog niet exporteert. Exporteer ze zelf vanuit Dropbox, of laat ze achter.',
   'failure.tooLarge':
     'Niet gemigreerd: groter dan deze dienst tijdens de alfa kopieert. Kopieer deze bestanden met de hand, of laat ze achter.',
   'failure.sourceRefused':
@@ -3984,6 +4002,9 @@ const nl: Record<keyof typeof en, string> = {
     'Nog geen e-mail; vertel het zelf, en ze verschijnen hieronder als uitgenodigd.',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
+  'tenants.invite.adminCan':
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het toepassen van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten en iemand eigenaar maken.',
+  'tenants.ownerOrAdminOnly': 'Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
     'Hoe vaak een samenvatting van wachtende beslissingen wordt gemaild; een lege wordt nooit verstuurd.',

@@ -623,7 +623,20 @@ services:
     # are unchanged. The OTA instance's `zitadel` database was dumped by hand
     # before the gate's run applied this: the gate drills Trigger.dev's
     # database, not the identity provider's.
-    image: ghcr.io/zitadel/zitadel:v4.19.1
+    #
+    # v4.19.2 (2026-09-28) since 2026-09-28, owner go (workplan 0135, open
+    # question 12), found by the weekly pin watch the day it was tagged. Three
+    # security fixes, none in anything this stack switches on: a SAML assertion
+    # accepted for another provider's sign-in (no SAML provider here), an
+    # administrator impersonated through token exchange (impersonation is off
+    # here), and login v2's session cookies (its application does not run
+    # here). The rest reads the event store in a cheaper order and lets the
+    # sessions projection take bigger batches. No setup step, so it moves the
+    # schema no further than v4.19.1 did; no change in the API definitions or
+    # in any code setup-zitadel.sh calls, which never uses the events API it
+    # reorders. The three facts above hold at v4.19.2. The OTA instance's
+    # `zitadel` database was dumped first, with deploy/compose/dump-idp.sh.
+    image: ghcr.io/zitadel/zitadel:v4.19.2
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on

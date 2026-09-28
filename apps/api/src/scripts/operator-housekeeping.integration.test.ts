@@ -40,7 +40,8 @@ const EMPTY_TENANT = '7a150000-e29b-41d4-a716-446655440001';
 const HOLDING_TENANT = '7a150000-e29b-41d4-a716-446655440002';
 const OWNERLESS_TENANT = '7a150000-e29b-41d4-a716-446655440003';
 const INVITED_TENANT = '7a150000-e29b-41d4-a716-446655440004';
-const MY_TENANTS = [EMPTY_TENANT, HOLDING_TENANT, OWNERLESS_TENANT, INVITED_TENANT];
+const ROLES_TENANT = '7a150000-e29b-41d4-a716-446655440005';
+const MY_TENANTS = [EMPTY_TENANT, HOLDING_TENANT, OWNERLESS_TENANT, INVITED_TENANT, ROLES_TENANT];
 
 /** Operator subjects this file owns, all three shapes `subjectRefusal` refuses. */
 const SEPARATOR_SUBJECT = '--';
@@ -292,6 +293,58 @@ describe('an invitation nobody answered', () => {
     const mine = rows.filter((r) => r.label.startsWith(`${MARK}-`));
     expect(mine.map((r) => r.label)).toEqual([`${MARK}-old@example.test`]);
     expect(mine[0]!.age_days).toBeGreaterThanOrEqual(89);
+  });
+});
+
+describe('a role below admin (workplan 0137 T7)', () => {
+  it('lists every member and viewer that grants something, and no owner or admin', async () => {
+    await pool.query(`INSERT INTO tenant (id, name) VALUES ($1, $2)`, [
+      ROLES_TENANT,
+      `${MARK} roles`,
+    ]);
+    // Keyed by a name, since two rows share a role. The declined and removed
+    // viewers grant nothing (only `active` signs in, only `invited` can be
+    // accepted), and a declined row is a refusal 0099 keeps on purpose: listing
+    // either would hold the first invitation back for good.
+    const people = [
+      ['owner', 'owner', 'active'],
+      ['admin', 'admin', 'active'],
+      ['member', 'member', 'active'],
+      ['viewer', 'viewer', 'invited'],
+      ['declined', 'viewer', 'declined'],
+      ['removed', 'member', 'removed'],
+    ] as const;
+    const ids = new Map<string, string>();
+    for (const [name, role, status] of people) {
+      const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO tenant_member (tenant_id, user_id, email, role, status)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [ROLES_TENANT, `${MARK}-${name}`, `${MARK}-${name}@example.test`, role, status],
+      );
+      ids.set(name, rows[0]!.id);
+    }
+
+    const found = await findMine('role-below-admin', [...ids.values()]);
+    expect(found.map((r) => r.label).sort()).toEqual(
+      [`${MARK}-member@example.test`, `${MARK}-viewer@example.test`],
+    );
+    for (const inert of ['declined', 'removed']) {
+      expect(found.map((r) => r.id), `a ${inert} row is listed`).not.toContain(ids.get(inert));
+    }
+    const check = checkByKind('role-below-admin')!;
+    const lines = found.map((r) => check.describe(r)).sort();
+    expect(lines).toEqual([
+      `${MARK}-member@example.test is member (active) in ${MARK} roles`,
+      `${MARK}-viewer@example.test is viewer (invited) in ${MARK} roles`,
+    ]);
+
+    // And the remedy's statement moves one up, after which it is no longer found.
+    await pool.query(`UPDATE tenant_member SET role = 'admin', updated_at = now() WHERE id = $1`, [
+      ids.get('member'),
+    ]);
+    expect((await findMine('role-below-admin', [...ids.values()])).map((r) => r.label)).toEqual([
+      `${MARK}-viewer@example.test`,
+    ]);
   });
 });
 

@@ -9,6 +9,6 @@
     "./reachable-host": "./src/reachable-host.ts"
   },
   "dependencies": {
-    "undici": "^7.29.1"
+    "undici": "^8.11.2"
   }
 }

@@ -1,8 +1,37 @@
 # Workplan 0134 — No backups during the alpha, said truthfully
 
-> **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS=0` so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
+> **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS` equal to the days a pre-deploy copy is kept, so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
 ## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28, later: the owner answered open question 1: (b), a dump before each deploy.**
+*"database copy before live deployment: i think that might be more safe to do make a backup?"*
+Read as (b): a copy of live's two databases on the machine, taken before each deploy of live
+(0132 T6, step 4), kept until the next deploy succeeds and never longer than N days. It is not
+T5's backups, which stay parked. The owner confirmed this reading by naming N the same day:
+*"7 days is ok"*. **N is 7.** 0132's open
+question 4 is the same question and is marked answered.
+
+- **What follows.** `BACKUP_RETENTION_DAYS` on live is N, not 0, from the first copy on, because
+  the one rule is that the number follows the copy. T2's paragraph gains one sentence (§3 T2). N
+  is 7, and live's `.env` says 7 from its first bring-up.
+- **Changed here.** §3 T0 and its row: T0 sets N, not 0. Live is set to 7 before its first bring-up; the
+  rule that a deploy takes no copy while a stack reads 0 stays for any stack that does. A new step deletes a copy older than N
+  days, whether or not a deploy followed it. §3 T1's *The setting* carries a dated note. The one
+  line above says N. In `docs/managed-bring-up.md`, §8g and step 3 of the deploy say the same.
+- **Still to change, now that N is set:** T1 (a)'s wording, merged in #1214, which says live sets `0`. That is
+  `managed.env.example`'s *Backups* block, the comments in `erasure-timeline.ts` and
+  `managed.yml`, and the operator runbook's `backupRetentionDays` row.
+- **Follow-ups in other plans.**
+  - 0131 T1's alpha note and the grant mail's sentence say *"nothing is backed up"* / *"er
+    worden geen back-ups gemaakt"*. Once live keeps a copy, the close response says that backups
+    holding the data expire within N more days, so the note and the mail change with N (0131 §3
+    T1, and 0131 T5's row for this plan).
+  - 0132 T6 step 4 says to keep the copy until the next deploy, with no limit in days, and 0132
+    T7's daily duties do not delete one. T0 step 4 does it by hand until one of them does.
+  - The first bring-up of live, on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`
+    (not merged), refuses an alpha `.env` whose `BACKUP_RETENTION_DAYS` is not `0`. That holds
+    while no copy is taken; with N set it has to accept 7, and that branch changes with it.
 
 **2026-09-28, morning: open question 6 answered, (a).** The owner first answered *"0134 open
 question 6: b"*. Told that Trigger.dev's supervisor sets no log driver for a task's container, so
@@ -255,12 +284,12 @@ runbook's recipe and `docs/deployment.md` as fixed in #1137.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS=0` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
+| T0 The owner's steps on the reference machine | ⏳ **Owner** | §3. `BACKUP_RETENTION_DAYS` in live's `.env` (`~/.persistent/ownpace-live/.env`, which live's checkout links to), set when 0132 T1b seeds it and read back from live's API container: N, the most days a copy made before a deploy is kept (open question 1 (b), 2026-09-28), and `0` only while no copy is taken. A copy older than N days deleted, whether or not a deploy followed it. T4's copies, if the owner takes them. Dates and outcomes go in this block, never values. |
 | T1 The erasure sentence says there are no backups | ✅ **done** in #1214, merged 2026-09-27: (a) the wording and (b) the start-up check, a warning in production and fatal with the alpha setting on (open question 4, the owner's answer still owed). (c), the check of the Trigger.dev store, done 2026-09-27, merged as #1240: it found tester data, and open question 3 was answered (a) the same day. That (a) built 2026-09-28, not merged: a run's error, discovery's output and its logs leave Trigger.dev a reference and a category — *was:* 📋 Decided 2026-09-24 (D1) for the setting and the wording; the start-up check 📋 Proposed | §3. The close response then says *"This deployment keeps no backups"*. The comments that say the reference deployment keeps seven days are corrected. The code default stays 7, for the reason §3 gives. (a) is the wording, (b) the start-up check, (c) *A check before the sentence is trusted*. |
-| T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
+| T2 The alpha conditions say it, in Dutch first | 📋 **Decided 2026-09-24** (D1, D2, D3); one sentence added 2026-09-28 for the dump before each deploy (open question 1 (b)) | §3. A paragraph drafted here for 0139's lawyer's pass. 0131 T1's note carries the short form. |
 | T3 What a lost machine costs, written down | ✅ **done** in #1238, merged 2026-09-27: the runbook's section, ADR-0020 amended, the downgrade refusal, no squash in the alpha — *was:* 📋 **Proposed** | §3. A runbook section for the owner. ADR-0020's operative rule is amended to what is built. No squash of either migration chain during the alpha. |
 | T4 The keys and the list of testers, once, off the machine | ⏳ **Owner** (recommended) | §3. A copy of live's `.env` that only the owner can open, taken after live's first bring-up (0132 T1b to T1d) and before the first tester connects. The list of testers, because the access queue that holds it would be lost too. |
-| T5 Backups of both databases, encrypted, off the machine, drilled | 🅿️ **Parked (trigger: before the first paying customer, or when the alpha ends, whichever comes first)** | §3. Both databases and the roles, one retention number for the pruning and the erasure sentence, a restore drill in the managed gate and on live's timer (0132 T7), a dump before each migrating deploy of live (0132 T6), a stated RPO and RTO. |
+| T5 Backups of both databases, encrypted, off the machine, drilled | 🅿️ **Parked (trigger: before the first paying customer, or when the alpha ends, whichever comes first)** | §3. Both databases and the roles, one retention number for the pruning and the erasure sentence, a restore drill in the managed gate and on live's timer (0132 T7), a dump before each migrating deploy of live (0132 T6), a stated RPO and RTO. The dump before each deploy comes during the alpha already, on the machine (open question 1 (b), 2026-09-28). |
 
 ## 1. What there is today
 
@@ -470,17 +499,37 @@ and T5 is the work the ADR already asks for.
 
 ### T0 — the owner's steps on the reference machine
 
-1. Set `BACKUP_RETENTION_DAYS=0` in live's `.env`, `~/.persistent/ownpace-live/.env`, when
-   0132 T1b seeds it, before live's first bring-up. Live's checkout links to that file (0132
-   T1b), so that is one edit. The gate never restores or backfills live's `.env` (0132 T1g), so no
-   scheduled run undoes it.
+*2026-09-28: since open question 1's answer (b), T0 sets N, not `0`. N is the most days a copy of
+live's databases made before a deploy is kept (0132 T6, step 4), and the owner set it to 7 the
+same day (*"7 days is ok"*). Live is set to 7 before the first copy is taken; a stack that reads
+`0` takes no copy. A copy never exists while live reads `0`, because the erasure
+sentence would then say that nothing is kept while the copy still holds a closed organisation's
+rows. The move from `0` to N is made before the first invitation, or later only while no
+organisation closed under `0` still waits for its purge: its erasure record keeps saying `0`, and
+a copy taken before that purge would hold its rows. Steps 1 and 3 below say `0` for the first case
+and N for the second, and step 4 is new.*
+
+1. Set `BACKUP_RETENTION_DAYS` in live's `.env`, `~/.persistent/ownpace-live/.env`, when
+   0132 T1b seeds it, before live's first bring-up: N, or `0` while no copy is taken. Live's
+   checkout links to that file (0132 T1b), so that is one edit. The gate never restores or
+   backfills live's `.env` (0132 T1g), so no scheduled run undoes it. Change it from `0` to N
+   before the first copy, and repeat step 2.
 2. If live is already up by then, recreate its API from `~/ownpace-live`:
    `docker compose -f deploy/compose/managed.yml up -d api`.
 3. Read it back from `~/ownpace-live`: `docker compose -f deploy/compose/managed.yml exec api
-   printenv BACKUP_RETENTION_DAYS` prints `0`.
-4. If the owner accepts T4, take its copies after live's first bring-up (0132 T1b to T1d) and
+   printenv BACKUP_RETENTION_DAYS` prints N, or `0` while no copy is taken.
+4. **Delete a copy older than N days, whether or not a deploy followed it.** A copy is kept until
+   the next deploy succeeds, and never longer than N days, which is what the erasure sentence and
+   T2's paragraph promise. Nothing does this on its own (0132 T6 step 4 keeps the copy until the
+   next deploy, and 0132 T7's daily duties do not delete one), so keep the copies in one directory
+   and look at it at least once a day while one exists. With a daily look, delete a copy once it
+   is more than N−1 days old, so that none reaches N days before the next look: `find <that
+   directory> -type f -mmin +$(( (N - 1) * 1440 ))` lists what to delete, and the same command
+   prints nothing afterwards. The copy holds testers' data, and it does not leave the machine (T5
+   is parked).
+5. If the owner accepts T4, take its copies after live's first bring-up (0132 T1b to T1d) and
    before the first tester connects.
-5. Record the date of each step in the Status block.
+6. Record the date of each step in the Status block.
 
 The OTA stack holds no tester's data (D6), so its value is not a condition of the alpha. The
 same edit in its persisted `.env`, `~/.persistent/ownpace-managed/.env`, which the gate restores,
@@ -493,6 +542,13 @@ in both languages, and `erasure_record` stores `0` and a `backups_expire_at` equ
 date. 0085 T5 designed for this: the number is recorded per erasure, *"because the retention
 can change and the date the customer was given cannot"*. When T5 builds backups, the number goes
 back up, and records made during the alpha keep what they said.
+
+*2026-09-28: since open question 1's answer (b), T0 sets N, not `0`, from the first copy made
+before a deploy (T0's note). The close response then carries the N-day form, and `erasure_record`
+stores N and a `backups_expire_at` N days after the purge date. An erasure recorded while live
+read `0` keeps saying `0`. That stays true only if no copy holds its rows, which is why T0's note
+makes the move to N before the first invitation, or while no such purge is pending. The wording below, merged in #1214, still says live sets `0`, and changes when the owner
+names N (the Status block).*
 
 **The wording (decided, follows the setting).**
 
@@ -596,6 +652,13 @@ needs T4's list of testers.
 
 The erasure sentence and this paragraph must agree. If the owner keeps a dump before each deploy
 (open question 1), both change together.
+
+**2026-09-28: the owner keeps one (open question 1 (b)).** The paragraph gains the sentence open
+question 1 gives, drafted here for the lawyer's pass, with N still the owner's:
+
+- NL: *"Een kopie die vóór een update wordt gemaakt, bewaren wij hoogstens N dagen, alleen om een
+  mislukte update ongedaan te maken."*
+- EN: *"A copy made before an update is kept at most N days, only to undo a failed update."*
 
 ### T3 — what a lost machine costs, written down
 
@@ -774,7 +837,12 @@ before the first invitation. T5 waits for its trigger.
    the next deploy succeeds and never
    longer than N days. `BACKUP_RETENTION_DAYS` is then N, and T2 gains one sentence: *a copy made
    before an update is kept at most N days, only to undo a failed update*. It is a reasonable
-   choice. The one rule is that the number follows the dump.
+   choice. The one rule is that the number follows the dump. **Answered 2026-09-28: (b)**,
+   *"database copy before live deployment: i think that might be more safe to do make a
+   backup?"* Read as (b): a copy on the machine before each deploy, kept at most N days, not T5's
+   backups; the owner confirmed this reading with N. **N answered 2026-09-28: 7**, *"7 days is ok"*,
+   the code's default and the owner's number for backups in 0085 T5, so the erasure sentence's
+   seven-day form is the one live gives.
 2. **T4: take the copy of `.env` and the list of testers off the machine?** Recommended: yes,
    both, before the first invitation. Where they are kept is the owner's choice, within T4's
    rules.

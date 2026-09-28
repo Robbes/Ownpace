@@ -46,16 +46,19 @@ import { FailureGroupPanel } from '../components/queues/FailureGroupPanel.tsx';
 import { useT } from '../i18n/index.tsx';
 // One map, shared with the domain strip and the operator's support screen
 // (0110 T4), so the person who phones and the person they phone read the same
-// sentence. An item's category is the same nine-way vocabulary.
-import { FAILURE_KEY } from '../i18n/failure-key.ts';
+// sentence. An item's category is the same nine-way vocabulary, and its remedy
+// is chosen by the migration's source as well (0150 D9): `remedyKey`.
+import { remedyKey } from '../i18n/failure-key.ts';
 import { Hint } from '../components/Hint.tsx';
 import { SendItToUs } from '../components/SendItToUs.tsx';
 
 const Row: React.FC<{
   f: ItemFailure;
+  /** The migration's source kind, from the queue, for the remedy (0150 D9). */
+  sourceKind?: string;
   outcome?: ItemOutcome;
   actions?: React.ReactNode;
-}> = ({ f, outcome, actions }) => {
+}> = ({ f, sourceKind, outcome, actions }) => {
   const t = useT();
   return (
   <ItemRow>
@@ -87,7 +90,7 @@ const Row: React.FC<{
         // said what to do since August; the ITEM level — the common case, and
         // the whole reason this queue exists — said nothing.
         <div className="text-xs text-red-900">
-          {t(FAILURE_KEY[f.category])} <SendItToUs category={f.category} />
+          {t(remedyKey(f.category, sourceKind))} <SendItToUs category={f.category} />
         </div>
       )}
       {/*
@@ -160,6 +163,7 @@ const Failures: React.FC = () => {
           <FailureGroupPanel
             mappingId={mappingId}
             failures={[...queue.needsDecision, ...queue.retrying]}
+            {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
           />
         )}
         <QueueSection
@@ -200,6 +204,7 @@ const Failures: React.FC = () => {
               <Row
                 key={f.naturalKeyHash}
                 f={f}
+                {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
                 outcome={outcomes[f.naturalKeyHash]}
                 actions={
                   <>
@@ -246,7 +251,11 @@ const Failures: React.FC = () => {
             the operator is holding it up.
           */}
           {queue.retrying.map((f) => (
-            <Row key={f.naturalKeyHash} f={f} />
+            <Row
+              key={f.naturalKeyHash}
+              f={f}
+              {...(queue.sourceKind ? { sourceKind: queue.sourceKind } : {})}
+            />
           ))}
         </QueueSection>
 
