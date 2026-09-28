@@ -83,6 +83,37 @@ export const MAX_BUFFERED_FILE_BYTES = 256 * 1024 * 1024;
 export const STREAM_FILES_LARGER_THAN_BYTES = 8 * 1024 * 1024;
 
 /**
+ * WHAT A STREAMED REQUEST BODY NEEDS FROM NODE'S `fetch` (workplan 0150 T1).
+ *
+ * Every client that sends a `ReadableStream` as a request body spreads this
+ * into its `RequestInit`, and nothing else does.
+ *
+ * `duplex: 'half'`: fetch refuses a stream body without it, with a TypeError
+ * about the RequestInit rather than about the file.
+ *
+ * `redirect: 'error'`: without it, the whole file stays in memory. Fetch
+ * follows the Fetch standard and, under any other redirect mode, sends a
+ * CLONE of the request, keeping the original in case a redirect has to send
+ * it again (`httpNetworkOrCacheFetch`). Cloning a body that is a stream tees
+ * it (`cloneBody`): the clone's branch goes out, and the original's is never
+ * read, so it keeps every chunk the other branch sent until the request is
+ * gone. On Node 24.21.0 (undici 7.29.1) a 128 MiB upload peaked at 166 MiB and
+ * still held 103 MiB after its response was dropped; with this, 48 MiB and
+ * none. On the owner's Dropbox migration that was every file above 8 MB,
+ * held whole on a pass machine of half a gigabyte: the first large one killed
+ * the pass, every pass (0150's Status, 2026-09-28).
+ *
+ * Nothing is lost by refusing a redirect. Fetch could not follow one with a
+ * stream body anyway: every redirect but a 303 needs the body again, which a
+ * stream cannot give twice, and a 303 turns the upload into a GET that sends
+ * nothing. A 3xx now fails the request as `unexpected redirect` instead.
+ */
+export const STREAMED_REQUEST_INIT: Readonly<Record<string, unknown>> = Object.freeze({
+  duplex: 'half',
+  redirect: 'error',
+});
+
+/**
  * The refusal for a file too large for a path that cannot stream it.
  *
  * A SENTENCE, not a crash. The item lands in the failure queue like any other

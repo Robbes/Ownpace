@@ -9,13 +9,12 @@
  * one array before they looked at any of it. On the owner's account that is
  * 55,245 files, and the pass machine has half a gigabyte.
  *
- * The bin read runs only on a pass that reached every folder, so the passes
- * that were still copying the account stopped at their deadline and never
- * met it. From the first pass that did not stop there, every pass was killed
- * for memory before it ended (`TASK_PROCESS_EXITED_WITH_NON_ZERO_CODE`, after
- * SIGKILL), its run left open, two hours apart, until the owner paused the
- * migration. Of what such a pass holds only at its end, the bin read held the
- * most (0150's Status, 2026-09-28).
+ * The bin read runs only on a pass that reached every folder, and of what such
+ * a pass holds only at its end it held the most. It was suspected first when
+ * every pass of the owner's migration was killed for memory (SIGKILL), but
+ * those passes died while copying, of an upload that kept each file whole, and
+ * none reached it (`an-upload-that-kept-every-byte`; 0150's Status,
+ * 2026-09-28).
  *
  * What this holds, against a fake Dropbox that logs each page it serves and
  * each entry that is read:
