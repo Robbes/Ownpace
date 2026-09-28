@@ -33,6 +33,9 @@ without an account.
 - **Where:** on the grant page, under *"Do you know who asked? …"*, and on the progress page,
   for somebody who granted and then had doubts. Only where a helpdesk is set up (`ZAMMAD_URL`
   and `ZAMMAD_TOKEN`, the setting 0130's form uses); otherwise it is not offered.
+  *(2026-09-28: also where the API's mail is set up and there is no Zammad. The report then goes
+  as one mail to the support mailbox, with no Reply-To (0130 T5). It is not offered only where
+  neither is set up.)*
 - **Who may report:** a link that still opens its page, at its own door (`POST
   /api/grant/:link/report`, `POST /api/view/:link/report`). A used, revoked or expired link
   cannot: nothing more can happen through it, and a person who granted keeps the progress

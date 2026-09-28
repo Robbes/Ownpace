@@ -146,16 +146,16 @@ Every file and line below was read on `main` at `93958ac3` on 2026-09-28.
 
 - **Built (0130 T1 to T3, 2026-09-23).** On managed, *Report a problem* files a ticket on the
   owner's Zammad through `POST /api/problem-reports`, with the reporter as the ticket's customer,
-  so a reply reaches them by mail. It shows only when `ZAMMAD_URL` and `ZAMMAD_TOKEN` are set.
-  The grant and progress links have *Report this link* on the same helpdesk (0108 T8 (d)).
-  Whether a Zammad is configured for `ownpace-live` is 0139 T0's fact 3.
-- **Being built, not merged.** The owner chose on 2026-09-28 that during the alpha a report goes
-  by mail to `support@ownpace.eu`, and Zammad stays the long-term plan. The mail transport is
-  being built on branch
-  `claude/ownpace-public-readiness-y7orc6-a-report-that-reaches-support-by-mail`: a new
-  `apps/api/src/services/report-channel.ts` still prefers a Zammad when both settings are set,
-  and otherwise sends one mail per report through the API's relay. Its header quotes the owner's
-  answer. 0130's Status block on `main` is dated 2026-09-24 and does not record the choice yet.
+  so a reply reaches them by mail. The grant and progress links have *Report this link* on the
+  same helpdesk (0108 T8 (d)).
+- **Built (0130 T5, 2026-09-28): by mail when there is no Zammad.** The owner chose that during
+  the alpha a report goes by mail to `support@ownpace.eu`, and Zammad stays the long-term plan.
+  `apps/api/src/services/report-channel.ts` still prefers a Zammad when `ZAMMAD_URL` and
+  `ZAMMAD_TOKEN` are both set, and otherwise, when the API's mail is set up, sends one mail per
+  report through the API's relay to `REPORT_MAIL_TO`. Its header quotes the owner's answer. So
+  the form and *Report this link* show when either way is set up, not only with a Zammad. No
+  Zammad runs for `ownpace-live` during the alpha (0139 T0's fact 3), so there a report is a mail.
+  0130's Status block records the choice and what was built.
 - **The appliance** has no report route and no Zammad. It sends nothing until its owner points
   it at a helpdesk of their own (0130's Status block; 0129 D5).
 

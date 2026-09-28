@@ -1726,20 +1726,59 @@ consent entirely). Both render as sentences, so the person knows to ask
 somebody rather than press the button again. `docs/microsoft-setup.md` is the
 customer-facing version of all of this.
 
-### 8f. Problem reports — your own Zammad *(optional)*
+### 8f. Problem reports — by mail, or your own Zammad
 
-"Report a problem", beside Sign out, turns a customer's report into a ticket on
-**your own, self-hosted Zammad** (workplan 0130): what they wrote, the page they
-were on (without any link secret), the reference and kind of error on their
-screen, and a screenshot if they add one. The customer is the ticket's customer,
-so your reply from Zammad reaches them by email.
+"Report a problem", beside Sign out, sends a customer's report to a person
+(workplan 0130): what they wrote, the page they were on (without any link
+secret), the reference and kind of error on their screen, and a screenshot if
+they add one. It goes one of two ways. While neither is set up, the link is not
+shown at all.
 
-It is off until you set it up, and while it is off the link is not shown at all.
-In Zammad:
+**By mail, to your support mailbox** (the owner's choice for the alpha,
+2026-09-28). This needs nothing but the mail settings the API already sends
+with (`SMTP_*` and `NOTIFY_FROM`, see *Mail: caught, not delivered* below) and
+one address:
+
+```
+REPORT_MAIL_TO=support@ownpace.eu
+```
+
+Each report is one plain-text mail through that same relay, with the same TLS
+rules as every other mail the API sends: from `NOTIFY_FROM`, to
+`REPORT_MAIL_TO`, titled *Ownpace: <the first line they wrote>*. The body is
+what they wrote and then the facts, one per line: `Page`, `Reference` and
+`Category` when there is one (the error on their screen, which the log page
+finds), `Organisation`, `Build`, `Reply to` (the customer's sign-in address) and
+`Report reference`, the report's own. Its **Reply-To** is that sign-in address
+too, so pressing Reply should answer them. With `NOTIFY_FROM` and
+`REPORT_MAIL_TO` both `support@ownpace.eu`, as on live, the mail goes from the
+mailbox to itself, and a mail client may answer such a mail to its own address;
+check the To field before you send, and if it shows the support address, write
+to the body's `Reply to` address instead. The screenshot is attached, after the
+same check of its first bytes a Zammad ticket gets. There is no ticket number,
+so the customer is told the *report reference* instead, and that the reply
+comes by email; search the mailbox for it when they quote it (the log page
+does not know it). An empty `REPORT_MAIL_TO` sends reports to `NOTIFY_TO`, so
+on a stack still pointed at Mailpit the form works and Mailpit catches them.
+
+**The relay is shared.** On live, the API's relay login is the one the identity
+provider sends its sign-in codes with (workplan 0133). So at most 50 report
+mails a day go out, for the signed-in form and **Report this link** together;
+past that, a report is refused with *try again tomorrow*, and the API's log
+says `report mails a day are used up`. A send the relay does not answer is
+given up on within about twenty seconds, and the customer gets a reference, as
+for a refusal. Set `REPORT_MAIL_TO` while the mail is still off and the API's
+log says `problem reports are switched off` with what is missing.
+
+**On your own, self-hosted Zammad**, the long-term plan. When `ZAMMAD_URL` and
+`ZAMMAD_TOKEN` are both set, every report becomes a ticket there instead, and
+the mail is not used. The customer is the ticket's customer, so your reply from
+Zammad reaches them by email. In Zammad:
 
 1. As an admin, allow API tokens: **Settings → System → API → Token Access**.
 2. As the agent the tickets should come from, create a personal token with the
-   `ticket.agent` permission: **your profile → Token Access**.
+   `ticket.agent` permission: **your profile → Token Access**. Give that agent
+   access to the group in step 3.
 3. Note the group new reports should land in (`Users` is the one a fresh Zammad
    starts with).
 
@@ -1752,22 +1791,37 @@ ZAMMAD_GROUP='Users'
 ```
 
 Only https is accepted (http only for `localhost`): the token travels with every
-ticket. Restart the API, sign in, and the link appears; send yourself a test
-report. A report that Zammad refuses is answered with a reference, and recorded
+ticket. Set wrongly, the form is off, not sent by mail, and the API's log says
+`problem reports are switched off` with the reason.
+
+Either way, change the value in the checkout whose `.env` it is, in place rather
+than appended, and recreate the API from there. `docker compose restart` does
+not read `.env` again; this does:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d --wait api
+```
+
+Sign in, and the link appears; send yourself a test report with a screenshot. A
+report the relay or Zammad refuses is answered with a reference, and recorded
 for the log page as `report.not-delivered`.
 
-The same setting switches on **Report this link** on the grant and progress
+The same settings switch on **Report this link** on the grant and progress
 pages (workplan 0108 T8 (d)). Somebody who doubts a link they were sent tells
-you, not the organisation that sent it. Such a ticket is titled *Ownpace: a
-grant link was reported* (or *a progress link*), in the same group. Its one
-article is an **internal note**. First the facts, one line each: the link's id
+you, not the organisation that sent it. It is titled *Ownpace: a grant link was
+reported* (or *a progress link*). First the facts, one line each: the link's id
 (never the link), the organisation and migration with their ids, who issued the
 link, from, to, and whether access was given. Then, under *What they wrote*, the
-reporter's own words. A reply address is optional. When given, it is typed,
-not verified, and it is the ticket's customer, so a reply you write reaches
-it. Without one, the ticket is filed under the user your `ZAMMAD_TOKEN`
-belongs to, and the note says nobody can be answered. Three reports a day per
-link, thirty an hour for every link together.
+reporter's own words. A reply address is optional; when given, it is typed, not
+verified. In Zammad the ticket is an **internal note** in the same group: a
+given address is its customer, so a reply you write reaches it, and without one
+the ticket is filed under the user your `ZAMMAD_TOKEN` belongs to and the note
+says nobody can be answered. By mail there is no internal note, so the mail
+has **no Reply-To**, even when an address was given: Reply would quote the
+facts to an address anybody could have typed. Its first line says so. To
+answer, write a new mail to the address on its `Reply to` line, and leave the
+facts out. Three reports a day per link, thirty an hour for every link
+together, and by mail the day's 50 above.
 
 ### 8g. The alpha note *(only on the stack testers use)*
 
@@ -2138,7 +2192,8 @@ Every mail this stack sends goes to **Mailpit**, a catcher on the compose
 network.
 
 **Two different things send mail, and they are configured separately.** The API
-sends its notifications — an access request, a grant, a decline — and reads
+sends its notifications — an access request, a grant, a decline — and, without
+a Zammad, problem reports (8f), and reads
 `SMTP_HOST` and friends from `.env` via `managed.yml`; the tasks send the digest
 with the same settings, once `set-task-env.sh` has uploaded them (below). The
 **identity provider sends its own**: the verification link on a new account, an

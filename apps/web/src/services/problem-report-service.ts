@@ -2,8 +2,9 @@
 
 /**
  * "Report a problem" (workplan 0130): whether the service takes reports, and
- * sending one. The report becomes a ticket on the owner's helpdesk, and the
- * reply comes by email.
+ * sending one. The report becomes a ticket on the owner's helpdesk, or, on a
+ * service with no helpdesk, a mail to its support mailbox (the owner, for the
+ * alpha, 2026-09-28). Either way the reply comes by email.
  */
 
 import apiClient from './api.ts';
@@ -29,10 +30,19 @@ export async function fetchReportingAvailable(): Promise<boolean> {
   }
 }
 
-/** Send a report; answers the ticket's number. */
-export async function sendProblemReport(body: ProblemReportBody): Promise<string> {
-  const response = await apiClient.post<{ ticket: string }>('/problem-reports', body);
-  return response.data.ticket;
+/**
+ * What a sent report is known by: the helpdesk ticket's number, or, when it
+ * went by mail, the report's own reference, which its mail carries too.
+ */
+export type SentReport = { readonly ticket: string } | { readonly reference: string };
+
+/** Send a report; answers its ticket's number, or its reference when it went by mail. */
+export async function sendProblemReport(body: ProblemReportBody): Promise<SentReport> {
+  const response = await apiClient.post<{ ticket?: unknown; reference?: unknown }>('/problem-reports', body);
+  const { ticket, reference } = response.data;
+  if (typeof ticket === 'string') return { ticket };
+  if (typeof reference === 'string') return { reference };
+  throw new Error('The service answered a sent report with neither a ticket nor a reference.');
 }
 
 /**
