@@ -99,18 +99,27 @@
     published terms as search results quote them (Amtsgericht Berlin
     (Charlottenburg), HRB 237529 B); netbird.io could not be read from here,
     so the README marks it to confirm.
-  - §4.5 and §9: Proton keeps the service's sent mail in the support mailbox
-    (the owner's "yes"). §4.5 says so, and §9's support-mail row covers those
-    copies: 6 months after sending, which reads the owner's "Until resolved
-    + 6 months" for mail that answers no question (the owner confirms).
+  - §4.5, §4.6, §7 and §9: Proton keeps the service's sent mail in the
+    support mailbox (the owner's "yes"). §4.5 says so, §7's Proton row says
+    the mailbox keeps a copy of each mail the service sends, and §4.6 says a
+    copy of the mail to people items were shared with stays there, so that
+    §3's "§4.6 lists it" stays a complete list. The service mails nobody a
+    customer invites (apps/api/src/routes/tenants/members.ts sends nothing;
+    the app's tenants.invite.hint: "No email yet; tell them yourself"), so
+    §4.6's invitees bullet needs no such sentence. §9's support-mail row
+    covers those copies: 6 months after sending, which reads the owner's
+    "Until resolved + 6 months" for mail that answers no question (the
+    owner confirms). Nothing prunes the Sent folder yet; a comment beside §9
+    says so (README).
   - §9: a sign-in account nobody let in goes 30 days after it was created,
     unless a request for access with that address is still open (the owner:
     "30 days is ok"; 0135 T8's rule). The row says such an account opens
     nothing. Nothing removes one yet; a comment beside §9 says so.
   - §9: server logs are kept until the part of the service that wrote them
-    is replaced. That is what Docker's default log driver does on the
-    machine; there is no fixed period, and the row says so. The README lists
-    what would make a number true.
+    is replaced. That is what Docker's default log driver does; whether the
+    machine uses it is not checked (README: docker info --format
+    '{{.LoggingDriver}}'). There is no fixed period, and the row says so.
+    The README lists what would make a number true.
   - §10: the right to object on its own; a check that a request is yours; a
     complaint where you live or work.
   - §11: TLS as the code does it: the one switch a customer has is the
@@ -180,8 +189,9 @@
       processes the data? The "Where" column should say that. NOW: the owner
       answered "yes" (2026-09-28): keep Proton AG, Switzerland; the agreement
       is accepted for that account; the account is Archico B.V.'s; and
-      Proton keeps the service's sent mail in it (§4.5, §9). Where the
-      agreement says Proton processes, and the adequacy wording, stay open.
+      Proton keeps the service's sent mail in it (§4.5, §4.6, §7, §9).
+      Where the agreement says Proton processes, and the adequacy wording,
+      stay open.
   12. §6, §8: is entering a Google address in the test-user list of our app
       at Google a transfer by us, and is Google a processor or a controller
       for that list? If it is a transfer, on what basis, which §8 would then
@@ -256,11 +266,18 @@
     includes its secret; so §4.5's "without the secret part of a link" holds
     for our own logs only, and the §7 row could add "It keeps a log of the
     requests it carries, with the IP address and the page asked for." And
-    with TLS ending at NetBird, our nginx logs record the address that
-    connects to them ($remote_addr, no real-IP setting), which is then
-    NetBird's proxy rather than the visitor, and the API's the same unless
-    live sets TRUST_PROXY. Check both on live (0132 T3 (d)); then §4.5 says
-    whose IP address our logs record.
+    with TLS ending at NetBird, our two nginx logs are not the same. The
+    app's (apps/web/nginx.conf.template, format ownpace_combined) records
+    only the address that connects to it ($remote_addr, no real-IP
+    setting), which is then NetBird's proxy rather than the visitor, and
+    the API's log does the same unless live sets TRUST_PROXY. The website's
+    (deploy/compose/www-nginx.conf) sets no access_log or log_format, so the
+    image's own default applies (nginx:1.31-alpine, www.yml); in official
+    nginx images that is the "main" format, which also logs the
+    X-Forwarded-For header. The image's nginx.conf was not read here. If
+    NetBird sets that header, the website's log holds the visitor's IP
+    address. Check each on live (0132 T3 (d)); §4.5 then says, per log,
+    whose IP address it records.
   - «UNADMITTED_SIGNIN_RETENTION» and «LOG_RETENTION», filled 2026-09-28
     (above). «SUBPROCESSORS_URL» and «PRIVACY_HISTORY_URL»: the owner asked
     "recommend me what to do." Recommended: make §7's table the complete
@@ -332,9 +349,11 @@
     what is sent, before §8's negative is published.
   - Proton: answered "yes" (2026-09-28). Proton AG and Switzerland stay; the
     agreement is accepted for support@ownpace.eu, which is Archico B.V.'s
-    account; the service's sent mail is kept there, so §4.5 says so and §9's
-    support-mail row covers it (6 months after sending: confirm). Where the
-    agreement says Proton processes stays to check (question 11).
+    account; the service's sent mail is kept there, so §4.5, §4.6 and §7's
+    Proton row say so, and §9's support-mail row covers it (6 months after
+    sending: confirm). Nothing prunes the Sent folder yet: by hand at 6
+    months, or a Proton setting if Proton has one, until something does.
+    Where the agreement says Proton processes stays to check (question 11).
   - §4.4 and §7 say we do not ask for or keep a card number; remove or
     refuse the billing route that accepts a card's brand, last four digits
     and expiry, or keep the weaker sentence.
@@ -351,10 +370,13 @@
     gaf, tot u de verhuizing verwijdert." It costs no notice: no tester has
     accepted 1.0. Not applied: the conditions are the owner's.
   - §9's sign-in account nobody let in, 30 days: built by 0135 T8
-    (idp-strays.sh), not yet. Its rule should also spare an address with an
-    open invitation: a person who registered, asked, and was granted has an
-    invitation to their address, and no open request, until they first sign
-    in to the app.
+    (idp-strays.sh), not yet. Until it is, either the owner removes these by
+    hand in the sign-in service's console, or the row waits; the owner
+    chooses (the owner accepted the 30 days, not a duty by hand). T8's rule
+    did not spare an address with an open invitation: a person who
+    registered, asked, and was granted has an invitation to their address,
+    and no open request, until they first sign in to the app. 0135 T8's rule
+    now has that condition (2026-09-28).
   - The app says things this policy contradicts: the grant mail's "Your
     password lives with the sign-in service, never with us"
     (packages/shared/src/notifications.ts), the Alpha note's "nothing is
@@ -588,8 +610,9 @@ A migration touches people who never signed up with us. This is what we hold abo
   name of the file, folder or calendar, and their role. If you ask the app to tell them where
   their shared items went, each of them gets an email from support@ownpace.eu for each kind of
   item shared with them, such as calendars or files, once that kind has been switched over, with
-  your note and the names of the items; and again only if you choose to send it again. The list
-  stays until your data is erased, also after you delete the migration.
+  your note and the names of the items; and again only if you choose to send it again. A copy of
+  each such email stays in our support mailbox until 6 months after it was sent (§4.5, §9). The
+  list stays until your data is erased, also after you delete the migration.
 - **People you invite** into your organisation: their address, their role, and whether they
   joined.
 - **People who report a link** they were sent: see §4.5.
@@ -673,7 +696,7 @@ machine we administer ourselves, in the Netherlands.
 | Sub-processor | What for | Where |
 |---|---|---|
 | NetBird GmbH | Carrying your connections to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, such as what you type when you sign in and what the app shows you, passes through it readable | Germany (EU) |
-| Proton AG | Sending the service's mail, such as sign-in codes, our answer to your request for access, progress summaries, and the notices you ask us to send. Holding our support mailbox, support@ownpace.eu, where your mail to us and, during the Alpha, problem reports arrive (§4.5) | Switzerland, outside the EU (§8) |
+| Proton AG | Sending the service's mail, such as sign-in codes, our answer to your request for access, progress summaries, and the notices you ask us to send. Holding our support mailbox, support@ownpace.eu, where your mail to us and, during the Alpha, problem reports arrive, and where a copy of each mail the service sends is kept (§4.5) | Switzerland, outside the EU (§8) |
 
 The current list is maintained at «SUBPROCESSORS_URL». If the service moves to a hosting
 provider after the Alpha, we name that provider here, and tell you, before any of your data
@@ -725,8 +748,14 @@ target. We show you the target before anything is written.
        service's database ("none is ever overwritten"). The owner, 2026-09-28: "deletes only
        after procen successfull upgrade" (README).
      - A sign-in account nobody let in, "30 days after it was created": nothing removes one yet.
-       0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built; until then the owner
-       removes these by hand in the sign-in service's console.
+       0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built. Until T8 is built, either
+       the owner removes these by hand in the sign-in service's console, or the row waits; the
+       owner chooses (README).
+     - A copy of the service's own mail, "6 months after it was sent": nothing prunes the Sent
+       folder of support@ownpace.eu at Proton; no script or setting here does it. Until something
+       does, it is pruned by hand at 6 months, or by a Proton setting if Proton has one (not
+       checked). The 6 months is our reading of the owner's "Until resolved + 6 months" for mail
+       that answers no question; the owner confirms it (README).
      - Server logs: the row holds with Docker's default log driver, which keeps a container's
        output until the container is removed (0134 open question 6 (a)). If the machine logs to
        journald instead, as docs/managed-bring-up.md's steps for live still ask, the row is a

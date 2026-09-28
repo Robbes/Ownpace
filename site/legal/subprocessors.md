@@ -32,11 +32,13 @@
      confirmed from NetBird's terms or data-processing agreement (README).
      Proton: "yes"; the agreement is accepted for the account behind
      support@ownpace.eu, which is Archico B.V.'s, and Proton keeps the
-     service's sent mail in it. The owner asked what to do with
-     «SUBPROCESSORS_URL» ("recommend me what to do."); the recommendation,
-     not applied, is that privacy §7's table is the complete list during the
-     Alpha and this file is published, with its Dutch text, when the first
-     business customer and the DPA arrive (privacy briefing).
+     service's sent mail in it, which Proton's row now says, as privacy §7's
+     does. Nothing prunes those copies yet (privacy §9's comment, README).
+     The owner asked what to do with «SUBPROCESSORS_URL» ("recommend me what
+     to do."); the recommendation, not applied, is that privacy §7's table is
+     the complete list during the Alpha and this file is published, with its
+     Dutch text, when the first business customer and the DPA arrive (privacy
+     briefing).
 
      Open for the owner: whether any company houses or can reach the machine,
      which would be a row here; NetBird's entity name, its agreement, and
@@ -68,7 +70,7 @@ data goes there.
 | Sub-processor | What they process, and why | Where |
 |---|---|---|
 | NetBird GmbH | Every request to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu, which it carries through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, sign-ins included, passes through it readable | Germany (EU) |
-| Proton AG | Recipient addresses and the contents of the mail the service sends — sign-in codes, answers to requests for access, progress summaries, and notices a customer asks us to send, such as those to people files were shared with — and the support mailbox support@ownpace.eu, with everything sent to it, including problem reports and link reports during the Alpha | Switzerland (EU adequacy decision) |
+| Proton AG | Recipient addresses and the contents of the mail the service sends — sign-in codes, answers to requests for access, progress summaries, and notices a customer asks us to send, such as those to people files were shared with — and the support mailbox support@ownpace.eu, with everything sent to it, including problem reports and link reports during the Alpha, and a copy of each mail the service sends | Switzerland (EU adequacy decision) |
 
 ## Planned — listed before they are live, live before the first byte
 

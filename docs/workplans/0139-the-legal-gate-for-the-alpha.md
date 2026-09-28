@@ -33,7 +33,11 @@ the point it answers:
 8. The Alpha conditions §10's credentials sentence, which the code contradicts (item 11): *"what
    do you recommend?"*
 
-Items 6, 8 and 10 have no answer in this set and stay open as written below.
+Items 6, 8 and 10 were not put to the owner, and neither were these parts of the others, which
+stay open as written below: item 2's telephone number; item 4's period for the background tasks'
+records, or *"no period set yet"*; item 9's age rule (18, or a parent's or guardian's permission,
+beside privacy §12's 16) and whether updates during the Alpha are announced in advance; and item
+11's stale briefing comment and the erasure window after a closing for not accepting.
 
 - **Applied.** Both texts stay drafts in the pull request, for the owner's own review; the
   lawyer's pass stays deferred, and no *Version* line changes until the owner approves the text.
@@ -46,19 +50,27 @@ Items 6, 8 and 10 have no answer in this set and stay open as written below.
     search results quoting NetBird's terms (Amtsgericht Berlin (Charlottenburg), HRB 237529 B),
     because `netbird.io` cannot be reached from here; `site/legal/README.md` marks it *to
     confirm*, with NetBird's data-processing agreement, the proxy cluster's location and HTTP
-    mode. Privacy §4.5 is unchanged: our nginx logs record `$remote_addr`, which behind NetBird
-    would be its proxy, and the API does the same without `TRUST_PROXY`, but NetBird's mode and
-    live's `TRUST_PROXY` are not checked, so whose IP address our logs record stays a question
-    (privacy briefing; 0132 T3 (d)). New in the privacy briefing, from NetBird's documentation:
-    its proxy keeps an access log with the visitor's IP address, a location and the full path,
-    a grant link's secret included.
+    mode. Privacy §4.5 is unchanged, because our logs are not configured alike: the app's nginx
+    (`ownpace_combined`) records `$remote_addr` only, which behind NetBird would be its proxy,
+    and the API does the same without `TRUST_PROXY`; the website's nginx sets no log format, so
+    its image's default applies, which in official nginx images also logs `X-Forwarded-For`, and
+    so may hold the visitor's IP address (the image's `nginx.conf` not read here). NetBird's
+    mode, its headers and live's `TRUST_PROXY` are not checked, so whose IP address each log
+    records stays a question, settled per log (privacy briefing; README; 0132 T3 (d)). New in
+    the privacy briefing, from NetBird's documentation: its proxy keeps an access log with the
+    visitor's IP address, a location and the full path, a grant link's secret included.
   - Proton (*"yes"*): `site/legal/README.md` records it as confirmed: the agreement accepted for
     `support@ownpace.eu`, the account Archico B.V.'s, the service's sent mail kept there.
-    Privacy §4.5 now says the mailbox keeps a copy of the mail the service sends, and §9's
-    support-mail row covers those copies: *6 months after it was sent* / *6 maanden nadat die is
-    verstuurd*, which reads *"Until resolved + 6 months"* for mail that answers no question. The
-    owner confirms that reading in the pull request. Where Proton's agreement says Proton
-    processes stays open (privacy question 11).
+    Privacy §4.5 now says the mailbox keeps a copy of the mail the service sends, and so do
+    privacy §7's Proton row (both languages) and `subprocessors.md`; §4.6 says a copy of the mail
+    to people items were shared with stays there, so §3's *"§4.6 lists it"* stays complete (the
+    service mails nobody a customer invites). §9's support-mail row covers those copies: *6
+    months after it was sent* / *6 maanden nadat die is verstuurd*, which reads *"Until resolved
+    + 6 months"* for mail that answers no question. The owner confirms that reading in the pull
+    request. Nothing prunes the Sent folder: until something does, it is pruned by hand at 6
+    months, or by a Proton setting if Proton has one (not checked), a precondition in the
+    README's *Before the draft markers come off* and beside privacy §9. Where Proton's agreement
+    says Proton processes stays open (privacy question 11).
   - `«UNADMITTED_SIGNIN_RETENTION»`: *30 days after it was created, unless a request for access
     with that address is still open* / *30 dagen nadat het is aangemaakt, tenzij een aanvraag
     voor toegang met dat adres nog openstaat*. The row now describes a sign-in account someone
@@ -66,10 +78,12 @@ Items 6, 8 and 10 have no answer in this set and stay open as written below.
     question is answered in the README: unused, yes; free-tier, no. Anyone can create one,
     because self-registration is on, and it opens nothing until an operator grants a request
     for that address, but the sign-in service holds a name, an address, a password hash,
-    sessions and its history for it. Not built: 0135 T8 removes them, and until then the owner
-    does, by hand (a comment beside privacy §9, both languages, and the README). One gap in T8's
-    rule, not edited in 0135: it should also spare an address with an open invitation, or a
-    person granted after registering who has not yet signed in to the app is removed at day 30.
+    sessions and its history for it. Not built: 0135 T8 removes them. Until T8 is built, either
+    the owner removes these by hand in the sign-in service's console, or the row waits; the owner
+    chooses (a comment beside privacy §9, both languages, and the README). One gap in T8's rule:
+    it did not spare an address with an open invitation, so a person granted after registering
+    who has not yet signed in to the app would be removed at day 30. 0135 now marks its open
+    question 6 answered with the owner's words, and T8's rule has a fifth condition for it.
   - `«LOG_RETENTION»`: a criterion, not a number, because nothing enforces a number: *until the
     part of the service that wrote them is replaced: for the app and this website, at each
     update of the service; for our sign-in service, when its version or its settings change; for
@@ -130,6 +144,36 @@ Items 6, 8 and 10 have no answer in this set and stay open as written below.
   node site/build.mjs --check`: *"4 legal page(s) marked draft"* and *"14 pages across 2 locales,
   14 unfilled placeholder(s)"* (four per language in the privacy policy, three in the terms; 28
   before). Both languages have the same sections, table rows, list items and placeholders.
+- **Review fixes, the same day.** A review of this entry's commit found eight gaps, fixed in a
+  commit of their own:
+  - Privacy §4.6, both languages: a copy of the mail to people items were shared with stays in
+    the support mailbox until 6 months after it was sent, so §3's *"§4.6 lists it"* is complete
+    again. The service mails nobody a customer invites, so the invitees' bullet is unchanged.
+  - Privacy §7's Proton row, both languages, and `subprocessors.md`: the mailbox also keeps a copy
+    of each mail the service sends. Nothing prunes Proton's Sent folder: a precondition in the
+    README's *Before the draft markers come off* and in both §9 comments, with the 6 months still
+    the owner's to confirm.
+  - T0 and T5 in the task table follow this entry: four placeholders open, five filled today.
+  - The sentence on items 6, 8 and 10 names the parts of items 2, 4, 9 and 11 that were not put
+    to the owner either.
+  - 0135: open question 6 answered, in the owner's words; T8's rule has a fifth condition, an open
+    invitation, and a Status entry.
+  - The removal by hand of sign-in accounts nobody let in is a choice, not a duty: until T8 is
+    built, either the owner removes them in the console or privacy §9's row waits (README, both §9
+    comments, above).
+  - The app's and the website's nginx log differently: the app's `ownpace_combined` records
+    `$remote_addr` only; the website's sets no format, so the image's default applies, which in
+    official nginx images also logs `X-Forwarded-For`. Privacy §4.5 is settled per log (README,
+    privacy briefing, above).
+  - The privacy briefing no longer says the machine uses Docker's default log driver; that is not
+    checked.
+  - **Files**: `site/legal/privacy.md`, `privacy.nl.md`, `subprocessors.md`, `site/legal/README.md`,
+    this plan, and 0135.
+  - **Proved.** The same five test files: 91 tests pass. `OWNPACE_APP_URL=https://app.ota.ownpace.eu
+    node site/build.mjs --check`: *"4 legal page(s) marked draft"*, *"14 pages across 2 locales,
+    14 unfilled placeholder(s)"*, as before. Both languages still have the same sections, table
+    rows, list items, placeholders and section references. `node scripts/workplan-index.mjs
+    --write` changed nothing; `node scripts/lessons.mjs --check`: current.
 
 **2026-09-28, the support-mail period filled.** Asked how long report mails in `support@ownpace.eu`
 are kept, the owner chose *"Until resolved + 6 months"* (with *"Both parts"* for the facts a report
@@ -1156,12 +1200,12 @@ longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1); facts 2 (2026-09-27, 0133 open question 3), 5 and 6 supplied, and fact 3 answered for the Alpha by 0130 T5's *"b"*, reports by mail (on its branch, not merged); 2026-09-28, in the drafts for the owner's review, not committed: `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` filled with the relay the owner chose (0133), `«HOSTING_PROVIDER»` dropped, `«SUPPORT_RETENTION»` and `«UNADMITTED_SIGNIN_RETENTION»` new | §3. Eight placeholders are open (`site/legal/README.md`), and facts 1 and 4 have none. Values never go in this plan, only dates. |
+| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1); facts 2 (2026-09-27, 0133 open question 3), 5 and 6 supplied, fact 3 answered for the Alpha by 0130 T5's *"b"*, reports by mail (on its branch, not merged), and fact 1 supplied 2026-09-28 (the entity name to confirm); in the drafts for the owner's review, on draft PR #1317, not merged: 2026-09-28, `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` filled with the relay the owner chose (0133), `«HOSTING_PROVIDER»` dropped, `«SUPPORT_RETENTION»` filled; 2026-09-28, from the owner's answers, five filled: `«HOSTING_REGION»`, `«INGRESS_PROVIDER»`, `«INGRESS_REGION»`, `«UNADMITTED_SIGNIN_RETENTION»` and `«LOG_RETENTION»` — *was:* eight placeholders open, and facts 1 and 4 without one | §3. Four placeholders are open in the privacy policy and the terms (`site/legal/README.md`): `«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»` and `«PRIVACY_HISTORY_URL»`; fact 4 has none. Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **revised 2026-09-28 for the owner's review**, not committed: privacy 1.2 and terms 1.3, still drafts, and `subprocessors.md` and `dpa.md` 0.2. They now carry points 3, 6, 7, 9 and 11 of §3 T1's list, and 4 and 8 in part; 1, 2, 5 and 10 wait on the owner or the lawyer, and the briefings hold the lawyer's questions; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, not rendered; **reviewed by the owner 2026-09-28**, version 1.0, the lawyer's pass deferred (T1) — *was:* version 0.1 concept, ⏳ **Owner** reads it, then the lawyer (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | ⏳ **Owner** for the names; the text 🔨 **drafted 2026-09-28**, not committed: privacy §7 and `subprocessors.md` 0.2 name Proton AG, in Switzerland, for the relay and the support mailbox, and no hosting provider during the Alpha (the machine's country is `«HOSTING_REGION»`); no Zammad during the Alpha (0130 T5). The ingress (T0 fact 1) has a row of its own in privacy §7 and `subprocessors.md`, with `«INGRESS_PROVIDER»` and `«INGRESS_REGION»` for the owner to fill, or the row goes if TLS ends on the machine (review fixes, 2026-09-28); whether any company houses or reaches the machine is still the owner's — *was:* 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T5 The sub-processors named | ⏳ **Owner** for the names; the text 🔨 **drafted 2026-09-28**, on draft PR #1317, not merged: privacy §7 and `subprocessors.md` 0.2 name Proton AG, in Switzerland, for the relay and the support mailbox, which also keeps a copy of the mail the service sends (the owner confirmed Proton on 2026-09-28), and no hosting provider during the Alpha; the machine's country supplied 2026-09-28; no Zammad during the Alpha (0130 T5). The ingress (T0 fact 1) has a row of its own in privacy §7 and `subprocessors.md`, naming the entity the owner gave on 2026-09-28; the entity name is to confirm, with its data-processing agreement, the proxy cluster's location and HTTP mode (`site/legal/README.md`); whether any company houses or reaches the machine is still the owner's — *was:* the machine's country `«HOSTING_REGION»`, and the ingress row with `«INGRESS_PROVIDER»` and `«INGRESS_REGION»` for the owner to fill, or the row gone if TLS ends on the machine (review fixes, 2026-09-28); 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the wording 🔨 **drafted 2026-09-28** in privacy §9 for every row §3 T6 names, not committed; the rest's code 📋 **Proposed**: a closed organisation's passes, the copy's 7 days and `dump-idp.sh`'s dumps, accounts nobody let in (0135 T8) | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; terms §11 and privacy §9 describe that close in the drafts of 2026-09-28, beside the Alpha conditions' 7 days; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |

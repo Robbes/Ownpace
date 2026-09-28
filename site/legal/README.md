@@ -94,10 +94,15 @@ comments still name them, to say what filled them.
   findings are in the privacy briefing and not yet in the text: NetBird's reverse proxy keeps an
   access log with the visitor's IP address, a location derived from it, and the full path, a
   grant or progress link's secret included, so privacy §4.5's *"without the secret part of a
-  link"* holds for our own logs only; and with TLS ending at NetBird, our nginx logs record
-  `$remote_addr`, which is then NetBird's proxy, not the visitor, and the API's the same unless
-  live sets `TRUST_PROXY`. Privacy §4.5 says whose IP address our logs record once that is
-  checked on live (0132 T3 (d)).
+  link"* holds for our own logs only; and with TLS ending at NetBird, our two nginx logs differ.
+  The app's (`apps/web/nginx.conf.template`, format `ownpace_combined`) records `$remote_addr`
+  only, which is then NetBird's proxy, not the visitor, and the API's log the same unless live
+  sets `TRUST_PROXY`. The website's (`deploy/compose/www-nginx.conf`) sets no `access_log` or
+  `log_format`, so the default of the `nginx:1.31-alpine` image applies (`www.yml`); in official
+  nginx images that is the `main` format, which also logs `$http_x_forwarded_for`. The image's
+  `nginx.conf` was not read here. If NetBird sets `X-Forwarded-For`, the website's log holds the
+  visitor's IP address. Check each on live (0132 T3 (d)); privacy §4.5 is then settled per log,
+  not for *"our nginx logs"* as one.
 - `«UNADMITTED_SIGNIN_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9): 30 days after the
   sign-in account was created, unless a request for access with that address is still open (NL:
   *30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog
@@ -108,8 +113,9 @@ comments still name them, to say what filled them.
   (`setup-zitadel.sh`: *"An account here grants nothing on its own"*). The sign-in service still
   holds a name, an email address, a user name, a password hash, sessions and its event history
   for each, and sends each a verification mail through Proton; hence a period. **Not built**:
-  0135 T8 (`idp-strays.sh`) removes them, and until it exists the owner does, by hand. T8's rule
-  should also spare an address with an open invitation (privacy briefing).
+  0135 T8 (`idp-strays.sh`) removes them. Until T8 is built, either the owner removes these by
+  hand in the sign-in service's console, or the row waits; the owner chooses (below). T8's rule
+  now also spares an address with an open invitation, which it did not (0135, 2026-09-28).
 - `«LOG_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9, *Server logs*) with a criterion, not
   a number: until the part of the service that wrote them is replaced (the app and this website
   at each update of the service; the sign-in service when its version or settings change; a
@@ -138,8 +144,10 @@ comments still name them, to say what filled them.
   *"Until resolved + 6 months"* the same day, when asked how long report mails in
   `support@ownpace.eu` are kept (recorded in 0139's Status). Proton keeps a copy of the
   service's own sent mail in that mailbox (the owner's *"yes"*, 2026-09-28), so since that day
-  privacy §4.5 says so, and the row covers those copies: 6 months after sending. That reads the
-  owner's period for mail that answers no question; the owner confirms it in the pull request.
+  privacy §4.5 says so, as do privacy §7's Proton row, `subprocessors.md` and, for the mail to
+  people items were shared with, privacy §4.6; the row covers those copies: 6 months after
+  sending. That reads the owner's period for mail that answers no question; the owner confirms it
+  in the pull request. Nothing prunes those copies yet (*Before the draft markers come off*).
 - `«LEGAL_ENTITY»`: filled 2026-08-30, Archico B.V., the owner's existing BV (the spelling
   checked against public KvK-registry mirrors). Whether "Ownpace" is registered as its
   handelsnaam is a question in the terms briefing (question 22). The owner, 2026-09-28:
@@ -229,8 +237,14 @@ languages, where the text rests on it:
   same rule; then privacy §9 drops the drill sentence and the *"daily copies"*, in both
   languages. Live has not been stood up, so the drill has dumped nothing there yet. Not decided.
 - *A sign-in account nobody let in, 30 days* (privacy §9): nothing removes one yet. 0135 T8
-  (`idp-strays.sh`) is proposed, not built; until it is, the owner removes these by hand in the
-  sign-in service's console.
+  (`idp-strays.sh`) is proposed, not built. Until T8 is built, either the owner removes these by
+  hand in the sign-in service's console, or the row waits; the owner chooses. The owner accepted
+  the 30 days (*"30 days is ok"*), not a duty by hand.
+- *A copy of the service's own mail, 6 months after it was sent* (privacy §9, §4.5, §4.6):
+  nothing prunes the Sent folder of `support@ownpace.eu` at Proton; no script or setting here
+  does it. Until something does, it is pruned by hand at 6 months, or by a Proton setting if
+  Proton has one (not checked from here). The 6 months is our reading of the owner's *"Until
+  resolved + 6 months"* for mail that answers no question, pending the owner's confirmation.
 - *Server logs until the part that wrote them is replaced* (privacy §9): true while the machine
   uses Docker's default log driver (0134 open question 6 (a)). If it logs to journald, as
   `docs/managed-bring-up.md`'s steps for live still ask, the row gives the journal's period
@@ -245,8 +259,9 @@ languages, where the text rests on it:
   first invitation (terms briefing, precondition A and question 12).
 - *Where TLS ends* (privacy §6, §7): answered on 2026-09-28, at NetBird GmbH, in Germany (0139
   T0 fact 1). To confirm: the entity name, NetBird's data-processing agreement, the proxy
-  cluster's location, and HTTP mode (the filled list above); and whose IP address our own logs
-  record, for privacy §4.5 (0132 T3 (d)).
+  cluster's location, and HTTP mode (the filled list above); and, for privacy §4.5, whose IP
+  address each of our logs records: the app's nginx, the website's nginx and the API, which are
+  configured differently (the filled list above; 0132 T3 (d)).
 - *Email and password only at the sign-in page* (privacy §4.4, §7, §8): 0139 T0 fact 4. If live
   sets any `IDP_*` key, the texts name the social sign-in and its provider.
 - *Telemetry* (privacy §8's negative): `managed.yml` sets no opt-out; Trigger.dev's

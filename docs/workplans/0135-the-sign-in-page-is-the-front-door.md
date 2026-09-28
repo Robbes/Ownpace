@@ -4,6 +4,15 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, evening: open question 6 answered, and T8's rule completed.** Asked in 0139 whether
+30 days is the period for accounts nobody let in, the owner answered: *"30 days is ok, but those
+are free no further used accounts?"* Privacy 1.2's §9 carries it, in the drafts on draft PR
+#1317; `site/legal/README.md` answers the owner's question (unused, yes; free-tier, no). T8's rule
+did not spare an address with an open invitation, so a person granted after registering who had
+not yet signed in to the app would have been removed at day 30; it now has a fifth condition for
+that, and step 2 reads the invited addresses. T8 is still not built. Until it is, either the owner
+removes such accounts by hand in the console, or privacy §9's row waits; the owner chooses.
+
 **2026-09-28, afternoon: v4.19.2 merged, and the owner signed in on it.** The pin merged in #1292
 (`73d94eb`).
 
@@ -273,7 +282,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
-| T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
+| T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
 
@@ -905,16 +914,22 @@ held too.
 ### T8 — accounts nobody let in, and erasure that reaches the identity provider (→ 0139)
 
 **The retention rule (open question 6).** An account at the identity provider is removed when it
-matches all four of these:
+matches all five of these:
 
 - it has no membership;
 - it has no operator row;
 - no open access request carries its address;
+- no open invitation is addressed to its email (a `tenant_member` row with `status = 'invited'`,
+  whose `user_id` is still a `pending:` placeholder, so the first condition cannot see it);
 - it is older than N days.
 
-30 days is proposed, which is the figure the privacy policy's §9 already uses. Self-registration
-stays on (0095 T0), so strangers can still register. They must verify their address to sign in,
-and they reach nothing. This rule is what removes them later.
+The fifth was added on 2026-09-28 (0139 Status): a person who registered, asked, and was granted
+has an invitation to their address and no open request until they first sign in to the app, and
+the first four would remove their account at day 30.
+
+30 days, which privacy 1.2's §9 uses (draft PR #1317). The owner accepted it on 2026-09-28 (open
+question 6). Self-registration stays on (0095 T0), so strangers can still register. They must
+verify their address to sign in, and they reach nothing. This rule is what removes them later.
 
 **The procedure.** A script in `deploy/compose/`, with the working name `idp-strays.sh`. It goes
 there because provider paths belong there and not in shipped source: `setup-zitadel.sh` says so,
@@ -924,8 +939,9 @@ the same stack's database; live's matter first, because testers register there. 
 
 1. lists the human users with `POST /v2/users`, reading `details.creationDate` and
    `details.resourceOwner`;
-2. reads the subjects in `tenant_member.user_id` and `platform_operator.user_id`, and the
-   addresses on open `access_request` rows;
+2. reads the subjects in `tenant_member.user_id` and `platform_operator.user_id`, the addresses
+   on open `access_request` rows, and the `email` of `tenant_member` rows with
+   `status = 'invited'`;
 3. prints the accounts that match none of them and are older than N days. The machine user and
    the members of the instance and of the organisation are never listed.
 
@@ -1081,7 +1097,11 @@ carried T1 and T2.
 5. **The release watch (T7).** Which of (a), (b) and (c)? And is seven days the right window for a
    security release? *Answered 2026-09-28: "a+b, 7 days".*
 6. **Accounts nobody let in (T8).** Is 30 days the retention period? 0139 then writes it into the
-   privacy policy.
+   privacy policy. *Answered 2026-09-28, in 0139, in the owner's words: "30 days is ok, but those
+   are free no further used accounts?"* Privacy 1.2's §9 carries it (draft PR #1317). The owner's
+   question is answered in `site/legal/README.md`: unused, yes; free-tier, no. The owner accepted
+   the period, not a removal by hand until T8 is built; whether the owner does that or the row
+   waits is the owner's choice (README). T8's rule gained a fifth condition the same day.
 7. **Self-registration during the alpha.** Keep it on, which is recommended and follows 0095 T0?
    Or turn it off and create each tester's account by hand in the console? The second avoids
    stray accounts entirely. The cost is more work for the owner, and a creation mail whose

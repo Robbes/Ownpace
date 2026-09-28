@@ -250,8 +250,9 @@ Een verhuizing raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren
   waar hun gedeelde items naartoe zijn gegaan, dan krijgt ieder van hen een e-mail van
   support@ownpace.eu per soort item dat met hen gedeeld was, zoals agenda's of bestanden, zodra u
   voor die soort bent overgestapt, met uw toelichting en de namen van de items; en nog eens
-  alleen als u die opnieuw laat versturen. De lijst blijft bestaan tot uw gegevens worden
-  gewist, ook nadat u de verhuizing verwijdert.
+  alleen als u die opnieuw laat versturen. Van elk van die e-mails blijft een kopie in onze
+  supportmailbox staan tot 6 maanden nadat die is verstuurd (§4.5, §9). De lijst blijft bestaan
+  tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert.
 - **Mensen die u uitnodigt** in uw organisatie: hun adres, hun rol, en of ze lid werden.
 - **Mensen die een link melden** die ze kregen: zie §4.5.
 - **Correspondenten, en iedereen verder in uw e-mail, contacten en agenda's**: alleen wat §4.2
@@ -338,7 +339,7 @@ machine die we zelf beheren, in Nederland.
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
 | NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen | Duitsland (EU) |
-| Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen (§4.5) | Zwitserland, buiten de EU (§8) |
+| Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen, en waar een kopie van elke mail van de dienst wordt bewaard (§4.5) | Zwitserland, buiten de EU (§8) |
 
 De actuele lijst staat op «SUBPROCESSORS_URL». Verhuist de dienst na de Alpha naar een
 hostingaanbieder, dan noemen we die hier, en laten we het u weten, voordat er gegevens van u
@@ -393,8 +394,14 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        database ("none is ever overwritten"). The owner, 2026-09-28: "deletes only after procen
        successfull upgrade" (README).
      - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt":
-       nothing removes one yet. 0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built;
-       until then the owner removes these by hand in the sign-in service's console.
+       nothing removes one yet. 0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built.
+       Until T8 is built, either the owner removes these by hand in the sign-in service's
+       console, or the row waits; the owner chooses (README).
+     - Een kopie van de eigen mail van de dienst, "6 maanden nadat die is verstuurd": nothing
+       prunes the Sent folder of support@ownpace.eu at Proton; no script or setting here does
+       it. Until something does, it is pruned by hand at 6 months, or by a Proton setting if
+       Proton has one (not checked). The 6 months is our reading of the owner's "Until resolved
+       + 6 months" for mail that answers no question; the owner confirms it (README).
      - Serverlogs: the row holds with Docker's default log driver, which keeps a container's
        output until the container is removed (0134 open question 6 (a)). If the machine logs to
        journald instead, as docs/managed-bring-up.md's steps for live still ask, the row is a
