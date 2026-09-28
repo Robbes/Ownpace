@@ -79,8 +79,10 @@ beforeEach(() => {
   script = join(compose, "seed-managed.sh");
   copyFileSync(REAL_SCRIPT, script);
   // The seed asks which stack this checkout is before it asks Compose anything
-  // (workplan 0132 T1): the reader, and the file it reads the default from.
-  for (const f of ["env-read.sh", "managed.yml"]) {
+  // (workplan 0132 T1): the reader, the file it reads the default from, and
+  // the one naming live's marker, which the reader refuses on that default
+  // (0132 T1b).
+  for (const f of ["env-read.sh", "managed.yml", "stack-kind.sh"]) {
     copyFileSync(join(REPO_ROOT, "deploy/compose", f), join(compose, f));
   }
   chmodSync(script, 0o755);

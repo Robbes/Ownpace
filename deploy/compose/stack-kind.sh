@@ -9,8 +9,12 @@
 #
 #   rehearse-capacity.sh        refuses live: rehearsal organisations never
 #                               reach the stack testers use (0143 T9, built)
-#   the managed gate            refuses a restored .env that is live's, before
-#                               it writes to it (0132 T1g, not built yet)
+#   the managed gate            refuses a persisted .env that is live's,
+#                               before it copies it (0132 T1g, built:
+#                               refuse-live-env.sh)
+#   compose_project             refuses live's exact marker on the OTA stack's
+#                               project (0132 T1b; env-read.sh reads the two
+#                               values below as data, it cannot source this)
 #   bootstrap-managed.sh        refuses --with-demo on live (0132 T5, not
 #                               built yet)
 #   deploy-live.sh              refuses a .env WITHOUT the marker (0132 T6, not
@@ -40,6 +44,8 @@
 # Usage:  . "${SCRIPT_DIR}/stack-kind.sh"
 #         if stack_may_be_live "$ENV_FILE"; then …refuse…; fi
 
+# compose_project (env-read.sh) reads these two with env_value, as data: keep
+# each a plain KEY=value line.
 STACK_KIND_KEY=STACK_KIND
 STACK_KIND_LIVE=production
 # The kinds known NOT to be live. None yet: the OTA stack's .env does not carry
@@ -47,25 +53,18 @@ STACK_KIND_LIVE=production
 # takes it for live's.
 STACK_KINDS_NOT_LIVE=()
 
-# env_value, from the one reader of a compose .env.
+# env_value and stack_kind_clean, from the one reader of a compose .env.
 # shellcheck source=deploy/compose/env-read.sh
 . "$(dirname "${BASH_SOURCE[0]}")/env-read.sh"
 
-# stack_kind_clean <value> — a value of the marker as it is compared: without
-# surrounding whitespace or double quotes, in lower case. For a value that did
-# not come from a file, such as one exported into a shell.
-stack_kind_clean() {
-  local value="${1:-}"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  # A double-quoted value is live too: env_value strips single quotes only,
-  # and a refusal must not hinge on which quotes somebody typed.
-  value="${value#\"}"
-  value="${value%\"}"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  printf '%s' "${value,,}"
-}
+# stack_kind_clean <value>, from env-read.sh as well: a value of the marker as
+# it is compared, without surrounding whitespace or double quotes, in lower
+# case. Also for a value that did not come from a file, such as one exported
+# into a shell. It lives there because compose_project compares the marker too
+# (0132 T1b): a live .env with no COMPOSE_PROJECT_NAME is refused rather than
+# brought up on the OTA stack's project. That function reads the two values
+# above out of this file as data; it cannot source it, since this file
+# sources env-read.sh.
 
 # stack_kind <env-file> — the marker's value in that file, cleaned, or nothing
 # when the file does not carry the key (or carries it empty).

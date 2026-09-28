@@ -185,11 +185,16 @@ jobs:
           # (workplan 0132 T1). The checkout has no .env yet, so this is
           # managed.yml's own `name:`: the OTA stack, the only one the gate
           # drives. The second stack on the machine keeps its own, and the gate
-          # never reads it (0132 T1g).
+          # never restores it: pointed there, it refuses before it copies
+          # anything (0132 T1g).
           . deploy/compose/env-read.sh
           COMPOSE_PROJECT="$(compose_project deploy/compose)"
           PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
           if [ -f "${PERSIST_DIR}/.env" ]; then
+            # NEVER LIVE'S (0132 T1g). A variable pointed at live's directory
+            # would have had every step below write into the .env of the stack
+            # testers use. Asked before anything of that directory's is copied.
+            ./deploy/compose/refuse-live-env.sh "${PERSIST_DIR}/.env"
             mkdir -p deploy/compose/pgbouncer
             cp "${PERSIST_DIR}/.env" deploy/compose/.env
             if [ -f "${PERSIST_DIR}/userlist.txt" ]; then
