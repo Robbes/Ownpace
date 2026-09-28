@@ -4,6 +4,23 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: main's legal revision merged in (#1317).** main now carries privacy policy v1.2,
+still marked draft. Its §4.5 has a *Reporting a problem* paragraph of its own, and its §9 a row for
+support mail and problem reports, kept until resolved and then 6 months. The paragraph and the row
+this branch added (Part A, below) conflicted with them, in EN and NL. They were resolved on main's
+text. §9 keeps only main's row, which states the same rule. main's paragraph now lists Part A's
+facts where it said *your organisation's identifier, the app's version*: the sign-in address, so
+that we can answer, and *these facts, which the form lists before you send* / *deze feiten, die het
+formulier opsomt voordat u verstuurt*. Those are the page, the error's reference and kind, the
+organisation's identifier and status, the role, the version of the service, the state of the
+migration and of each data type in it, whether access was given through a link, the two accounts'
+providers and last test, the hold and the scheduler, and the browser's name. Its link sentence
+names that link's facts: the organisation and the migration, who made the link, the two accounts,
+and whether access was given. It ends with this branch's bold sentence: a report holds content, a
+subject, a folder name or a provider's error text only if the person puts it there. main's
+screenshot warning and *without the secret part of a link* stay. The version lines are untouched.
+Part B's facts follow the browser's name in the same sentence, as its entry below says.
+
 **2026-09-28: T6 Part B, the review's two findings fixed.** On the same branch, not merged. No
 shipped code changed; both findings were behaviour that was right and unguarded:
 
@@ -608,7 +625,7 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
 | T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
-| T4 The privacy policy names support requests | 🔨 **Drafted 2026-09-28**, not merged; in the drafts for the lawyer's pass | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. Written with T6: privacy §4.5's paragraph on reports and §9's row, until resolved and then 6 months (the owner, 2026-09-28), EN and NL. §7, §8 and alpha §10 stay with the lawyer. |
+| T4 The privacy policy names support requests | 🔨 **Drafted 2026-09-28**; §4.5's paragraph and §9's row are on main with the legal revision (#1317), still marked draft; T6's facts in that paragraph on this branch, not merged; in the drafts for the lawyer's pass | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. Written with T6: privacy §4.5's paragraph on reports and §9's row, until resolved and then 6 months (the owner, 2026-09-28), EN and NL; main's legal revision (#1317) carries both, and T6 adds its facts to that paragraph. §7, §8 and alpha §10 stay with the lawyer. |
 | T5 Without a Zammad, a report goes to the support mailbox by mail | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"b"*) | Status entry of the day. `REPORT_MAIL_TO` (else `NOTIFY_TO`) through the API's own relay, the signed-in reporter as Reply-To and on a `Reply to:` line, the screenshot attached; the form's answer names a report reference, not a ticket. Link reports too, with no Reply-To. At most 50 report mails a day, since the relay is the identity provider's too (0133). A Zammad, when set, still wins. |
 | T6 A report says what it sends: facts from our records (Part A) and the browser (Part B) | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"Both parts"*, *"Send anyway"*) | Status entries of the day. Part A: the role, the organisation's status, the migration on the page, the reference's match, the hold, the scheduler, the two accounts' providers and the browser, read on the server under row security; `GET /api/problem-reports/preview` shows the same lines in the form's fold before sending, with the recipient above Send; the report goes without them, with a reference, when they cannot be read. Part B: the screen's language, the time zone, the window's width, the web app's build when it is not the server's, the failure line's data type, side and migration, and the references of the faults of the last five minutes (kept in the browser as reference and code only, never the request, which carries the sign-in token), sent as one object the API checks key by key and drops the rest of. |
 

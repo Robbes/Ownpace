@@ -1,0 +1,141 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+/**
+ * THE SCHEDULE, CHANGED ON THE MIGRATION'S OWN PAGE (the owner, 2026-09-28).
+ *
+ * The owner asked, of a Dropbox migration made hourly, what every 15 minutes
+ * would have done, and whether he could change it now. He could not: the
+ * update route did not write a schedule, so a migration's cadence was fixed
+ * when it was created, although the revision table has always said it may
+ * change (`config-revision.ts`: *"The next pass simply happens sooner or
+ * later"*). His answer to the three ways out was (c): make it editable here.
+ *
+ * WHAT IT OFFERS is the wizard's four cadences, through the wizard's own
+ * control (`ScheduleChooser`), so the two screens cannot offer different
+ * ones.
+ *
+ * WHAT IT SHOWS FIRST is the schedule in force. One of the four is selected.
+ * A migration without a schedule runs every 15 minutes (the tick's default,
+ * `defaultScheduleFor`), and one made through the API may hold any cadence the
+ * tick can read; for those none of the four is selected, and a line says what
+ * runs instead. A chooser with nothing selected, and nothing said, would read
+ * as a migration with no schedule at all.
+ *
+ * `mayRevise('schedule')` is asked, not assumed, as the export-format panel
+ * asks for its field: refuse it in the table and this panel stops offering the
+ * press and says why. A refusal from the route is shown as the refusal it is
+ * (hard rule 9), never as a save that worked.
+ */
+import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Clock } from 'lucide-react';
+import { mayRevise } from '@openmig/shared';
+import { mappingApi } from '../services/mapping-service.ts';
+import { revisionRefusals, serverMessage } from '../services/api.ts';
+import { useT } from '../i18n/index.tsx';
+import { Hint } from './Hint.tsx';
+import { ScheduleChooser, isSchedulePreset } from './ScheduleChooser.tsx';
+
+const SchedulePanel: React.FC<{
+  mappingId: string;
+  /** The detail payload's `syncConfig.schedule`: absent when the migration holds none. */
+  current: string | undefined;
+}> = ({ mappingId, current }) => {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const [chosen, setChosen] = React.useState<string | undefined>(current);
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
+  const [refused, setRefused] = React.useState<ReadonlyArray<{ field: string; reason: string }>>([]);
+  const [failed, setFailed] = React.useState<string | null>(null);
+
+  // What the migration holds is the source of truth, and it changes under
+  // this panel when a save lands and the detail query is read again.
+  React.useEffect(() => {
+    setChosen(current);
+  }, [current]);
+  const changed = chosen !== undefined && chosen !== current;
+
+  const verdict = mayRevise('schedule');
+
+  const save = async () => {
+    if (chosen === undefined) return;
+    setSaving(true);
+    // What the last press said is cleared before this one speaks, so "Saved"
+    // and a refusal are never on screen together.
+    setRefused([]);
+    setFailed(null);
+    setSaved(false);
+    try {
+      await mappingApi.setSchedule(mappingId, chosen);
+      setSaved(true);
+      // The panel reads the schedule off the detail query, so the save is not
+      // finished until that has been read again.
+      await queryClient.invalidateQueries({ queryKey: ['mapping', mappingId] });
+    } catch (err) {
+      const refusal = revisionRefusals(err);
+      if (refusal !== null && refusal.length > 0) setRefused(refusal);
+      else setFailed(serverMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="mt-8 p-4 bg-white border border-gray-200 rounded-lg">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <Clock className="w-4 h-4 text-gray-500" />
+        {t('settings.schedule')}
+      </h3>
+      {verdict.allowed ? (
+        <>
+          {!isSchedulePreset(current) && (
+            <p className="mt-2 text-sm text-gray-700">
+              {current === undefined
+                ? t('settings.schedule.default')
+                : t('settings.schedule.own', { schedule: current })}
+            </p>
+          )}
+          <div className="mt-3">
+            <ScheduleChooser value={chosen} onChange={setChosen} disabled={saving} />
+          </div>
+          <Hint className="mt-3" text={t('settings.schedule.hint')} why={t('settings.schedule.hint.why')} />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving || !changed}
+              className="px-3 py-1 text-sm font-medium rounded border border-blue-300 text-blue-800 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {saving ? t('settings.schedule.saving') : t('settings.schedule.save')}
+            </button>
+            {saved && <span className="text-sm text-green-700">{t('settings.schedule.saved')}</span>}
+          </div>
+        </>
+      ) : (
+        // Unreachable while the table permits this field, and deliberately not
+        // asserted away: the day the rule changes, this says so instead of
+        // offering a press the route will refuse. The reason is the table's.
+        <p className="mt-2 text-sm text-amber-800">{verdict.reason}</p>
+      )}
+      {refused.length > 0 && (
+        <div className="mt-2">
+          <p className="text-sm text-amber-800">{t('settings.schedule.refused')}</p>
+          <ul className="mt-1 list-disc pl-5">
+            {refused.map((r) => (
+              <li key={r.field} className="text-sm text-amber-800">
+                {r.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {failed !== null && (
+        <p className="mt-2 text-sm text-red-700">
+          {t('settings.schedule.failed')} {failed}
+        </p>
+      )}
+    </section>
+  );
+};
+
+export default SchedulePanel;
