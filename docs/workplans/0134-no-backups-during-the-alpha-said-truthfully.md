@@ -4,6 +4,13 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, morning: open question 6 answered, (a).** The owner first answered *"0134 open
+question 6: b"*. Told that Trigger.dev's supervisor sets no log driver for a task's container, so
+that (b) would be the Docker daemon's default for every container on the machine, both stacks'
+included, the owner changed it: *"ok, then do (a) instead of (b)"*. A task's words last as long as
+its run, in its container's output. After the run, the application's own records and the log
+page's reference and category remain. Nothing is built for it.
+
 **2026-09-28: open question 3 (a) built (0131 §6, group M3, step 4's second half)**, not
 merged. What a task run leaves in `triggerdb` is now a reference and a category, and a tester's
 words stay out of it: a failed run's error, discovery's output and the run's logs.
@@ -809,3 +816,6 @@ before the first invitation. T5 waits for its trigger.
      configuration on the reference machine, with a month's retention. It keeps a removed
      container's output, the API's included. It is the owner's machine setting, and a second place
      that holds testers' words, which the erasure does not reach.
+
+   *Answered 2026-09-28: (a), once (b) was found to be the Docker daemon's default for every
+   container on the machine.*

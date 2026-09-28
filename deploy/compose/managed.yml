@@ -608,7 +608,22 @@ services:
     # external port (the healthcheck note below). Zitadel migrates its own
     # schema at boot, on the persistent stack, so the gate run that proves this
     # is the one that applies it.
-    image: ghcr.io/zitadel/zitadel:v4.17.3
+    #
+    # v4.19.1 (2026-09-23) since 2026-09-28, owner go (workplan 0135, open
+    # question 11), for GHSA-4hgj-wm6c-q7p2: login v1's change-username handler
+    # renamed the account a sign-in flow had bound without checking that the
+    # flow had reached that step, so anybody who could open the sign-in page
+    # could rename any account, an administrator's included, without its
+    # password. This stack serves login v1. 13 commits over v4.17.3, none in the
+    # API definitions or the admin, management, notification and restriction
+    # code setup-zitadel.sh calls; four one-way setup steps (76 to 79), and
+    # v4.19.1 rather than v4.18.0 because it fixes v4.19.0's backfill step. The
+    # three facts above were re-read at v4.19.1: the defaults still ship
+    # `LoginV2.Required: true`, and the admin SMTP handler and `zitadel ready`
+    # are unchanged. The OTA instance's `zitadel` database was dumped by hand
+    # before the gate's run applied this: the gate drills Trigger.dev's
+    # database, not the identity provider's.
+    image: ghcr.io/zitadel/zitadel:v4.19.1
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     # `start-from-init` is init-then-start in one command and is idempotent: on
