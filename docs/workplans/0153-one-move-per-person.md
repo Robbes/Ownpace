@@ -4,6 +4,37 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: T1 (a) and (d), each proved by its guard, in #1315 and #1316.** The plan
+merged in #1321, so the two pull requests record themselves here. Both carry these same lines,
+so they merge in either order.
+
+- **(a) Review & confirm shows the rows true of the migration** (#1315, branch
+  `claude/ownpace-ux-improvements-v1vjsj-a-manifest-that-reaches-the-screen`). Three things
+  together left a Google Drive migration under Microsoft's rows, with no *More* fold ever
+  opening:
+  - `ScopeManifestEntrySchema` named `item` and `detail` alone, so the schema stripped
+    `appliesTo` and `more`;
+  - the detail route answers the source's connection *kind* (`google_drive`), and the screen
+    looked it up with `scopeFamilyOf`, which is keyed by the source *type* (`google-drive`);
+  - given no family, `scopeManifestFor` kept every row.
+
+  The schema now names both keys, and checks the families against shared's `SCOPE_FAMILIES`.
+  `scopeFamilyOfConnectionKind` maps every source kind to its family, with `apple` and `imap`
+  under `standards`. A manifest that cannot be read now says so (hard rule 9). **Proved by:**
+  - `a-manifest-stripped-on-its-way-to-the-screen`, 4 cases, all failing on `main`'s schema
+    and component;
+  - `a-source-kind-with-no-scope-family`, 3 cases, which fail with `apple` removed from the
+    table;
+  - `a-kind-the-confirm-screen-could-not-place`, 21 cases.
+- **(d) Finish says the state in words** (#1316, branch
+  `claude/ownpace-ux-improvements-v1vjsj-a-state-said-in-words-on-finish`). `{m.lifecycle}`
+  goes through `StateChip`, so Finish reads *Active* / *Actief*, not *active*. The `StateChip`
+  guard's raw-render patterns gain `.lifecycle}`. `Support.tsx`, the operator's screen that
+  renders lifecycle raw on purpose, is waived by name for that one pattern. **Proved by** the
+  guard, which fails on `main`'s `Finish.tsx` and names the line, and by two cases in
+  `Finish.unit.test.tsx`, in English and Dutch, both failing on `main`.
+- **(b) and (c) are still proposed.** (c) needs one press on the owner's test tenant first.
+
 **2026-09-28, late evening: one Google consent, as the app already asks.** Seeing the drawing's
 *"Connect with Google (2 of 3)"*, the owner asked: *"should we not ask for all the needed grants
 in one go, like how we do now?"* Yes. The *Google account* card already makes one connection with
@@ -62,7 +93,7 @@ person, and a flow that fills it.
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words and the ADR | 🟡 **Words decided 2026-09-28 (D6, D7); ADR-0050's acceptance ⏳ owner, before T2 merges** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. `move` is internal only. |
-| T1 Four faults the audit found | 🟡 **(a) #1315 and (d) #1316 open, with guards; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen (to confirm live). (d) A raw state word on Finish. |
+| T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen (to confirm live). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | 📋 **Proposed; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
 | T3 The Migrations page lists people | 📋 **Proposed; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
@@ -303,6 +334,9 @@ Each is its own pull request, each with its own guard. They do not wait for T2.
 - The guard renders `ConfirmMigration` against the real route's JSON shape, not a mock. It
   asserts that a Google Drive migration shows no Microsoft-only row and does show its folded
   *More*.
+- **Built in #1315, with the kind table.** `scopeFamilyOfConnectionKind` learns the connection
+  kinds, and the route is unchanged. The guard feeds the component shared's real manifest
+  through JSON, as the route serves it, and mocks only the HTTP client.
 
 (b) **The Gmail app password.**
 
@@ -328,7 +362,7 @@ Each is its own pull request, each with its own guard. They do not wait for T2.
 (d) **Finish says the state in words.** `{m.lifecycle}` goes through `StateChip`. The
 `StateChip` guard's banned patterns gain `.lifecycle}`, so the next raw render fails the build.
 0145 T2 proposes the Finish states in text for screen readers, after the invitation. This is the
-one raw word, fixed now, and T2 of 0145 builds on it.
+one raw word, fixed now, and T2 of 0145 builds on it. **Built in #1316.**
 
 ### T2 — ADR-0050: a move is a person's migrations (before the first invitation)
 
