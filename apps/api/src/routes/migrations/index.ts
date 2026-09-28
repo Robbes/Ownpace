@@ -3252,6 +3252,12 @@ router.post(
         return;
       }
 
+      // A closed organisation first (0085 T2): the paused and withdrawn
+      // sentences below would send the owner to a press that is refused too.
+      // `enqueueUnlessHeld` reads the close again; the other doors that
+      // enqueue rely on that read alone.
+      if (await refusedAsClosed(res, tenantId, pool)) return;
+
       // 0013 T5: a paused (draft) mapping must not sync until the owner green-lights it
       // via POST …/start. Refuse rather than silently kicking off a pass.
       if (mappings[0]?.status === 'paused') {
@@ -3713,6 +3719,13 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
     if (isAfterCutover(mapping.status)) {
       return void res.status(409).json({ error: 'Conflict', message: `Cannot start a mapping in '${mapping.status}' state` });
     }
+
+    // A closed organisation (0085 T2), before the grant's refusals and before
+    // `activated` is known. The close leaves a migration `active`, and a press
+    // on one would otherwise answer 200 without naming the close; an
+    // `awaiting_grant` answer would send the owner to a grant link that is
+    // refused too.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
 
     // Waiting on somebody's grant is not runnable (workplan 0108 T4). Starting
     // it would enqueue a pass that fails at the first request, and the failure

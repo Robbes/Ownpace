@@ -684,9 +684,17 @@ so a reopen needs nothing restored.
   once a runner starts it: `startRun` writes `running`, and nothing writes
   `queued`.
 - **No reader is built.** Both credential builders refuse a closed organisation
-  before any stored credential is decrypted. A discovery, verification,
-  confirmation, apply or cutover gate queued before the close fails there, and
-  each retry is refused the same way.
+  before any stored credential is decrypted, with an ordinary error. So a
+  discovery or an apply queued before the close fails there, and each retry is
+  refused the same way. A verification, a confirmation and a cutover's gate
+  open their targets through a fan-out that leaves out a data type it cannot
+  open (`fanOutTargets`). The close's refusal it passes up instead, so they fail
+  too and record no verdict: a verification's run says `failed` with the
+  close's sentence, a confirmation writes no run, and a cutover's preparation
+  is marked `FAILED` with a reason that names the close (its final sync stops
+  first, with the halt above). None of them leaves a report of nothing (every
+  data type NOT_VERIFIABLE, every row `unchecked`) for a reopen to find. Run
+  them again after a reopen.
 - **Every door that would start work answers 409 `account_closed`**, with a
   sentence that names the day of the close and the day the data is removed:
   Sync now, a cutover's preparation, a discovery, Start, a verification, both
@@ -694,7 +702,9 @@ so a reopen needs nothing restored.
   lane, adding, resuming or keeping a data type; adding, testing or re-keying a
   connection; the permission report; the sharing rescan and the share applies;
   and a grant link's page, consent and ending, which store no token and lift no
-  withdrawal.
+  withdrawal. Start and Sync now ask the close before the migration's own
+  state, so a migration the close left running, a draft, or one waiting for a
+  grant is answered with the close.
 - **What stays open:** reading (migrations, queues, reports, run history, the
   organisation), export and download, the close itself, the reopen, deleting a
   migration or a connection (which revokes what it can at the provider),

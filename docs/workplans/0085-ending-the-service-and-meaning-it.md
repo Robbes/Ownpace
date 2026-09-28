@@ -35,7 +35,11 @@
     said in the run log and in a cutover's final sync.
   - *The builders.* Both credential builders refuse a closed organisation before
     any decrypt (`refuseAClosedOrganisation`), which covers discovery,
-    verification, confirmation, both applies and the cutover gate.
+    verification, confirmation, both applies and the cutover gate. The fan-out
+    that opens a verification's, a confirmation's and a gate's targets leaves
+    out a data type it cannot open; the close's refusal it passes up
+    (`target-fan-out.ts`), so none of them records a verdict of nothing for a
+    closed organisation.
   - *The doors.* One reader, `readOrganisationClosure` in
     `packages/managed/src/offboarding.ts`, under row security. `enqueueUnlessHeld`
     asks it before the hold, so all eight enqueueing doors refuse. Every other
@@ -45,9 +49,11 @@
     permission report, the sharing rescan and the share applies, a grant link's
     page and consent, the consent's callback (before the code exchange), and
     the grant ending (in its own transaction: no token stored, no withdrawal
-    lifted, the link not spent). The answer is 409 `account_closed` with a
-    sentence in English and Dutch that names the day of the close and the day
-    the data is removed. Never in `authenticate`: the owner reopens through it.
+    lifted, the link not spent). Start and Sync now ask it before the
+    migration's own state, so a migration the close left running is refused
+    too. The answer is 409 `account_closed` with a sentence in English and
+    Dutch that names the day of the close and the day the data is removed.
+    Never in `authenticate`: the owner reopens through it.
   - *The spec and the docs.* `AccountClosed` in `apps/api/docs/openapi.yaml` on
     every such door; `docs/operator-runbook.md`, Tenant offboarding, says what
     stops and what stays open, and its table now names `windowDays`,
@@ -55,10 +61,29 @@
 - **The guards.** `apps/worker/src/jobs/a-closed-organisation-gets-no-pass.unit.test.ts`
   (the tick and the pass, on one set of rows, closed and reopened),
   `apps/api/src/an-organisation-closed-at-every-door.unit.test.ts` (every door
-  open, closed through the owner's Close, and reopened through the real
-  `authenticate`; the spec; a grant arriving after the close) and
+  closed through the owner's Close; every door but two open, and reopened
+  through the real `authenticate`; the spec; a grant arriving after the close)
+  and
   `packages/orchestration/src/a-closed-organisation-is-read-by-nobody.integration.test.ts`
-  (both builders, nothing decrypted). All three failed before the fix.
+  (both builders and a verification's fan-out, nothing decrypted). All three
+  failed before the fix. The two doors the door guard presses only closed are
+  applying one share and applying every open share: pressed open on PGlite's
+  one connection, they wait for themselves.
+  `a-share-waits-for-its-own-cutover.integration.test.ts` presses both open,
+  over Postgres. Applying one folder's shares is pressed open without a
+  folder, so there it reaches only its own 400.
+- **Review fixes, the same day.** Rebased on #1302 and #1303: the permission
+  report asks the close on the pool its reads already use. Start and Sync now
+  ask the close first; before, Start on a migration the close left running
+  answered 200, and a paused one answered with its own state. The fan-out
+  passes the close's refusal up (above); before, a verification queued before
+  the close finished as a report of nothing but NOT_VERIFIABLE, still the
+  latest after a reopen. The door guard now also counts, per file, every call
+  that uses the stored access, and a file that makes one asks the close or
+  says why it need not, so a new use fails until its door is looked at;
+  before, it caught a check taken out and not one never written. The sentence itself has a test
+  of its own (`packages/shared/src/a-reopen-offered-only-while-it-can-happen.unit.test.ts`):
+  the reopen is offered only while the removal is ahead, in both languages.
 - **Not changed.** What a close does to billing was not examined here. Links
   can still be issued for a closed organisation's migrations; a grant link is
   refused where it is used. The wizard's probes of credentials typed into it,

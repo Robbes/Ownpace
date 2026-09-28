@@ -12,10 +12,16 @@
  * organisation by name, before any stored credential is decrypted. A reopen
  * sets the status back, and they build again.
  *
- * Against real Postgres, because the builders open their own connection from
- * the database URL. The control case, the same mappings in an open
- * organisation, has to be shown to BUILD: that is what the refusal stops. The
- * addresses are invented.
+ * A verification, a confirmation and a cutover's gate open their targets
+ * through `fanOutTargets`, which leaves out a data type it cannot open. The
+ * close's refusal it passes through instead, so none of them records a
+ * verdict of nothing for a closed organisation (`buildTargetReindexers`
+ * below).
+ *
+ * Against real Postgres, because the builders read the organisation's rows
+ * inside its own transactions on the pool they are handed. The control case,
+ * the same mappings in an open organisation, has to be shown to BUILD: that is
+ * what the refusal stops. The addresses are invented.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -25,6 +31,7 @@ import { createPgDb } from '@openmig/ledger';
 import { SecretStore, initSecretStore } from '@openmig/core/secret-store';
 import { isCredentialRefusal } from '@openmig/shared';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from './build-deps-from-mapping.ts';
+import { buildTargetReindexers } from './build-reindexers.ts';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 if (!TEST_DATABASE_URL) {
@@ -137,6 +144,21 @@ describe('a closed organisation', () => {
     try {
       const error = await outcomeOf(buildDomainDepsFromMapping(pool, TENANT, CALENDAR_MAPPING, 'calendar'));
       expect(closedRefusal(error)?.code).toBe('account_closed');
+      expect(decrypt).not.toHaveBeenCalled();
+    } finally {
+      decrypt.mockRestore();
+      await setStatus('active');
+    }
+  });
+
+  it('is not measured by a verification either: the fan-out passes the refusal up, and nothing is decrypted', async () => {
+    await setStatus('closed');
+    const decrypt = vi.spyOn(SecretStore, 'decryptCredentials');
+    try {
+      const error = await outcomeOf(buildTargetReindexers(pool, TENANT, CALENDAR_MAPPING));
+      expect(closedRefusal(error)?.code, 'a verification of nothing was built for a closed organisation').toBe(
+        'account_closed',
+      );
       expect(decrypt).not.toHaveBeenCalled();
     } finally {
       decrypt.mockRestore();

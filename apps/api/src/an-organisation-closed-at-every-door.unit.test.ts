@@ -22,19 +22,35 @@
  *  1. **The sweep.** `enqueueUnlessHeld`, the one enqueue, reads the closure
  *     before it hands anything back, so the eight doors of
  *     `a-hold-that-holds-every-door` inherit the refusal. Every other door
- *     calls the check itself, counted per file, so a new one gets a row
- *     below. `middleware/auth.ts` never reads it.
+ *     calls the check itself. The number of checks in each file is pinned, so
+ *     a check taken out fails here. A check never written is caught only where
+ *     the stored access is used: every call that decrypts a stored credential
+ *     or reaches a provider with one is counted per file, and a file that makes
+ *     one either asks the close or says here why it need not. So a new use
+ *     fails until somebody looks at its door. A new door that uses no stored
+ *     access and only re-arms the tick is caught by nothing but its own row
+ *     below. `middleware/auth.ts` never reads the close.
  *  2. **Open.** Each door is pressed over PGlite with both chains, and its
- *     answer recorded, so a door this harness could not reach would show.
+ *     answer recorded, so a door this harness could not reach would show. Two
+ *     are not: applying one share and applying every open share wait for
+ *     themselves on PGlite's one connection (`WriteDoor` below).
+ *     `a-share-waits-for-its-own-cutover.integration.test.ts` presses both
+ *     open, over Postgres. Applying one folder's shares is pressed open
+ *     without a folder, so it reaches only its own 400.
  *  3. **Closed**, through the owner's own Close: every door answers
  *     `account_closed` with both days, enqueues nothing, writes nothing, and
- *     probes nothing. The spec documents that answer, and the body is valid
- *     against it. Reading a migration still works.
+ *     probes nothing. That includes Start on a migration the close left
+ *     running, and a press that would otherwise have been answered by the
+ *     migration's own state (a draft, a grant still awaited). The spec
+ *     documents that answer, and the body is valid against it. Reading a
+ *     migration still works.
  *  4. **A grant arriving after the close**: a consent begun before it is
  *     refused at the callback, before the code is exchanged, and the ending
  *     itself stores no token and leaves a withdrawal in place.
  *  5. **Reopened**, through the owner's own Reopen and the real
- *     `authenticate`: every door answers what it answered before the close.
+ *     `authenticate`: every door pressed open answers what it answered before
+ *     the close. The two share applies are not pressed here, for the reason
+ *     in 2.
  *
  * It failed before the fix: every closed press went through.
  */
@@ -160,19 +176,6 @@ vi.mock('@openmig/orchestration/account-qualification', async (importOriginal) =
   return { ...actual, qualifyAccount: vi.fn(async () => undefined) };
 });
 
-// The permission report and the sharing rescan read through a pool of their
-// own. Here it answers the mailbox a migration reads, and nothing else.
-vi.mock('pg', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('pg')>();
-  class Pool {
-    async query(text: string) {
-      return text.includes('primary_address') ? { rows: [{ primary_address: NAMED }] } : { rows: [] };
-    }
-    async end() {}
-  }
-  return { ...actual, default: { ...actual.default, Pool }, Pool };
-});
-
 const { default: migrationRoutes } = await import('./routes/migrations/index.ts');
 const { default: connectionRoutes } = await import('./routes/connections.ts');
 const { default: permissionRoutes } = await import('./routes/permissions.ts');
@@ -241,6 +244,30 @@ const ENQUEUE_DOORS: readonly Door[] = enqueueDoors({ active: ACTIVE, draft: DRA
  * closed and the reopened press all meet the same rows.
  */
 const WRITE_DOORS: readonly WriteDoor[] = [
+  {
+    // The close leaves a migration `active`. Open, a press on one starts
+    // nothing and says so; closed, it names the close.
+    name: 'Start on a migration already running',
+    path: `/api/migrations/${ACTIVE}/start`,
+    spec: `${M}/start`,
+    accepted: 200,
+  },
+  {
+    // Open, the grant it waits for is the answer. Closed, that answer would
+    // send the owner to a grant link that is refused too.
+    name: 'Start on a migration waiting for a grant',
+    path: `/api/migrations/${GRANTED}/start`,
+    spec: `${M}/start`,
+    accepted: 409,
+  },
+  {
+    // Open, the draft's own sentence. Closed, the close's.
+    name: 'Sync now on a draft',
+    path: `/api/migrations/${DRAFT}/sync`,
+    spec: `${M}/sync`,
+    body: {},
+    accepted: 409,
+  },
   {
     name: 'creating a migration',
     path: '/api/migrations',
@@ -538,12 +565,13 @@ async function resetFor(door: Door): Promise<void> {
 const THE_ENQUEUE = 'enqueue-unless-held.ts';
 
 /**
- * The doors that ask about the close themselves, by file: every write door but
- * the eight that enqueue, which ask through `enqueueUnlessHeld`. A door added
- * later is one more here and one more row in the tables above.
+ * The checks the doors make themselves, by file: every write door but the
+ * eight that enqueue, which ask through `enqueueUnlessHeld`. Pinned, so a check
+ * taken out fails. It proves nothing about a check never written: that is the
+ * stored-access sweep below, and each door's row in the tables above.
  */
 const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
-  'routes/migrations/index.ts': 5,
+  'routes/migrations/index.ts': 7,
   'routes/migrations/operating-routes.ts': 4,
   'routes/connections.ts': 3,
   'routes/permissions.ts': 1,
@@ -554,6 +582,44 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */
 const ASKS = /\b(refusedAsClosed|closedOrganisation)\s*\(/g;
 
+/** Any way a file asks the close: itself, through the one enqueue, or by reading the closure row. */
+const ASKS_AT_ALL = /\b(refusedAsClosed|closedOrganisation|enqueueUnlessHeld|readOrganisationClosure)\s*\(/;
+
+/**
+ * A call that uses the access an organisation gave: decrypting a stored
+ * credential, or reaching a provider with one. A call, not a definition.
+ */
+const USES_STORED_ACCESS =
+  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|createNextcloudShare|exchangeCode|storeGrantedToken)\s*\(/g;
+
+/**
+ * Where the API uses the stored access today, counted per file. A new use
+ * changes a count here, and the door it sits in has to be looked at: it asks
+ * the close, or its file is below with the reason.
+ */
+const USES_BY_FILE: Readonly<Record<string, number>> = {
+  'routes/connections.ts': 11,
+  'routes/grant.ts': 1,
+  'routes/migrations/account-on-connection.ts': 1,
+  'routes/migrations/google-oauth-routes.ts': 2,
+  'routes/migrations/grant-subject.ts': 2,
+  'routes/migrations/index.ts': 3,
+  'routes/migrations/operating-routes.ts': 3,
+  'routes/permissions.ts': 5,
+  'routes/withdraw-grant.ts': 1,
+};
+
+/** The files that use the stored access and never ask the close, and why that is right. */
+const USED_WITHOUT_ASKING: Readonly<Record<string, string>> = {
+  'routes/migrations/account-on-connection.ts':
+    'reads the account name a migration shows. It reaches no provider, and reading stays open.',
+  'routes/migrations/grant-subject.ts':
+    'reads whether the organisation’s own Google client is stored, to say whether a grant link can work. ' +
+    'It reaches no provider. The grant page and the consent that use it ask (grant.ts, google-oauth-routes.ts).',
+  'routes/withdraw-grant.ts':
+    'withdrawing a grant revokes it at the provider. That ends access, and ending stays open after a close.',
+};
+
 describe('the sweep: every door that starts work asks whether the organisation is closed', () => {
   it('the one enqueue reads the close before it hands anything back', () => {
     const text = code(join(SRC, THE_ENQUEUE));
@@ -563,7 +629,7 @@ describe('the sweep: every door that starts work asks whether the organisation i
     expect(enqueueAt).toBeGreaterThan(readAt);
   });
 
-  it('every other door asks itself, and each has a row above', () => {
+  it('the checks the other doors make are pinned per file, so one taken out fails', () => {
     const calls: Record<string, number> = {};
     for (const file of sourceFiles(SRC)) {
       const rel = relative(SRC, file);
@@ -572,6 +638,30 @@ describe('the sweep: every door that starts work asks whether the organisation i
       if (n > 0) calls[rel] = n;
     }
     expect(calls).toEqual(CHECKS_BY_FILE);
+  });
+
+  it('every use of the stored access is counted, and each file that makes one asks or says why not', () => {
+    const uses: Record<string, number> = {};
+    const unasked: string[] = [];
+    for (const file of sourceFiles(SRC)) {
+      const rel = relative(SRC, file);
+      const text = code(file);
+      const n = text.match(USES_STORED_ACCESS)?.length ?? 0;
+      if (n === 0) continue;
+      uses[rel] = n;
+      if (!ASKS_AT_ALL.test(text) && !USED_WITHOUT_ASKING[rel]) unasked.push(rel);
+    }
+    expect(
+      uses,
+      'a use of the stored access was added or taken out. The door it sits in must ask the close ' +
+        '(`refusedAsClosed`) before it, or its file must say below why it need not. Then change the count.',
+    ).toEqual(USES_BY_FILE);
+    expect(unasked, 'these files use the stored access and never ask whether the organisation is closed').toEqual([]);
+    // No reason kept for a file that no longer needs one.
+    for (const rel of Object.keys(USED_WITHOUT_ASKING)) {
+      expect(uses[rel], `${rel} is excused, and uses no stored access`).toBeGreaterThan(0);
+      expect(ASKS_AT_ALL.test(code(join(SRC, rel))), `${rel} is excused, and asks the close`).toBe(false);
+    }
   });
 
   it('the grant ending reads the close in its own transaction, before it spends the link', () => {

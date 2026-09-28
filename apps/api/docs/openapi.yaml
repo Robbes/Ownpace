@@ -2155,6 +2155,8 @@ paths:
         an operator hold is open the press is refused BEFORE the migration is
         activated, and nothing changes (`PlatformHeld`). A second press on an
         active migration enqueues nothing and is answered `activated: false`.
+        A closed organisation is refused on every press, an active migration's
+        too, before the grant's own answers (`AccountClosed`, workplan 0085 T2).
       responses:
         '200':
           description: Started.
@@ -2466,7 +2468,9 @@ paths:
         four by default, because no selection means "not selected", not
         "everything".
 
-        A paused migration is refused with `409` naming `/start`.
+        A paused migration is refused with `409` naming `/start`. A closed
+        organisation is refused first, with `account_closed`, whatever the
+        migration's status.
       requestBody:
         required: false
         content:

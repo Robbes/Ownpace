@@ -168,7 +168,12 @@ export function refuseAWithdrawnGrant(mapping: { readonly grantWithdrawnAt: Date
  *
  * Without the days: they are the managed edition's (`tenant_closure`), and
  * this package is the appliance's too. The doors in the managed API name them.
- * An ordinary error, so the plane retries it; each retry is refused here again.
+ *
+ * An ordinary error, so the task fails and the plane retries it; each retry is
+ * refused here again. A verification, a confirmation and a cutover's gate open
+ * their targets through `fanOutTargets`, which leaves out a data type it cannot
+ * open. This refusal it passes through instead (`target-fan-out.ts`), so none
+ * of them records a verdict for a closed organisation.
  */
 export function refuseAClosedOrganisation(open: boolean): void {
   if (!open) {

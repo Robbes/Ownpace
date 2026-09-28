@@ -110,13 +110,6 @@ function pool(): ReturnType<typeof getDbPool> {
   return _pool;
 }
 
-/** The API's own pool, for the close's tenant-scoped read (`closed-organisation.ts`). */
-let _appPool: ReturnType<typeof getDbPool> | null = null;
-function appPool(): ReturnType<typeof getDbPool> {
-  if (!_appPool) _appPool = getDbPool();
-  return _appPool;
-}
-
 /**
  * Run `fn` in the caller's organisation, on the request path's pool.
  *
@@ -182,10 +175,9 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     }
 
     // The report reads the source and measures the destination with their
-    // stored access, so a closed organisation gets none (0085 T2). Asked on
-    // the API's own tenant-scoped pool: this file's `pool()` sets no
-    // organisation.
-    if (await refusedAsClosed(res, tenantId, appPool())) return;
+    // stored access, so a closed organisation gets none (0085 T2). Asked in
+    // the caller's organisation, on the same pool as every read here.
+    if (await refusedAsClosed(res, tenantId, pool())) return;
 
     // The report measures the organisation's own DAV target again, at the
     // address somebody typed: one test against the member's limit (0136 T3).
