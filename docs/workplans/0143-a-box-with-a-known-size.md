@@ -4,6 +4,30 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, late morning: open questions 7 and 8 answered, and what holds the machine's memory.**
+
+- **Open question 7:** *"yes, as proposed"*. Every task stays on `small-1x`. Live's `prod`
+  environment runs at most 6 at once and the OTA stack's at most 3, each set in its own
+  `triggerdb` and read back on every bring-up. T1 steps 2 and 3 build it.
+- **What holds the memory, read by the owner on the machine:**
+  - No process holds much of it. The largest hold under 1 GB each: Trigger.dev's webapp and the
+    Docker daemon about 0.7 GB, ClickHouse 0.4 GB, MinIO 0.2 GB.
+  - `/proc/meminfo`: 121.7 GB in all, 3.1 GB available. Anonymous memory is 5.1 GB, the page cache
+    1.8 GB, the kernel's slab 2.4 GB and shared memory 0.5 GB. There are no huge pages.
+  - One GPU process, not part of either stack, holds 106 GiB (108,933 MiB). The reference
+    machine's GPU shares its main memory, so that is where the 110 GB is.
+- **So the stacks had about 15 GB, and the machine was swapping.** At the caps above, with live
+  beside the OTA stack, they need about 18 GB:
+  - two stacks' resident services of about 4 GB each;
+  - 1.5 GB and 3 GB of passes;
+  - about 2 GB for the appliance's nightly;
+  - 20% headroom.
+- **Open question 8, answered the same morning:** *"yes, stack needs 20GB, rest will only use
+  100GB"*. The stacks get 20 GB, and the GPU process keeps to at most 100 GB, which is the owner's
+  step before live. T1's formula starts from those 20 GB, not from the host's memory.
+- **0150 found the owner's Dropbox passes killed before they end,** every one since 2026-09-25
+  (0150, Status). If the kill is the memory, it is T1's preset that kills them.
+
 **2026-09-28, morning: T0's machine reads, taken by the owner on the reference machine.**
 
 - **A task's container:** `536870912 500000000`. So every task runs on `small-1x`, half a CPU and
@@ -472,7 +496,7 @@ unproved until then:
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
+| T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
@@ -1423,4 +1447,10 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
    - before live, what holds the machine's other 110 GB is known, since live adds a second stack
      of about the same size.
 
-   Or other numbers.
+   Or other numbers. *Answered 2026-09-28: "yes, as proposed". What holds the 110 GB was read the
+   same morning: one GPU process (Status, and open question 8).*
+8. **The GPU process and the stacks (T0, T1 step 3), 2026-09-28.** One GPU process, not part of
+   either stack, holds 106 of the machine's 121 GB, and the machine is swapping. At open question
+   7's caps the two stacks need about 18 GB with headroom. How much may that process keep once
+   live runs? *Recommended:* at most about 100 GB, so the stacks keep about 20 GB. *Answered
+   2026-09-28: "yes, stack needs 20GB, rest will only use 100GB".*
