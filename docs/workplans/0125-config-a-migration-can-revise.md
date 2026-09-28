@@ -1,8 +1,24 @@
 # Workplan 0125 — Config a migration can revise
 
-> **In one line:** Revising a live migration's config (`config-revision.ts`): managed's `nativeFilePolicy` edit form, the appliance's boot-time `revision_state` check, the `policy_refused` failure category, adding a data type, and a switched-off data type shown as `stopped`.
+> **In one line:** Revising a live migration's config (`config-revision.ts`): managed's `nativeFilePolicy` edit form, the appliance's boot-time `revision_state` check, the `policy_refused` failure category, adding a data type, a switched-off data type shown as `stopped`, and the schedule changed on the migration page.
 
-## Status — 2026-09-26 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T8, the schedule changed on the migration page, BUILT (the owner's (c)).** The
+owner asked whether his hourly Dropbox migration could run every 15 minutes, and it could not: the
+update route did not write a schedule, so a cadence was fixed when the migration was made, although
+T1's table had always permitted the change. Of the three ways out he chose (c). §11 has the
+detail.
+
+- **The route** takes `syncConfig.schedule`, refuses one the tick cannot read in create's words
+  (one function for both doors), puts it to `mayRevise`, and stores it. The tick reads the row
+  on every firing, so the next pass follows it.
+- **The panel** is on the migration page, under the export format: the wizard's four cadences
+  through the wizard's own control, the one in force selected, and a line instead of a selection
+  for a migration holding none of the four.
+- **Two defects on the way.** The update body parsed to a `syncConfig` claiming email on every
+  save, because zod 4 applies create's `domains` default inside `.partial()`. And the wizard said
+  *"Six times per day"* for a schedule that runs four times.
 
 **2026-09-26: the export-format key will carry Dropbox Paper docs too (0150 D7).** Workplan 0150
 reuses `nativeFilePolicies` with a `paper` kind rather than adding a Dropbox key. So when 0150 T3
@@ -181,6 +197,7 @@ what hard rule 5 forbids about what a setting can *mean*.
 | T5 What happens to items refused under the old policy | ✅ Done — §7 | **Offered**, never automatic: a save says the already-refused stay refused and links to the group press, which `resolveFailureGroup` already clears `parkedAt` for. **The count landed 2026-09-19**, read from the failures queue only once a save has landed, and shown only when it is known and above zero — `undefined` (could not ask) and `0` (asked, none) both keep the number-free sentence and the link. |
 | T6 A running migration gains a data type | ✅ Done — §10 | **Owner, 2026-09-23: yes, add-only.** `kind-addition.ts` in `shared`: `kindChoices` (on / addable / refused with a reason) and `kindAdditionRefusal`, read by the detail route, the new `POST /api/migrations/:id/domains` and the migration page's panel, so the three cannot disagree. One transaction: the scope row, `updated_at` (the next preflight counts afresh), and for a running migration the new path's slot, only its own. The appliance is unchanged; the owner's answer to §10's question is T7. |
 | T7 A switched-off data type is said, not refused | ✅ Done — §10 | **Owner, 2026-09-23: don't refuse; do the three steps.** (1) At startup, one line per switched-off data type that has copies: how many stay, that they no longer follow the source, and that switching it back on continues where it stopped. (2) Status says `stopped`, with that count, where `markSkipped` (`runAllDomains`) says `SKIPPED` today, so it no longer reads like a data type the migration never had. (3) The Finish checklist names a stopped data type, so nobody finishes believing those copies are current. The word and its meaning are the ones 0128 T4 would give managed. |
+| T8 The schedule, changed on the migration page | ✅ Done — §11 | **Owner, 2026-09-28: (c)**, of (a) passes back to back until the first copy is done, (b) an hourly default, (c) the schedule editable on the migration page. The route writes `syncConfig.schedule` through the table and the create route's check; the panel offers the wizard's four through one shared control. (a) and (b) are not built. |
 
 ## 1. What the owner found
 
@@ -305,9 +322,10 @@ this section imagined and does more:
 - **A refused field is refused out loud**, 409, every one of them at once, each with T1's reason.
   Dropping it silently is what the route did, and it is the failure hard rule 9 is about: a caller
   who changed the root folder and got 200 back has been told the change landed.
-- **`name` and `schedule` are permitted by the table and not written here.** This route does not
-  have them yet, and collecting them into the refusal check would put them through a test they
-  pass and change nothing — which reads like support they do not have.
+- **`name` is permitted by the table and not written here.** This route does not have it yet, and
+  collecting it into the refusal check would put it through a test it passes and change nothing,
+  which reads like support it does not have. **`schedule` was in the same position until T8
+  (2026-09-28)**, which writes it and puts it to the table (§11).
 
 ### The form, and the door that was shut in front of it
 
@@ -333,9 +351,8 @@ not. Every bullet in this section shipped behind that 400.
 
 Widening what PARSES is not widening what is WRITTEN: the handler writes status, mode, pattern and
 the export policy, and every other field goes through `mayRevise` first — which is the point of the
-table. Create is untouched, and a guard says so. `syncConfig` is deliberately left strict: this
-route does not write a schedule yet, and loosening a shape nothing reads is a change with no
-caller.
+table. Create is untouched, and a guard says so. `syncConfig` was left strict here, because this
+route did not write a schedule; since T8 it carries the schedule and nothing else (§11).
 
 **One more, on the client side.** `MaskedConfigSchema` did not name `nativeFilePolicy` and
 `z.object` strips what it does not name — so the value #1005 put on the wire *"precisely so a
@@ -530,3 +547,63 @@ word, to be found at the end, if at all. T7 is the three steps that say it: a st
 startup and on every pass, says the line at startup, and the Finish checklist and the completion
 report name it. The status block at the top has the detail.
 
+## 11. T8 — the schedule, changed on the migration page
+
+**What the owner asked, 2026-09-28.** His Dropbox migration was made hourly: *what if I had picked
+15 minutes, and could I edit it as a user?* No. The wizard was the only place a schedule was ever
+chosen, and `PUT /api/migrations/:id` did not write one, although T1's table has permitted the
+change from the start (*"The next pass simply happens sooner or later"*). An operator could change
+the row in the database; a person could only make a new migration.
+
+**The three ways out, as offered.** The question came with a second finding: a migration made with
+no schedule picked is stored as daily at 02:00, and a pass stops itself at 50 minutes, so a large
+first copy on that default gets one 50-minute pass a day.
+
+- **(a)** While the first copy is unfinished, run passes back to back whatever the schedule, and
+  apply the schedule once everything is copied. Recommended at the time.
+- **(b)** Change the wizard's default to hourly.
+- **(c)** Make the schedule editable on the migration page.
+
+**The owner chose (c).** (a) and (b) are not built. The daily default stands, and the panel says
+what it means for a large first copy, folded under its one line.
+
+**What was built.**
+
+- **The route.** The update body's `syncConfig` is `{ schedule? }` and nothing else. A schedule
+  the tick cannot read is refused with create's sentence, through `refuseUnreadableSchedule`, the
+  one function both doors call, so a cadence create refuses is not one the page can store later.
+  `proposedRevisions` names `schedule` when a body sends one, so the table is asked rather than
+  assumed, and the handler stores it in `mailbox_mapping.schedule`. The tick
+  reads that column on every firing (`isSyncDue`, from the last pass's start), so nothing else has
+  to be rescheduled.
+- **A defect on the way.** Create's `syncConfig` defaults `domains` to `['email']`, and zod 4 applies
+  that default inside `.partial()`. So every update body, a pause or an export-format save, parsed
+  to a `syncConfig` claiming email, and the route echoed it in its answer. Nothing wrote it, and
+  the web client read none of it back; the echo was still false. A data type is added through
+  `POST …/domains`, never here.
+- **The panel** (`SchedulePanel`), on the migration page under the export format, managed only
+  like that one: it renders on the detail read, which the appliance does not serve, and the
+  appliance's schedule is its owner's mapping file. It offers the wizard's four cadences through
+  `ScheduleChooser`, which the wizard now renders too, so the two screens cannot offer different
+  ones. The one in force is selected. A migration holding none of the four gets a line instead: no
+  schedule runs every 15 minutes (the tick's default), and a cadence set through the API is named
+  as it is. It asks `mayRevise('schedule')` rather than assuming the answer, sends only the
+  schedule, and shows a refusal or a failure as what it is.
+- **The wizard's words.** *"Every 6 hours"* said *"Six times per day"* in English and *"Zes keer
+  per dag"* in Dutch. It runs four times a day, and now says so.
+
+**Not in T8.**
+
+- **A floor under the cadence.** Both doors accept any schedule the tick can read, `* * * * *`
+  included. 0143 T2b proposes a 15-minute floor; built there, it goes into
+  `refuseUnreadableSchedule`, where it covers both doors at once.
+- **"Daily at 2 AM" is 02:00 by the server's clock**, which is UTC in the containers, so 04:00 in
+  the Netherlands in summer. The words are the wizard's and are unchanged; 0118's copy review is
+  where they are read again.
+
+**Guards.** `apps/api/src/routes/migrations/a-cadence-fixed-at-creation.unit.test.ts` (the body,
+the refusal in create's words, the table, and the route against real rows on PGlite: stored,
+answered by the detail route, nothing else moved, a refused one writes nothing) and
+`apps/web/src/components/a-cadence-with-nowhere-to-change-it.unit.test.tsx` (what the panel shows
+first, the press, a refusal and a failure, one control for both screens, every cadence one the
+route accepts, and the six-hourly words).

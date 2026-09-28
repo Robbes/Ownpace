@@ -663,7 +663,9 @@ alone, or could not be checked from the repository, it says so.
   `0 2 * * *` when none is picked. The tick's fallback for a migration without a schedule is every
   15 minutes, at a minute offset of its own (`defaultScheduleFor`, beside
   `DEFAULT_SYNC_SCHEDULE = '*/15 * * * *'` in `packages/orchestration/src/sync-due.ts`). The update
-  route does not write a schedule, so the cadence is fixed at creation.
+  route did not write a schedule, so the cadence was fixed at creation. Since 2026-09-28 the
+  migration page changes it (0125 T8), through the update route, which accepts what create
+  accepts.
 - **Throttle.** The create route accepts `throttleConfig: z.record(z.string(), z.unknown())` and
   stores it through `parseThrottleConfig` (`packages/shared/src/config.ts`), which checks only that
   each value is an integer (`reqInt`). Zero and negative values pass. The stored
@@ -1047,7 +1049,10 @@ line. It gives the formula above, and T9's measured figure for both stacks' resi
 - A shared helper, `shortestGapMinutes(expression)` in `packages/shared/src/cron-schedule.ts`,
   computes the shortest gap between runs over a week with croner, which the tick already uses.
 - The managed create route refuses a schedule whose gap is under the floor. The floor is 15
-  minutes, the wizard's fastest cadence. The sentence names the floor.
+  minutes, the wizard's fastest cadence. The sentence names the floor. Since 0125 T8 the update
+  route writes a schedule too, and both doors refuse through one function,
+  `refuseUnreadableSchedule` in `apps/api/src/routes/migrations/index.ts`: the floor goes there,
+  and holds on both.
 - The tick treats a stored schedule that is faster than the floor as the floor, so rows created
   before the check do not keep a pass a minute.
 - The appliance is untouched. Its cadence is its owner's call on its owner's machine.

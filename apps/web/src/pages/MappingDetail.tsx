@@ -59,6 +59,7 @@ import { useT, useFormatters } from '../i18n/index.tsx';
 import RunsPanel from '../components/RunsPanel.tsx';
 import MappingLinksPanel from '../components/MappingLinksPanel.tsx';
 import ExportPolicyPanel from '../components/ExportPolicyPanel.tsx';
+import SchedulePanel from '../components/SchedulePanel.tsx';
 import MigrationKindsPanel from '../components/MigrationKindsPanel.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import LiveProgress from '../components/LiveProgress.tsx';
@@ -308,6 +309,13 @@ const MappingDetail: React.FC = () => {
           current={detail.data.sourceConfig}
         />
       )}
+
+      {/* HOW OFTEN THIS MIGRATION SYNCS (the owner, 2026-09-28: the schedule
+          can be changed here, where it was fixed when the migration was
+          made). Managed only, like the panel above: it renders on the detail
+          read, which the appliance does not serve, and the appliance's
+          schedule is its owner's mapping file. */}
+      {detail.data && <SchedulePanel mappingId={id} current={detail.data.syncConfig.schedule} />}
 
       {/* WHAT THIS MIGRATION COPIES, what it may still gain (0125 T6), and
           each data type's Stop and Resume (0128 T4, slice 3c). Beside the
