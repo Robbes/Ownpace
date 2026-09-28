@@ -19,9 +19,10 @@
    form's working on live joins what waits for the first invitation (0131 T5's 0130 row).
 6. *"We do tell the tester."* §4: *"Wij melden u een datalek"* / *"We tell you about a data
    breach"*, where that is required.
-7. *"explain context, i dont get it."* Explained in chat: the italics in §2 name privacy §9 by its
-   heading, and the heading reads *"Hoe lang we het bewaren"*; the words stay as the heading has
-   them.
+7. *"explain context, i dont get it."*, then, told that the italics in §2 name privacy §9 by its
+   heading: *"it should say "Hoe lang we het bewaren", so update the privacy.nl.md."*
+   `privacy.nl.md` §9 already reads *"Hoe lang we het bewaren"*, and §2 cites it so: kept, and
+   nothing else changes.
 8. *"keep."* §4's heading stays *"Geen verplichtingen, beide kanten uit"*.
 9. *"update."* The briefing's first line says *"VERSION 1.0, 2026-09-28: the owner's text for the
    Alpha; the lawyer's pass (0139 T1) is deferred."*
