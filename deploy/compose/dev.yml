@@ -36,6 +36,9 @@ services:
     networks: [dev-network]
 
   # Secondary DAV target: files (WebDAV) + CalDAV/CardDAV. SQLite keeps dev light.
+  # Its update check, app store and connectivity check stay on, as Nextcloud
+  # ships them: a development target, which no managed bring-up starts
+  # (scripts/a-service-that-phones-home.unit.test.ts, workplan 0139).
   nextcloud:
     image: nextcloud:34-apache            # official multi-arch (arm64); base: Debian 13 "Trixie" via php image
     container_name: ownpace-dev-nextcloud # fixed name so provisioning scripts can `docker exec` it deterministically

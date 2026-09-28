@@ -556,6 +556,12 @@ On either, this is what an upgrade does and does not do:
 3. Watch health checks and per-tenant run success after it.
 4. Roll forward: a fix and a new tag. If a release misbehaves and cannot be fixed forward, restore
    from a backup rather than reversing schema.
+5. A new pin of Trigger.dev, the identity provider, ClickHouse, MinIO or Mailpit starts with
+   reading what that version sends its makers by default: Zitadel's daily report arrived with v4
+   and was on until workplan 0139 switched it off (2026-09-28). The switches are written in
+   `managed.yml`, and `scripts/a-service-that-phones-home.unit.test.ts` fails until the row for
+   that image names the new version. `docs/managed-bring-up.md`, *Nothing phones home*, has each
+   switch, where it was read, and the check to run on a stack after the upgrade.
 
 ## Grant links: who granted what
 

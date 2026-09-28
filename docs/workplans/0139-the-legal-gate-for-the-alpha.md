@@ -4,6 +4,63 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T5, nothing phones home (privacy §8; ops-telemetry (a), the owner: *"Switch it off
+everywhere"*)**, built on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, not
+merged. Nothing has run on the machine; the compose file is read by a guard, not started.
+
+- **The spec**, from `site/legal/README.md` on #1317, *To build or to do*: *"Telemetry off (privacy
+  §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for live and the test stack
+  (`managed.yml`), and the sign-in service, ClickHouse and MinIO checked and switched off too."*
+  Live runs the same `managed.yml` as the OTA stack, with no override file, so one change covers
+  both, and no row of 0132 changes.
+- **What each sent, read from upstream's source at the pinned version** (raw files from
+  `raw.githubusercontent.com`; the docs sites were not needed). Trigger.dev v4.5.16: the server's
+  PostHog on user, organisation and project creation, with the user's email and name
+  (`telemetry.server.ts`), and the dashboard's PostHog in the browser, identifying the signed-in
+  user by id and email (`usePostHog.ts`), under Trigger.dev's own project key
+  (`POSTHOG_PROJECT_KEY`'s default in `env.server.ts`). **`TRIGGER_TELEMETRY_DISABLED` stops only
+  the first**: nothing else reads it, and the browser's half starts whenever the key is not empty.
+  The supervisor (`apps/supervisor/src/env.ts`) has no analytics. Zitadel v4.19.2: a daily
+  *service ping* to `zitadel.com`, with each instance's id, creation date and domains and the
+  count of users, organisations and projects, **on by default** (`cmd/defaults.yaml`); it is in
+  every v4 release (read at v4.0.0, v4.6.2, v4.17.1), so the OTA stack's provider has sent it
+  since it first started, as far as the machine let it out. `Telemetry.Enabled` ships false.
+  ClickHouse 26.2.19.43: crash and logical-error reports to `crash.clickhouse.com`, **on in the
+  `config.xml` the image ships**, off in the code's default. MinIO 2025.5.24: a release check to
+  `dl.min.io` at every start, its User-Agent carrying OS, architecture, version and CPU;
+  call-home ships off. Mailpit v1.31.1 (the test stack's catcher): a release check to GitHub when
+  its page asks for the server's info.
+- **The switches**, each a literal in `managed.yml`, so no `.env` can empty one:
+  `TRIGGER_TELEMETRY_DISABLED: "1"` and `POSTHOG_PROJECT_KEY: ""` on `trigger-api`;
+  `ZITADEL_SERVICEPING_ENABLED` and `ZITADEL_TELEMETRY_ENABLED` `"false"`; a new
+  `deploy/compose/clickhouse-no-crash-reports.xml` in ClickHouse's `config.d`; `MINIO_UPDATE` and
+  `MINIO_CALLHOME_ENABLE` `"off"`; `MP_DISABLE_VERSION_CHECK: "true"`.
+- **Every other service, and why it needs no switch**, is a row of the guard: PostgreSQL,
+  PgBouncer, Redis, the registry, the Docker socket proxy, the supervisor, busybox, nginx, the
+  status page, our own API, web app and appliance; Caddy's `tls internal` is held as a switch,
+  since without it Caddy asks a public certificate authority. **Left on:** Nextcloud's update
+  check, app store and connectivity check, in `managed.yml` (the demo) and `dev.yml`. They are
+  `occ` settings inside the instance; it holds fixtures and never a tester's data, and it starts
+  only with `--with-demo`, which both live scripts refuse. Switching them off on the demo is the
+  owner's call, a change to the demo's setup. Outside every compose file and not read: the demo's
+  Stalwart (`docker run`).
+- **Guard**: `scripts/a-service-that-phones-home.unit.test.ts`, written first. On the unchanged
+  tree: 5 failed, 28 passed (33), the five switched services, each naming its missing switch. After
+  the change: 33 passed. A switched row names the image its default was read at, so a new pin
+  fails it until somebody re-reads that version's defaults. 14 mutations, each red and restored:
+  each switch removed, emptied into `.env` or turned on, the ClickHouse mount removed, Zitadel's
+  pin moved, a new unclassified service, Nextcloud in the default bring-up, `deploy-live.sh` no
+  longer refusing `--with-demo`, a Caddy site without `tls internal`, a webapp third-party key, and
+  an overlay setting a switch.
+- **Proved.** `npx vitest run --project unit scripts`: 206 files, 3759 tests pass (a first run
+  under load lost `package-appliance.unit.test.ts`'s four running-payload cases to a refused
+  connection; alone it passes, 29 of 29). `pnpm -s typecheck` and eslint on the guard are clean.
+- **Docs**: `docs/managed-bring-up.md`, *Nothing phones home* (the table, what is left on, and the
+  check on a running stack); `docs/operator-runbook.md`, *Upgrade*, step 5.
+- **Not done here.** Privacy §8's comment and the README's *Telemetry off* item on #1317 still
+  say it is not true on live: it becomes true when live stands up, or deploys, from a tag that
+  contains this, and the check in *Nothing phones home* is what shows it.
+
 **2026-09-28: T10, the production site deployed with live (0131 §6, group R7; T0 fact 6)**,
 built on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged.
 Nothing has run on the machine. Live is not stood up (0132 T1b), and the scripts have run only
@@ -700,7 +757,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, not rendered; **reviewed by the owner 2026-09-28**, version 1.0, the lawyer's pass deferred (T1) — *was:* version 0.1 concept, ⏳ **Owner** reads it, then the lawyer (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text; **nothing else receives anything** 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-nothing-phones-home`, **not merged** (ops-telemetry (a)): Trigger.dev's two PostHog halves, Zitadel's daily service ping, ClickHouse's crash reports, MinIO's release check and Mailpit's switched off in `managed.yml`; the demo's Nextcloud left on, off live; `scripts/a-service-that-phones-home.unit.test.ts` | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). And no image in the stack reporting to its makers, which privacy §8's negative rests on. |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |

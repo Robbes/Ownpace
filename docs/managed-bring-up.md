@@ -2225,6 +2225,83 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+## Nothing phones home
+
+The privacy policy names every party that receives anything (§7, §8), and for
+the question *ops-telemetry* the owner chose, on 2026-09-28, *"Switch it off
+everywhere"* (workplan 0139). Five images in `managed.yml` reported to their
+makers by default until then. Each switch is written in `managed.yml` itself,
+never read from `.env`, so it is the same on the OTA stack and on live, and no
+machine's `.env` can empty it. Live runs `managed.yml` and `www.yml` and no
+other compose file: `stand-up-live.sh` refuses a `COMPOSE_FILE` in the shell.
+
+| Service | What it sent by default | The switch | Read at |
+|---|---|---|---|
+| `trigger-api` | PostHog from the server when a user, an organisation or a project is created (with the user's email and name), and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16 |
+| `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp` at `v26.2.19.43-stable` |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
+| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.1 |
+
+`trigger-tls` has no telemetry; its one default that leaves the machine is
+automatic HTTPS, which asks a public certificate authority, and
+`trigger-tls.Caddyfile` says `tls internal`. The rest need no switch:
+PostgreSQL, PgBouncer, Redis, the registry (its trace exporter's default is
+its own container), the Docker socket proxy, the supervisor (its traces go to
+the webapp's own `/otel`), busybox, nginx, the status page (its requests are
+the probes `gatus.yaml` lists), and our own API, web app and appliance.
+
+**What is left on, and where.** Nextcloud keeps its update check, its app store
+and its connectivity check (`config.sample.php` at `stable34`). They are `occ`
+settings inside the instance, not compose settings, and Nextcloud is the demo's
+and the development stack's target: it holds fixtures, never a tester's data,
+and it starts only with `--with-demo`, which `stand-up-live.sh` and
+`deploy-live.sh` refuse. The demo's Stalwart is started with `docker run`,
+outside every compose file, and was not read for this. The deploy CLI, which
+runs on the host, was read only this far: at 4.5.16 its
+`src/telemetry/tracing.ts` is gone, and no exporter of its own was found.
+
+`scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
+compose file under `deploy/` in one of three lists (switched, no switch, left on,
+each with its reason) and fails on a service in none. A switched row names the
+image its default was read at, and fails when `managed.yml` pins another. So
+**a new pin of Trigger.dev, Zitadel, ClickHouse, MinIO or Mailpit starts with
+re-reading what the new version sends by default** (Zitadel's ping arrived with
+v4), then moving the row. `trigger-version.sh pin` moves the Trigger.dev tag
+and does not do this for you.
+
+**When it takes effect.** The OTA stack's identity provider has sent the ping
+since it first started, as far as the machine let it out: every v4 release
+carries it. A switch is
+read when its container starts, so a stack has it once Compose has recreated
+those five containers: the OTA stack at its next nightly bring-up, or by hand
+with the pull sequence in *Updating a running deployment*; live at its stand-up
+and every deploy from a tag that contains this change. To see it on a running
+stack, from its checkout:
+
+```bash
+# The environment each container was started with, one variable a line.
+env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  "$(docker compose -f deploy/compose/managed.yml ps -q "$1")"; }
+
+env_of trigger-api | grep -E '^(TRIGGER_TELEMETRY_DISABLED|POSTHOG_PROJECT_KEY)='
+#   TRIGGER_TELEMETRY_DISABLED=1
+#   POSTHOG_PROJECT_KEY=
+env_of zitadel | grep -E '^ZITADEL_(SERVICEPING|TELEMETRY)_ENABLED='
+#   both =false
+env_of minio | grep -E '^MINIO_(UPDATE|CALLHOME_ENABLE)='
+#   both =off
+env_of mailpit | grep -E '^MP_DISABLE_VERSION_CHECK='     # where the catcher runs
+#   MP_DISABLE_VERSION_CHECK=true
+
+# ClickHouse writes the configuration it merged, config.d included:
+docker compose -f deploy/compose/managed.yml exec clickhouse \
+  sed -n '/<send_crash_reports>/,/<\/send_crash_reports>/p' /var/lib/clickhouse/preprocessed_configs/config.xml
+#   <enabled>false</enabled> and <send_logical_errors>false</send_logical_errors>
+```
+
+The webapp also logs `Telemetry disabled` when it builds its telemetry client.
+
 ## Mail: caught, not delivered
 
 Every mail this stack sends goes to **Mailpit**, a catcher on the compose
