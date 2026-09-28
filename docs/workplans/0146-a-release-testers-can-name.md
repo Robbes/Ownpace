@@ -2,7 +2,62 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28, build: T2 steps 2 and 3, built on branch
+`claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged.** Steps 1 and 4
+to 6 wait for T0, the owner's choice of the name, and for the owner. Nothing is bumped, renamed or
+tagged: the root `package.json` still says `0.1.0-rc.1`, `[Unreleased]` keeps its name, and
+`bug_report.yml`'s example is unchanged.
+
+- **Step 2, the build in the problem report.** `ticketFor` (`apps/api/src/problem-report.ts`) ends
+  the ticket's facts with `Build: v<version> · <commit>`, from `buildIdentity()`, the value
+  `/version` answers. The commit is its first seven characters, as the page's build stamp writes it
+  (`describeBuild`). One difference: with no commit the stamp shows the version alone, and the
+  ticket says `commit unknown`, since a bare `v0.1.0-rc.1` reads as that release. `ticketFor`
+  takes the build as a fourth argument that defaults to `buildIdentity()`; the route passes none.
+  The link report (`linkReportTicketFor`, 0108 T8 (d)) has no build line. It is not a tester's
+  problem report, and step 2 names only `ticketFor`.
+- **Guard 1.** `a-report-that-reaches-a-person.unit.test.ts` has two new cases and two extended
+  ones. The ticket names the build from `buildIdentity()`, with `OPENMIG_VERSION` stamped and
+  without it (then the root `package.json`'s version). A build with no commit says so. The
+  exact-body case and the route case carry the line. On the unchanged code four cases failed and
+  21 passed.
+- **Step 3, the check.** `scripts/release-names-agree.mjs` exports `checkReleaseNames`,
+  `compareSemVer` and `parseSemVer`, and is a command: `node scripts/release-names-agree.mjs
+  [<tag>]`, with the tag from the argument or `GITHUB_REF_NAME` and the existing tags from
+  `git tag --list 'v*'`. It refuses a tag that is not `v` plus the root version, a version with no
+  `## [<version>] - <YYYY-MM-DD>` heading, and a tag SemVer orders at or below an existing release
+  tag. It names every disagreement at once. The SemVer order is semver.org's section 11, written
+  out in the script: `semver` is in the lockfile only as another package's dependency, and the
+  check runs before any install, so it imports only Node's own modules. Its types are in
+  `release-names-agree.d.mts`.
+- **Wired.** `images.yml` (job `build`), `security-scan.yml` (job `security-scan`) and
+  `windows-payload.yml` (job `build`) run it as the first step after the checkout, under
+  `if: startsWith(github.ref, 'refs/tags/')`, the condition the release steps of the last two
+  already use. The step first fetches the `v*` tags at depth 1, because the checkout is shallow
+  and holds only the tag being cut. Runs on a branch, a pull request or the schedule skip it.
+  `ci.yml` is not wired, as §3 says. Its detect-changes filter now selects `CHANGELOG.md`, which
+  the new guard reads, so a change to it alone runs the tests (the rule
+  `a-doc-a-test-reads-that-ci-skipped` holds). `docs/release.md` §2 names the check.
+- **Guard 2.** `scripts/a-release-that-names-itself.unit.test.ts`, 23 cases. (a) The three shapes
+  §3 names are refused and a set that agrees is accepted; SemVer's order, the changelog heading
+  and the command, in a throwaway repository, are tested too. (b) Every workflow that runs on a tag
+  and has a publishing step calls the check before its first publishing step. The test reads this
+  from the YAML, by rules its header states and small cases test. Before the script existed the
+  file did not load. With the script and before the wiring, the two workflow cases failed and named
+  the three jobs.
+- **Mutations:** twelve, each turned a guard red. In the API: no build line (4 cases fail), eight
+  commit characters (2), a version not from `buildIdentity()` (1). In the script: ASCII order
+  reversed (5), the changelog not read (4), the version not compared (3), equal precedence allowed
+  (1), the tag read from `GITHUB_REF` (1). In the workflows: the check moved after the push in
+  `images.yml` (2), the tag fetch removed in `security-scan.yml` (1), the check under
+  `refs/heads/main` in `windows-payload.yml` (1), `|| true` after it in `images.yml` (1).
+- **Not proved.** No tag has been cut since rc.1, so the check has not run on one. A re-run of an
+  older tag's workflows, once a newer release is tagged, is refused as well.
+- **Open.** Step 1, the bump, the rename and the issue template's example: T0, the owner's name
+  (open question 1). Step 4, the upgrade gates against rc.1 on the reference machine: open question
+  3. Steps 5 and 6, the commit and the tag: the owner. The pull request's merge: the owner.
 
 **2026-09-27, evening: 0131 T5's row follows T6 (a).** #1231 merged T6 (a) on 2026-09-27, so
 the row's *Today* cell no longer says the tasks run Node 21. It says `trigger.config.ts` names
@@ -121,7 +176,7 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | 🔨 **Steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged** (2026-09-28): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 1 and 4 to 6 wait for T0 (the name) and the owner — *was:* 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |

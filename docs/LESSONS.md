@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 176 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 177 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -22,6 +22,7 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -61,20 +62,27 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/images.yml`
 
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
 ### `.github/workflows/security-scan.yml`
 
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts) — A security scan that skipped itself, and reported green.
 - [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 
 ### `.github/workflows/windows-payload.yml`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `AGENTS.md`
 
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
+
+### `CHANGELOG.md`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `CONTRIBUTING.md`
 
@@ -986,6 +994,7 @@ reading a file drops off its entry by itself.
 ### `docs/release.md`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `docs/rls-guide.md`
 
@@ -1681,6 +1690,10 @@ reading a file drops off its entry by itself.
 ### `scripts/pasteable-hints.unit.test.ts`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `scripts/release-names-agree.mjs`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `scripts/runs-without-a-transpiler.unit.test.ts`
 
@@ -2751,6 +2764,20 @@ Reads:
 - `deploy/compose/rehearse-capacity.sh`
 - `deploy/compose/stack-kind.sh`
 - `packages/shared/src/pass-deadline.ts`
+
+### [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts)
+
+A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/images.yml`
+- `.github/workflows/security-scan.yml`
+- `.github/workflows/windows-payload.yml`
+- `CHANGELOG.md`
+- `docs/release.md`
+- `scripts/release-names-agree.mjs`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)
 
