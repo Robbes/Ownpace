@@ -589,7 +589,10 @@ can be found in `mapping_link` and in these rows without the rest of it.
 Since 2026-09-24 the person holding a link can report it from the grant page or the progress
 page (workplan 0108 T8 (d)). A report arrives on the helpdesk of bring-up step 8f as a ticket
 titled *Ownpace: a grant link was reported*, or *a progress link*. Its one article is an
-internal note. First come the facts, from the rows, one line each:
+internal note. Without a helpdesk, as on live during the alpha, it arrives as a mail to the
+support mailbox with the same title and note, and with no Reply-To: to answer, write a new mail
+to the reply address the note names, and leave the facts out. First come the facts, from the
+rows, one line each:
 
 - the link's id, the organisation and the migration with their ids and state;
 - who issued the link, from, to, and whether access was given;
