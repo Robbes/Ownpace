@@ -87,6 +87,7 @@ import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { serverFault } from '../server-fault.ts';
 import { probeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
+import { refusedAsClosed } from '../closed-organisation.ts';
 
 const router = Router();
 
@@ -107,6 +108,13 @@ let _pool: ReturnType<typeof getDbPool> | null = null;
 function pool(): ReturnType<typeof getDbPool> {
   if (!_pool) _pool = getDbPool();
   return _pool;
+}
+
+/** The API's own pool, for the close's tenant-scoped read (`closed-organisation.ts`). */
+let _appPool: ReturnType<typeof getDbPool> | null = null;
+function appPool(): ReturnType<typeof getDbPool> {
+  if (!_appPool) _appPool = getDbPool();
+  return _appPool;
 }
 
 /**
@@ -172,6 +180,12 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       });
       return;
     }
+
+    // The report reads the source and measures the destination with their
+    // stored access, so a closed organisation gets none (0085 T2). Asked on
+    // the API's own tenant-scoped pool: this file's `pool()` sets no
+    // organisation.
+    if (await refusedAsClosed(res, tenantId, appPool())) return;
 
     // The report measures the organisation's own DAV target again, at the
     // address somebody typed: one test against the member's limit (0136 T3).

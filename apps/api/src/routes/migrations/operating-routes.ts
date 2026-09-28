@@ -112,6 +112,7 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
 import { serverFault } from '../../server-fault.ts';
+import { refusedAsClosed } from '../../closed-organisation.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -541,6 +542,8 @@ router.post(
     try {
       const s = await scope(req, res);
       if (!s) return;
+      // A rescan reads the source with its stored access (0085 T2).
+      if (await refusedAsClosed(res, s.tenantId, pool())) return;
       const mailbox = await resolveMappingMailbox(s.tenantId, s.mappingId);
       if (!mailbox) {
         // The same sentence the permission report answers with — one fact
@@ -587,6 +590,9 @@ router.post(
           hint: "A sharing row can be applied ('apply'), ticked off as done by hand ('done'), or skipped ('skip').",
         });
       }
+      // Applying creates the share on the destination with its stored access
+      // (0085 T2). Ticking a row off by hand, or skipping it, does not.
+      if (body.action === 'apply' && (await refusedAsClosed(res, s.tenantId, pool()))) return;
       // The checklist has no anonymous ticks: attribution names the decider.
       const decidedBy = req.userId ?? 'unknown';
       const isCutOver = body.action === 'apply' ? await shareGateOf(s) : undefined;
@@ -646,6 +652,8 @@ router.post(
     try {
       const s = await scope(req, res);
       if (!s) return;
+      // Every share it creates is created with the destination's stored access (0085 T2).
+      if (await refusedAsClosed(res, s.tenantId, pool())) return;
       const note = typeof (req.body as { note?: unknown } | undefined)?.note === 'string'
         ? (req.body as { note: string }).note.trim().slice(0, 500)
         : undefined;
@@ -696,6 +704,8 @@ router.post(
     try {
       const s = await scope(req, res);
       if (!s) return;
+      // As the one-go press (0085 T2).
+      if (await refusedAsClosed(res, s.tenantId, pool())) return;
       const body = (req.body ?? {}) as {
         parentKey?: unknown;
         confirmed?: unknown;
