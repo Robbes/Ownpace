@@ -171,6 +171,20 @@ describe('the job-level mask', () => {
     for (const v of OWN_VALUES) expect(others.join('\n')).not.toContain(v);
   });
 
+  it("masks EXPOSURE_ALLOW's addresses too, the other stack's among them (0132 T3 b)", () => {
+    // The exposure check reads every container on the machine, so each stack's
+    // list names the other stack's and the site's binds, which no *_BIND line
+    // of this file holds.
+    const LIVE_FRONT = '198.51.100.20';
+    writeFileSync(envFile, `${ENV}EXPOSURE_ALLOW="${FRONT},${LIVE_FRONT},127.0.0.1"\n`);
+    const r = spawnSync('bash', [OWN, '--mask', envFile], { encoding: 'utf8' });
+    expect(r.status, r.stderr).toBe(0);
+    const masks = r.stdout.split('\n').filter((l) => l.startsWith('::add-mask::'));
+    expect(masks).toContain(`::add-mask::${LIVE_FRONT}`);
+    expect(masks).not.toContain('::add-mask::127.0.0.1');
+    expect(masks.filter((l) => l === `::add-mask::${FRONT}`)).toHaveLength(1);
+  });
+
   it('reads a double-quoted value as bash does, the form the bring-up guide writes', () => {
     // `managed.env.example` and load_env's own remedy both say
     // NEXTCLOUD_TRUSTED_DOMAINS="localhost nextcloud …", and the mask runs

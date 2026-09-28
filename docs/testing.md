@@ -412,6 +412,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   request, so it blocks nothing.
 - `e2e-o365.yml` — dispatch only, on the Spark: the secret-gated real-tenant O365 e2e (workplan
   0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
+- `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
+  from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
+  publish, derived from the files, on the addresses the production and OTA names resolve to, and
+  passes when only 443 answers on the production names, over TLS, with live's issuer. Its log
+  names names and ports, never an address.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
