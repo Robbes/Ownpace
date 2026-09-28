@@ -2,7 +2,43 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T7's first read, the three releases after the pin (0131 §6, group M7, step 4's
+first half).** Read in upstream's repository, commit by commit: v4.18.0 (2026-09-21), v4.19.0 and
+v4.19.1 (both 2026-09-23), 13 commits after v4.17.3 (2026-09-04). Nothing was run.
+
+- **One security fix, in login v1, which both instances serve.** `LoginV2.Required` is `false` in
+  `managed.yml`. v4.18.0 carries GHSA-4hgj-wm6c-q7p2: login v1's change-username handler renamed
+  the account a sign-in flow had bound, without checking that the flow had reached the
+  change-username step. A flow binds an account as soon as a login name is typed. So anybody who
+  could open the sign-in page could rename any account, an instance administrator's included,
+  without its password. The fix gates the handler on that step
+  (`internal/api/ui/login/username_change_handler.go`). The advisory before it, GHSA-738m-7888-jfv8,
+  is fixed in the pin already.
+- **Nothing else touches what the stack calls.** Between v4.17.3 and v4.19.1, none of these
+  changed:
+  - the API definitions (`proto/`);
+  - the notification, admin, management and restriction code `setup-zitadel.sh` relies on;
+  - the OIDC endpoints, or the external providers, the GitHub one of open question 10 included.
+
+  The defaults file gains one telemetry setting, off. The two `apps/login` changes are login v2's,
+  which this stack does not run. The rest: projections no longer skip events, unique constraints
+  gain owners, pool metrics and a hardening guide.
+- **An upgrade migrates the schema one way.** v4.19.1 brings four new setup steps, 76 to 79, run at
+  start-up: an index for login equality, event positions stamped at insert, owners on unique
+  constraints, and their backfill. v4.19.1 rather than v4.18.0, because it fixes v4.19.0's
+  backfill step. So T7's *Before an upgrade* holds: the `zitadel` database is dumped first.
+- **What it means today.** The OTA instance answers on the internet with the hole open, and live
+  does not run yet. On the OTA instance, anybody can rename the owner's account or the demo's. A
+  renamed account's owner no longer signs in with the old name, until an administrator changes it
+  back. Whether anybody did can be read in the provider's own events: each rename is a
+  `user.username.changed` event, with its time and its editor (the query is under open question
+  11). Nothing of ours stands in front of the provider to refuse the one route,
+  `POST /ui/login/username/change`: its public name reaches it through NetBird.
+- **The upgrade is the owner's call**, as 0119 §3 item 2 had it for the last one: its own PR,
+  proven by the gate on the OTA instance, and live from a tag. Open question 11 asks for it now,
+  ahead of open question 5's watch.
 
 **2026-09-27, night: T3 (a) built (0131 §6, group M7, step 2)** on branch
 `claude/mailbox-sync-errors-c2xsw2-one-organisation-counted`, not merged, after T1 and T2.
@@ -112,13 +148,13 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7); on the OTA instance both were set and read back by E2E (managed) #203 on 2026-09-27, and the owner's own sign-in is left | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
-| T1 Public organisation registration off | 🔨 **Built 2026-09-27, not merged**: `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
-| T2 The project admits its own organisation only | 🔨 **Built 2026-09-27, not merged**: created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
-| T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; 🔨 **(a) the count on every run of `setup-zitadel.sh` built 2026-09-27, not merged**; live's daily count is 0132 T7's — *was:* the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
+| T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
+| T2 The project admits its own organisation only | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
+| T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
-| T7 A watch on the pinned identity provider | 📋 **Proposed** | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
+| T7 A watch on the pinned identity provider | 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
@@ -933,3 +969,18 @@ carried T1 and T2.
     API trusts that claim like any other. Is GitHub sign-in offered on live, whose buttons 0140
     decides, or on the OTA stack? If it is, is that trust acceptable for binding a grant? This
     plan did not look further.
+11. **v4.19.1, for GHSA-4hgj-wm6c-q7p2 (2026-09-28).** Take it now, ahead of open question 5's
+    answer? Its own PR moves the pin. The gate proves it on the OTA instance, which migrates that
+    instance's schema one way. Live starts on it, because live has not been brought up yet.
+    *Recommended: yes*, with a dump of the OTA instance's `zitadel` database taken by hand before
+    the gate's run: the gate drills Trigger.dev's database, not the identity provider's. Before
+    that, whether anybody used the hole there: every rename the instance holds, with its time and
+    the id of whoever made it. A row nobody here made is one.
+
+    ```bash
+    docker compose -f deploy/compose/managed.yml exec -T postgres \
+      sh -c 'psql -U "$POSTGRES_USER" -d zitadel' <<'SQL'
+    SELECT created_at, aggregate_id, creator FROM eventstore.events2
+     WHERE event_type = 'user.username.changed' ORDER BY created_at;
+    SQL
+    ```
