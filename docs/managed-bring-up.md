@@ -252,6 +252,25 @@ Compose reads the file, and names the key, not the value.
   machine needs the database, the API with its unauthenticated `/metrics`, or
   the Trigger.dev API.
 
+**The gate's log is public, and a bind is this machine's address.** The nightly
+gate runs here, anybody can read its log, and any signed-in account can
+download its evidence. None of these values is a secret, so GitHub hides none
+of them, and until 2026-09-27 every run printed the mesh address: the PORTS
+column of `docker compose ps`, the bring-up's `dashboard:` note, "External DAV
+ready at", the deploy CLI's links. So what the gate runs names a bind,
+`TRIGGER_TLS_HOST`, the dashboard's origins and Nextcloud's trusted domains by
+their KEYS: `ps` without its PORTS column, an origin printed only when its
+host is loopback, the deploy CLI without its links. Behind that, the gate
+masks each of these values for the rest of the job as soon as it restores the
+`.env` (`deploy/compose/own-addresses.sh --mask`), and the smoke's own stream,
+the container logs a failed bring-up dumps, and the uploaded evidence are
+filtered: a value becomes the key that holds it (`<MAILPIT_BIND>`), and any
+address in the mesh's range, `100.64.0.0/10`, becomes `<mesh-ip>`. A mask
+covers the gate's log and nothing else, so a new line that prints one of these
+names the key instead. `scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts`
+holds all of it. Runs published before that date keep what they printed; their
+logs can be deleted from the run's page on GitHub.
+
 ```bash
 # deploy/compose/.env — 100.64.0.1 is the SHAPE of a mesh address, not yours
 WEB_BIND=100.64.0.1
