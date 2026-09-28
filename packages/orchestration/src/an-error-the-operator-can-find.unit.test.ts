@@ -28,6 +28,10 @@ import {
   phasesOfTheMigration,
 } from '@openmig/shared';
 import { runAllDomains } from './orchestration.ts';
+import type { PgDatabase } from '@openmig/ledger';
+
+/** The pass is handed its ledger (0138 T1 part 2); nothing here reaches a query through it. */
+const NO_QUERIES = { ledgerDb: {} as unknown as PgDatabase };
 
 const TENANT = '00000000-0000-4000-8000-000000000129';
 const MAPPING = '11111111-1111-4111-8111-111111110129';
@@ -76,7 +80,7 @@ describe('a data type that fails, in the appliance and the command-line worker',
     const said = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { store, calls } = fakeStore();
 
-    await runAllDomains(mapping(), store, phasesOfTheMigration('active'));
+    await runAllDomains(mapping(), store, phasesOfTheMigration('active'), NO_QUERIES);
 
     expect(calls).toContain('failed calendar');
     expect(events).toHaveLength(1);

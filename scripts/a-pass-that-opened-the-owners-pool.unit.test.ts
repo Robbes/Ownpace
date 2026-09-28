@@ -25,7 +25,10 @@
  *                           reads a database URL fails until it is deleted, and
  *                           the ceiling follows the list down, so a freed place
  *                           cannot be refilled, not even by a name it once
- *                           held. T1 empties it, and T1's PR deletes it.
+ *                           held. T1 empties it: its first step took the
+ *                           three builder files off (2026-09-28), and the
+ *                           PR of its second, which moves the eight jobs to
+ *                           `APP_DATABASE_URL`, deletes it.
  *
  * So a NEW file that names a database URL other than `APP_DATABASE_URL` fails
  * at once, whichever way the owner answers 0138 T0. A file that reaches the
@@ -33,10 +36,12 @@
  * function is known: `migrationConnectionString` and `poolerInFront`
  * (`packages/ledger/src/direct-url.ts`) read the owner's URL from the
  * environment their caller passes, and the first returns it, so no scanned file
- * but their own may name them. The builders on KNOWN_REMOVED_BY_T1
- * are the other such functions, and until T1 part 2 a job that calls one
- * inherits its owner read without being seen; T1 part 2 hands the builders
- * their handle, and that route closes with the list.
+ * but their own may name them. The builders were the other such functions: a
+ * job that called one inherited its owner read without being seen. T1 part 2
+ * (2026-09-28) closed that route: `buildDepsFromMapping` and
+ * `buildDomainDepsFromMapping` build on the pool their caller hands in, and
+ * `openLedger` and `verifyMapping` on the handle theirs does, so none of the
+ * three files reads a URL now and each has left KNOWN_REMOVED_BY_T1.
  *
  * WHAT "READS A DATABASE URL" MEANS HERE. Any name ending in `DATABASE_URL`
  * other than `APP_DATABASE_URL` (so `DATABASE_URL`, `DIRECT_DATABASE_URL`, the
@@ -54,10 +59,11 @@
  * pg's `Client`, under any local name (`import { Pool as PgPool } from 'pg'`
  * got past its first version), and a `drizzle(…)` given anything but a handle,
  * since drizzle then builds its own pool. It does not count an object with a
- * `connectionString` handed to something else: `cutover-gate.ts` passes one to
- * the verification reader, which opens its own connection from the URL
- * `run-cutover.ts` reads, and T1 part 2 takes that with `run-cutover.ts`'s
- * entry.
+ * `connectionString` handed to something else. `cutover-gate.ts` passed one to
+ * the verification reader, which opened its own connection from the URL
+ * `run-cutover.ts` reads, until T1 part 2 handed the reader a tenant-scoped
+ * handle on the gate's pool instead; `run-verification.ts` did the same and
+ * does not now.
  *
  * The lists stay in this file, unexported, on purpose. 0138 §3 has T5 step 2's
  * docs guard read CROSS_TENANT, so that `docs/rls-guide.md` and the code cannot
@@ -104,34 +110,30 @@ const CROSS_TENANT: Record<string, string> = {
 };
 
 /**
- * Today's per-tenant readers. May only shrink: 0138 T1 empties it, and its PR
- * deletes it together with the size check below.
+ * Today's per-tenant readers. May only shrink: 0138 T1 empties it, and the PR
+ * of its second step (the switch of connection) deletes it together with the
+ * size check below. The eight left are the jobs themselves, each still
+ * building its pool from `DATABASE_URL`.
  */
 const KNOWN_REMOVED_BY_T1: Record<string, string> = {
   'apps/worker/src/jobs/run-delta-sync.ts': 'a pass, on the owner pool (T1 part 1)',
   'apps/worker/src/jobs/run-discovery.ts': 'a discovery, on the owner pool (T1 part 1)',
   'apps/worker/src/jobs/run-verification.ts':
-    'a verification, and the ledger reader it opens from the same URL (T1 parts 1 and 2)',
+    'a verification, on the owner pool; its ledger reader is on that pool since T1 part 2 (T1 part 1)',
   'apps/worker/src/jobs/run-confirmation.ts':
-    'a confirmation, and its rate budget opened from the same URL (T1 part 1)',
+    'a confirmation, on the owner pool; its rate budget is on that pool since T1 part 2 (T1 part 1)',
   'apps/worker/src/jobs/run-apply-deletion.ts': 'an owner-approved removal (T1 part 1)',
   'apps/worker/src/jobs/run-apply-relocation.ts': 'an owner-approved move (T1 part 1)',
   'apps/worker/src/jobs/run-cutover.ts':
-    'the final sync and the cutover gate, on the owner pool (T1 parts 1 and 2)',
-  'apps/worker/src/jobs/run-rollback.ts': 'a rollback, on the owner pool (T1 parts 1 and 4)',
-  'packages/orchestration/src/build-deps-from-mapping.ts':
-    'buildDepsFromMapping and buildDomainDepsFromMapping open their own ledger from ' +
-    'TEST_DATABASE_URL || DATABASE_URL; T1 part 2 hands them their handle',
-  'packages/orchestration/src/build-deps.ts':
-    'openLedger falls back to DATABASE_URL; T1 part 2 removes the fallback',
-  'packages/orchestration/src/orchestration.ts':
-    'verifyMapping falls back to DATABASE_URL; T1 part 2 removes the fallback',
+    'the final sync and the cutover gate, on the owner pool (T1 part 1)',
+  'apps/worker/src/jobs/run-rollback.ts': 'a rollback, on the owner pool (T1 part 1)',
 };
 
 /**
  * KNOWN_REMOVED_BY_T1 as it landed (2026-09-27). Every entry must be one of
  * these: a size check alone let a change free one place and give it to a new
- * reader. Never add to it; T1's PR deletes it with the list.
+ * reader. Never add to it, and never take from it: it is what landed. T1's
+ * second step deletes it with the list.
  */
 const KNOWN_REMOVED_BY_T1_AS_LANDED: readonly string[] = Object.freeze([
   'apps/worker/src/jobs/run-delta-sync.ts',
@@ -149,9 +151,10 @@ const KNOWN_REMOVED_BY_T1_AS_LANDED: readonly string[] = Object.freeze([
 
 /**
  * Its size now. Lower it as entries go; never raise it. With the snapshot above
- * it keeps a name that left from coming back.
+ * it keeps a name that left from coming back. 11 as landed; 8 since T1 part 2
+ * (2026-09-28) took the three builder files off it.
  */
-const KNOWN_REMOVED_BY_T1_AT_MOST = 11;
+const KNOWN_REMOVED_BY_T1_AT_MOST = 8;
 
 /**
  * Functions that read the owner's URL for their caller, from the environment
@@ -312,15 +315,25 @@ const readers = new Map(
 );
 
 describe('who reads a database URL other than the application role', () => {
-  it('found the tick and the builders, so the rest is not vacuous', () => {
+  it('found the tick, and reads the builders\' old fallback as a read, so the rest is not vacuous', () => {
     // If the parse or the walk stops matching, this goes red rather than every
     // case below passing over nothing.
     expect(files.length).toBeGreaterThan(100);
     expect(readers.get('apps/worker/src/jobs/managed-sync-tick.ts')).toEqual(['DATABASE_URL']);
-    expect(readers.get('packages/orchestration/src/build-deps-from-mapping.ts')).toEqual([
-      'DATABASE_URL',
-      'TEST_DATABASE_URL',
-    ]);
+    expect(readers.get('apps/worker/src/cli/index.ts')).toEqual(['DATABASE_URL']);
+    // The fallback the builders carried until T1 part 2, both halves a read.
+    expect(
+      databaseUrlReads('shape.ts', 'const u = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;'),
+    ).toEqual(['DATABASE_URL', 'TEST_DATABASE_URL']);
+    // And the builders read none now: they are handed their pool (T1 part 2).
+    for (const builder of [
+      'packages/orchestration/src/build-deps-from-mapping.ts',
+      'packages/orchestration/src/build-deps.ts',
+      'packages/orchestration/src/orchestration.ts',
+    ]) {
+      expect(texts.has(builder), builder).toBe(true);
+      expect(readers.has(builder), `${builder} reads ${readers.get(builder)?.join(', ')}`).toBe(false);
+    }
     // And a comment or a message is not a read: this file names DATABASE_URL
     // only in its header.
     expect(texts.get('apps/worker/src/jobs/stopping-a-pass.ts')).toContain('DATABASE_URL');

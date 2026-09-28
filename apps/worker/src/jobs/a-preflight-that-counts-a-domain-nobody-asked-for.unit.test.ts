@@ -34,9 +34,10 @@
  * work removed — wearing a friendlier face. The test named for it below fails
  * on that line.
  *
- * The real pool is never touched: `enabledDomains` takes a `pg` Pool and calls
- * `query`, so a recording stub is a complete substitute and lets this assert
- * on the SQL as well as the answer.
+ * The real pool is never touched: `enabledDomains` takes a `pg` Pool and runs
+ * its one read inside `withTenant` on a client from it (0138 T1 part 4), so a
+ * recording stub is a complete substitute and lets this assert on the SQL as
+ * well as the answer. The transaction's own statements are not recorded.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -54,15 +55,16 @@ const MAPPING = '00000000-0000-0000-0000-000000000002';
 /** A `pg` Pool that answers one fixed row set and records what it was asked. */
 function poolAnswering(domains: readonly DiscoveryDomain[]) {
   const queries: { text: string; values: unknown[] }[] = [];
-  return {
-    queries,
-    pool: {
-      query: (text: string, values: unknown[]) => {
-        queries.push({ text, values });
-        return Promise.resolve({ rows: domains.map((domain) => ({ domain })) });
-      },
-    } as never,
+  const client = {
+    query: (q: string | { text: string }, values: unknown[]) => {
+      const text = typeof q === 'string' ? q : q.text;
+      if (/^\s*(BEGIN|COMMIT|ROLLBACK|SELECT set_config)/i.test(text)) return Promise.resolve({ rows: [] });
+      queries.push({ text, values });
+      return Promise.resolve({ rows: domains.map((domain) => ({ domain })) });
+    },
+    release: () => {},
   };
+  return { queries, pool: { connect: () => Promise.resolve(client) } as never };
 }
 
 describe('the preflight counts the domains the mapping selected', () => {

@@ -28,12 +28,12 @@ import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import { asTenantId, asMappingId, log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
-import { createLedgerVerificationReader, withTenant, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { withTenant, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
 import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
-import { verificationConfigFor } from './cutover-gate.ts';
+import { ledgerReaderFor, verificationConfigFor } from './cutover-gate.ts';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 
 const VerificationJobSchema = z.object({
@@ -99,11 +99,10 @@ export const runVerificationTask = schemaTask({
 
       // One reindexer per domain (a domain with no reindexer reports
       // NOT_VERIFIABLE rather than being measured against another domain's
-      // listing), and a ledger reader that owns its pool and must be closed.
+      // listing), and a ledger reader on this job's pool, each read in the
+      // tenant's scope (0138 T1 parts 2 and 3).
       const targets = await buildTargetReindexers(pool, tenantId, mappingId);
-      const verificationReader = createLedgerVerificationReader({
-        connectionString: DATABASE_URL,
-      });
+      const verificationReader = ledgerReaderFor(pool, tenantId);
       let result: VerificationResult;
       try {
         result = await runVerification(
@@ -119,7 +118,7 @@ export const runVerificationTask = schemaTask({
         );
       } finally {
         await targets.close();
-        await verificationReader.close(); // it opens its own pool
+        await verificationReader.close(); // leaves the job's pool open
       }
 
       // Keyed by mappingId: the contract's ByMapping shape with one key, the

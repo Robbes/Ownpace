@@ -8,12 +8,18 @@
  * belongs to a deployed appliance, and on the runner it is simply absent.
  *
  * `buildDeps` and `buildDomainDeps` build the whole dependency bundle, ledger
- * included, and their ledger arm falls back to `process.env.DATABASE_URL` when
- * no handle is passed. So an integration test that calls either without
- * `ledgerDb` is not flaky and not environment-dependent: it fails every time,
- * on every architecture, with
+ * included, and their ledger arm fell back to `process.env.DATABASE_URL` when
+ * no handle was passed. So an integration test that called either without
+ * `ledgerDb` was not flaky and not environment-dependent: it failed every
+ * time, on every architecture, with
  *
  *   Error: DATABASE_URL environment variable is required.
+ *
+ * Since workplan 0138 T1 part 2 there is no fallback: `ledgerDb` is required
+ * by the types, and a call that gets past them is refused ("A pass is handed
+ * its ledger"). The scan below stays, because a test can still cast its way
+ * past the types, and because the other half, a test that sets
+ * `DATABASE_URL`, is untouched by that change.
  *
  * That is exactly how PR #534 went red on both `integration-tests` jobs. The
  * file was written, typechecked, linted and unit-tested green here — because
@@ -43,7 +49,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The builders whose ledger arm reads `DATABASE_URL` when handed nothing. */
+/** The builders whose ledger arm read `DATABASE_URL` when handed nothing, and now refuse. */
 const BUILDERS = ['buildDeps', 'buildDomainDeps'] as const;
 
 /**
@@ -103,7 +109,7 @@ export function reachesForADatabase(source: string): Reach[] {
       if (!/\bledgerDb\b/.test(argumentsOf(code, open))) {
         found.push({
           line: lineOf(match.index),
-          why: `calls ${builder}() without a ledgerDb, so its ledger arm falls back to DATABASE_URL and throws on the runner`,
+          why: `calls ${builder}() without a ledgerDb, which the builders refuse (0138 T1 part 2); it used to fall back to DATABASE_URL and throw on the runner`,
         });
       }
     }

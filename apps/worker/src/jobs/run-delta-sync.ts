@@ -463,8 +463,8 @@ export const runDeltaSync = schemaTask({
           // tasks" does not re-read a mailbox that was already right.
           const fullScan = scansFromTheBeginning(domain);
 
-          // Build + run + release the deps' pool per domain. Literal domain
-          // args pick the right overload; the finally never leaks the pool.
+          // Build + run + close the deps per domain, on this job's pool (0138
+          // T1 part 2). Literal domain args pick the right overload.
           // THE FIELDS THE LOG LINE NEEDS, NAMED. This type listed only the
           // counts the job happened to read, so `updated` and `adopted` —
           // present on every result it is assigned from — were invisible to
