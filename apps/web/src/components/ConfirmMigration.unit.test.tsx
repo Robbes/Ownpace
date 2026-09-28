@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -45,9 +45,17 @@ vi.mock('../services/mapping-service', () => ({
   },
 }));
 
+// The hold the banner reads. Asked only while a count stands refused; open
+// here unless a case says otherwise.
+vi.mock('../services/platform-service', () => ({
+  fetchPlatformPause: vi.fn().mockResolvedValue({ held: true, since: '2026-09-27T09:00:00Z' }),
+}));
+
 import { AxiosError, AxiosHeaders } from 'axios';
 import { ConfirmMigration } from './ConfirmMigration.tsx';
 import { mappingApi, type Mapping } from '../services/mapping-service.ts';
+import { fetchPlatformPause } from '../services/platform-service.ts';
+import { STRINGS } from '../i18n/strings.ts';
 
 /** A detail payload of the real shape — the component reads `syncConfig`. */
 const mapping = (status: Mapping['status']): Mapping => ({
@@ -65,6 +73,26 @@ const mapping = (status: Mapping['status']): Mapping => ({
   createdAt: '2026-09-01T00:00:00Z',
   updatedAt: '2026-09-17T00:00:00Z',
 });
+
+/**
+ * What every door answers while the operator holds the platform (0132 T6 (b),
+ * `enqueueUnlessHeld`): 409, with the operator's own sentence as both
+ * `message` and `reason`.
+ */
+const SENTENCE =
+  'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw.';
+
+function heldRefusal(): AxiosError {
+  const refused = new AxiosError('Request failed with status code 409');
+  refused.response = {
+    status: 409,
+    statusText: 'Conflict',
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data: { error: 'platform_held', message: SENTENCE, reason: SENTENCE, since: '2026-09-27T09:00:00Z' },
+  };
+  return refused;
+}
 
 function renderWithClient(ui: React.ReactElement, qc = new QueryClient({
   defaultOptions: { queries: { retry: false } },
@@ -203,18 +231,8 @@ describe('a refused Start says the server’s sentence (0132 T6 (b))', () => {
    * why. Every other screen that presses these doors shows the body
    * (`serverMessage`).
    */
-  const SENTENCE = 'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets.';
-
   it('shows the operator’s sentence, not the transport’s', async () => {
-    const refused = new AxiosError('Request failed with status code 409');
-    refused.response = {
-      status: 409,
-      statusText: 'Conflict',
-      headers: {},
-      config: { headers: new AxiosHeaders() },
-      data: { error: 'platform_held', message: SENTENCE, reason: SENTENCE, since: '2026-09-27T09:00:00Z' },
-    };
-    vi.mocked(mappingApi.start).mockRejectedValueOnce(refused);
+    vi.mocked(mappingApi.start).mockRejectedValueOnce(heldRefusal());
     const onStarted = vi.fn();
 
     renderWithClient(<ConfirmMigration mappingId="m1" onStarted={onStarted} />);
@@ -225,5 +243,99 @@ describe('a refused Start says the server’s sentence (0132 T6 (b))', () => {
     expect(alert).toHaveTextContent(SENTENCE);
     expect(alert).not.toHaveTextContent(/status code 409/);
     expect(onStarted).not.toHaveBeenCalled();
+  });
+});
+
+describe('a refused count says the server’s sentence too (0132 T6 (b))', () => {
+  /**
+   * This screen starts the count by itself, on mount, and threw the answer
+   * away (`void mappingApi.discover(…)`). While the operator holds the
+   * platform, `discover` answers 409 with the operator's sentence like every
+   * other door, so the screen went on saying *Scanning your source* over a
+   * count that had not started and said nothing else. A refused press is not
+   * remembered, so the person has to learn here that nothing is counting.
+   */
+  it('shows the operator’s sentence when the count it started is refused', async () => {
+    vi.mocked(mappingApi.discover).mockRejectedValueOnce(heldRefusal());
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(SENTENCE);
+    expect(alert).not.toHaveTextContent(/status code 409/);
+  });
+
+  it('does not say it is scanning when nothing is counting', async () => {
+    vi.mocked(mappingApi.discover).mockRejectedValueOnce(heldRefusal());
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValueOnce({
+      mappingId: 'm1',
+      discovered: false,
+      domains: [],
+    });
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    await screen.findByRole('alert');
+    expect(screen.queryByText(STRINGS.en['discovery.scanning'])).toBeNull();
+  });
+
+  it('still shows a count that lands anyway', async () => {
+    // The door refuses even a press that would only have joined a count begun
+    // a moment earlier (`DISCOVERY_JOIN_WINDOW`); that count still lands, and
+    // its rows are not hidden behind the refusal.
+    vi.mocked(mappingApi.discover).mockRejectedValueOnce(heldRefusal());
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    await screen.findByRole('alert');
+    expect(await screen.findByText('Email')).toBeInTheDocument();
+  });
+
+  it('counts again by itself when the hold that refused it lifts, and says it will', async () => {
+    // The operator's sentence says to try again after, and the count has no
+    // button: the only thing left to press was *Start*, which with no rows
+    // landed skips the refused-files tick. So the screen asks again itself.
+    vi.mocked(mappingApi.discover).mockClear();
+    vi.mocked(mappingApi.discover).mockRejectedValueOnce(heldRefusal());
+    vi.mocked(mappingApi.getDiscovery).mockResolvedValueOnce({ mappingId: 'm1', discovered: false, domains: [] });
+
+    const { qc } = renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(SENTENCE);
+    await waitFor(() => expect(alert).toHaveTextContent(STRINGS.en['confirm.countAgain']));
+    expect(mappingApi.discover).toHaveBeenCalledTimes(1);
+
+    // The banner's next read finds the hold lifted.
+    act(() => {
+      qc.setQueryData(['platform-pause'], { held: false });
+    });
+
+    await waitFor(() => expect(mappingApi.discover).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(await screen.findByText('Email')).toBeInTheDocument();
+  });
+
+  it('does not promise to count again, or ask again, when no hold is open', async () => {
+    // Any other refusal (a server fault here) says its own words and stays:
+    // with no hold to wait for, asking again would be a loop.
+    vi.mocked(mappingApi.discover).mockClear();
+    vi.mocked(fetchPlatformPause).mockResolvedValueOnce({ held: false });
+    const fault = new AxiosError('Request failed with status code 500');
+    fault.response = {
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'server_fault', message: 'Something went wrong on our side.' },
+    };
+    vi.mocked(mappingApi.discover).mockRejectedValueOnce(fault);
+
+    renderWithClient(<ConfirmMigration mappingId="m1" onStarted={vi.fn()} />);
+
+    const alert = await screen.findByRole('alert');
+    await waitFor(() => expect(fetchPlatformPause).toHaveBeenCalled());
+    expect(alert).not.toHaveTextContent(STRINGS.en['confirm.countAgain']);
+    expect(mappingApi.discover).toHaveBeenCalledTimes(1);
   });
 });
