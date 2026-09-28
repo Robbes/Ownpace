@@ -23,7 +23,8 @@
  * Run through `tenantInventoryScans`, which the report and the sharing queue's
  * rescan both call. The pool is a fake that FILTERS rows by the kinds each
  * query passes, as `a-share-scan-that-never-ran` does: a lookup narrowed back
- * to `o365` finds nothing here, just as Postgres did.
+ * to `o365` finds nothing here, just as Postgres did. It is the request path's
+ * pool (`getDbPool`), answering on a client as `withTenant` uses one (0138 T6).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -43,21 +44,38 @@ const h = vi.hoisted(() => ({
 
 vi.mock('pg', () => ({
   Pool: class {
-    async query(text: string, values: readonly unknown[] = []) {
-      h.queries.push({ text, values });
-      const rows = h.connections.filter((c) => {
-        if (text.includes('kind = ANY($2::text[])'))
-          return (values[1] as readonly string[]).includes(c.kind);
-        if (text.includes("kind IN ('nextcloud', 'webdav')"))
-          return c.kind === 'nextcloud' || c.kind === 'webdav';
-        return false;
-      });
-      // Every matching row unless the query itself asks for one.
-      return { rows: text.includes('LIMIT 1') ? rows.slice(0, 1) : rows };
+    async connect() {
+      return {
+        async query(q: string | { text: string }, values: readonly unknown[] = []) {
+          const text = typeof q === 'string' ? q : q.text;
+          // `withTenant`'s own statements: the transaction and its tenant.
+          if (!text.includes('FROM connection')) return { rows: [] };
+          h.queries.push({ text, values });
+          const rows = h.connections.filter((c) => {
+            if (text.includes('kind = ANY($2::text[])'))
+              return (values[1] as readonly string[]).includes(c.kind);
+            if (text.includes("kind IN ('nextcloud', 'webdav')"))
+              return c.kind === 'nextcloud' || c.kind === 'webdav';
+            return false;
+          });
+          // Every matching row unless the query itself asks for one.
+          return { rows: text.includes('LIMIT 1') ? rows.slice(0, 1) : rows };
+        },
+        release() {},
+      };
     }
     async end() {}
   },
 }));
+
+// The request path's pool is the fake above.
+vi.mock('../middleware/auth.ts', async (importOriginal) => {
+  const { Pool } = await import('pg');
+  return {
+    ...(await importOriginal<typeof import('../middleware/auth.ts')>()),
+    getDbPool: () => new Pool(),
+  };
+});
 
 const { tenantInventoryScans, O365_NOT_READ_WITH_ITS_OWN_REGISTRATION } = await import(
   './permissions.ts'
