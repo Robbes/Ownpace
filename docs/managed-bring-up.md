@@ -1884,6 +1884,17 @@ OWNPACE_APP_URL=https://app.ownpace.eu     node site/build.mjs   # production
 docker compose -f deploy/compose/www.yml up -d
 ```
 
+**A second copy beside it names its own project, with `-p`.** `ownpace-www`,
+`www.yml`'s project, is a default, and the container is named after the
+project. A copy from another checkout is brought up with
+`docker compose -p <name> -f deploy/compose/www.yml up -d`, takes the same `-p`
+on its `ps`, `logs` and `down`, and has a `WWW_PORT` and a `WWW_BIND` of its
+own in that checkout's `.env`. Not `COMPOSE_PROJECT_NAME`: `www.yml` reads the
+same `.env` as `managed.yml`, where that key names the stack, so a bare command
+in live's checkout would put the site in live's own project (workplan 0139
+T10). Nothing refuses that any more: it used to fail on the OTA site's fixed
+container name, and now succeeds once live's `.env` has its own `WWW_PORT`.
+
 `site/dist` is bind-mounted read-only, so a rebuild is live immediately and no
 restart is needed — because the build **empties** `dist` rather than replacing
 it. A bind mount resolves to an inode at container start, so a build that
@@ -1891,7 +1902,7 @@ removed and recreated the directory would leave nginx holding an unlinked one:
 `total 0` inside the container, every file present outside, and a 403 on every
 request that reads like a permissions problem. If that ever happens,
 `docker compose -f deploy/compose/www.yml up -d --force-recreate` re-resolves
-the mount.
+the mount (for a second copy, with its own `-p`).
 
 `--public` and `OWNPACE_APP_URL` must agree, and the build refuses if they do
 not: a public build must point at the production app, and a test build must
