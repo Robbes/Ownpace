@@ -18,6 +18,10 @@ reading a file drops off its entry by itself.
 
 ## 1. By file — what constrains the thing you are about to edit
 
+### `.github/ISSUE_TEMPLATE/bug_report.yml`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `.github/workflows/ci.yml`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -319,6 +323,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/web/src/components/Layout.tsx`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `apps/web/src/components/ProviderConsent.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -379,6 +387,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/Login.tsx`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 
 ### `apps/web/src/pages/MappingDetail.tsx`
@@ -399,6 +408,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/src/services/build-identity.ts`
 
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
 ### `apps/web/src/services/idp-console.ts`
@@ -1336,6 +1346,10 @@ reading a file drops off its entry by itself.
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
+### `packages/ledger/src/migrate-upgrade.unit.test.ts`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `packages/ledger/src/retention.ts`
 
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
@@ -1794,7 +1808,12 @@ reading a file drops off its entry by itself.
 
 ### `scripts/package-appliance.mjs`
 
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
+
+### `scripts/package-appliance.unit.test.ts`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `scripts/pasteable-hints.unit.test.ts`
 
@@ -2991,12 +3010,19 @@ A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json`
 
 Reads:
 
+- `.github/ISSUE_TEMPLATE/bug_report.yml`
 - `.github/workflows/ci.yml`
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 - `CHANGELOG.md`
+- `apps/web/src/components/Layout.tsx`
+- `apps/web/src/pages/Login.tsx`
+- `apps/web/src/services/build-identity.ts`
 - `docs/release.md`
+- `packages/ledger/src/migrate-upgrade.unit.test.ts`
+- `scripts/package-appliance.mjs`
+- `scripts/package-appliance.unit.test.ts`
 - `scripts/release-names-agree.mjs`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)

@@ -27,9 +27,10 @@ body:
     attributes:
       label: Build
       description: >
-        The appliance prints this as its first log line — `[appliance] build 0.1.0-rc.1 (abc123)`.
-        Otherwise the commit you are on.
-      placeholder: "0.1.0-rc.1 (fb6f757311bf)"
+        On the managed service it is at the bottom of the sidebar, and on the sign-in page:
+        `v0.2.0-alpha.1 · abc1234`. The appliance prints it as its first log line:
+        `[appliance] build 0.2.0-alpha.1 (abc1234def56)`. Otherwise the commit you are on.
+      placeholder: "v0.2.0-alpha.1 · abc1234"
     validations:
       required: true
 

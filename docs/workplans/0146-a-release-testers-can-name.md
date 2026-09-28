@@ -4,6 +4,64 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T0 answered.** The owner: *"The version name (0146 T0): ok"*. That accepts T0's
+recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy to `ownpace-live`; no
+rename before the alpha or on a live stack; no last squash. Open questions 1 and 2 are answered.
+
+**2026-09-28, build: T2 step 1, built on branch
+`claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged.** Nothing is
+tagged. Steps 4 to 6 are the owner's.
+
+- **The version.** The root `package.json` says `0.2.0-alpha.1`. The workspace packages stay
+  `0.0.0`, as `docs/release.md` says.
+- **The changelog.** A new, empty `[Unreleased]` is at the top. The old one is now
+  `## [0.2.0-alpha.1] - 2026-09-29`, the planned tag date, with T2's floor. Its first paragraph
+  says the section lists changes only up to mid-August (the newest date it names is 2026-08-11)
+  and points to `docs/feature-matrix.md`. It replaces *"Everything since rc.1 — 209 commits"*,
+  which is no longer true. The pricing sentence now names `pricing.ts` in `@openmig/managed`
+  (ADR-0036), not `@openmig/shared`. The rest of the text is unchanged. T1's curated section is
+  for a later alpha. If the tag comes later than 2026-09-29, the heading's date is early: a fix
+  must land before the commit that is tagged, or it is not in the tag.
+- **The issue template.** `bug_report.yml`'s Build field shows the managed form,
+  `v0.2.0-alpha.1 · abc1234`, and says where it is: the bottom of the sidebar and the sign-in page.
+  It also shows the appliance's first log line, `[appliance] build 0.2.0-alpha.1 (abc1234def56)`.
+  `start.mjs` prints twelve characters of commit (`git rev-parse --short=12` in
+  `scripts/package-appliance.mjs`), not the six the old example showed. The placeholder is the
+  managed form.
+- **`docs/release.md`** says six `skipIf(!HAVE_REF)` tests, as
+  `packages/ledger/src/migrate-upgrade.unit.test.ts` has.
+- **The guard.** `scripts/a-release-that-names-itself.unit.test.ts` has a block (c) with four
+  cases. The Build field's managed example is what `describeBuild` renders, and the pages it names
+  (`Layout.tsx`, `Login.tsx`) render `BuildStamp`. Its appliance example is the line the packager
+  writes, with the packager's commit length. Its placeholder is one of the two examples. And
+  `release.md`'s count is the file's. All four failed on the unchanged code, and the 25 other
+  cases passed. The existing case that ties the root version to a dated `CHANGELOG.md` section
+  passed before and after.
+- **The check.** `node scripts/release-names-agree.mjs v0.2.0-alpha.1`, run in the worktree after
+  `git fetch --tags`, printed: *"v0.2.0-alpha.1: the tag, package.json (0.2.0-alpha.1) and
+  CHANGELOG.md's section agree, and it comes after every release already tagged
+  (v0.1.0-rc.1)."*
+- **Mutations:** twelve, each turned the guard red. The bump without the changelog section, and
+  the heading without its date, fail the existing case, and the check refuses both. In the
+  template: a seven-character appliance commit, an eight-character managed commit, the managed
+  form without its `v`, the sidebar and sign-in page dropped, and a placeholder in neither form.
+  In the code: `BuildStamp` removed from `Login.tsx`, `--short=7` in the packager, and the
+  packager's line reworded. In the count: `release.md` back to five, and a seventh gated test in
+  the gate.
+- **The shared-chain gate, on this branch.** With `v0.1.0-rc.1` fetched, all six
+  `skipIf(!HAVE_REF)` tests in `migrate-upgrade.unit.test.ts` ran, and none was skipped. This is
+  not the tagged commit, so `release.md`'s run at that commit still counts.
+- **Not proved.** No tag is cut, so the check has not run on a real one. Nothing has run on
+  `ownpace-live`, which is not stood up (0132 T1b).
+- **Waits for the owner.** The pull request's merge, before the commit to tag is picked: the
+  tagged commit must carry the bump. Step 4, the drill from rc.1 on the reference machine (open
+  question 3). Step 5, the commit: the managed gate's last two scheduled runs green, the newer on
+  that commit, and the appliance nightly's four runs over the same two nights green (0141 T14).
+  Step 6, `git tag -a v0.2.0-alpha.1` on that commit, the push, and `release.md` §3's checks.
+- **Open.** 0131's go/no-go row for 0146 and its W17 line still say 0146 T0 *recommends*
+  `v0.2.0-alpha.1`. They follow in the post-merge sweep, as 0131's other cells have after their
+  merges, not on this branch.
+
 **2026-09-28: T5 (a) built with 0132 T6 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** The rule is in
 `deploy/compose/deploy-live.sh`; 0132's Status entry of the same date has the script as a whole.
@@ -228,9 +286,9 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's version name, and whether any rename comes first | ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
+| T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok"*. `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 1 and 4 to 6 📋 wait for T0 (the name) and the owner — *was:* 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | Step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, and `release.md`'s count of six. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push — *was:* steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, not yet run on live: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
@@ -671,7 +729,7 @@ and the content is the owner's to read.
      option (c) into a refusal rather than a surprise.
 4. **Merge, then the upgrade gates against rc.1**, as `release.md` asks:
    - `git fetch origin tag v0.1.0-rc.1`, and the shared-chain gate's `skipIf(!HAVE_REF)` tests
-     *executed* (`release.md` says five; the file has six today);
+     *executed* (`release.md` said five until 2026-09-28; the file has six);
    - `scripts/upgrade-drill.sh v0.1.0-rc.1` on the reference machine. This is the first run that is
      not vacuous (0025 T5), since `main` is far past rc.1. The drill is the appliance's, and it runs
      under its own compose project and container name (`compose.drill.yml`), so neither stack is
@@ -1068,9 +1126,11 @@ and response window (0135 T7).
 
 1. **The name (T0).** `v0.2.0-alpha.1` (recommended), `v0.1.0-rc.2`, or another? And is every
    deploy to `ownpace-live` during the alpha a new `alpha.N` tag (recommended, since T5 deploys
-   only tags)?
+   only tags)? *Answered 2026-09-28: `v0.2.0-alpha.1`, and `alpha.N` for each deploy, as
+   recommended.* The owner: *"The version name (0146 T0): ok"*.
 2. **Renames (T0).** None before the alpha, and none on a live stack after it (recommended, and what
    ADR-0040 already says)? Or is there a name the owner wants changed while it is still cheap?
+   *Answered 2026-09-28, with question 1: no rename, and no last squash (T0 items 2 and 3).*
 3. **The drill from rc.1 (T2).** `release.md` requires it before a tag, and it has never run
    non-vacuously. It needs the reference machine for as long as the drill takes. Run it before the
    alpha tag (recommended), or tag without it and record the skip as a hole, since the alpha is

@@ -4,10 +4,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
-Everything since rc.1 — 209 commits, the review-fleet's UX overhaul, and the
-release-readiness pass. Grouped by what an operator would notice, not by
-workplan; the workplan status blocks in `docs/workplans/` remain the detailed
-record.
+## [0.2.0-alpha.1] - 2026-09-29
+
+This section lists changes only up to mid-August 2026: the newest date it
+names is 2026-08-11, and what changed after that is not in it. What this
+release can migrate, source by source and target by target, is in the
+[feature matrix](docs/feature-matrix.md).
+
+Grouped by what an operator would notice, not by workplan; the workplan status
+blocks in `docs/workplans/` remain the detailed record.
 
 ### Added
 
@@ -91,9 +96,10 @@ record.
 - **Prices are one number in one place, and a tenant keeps the one it
   agreed to.** The API invoiced from one constant while the worker metered
   against another, and a third VAT rate was the one stamped on invoice rows.
-  Now a single source in `@openmig/shared`, configurable per deployment via
-  `PRICING_*` (integer cents — a euros-shaped typo refuses to boot rather
-  than billing a hundredth of the intended amount). Each tenant's prices are
+  Now a single source, `pricing.ts` in `@openmig/managed` (ADR-0036),
+  configurable per deployment via `PRICING_*` (integer cents — a
+  euros-shaped typo refuses to boot rather than billing a hundredth of the
+  intended amount). Each tenant's prices are
   pinned when first billed and never follow the template again, so changing
   what new customers pay cannot re-price an existing one. Operator controls
   are `.env` plus a runbook section; there is no pricing screen to misclick.

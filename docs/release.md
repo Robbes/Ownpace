@@ -20,7 +20,7 @@ stay `0.0.0` deliberately — they are never published individually). The
       without the ref present — a skip here is a hole, not a pass):
   - [ ] `git fetch origin tag <previous-tag>` and run
         `pnpm vitest run --project unit packages/ledger/src/migrate-upgrade.unit.test.ts`
-        — confirm the five `skipIf(!HAVE_REF)` tests **executed**, including
+        — confirm the six `skipIf(!HAVE_REF)` tests **executed**, including
         the downgrade refusal.
   - [ ] `scripts/upgrade-drill.sh` on a Docker host (the Spark box): previous
         release image, real volumes, swap to HEAD in place, healthy after a

@@ -69,12 +69,32 @@
  * and publishes nothing, so it is not wired (0146 T2 says so), and the test
  * says that too.
  *
+ * (c) What the release asks of people matches what the code does (0146 T2,
+ * step 1, 2026-09-28). The bug report form's Build field
+ * (`.github/ISSUE_TEMPLATE/bug_report.yml`) asked for the build with the
+ * example `[appliance] build 0.1.0-rc.1 (abc123)`: the appliance's form only,
+ * with six characters of commit where `start.mjs` prints twelve, and nothing
+ * about the managed service, where testers are. It now has to show both
+ * forms as the code renders them. The managed one is what `describeBuild`
+ * (`apps/web/src/services/build-identity.ts`) renders, and the form must say
+ * where it is shown: the sidebar (`Layout.tsx`) and the sign-in page
+ * (`Login.tsx`), both of which render `BuildStamp`. The appliance's is the
+ * first line `scripts/package-appliance.mjs` writes into `start.mjs`, with the
+ * commit as long as its `git rev-parse --short=12`. And `docs/release.md`
+ * said the shared-chain upgrade gate has five `skipIf(!HAVE_REF)` tests,
+ * which a person is to confirm ran; the file has six, so a person counting to
+ * five would have missed one. The count it states must be the file's.
+ *
  * ## What this does not prove
  *
  * That the check has run on a real tag: none has been cut since
  * `v0.1.0-rc.1`. It cannot stop a tag being pushed; it stops what the tag
  * would publish. And it does not read what the changelog section says, which
- * is the owner's to read (0146 T1).
+ * is the owner's to read (0146 T1). For (c), the appliance's line is read from
+ * the packager's source text; that a staged payload prints it first is
+ * `package-appliance.unit.test.ts`'s. The example's version is not held to
+ * the root `package.json`'s: an example from an earlier alpha is still the
+ * right form.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -84,6 +104,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { describeBuild } from '../apps/web/src/services/build-identity.ts';
 import { checkReleaseNames, compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -632,5 +653,88 @@ describe('every workflow that publishes on a tag runs the check first', () => {
       expect(checkoutAt, where).toBeGreaterThanOrEqual(0);
       expect(checkAt, where).toBe(checkoutAt + 1);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (c) What the release asks of people, against what the code does
+// ---------------------------------------------------------------------------
+
+const BUG_REPORT = join(ROOT, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml');
+const PACKAGER = join(HERE, 'package-appliance.mjs');
+const WEB_SRC = join(ROOT, 'apps', 'web', 'src');
+const UPGRADE_GATE = join(ROOT, 'packages', 'ledger', 'src', 'migrate-upgrade.unit.test.ts');
+const RELEASE_DOC = join(ROOT, 'docs', 'release.md');
+
+/** The bug report form's Build field: what it tells a tester to copy, and the grey text in the empty box. */
+function buildField(): { label: string; description: string; placeholder: string } {
+  const form = parseYaml(readFileSync(BUG_REPORT, 'utf8')) as {
+    body?: ReadonlyArray<{ id?: string; attributes?: Record<string, unknown> }>;
+  };
+  const attributes = (form.body ?? []).find((item) => item.id === 'version')?.attributes ?? {};
+  const text = (key: string) => (typeof attributes[key] === 'string' ? attributes[key] : '');
+  return { label: text('label'), description: text('description'), placeholder: text('placeholder') };
+}
+
+/** The managed example, `v<version> · <commit>`, as the field shows it in backticks. */
+const MANAGED_EXAMPLE = /`(v(\S+) · ([0-9a-f]+))`/;
+/** The appliance example, `[appliance] build <version> (<commit>)`, as the field shows it in backticks. */
+const APPLIANCE_EXAMPLE = /`(\[appliance\] build (\S+) \(([0-9a-f]+)\))`/;
+
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+
+describe('what the release asks of people is what the code does', () => {
+  it('the Build field shows the managed build as the pages render it, and says where it is', () => {
+    const { label, description } = buildField();
+    expect(label).toBe('Build');
+    const shown = MANAGED_EXAMPLE.exec(description);
+    expect(shown, 'the Build field shows no `v<version> · <commit>` example').not.toBeNull();
+    const [, text, version, commit] = shown!;
+    expect(parseSemVer(version!), `${version} is not a SemVer version`).not.toBeNull();
+    // What `BuildStamp` shows when the page and the API agree. A real commit
+    // is longer than the example's, so a commit of the wrong length in the
+    // example renders as something else.
+    const build = { version: version!, commit: `${commit}0f1e2d3c4b5a69788796a5b4c3d2e1f0` };
+    expect(describeBuild(build, build)).toBe(text);
+    // Where the form says it is, and that the build stamp is there.
+    for (const [words, page] of [
+      [/bottom of the sidebar/i, join(WEB_SRC, 'components', 'Layout.tsx')],
+      [/sign-in page/i, join(WEB_SRC, 'pages', 'Login.tsx')],
+    ] as const) {
+      expect(description).toMatch(words);
+      expect(readFileSync(page, 'utf8'), page).toMatch(/<BuildStamp \/>/);
+    }
+  });
+
+  it("the Build field shows the appliance's first log line as start.mjs prints it", () => {
+    const packager = readFileSync(PACKAGER, 'utf8');
+    // `start.mjs` is a template literal inside the packager, so its own
+    // backticks and `${` are escaped in this text.
+    const printed = /console\.log\(\\`(\[appliance\] build [^`\n]*)\\`\);/.exec(packager);
+    expect(printed, 'package-appliance.mjs prints no `[appliance] build` line').not.toBeNull();
+    const short = /'rev-parse', '--short=(\d+)', 'HEAD'/.exec(packager);
+    expect(short, "package-appliance.mjs's commit is not `git rev-parse --short=N HEAD`").not.toBeNull();
+
+    const shown = APPLIANCE_EXAMPLE.exec(buildField().description);
+    expect(shown, 'the Build field shows no `[appliance] build <version> (<commit>)` example').not.toBeNull();
+    const [, text, version, commit] = shown!;
+    expect(parseSemVer(version!), `${version} is not a SemVer version`).not.toBeNull();
+    expect(commit!.length, `start.mjs prints ${short![1]} characters of commit`).toBe(Number(short![1]));
+    const line = printed![1]!.replace('\\${BUILD.version}', version!).replace('\\${BUILD.commit}', commit!);
+    expect(line).toBe(text);
+  });
+
+  it("the Build field's placeholder is one of its two examples", () => {
+    const { description, placeholder } = buildField();
+    const examples = [MANAGED_EXAMPLE, APPLIANCE_EXAMPLE].map((re) => re.exec(description)?.[1]);
+    expect(examples).toContain(placeholder);
+  });
+
+  it("docs/release.md counts the shared-chain upgrade gate's skipIf(!HAVE_REF) tests as the file has them", () => {
+    const said = /\bthe\s+(\w+)\s+`skipIf\(!HAVE_REF\)`\s+tests\b/.exec(readFileSync(RELEASE_DOC, 'utf8'));
+    expect(said, 'docs/release.md no longer names a count of skipIf(!HAVE_REF) tests').not.toBeNull();
+    const inFile = readFileSync(UPGRADE_GATE, 'utf8').match(/\b(?:it|test)\.skipIf\(!HAVE_REF\)\(/g)?.length ?? 0;
+    expect(inFile, 'the gate has no skipIf(!HAVE_REF) tests: this case would compare nothing').toBeGreaterThan(0);
+    expect(COUNT_WORDS.indexOf(said![1]!), `docs/release.md says "${said![1]}", and the file has ${inFile}`).toBe(inFile);
   });
 });
