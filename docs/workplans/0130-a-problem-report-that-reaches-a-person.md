@@ -4,6 +4,37 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T6 Part B, the review's two findings fixed.** On the same branch, not merged. No
+shipped code changed; both findings were behaviour that was right and unguarded:
+
+- **The app's build line is guarded by its commit, not only its version.** The root version stays
+  `0.2.0-alpha.1` across every deploy from main, so a page left open from an older deploy shows
+  the server's version and another commit, which is when the line matters. The API guard now
+  stamps the server's commit (`OPENMIG_COMMIT`) for these cases: the same version and the same
+  commit, seven characters against forty and forty against forty, write no line; the same version
+  and another commit write `App build in the browser: v<version> · <7 hex>, not the server's`; a
+  page's commit beside a server whose commit is `unknown`, stamped so or not stamped at all, writes
+  no line, since there is nothing to compare it with, while another version still does, with the
+  page's commit. Part B's *"the app's build always written"* below was a mutation in one direction
+  only.
+- **The failure line's links are guarded on every screen that draws one.** Part B guarded
+  `SendItToUs` itself and the progress strip; *"the link without the migration"* below was a
+  mutation of `reportHref`, and Connections, the failure queue's items and its groups passed
+  their facts unguarded. The web guard now draws Connections with two standing failures, one with
+  one data type and its side (`dataType`, `side` and `migration` in its link) and one with two
+  data types and no side (`migration` alone), and the failure queue of a migration with two failed
+  items of one group (each item's link with its `dataType`, the group's with `dataType` and
+  `migration`), each through its real service and the stand-in network.
+
+Guards: the API's `a-report-that-carries-what-the-browser-knows` (36, was 33) and the web app's
+(19, was 17). 13 mutations, all killed: in the API, no commit compared (`otherCommit` always
+false), a page's commit compared with a server's `unknown`, the commits compared whole rather than
+by their first seven characters, the whole commit written, and `unknown` taken for a commit; in the
+web app, Connections passing none of the three, no migration, no side, or a data type out of two;
+the failed item without its data type; and the group without both, without its migration, or
+without its data type. The reviewer had shown the first two and the Connections, item and group
+removals surviving the guards as they were.
+
 **2026-09-28: T6 Part B, what the browser knows.** The second of the owner's *"Both parts"*. On
 the same branch, on top of Part A, not merged:
 

@@ -23,7 +23,7 @@
  * records' facts come from a stub reader, since Part A's guard holds those.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { buildIdentity } from '@openmig/core';
@@ -61,6 +61,10 @@ const MIGRATION = '0130b0b0-e29b-41d4-a716-446655440015';
 
 /** What must never reach a report: a sign-in token, as a failed request would carry it. */
 const CANARY = 'canary-token-7c1e0d';
+
+/** The server's commit, as the API image stamps it (`OPENMIG_COMMIT`), and another one. */
+const SERVER_COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const OTHER_COMMIT = 'fedcba9876543210fedcba9876543210fedcba98';
 
 const MAIL = {
   SMTP_HOST: 'smtp.example.invalid',
@@ -177,6 +181,10 @@ beforeEach(() => {
   __startTheDayAgainForTests();
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('what the browser says, as lines of the report', () => {
   it('writes each fact the form sends as a line of its own, after the browser, in the mail', async () => {
     const facts = factsOf(await mailed(EVERY));
@@ -210,12 +218,45 @@ describe('what the browser says, as lines of the report', () => {
   });
 
   it("writes the app's build in the browser only when it is not the server's", async () => {
+    vi.stubEnv('OPENMIG_COMMIT', SERVER_COMMIT);
     const server = buildIdentity();
+    expect(server.commit, 'the server does not have the commit this case stamped').toBe(SERVER_COMMIT);
     const same = factsOf(await mailed({ appVersion: server.version }));
     expect(browserLines(same), 'the same version, and no commit to compare').toEqual([]);
     const other = factsOf(await mailed({ appVersion: `${server.version}.1` }));
     expect(browserLines(other)).toEqual([`App build in the browser: v${server.version}.1, not the server's`]);
   });
+
+  it("writes the build of a page with the server's version and another commit, which is what a stale page is while the version stays put", async () => {
+    // Every deploy from main keeps the root version; only the commit moves.
+    vi.stubEnv('OPENMIG_COMMIT', SERVER_COMMIT);
+    const { version } = buildIdentity();
+    const sameShort = factsOf(await mailed({ appVersion: version, appCommit: SERVER_COMMIT.slice(0, 7) }));
+    expect(browserLines(sameShort), 'the same commit, seven characters against forty').toEqual([]);
+    const sameFull = factsOf(await mailed({ appVersion: version, appCommit: SERVER_COMMIT }));
+    expect(browserLines(sameFull), 'the same commit, forty characters against forty').toEqual([]);
+    const stale = factsOf(await mailed({ appVersion: version, appCommit: OTHER_COMMIT }));
+    expect(browserLines(stale)).toEqual([`App build in the browser: v${version} · ${OTHER_COMMIT.slice(0, 7)}, not the server's`]);
+    const staleShort = factsOf(await mailed({ appVersion: version, appCommit: OTHER_COMMIT.slice(0, 7) }));
+    expect(browserLines(staleShort)).toEqual([`App build in the browser: v${version} · ${OTHER_COMMIT.slice(0, 7)}, not the server's`]);
+  });
+
+  it.each([
+    ['says it does not know it', 'unknown'],
+    ['was given none', undefined],
+  ] as const)(
+    "never calls a page's commit another one when the server %s",
+    async (_what, stamped) => {
+      vi.stubEnv('OPENMIG_COMMIT', stamped);
+      const { version, commit } = buildIdentity();
+      expect(commit).toBe('unknown');
+      const said = factsOf(await mailed({ appVersion: version, appCommit: OTHER_COMMIT }));
+      expect(browserLines(said), 'a commit compared with nothing').toEqual([]);
+      // Another version is still another build, and says so with its commit.
+      const other = factsOf(await mailed({ appVersion: `${version}.1`, appCommit: OTHER_COMMIT }));
+      expect(browserLines(other)).toEqual([`App build in the browser: v${version}.1 · ${OTHER_COMMIT.slice(0, 7)}, not the server's`]);
+    },
+  );
 
   it('writes nothing of the browser when it sent nothing', async () => {
     expect(browserLines(factsOf(await mailed(undefined)))).toEqual([]);

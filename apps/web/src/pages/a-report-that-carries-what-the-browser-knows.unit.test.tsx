@@ -19,7 +19,9 @@
  * (`apps/api/src/a-report-that-carries-what-the-browser-knows.unit.test.ts`):
  * the screen's language, the time zone, the window's width, this page's build,
  * and the data type, side and migration of the failure line the form was
- * opened from, which that line now passes in the address. The fold shows them
+ * opened from, which that line now passes in the address: on the progress
+ * strip, on Connections, and on the failure queue's items and groups, each
+ * rendered here as its screen draws it. The fold shows them
  * among the service's lines, and when those cannot be had, in the reader's
  * own language.
  *
@@ -33,14 +35,18 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import type { FailuresResponse, ItemFailure } from '@openmig/shared';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 import apiClient from '../services/api.ts';
 import { fetchAttention } from '../services/operating-service.ts';
+import type { ConnectionSummary } from '../services/mapping-service.ts';
 import { RECENT_ERROR_MS, RECENT_ERRORS_KEPT, __keptForTests, recentErrors } from '../services/recent-errors.ts';
 import LiveProgress, { type LiveProgressRow } from '../components/LiveProgress.tsx';
 import { SendItToUs } from '../components/SendItToUs.tsx';
+import Connections from './Connections.tsx';
+import Failures from './Failures.tsx';
 import ReportProblem from './ReportProblem.tsx';
 
 const EN = STRINGS.en;
@@ -73,6 +79,8 @@ let fault: Fault | 'network' = { status: 500, data: { error: 'list_failed', reas
 let previewFails = false;
 const previews: Array<Record<string, string>> = [];
 const reports: Array<Record<string, unknown>> = [];
+/** What a screen reads to draw its failure lines, by address, as the server would answer it. */
+const pages = new Map<string, unknown>();
 
 /** An answer as axios's own adapters give it: a rejection with the response from 400 up. */
 function answer(config: InternalAxiosRequestConfig, status: number, data: unknown, headers: Record<string, string> = {}) {
@@ -109,6 +117,7 @@ network.handle = async (raw) => {
     if (fault === 'network') throw new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, {});
     return answer(config, fault.status, fault.data, { 'x-canary': CANARY });
   }
+  if ((config.method ?? 'get') === 'get' && pages.has(url)) return answer(config, 200, pages.get(url));
   throw new Error(`an unexpected ${config.method ?? 'get'} ${url}`);
 };
 
@@ -165,6 +174,7 @@ beforeEach(() => {
   globalThis.localStorage.clear();
   previews.length = 0;
   reports.length = 0;
+  pages.clear();
   previewFails = false;
   fault = { status: 500, data: { error: 'list_failed', reason: faultSaying('1a2b3c4d') } };
   // A new session each time: signing in forgets the last one's errors.
@@ -349,16 +359,19 @@ describe('what the form sends of the browser', () => {
 });
 
 describe('the failure line passes what it knows', () => {
-  const at = (path: string, element: React.ReactNode) =>
+  const at = (path: string, element: React.ReactNode, route = '*') =>
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={[path]}>
           <Routes>
-            <Route path="*" element={element} />
+            <Route path={route} element={element} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
     );
+  const sendItToUs = () => screen.findAllByRole('link', { name: EN['failure.sendItToUs'] });
+  /** Another migration, whose failure names two data types and no side. */
+  const OTHER_MIGRATION = '0130b0b0-e29b-41d4-a716-446655440016';
 
   it('links with the data type, the side and the migration it has', async () => {
     at('/connections', <SendItToUs category="unknown" dataType="file" side="source" migrationId={MIGRATION} />);
@@ -384,5 +397,64 @@ describe('the failure line passes what it knows', () => {
       'href',
       `/report?from=${encodeURIComponent(`/mappings/${MIGRATION}`)}&category=unknown&reference=0a1b2c3d&dataType=calendar&side=target`,
     );
+  });
+
+  it("on Connections, a standing failure's migration, its side, and its data type when it names one", async () => {
+    // The page the proposal began from: its address is `/connections`, which
+    // names no migration, so without these a report said only that.
+    const asOf = new Date(Date.now() - 2 * 3600_000).toISOString();
+    const connection = {
+      id: 'c1',
+      role: 'target',
+      kind: 'imap',
+      displayName: 'Acme mail (target)',
+      status: 'connected',
+      createdAt: '2026-08-01T10:00:00Z',
+      usedByMigrations: 2,
+      standingFailures: [
+        { mappingId: MIGRATION, mappingName: 'Acme mail', category: 'unknown', domains: ['email'], asOf, side: 'target' },
+        { mappingId: OTHER_MIGRATION, mappingName: 'Acme agenda', category: 'unknown', domains: ['calendar', 'contact'], asOf, side: null },
+      ],
+    } satisfies ConnectionSummary;
+    pages.set('/connections', { connections: [connection] });
+    pages.set('/provider-clients', { google: 'connection', dropbox: 'connection', microsoft: 'connection' });
+    at('/connections', <Connections />);
+    expect((await sendItToUs()).map((link) => link.getAttribute('href'))).toEqual([
+      `/report?from=%2Fconnections&category=unknown&dataType=email&side=target&migration=${MIGRATION}`,
+      // Two data types are not one, and a side the pass did not name is not sent.
+      `/report?from=%2Fconnections&category=unknown&migration=${OTHER_MIGRATION}`,
+    ]);
+  });
+
+  it('on the failure queue, an item its data type, and a group its data type and migration', async () => {
+    const item = (naturalKeyHash: string): ItemFailure => ({
+      naturalKeyHash,
+      domain: 'contact',
+      collection: 'Contacts',
+      lastError: 'PUT failed with status 502',
+      attempts: 1,
+      needsDecision: true,
+      category: 'unknown',
+    });
+    const queue = {
+      [MIGRATION]: {
+        migrationStatus: 'active',
+        needsDecision: [item('h1'), item('h2')],
+        retrying: [],
+        howToResolve: { retry: 'Try again.', accept: 'Migrate without it.', doNothing: 'It stays here.' },
+      },
+    } satisfies FailuresResponse;
+    pages.set(`/migrations/${MIGRATION}/failures`, queue);
+    const path = `/mappings/${MIGRATION}/failures`;
+    at(path, <Failures />, '/mappings/:mappingId/failures');
+    const links = await sendItToUs();
+    const from = `/report?from=${encodeURIComponent(path)}&category=unknown`;
+    const group = screen.getByText(EN['failures.group.title']).parentElement!;
+    expect(within(group).getByRole('link', { name: EN['failure.sendItToUs'] })).toHaveAttribute(
+      'href',
+      `${from}&dataType=contact&migration=${MIGRATION}`,
+    );
+    const items = links.filter((link) => !group.contains(link));
+    expect(items.map((link) => link.getAttribute('href'))).toEqual([`${from}&dataType=contact`, `${from}&dataType=contact`]);
   });
 });
