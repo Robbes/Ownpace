@@ -2,7 +2,50 @@
 
 > **In one line:** Report a problem on managed: a form that files a ticket on the owner's Zammad via `POST /api/problem-reports`, linked from the `unknown` failure remedy with its `last_error_reference`, the same helpdesk for a grant or progress link's *Report this link*, plus privacy-policy wording.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: a screenshot the front door lets through.** On managed, a report with a
+screenshot above about 750 KB never reached the API. The web image's nginx proxies `/api/` and
+set no `client_max_body_size`, so its default of 1 MB answered with its own HTML 413 before the
+API's 8 MB limit applied. No ticket was made, nothing was recorded as `report.not-delivered`,
+and the form printed *"Request failed with status code 413"*. No test sent a body through the
+front: the API's tests call Express directly, and the UI smoke mocks the route. Reproduced on
+nginx 1.24 with the template as it was: a 2 MB report got `413 text/html`. Now
+`apps/web/nginx.conf.template` sets `client_max_body_size 8m` on `/api/`, named after
+`PROBLEM_REPORT_BODY_LIMIT`. On the same nginx, a 2 MB report and the largest the form can send
+(a 5 MB screenshot and 5000 characters, 7.0 MB) reach the upstream, and 9 MB is still refused.
+When any front answers 413, the form says the screenshot is too large to send and to choose a
+smaller one, in English and Dutch (`report.tooLarge`).
+
+With 8 MB let through, the route no longer parses before it knows who is sending. Its parser was
+mounted on the whole router, so it read and parsed up to 8 MB before sign-in, and a body that was
+not JSON became a 500 *"fault on our side"* recorded as `api.unhandled`. Now sign-in, the
+helpdesk, the reply address and the hour's five come first, and a body too large or not JSON is
+answered 413 (`report_too_large`) or 400 in JSON. The 8m stays on all of `/api/` on purpose,
+as the template now says: nginx takes the whole body before the API asks who is sending, so a
+location of the report's own would let the same 8 MB in unsigned.
+
+The public ingress in front of the machine may have a body limit of its own, which this
+repository cannot set: `docs/managed-bring-up.md` says to check it allows 8 MB, and 8f's test
+report now sends a screenshot close to 5 MB (a request of about 7 MB) through the public name.
+**A gap, not handled:** a front that drops the connection instead of answering 413 leaves the
+form saying *Network Error*, with no hint that the screenshot was the cause. Showing the
+too-large hint then would be wrong whenever the network itself was down, so it is not.
+
+Guards: `a-screenshot-the-front-door-lets-through` (12), red on main. It reads every
+`express.json`, `.raw`, `.text` and `.urlencoded` in `apps/api/src` and refuses a body read any
+other way it could miss (a parser imported by name or from `body-parser`, another body-reading
+package, the request stream read by hand). For each route whose parser takes more than nginx's
+default, it knows the URI (today the report's alone) and checks the location nginx would choose
+for it, in every nginx config under `apps/` and `deploy/`: exact, else the longest prefix unless
+`^~` or a regex comes first, nested locations likewise. So 8m on `location = /api/problem-reports`
+alone passes too; the guard as first written refused it. The API's `a-report-that-reaches-a-person`
+goes from 25 to 30, the web app's from 7 to 11. `scripts/lessons.mjs` now indexes `.template`
+files and Dockerfiles, so `docs/LESSONS.md` files this guard under the template it protects. 29
+mutations, all killed: 11 on the first version, then 5 on the route, 11 on the guard and the
+template, 2 on the index. One, the Dutch sentence left in English, died only once a test pinned
+the Dutch; another, a nested location's `proxy_pass` counted as its parent's, only once a case
+pinned it.
 
 **2026-09-24: a link holder can report too (workplan 0108 T8 (d)).** The owner decided that
 *"report this link"* goes to this form's helpdesk. The grant and progress pages offer it when

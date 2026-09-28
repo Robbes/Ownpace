@@ -61,8 +61,15 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GUARD_DIR = join(REPO_ROOT, 'scripts');
 const OUT = join(REPO_ROOT, 'docs', 'LESSONS.md');
 
-/** Extensions a guard plausibly reads. Anything else is not a file it protects. */
-const EXTENSIONS = ['ts', 'tsx', 'mjs', 'sh', 'yml', 'yaml', 'md', 'sql', 'json', 'example'];
+/**
+ * Extensions a guard plausibly reads. Anything else is not a file it protects.
+ * `template` since 2026-09-28: `apps/web/nginx.conf.template` is the file a
+ * body-limit guard protects, and it was filed under the files the guard only
+ * mentioned. `Dockerfile` is a name, not an extension, and is matched as one.
+ */
+const EXTENSIONS = ['ts', 'tsx', 'mjs', 'sh', 'yml', 'yaml', 'md', 'sql', 'json', 'example', 'template'];
+/** File names with no extension that a guard plausibly reads. */
+const NAMES = ['Dockerfile'];
 
 /** The guard files, by location. */
 export function guardFiles(dir = GUARD_DIR) {
@@ -154,7 +161,8 @@ export function headline(text) {
 export function guardedPaths(text, index, self) {
   const found = new Set();
   const extensions = EXTENSIONS.join('|');
-  const literal = new RegExp(`['"\`]([\\w./@-]+\\.(?:${extensions}))['"\`]`, 'g');
+  const names = NAMES.join('|');
+  const literal = new RegExp(`['"\`]((?:[\\w./@-]+\\.(?:${extensions})|(?:[\\w./@-]+/)?(?:${names})))['"\`]`, 'g');
   for (const match of text.matchAll(literal)) {
     const raw = match[1];
     if (raw === self || basename(raw) === self) continue;

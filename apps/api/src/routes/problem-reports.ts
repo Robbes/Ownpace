@@ -12,10 +12,19 @@
  * Signed-in only, and limited per person: five reports an hour is more than
  * anybody writing about a real problem needs, and it keeps a stuck form or a
  * script from filling the owner's helpdesk.
+ *
+ * THE BODY IS READ LAST. Until 2026-09-28 the parser was mounted on the whole
+ * router, so it read and parsed a body of up to 8 MB before sign-in was asked
+ * for: anybody, signed in or not, could make the API do that as often as they
+ * liked, and a body that was not JSON reached the global error handler as a
+ * 500 "fault on our side". Now sign-in, the helpdesk, the reply address and
+ * the hour's five are all decided first, none of which reads the body, and a
+ * body too large or not JSON is answered here, 413 or 400, in JSON the form
+ * can read.
  */
 
 import express, { Router } from 'express';
-import type { Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { log, newAppEvent, recordAppEvent } from '@openmig/shared';
 import { authenticate } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
@@ -26,7 +35,7 @@ import {
   parseProblemReport,
   ticketFor,
 } from '../problem-report.ts';
-import { createZammadTicket, reportingConfig, ZammadRefused } from '../services/zammad.ts';
+import { createZammadTicket, reportingConfig, ZammadRefused, type ZammadConfig } from '../services/zammad.ts';
 
 /** Five reports an hour, per person. */
 export const PROBLEM_REPORT_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;
@@ -40,14 +49,16 @@ export interface ProblemReportDeps {
 export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
   const router = Router();
   const limiter = deps.limiter ?? createKnockLimiter(PROBLEM_REPORT_LIMIT);
-  router.use(express.json({ limit: PROBLEM_REPORT_BODY_LIMIT }));
+  /** What the checks before the body decided, for the handler after it. */
+  const accepted = new WeakMap<Request, { readonly config: ZammadConfig; readonly email: string }>();
 
   /** Whether to offer the form at all: a form that can send nowhere is not shown. */
   router.get('/available', authenticate, (_req: AuthenticatedRequest, res: Response) => {
     res.json({ available: reportingConfig(deps.env) !== undefined });
   });
 
-  router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  /** Everything that decides whether a report may be sent, before a byte of it is read. */
+  const mayReport = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     const config = reportingConfig(deps.env);
     if (!config) {
       res.status(503).json({
@@ -75,38 +86,76 @@ export function problemReportRoutes(deps: ProblemReportDeps = {}): Router {
       });
       return;
     }
-    const parsed = parseProblemReport(req.body);
-    if (isRefusal(parsed)) {
-      res.status(parsed.status).json({ error: 'invalid_report', field: parsed.field, reason: parsed.reason });
+    accepted.set(req, { config, email });
+    next();
+  };
+
+  router.post(
+    '/',
+    authenticate,
+    mayReport,
+    express.json({ limit: PROBLEM_REPORT_BODY_LIMIT }),
+    async (req: AuthenticatedRequest, res: Response) => {
+      const decided = accepted.get(req);
+      // Unreachable: this handler runs only after `mayReport` said yes.
+      if (!decided) throw new Error('a problem report reached its handler without passing the checks before it');
+      const { config, email } = decided;
+      const parsed = parseProblemReport(req.body);
+      if (isRefusal(parsed)) {
+        res.status(parsed.status).json({ error: 'invalid_report', field: parsed.field, reason: parsed.reason });
+        return;
+      }
+      try {
+        const ticket = await createZammadTicket(
+          config,
+          ticketFor(parsed, { email, ...(req.tenantId ? { tenantId: req.tenantId } : {}) }, config.group),
+          deps.fetchImpl,
+        );
+        res.status(201).json({ ticket });
+      } catch (err) {
+        // On the operator's log page (0129 T1), and on this line with its
+        // reference. The person keeps what they wrote: the form still holds it.
+        const failed = newAppEvent({
+          level: 'error',
+          event: 'report.not-delivered',
+          ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+        });
+        log.error(
+          `[api] a problem report could not be delivered [ref ${failed.reference}]:`,
+          err instanceof ZammadRefused ? err.message : err,
+        );
+        void recordAppEvent(failed);
+        res.status(502).json({
+          error: 'report_not_delivered',
+          reason:
+            'Your report could not be delivered just now. What you wrote is still in the form: ' +
+            `try again in a moment. Reference ${failed.reference}.`,
+        });
+      }
+    },
+  );
+
+  /**
+   * A body the parser refused, answered as the route's other refusals are.
+   * Without this, body-parser's error went on to the API's global handler,
+   * which answers every error 500 "a fault on our side" and records it as one.
+   * Too large is 413, which the form reads as "choose a smaller screenshot";
+   * not JSON is 400. Anything else is a real fault and goes on.
+   */
+  router.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    const type = (err as { type?: unknown } | null)?.type;
+    if (type === 'entity.too.large') {
+      res.status(413).json({
+        error: 'report_too_large',
+        reason: `The report is larger than this service takes (${PROBLEM_REPORT_BODY_LIMIT}): choose a smaller screenshot.`,
+      });
       return;
     }
-    try {
-      const ticket = await createZammadTicket(
-        config,
-        ticketFor(parsed, { email, ...(req.tenantId ? { tenantId: req.tenantId } : {}) }, config.group),
-        deps.fetchImpl,
-      );
-      res.status(201).json({ ticket });
-    } catch (err) {
-      // On the operator's log page (0129 T1), and on this line with its
-      // reference. The person keeps what they wrote: the form still holds it.
-      const failed = newAppEvent({
-        level: 'error',
-        event: 'report.not-delivered',
-        ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-      });
-      log.error(
-        `[api] a problem report could not be delivered [ref ${failed.reference}]:`,
-        err instanceof ZammadRefused ? err.message : err,
-      );
-      void recordAppEvent(failed);
-      res.status(502).json({
-        error: 'report_not_delivered',
-        reason:
-          'Your report could not be delivered just now. What you wrote is still in the form: ' +
-          `try again in a moment. Reference ${failed.reference}.`,
-      });
+    if (type === 'entity.parse.failed') {
+      res.status(400).json({ error: 'invalid_report', reason: 'The report did not arrive as JSON.' });
+      return;
     }
+    next(err);
   });
 
   return router;

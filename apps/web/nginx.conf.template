@@ -51,6 +51,20 @@ server {
   # this block they fell through to the SPA fallback and got index.html back
   # as JSON (the 0011 T7 DRAFT gotcha, resolved 2026-08-10).
   location /api/ {
+    # THE LARGEST REPORT THE API TAKES, and not a byte less. A problem report
+    # carries its screenshot (up to 5 MB) as base64 inside JSON, and the API
+    # parses that route with PROBLEM_REPORT_BODY_LIMIT, '8mb', in
+    # apps/api/src/problem-report.ts. Without this line nginx's default of 1 MB
+    # answered every screenshot above about 750 KB with its own HTML 413 before
+    # the API saw it, and nothing was recorded. Change it with that constant,
+    # never below it. On all of /api/ on purpose, not on a location of the
+    # report's own: nginx takes the whole body before the API asks who is
+    # sending it, so a report location would let the same 8 MB in unsigned,
+    # and would be a second proxy block to keep in step with this one. Every
+    # other route's parser still refuses more than it allows (100 kB).
+    # scripts/a-screenshot-the-front-door-lets-through.unit.test.ts compares
+    # this with the location nginx chooses for /api/problem-reports.
+    client_max_body_size 8m;
     set $api_upstream http://${API_UPSTREAM};
     proxy_pass $api_upstream;
     proxy_http_version 1.1;

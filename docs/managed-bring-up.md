@@ -243,6 +243,17 @@ Compose reads the file, and names the key, not the value.
   brought up with. Without it, the name stops answering. The API reaches its
   issuer by the provider's public name too, so sign-in stops with it, and the
   status page's lamps go red.
+- **The front's own request-body limit must allow 8 MB on the app's name.** A
+  problem report (8f) carries a screenshot of up to 5 MB, sent as base64 in a
+  request of up to about 7 MB; the API takes 8 MB
+  (`PROBLEM_REPORT_BODY_LIMIT`), and the web image's nginx lets that much
+  through to `/api/`. The ingress in front of the machine (NetBird's, on the
+  reference machine) may have a limit of its own, and this repository cannot
+  set it: check that it allows at least 8 MB. 8f's test report with a
+  screenshot near 5 MB is what proves it. A front that refuses with a 413 makes
+  the form tell the person to choose a smaller screenshot, and nothing is
+  recorded. One that drops the connection instead leaves the form saying only
+  *Network Error*.
 - **A page you open from a laptop over the mesh** takes the machine's mesh
   address the same way: `TRIGGER_TLS_BIND` for the dashboard (*Addressing the
   dashboard*, above), and `STATUS_BIND` for a status page reached over the mesh
@@ -1744,7 +1755,11 @@ ZAMMAD_GROUP='Users'
 Only https is accepted (http only for `localhost`): the token travels with every
 ticket. Restart the API, sign in, and the link appears; send yourself a test
 report. A report that Zammad refuses is answered with a reference, and recorded
-for the log page as `report.not-delivered`.
+for the log page as `report.not-delivered`. Send one through the public name
+with a screenshot close to 5 MB too, the form's maximum, which makes a request
+of about 7 MB: a front that takes less refuses it before the API sees it, with
+a 413 or by dropping the connection, and a smaller screenshot would not show
+that (*Which address a port answers on*, above).
 
 The same setting switches on **Report this link** on the grant and progress
 pages (workplan 0108 T8 (d)). Somebody who doubts a link they were sent tells

@@ -9,6 +9,13 @@
  * link secret or a query, and drops a reference or a category that is not one.
  * And a report that could not be delivered keeps what the person wrote, as
  * the refusal tells them it does.
+ *
+ * A report too large for a front on the way (the web image's nginx, a public
+ * ingress, or the API's own check of the screenshot) is answered 413, in
+ * HTML, plain text or JSON, and the form says what that means: the screenshot
+ * is too large, send a smaller one. Before 2026-09-28 it printed "Request
+ * failed with status code 413"
+ * (`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts`).
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -18,6 +25,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAuthStore } from '../stores/auth-store.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 import { reportablePage } from '../services/problem-report-service.ts';
 import ReportProblem from './ReportProblem.tsx';
@@ -43,18 +51,23 @@ const refusal = (status: number, data: unknown): AxiosError => {
   return err;
 };
 
-const renderPage = (path: string) =>
-  render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
-    >
-      <MemoryRouter initialEntries={[path]}>
-        <ReportProblem />
-      </MemoryRouter>
-    </QueryClientProvider>,
+const renderPage = (path: string, locale: 'en' | 'nl' = 'en') => {
+  globalThis.localStorage.setItem('ownpace.locale', locale);
+  return render(
+    <LocaleProvider>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+      >
+        <MemoryRouter initialEntries={[path]}>
+          <ReportProblem />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </LocaleProvider>,
   );
+};
 
 beforeEach(() => {
+  globalThis.localStorage.clear();
   getMock.mockReset();
   postMock.mockReset();
   getMock.mockResolvedValue({ data: { available: true } });
@@ -154,5 +167,51 @@ describe('Report a problem', () => {
 
     expect(await screen.findByText(EN['report.unavailable'])).toBeVisible();
     expect(screen.queryByRole('button', { name: EN['report.send'] })).toBeNull();
+  });
+});
+
+describe('a report too large for a front on the way', () => {
+  /** A PNG by its first bytes, so the form takes it. */
+  const png = () =>
+    new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])], 'screen.png', {
+      type: 'image/png',
+    });
+  const NGINX_413 =
+    '<html>\r\n<head><title>413 Request Entity Too Large</title></head>\r\n<body>\r\n' +
+    '<center><h1>413 Request Entity Too Large</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n';
+  const API_413 = { error: 'invalid_report', field: 'screenshot', reason: 'A screenshot may be at most 5 MB.' };
+  const fronts: ReadonlyArray<readonly [string, 'en' | 'nl', unknown]> = [
+    ["the web image's nginx, in HTML", 'en', NGINX_413],
+    ['a public ingress, in plain text', 'nl', 'Request Entity Too Large'],
+    ['the API, in JSON', 'nl', API_413],
+  ];
+
+  it.each(fronts)(
+    'says the screenshot is too large to send when %s answers 413 (%s)',
+    async (_front, locale, body) => {
+      const L = STRINGS[locale];
+      postMock.mockRejectedValueOnce(refusal(413, body));
+      renderPage('/report?from=%2F', locale);
+      const description = await screen.findByLabelText(L['report.description']);
+      await userEvent.type(description, 'The Moves screen is empty');
+      await userEvent.upload(screen.getByLabelText(L['report.screenshot']), png());
+      await userEvent.click(screen.getByRole('button', { name: L['report.send'] }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(L['report.tooLarge']);
+      expect(postMock).toHaveBeenCalledWith(
+        '/problem-reports',
+        expect.objectContaining({ screenshot: { data: expect.any(String) as unknown } }),
+      );
+      // Not the transport's words, and not the front's own page or sentence.
+      expect(document.body.textContent).not.toContain('413');
+      expect(document.body.textContent).not.toContain(API_413.reason);
+      // What the person wrote stays, so they only choose a smaller picture.
+      expect(description).toHaveValue('The Moves screen is empty');
+    },
+  );
+
+  it('is a Dutch sentence in Dutch, not the English one again', () => {
+    expect(STRINGS.nl['report.tooLarge']).not.toBe(STRINGS.en['report.tooLarge']);
+    expect(STRINGS.nl['report.tooLarge']).toMatch(/^De schermafbeelding is te groot/);
   });
 });

@@ -24,6 +24,7 @@ import { useAuthStore } from '../stores/auth-store.ts';
 import { serverMessage } from '../services/api.ts';
 import {
   fetchReportingAvailable,
+  refusedAsTooLarge,
   reportablePage,
   sendProblemReport,
 } from '../services/problem-report-service.ts';
@@ -169,7 +170,9 @@ const ReportProblem: React.FC = () => {
 
         {send.isError && (
           <p role="alert" className="text-sm text-red-700">
-            {serverMessage(send.error)}
+            {/* A 413 from any front says so in its own words, or in HTML: this
+                says what to do about it, in the reader's language. */}
+            {refusedAsTooLarge(send.error) ? t('report.tooLarge') : serverMessage(send.error)}
           </p>
         )}
 

@@ -104,6 +104,12 @@ reading a file drops off its entry by itself.
 
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
+### `apps/api/Dockerfile`
+
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
+- [runs-without-a-transpiler](../scripts/runs-without-a-transpiler.unit.test.ts) — The API image runs `node apps/api/src/index.ts`.
+
 ### `apps/api/package.json`
 
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
@@ -148,6 +154,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/middleware/no-issuer-lock-in.unit.test.ts`
 
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+
+### `apps/api/src/problem-report.ts`
+
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 
 ### `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
 
@@ -233,6 +243,10 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 
+### `apps/api/src/routes/problem-reports.ts`
+
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+
 ### `apps/api/src/routes/provider-accounts.ts`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -294,6 +308,13 @@ reading a file drops off its entry by itself.
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 
+### `apps/selfhost/Dockerfile`
+
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+
 ### `apps/selfhost/src/a-button-only-one-edition-answers.unit.test.ts`
 
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
@@ -305,6 +326,20 @@ reading a file drops off its entry by itself.
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
+
+### `apps/web/Dockerfile`
+
+- [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
+- [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+- [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+- [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+
+### `apps/web/nginx.conf.template`
+
+- [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 
 ### `apps/web/src/AppRoutes.tsx`
 
@@ -384,6 +419,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/MappingDetail.tsx`
 
 - [a-live-progress-that-needed-f5](../scripts/a-live-progress-that-needed-f5.unit.test.ts) — A LIVE PROGRESS THAT NEEDED F5.
+
+### `apps/web/src/pages/ReportProblem.tsx`
+
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 
 ### `apps/web/src/pages/end-user-docs.unit.test.tsx`
 
@@ -1070,6 +1109,7 @@ reading a file drops off its entry by itself.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
@@ -2457,6 +2497,8 @@ Reads:
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e-live-target.yml`
 - `.github/workflows/e2e-managed.yml`
+- `apps/api/Dockerfile`
+- `apps/selfhost/Dockerfile`
 - `apps/worker/trigger.config.ts`
 - `deploy/compose/managed.yml`
 - `deploy/selfhost/compose.yml`
@@ -2526,6 +2568,7 @@ A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 
 Reads:
 
+- `apps/web/Dockerfile`
 - `deploy/compose/managed.yml`
 - `deploy/compose/www.yml`
 
@@ -2637,6 +2680,7 @@ A LOG THAT KEPT THE LINK, on the web image's nginx.
 Reads:
 
 - `apps/api/src/access-log.ts`
+- `apps/web/nginx.conf.template`
 
 ### [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts)
 
@@ -2835,6 +2879,7 @@ A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 
 Reads:
 
+- `apps/web/Dockerfile`
 - `apps/web/src/pages/Grant.tsx`
 - `apps/web/src/pages/Grant.unit.test.tsx`
 - `apps/web/src/services/legal-links.ts`
@@ -3078,6 +3123,7 @@ Reads:
 
 - `apps/api/src/index.ts`
 - `apps/api/src/scripts/seed-managed.ts`
+- `apps/selfhost/Dockerfile`
 - `apps/worker/src/jobs/refuse-internal-addresses.ts`
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/env-upsert.sh`
@@ -3155,6 +3201,19 @@ Reads:
 - `apps/web/src/i18n/strings.ts`
 - `apps/web/src/pages/Billing.tsx`
 - `apps/web/src/services/billing-service.ts`
+
+### [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts)
+
+A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+
+Reads:
+
+- `apps/api/src/problem-report.ts`
+- `apps/api/src/routes/problem-reports.ts`
+- `apps/web/Dockerfile`
+- `apps/web/nginx.conf.template`
+- `apps/web/src/pages/ReportProblem.tsx`
+- `docs/managed-bring-up.md`
 
 ### [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts)
 
@@ -3437,6 +3496,8 @@ Reads:
 - `apps/api/src/access-notify.ts`
 - `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
 - `apps/api/src/routes/access-requests.ts`
+- `apps/selfhost/Dockerfile`
+- `apps/web/Dockerfile`
 - `apps/web/src/components/AlphaNote.tsx`
 - `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 - `apps/web/src/services/stage.ts`
@@ -3632,6 +3693,7 @@ The identity provider is actually part of the managed gate (workplan 0099).
 
 Reads:
 
+- `apps/api/Dockerfile`
 - `apps/api/src/middleware/auth.ts`
 - `apps/api/src/scripts/seed-managed.ts`
 - `apps/web/src/services/idp-console.ts`
@@ -3824,6 +3886,7 @@ The API image runs `node apps/api/src/index.ts`.
 
 Reads:
 
+- `apps/api/Dockerfile`
 - `tsconfig.base.json`
 
 ### [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts)
@@ -3953,6 +4016,7 @@ THE ISSUER THE BUNDLE NEVER LEARNED.
 
 Reads:
 
+- `apps/web/Dockerfile`
 - `apps/web/src/components/StatusLink.tsx`
 - `apps/web/src/pages/Login.tsx`
 - `apps/web/vite.config.ts`
@@ -4138,6 +4202,8 @@ ONE VERSION NUMBER, IN ONE FILE.
 
 Reads:
 
+- `apps/selfhost/Dockerfile`
+- `apps/web/Dockerfile`
 - `apps/web/src/services/build-identity.ts`
 - `apps/web/vite.config.ts`
 - `deploy/compose/managed.yml`
