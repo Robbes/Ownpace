@@ -4,6 +4,69 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: a screenshot anyone can make.** Of two proposals for the form's screenshot, the
+owner answered *"yes, build 1 and 2"*. The form asked for a screenshot and said nothing of how to
+make one, and took one only as a file to choose, while Windows+Shift+S, Print Screen, a
+Chromebook's Ctrl+Show windows and a Mac's Control+Shift+Command+4 all put the picture on the
+clipboard. Built on branch `claude/ownpace-public-readiness-y7orc6-a-screenshot-anyone-can-make`,
+on top of the 8 MB branch below (#1319, itself on T5's #1318), not merged:
+
+- **A closed fold under the field**, *How do I make a screenshot?* / *Hoe maak ik een
+  schermafbeelding?*, with one line each for Windows (Windows+Shift+S, then paste; or Print
+  Screen), Mac (Shift+Command+4, then the file from the desktop; or Control+Shift+Command+4 to copy
+  it, then paste), iPhone or iPad (the side or top button and volume up; on a model with a Home
+  button, the side or top button and the Home button; then the picture from Photos), Android
+  (power and volume down, on most phones) and Chromebook (Ctrl+Show windows, then paste), and a
+  last line: look at the picture before sending it, since it shows everything that was on the
+  screen. Each shortcut was checked against its vendor's help page as a web search returned it
+  (Microsoft's Snipping Tool page, Apple's pages for Mac, iPhone and iPad, Google's Android and
+  Chromebook pages, and the Dutch Chromebook page for *Vensters weergeven*); the pages themselves
+  could not be fetched from the session. The owner's iPhone line was *side or top button + volume
+  up*, which Apple gives for models without a Home button only, so the line names the Home button
+  as well.
+- **Paste and drop.** A picture pasted anywhere on the page (Ctrl+V, Command+V), or dropped on it,
+  becomes the screenshot through the same type and 5 MB checks as a chosen file, so a GIF or a
+  picture over 5 MB is refused with the same sentences. A paste that carries text, into a place
+  that takes text, is left to the text, even when a picture comes with it as it does in a copy from
+  Word or Excel; a picture pasted into the description with no text beside it is attached. A drop
+  that misses the field is taken too, rather than left to the browser, which would open the picture
+  in place of the form and what the person wrote.
+- **What is attached is said**, *Attached: image.png (182 B).* / *Bijgevoegd: …*, as a status a
+  screen reader announces, with *Remove the screenshot* / *Schermafbeelding verwijderen* beside it,
+  which empties the chooser and gives it the focus. A picture that came by paste or drop empties
+  the chooser too, so it never shows a file other than the one attached.
+- **A *Paste screenshot* button** (*Schermafbeelding plakken*), only where the browser has
+  `navigator.clipboard.read`, which reads the clipboard when it is pressed. A clipboard with no
+  picture on it, and a browser that will not let the page read it, are each said; the keyboard's
+  paste still works.
+- The hint under the field now says a picture can be chosen, dropped or pasted. The link-report
+  form has no screenshot and is unchanged.
+
+Guard: `apps/web/src/pages/a-screenshot-anyone-can-make.unit.test.tsx` (40, English and Dutch): the
+fold, closed and under the field, its six lines and the keys each names; a pasted PNG and a pasted
+JPEG attach and are sent; a picture pasted into the description attaches; text pasted into the
+description stays there and attaches nothing, also with a picture beside it; a pasted GIF and a
+pasted picture over 5 MB are refused with the existing sentences; a dropped PNG attaches and is
+sent, and a dropped PDF is refused; a chosen file is named; Remove works for a chosen and a pasted
+picture; and the Paste button, absent without `navigator.clipboard.read`, attaches, refuses a GIF,
+and says an empty clipboard and a refused read. Red on the branch head: 36 of 40 failed, and the
+four that passed are the text-paste cases, which hold only once pictures are pasted. 18
+mutations, all killed: the fold open, not a fold, or a line short; a paste taking a PNG only; the
+text swallowed two ways; a paste, and the Paste button, skipping the checks; no drop; Remove not
+removing, not emptying the chooser, or not giving the focus back; the Paste button where it cannot
+work; a refused read called an empty clipboard; the attached line not a status; a paste heard in
+the description only; the Dutch Mac line in English; the iPhone line without the Home button.
+
+Seen in a browser as well, not only in jsdom: the built bundle in headless Chromium, with the
+clipboard filled by `navigator.clipboard.write`. Ctrl+V with nothing focused attached the picture;
+text pasted into the description stayed text, also with a picture beside it; a picture pasted into
+the description attached and left its text alone; the Paste button attached, and said *There is no
+picture on the clipboard* for text; a real `DataTransfer` dropped on the chooser attached and was
+what the report sent, and the field turned blue while it was dragged over; Remove gave the chooser
+the focus. Firefox and Safari were not tried: Stage 8 step 7 of `docs/owner-test-runbook.md` now
+has A paste the screenshot and B choose or drop it, and records the browser. 8f of
+`docs/managed-bring-up.md` names the three ways.
+
 **2026-09-28: a screenshot the front door lets through.** On managed, a report with a
 screenshot above about 750 KB never reached the API. The web image's nginx proxies `/api/` and
 set no `client_max_body_size`, so its default of 1 MB answered with its own HTML 413 before the
