@@ -392,7 +392,13 @@ So a command reaches a stack in one of two ways, and never by a fixed name:
   `COMPOSE_PROJECT_NAME` in that checkout's `deploy/compose/.env`, or
   `ownpace-managed` when that is unset. The scripts take it the same way
   (`compose_project` in `deploy/compose/env-read.sh`), and the recipes they
-  print have it filled in. To ask Compose, from the checkout:
+  print have it filled in. One difference: a `.env` that carries live's
+  marker, `STACK_KIND=production` (`deploy/compose/stack-kind.sh`), and whose
+  project still comes out as `ownpace-managed` is refused, naming the two keys
+  and no value. Live's `.env` sets `COMPOSE_PROJECT_NAME=ownpace-live` (workplan
+  0132 T1b); without that line every script in live's checkout would drive the
+  OTA stack with live's `.env`. A `docker compose` you type yourself does not
+  refuse. To ask Compose, from the checkout:
 
   ```bash
   docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p'
@@ -2220,6 +2226,12 @@ persisting the one-time setup **outside** any checkout — at
 `$MANAGED_ENV_PERSIST_DIR` (default `~/.persistent/<project>`, which for the
 gate is `~/.persistent/ownpace-managed`, overridable as a repository variable) — and restoring it into
 the checkout at the start of every run, before the refuse-early check.
+Before it copies anything out of that directory, the restore asks
+[`refuse-live-env.sh`](../deploy/compose/refuse-live-env.sh) whose `.env` it is,
+and stops when it carries live's marker, `STACK_KIND=production`, or anything
+that could be a slip of it (workplan 0132 T1g). So a variable pointed at live's
+directory by mistake ends the run there, with nothing copied, written or brought
+up, and the log names the key and the variable, never a value.
 
 **Because neither checkout of the OTA stack sets `COMPOSE_PROJECT_NAME`, both
 use `managed.yml`'s own project, and the containers are the same regardless of
@@ -2237,8 +2249,8 @@ cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/ownpace-managed/userlist.
 
 Each stack has one `.env`. The operator's checkout of the OTA stack and the
 gate's share one file, which is this section. `ownpace-live` has its own, in
-`~/.persistent/ownpace-live/`, and the gate never reads it (workplan 0132 T1b,
-T1g).
+`~/.persistent/ownpace-live/`, and the gate never restores it: pointed there, it
+refuses before it copies anything (workplan 0132 T1b, T1g).
 
 **Then replace your copy with a link, and do not skip this.** The `cp` above is
 a one-time seed. Left as two files it becomes two *configurations* for one
