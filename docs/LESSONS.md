@@ -18,6 +18,10 @@ reading a file drops off its entry by itself.
 
 ## 1. By file — what constrains the thing you are about to edit
 
+### `.github/ISSUE_TEMPLATE/bug_report.yml`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `.github/workflows/ci.yml`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -103,6 +107,10 @@ reading a file drops off its entry by itself.
 ### `SECURITY.md`
 
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
+
+### `apps/api/docs/openapi.yaml`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `apps/api/package.json`
 
@@ -319,6 +327,14 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/web/src/components/Layout.tsx`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
+### `apps/web/src/components/Layout.unit.test.tsx`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+
 ### `apps/web/src/components/ProviderConsent.tsx`
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
@@ -379,6 +395,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/pages/Login.tsx`
 
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 
 ### `apps/web/src/pages/MappingDetail.tsx`
@@ -399,6 +416,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/src/services/build-identity.ts`
 
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
 ### `apps/web/src/services/idp-console.ts`
@@ -429,6 +447,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/vite.config.ts`
 
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -688,6 +707,7 @@ reading a file drops off its entry by itself.
 
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
@@ -786,6 +806,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/own-addresses.sh`
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 
@@ -959,8 +980,15 @@ reading a file drops off its entry by itself.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
+### `deploy/compose/www-live.sh`
+
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+
 ### `deploy/compose/www.yml`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
@@ -1095,11 +1123,13 @@ reading a file drops off its entry by itself.
 
 ### `docs/incident-runbook.md`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 - [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 
 ### `docs/managed-bring-up.md`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
@@ -1388,6 +1418,10 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/mapping-status-audit.ts`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+
+### `packages/ledger/src/migrate-upgrade.unit.test.ts`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `packages/ledger/src/retention.ts`
 
@@ -1852,7 +1886,12 @@ reading a file drops off its entry by itself.
 
 ### `scripts/package-appliance.mjs`
 
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
+
+### `scripts/package-appliance.unit.test.ts`
+
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 
 ### `scripts/pasteable-hints.unit.test.ts`
 
@@ -1897,6 +1936,7 @@ reading a file drops off its entry by itself.
 
 ### `site/build.mjs`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -2295,8 +2335,15 @@ Reads:
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/exposure-check.sh`
+- `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
+- `deploy/compose/own-addresses.sh`
 - `deploy/compose/stack-kind.sh`
+- `deploy/compose/www-live.sh`
+- `deploy/compose/www.yml`
+- `docs/incident-runbook.md`
+- `docs/managed-bring-up.md`
+- `site/build.mjs`
 
 ### [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts)
 
@@ -2422,6 +2469,7 @@ Reads:
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-version.sh`
+- `deploy/compose/www-live.sh`
 - `docs/managed-bring-up.md`
 
 ### [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts)
@@ -2486,6 +2534,7 @@ Reads:
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/trigger-cli-lib.sh`
+- `deploy/compose/www-live.sh`
 - `deploy/compose/www.yml`
 
 ### [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts)
@@ -3126,12 +3175,22 @@ A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json`
 
 Reads:
 
+- `.github/ISSUE_TEMPLATE/bug_report.yml`
 - `.github/workflows/ci.yml`
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 - `CHANGELOG.md`
+- `apps/api/docs/openapi.yaml`
+- `apps/web/src/components/Layout.tsx`
+- `apps/web/src/components/Layout.unit.test.tsx`
+- `apps/web/src/pages/Login.tsx`
+- `apps/web/src/services/build-identity.ts`
+- `apps/web/vite.config.ts`
 - `docs/release.md`
+- `packages/ledger/src/migrate-upgrade.unit.test.ts`
+- `scripts/package-appliance.mjs`
+- `scripts/package-appliance.unit.test.ts`
 - `scripts/release-names-agree.mjs`
 
 ### [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts)

@@ -62,6 +62,32 @@
  *   checked before the checkout, and a line that still cannot be written is
  *   printed for the owner, after the outcome, with the outcome's exit.
  *
+ *   It serves www.ownpace.eu wrong, or from the wrong project (workplan 0139
+ *   T10, with 0132 T6). With `WWW_LIVE=true` in live's `.env` the script
+ *   builds the tag's site with `--public` and brings it up under the project
+ *   `ownpace-live-www` (live's, with `-www`), a name it builds from live's
+ *   project. In live's checkout a bare
+ *   `docker compose -f deploy/compose/www.yml` puts the site in live's own
+ *   project (#1275's header), where one `--remove-orphans` removes live or the
+ *   site. So, before the checkout moves and in a dry run too: a missing
+ *   `WWW_PORT` or `WWW_BIND`, a `WWW_PORT` that is not one port from 1 to
+ *   65535, a switch that is neither `true` nor `false`, a
+ *   `www` service in live's project, a tag whose `www.yml` gives its
+ *   container a fixed name or that has no
+ *   site, a tag whose texts still carry placeholders, naming the count, a
+ *   tag whose `--public --check` refuses by itself (a legal page marked
+ *   draft, from 0139 T2's check on), saying `WWW_LIVE=false` deploys the app
+ *   alone, and a tag whose full `--public` build refuses for any other reason
+ *   (the tag's own site, test-built from git's objects: `--check` for the
+ *   count, then the build the deploy runs after the checkout) are each
+ *   refused. After the bring-up the site is built in the checkout, brought
+ *   up with `-p ownpace-live-www` and live's `--env-file`, waited for until
+ *   healthy, and asked on loopback: 200, no `noindex`, `robots.txt`
+ *   allowing, and at least one request-access link, every one on the
+ *   production app. Any of that failing is a deploy that did not take, with
+ *   the hold on, like any other check. And with the switch off, nothing about
+ *   the site runs at all.
+ *
  * HOW IT RUNS. Every case builds a checkout of its own: a real git repository
  * with a bare `origin` beside it, whose commits carry the script under test,
  * the two helpers it sources, the real `managed.yml`, one file in each
@@ -78,6 +104,18 @@
  * a fixture, or, in the last block, hands the SQL to PGlite with both
  * migration chains applied. `HOME` is the case's own directory, so the
  * deploy log lands in `~/.persistent/<project>` under it.
+ *
+ * For the site, every commit also carries `www.yml` (the real one, its
+ * container named after its project as #1275 makes it) and a stand-in
+ * `site/build.mjs` that keeps the real one's contract: `--public` with an app
+ * URL that is not production refuses, `--check` prints the real summary line
+ * with the count a release commits in `site/drafts` and stops, a `--public`
+ * build with a count refuses, and one at a release that commits
+ * `site/refuses` refuses with those words, its count 0. The `docker` stub answers `ps` and `inspect` for the
+ * site and records `compose -p … up`; the `curl` stub serves the checkout's
+ * `site/dist` on 127.0.0.1 once that `up` ran, as nginx would. One case builds
+ * the real `site/` from its tag, with the real count, or the real full
+ * build's verdict when that count is 0.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -85,6 +123,7 @@ import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -145,14 +184,60 @@ const { pgcrypto } = requireFromLedger('@electric-sql/pglite/contrib/pgcrypto') 
 // The stubs
 // ---------------------------------------------------------------------------
 
-/** docker: `compose config` and `compose exec -T postgres sh -c …`, nothing else. */
+/** The site's project, and the container id the stub gives it once it is up. */
+const SITE_PROJECT = 'ownpace-live-www';
+const SITE_ID = '5173e0001';
+
+/**
+ * docker: `compose config`, `compose exec -T postgres sh -c …`, and for the
+ * site `ps` of a project's `www` containers (never the whole daemon),
+ * `inspect` of the site's container, and `compose -p ownpace-live-www … up`.
+ * Nothing else.
+ */
 const DOCKER_STUB = `#!/usr/bin/env bash
 printf 'docker %s\\n' "$*" >>"$STUB_LOG"
-[ "$1" = compose ] || { echo "docker stub: unexpected call: $*" >&2; exit 98; }
-shift
-file='' env_file=''
+case "$1" in
+  ps)
+    shift
+    project='' service=''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -a) shift ;;
+        --filter)
+          case "$2" in
+            label=com.docker.compose.project=*) project="\${2#label=com.docker.compose.project=}" ;;
+            label=com.docker.compose.service=*) service="\${2#label=com.docker.compose.service=}" ;;
+            *) echo "docker stub: unexpected filter: $2" >&2; exit 95 ;;
+          esac
+          shift 2
+          ;;
+        --format) shift 2 ;;
+        *) echo "docker stub: unexpected ps argument: $1" >&2; exit 95 ;;
+      esac
+    done
+    if [ -n "\${STUB_DOCKER_PS_FAIL:-}" ]; then echo 'Cannot connect to the Docker daemon' >&2; exit 1; fi
+    [ -n "$project" ] || { echo "docker stub: a ps of the whole daemon: $*" >&2; exit 95; }
+    [ "$service" = www ] || { echo "docker stub: unexpected service filter: $service" >&2; exit 95; }
+    if [ "$project" = ${SITE_PROJECT} ]; then
+      [ ! -f "$STUB_SITE_UP" ] || echo ${SITE_ID}
+      exit 0
+    fi
+    # Another project's www service: STUB_WWW_IN is <project>:<name>.
+    if [ -n "\${STUB_WWW_IN:-}" ] && [ "$project" = "\${STUB_WWW_IN%%:*}" ]; then echo "\${STUB_WWW_IN#*:}"; fi
+    exit 0
+    ;;
+  inspect)
+    [ "\${*: -1}" = ${SITE_ID} ] || { echo "docker stub: unexpected inspect: $*" >&2; exit 93; }
+    printf '%s\\n' "\${STUB_SITE_STATE:-running healthy}"
+    exit 0
+    ;;
+  compose) shift ;;
+  *) echo "docker stub: unexpected call: $*" >&2; exit 98 ;;
+esac
+file='' env_file='' named=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    -p) named="$2"; shift 2 ;;
     -f) file="$2"; shift 2 ;;
     --env-file) env_file="$2"; shift 2 ;;
     *) break ;;
@@ -164,7 +249,20 @@ project="\${COMPOSE_PROJECT_NAME:-}"
 [ -n "$project" ] || project="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$env_file" 2>/dev/null | tail -n 1)"
 [ -n "$project" ] || project="$(sed -n 's/^name: *//p' "$file")"
 project="\${STUB_PROJECT:-$project}"
+[ -z "$named" ] || project="$named"
 case "$1" in
+  up)
+    # Only the site is ever brought up by the script itself.
+    [ "$project" = ${SITE_PROJECT} ] || { echo "docker stub: up in $project" >&2; exit 94; }
+    bind="$(sed -n 's/^WWW_BIND=//p' "$env_file" | tail -n 1)"
+    if [ -n "\${STUB_WWW_UP_EXIT:-}" ]; then
+      echo "Error response from daemon: failed to bind host port for $bind: address already in use" >&2
+      exit "$STUB_WWW_UP_EXIT"
+    fi
+    : >"$STUB_SITE_UP"
+    echo " Container ${SITE_PROJECT}  Started, published on $bind"
+    exit 0
+    ;;
   config) printf 'name: %s\\nservices: {}\\n' "$project"; exit 0 ;;
   exec)
     shift
@@ -231,9 +329,26 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 printf 'curl %s\\n' "$url" >>"$STUB_LOG"
+host="\${url#*://}"
+host="\${host%%/*}"
 path="\${url#*://}"
 path="\${path#*/}"
 name="\${path//\\//_}"
+case "$host" in
+  127.0.0.1:*)
+    # The site, on loopback: an answer the case wrote, or else nginx over the
+    # checkout's site/dist once the site is up.
+    name="site_\${name}"
+    if [ ! -f "$STUB_HTTP/$name.code" ]; then
+      [ -f "$STUB_SITE_UP" ] || exit 7
+      file="$STUB_SITE_DIST/\${path:-index.html}"
+      if [ -f "$file" ]; then code=200; else code=404; file=/dev/null; fi
+      if [ -n "$out" ]; then cp "$file" "$out"; else cat "$file"; fi
+      [ -z "$fmt" ] || printf '%s' "$code"
+      exit 0
+    fi
+    ;;
+esac
 [ -f "$STUB_HTTP/$name.code" ] || exit 7
 if [ -n "$out" ]; then cp "$STUB_HTTP/$name.body" "$out"; else cat "$STUB_HTTP/$name.body"; fi
 [ -n "$fmt" ] && cat "$STUB_HTTP/$name.code"
@@ -266,6 +381,60 @@ printf 'exposure-check %s\\n' "$*" >>"$STUB_LOG"
 exit "\${STUB_EXPOSURE_EXIT:-0}"
 `;
 
+/** The production app, the one URL a `--public` build accepts (site/prices.mjs). */
+const PUBLIC_APP = 'https://app.ownpace.eu';
+
+/**
+ * `site/build.mjs`, as a stand-in committed at each release: the real one's
+ * contract, with the count of unfilled placeholders the release commits in
+ * `site/drafts`. `--check` prints the count and stops, as the real one does,
+ * before every other refusal: a release that commits `site/refuses` has a
+ * `--public` build that throws its words with a count of 0, as the real one
+ * does for a refusal beyond the count. A release that commits
+ * `site/check-refuses` has a `--public --check` that prints those words, then
+ * the count last, and exits 1, as the real one does from 0139 T2 on for a
+ * legal page whose version line says draft. `STUB_SITE_BUILD_EXIT` fails only
+ * the build in the checkout (a disk that filled, say), not the test build. It
+ * records its arguments, the three settings it reads and the directory it
+ * lives in.
+ */
+const SITE_BUILD_STUB = `#!/usr/bin/env node
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const args = process.argv.slice(2);
+const e = process.env;
+appendFileSync(
+  e.STUB_LOG,
+  \`site-build \${args.join(' ')} app=\${e.OWNPACE_APP_URL ?? '-'} sha=\${e.GIT_SHA ?? '-'} status=\${e.OWNPACE_STATUS_URL ?? '-'} here=\${HERE}\\n\`,
+);
+const pub = args.includes('--public');
+const app = (e.OWNPACE_APP_URL ?? '').trim();
+if (!app) throw new Error('OWNPACE_APP_URL is not set');
+if (pub && app !== '${PUBLIC_APP}') throw new Error('--public builds the site for ${PUBLIC_APP}');
+const drafts = Number(readFileSync(join(HERE, 'drafts'), 'utf8').trim());
+if (args.includes('--check')) {
+  const refused = pub && existsSync(join(HERE, 'check-refuses'));
+  if (refused) console.error(readFileSync(join(HERE, 'check-refuses'), 'utf8').trim());
+  console.log(\`[site] 3 pages across 2 locales, \${drafts} unfilled placeholder(s)\`);
+  process.exit(refused ? 1 : 0);
+}
+if (pub && drafts > 0) throw new Error(\`\${drafts} placeholder token(s) are still unfilled\`);
+if (pub && existsSync(join(HERE, 'refuses'))) throw new Error(readFileSync(join(HERE, 'refuses'), 'utf8').trim());
+const dist = join(HERE, 'dist');
+if (e.STUB_SITE_BUILD_EXIT && dist === e.STUB_SITE_DIST) process.exit(Number(e.STUB_SITE_BUILD_EXIT));
+mkdirSync(dist, { recursive: true });
+for (const f of readdirSync(dist)) rmSync(join(dist, f), { recursive: true, force: true });
+writeFileSync(
+  join(dist, 'index.html'),
+  \`<html><head>\${pub ? '' : '<meta name="robots" content="noindex, nofollow" />'}</head>\` +
+    \`<body><a href="\${app}/request-access?tier=family">Request access</a></body></html>\\n\`,
+);
+writeFileSync(join(dist, 'robots.txt'), pub ? 'User-agent: *\\nAllow: /\\n' : 'User-agent: *\\nDisallow: /\\n');
+console.log(pub ? '[site] PUBLIC build' : '[site] test build');
+`;
+
 // ---------------------------------------------------------------------------
 // A checkout of its own
 // ---------------------------------------------------------------------------
@@ -289,6 +458,18 @@ interface Release {
   push?: boolean;
   /** Remove exposure-check.sh at this commit. */
   noExposureCheck?: boolean;
+  /** The count of unfilled placeholders the site at this commit has (default 0). */
+  siteDrafts?: number;
+  /** What the site's `--public` build at this commit refuses with, beyond the count (its `--check` passes). */
+  siteRefuses?: string;
+  /** What the site's `--public --check` at this commit refuses with, printing its count and exiting 1. */
+  siteCheckRefuses?: string;
+  /** Give www.yml's container a fixed name at this commit, as before #1275. */
+  fixedSiteName?: boolean;
+  /** Remove site/build.mjs at this commit. */
+  noSite?: boolean;
+  /** Put the real site/ at this commit, in place of the stand-in. */
+  realSite?: boolean;
 }
 
 interface Stage {
@@ -299,6 +480,8 @@ interface Stage {
   sqlLog: string;
   http: string;
   deployLog: string;
+  /** Made by the docker stub when the site is brought up. */
+  siteUp: string;
   env: NodeJS.ProcessEnv;
   commit: Record<string, string>;
 }
@@ -311,6 +494,24 @@ const LIVE_ENV = [
   'POSTGRES_DB=openmigrate',
   '',
 ].join('\n');
+
+/** Live's copy of the site: its port, and the front's address (RFC 5737), never to be printed. */
+const SITE_PORT = '20125';
+const SITE_BIND = '192.0.2.10';
+/** Live's `.env` with the site switched on. */
+const SITE_ENV = `${LIVE_ENV}WWW_LIVE=true\nWWW_PORT=${SITE_PORT}\nWWW_BIND=${SITE_BIND}\n`;
+/** A WWW_PORT of five digits that is no port: one past 65535. Never to be printed either. */
+const PORT_PAST_THE_LAST = '65536';
+
+/** www.yml as #1275 makes it: the container named after its project. Idempotent once #1275 is on main. */
+function wwwYml(fixed = false): string {
+  const real = readFileSync(join(COMPOSE_DIR, 'www.yml'), 'utf8');
+  const derived = real.replace(/^(\s*container_name:\s*)ownpace-www\s*$/m, '$1${COMPOSE_PROJECT_NAME}');
+  if (!/^\s*container_name:\s*\$\{COMPOSE_PROJECT_NAME\}\s*$/m.test(derived)) {
+    throw new Error("www.yml's container_name is neither ownpace-www nor ${COMPOSE_PROJECT_NAME}: this fixture needs a look");
+  }
+  return fixed ? derived.replace(/^(\s*container_name:\s*).*$/m, '$1ownpace-www') : derived;
+}
 
 const gitEnv = (home: string): NodeJS.ProcessEnv => ({
   PATH: `${dirname(process.execPath)}:${process.env.PATH ?? ''}`,
@@ -368,17 +569,24 @@ function stage(opts: StageOptions = {}): Stage {
   git(root, work, 'remote', 'add', 'origin', origin);
 
   // The running release: the script under test, what it sources, the real
-  // managed.yml, one file in each migration chain, and the two stand-ins.
-  writeFileSync(join(work, '.gitignore'), '.env\n');
+  // managed.yml and www.yml, one file in each migration chain, and the
+  // stand-ins. site/dist is ignored, as the repository's .gitignore has it.
+  writeFileSync(join(work, '.gitignore'), '.env\nsite/dist/\n');
   writeFileSync(join(work, 'package.json'), packageJson(RUNNING.version));
   mkdirSync(compose, { recursive: true });
-  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh']) {
+  for (const f of [SCRIPT, 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'www-live.sh']) {
+    // A helper the script does not source yet is simply not there.
+    if (!existsSync(join(COMPOSE_DIR, f))) continue;
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
   copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
+  writeFileSync(join(compose, 'www.yml'), wwwYml());
   writeExec(join(compose, 'bootstrap-managed.sh'), BOOTSTRAP_STUB);
   writeExec(join(compose, 'exposure-check.sh'), EXPOSURE_STUB);
+  const siteDir = join(work, 'site');
+  writeExec(join(siteDir, 'build.mjs'), SITE_BUILD_STUB);
+  writeFileSync(join(siteDir, 'drafts'), '0\n');
   mkdirSync(join(work, 'packages', 'ledger', 'migrations'), { recursive: true });
   mkdirSync(join(work, 'packages', 'managed', 'migrations'), { recursive: true });
   writeFileSync(join(work, 'packages', 'ledger', 'migrations', '0001_first.sql'), 'SELECT 1;\n');
@@ -398,6 +606,22 @@ function stage(opts: StageOptions = {}): Stage {
     if (r.zitadel) yml = movePin(yml, 'zitadel', r.zitadel);
     writeFileSync(join(compose, 'managed.yml'), yml);
     if (r.noExposureCheck) rmSync(join(compose, 'exposure-check.sh'));
+    writeFileSync(join(compose, 'www.yml'), wwwYml(r.fixedSiteName));
+    if (r.realSite) {
+      rmSync(siteDir, { recursive: true, force: true });
+      cpSync(join(REPO_ROOT, 'site'), siteDir, {
+        recursive: true,
+        filter: (src) => !/[\\/]site[\\/]dist(?:[\\/]|$)/.test(src),
+      });
+    } else {
+      writeExec(join(siteDir, 'build.mjs'), SITE_BUILD_STUB);
+      writeFileSync(join(siteDir, 'drafts'), `${r.siteDrafts ?? 0}\n`);
+      rmSync(join(siteDir, 'refuses'), { force: true });
+      if (r.siteRefuses) writeFileSync(join(siteDir, 'refuses'), `${r.siteRefuses}\n`);
+      rmSync(join(siteDir, 'check-refuses'), { force: true });
+      if (r.siteCheckRefuses) writeFileSync(join(siteDir, 'check-refuses'), `${r.siteCheckRefuses}\n`);
+      if (r.noSite) rmSync(join(siteDir, 'build.mjs'));
+    }
     // A release always changes something, so that it is a commit of its own.
     writeFileSync(join(work, 'RELEASE'), `${r.tag}\n`);
     git(root, work, 'add', '-A');
@@ -427,6 +651,7 @@ function stage(opts: StageOptions = {}): Stage {
 
   const persist = join(root, '.persistent', 'ownpace-live');
   const deployLog = join(persist, 'deploys.log');
+  const siteUp = join(root, 'site-is-up');
 
   const env: NodeJS.ProcessEnv = {
     ...gitEnv(root),
@@ -434,12 +659,15 @@ function stage(opts: StageOptions = {}): Stage {
     STUB_LOG: log,
     STUB_SQL_LOG: sqlLog,
     STUB_HTTP: http,
+    STUB_SITE_UP: siteUp,
+    STUB_SITE_DIST: join(work, 'site', 'dist'),
     // A superuser, one open hold fifteen minutes old, nothing in flight.
     STUB_PSQL_ANSWER: 'yes|1|900|0\n',
     DEPLOY_LIVE_CHECK_TRIES: '1',
     DEPLOY_LIVE_CHECK_INTERVAL: '0',
+    DEPLOY_LIVE_SITE_WAIT: '0',
   };
-  const s: Stage = { root, work, compose, log, sqlLog, http, deployLog, env, commit };
+  const s: Stage = { root, work, compose, log, sqlLog, http, deployLog, siteUp, env, commit };
 
   // The app answers as the next release, when there is one.
   const next = opts.releases?.[0];
@@ -1223,7 +1451,7 @@ describe('a dry run refuses what the deploy refuses, says one-way or reversible,
     expect(sqlSent(s).slice(was.sql)).not.toMatch(/\b(UPDATE|INSERT|DELETE)\b/i);
     expect(out).not.toMatch(/checking out|the deploy took|the deploy did not take/);
   }
-  const STOPPED = /dry run: stopped before the checkout\. Nothing was checked out, installed, built or deployed/;
+  const STOPPED = /dry run: stopped before the checkout\. Nothing was checked out, installed or deployed, nothing was built in the checkout/;
 
   it.each([[['--dry-run', NEXT.tag]], [[NEXT.tag, '--dry-run']]])(
     'on a tag that agrees, %j: every refusal passed, the verdict, a line that nothing moved, exit 0; the checkout, the tree and the log as they were, and no bring-up',
@@ -1515,6 +1743,292 @@ describe('the hold and the drain, read from a database with both chains applied'
     },
     PGLITE_CASE_MS,
   );
+});
+
+// ---------------------------------------------------------------------------
+// The site: www.ownpace.eu, from the tag (workplan 0139 T10, with 0132 T6)
+// ---------------------------------------------------------------------------
+
+describe("the site, www.ownpace.eu: built from the tag and served as ownpace-live-www, only when live's .env switches it on (0139 T10)", () => {
+  const esc = (x: string): string => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /** Every call the stubs recorded that is about the site. */
+  const siteCalls = (s: Stage): string[] =>
+    calls(s).filter(
+      (l) =>
+        l.startsWith('site-build ') ||
+        /^docker (ps|inspect)\b/.test(l) ||
+        l.includes(`-p ${SITE_PROJECT}`) ||
+        l.startsWith('curl http://127.0.0.1'),
+    );
+  /** The site's own build in the checkout, not the test build in a directory of its own. */
+  const buildsInCheckout = (s: Stage): string[] =>
+    called(s, 'site-build').filter((l) => l.endsWith(`here=${join(s.work, 'site')}`));
+  const broughtUp = (s: Stage): string[] => calls(s).filter((l) => l.includes(`-p ${SITE_PROJECT}`));
+  const upLine = (s: Stage): string =>
+    `docker compose -p ${SITE_PROJECT} -f ${join(s.compose, 'www.yml')} --env-file ${join(s.compose, '.env')} up -d --force-recreate`;
+  /** An answer from the site on loopback, in place of what its site/dist holds. */
+  const siteAnswer = (s: Stage, path: string, code: number, body: string): void => {
+    const name = `site_${path.replace(/^\//, '').replace(/\//g, '_')}`;
+    writeFileSync(join(s.http, `${name}.code`), String(code));
+    writeFileSync(join(s.http, `${name}.body`), body);
+  };
+  const LIVE_WWW = /^docker ps -a --filter label=com\.docker\.compose\.project=ownpace-live --filter label=com\.docker\.compose\.service=www\b/;
+
+  it.each([
+    ['no WWW_LIVE at all', LIVE_ENV],
+    ['WWW_LIVE=false', `${LIVE_ENV}WWW_LIVE=false\nWWW_PORT=${SITE_PORT}\nWWW_BIND=${SITE_BIND}\n`],
+  ])(
+    'switched off (%s): nothing about the site runs, and a tag with placeholders still deploys',
+    (_label, dotEnv) => {
+      const s = stage({ releases: [{ ...NEXT, siteDrafts: 22 }], dotEnv });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the deploy took/);
+      expect(siteCalls(s), 'the site was built, asked about or brought up').toEqual([]);
+      expect(r.out).not.toMatch(/ownpace-live-www|WWW_|unfilled placeholder/);
+      expect(existsSync(join(s.work, 'site', 'dist')), 'the site was built').toBe(false);
+    },
+    CASE_MS,
+  );
+
+  type SiteSetup = { dotEnv?: string; release?: Partial<Release>; extra?: NodeJS.ProcessEnv };
+  const REFUSED: Array<[string, SiteSetup, RegExp]> = [
+    ['no WWW_PORT', { dotEnv: SITE_ENV.replace(`WWW_PORT=${SITE_PORT}\n`, '') }, /WWW_PORT is not set/],
+    ['no WWW_BIND', { dotEnv: SITE_ENV.replace(`WWW_BIND=${SITE_BIND}\n`, '') }, /WWW_BIND is not set/],
+    ['a WWW_PORT that is not a port number', { dotEnv: SITE_ENV.replace(`WWW_PORT=${SITE_PORT}`, 'WWW_PORT=20x25') }, /WWW_PORT .*not one port number/],
+    // Five digits, as the pattern allows, and one past the last port there is.
+    ['a WWW_PORT above 65535', { dotEnv: SITE_ENV.replace(`WWW_PORT=${SITE_PORT}`, `WWW_PORT=${PORT_PAST_THE_LAST}`) }, /WWW_PORT .*not one port number \(1 to 65535\)/],
+    ['a switch that is neither true nor false', { dotEnv: SITE_ENV.replace('WWW_LIVE=true', 'WWW_LIVE=yes') }, /WWW_LIVE .*neither true nor false/],
+    [
+      "a www service in live's project (option 4)",
+      { extra: { STUB_WWW_IN: 'ownpace-live:ownpace-live' } },
+      /a container of ownpace-live has the compose service www: ownpace-live\b/,
+    ],
+    ['docker that cannot be asked', { extra: { STUB_DOCKER_PS_FAIL: '1' } }, /docker could not be asked/],
+    ['a tag whose texts still have placeholders, naming the count', { release: { siteDrafts: 22 } }, /22 unfilled placeholder\(s\)/],
+    [
+      "a tag whose --public build refuses for another reason, though its --check counts 0: the full build's verdict, not the count's",
+      { release: { siteRefuses: '--public makes this site indexable, and 4 legal page(s) say on their version line that they are a draft' } },
+      /no unfilled placeholder, and its --public build refused it all the same[\s\S]*4 legal page\(s\) say on their version line that they are a draft|4 legal page\(s\) say on their version line that they are a draft[\s\S]*no unfilled placeholder, and its --public build refused it all the same/,
+    ],
+    [
+      // A legal page marked draft, as a --public --check from 0139 T2 on refuses it: the build's
+      // words, then the refusal, and a way on that lets the app deploy without the site.
+      'a tag whose --public --check refuses by itself, with its words and a way on: WWW_LIVE=false deploys the app alone',
+      { release: { siteCheckRefuses: '--public makes this site indexable, and 4 legal page(s) say on their version line that they are a draft' } },
+      /4 legal page\(s\) say on their version line that they are a draft[\s\S]*did not build with --public --check \(its last words above\)\.\n {2}Fix what it names on main[^\n]*or set WWW_LIVE=false to deploy the app alone\./,
+    ],
+    ['a tag with no site', { release: { noSite: true } }, /site\/build\.mjs/],
+    ["a tag whose www.yml gives the site's container a fixed name (before #1275)", { release: { fixedSiteName: true } }, /container_name/],
+  ];
+
+  it.each(REFUSED.flatMap(([label, setup, why]) => [[label, 'deploy', setup, why] as const, [label, 'dry run', setup, why] as const]))(
+    'refused before the checkout: %s (%s)',
+    (_label, mode, setup, why) => {
+      const s = stage({ releases: [{ ...NEXT, ...setup.release }], dotEnv: setup.dotEnv ?? SITE_ENV });
+      const r = run(s, mode === 'dry run' ? ['--dry-run', NEXT.tag] : [NEXT.tag], setup.extra ?? {});
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('[deploy-live] refused: ');
+      expect(r.out).toMatch(why);
+      expect(r.out).not.toMatch(/would be (one-way|reversible)/);
+      expectNothingChanged(s, r.out, 'reads');
+      expect(buildsInCheckout(s), 'the site was built in the checkout').toEqual([]);
+      expect(broughtUp(s), 'the site was brought up').toEqual([]);
+      // A refusal names the key, never the value.
+      expect(r.out).not.toContain(SITE_BIND);
+      expect(r.out).not.toContain(SITE_PORT);
+      expect(r.out).not.toContain('20x25');
+      expect(r.out).not.toContain(PORT_PAST_THE_LAST);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "the real site at this commit: a tag that carries it is refused with the count the site's own --check gives, or else with what its own --public build refuses, or passes when that build does",
+    () => {
+      const env = { PATH: process.env.PATH ?? '', OWNPACE_APP_URL: PUBLIC_APP };
+      const check = spawnSync(process.execPath, ['site/build.mjs', '--public', '--check'], { cwd: REPO_ROOT, encoding: 'utf8', env });
+      const count = Number(/, (\d+) unfilled placeholder\(s\)$/m.exec(check.stdout)?.[1] ?? NaN);
+      expect(Number.isInteger(count), `site/build.mjs --public --check printed no count:\n${check.stdout}${check.stderr}`).toBe(true);
+      // With no count, the full --public build decides, which writes site/dist:
+      // run it on a copy, never in this checkout.
+      let refusal: string | undefined;
+      if (check.status === 0 && count === 0) {
+        const scratch = mkdtempSync(join(tmpdir(), 'real-site-public-'));
+        try {
+          cpSync(join(REPO_ROOT, 'site'), join(scratch, 'site'), {
+            recursive: true,
+            filter: (src) => !/[\\/]site[\\/]dist(?:[\\/]|$)/.test(src),
+          });
+          copyFileSync(join(REPO_ROOT, 'package.json'), join(scratch, 'package.json'));
+          const full = spawnSync(process.execPath, ['site/build.mjs', '--public'], { cwd: scratch, encoding: 'utf8', env });
+          if (full.status !== 0) refusal = /^Error: (.+)$/m.exec(full.stderr)?.[1] ?? `exit ${full.status}`;
+        } finally {
+          rmSync(scratch, { recursive: true, force: true });
+        }
+      }
+      const s = stage({ releases: [{ ...NEXT, realSite: true }], dotEnv: SITE_ENV });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      if (check.status !== 0) {
+        // --check under --public refuses by itself: so does the dry run, with a way on.
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toContain('did not build with --public --check');
+        expect(r.out).toContain('or set WWW_LIVE=false to deploy the app alone.');
+      } else if (count > 0) {
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toContain(`has ${count} unfilled placeholder(s)`);
+      } else if (refusal !== undefined) {
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toContain('its --public build refused it all the same');
+        expect(r.out).toContain(refusal);
+      } else {
+        expect(r.status, r.out).toBe(0);
+        expect(r.out).toContain('0 unfilled placeholder(s), and a --public build that passed');
+      }
+      expectNothingChanged(s, r.out, 'reads');
+    },
+    CASE_MS,
+  );
+
+  it(
+    "switched on: the tag's site test-built before the checkout, then built in the checkout after the bring-up, brought up as ownpace-live-www with live's .env, found healthy and asked, all before the exposure check",
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: SITE_ENV });
+      // A status address a shell exported for another site does not reach this build.
+      const r = run(s, [NEXT.tag], { OWNPACE_STATUS_URL: 'https://status.ota.ownpace.eu' });
+      expect(r.status, r.out).toBe(0);
+      const tagCommit = s.commit[NEXT.tag]!;
+      const log = calls(s);
+      const at = (line: string | RegExp, what: string): number => {
+        const i = log.findIndex((l) => (typeof line === 'string' ? l === line : line.test(l)));
+        expect(i, `${what} is not in the calls:\n${log.join('\n')}`).toBeGreaterThanOrEqual(0);
+        return i;
+      };
+
+      // Before the checkout: the tag's own site, from git's objects, in a
+      // directory of its own that is gone afterwards: --check for the count,
+      // then the full --public build the deploy runs after the checkout.
+      const builds = called(s, 'site-build');
+      expect(builds, log.join('\n')).toHaveLength(3);
+      const pre = new RegExp(`^site-build --public --check app=${esc(PUBLIC_APP)} sha=${tagCommit} status=- here=(.+)$`).exec(builds[0]!);
+      expect(pre, builds[0]).not.toBeNull();
+      expect(pre![1]).not.toBe(join(s.work, 'site'));
+      expect(builds[1]).toBe(`site-build --public app=${PUBLIC_APP} sha=${tagCommit} status=- here=${pre![1]}`);
+      expect(existsSync(dirname(pre![1]!)), 'the test build left its directory behind').toBe(false);
+      // After the bring-up: the build in the checkout, stamped with the tag's commit.
+      expect(builds[2]).toBe(`site-build --public app=${PUBLIC_APP} sha=${tagCommit} status=- here=${join(s.work, 'site')}`);
+
+      const preBuild = at(builds[1]!, 'the full test build');
+      const liveWww = at(LIVE_WWW, "the question whether live's project holds a www service");
+      const bootstrap = at(/^bootstrap /, 'the bring-up');
+      const build = at(builds[2]!, 'the build');
+      const up = at(upLine(s), "the site's up, with -p ownpace-live-www and live's .env");
+      const healthy = at(new RegExp(`^docker inspect .*${SITE_ID}$`), "the site's health");
+      const home = at(`curl http://127.0.0.1:${SITE_PORT}/`, 'the home page on loopback');
+      const robots = at(`curl http://127.0.0.1:${SITE_PORT}/robots.txt`, 'robots.txt on loopback');
+      const exposure = at(/^exposure-check /, 'the exposure check');
+      expect(Math.max(preBuild, liveWww)).toBeLessThan(bootstrap);
+      expect(bootstrap).toBeLessThan(build);
+      expect(build).toBeLessThan(up);
+      expect(up).toBeLessThan(healthy);
+      expect(healthy).toBeLessThan(home);
+      expect(Math.max(home, robots)).toBeLessThan(exposure);
+      // The only thing it ever brings up itself is the site, under its own project.
+      expect(log.filter((l) => /^docker compose .* up\b/.test(l))).toEqual([upLine(s)]);
+
+      expect(r.out).toMatch(/the deploy took/);
+      expect(r.out).toContain(SITE_PROJECT);
+      expect(deployLines(s).map((l) => l.split('\t')[3])).toEqual(['took']);
+      // site/dist is ignored, so the next deploy's clean-tree refusal is not tripped.
+      expect(r.out).not.toMatch(/NOTE: the deploy left the working tree changed/);
+      // Compose's own words went through the address filter.
+      expect(r.out).toContain('<WWW_BIND>');
+      expect(r.out).not.toContain(SITE_BIND);
+      expect(r.out).not.toContain(APP_HOST);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a dry run with the site on: the site checks and the test build pass and are said, then it stops; nothing built in the checkout, nothing brought up',
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: SITE_ENV });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain('0 unfilled placeholder(s)');
+      expect(r.out).toContain(`dry run: a deploy of ${NEXT.tag} now would be reversible.`);
+      // --check for the count, then the full --public build, both in a directory of their own.
+      expect(called(s, 'site-build').map((l) => l.split(' app=')[0])).toEqual(['site-build --public --check', 'site-build --public']);
+      expect(buildsInCheckout(s)).toEqual([]);
+      expect(broughtUp(s)).toEqual([]);
+      expect(existsSync(s.siteUp)).toBe(false);
+      expect(existsSync(join(s.work, 'site', 'dist'))).toBe(false);
+      expectNothingChanged(s, r.out, 'reads');
+      expect(r.out).not.toContain(SITE_BIND);
+    },
+    CASE_MS,
+  );
+
+  const BREAKAGES: Array<[string, (s: Stage) => NodeJS.ProcessEnv | void, RegExp]> = [
+    ["the site's build in the checkout fails, though its test build passed", () => ({ STUB_SITE_BUILD_EXIT: '1' }), /site\/build\.mjs --public/],
+    ['the site cannot be brought up', () => ({ STUB_WWW_UP_EXIT: '1' }), /-p ownpace-live-www/],
+    ['the site never becomes healthy', () => ({ STUB_SITE_STATE: 'running unhealthy' }), /not healthy/],
+    ['its home page answers 500', (s) => siteAnswer(s, '/', 500, 'oops'), /home page/],
+    [
+      'its home page asks not to be indexed',
+      (s) => siteAnswer(s, '/', 200, `<meta name="robots" content="noindex" /><a href="${PUBLIC_APP}/request-access">x</a>`),
+      /noindex/,
+    ],
+    ['its robots.txt disallows', (s) => siteAnswer(s, '/robots.txt', 200, 'User-agent: *\nDisallow: /\n'), /robots\.txt/],
+    [
+      'a request-access link leads to another app',
+      (s) => siteAnswer(s, '/', 200, '<a href="https://app.ota.ownpace.eu/request-access?tier=family">x</a>'),
+      /request-access/,
+    ],
+    [
+      // None wrong is not all right: a home page a tester cannot ask from is not the site.
+      'its home page has no request-access link at all',
+      (s) => siteAnswer(s, '/', 200, '<html><head></head><body><h1>Ownpace</h1></body></html>'),
+      /0 request-access link\(s\) lead somewhere other than https:\/\/app\.ownpace\.eu\/request-access, and 0 there/,
+    ],
+  ];
+
+  it.each(BREAKAGES)(
+    '%s: the deploy did not take, the hold stays, it is logged, and the exposure check still ran',
+    (_label, breakage, why) => {
+      const s = stage({ releases: [NEXT], dotEnv: SITE_ENV });
+      const extra = breakage(s) ?? {};
+      const r = run(s, [NEXT.tag], extra);
+      expect(r.status, r.out).toBe(3);
+      expect(r.out).toMatch(/the deploy did not take/);
+      expect(r.out).toMatch(why);
+      expect(r.out).toMatch(/The hold stays on/);
+      expect(r.out).not.toMatch(/the deploy took/);
+      expect(deployLines(s).map((l) => l.split('\t').slice(1, 4))).toEqual([[NEXT.tag, s.commit[NEXT.tag], 'did-not-take']]);
+      expect(called(s, 'exposure-check')).toHaveLength(1);
+      expect(r.out).not.toContain(SITE_BIND);
+    },
+    CASE_MS,
+  );
+
+  it("site/dist is ignored in the repository, so the site's build leaves the tree the next deploy reads clean", () => {
+    const r = spawnSync('git', ['check-ignore', '-q', 'site/dist/index.html'], { cwd: REPO_ROOT });
+    expect(r.status).toBe(0);
+  });
+
+  it('the switch, the port and the commands are where the owner reads them', () => {
+    const example = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8');
+    expect(example, 'managed.env.example lists WWW_PORT').toMatch(/^WWW_PORT=$/m);
+    expect(example, 'managed.env.example lists the switch, off').toMatch(/^WWW_LIVE=false$/m);
+    const exact = `docker compose -p ${SITE_PROJECT} -f deploy/compose/www.yml --env-file deploy/compose/.env`;
+    for (const doc of ['docs/managed-bring-up.md', 'docs/incident-runbook.md']) {
+      expect(readFileSync(join(REPO_ROOT, doc), 'utf8'), `${doc} gives live's copy's commands with its -p`).toContain(exact);
+    }
+    const header = readFileSync(join(COMPOSE_DIR, SCRIPT), 'utf8').split(/^set -euo pipefail$/m)[0]!;
+    for (const word of ['WWW_LIVE', 'WWW_PORT', 'WWW_BIND', '-p <project>-www', 'unfilled placeholder']) {
+      expect(header, `the header of ${SCRIPT} says ${word}`).toContain(word);
+    }
+  });
 });
 
 describe('the script survives its own checkout', () => {

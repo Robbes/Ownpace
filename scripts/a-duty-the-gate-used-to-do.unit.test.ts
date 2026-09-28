@@ -18,7 +18,12 @@
  *
  * `deploy/compose/box-duties.sh` does them for live, from `~/ownpace-live`, on
  * a daily systemd timer, with the two more T7 names: T3's exposure check and
- * 0135 T3's organisation count, which fails the duty above one.
+ * 0135 T3's organisation count, which fails the duty above one. And a fifth,
+ * `site` (0139 T10): `www-live.sh check`, which fails when live's project
+ * holds a `www` service, where a bare `docker compose -f www.yml` in live's
+ * checkout puts the site and one `--remove-orphans` removes live or the site,
+ * and, when live's `.env` switches the site on, when `ownpace-live-www` is not
+ * running and healthy.
  *
  * WHAT IS ASSERTED.
  *
@@ -39,7 +44,7 @@
  *   seen, and the table's own comment says so.
  *
  *   `box-duties.sh`, run in a staged checkout with the scripts it calls
- *   replaced by stubs beside it: all four duties run, in order, whatever the
+ *   replaced by stubs beside it: all five duties run, in order, whatever the
  *   one before did; the exit is non-zero and names every duty that failed and
  *   no other; a missing script or a duty that hangs past its time is a failed
  *   duty, and the next one still runs; a Ctrl-C (SIGINT to the script's
@@ -64,6 +69,14 @@
  *   The default run still reaches the project after the clock. And end to end:
  *   `box-duties.sh` with the real `setup-zitadel.sh` fails `organisations`, and
  *   only it, when the provider answers two.
+ *
+ *   `www-live.sh check`, run for real with a `docker` stub on PATH: a `www`
+ *   container in live's project fails it, named, whatever the switch; with the
+ *   switch on, `ownpace-live-www` missing or not healthy fails it; a switch
+ *   that is neither `true` nor `false`, and docker that cannot be asked, fail
+ *   it too, never pass it; with the switch off it never asks about
+ *   `ownpace-live-www`. And end to end, `box-duties.sh` with the real
+ *   `www-live.sh` fails `site`, and only it.
  *
  *   The timer. The unit files under `deploy/compose/systemd/` are in
  *   `docs/managed-bring-up.md` word for word, run `box-duties.sh` from
@@ -169,8 +182,11 @@ const NOT_MAINTENANCE: Record<string, string> = {
   'redact-evidence.sh': "the job's evidence, before it is uploaded",
 };
 
-/** The two duties T7 adds that are not a gate step: T3's check and 0135 T3's count. */
-const MORE_DUTIES = ['exposure-check.sh', 'setup-zitadel.sh --count-organisations'];
+/**
+ * The duties that are not a gate step: T3's check and 0135 T3's count (T7),
+ * and the site's (0139 T10).
+ */
+const MORE_DUTIES = ['exposure-check.sh', 'setup-zitadel.sh --count-organisations', 'www-live.sh check'];
 
 interface Invocation {
   step: string;
@@ -278,7 +294,7 @@ describe("the rule: which of the gate's commands maintain the stack", () => {
   });
 });
 
-describe('box-duties.sh runs every maintenance command, in its form for live, and the two duties T7 adds', () => {
+describe('box-duties.sh runs every maintenance command, in its form for live, and the duties T7 and 0139 T10 add', () => {
   const text = readIfThere(DUTIES_REL);
   const lines = code(text).split('\n');
 
@@ -311,7 +327,7 @@ describe('box-duties.sh runs every maintenance command, in its form for live, an
 // box-duties.sh, with the scripts it runs replaced by stubs
 // ===========================================================================
 
-const DUTY_NAMES = ['token', 'drill', 'exposure', 'organisations'] as const;
+const DUTY_NAMES = ['token', 'drill', 'exposure', 'organisations', 'site'] as const;
 type Duty = (typeof DUTY_NAMES)[number];
 
 /** This machine, in a live `.env`: a mesh address, a front address, and a secret. */
@@ -351,6 +367,7 @@ const DUTY_STUB = [
   '  "trigger-version.sh drill") duty=drill ;;',
   '  "exposure-check.sh") duty=exposure ;;',
   '  "setup-zitadel.sh --count-organisations") duty=organisations ;;',
+  '  "www-live.sh check") duty=site ;;',
   '  *) duty="unknown" ;;',
   'esac',
   'printf "%s|%s|%s|%s|%s\\n" "$asked" "${MANAGED_BACKUP_DIR-unset}" "${MANAGED_ENV_PERSIST_DIR-unset}" "${TRIGGER_DB_CONTAINER-unset}" "$(umask)" >>"$STUB_LOG"',
@@ -378,7 +395,7 @@ function stage(dotEnv: string = LIVE_ENV): Stage {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
   }
   chmodSync(join(compose, 'box-duties.sh'), 0o755);
-  for (const f of ['setup-zitadel.sh', 'trigger-version.sh', 'exposure-check.sh']) {
+  for (const f of ['setup-zitadel.sh', 'trigger-version.sh', 'exposure-check.sh', 'www-live.sh']) {
     writeExec(join(compose, f), DUTY_STUB);
   }
   writeFileSync(join(compose, '.env'), dotEnv);
@@ -419,14 +436,15 @@ const IN_ORDER = [
   'trigger-version.sh drill',
   'exposure-check.sh',
   'setup-zitadel.sh --count-organisations',
+  'www-live.sh check',
 ];
 
 describe('box-duties.sh runs every duty, and names every one that failed', () => {
-  it('runs the four duties in order, token first so the count uses a live token, and passes when all pass', () => {
+  it('runs the five duties in order, token first so the count uses a live token, and passes when all pass', () => {
     const r = runDuties(stage());
     expect(r.status, r.out).toBe(0);
     expect(r.asked.map((a) => a[0])).toEqual(IN_ORDER);
-    expect(r.out).toMatch(/all 4 duties passed/);
+    expect(r.out).toMatch(/all 5 duties passed/);
     expect(failed(r.out)).toEqual([]);
   });
 
@@ -443,7 +461,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
     expect(failed(two.out)).toEqual(['token', 'exposure']);
     const all = runDuties(stage(), { STUB_FAIL: DUTY_NAMES.join(',') });
     expect(all.status).toBe(1);
-    expect(all.asked).toHaveLength(4);
+    expect(all.asked).toHaveLength(5);
     expect(failed(all.out)).toEqual([...DUTY_NAMES]);
   });
 
@@ -649,6 +667,140 @@ describe('box-duties.sh keeps to live, and to what it may print', () => {
     // Replaced, not dropped: the stdout line and the stderr line both arrive.
     expect(r.out, "the duty's stdout line did not arrive, filtered").toContain('<WEB_BIND>');
     expect(r.out, "the duty's stderr line did not arrive, filtered").toContain('<STATUS_BIND>');
+  });
+});
+
+// ===========================================================================
+// The site's duty, run for real: www-live.sh check (workplan 0139 T10)
+// ===========================================================================
+
+const SITE_CHECK_REL = 'deploy/compose/www-live.sh';
+/** Live's `.env` with the site switched on (the front's address as its bind). */
+const SITE_ON_ENV = `${LIVE_ENV}WWW_LIVE=true\nWWW_PORT=20125\nWWW_BIND=${FRONT}\n`;
+
+/**
+ * docker for the site's duty. `ps` filtered on live's project and the `www`
+ * service answers STUB_LIVE_WWW (names, comma-separated); on
+ * `ownpace-live-www` it answers a container id when STUB_SITE_STATE is set,
+ * and `inspect` answers that state. STUB_DOCKER_FAIL fails every call.
+ */
+const SITE_DOCKER_STUB = [
+  '#!/usr/bin/env bash',
+  'printf "docker %s\\n" "$*" >>"$STUB_LOG"',
+  'if [ -n "${STUB_DOCKER_FAIL:-}" ]; then echo "Cannot connect to the Docker daemon" >&2; exit 1; fi',
+  'case "$1 $*" in',
+  '  "ps "*label=com.docker.compose.project=ownpace-live-www\\ *label=com.docker.compose.service=www*)',
+  '    [ -z "${STUB_SITE_STATE:-}" ] || echo 5173e0001 ;;',
+  '  "ps "*label=com.docker.compose.project=ownpace-live\\ *label=com.docker.compose.service=www*)',
+  '    [ -z "${STUB_LIVE_WWW:-}" ] || echo "$STUB_LIVE_WWW" | tr , "\\n" ;;',
+  '  "inspect "*5173e0001) echo "$STUB_SITE_STATE" ;;',
+  '  *) echo "docker stub: unexpected call: $*" >&2; exit 98 ;;',
+  'esac',
+];
+
+describe("the site's duty, run for real: www-live.sh check (0139 T10)", () => {
+  function siteStage(dotEnv: string) {
+    if (!existsSync(join(ROOT, SITE_CHECK_REL))) throw new Error(`${SITE_CHECK_REL} does not exist`);
+    const s = stage(dotEnv);
+    copyFileSync(join(ROOT, SITE_CHECK_REL), join(s.compose, 'www-live.sh'));
+    chmodSync(join(s.compose, 'www-live.sh'), 0o755);
+    const bin = join(s.root, 'bin');
+    mkdirSync(bin);
+    writeExec(join(bin, 'docker'), SITE_DOCKER_STUB);
+    return { ...s, bin };
+  }
+  function check(s: ReturnType<typeof siteStage>, extra: NodeJS.ProcessEnv = {}) {
+    const r = spawnSync(join(s.compose, 'www-live.sh'), ['check'], {
+      encoding: 'utf8',
+      env: { PATH: `${s.bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: s.root, STUB_LOG: s.log, ...extra },
+      cwd: s.root,
+      timeout: 30_000,
+    });
+    const docker = readFileSync(s.log, 'utf8')
+      .split('\n')
+      .filter((l) => l.startsWith('docker '));
+    return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, docker };
+  }
+  const expectQuiet = (out: string) => {
+    for (const v of [MESH, FRONT, SENTINEL, '20125']) expect(out, `it printed ${v}`).not.toContain(v);
+  };
+
+  it("switched off, and no www service in live's project: passes, and never asks about ownpace-live-www", () => {
+    const r = check(siteStage(LIVE_ENV), { STUB_SITE_STATE: 'running unhealthy' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.docker.some((l) => /label=com\.docker\.compose\.project=ownpace-live /.test(l)), r.docker.join('\n')).toBe(true);
+    expect(r.docker.filter((l) => l.includes('ownpace-live-www') || l.startsWith('docker inspect'))).toEqual([]);
+    expectQuiet(r.out);
+  });
+
+  it.each([
+    ['switched off', LIVE_ENV],
+    ['switched on, the site healthy', SITE_ON_ENV],
+  ])("a www container in live's project fails it, named (%s): one --remove-orphans there removes live or the site", (_l, dotEnv) => {
+    const r = check(siteStage(dotEnv), { STUB_LIVE_WWW: 'ownpace-live', STUB_SITE_STATE: 'running healthy' });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/a container of ownpace-live has the compose service www: ownpace-live\b/);
+    expect(r.out).toContain('docker rm -f');
+    expectQuiet(r.out);
+  });
+
+  it('switched on, and ownpace-live-www running and healthy: passes', () => {
+    const r = check(siteStage(SITE_ON_ENV), { STUB_SITE_STATE: 'running healthy' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.docker.some((l) => l.includes('label=com.docker.compose.project=ownpace-live-www'))).toBe(true);
+    expectQuiet(r.out);
+  });
+
+  it.each([
+    ['not there at all', {}, /ownpace-live-www has no container/],
+    ['unhealthy', { STUB_SITE_STATE: 'running unhealthy' }, /running unhealthy/],
+    ['still starting', { STUB_SITE_STATE: 'running starting' }, /running starting/],
+    ['stopped', { STUB_SITE_STATE: 'exited none' }, /exited none/],
+  ] as const)('switched on, and ownpace-live-www %s: fails, saying what it found', (_l, extra, why) => {
+    const r = check(siteStage(SITE_ON_ENV), { ...extra });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(why);
+    expectQuiet(r.out);
+  });
+
+  it('a switch that is neither true nor false fails it, naming the key and not the value', () => {
+    const r = check(siteStage(SITE_ON_ENV.replace('WWW_LIVE=true', 'WWW_LIVE=maybe-later')), { STUB_SITE_STATE: 'running healthy' });
+    expect(r.status, r.out).not.toBe(0);
+    expect(r.out).toContain('WWW_LIVE');
+    expect(r.out).not.toContain('maybe-later');
+  });
+
+  it('docker that cannot be asked fails it, and is never taken for nothing there (hard rule 9)', () => {
+    for (const dotEnv of [LIVE_ENV, SITE_ON_ENV]) {
+      const r = check(siteStage(dotEnv), { STUB_DOCKER_FAIL: '1' });
+      expect(r.status, r.out).not.toBe(0);
+      expect(r.out).toMatch(/docker could not be asked/);
+    }
+  });
+
+  it("refuses the OTA stack's .env, and an argument it does not know", () => {
+    const ota = check(siteStage(OTA_ENV));
+    expect(ota.status, ota.out).toBe(2);
+    expect(ota.out).toContain('STACK_KIND');
+    expect(ota.docker).toEqual([]);
+    const s = siteStage(LIVE_ENV);
+    const r = spawnSync(join(s.compose, 'www-live.sh'), ['up'], {
+      encoding: 'utf8',
+      env: { PATH: `${s.bin}:${process.env.PATH ?? ''}`, HOME: s.root, STUB_LOG: s.log },
+    });
+    expect(r.status).toBe(2);
+  });
+
+  it('end to end: box-duties.sh with the real www-live.sh fails site, and only it', () => {
+    const s = siteStage(LIVE_ENV);
+    const r = runDuties(s, { PATH: `${s.bin}:${process.env.PATH ?? ''}`, STUB_LIVE_WWW: 'ownpace-live' });
+    expect(r.status, r.out).toBe(1);
+    expect(failed(r.out)).toEqual(['site']);
+    expect(r.out).toMatch(/\(1 of 5 duties\)/);
+    // The stubbed duties, in order; the site's duty asked docker itself.
+    expect(r.asked.map((a) => a[0] ?? '').filter((a) => !a.startsWith('docker '))).toEqual(
+      IN_ORDER.filter((a) => a !== 'www-live.sh check'),
+    );
   });
 });
 
@@ -887,8 +1039,8 @@ describe('the default run is the one it was', () => {
 describe('end to end: the organisation count fails its duty, and only it', () => {
   function liveWithRealSetup(orgs: unknown) {
     const p = provider({ expiresInDays: 5, orgs });
-    // The real setup-zitadel.sh; the drill and the exposure check stubbed.
-    for (const f of ['trigger-version.sh', 'exposure-check.sh']) writeExec(join(p.compose, f), DUTY_STUB);
+    // The real setup-zitadel.sh; the drill, the exposure check and the site's duty stubbed.
+    for (const f of ['trigger-version.sh', 'exposure-check.sh', 'www-live.sh']) writeExec(join(p.compose, f), DUTY_STUB);
     if (!existsSync(join(p.compose, 'box-duties.sh'))) throw new Error(`${DUTIES_REL} does not exist`);
     const log = join(p.root, 'stub.log');
     writeFileSync(log, '');
@@ -914,7 +1066,7 @@ describe('end to end: the organisation count fails its duty, and only it', () =>
   it('one organisation: every duty passes', () => {
     const r = liveWithRealSetup(ONE_ORG);
     expect(r.status, r.out).toBe(0);
-    expect(r.out).toMatch(/all 4 duties passed/);
+    expect(r.out).toMatch(/all 5 duties passed/);
     expect(r.calls.filter((c) => c.includes('/projects')), 'a duty reconciled the project').toEqual([]);
   });
 });
