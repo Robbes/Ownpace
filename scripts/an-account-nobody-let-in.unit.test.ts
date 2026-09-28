@@ -18,7 +18,8 @@
  *
  *   What it removes. Nothing, without `--remove`. With it, exactly what it
  *   listed, each removal on a line with the id and never the address. A
- *   removal that fails is named, and the run fails.
+ *   removal that fails is named, and the run fails. With `--at-most N`, as
+ *   live's daily duty runs it (0135 T8 (b)), nothing when more than N would go.
  *
  *   When it refuses, removing nothing. A database read that fails, a listing in
  *   a shape it does not know, a token the provider refuses, no token at all,
@@ -320,6 +321,32 @@ describe('what it removes', () => {
     expect(r.deleted).toEqual(['10', '17']);
     expect(r.err).toContain('could not remove 10: HTTP 500');
     expect(r.err).toContain('removed 1 of 2; 1 could not be removed');
+  });
+
+  it('with --at-most, nothing when more would go, and says how to look at them', () => {
+    const world = aStackWithEveryReason();
+    world.accounts!.push({ userId: '17', email: 'another@example.test', days: 31 });
+    const r = run(world, { args: ['--remove', '--at-most', '1'] });
+    expect(r.status).toBe(1);
+    expect(r.deleted).toEqual([]);
+    expect(r.err).toContain('2 accounts would be removed, more than the 1 this run may remove (--at-most).');
+    expect(r.err).toContain('./deploy/compose/idp-strays.sh lists them');
+    expect(r.err).not.toContain('another@example.test');
+  });
+
+  it('with --at-most as many as would go, removes them as --remove does', () => {
+    const world = aStackWithEveryReason();
+    world.accounts!.push({ userId: '17', email: 'another@example.test', days: 31 });
+    const r = run(world, { args: ['--remove', '--at-most=2'] });
+    expect(r.status, r.err).toBe(0);
+    expect(r.deleted).toEqual(['10', '17']);
+  });
+
+  it.each([['0'], ['-1'], ['1.5'], ['twenty'], ['']])('refuses --at-most %j before any call: a usage error', (n) => {
+    const r = run(aStackWithEveryReason(), { args: ['--remove', '--at-most', n] });
+    expect(r.status).toBe(2);
+    expect(r.docker).toEqual([]);
+    expect(r.calls).toEqual([]);
   });
 
   it('counts an account that was gone already as no failure', () => {
