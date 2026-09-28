@@ -330,6 +330,10 @@ const en = {
   // link to the provider's page take its place. Tapping the link is a new
   // press. Written to read on from the in-app browser line above it.
   'wizard.consent.windowBlocked': 'Your browser did not open {provider}’s page. Open it with this link:',
+  // That link past the consent's ten minutes (CONSENT_STATE_TTL_MS): the
+  // server has forgotten it, and a tap would end on its English "expired"
+  // refusal. So the link goes, and this asks for the press that starts anew.
+  'wizard.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -2905,6 +2909,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.consent.needsAccount': 'Vul eerst het accountadres in.',
   'wizard.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
+  'wizard.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client; vul beide in om uw eigen te gebruiken.',
   'wizard.google.connect.halfClient':

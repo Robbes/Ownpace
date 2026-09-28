@@ -39,6 +39,7 @@ import {
   type DiscoveryDomain,
   type ProviderAccountKind,
   type WizardSourceType,
+  CONSENT_STATE_TTL_MS,
 } from '@openmig/shared';
 import {
   mappingApi,
@@ -56,6 +57,13 @@ import {
 } from '../services/consent-window.ts';
 import { useLocale, useT, type StringKey } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
+
+/** A consent address no window was opened for, and when it was pressed for. */
+export interface UnopenedConsent {
+  readonly url: string;
+  /** `Date.now()` in the press, before the server began the consent. */
+  readonly pressedAt: number;
+}
 
 export interface ProviderConsent {
   /** The provider whose consent mints this kind's token, or undefined. */
@@ -80,7 +88,7 @@ export interface ProviderConsent {
    * The consent address, when the browser opened no window for it (0145 T5):
    * the door then offers it as a link (`ConsentWindowLink`). Null otherwise.
    */
-  readonly unopened: string | null;
+  readonly unopened: UnopenedConsent | null;
   readonly pairMissing: boolean;
   readonly facesMissing: boolean;
   readonly accountMissing: boolean;
@@ -153,7 +161,7 @@ export function useProviderConsent(opts: {
   const asked = consentAsks(type, domains, faces);
   const [note, setNote] = React.useState<string | null>(null);
   const [redirect, setRedirect] = React.useState<string | null>(null);
-  const [unopened, setUnopened] = React.useState<string | null>(null);
+  const [unopened, setUnopened] = React.useState<UnopenedConsent | null>(null);
   const [landed, setLanded] = React.useState(0);
 
   const clientIdTyped = (values.clientId ?? '').trim() !== '';
@@ -246,6 +254,7 @@ export function useProviderConsent(opts: {
       // the provider below, closed if the server refuses, and when the
       // browser opened none the panel offers the address as a link.
       consentWindow = openConsentWindow(consentWindowName(provider));
+      const pressedAt = Date.now();
       const { url, redirectUri } = await begin();
       // The address this consent used, shown on every attempt: it has to be
       // registered with the provider BEFORE the first one can work — by whoever
@@ -254,7 +263,7 @@ export function useProviderConsent(opts: {
       // operator's to register, so the line would send them to a console they
       // have no app in (workplan 0148 T2 (a)).
       setRedirect('clientId' in ownPair ? (redirectUri ?? null) : null);
-      if (!sendConsentWindow(consentWindow, url)) setUnopened(url);
+      if (!sendConsentWindow(consentWindow, url)) setUnopened({ url, pressedAt });
     } catch (err) {
       closeConsentWindow(consentWindow);
       setNote(refusalText(err));
@@ -472,24 +481,50 @@ export const ConsentNote: React.FC<{ readonly note: string | null }> = ({ note }
  *   asks again or is shown again, as it does its note (`ConsentNote`).
  * - It reads on from the in-app browser line above it (0140 T3 (a)): that one
  *   says where to open the page, this one what to do when no window came.
+ * - It lives as long as the consent's state (`CONSENT_STATE_TTL_MS`), counted
+ *   from the press, which came before the server began it. A tap after that
+ *   would end on the server's English *"expired"* refusal, so the link gives
+ *   way to a sentence asking for a new press. A timer does it on screen, and
+ *   the tap reads the clock too: a phone that slept may run the timer late.
  */
 export const ConsentWindowLink: React.FC<{
   readonly provider: string | undefined;
-  /** The consent address no window was opened for, or null. */
-  readonly url: string | null;
-}> = ({ provider, url }) => {
+  /** The consent address no window was opened for, and its press; or null. */
+  readonly unopened: UnopenedConsent | null;
+}> = ({ provider, unopened }) => {
   const t = useT();
-  if (provider === undefined || url === null) return null;
+  const [expired, setExpired] = React.useState<UnopenedConsent | null>(null);
+  React.useEffect(() => {
+    if (unopened === null) return;
+    const left = unopened.pressedAt + CONSENT_STATE_TTL_MS - Date.now();
+    const timer = setTimeout(() => setExpired(unopened), left);
+    return () => clearTimeout(timer);
+  }, [unopened]);
+  if (provider === undefined || unopened === null) return null;
+  const name = consentProviderName(provider);
+  if (expired === unopened) {
+    const button = t(`wizard.${provider}.connect` as StringKey);
+    return (
+      <p role="status" className="mt-1 text-sm text-amber-800">
+        {t('wizard.consent.windowExpired', { provider: name, button })}
+      </p>
+    );
+  }
   return (
     <p role="status" className="mt-1 text-sm text-amber-800">
-      {t('wizard.consent.windowBlocked', { provider: consentProviderName(provider) })}{' '}
+      {t('wizard.consent.windowBlocked', { provider: name })}{' '}
       <a
-        href={url}
+        href={unopened.url}
         target={consentWindowName(provider)}
         rel="opener"
         className="break-all underline hover:no-underline"
+        onClick={(event) => {
+          if (Date.now() - unopened.pressedAt < CONSENT_STATE_TTL_MS) return;
+          event.preventDefault();
+          setExpired(unopened);
+        }}
       >
-        {consentLinkText(url)}
+        {consentLinkText(unopened.url)}
       </a>
     </p>
   );
@@ -571,7 +606,7 @@ export const ProviderConsentPanel: React.FC<{
       <ConnectReason reason={reason} />
       <ConsentLines provider={consent.provider} asked={consent.asked} idBase={linesId} />
       <ConsentNote note={consent.note} />
-      {consent.note !== 'received' && <ConsentWindowLink provider={consent.provider} url={consent.unopened} />}
+      {consent.note !== 'received' && <ConsentWindowLink provider={consent.provider} unopened={consent.unopened} />}
       {consent.redirect && consent.note !== 'received' && (
         <p className="mt-1 text-sm text-gray-500">
           {words('redirectUri')}{' '}

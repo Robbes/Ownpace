@@ -31,9 +31,19 @@
  * - **A window closed before the address arrived** counts as not opened, and
  *   gets the same sentence and link (a departure from §3, recorded in 0145's
  *   Status).
- * - **One helper.** `window.open(` appears nowhere in `apps/web/src` outside
- *   `services/consent-window.ts`, so a third copy of the opening cannot come
- *   back beside the two this change folded into it.
+ * - **The link lives as long as its consent.** The server forgets a consent
+ *   `CONSENT_STATE_TTL_MS` after it began, and a tap after that ends on its
+ *   English *"expired"* refusal. So once the press is that old, the link gives
+ *   way to a sentence asking for a new press: when the timer runs, and when a
+ *   tap comes first because a phone that slept ran the timer late. The count
+ *   starts at the press, which comes before the server began the consent, so
+ *   a slow answer does not stretch the link's life past it. A new press
+ *   brings a new link.
+ * - **One helper.** No `.ts` or `.tsx` under `apps/web/src` but
+ *   `services/consent-window.ts` calls `window.open(` (or `globalThis.open(`,
+ *   `self.open(`), so a third copy of the opening cannot come back beside the
+ *   two this change folded into it. Test files (`*.test.ts`, `*.test.tsx`)
+ *   are not scanned: they spy on the call, they do not open windows.
  *
  * jsdom has no windows, so `window.open` is spied: a blank window is a small
  * object with a `location`, `closed` and `close`, which is all the helper
@@ -52,6 +62,7 @@ import { fileURLToPath } from 'node:url';
 import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 import type { ConnectionSummary } from '../services/mapping-service.ts';
+import { CONSENT_STATE_TTL_MS } from '@openmig/shared';
 
 const { googleAuthorize, add, list, clients } = vi.hoisted(() => ({
   googleAuthorize: vi.fn(),
@@ -96,9 +107,11 @@ const words = (locale: Locale, key: string): string => {
 };
 
 /**
- * §3's sentences, word for word, filled in for Google. The owner reads the
- * Dutch before it ships (0144 D1); if the reading changes it, this table
- * changes with the dictionary.
+ * §3's sentences, word for word, filled in for Google. The English apostrophe
+ * is the dictionary's typographic one (’) where §3 has a straight one, a
+ * departure recorded in 0145's Status. The owner reads the Dutch before it
+ * ships (0144 D1); if the reading changes it, this table changes with the
+ * dictionary.
  */
 const SENTENCE: Readonly<Record<Locale, string>> = {
   en: 'Your browser did not open Google’s page. Open it with this link:',
@@ -106,6 +119,15 @@ const SENTENCE: Readonly<Record<Locale, string>> = {
 };
 const blockedSentence = (locale: Locale): string =>
   words(locale, 'wizard.consent.windowBlocked').replace('{provider}', 'Google');
+
+/**
+ * What takes the link's place once its consent has expired, filled in for
+ * Google. Not §3's: new Dutch for the owner's reading (0144 D1).
+ */
+const EXPIRED: Readonly<Record<Locale, string>> = {
+  en: 'The link to Google’s page has expired. Press Connect with Google again.',
+  nl: 'De link naar de pagina van Google is verlopen. Druk opnieuw op Verbinden met Google.',
+};
 
 /** Where the server sends the window: the provider's consent screen. */
 const CONSENT_URL = 'https://accounts.google.example/o/oauth2/v2/auth?client_id=x&state=s';
@@ -176,6 +198,10 @@ const liveAncestor = (el: HTMLElement): HTMLElement | null => {
 /** The status holding the blocked-window sentence, or undefined. */
 const blockedLine = (locale: Locale): HTMLElement | undefined =>
   screen.queryAllByRole('status').find((el) => el.textContent?.includes(SENTENCE[locale]));
+
+/** The status saying the link has expired, or undefined. */
+const expiredLine = (locale: Locale): HTMLElement | undefined =>
+  screen.queryAllByRole('status').find((el) => el.textContent?.includes(EXPIRED[locale]));
 
 /** The popup's answer, over the same postMessage every door listens for. */
 const consentLands = async () => {
@@ -410,6 +436,78 @@ describe('a consent window opened by the press (0145 T5)', () => {
             await server.answer();
             expect(blank.location.href).toBe(CONSENT_URL);
             expect(blockedLine(locale)).toBeUndefined();
+          });
+
+          // THE LINK LIVES AS LONG AS ITS CONSENT: past the server's
+          // CONSENT_STATE_TTL_MS a tap ends on its English "expired" refusal.
+          // The clock runs with real time, so the door's own waits still work.
+          describe('a link that lives as long as its consent', () => {
+            beforeEach(() => {
+              vi.useFakeTimers({ shouldAdvanceTime: true });
+            });
+            afterEach(() => {
+              vi.useRealTimers();
+            });
+
+            it('gives way to a new press once the consent has expired', async () => {
+              await pressBlocked(locale, await door.open(locale));
+              await act(async () => {
+                await vi.advanceTimersByTimeAsync(CONSENT_STATE_TTL_MS - 1000);
+              });
+              expect(blockedLine(locale), 'the link went before its consent expired').toBeDefined();
+              expect(expiredLine(locale)).toBeUndefined();
+
+              await act(async () => {
+                await vi.advanceTimersByTimeAsync(1000);
+              });
+              expect(blockedLine(locale), 'a link to an expired consent is still offered').toBeUndefined();
+              noConsentLink();
+              expect(expiredLine(locale), `no role="status" says "${EXPIRED[locale]}"`).toBeDefined();
+
+              // A new press is a new consent, with a link of its own.
+              await pressBlocked(locale, await liveConnect(locale));
+              expect(expiredLine(locale), 'the old expiry hid the new press’s link').toBeUndefined();
+            });
+
+            it('counts its life from the press, not from the server’s answer', async () => {
+              open.mockReturnValue(null);
+              const connect = await door.open(locale);
+              const server = heldAnswer();
+              // The door reads the clock in the same synchronous press.
+              const pressedAt = Date.now();
+              fireEvent.click(connect);
+              // A slow network: the server answers five seconds after the press.
+              await act(async () => {
+                await vi.advanceTimersByTimeAsync(5000);
+              });
+              await server.answer();
+              await waitFor(() => expect(blockedLine(locale)).toBeDefined());
+
+              await act(async () => {
+                await vi.advanceTimersByTimeAsync(pressedAt + CONSENT_STATE_TTL_MS - 1000 - Date.now());
+              });
+              expect(blockedLine(locale), 'the link went before its consent expired').toBeDefined();
+
+              await act(async () => {
+                await vi.advanceTimersByTimeAsync(pressedAt + CONSENT_STATE_TTL_MS - Date.now());
+              });
+              expect(
+                blockedLine(locale),
+                'the link outlived its press by the server’s answer time, and a tap now ends on "expired"',
+              ).toBeUndefined();
+              noConsentLink();
+              expect(expiredLine(locale), `no role="status" says "${EXPIRED[locale]}"`).toBeDefined();
+            });
+
+            it('refuses a tap on an expired consent before the timer has run', async () => {
+              await pressBlocked(locale, await door.open(locale));
+              // A phone that slept: the clock moved on, the timer did not.
+              vi.setSystemTime(Date.now() + CONSENT_STATE_TTL_MS);
+              const link = within(blockedLine(locale)!).getByRole('link');
+              expect(fireEvent.click(link), 'the tap went on to an expired consent').toBe(false);
+              await waitFor(() => expect(expiredLine(locale)).toBeDefined());
+              noConsentLink();
+            });
           });
         });
       }

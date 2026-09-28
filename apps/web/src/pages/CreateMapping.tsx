@@ -69,6 +69,7 @@ import {
   ConsentWindowLink,
   consentAsks,
   consentLineIds,
+  type UnopenedConsent,
 } from '../components/ProviderConsent.tsx';
 import {
   closeConsentWindow,
@@ -1163,7 +1164,7 @@ const CreateMapping: React.FC = () => {
   /** The callback address the last consent asked Google to return to. */
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
   /** The consent address no window was opened for, offered as a link (0145 T5). */
-  const [consentUnopened, setConsentUnopened] = React.useState<string | null>(null);
+  const [consentUnopened, setConsentUnopened] = React.useState<UnopenedConsent | null>(null);
   /**
    * FORGET WHAT THE LAST CONSENT SAID (0145 T4) when the block it answered
    * goes away or asks something else: another card, a stored connection, or
@@ -1265,6 +1266,7 @@ const CreateMapping: React.FC = () => {
       // The window opens in the press, before anything is awaited (workplan
       // 0145 T5): see the Connections door, same helper.
       consentWindow = openConsentWindow(consentWindowName(grantProvider));
+      const pressedAt = Date.now();
       const { url, redirectUri } = await begin();
       /**
        * THE ADDRESS THIS CONSENT USED, kept rather than discarded.
@@ -1291,7 +1293,7 @@ const CreateMapping: React.FC = () => {
        */
       const typedOwnClient = 'clientId' in ownClientPair;
       setConsentRedirect(typedOwnClient ? (redirectUri ?? null) : null);
-      if (!sendConsentWindow(consentWindow, url)) setConsentUnopened(url);
+      if (!sendConsentWindow(consentWindow, url)) setConsentUnopened({ url, pressedAt });
     } catch (error) {
       closeConsentWindow(consentWindow);
       setConsentNote(serverMessage(error));
@@ -2564,7 +2566,7 @@ const CreateMapping: React.FC = () => {
                   {/* A window the browser did not open, offered as a link
                       (0145 T5): the Connections door's line, one component. */}
                   {consentNote !== 'received' && (
-                    <ConsentWindowLink provider={grantProvider} url={consentUnopened} />
+                    <ConsentWindowLink provider={grantProvider} unopened={consentUnopened} />
                   )}
                   {consentRedirect && consentNote !== 'received' && (
                     <p className="mt-1 text-sm text-gray-500">

@@ -5,11 +5,26 @@
 ## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-28, build: T5 with T7 (a), on branch
-`claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged, and
-held.** This is 0131 §6's R4 step 3. The PR waits until T0 is recorded here, or until the owner
-says go. T0 presses today's code on the OTA stack, which the nightly gate rebuilds from `main`, so
-the first night after this merges, today's behaviour is gone from the only place it can be
-pressed. T0's steps are unchanged.
+`claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged.** This
+is 0131 §6's R4 step 3.
+
+**T0, the first press, 2026-09-28.** The owner pressed *Connect with Google* on the OTA stack,
+before T5, on the owner's iPhone with iOS 26.5.2, in Safari:
+
+- with Safari's *Block Pop-ups* on, which is the default, the button did nothing;
+- with pop-ups allowed, a tab with Google's page opened and the round trip completed.
+
+In the owner's words: *"popups where blocked. The button is working now, and i did the
+roundtrip."* ("where" is read as "were"), and *"will retest after T5"*. So the review's claim
+holds: Safari blocked the window, and T5 is the fix. Whether the tab closed itself is not in the
+record. Two parts of T0 are still open, both the owner's:
+
+- the press again with *Block Pop-ups* on, once T5 is on the OTA stack, which the nightly gate
+  rebuilds from `main`;
+- the repeat from inside the mail app's browser (§3), which has not been done yet. It may run
+  before or after T5 reaches the OTA stack, and its record says which.
+
+**What the branch does.**
 
 - **The window opens in the press.** `apps/web/src/services/consent-window.ts` opens a blank
   window under the consent's name before anything is awaited. It sends that window to the
@@ -23,20 +38,37 @@ pressed. T0's steps are unchanged.
   target="ownpace-<provider>-consent" rel="opener">`. One component, `ConsentWindowLink`, serves
   both doors, under the in-app browser line. It goes when the consent lands, and when the door
   asks again or is shown again.
+- **The link lives as long as its consent.** The server forgets a consent's state ten minutes
+  after it began, and a tap after that ends on the callback's English *"expired"* refusal. So
+  `ConsentWindowLink` counts from the press, which comes before the server begins it, and at ten
+  minutes the link gives way to a sentence in the same status. EN: *"The link to Google’s page has
+  expired. Press Connect with Google again."* NL: *"De link naar de pagina van Google is
+  verlopen. Druk opnieuw op Verbinden met Google."* A timer does it on screen. A tap reads the
+  clock as well, because a phone that slept may run the timer late. The ten minutes are one
+  number, `CONSENT_STATE_TTL_MS`, which moved from `google-consent.ts` into
+  `packages/shared/src/consent-state.ts`. The API reads it from there and still exports it, so
+  its behaviour does not change.
 - **Why a Connect button is greyed out** is now text straight under it, with `role="status"`. One
   component, `ConnectReason`, serves both doors, and the `title` is gone. Each door decides one
   reason and derives `disabled` from it, so a grey button always says why.
 
 **Guards.** Both fail on `main` and pass on the branch.
 
-- `apps/web/src/components/a-consent-window-opened-by-the-press.unit.test.tsx`: 32 cases, 32
-  failing before. `window.open` is spied and `begin` is held pending. Both doors call it before
-  `begin` resolves, with no address, and send the window afterwards. A refusal closes the blank
-  window. With `window.open` answering `null`, the sentence and a link to the consent address are
-  shown, in EN and NL. The link goes when the door is shown again without a new press, as T4's
-  note does: Cancel and *Add a connection*, the *Reconnect* fold closed and opened, the wizard's
-  card switched away (to Dropbox, then IMAP) and back, and Next and Back. A scan finds
-  `window.open(` nowhere in `apps/web/src` outside `consent-window.ts`.
+- `apps/web/src/components/a-consent-window-opened-by-the-press.unit.test.tsx`: 44 cases. The first
+  build's 32 all failed on `main`. The 12 added for the link's age failed against the branch's
+  commit, which does not expire the link. `window.open` is spied and `begin` is held pending. Both
+  doors call it before `begin` resolves, with no address, and send the window afterwards. A refusal
+  closes the blank window. With `window.open` answering `null`, the sentence and a link to the
+  consent address are shown, in EN and NL. The link goes when the door is shown again without a new
+  press, as T4's note does: Cancel and *Add a connection*, the *Reconnect* fold closed and opened,
+  the wizard's card switched away (to Dropbox, then IMAP) and back, and Next and Back. Under a fake
+  clock that runs with real time, the link is still there a second before ten minutes and gone at
+  ten, with the expired sentence as a status in its place, and a new press brings a new link. With
+  the server answering five seconds after the press, the ten minutes still count from the press:
+  the link is there a second before and gone at ten. With the clock moved on and the timer not
+  run, a tap on the link is cancelled and the sentence shows. A scan reads every `.ts` and `.tsx` under `apps/web/src` except test files (`*.test.ts`,
+  `*.test.tsx`), which spy on the call. It finds `window.open(`, `globalThis.open(` or `self.open(`
+  in `consent-window.ts` and in no other file.
 - `apps/web/src/components/a-reason-a-finger-can-read.unit.test.tsx`: 8 cases, 8 failing before.
   With nothing ticked, and again with no client pair, the disabled button has no `title`, and the
   reason is visible text in a status straight under it, in both doors, in EN and NL.
@@ -45,6 +77,11 @@ pressed. T0's steps are unchanged.
   back in a `title`, the wizard with no reason line, a third `window.open(` in `Setup.tsx`, the
   link kept after the consent landed, the panel's `reset` keeping the link, and the wizard's
   `forgetConsent` keeping it (the card switch then offers Google's address under Dropbox's name).
+- Six more for the link's age, each caught: no timer (4 cases failed), no check of the clock on
+  the tap (4), the expiry kept for the next press (4), the timer 5 seconds late (4) or at half
+  the ten minutes (4), and the expired sentence without its status (8). And two more, one per
+  door: the clock read after the server's answer instead of in the press, in the panel's `start`
+  and then in the wizard's `startConsent` (2 cases each, that door's EN and NL).
 
 **Departures from §3.**
 
@@ -55,14 +92,24 @@ pressed. T0's steps are unchanged.
 - §3 names no role for the sentence. It is a status, not an alert: nothing was refused.
 - `GRANT_PROVIDER_NAMES` moved from `Setup.tsx` into the helper, so the sentence and the setup
   checklist read one table.
+- The English sentence has the dictionary's typographic apostrophe, *Google’s*, where §3 writes a
+  straight one. The guard's table of §3's sentences follows the dictionary and says so.
+- §3 does not say that the link expires. It does, with the consent's state, and asks for a new
+  press in its place.
+- §3's scan finds `window.open(` nowhere in `apps/web/src` outside `consent-window.ts`. The built
+  one leaves out test files (`*.test.ts`, `*.test.tsx`), which spy on the call, and counts
+  `globalThis.open(` and `self.open(` as well.
 - Tests that read the reason from `title`, or the address from `window.open`'s first argument,
   now read the line under the button and the window's location (`Connections.unit.test.tsx`,
   `CreateMapping.unit.test.tsx`). `CreateMapping.reachability.unit.test.tsx` now tells Next's
   reason from a Connect button's.
 
-**Open, and whose.** T0 is the owner's, before this merges. The owner reads the new Dutch sentence
-(0144 D1). Whether Safari keeps the opener through `rel="opener"` is T8 (c)'s and T10's to confirm.
-Live is not stood up, and nothing here ran there.
+**Open, and whose.** T0's retest with T5 on the OTA stack, and its repeat from the mail app's
+browser, are the owner's. The owner reads the two new Dutch sentences (0144 D1). Whether Safari
+keeps the opener through `rel="opener"` is T8 (c)'s and T10's to confirm. A tap shortly before the
+ten minutes can still end on the English *"expired"* refusal, if Google's page takes longer than
+what is left; that refusal is still English only, as T6's note of 2026-09-26 says. Live is not
+stood up, and nothing here ran there.
 
 **2026-09-27, build review: Stage 9's fixes, on the same branch
 (`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
@@ -592,14 +639,14 @@ only a keyboard, and T9 (a) says so before anyone starts.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 merges: T5 is built and held for it (2026-09-28). |
+| T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner**: the press again with *Block Pop-ups* on once T5 is on the OTA stack, and the repeat from the mail app's browser; the first press ✅ **done** 2026-09-28, in Safari on iOS 26.5.2: with *Block Pop-ups* on the button did nothing, with pop-ups allowed the round trip completed — *was:* ⏳ **Owner** | §3. Settled the review's popup claim on the code as it was: the claim holds, and T5 is the fix. **Before the first invitation.** |
 | T1 The phone menu takes focus and gives it back | ✅ **done** in #1169, merged 2026-09-25 (`41c77a01`, `144c6f69`), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | (a) ✅ **done** in #1206, merged 2026-09-27; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
 | T4 Errors are announced | ✅ **done** in #1207, merged 2026-09-27, all but the Grant and View lines; those ✅ **done** in #1208, merged 2026-09-27, with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
-| T5 The consent window opens on the press itself | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28), with T7 (a); held until T0 is recorded or the owner says go — *was:* 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
+| T5 The consent window opens on the press itself | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28), with T7 (a); T0 found Safari blocking the window it replaces (2026-09-28) — *was:* 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | ✅ **done** in #1208, merged 2026-09-27, both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
-| T7 Help a finger can reach | (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28), with T5, held with it for T0; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
+| T7 Help a finger can reach | (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28), with T5; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
 | T10 The walk on two phones | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
@@ -894,9 +941,11 @@ T2's guard makes sure it stays that way.
 
 ### T0 — one press on an iPhone, today (owner; before the first invitation)
 
-This check runs on the OTA stack, which the nightly gate rebuilds from `main` (D3), before T5 is
-built. On the owner's iPhone in Safari, the owner opens the wizard or the Connections page,
-chooses a Google account and presses *Connect with Google*. The owner records:
+This check runs on the OTA stack, which the nightly gate rebuilds from `main` (D3). The first
+press ran there before T5 reached it. The press again with *Block Pop-ups* on runs with T5 on the
+stack. The repeat from the mail app's browser may run on either code, and its record says which.
+On the owner's iPhone in Safari, the owner opens the wizard or the Connections page, chooses a
+Google account and presses *Connect with Google*. The owner records:
 
 - whether a tab with Google's page opened;
 - whether the result came back and the tab closed;
@@ -909,6 +958,11 @@ no address.
 If Safari blocked the window, T5 is urgent, and the review's claim holds. If it did not, T5 still
 goes in, because the blocked-window sentence serves every browser with a strict blocker and every
 in-app browser that refuses windows. The record then corrects the review.
+
+The first press was on 2026-09-28, with T5 built on its branch and not on the stack. Safari
+blocked the window, so the review's claim holds (the Status block has the record). The owner
+presses once more with *Block Pop-ups* on after T5 reaches the OTA stack. The repeat from the mail
+app's browser is still to do.
 
 ### T1 — the phone menu takes focus and gives it back (before the first invitation)
 
