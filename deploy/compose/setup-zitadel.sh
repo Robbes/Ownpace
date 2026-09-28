@@ -44,6 +44,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # way Compose and `source` would. See deploy/compose/env-read.sh.
 # shellcheck source=deploy/compose/env-read.sh
 . "${SCRIPT_DIR}/env-read.sh"
+# shellcheck source=deploy/compose/own-addresses.sh
+. "${SCRIPT_DIR}/own-addresses.sh"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml")
@@ -58,6 +60,16 @@ APP_NAME="Ownpace Web"
 
 say() { echo "[setup-zitadel] $*"; }
 die() { echo "[setup-zitadel] FATAL: $*" >&2; exit 1; }
+
+# The provider's last 40 lines, through the address filter, as the bring-up's
+# explain_failure prints them: the gate's log is public. Captured, not piped,
+# so a failed `logs` cannot abort under pipefail before the FATAL line after it.
+zitadel_log_tail() {
+  local tail
+  tail="$("${COMPOSE[@]}" logs --tail 40 zitadel 2>&1 || true)"
+  if [ -n "$tail" ]; then own_address_redact "$ENV_FILE" <<<"$tail" >&2; fi
+  return 0
+}
 
 # ------------------------------------------------------------------ arguments --
 #
@@ -299,7 +311,7 @@ for _ in $(seq 1 60); do
   state="$("${COMPOSE[@]}" ps --format json zitadel 2>/dev/null | tr -d '\n' || true)"
   case "$state" in
     *'"State":"exited"'*)
-      "${COMPOSE[@]}" logs --tail 40 zitadel >&2
+      zitadel_log_tail
       die "the identity provider exited during start-up — its last 40 log lines are above"
       ;;
   esac
@@ -310,7 +322,7 @@ for _ in $(seq 1 60); do
   sleep 5
 done
 [ "$ready" -eq 1 ] || {
-  "${COMPOSE[@]}" logs --tail 40 zitadel >&2
+  zitadel_log_tail
   die "it never answered 200 at ${READY_URL} within five minutes — last 40 log lines above.
     000 would mean nothing answered at all; anything else means it answered and said no."
 }

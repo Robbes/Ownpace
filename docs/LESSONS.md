@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 175 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 177 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -30,6 +30,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/e2e-live-target.yml`
 
+- [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts) — A CREDENTIAL THE NEXT STEP PRINTED.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 
 ### `.github/workflows/e2e-managed.yml`
@@ -37,6 +38,7 @@ reading a file drops off its entry by itself.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
 - [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts) — A POOL THAT HAD NOT HAPPENED YET.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
@@ -51,6 +53,7 @@ reading a file drops off its entry by itself.
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 - [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts) — AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -500,6 +503,7 @@ reading a file drops off its entry by itself.
 
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
@@ -529,6 +533,7 @@ reading a file drops off its entry by itself.
 
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
@@ -558,6 +563,7 @@ reading a file drops off its entry by itself.
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
@@ -601,6 +607,7 @@ reading a file drops off its entry by itself.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
@@ -631,6 +638,7 @@ reading a file drops off its entry by itself.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
@@ -674,8 +682,13 @@ reading a file drops off its entry by itself.
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
+### `deploy/compose/own-addresses.sh`
+
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+
 ### `deploy/compose/redact-evidence.sh`
 
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [redact-evidence](../scripts/redact-evidence.unit.test.ts) — The redactor, tested against the log it actually has to clean (workplan 0084 T5).
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
@@ -733,6 +746,7 @@ reading a file drops off its entry by itself.
 - [a-false-jq-could-not-report](../scripts/a-false-jq-could-not-report.unit.test.ts) — A `false` THE READER COULD NOT REPORT.
 - [a-project-for-one-organisation](../scripts/a-project-for-one-organisation.unit.test.ts) — A PROJECT FOR ONE ORGANISATION (workplan 0135 T2).
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -752,6 +766,7 @@ reading a file drops off its entry by itself.
 - [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts) — Every fixture was smaller than a chunk, so the buffering was never tested.
 - [a-person-opened-in-the-wrong-organisation](../scripts/a-person-opened-in-the-wrong-organisation.unit.test.ts) — A SEARCH THAT FINDS ONE PERSON IN TWO ORGANISATIONS, AND A GATE THAT OPENED WHICHEVER ROW POSTGRES HAPPENED TO RETURN FIRST.
 - [a-port-the-gate-assumed](../scripts/a-port-the-gate-assumed.unit.test.ts) — A PORT THE GATE ASSUMED.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-restart-nobody-in-the-run-asked-for](../scripts/a-restart-nobody-in-the-run-asked-for.unit.test.ts) — A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER CHECK WAS RUNNING (E2E (managed) #195, 2026-09-23).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -860,6 +875,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/setup-nextcloud-users.sh`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [seed-demo-dav-content](../scripts/seed-demo-dav-content.unit.test.ts) — The demo's DAV content, and the two ways seeding it goes quietly wrong.
 - [setup-nextcloud-users](../scripts/setup-nextcloud-users.unit.test.ts) — The Nextcloud readiness check, and the run it can poison after itself.
 
@@ -1642,6 +1658,10 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 
+### `scripts/live-target-nightly.ts`
+
+- [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts) — A CREDENTIAL THE NEXT STEP PRINTED.
+
 ### `scripts/local-pg.sh`
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
@@ -1993,6 +2013,15 @@ Reads:
 ### [a-count-in-a-sentence-the-table-outgrew](../scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts)
 
 A COUNT IN A SENTENCE IS A COPY OF THE TABLE, AND A COPY ROTS.
+
+### [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts)
+
+A CREDENTIAL THE NEXT STEP PRINTED.
+
+Reads:
+
+- `.github/workflows/e2e-live-target.yml`
+- `scripts/live-target-nightly.ts`
 
 ### [a-cutover-the-gate-never-pressed](../scripts/a-cutover-the-gate-never-pressed.unit.test.ts)
 
@@ -2592,6 +2621,25 @@ Reads:
 
 - `deploy/compose/managed.env.example`
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts)
+
+A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+
+Reads:
+
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/e2e.yml`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/compose/own-addresses.sh`
+- `deploy/compose/redact-evidence.sh`
+- `deploy/compose/setup-zitadel.sh`
+- `deploy/compose/smoke-managed.sh`
+- `deploy/selfhost/setup-nextcloud-users.sh`
 
 ### [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts)
 
