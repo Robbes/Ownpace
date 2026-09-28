@@ -4,6 +4,50 @@
 
 ## Status — 2026-09-27 (update this block at the end of every session)
 
+**2026-09-27, night: T1 built (0131 §6, group M4, step 7)** on branch
+`claude/mailbox-sync-errors-c2xsw2-an-alert-someone-reads`, not merged. The channel is the owner's
+answer to open question 1: e-mail through 0133's relay. The relay and the test alert stay T0's,
+the owner's.
+
+- **`gatus.yaml`** has an `alerting` block for e-mail, and every value in it is a setting.
+  - Each row of the Ownpace group carries one e-mail alert: Web app, API, Database, Sign-in,
+    Scheduled syncs, Identity provider and Website. It fires after three failures, which is three
+    minutes, and sends a second mail after two successes (`send-on-resolved`).
+  - Each alert's description names its own row of `docs/incident-runbook.md`.
+  - Sources and Targets carry none.
+- **The switch.** Every alert reads `enabled` from `ALERT_ENABLED`, which `managed.yml`
+  defaults to `false`. Live's `.env` turns it on (T0). The OTA stack leaves it off.
+- **One relay login.** `ALERT_SMTP_HOST`, `_PORT`, `_USER` and `_PASSWORD`, `ALERT_FROM` and
+  `ALERT_TO` fall back to the product's `SMTP_*`, `NOTIFY_FROM` and `NOTIFY_TO`, and past those
+  to `.invalid` placeholders, with port 587 and no login. `managed.env.example` lists them.
+- **What gatus does, read in its source at v5.36.0**, as §3 asked, and then checked by loading
+  this file with gatus's own loader, built from that tag:
+  - an alert with no `enabled` value counts as on (`alert.go`, `IsEnabled`). So the switch
+    has a default, and every alert names it. Loaded with the switch empty, every alert was on;
+  - a provider whose settings do not validate is set aside with a warning
+    (`ValidateAlertingConfig`). With no relay set, the page loaded, the provider was kept with
+    its placeholders, and every alert was off;
+  - a description holding a double quote or a backslash stops the whole file loading
+    (`ValidateAndSetDefaults`), and so does a port that is not a number. The descriptions hold
+    neither, and the port's defaults are numbers;
+  - gatus expands the environment over the text before parsing it, so the host, the login and
+    the two addresses are literal blocks. Loaded with a password holding `"`, `\`, `: #` and
+    `'`, and a sender written `"Ownpace" <…>`, both reached the provider exactly.
+- **The docs.** `docs/status-page.md` gains *Who is told*, which says that an alert from inside
+  the machine cannot report the machine itself (T5). The bring-up guide's 8d gains the
+  settings, and the incident runbook's *Where signals arrive* says the page now sends.
+- **Proved.** `scripts/an-alert-someone-reads.unit.test.ts`, 9 cases:
+  - the block's six fields are settings;
+  - every Ownpace row's alert is on the switch and says when it is over, and no other row has one;
+  - each description names its runbook row, which exists, with no quote or backslash;
+  - the switch defaults off;
+  - an empty `.env` hands placeholders, and the product's relay settings are taken first;
+  - the file, expanded as gatus expands it, loads with every alert off on an empty `.env` and on
+    with the switch, the awkward password and sender intact.
+
+  8 of the 9 fail on `main`, where there is no `alerting` block. The ninth, no alert on Sources or
+  Targets, holds there already.
+
 **2026-09-27: T2's row on the status page built (0131 §6, group M4, step 5's remainder)** on
 branch `claude/mailbox-sync-errors-c2xsw2-a-runbook-for-every-alert`, not merged. It rides with
 T6's runbook, as 0131 §6 allows a task too small to stand alone, because the runbook already
@@ -145,7 +189,7 @@ watch's issue reaches the owner (0141, 0146).
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alert channel, and what the alpha promises | 📋 the channel **Decided 2026-09-27**: e-mail through 0133's relay (open question 1); ⏳ **Owner** for its settings and the test alert; the promise 📋 **Decided 2026-09-24** (D1, D2) | §3. **Alpha minimum.** One channel the owner reads, hosted in the EU: e-mail through 0133's relay, or a chat webhook. One test alert. A sentence for 0139's conditions: best effort, no promised response. |
-| T1 The status page tells the owner when an Ownpace row goes red | 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
+| T1 The status page tells the owner when an Ownpace row goes red | 🔨 **Built 2026-09-27, not merged**: e-mail on every Ownpace row, off unless `ALERT_ENABLED`, through the product's relay — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** An `alerting` block in `gatus.yaml`, with an address and a switch, as the Website row already has. Alerts on the Ownpace rows only. The switch is on in live's `.env` and off on the OTA stack. |
 | T2 A tick that says it ran | 🔨 **(a) built 2026-09-27**, merged as #1244: the beat and `GET /api/ready/scheduler`; the Gatus row, on the public page (open question 3), built 2026-09-27, not merged — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** The tick rewrites one row each minute. `GET /api/ready/scheduler` reads it, and a status row with an alert reads that route. `/api/ready` stays as it is. |
 | T3 The disk, and what grows on it | 📋 **Proposed** | §3. After the first invitation; **the first to add** if the owner wants one more. A free-space floor every ten minutes and one summary a day. Also gives 0132 T7's daily duties a voice. What to do about the growth belongs to 0143. |
 | T4 What is waiting: queued runs, pooler waits, recorded failures | 📋 **Proposed** | §3. After the first invitation. Queue counts written with T2's heartbeat, `SHOW POOLS`, and a daily count of 0129's recorded failures. |
