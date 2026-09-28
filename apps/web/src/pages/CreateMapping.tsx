@@ -8,6 +8,7 @@ import {
   NativeFilePolicyChooser,
   type NativeFilePolicyByKind,
 } from '../components/NativeFilePolicyChooser.tsx';
+import { PaperFormatChooser, SUGGESTED_PAPER_FORMAT } from '../components/PaperFormatChooser.tsx';
 import {
   measuredText,
   probeText,
@@ -51,6 +52,7 @@ import {
   credentialFieldRequired,
   carriesGoogleNativeFiles,
   sourceFaceIsExperimental,
+  type DropboxPaperPolicy,
 } from '@openmig/shared';
 import {
   connectionsApi,
@@ -158,6 +160,12 @@ interface FormData {
    * format carries all four.
    */
   sourceNativeFilePolicies: NativeFilePolicyByKind;
+  /**
+   * Dropbox: the format its Paper docs arrive in, or `refuse` (workplan 0150
+   * T3 (d)). Starts at Markdown, the one the wizard suggests (D1), which
+   * Nextcloud's Text app opens.
+   */
+  sourcePaperFormat: DropboxPaperPolicy;
   /** Dropbox: root the migration at a folder ('' = the whole Dropbox). */
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
@@ -219,6 +227,7 @@ const initialFormData: FormData = {
   // `refuse` is also the server's default, so this changes nothing by
   // itself — it makes the choice VISIBLE, and records that somebody made it.
   sourceNativeFilePolicies: LEAVE_ALL_BEHIND,
+  sourcePaperFormat: SUGGESTED_PAPER_FORMAT,
   sourceRootPath: '',
   sourceBoxUserId: '',
   sourceArchiveProvider: '',
@@ -351,6 +360,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceServiceAccountKey: '',
     sourceRootFolderId: '',
     sourceNativeFilePolicies: LEAVE_ALL_BEHIND,
+    sourcePaperFormat: SUGGESTED_PAPER_FORMAT,
     sourceRootPath: '',
     sourceBoxUserId: '',
     sourceArchiveProvider: '',
@@ -710,6 +720,12 @@ const CreateMapping: React.FC = () => {
               refreshToken: formData.sourceRefreshToken,
               ...(formData.sourceRootPath.trim()
                 ? { rootPath: formData.sourceRootPath.trim() }
+                : {}),
+              // The format its Paper docs arrive in (0150 T3 (d)), sent
+              // whenever the migration carries files, `refuse` included, for
+              // the reason Drive's is: the mapping then says somebody chose.
+              ...(paperFormatApplies
+                ? { nativeFilePolicies: { paper: formData.sourcePaperFormat } }
                 : {}),
             }
           : isBoxSource
@@ -1448,6 +1464,13 @@ const CreateMapping: React.FC = () => {
   const nativePolicyApplies =
     carriesGoogleNativeFiles(formData.sourceType) && formData.domains.includes('file');
   /**
+   * AND WHETHER IT HAS PAPER DOCS TO DECIDE ABOUT (workplan 0150 T3 (d), D1):
+   * every Dropbox migration that carries files, which is every one, since
+   * the card pins `['file']`. Asked the same way anyway, so the day Dropbox
+   * carries a second data type this does not ask a calendar about Paper.
+   */
+  const paperFormatApplies = formData.sourceType === 'dropbox' && formData.domains.includes('file');
+  /**
    * What the picked source IS — one line after the card, the rest under
    * More (0118 T1). Six amber panels of forty to seventy words stood here
    * before; the facts are the same (which client or app it signs in with,
@@ -2140,6 +2163,14 @@ const CreateMapping: React.FC = () => {
             onChange={(next) =>
               setFormData((prev) => ({ ...prev, sourceNativeFilePolicies: next }))
             }
+          />
+        )}
+        {/* THE SAME QUESTION FOR DROPBOX PAPER DOCS (0150 T3 (d)), in the
+            same place, with Markdown suggested (D1). */}
+        {isSource && paperFormatApplies && (
+          <PaperFormatChooser
+            value={formData.sourcePaperFormat}
+            onChange={(next) => setFormData((prev) => ({ ...prev, sourcePaperFormat: next }))}
           />
         )}
         {/* What happens to these secrets — one sentence, at the foot of the

@@ -5456,9 +5456,10 @@ esac
 # gate — and lands READY_FOR_CUTOVER, and a second press on a ready cutover
 # converges instead of failing it (#1024). The two ledger tables carry the
 # tenant policies since migration 0055 (#1027); that is asserted here on a
-# real app_user, not on PGlite. (The job itself connects as the owner, a
-# superuser on this stack, whom row security never binds — so the job landing
-# READY says nothing about the policies, and the SET ROLE below is the proof.)
+# real app_user, not on PGlite. (The job itself connects as app_user since
+# workplan 0138 T1, so the job landing READY is a read and a write through
+# the policies too; the SET ROLE below asks the tables directly, whatever the
+# job connects as.)
 #
 # ON THE MAIL MAPPING, deliberately. The VERIFY half above says why: the demo
 # mail mapping verifies WARN at score 1 and may proceed to cutover; the DAV

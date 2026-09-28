@@ -25,10 +25,20 @@
  * of them even when the first release throws. Each of those was a line in two
  * places; now it is a line in one, and these are the assertions that keep it
  * honest.
+ *
+ * And one refusal that is not a domain's (workplan 0085 T2): a closed
+ * organisation fails the whole fan-out, and what was open is released, so a
+ * verification or a confirmation queued before the close records no verdict.
  */
 
 import { describe, it, expect } from 'vitest';
-import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
+import {
+  CredentialRefusalError,
+  DISCOVERY_DOMAINS,
+  grantWithdrawnRefusal,
+  organisationClosedRefusal,
+  type DiscoveryDomain,
+} from '@openmig/shared';
 import { asReindexer, fanOutTargets, GATE_NAME, LEDGER_DOMAIN } from './target-fan-out.ts';
 
 /** A target that can enumerate itself, and one that cannot. */
@@ -37,7 +47,7 @@ const inert = { writeOnly: true };
 
 /** An opener that records what it was asked for and what it released. */
 function recordingOpener(
-  behaviour: Partial<Record<DiscoveryDomain, 'enumerable' | 'inert' | 'throws'>> = {},
+  behaviour: Partial<Record<DiscoveryDomain, 'enumerable' | 'inert' | 'throws' | 'closed' | 'withdrawn'>> = {},
 ) {
   const asked: DiscoveryDomain[] = [];
   const released: DiscoveryDomain[] = [];
@@ -45,6 +55,13 @@ function recordingOpener(
     asked.push(domain);
     const how = behaviour[domain] ?? 'enumerable';
     if (how === 'throws') return Promise.reject(new Error(`no ${domain} connection`));
+    // What the managed builders throw for a closed organisation (0085 T2), and
+    // for a grant the person took back: two refusals, only one of them the
+    // whole organisation's.
+    if (how === 'closed') {
+      return Promise.reject(new CredentialRefusalError(organisationClosedRefusal({ closedAt: null, purgeAfter: null })));
+    }
+    if (how === 'withdrawn') return Promise.reject(new CredentialRefusalError(grantWithdrawnRefusal(new Date())));
     return Promise.resolve({
       target: how === 'enumerable' ? enumerable : inert,
       close: () => {
@@ -152,6 +169,43 @@ describe('nothing is held open that will not be used', () => {
     ).rejects.toThrow('the target went away mid-enumeration');
     // The two kept before it, plus the one being worked on when it failed.
     expect(o.released.sort()).toEqual(['calendar', 'contact', 'email']);
+  });
+
+  it('fails the whole fan-out for a closed organisation, and releases what was already open', async () => {
+    // Workplan 0085 T2. The builders refuse a closed organisation for every
+    // domain. Left out one by one, a verification queued before the close
+    // finished as a report of nothing but NOT_VERIFIABLE, and a confirmation as
+    // a run that checked nothing, each still the latest after a reopen. The
+    // close's refusal goes up to the task instead, which fails with it.
+    const o = recordingOpener({ contact: 'closed' });
+    const refused = await fanOutTargets({
+      wanted: DISCOVERY_DOMAINS,
+      open: o.open,
+      keep: keepEnumerable,
+      label: '[test]',
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(refused, 'a closed organisation’s fan-out went on without it').toBeInstanceOf(CredentialRefusalError);
+    expect((refused as CredentialRefusalError).refusal.code).toBe('account_closed');
+    // Nothing past the refusal is opened, and what was kept before it is let go.
+    expect(o.asked).toEqual(['email', 'calendar', 'contact']);
+    expect(o.released.sort()).toEqual(['calendar', 'email']);
+  });
+
+  it('still leaves out a data type refused for a reason of its own', async () => {
+    // Only the close is the whole organisation's. A grant withdrawn on one
+    // migration's source is that domain's answer, as before.
+    const o = recordingOpener({ calendar: 'withdrawn' });
+    const fanned = await fanOutTargets({
+      wanted: DISCOVERY_DOMAINS,
+      open: o.open,
+      keep: keepEnumerable,
+      label: '[test]',
+    });
+    expect(fanned.domains).toEqual(DISCOVERY_DOMAINS.filter((d) => d !== 'calendar'));
+    await fanned.close();
   });
 
   it('close() releases every kept target', async () => {

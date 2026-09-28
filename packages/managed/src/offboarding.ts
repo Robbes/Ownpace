@@ -7,9 +7,19 @@
  *
  * Ending the service is commercial; erasing the data is legal. They must not be
  * the same button, because the first is reversible and routine and the second
- * is neither. So **closing** stops syncs and billing and makes the account
- * read-only, and the **purge** happens later, when the window the customer
- * chose has run out.
+ * is neither. So **closing** stops syncs and billing, and nothing uses the
+ * access the customer gave from then on, and the **purge** happens later, when
+ * the window the customer chose has run out.
+ *
+ * ## What closing stops, and how (workplan 0085 T2, 2026-09-28)
+ *
+ * `closeTenant` sets `tenant.status` to `closed` and leaves every migration as
+ * it was. Everything that would start work or use the stored access reads the
+ * status: the sync tick starts no pass, a pass under way stops before its next
+ * data type, the credential builders refuse, and every door that would start
+ * work, re-arm it or use the access answers 409 `account_closed`
+ * (`readOrganisationClosure` below). Reading stays open, and so does the
+ * reopen, which sets the status back and so gives back everything as it ran.
  *
  * ## What survives, and why that is not a loophole
  *
@@ -34,9 +44,10 @@ import { createHash } from 'node:crypto';
 import {
   DEFAULT_BACKUP_RETENTION_DAYS,
   erasureTimeline,
+  type OrganisationClosure,
   type RevocationOutcome,
 } from '@openmig/shared';
-import type { PgDatabase } from '@openmig/ledger';
+import { organisationIsOpen, type PgDatabase } from '@openmig/ledger';
 
 /** The windows a customer may choose (owner decision, 2026-08-18). */
 export const CLOSE_WINDOWS_DAYS = [0, 7, 30, 90] as const;
@@ -333,6 +344,40 @@ export async function reopenTenant(db: PgDatabase, tenantId: string, now: Date):
     UPDATE erasure_record SET window_days = -1
      WHERE tenant_ref = ${tenantRef(tenantId)} AND purged_at IS NULL
   `);
+}
+
+/**
+ * Whether this organisation is closed, and the two days its refusals name, or
+ * null while it is open (workplan 0085 T2; the owner's report of 2026-09-28).
+ *
+ * What every door that starts work, re-arms it, or uses the stored access asks
+ * before it does anything: `enqueueUnlessHeld`, and each such door in
+ * `apps/api` by itself. Beside `readOpenPause` in spirit, a thing a door
+ * reads before it acts, and here because this module writes both rows.
+ *
+ * Open means `tenant.status` is `active`, read as the tick and the pass read
+ * it (`organisationIsOpen`), so the doors, the tick and the pass cannot
+ * disagree. The days come from `tenant_closure`, read only once the
+ * organisation is not open. Both reads run inside the organisation's own
+ * transaction, under row security, which lets its members read both rows.
+ * `closeTenant` writes the status and the closure in one transaction, so a
+ * closed organisation has both; one whose closure row is missing (nothing
+ * writes `suspended`) is still refused, without the days.
+ *
+ * Never asked in `authenticate`: the owner reopens through it.
+ */
+export async function readOrganisationClosure(
+  db: PgDatabase,
+  tenantId: string,
+): Promise<OrganisationClosure | null> {
+  if (await organisationIsOpen(db, tenantId)) return null;
+  const rows = await db.execute(sql`
+    SELECT closed_at, purge_after FROM tenant_closure WHERE tenant_id = ${tenantId}::uuid
+  `);
+  const row = resultRows<{ closed_at: unknown; purge_after: unknown }>(rows)[0];
+  const asDate = (value: unknown): Date | null =>
+    value === null || value === undefined ? null : value instanceof Date ? value : new Date(String(value));
+  return { closedAt: asDate(row?.closed_at), purgeAfter: asDate(row?.purge_after) };
 }
 
 export interface PurgeResult {

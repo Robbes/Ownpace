@@ -299,7 +299,8 @@ and terms §11's export.
   - §10: the access is kept until the tester deletes the connection or the migration. After
     closing nothing uses it, and it is destroyed when the data is erased, at the end of the
     chosen window. That is what the service does (`closeTenant` stops the service, and the purge
-    destroys it), and it departs from the owner's *"keep until deleted or closes"* and from terms
+    destroys it; **corrected 2026-09-28:** the close did not stop syncs until 0085's Status entry of
+    that day, and since then nothing uses the access after closing), and it departs from the owner's *"keep until deleted or closes"* and from terms
     §11's *"On closure we delete your credentials"*. The briefing flags it for the owner. A new
     paragraph: at erasure the owner also deletes the sign-in account (T7, by hand until 0135 T8)
     and the Google test-user entry (0131 T4), and the access request is erased with the data

@@ -7,7 +7,7 @@ import {
   needsAcknowledgement,
 } from './confirm/native-refusals.tsx';
 import ScopeManifestPanel from './confirm/ScopeManifestPanel.tsx';
-import { scopeFamilyOf, scopeManifestFor } from '@openmig/shared';
+import { scopeFamilyOfConnectionKind, scopeManifestFor } from '@openmig/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
@@ -36,6 +36,41 @@ const POLL_MS = 2000;
 const POLL_CEILING_MS = 5 * 60 * 1000;
 
 /**
+ * THE ROWS THAT ANSWER THE COUNT THIS SCREEN ASKED FOR (workplan 0150 T3 (d),
+ * D5).
+ *
+ * The preflight keeps one row per data type and overwrites it (`upsertDiscovery`),
+ * so a migration opened here again, *Review and start* on a paused one, still
+ * holds the rows of its last count. The screen took them as the answer to the
+ * count it had just started: every data type it waited for had a row, so it
+ * stopped asking at once. After a change they answer another question. A
+ * Dropbox migration whose owner had just chosen Markdown for its Paper docs
+ * was shown the count taken before, Paper docs that *will not be copied* and
+ * a tick-box for them, while the count under Markdown landed a minute later on
+ * a screen that no longer asked.
+ *
+ * Every change a person makes moves the migration's `updatedAt` (the update
+ * door stamps it, the status changes do too), and the preflight's key holds
+ * it (`discoveryTriggerOptions`), so a change always starts a new count. A row
+ * whose counts were taken before that moment is waited for, not shown. Nothing
+ * the worker does moves `updatedAt`, so the count this screen started always
+ * lands after it.
+ *
+ * A row with an error is shown whatever its age, as before: an error is a
+ * final answer, and `recordDiscoveryError` keeps the time of the counts beside
+ * it rather than of the error, so its age says nothing about the error.
+ * Without the migration's time, every row is shown, as it was.
+ */
+export function countedSinceChange<T extends { readonly discoveredAt: string; readonly lastError?: string }>(
+  domains: ReadonlyArray<T>,
+  changedAt: string | undefined,
+): T[] {
+  const since = changedAt === undefined ? NaN : Date.parse(changedAt);
+  if (Number.isNaN(since)) return [...domains];
+  return domains.filter((d) => d.lastError !== undefined || Date.parse(d.discoveredAt) >= since);
+}
+
+/**
  * Pre-sync confirm screen (workplan 0013 T6). Kicks off read-only discovery, polls the per-domain
  * counts, shows them next to the §11.2 scope manifest, and offers the "Start migration" green light
  * that activates the (paused) mapping.
@@ -59,6 +94,10 @@ const POLL_CEILING_MS = 5 * 60 * 1000;
  * A domain that answered with an error counts as landed. `lastError` is a
  * final answer and it is already shown in its row; treating it as unfinished
  * would spin for ever on the one thing that had definitely stopped.
+ *
+ * ## A count from before the last change is not an answer (2026-09-28)
+ *
+ * See `countedSinceChange`.
  */
 export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps): React.ReactElement {
   const t = useT();
@@ -124,8 +163,12 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   const mapping = useQuery({
     queryKey: ['mapping', mappingId],
     queryFn: () => mappingApi.get(mappingId),
+    // Read afresh, not from `App.tsx`'s five minutes: its `updatedAt` decides
+    // which counts answer this screen (`countedSinceChange`).
+    staleTime: 0,
   });
   const expected = mapping.data?.syncConfig.domains;
+  const changedAt = mapping.data?.updatedAt;
 
   const [refusedAcked, setRefusedAcked] = React.useState(false);
 
@@ -142,7 +185,9 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       // Until the mapping answers we do not know what to wait for, so keep
       // asking — stopping here would be the old bug with a new cause.
       if (!expected) return POLL_MS;
-      const landed = new Set((query.state.data?.domains ?? []).map((d) => d.domain));
+      const landed = new Set(
+        countedSinceChange(query.state.data?.domains ?? [], changedAt).map((d) => d.domain),
+      );
       return expected.every((d) => landed.has(d)) ? false : POLL_MS;
     },
   });
@@ -160,9 +205,15 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   // and Planner and mentioning Drive nowhere.
   //
   // An unrecognised source narrows to the rows true of every source rather
-  // than falling back to a provider: `scopeFamilyOf` returns undefined and the
+  // than falling back to a provider: the lookup returns undefined and the
   // filter is given nothing, which under-tells instead of mis-telling.
-  const family = scopeFamilyOf(mapping.data?.sourceType ?? '');
+  //
+  // THE KIND, NOT THE TYPE (workplan 0153 T1 (a)). The detail route answers
+  // `sourceType` with the source CONNECTION KIND (`google_drive`, `o365`),
+  // not the mapping file's type (`google-drive`) that `scopeFamilyOf` reads
+  // on the appliance's own page. Asked in the wrong vocabulary, a Drive
+  // migration had no family and was shown every provider's rows.
+  const family = scopeFamilyOfConnectionKind(mapping.data?.sourceType ?? '');
   const scoped =
     manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
 
@@ -187,7 +238,7 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
     },
   });
 
-  const domains = discovery.data?.domains ?? [];
+  const domains = countedSinceChange(discovery.data?.domains ?? [], changedAt);
 
   return (
     <div className="space-y-6">
@@ -229,6 +280,15 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
 
       {/* Scope manifest (§11.2) */}
       {scoped && <ScopeManifestPanel manifest={scoped} />}
+      {/* "I could not read it" is not "there is nothing to say" (hard rule 9).
+          Without this line a manifest that failed to load, or failed to parse,
+          left the screen where somebody decides whether to start with no
+          "does not migrate" list and no sign that one was missing. */}
+      {manifest.isError && (
+        <p className="text-sm text-red-600" role="alert">
+          {t('confirm.manifestError')} {serverMessage(manifest.error)}
+        </p>
+      )}
 
       {/* The server's sentence, not the transport's: a refused Start (an
           operator hold, 0132 T6 (b), or a grant still awaited or withdrawn)

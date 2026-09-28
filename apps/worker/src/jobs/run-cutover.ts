@@ -46,7 +46,7 @@ import { z } from 'zod';
 import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 import { AbortTaskRunError, configure, schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { tenantCutoverStore, bindCutoverLedger, appEventSinkOn, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
+import { tenantCutoverStore, bindCutoverLedger, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
   cutoverBeginRefusal,
@@ -56,8 +56,8 @@ import {
   type PassCounts,
   type VerificationResult,
 } from '@openmig/core';
-import { Pool } from 'pg';
-import { log as appLog, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { log as appLog } from '@openmig/shared';
+import { openTaskPools } from './task-pools.ts';
 import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
 import { runCutoverGate } from './cutover-gate.ts';
 
@@ -327,21 +327,24 @@ export const runCutover = schemaTask({
   id: 'run-cutover',
   description: 'Cutover preparation (final sync + verification gate)',
   schema: CutoverJobSchema,
-  run: leavesAReference('run-cutover', async (payload: unknown) => {
+  run: leavesAReference('run-cutover', async (payload: unknown, _context, afterwards) => {
     const { tenantId, mappingId, domain, options } = payload as CutoverJobPayload;
 
     appLog.info('Starting cutover preparation', { tenantId, mappingId, domain, options });
 
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      throw new Error('DATABASE_URL environment variable required');
-    }
-    const pool = new Pool({ connectionString: dbUrl });
-    // Each audit event this run records, also as one JSON line on its output (0129 T4).
-    setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
-    // Its errors go to the operator's log page too (0129 T1), under the reference
-    // its failure carries in the plane (0134, open question 3 (a)).
-    setAppEventSink(appEventSinkOn(pgDriver(pool)));
+    // This run's pools, from the one module that builds a per-tenant task's
+    // (0138 T1): the tenant pool on APP_DATABASE_URL, app_user, under row
+    // security, and the audit key's pool of one on the owner's URL. It points
+    // the sinks too: the operator's log page (0129 T1) at the tenant pool, the
+    // audit lines (0129 T4) at the key's, the one read app_user may not make.
+    const pools = openTaskPools();
+    // Ended once the run is over, never leaked across runs, and, when it
+    // failed, only after leavesAReference has put the failure on the log page,
+    // which is on this pool: ended in this function's own `finally`, it was
+    // gone before the event was written. The key's pool closes its own
+    // connection a second after its last read.
+    afterwards(() => pools.end());
+    const pool = pools.tenant;
     // Every ledger call inside `withTenant`: cutover_state and cutover_event
     // are row-secured since migration 0055, and a session that is not a
     // superuser sees them only with the tenant context set. A bare
@@ -430,9 +433,6 @@ export const runCutover = schemaTask({
       // converges: it finds FAILED and takes it back to PREPARING).
       if (!policy.retry) throw new AbortTaskRunError(err.message);
       throw error;
-    } finally {
-      // Always release the Postgres pool (never leak it across job runs).
-      await pool.end();
     }
   }),
 });

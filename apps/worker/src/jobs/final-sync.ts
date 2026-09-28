@@ -57,7 +57,7 @@ export interface DeltaSyncOutput {
   readonly passedOver?: Readonly<Record<string, PassSkip>>;
   /** The data type the pass stopped before, because the migration stopped running. */
   readonly stoppedBefore?: string;
-  /** Why it stopped there: paused or finished, or the person took their grant back. */
+  /** Why it stopped there: paused or finished, the person took their grant back, or the organisation was closed. */
   readonly stoppedBecause?: PassHalt;
 }
 
@@ -103,9 +103,11 @@ export function finalSyncReport(output: DeltaSyncOutput): FinalSyncReport {
       notFinished.push(
         output.stoppedBefore === undefined
           ? `${domain} reported nothing`
-          : output.stoppedBecause === 'grant_withdrawn'
-            ? `${domain} was not reached, because the person being migrated withdrew their permission while the pass ran`
-            : `${domain} was not reached, because the migration was paused or finished while the pass ran`,
+          : output.stoppedBecause === 'organisation_closed'
+            ? `${domain} was not reached, because the organisation was closed while the pass ran`
+            : output.stoppedBecause === 'grant_withdrawn'
+              ? `${domain} was not reached, because the person being migrated withdrew their permission while the pass ran`
+              : `${domain} was not reached, because the migration was paused or finished while the pass ran`,
       );
       continue;
     }
