@@ -658,3 +658,52 @@ describe('signed in as a platform operator', () => {
     }
   });
 });
+
+/**
+ * THE TEXTS BEFORE ANY OTHER PAGE (workplan 0139 T3), in a real browser.
+ *
+ * While the deployment asks (`OWNPACE_STAGE=alpha` on the API), `GET /api/me`
+ * says acceptance is due, and the acceptance screen stands in front of every
+ * signed-in page: the Alpha conditions, the privacy policy and the terms, each
+ * linked at the site's own file for the reader's language, and one button.
+ * Every other case in this file answers `/api/me` without `acceptance`, which
+ * is a deployment that asks nobody, and walks the pages as before. This one
+ * walks the built bundle through the screen and back to the page it asked for.
+ */
+describe('signed in by somebody who has not accepted the texts yet', () => {
+  const ME = FIXTURES['GET /api/me'];
+  const VERSIONS = { alpha: '1.0', privacy: '1.2', terms: '1.3' } as const;
+  const documents = (accepted: boolean) =>
+    (['alpha', 'privacy', 'terms'] as const).map((document) => ({
+      document,
+      version: VERSIONS[document],
+      accepted,
+    }));
+
+  it('meets the texts first, linked in their language, and the page after accepting', async () => {
+    FIXTURES['GET /api/me'] = { ...(ME as object), acceptance: { due: true, documents: documents(false) } };
+    FIXTURES['POST /api/me/acceptance'] = { written: 3, acceptance: { due: false, documents: documents(true) } };
+    try {
+      const l = await open('/mappings');
+      await l.page.getByRole('heading', { level: 1, name: 'Before you start' }).waitFor({ timeout: 15_000 });
+
+      const links = await l.page.$$eval('ul[aria-label="The texts to accept"] a', (as) =>
+        as.map((a) => (a as HTMLAnchorElement).href),
+      );
+      expect(links).toEqual([
+        'https://www.ownpace.eu/alpha.html',
+        'https://www.ownpace.eu/privacy.html',
+        'https://www.ownpace.eu/terms.html',
+      ]);
+      expect(await l.text(), 'the page it asked for showed before the texts').not.toContain('Acme Families');
+
+      await l.page.getByRole('button', { name: 'Accept all three' }).click();
+      await l.page.getByText('Acme Families — mail').first().waitFor({ timeout: 15_000 });
+      expectClean(l, 'the acceptance screen');
+      await l.page.close();
+    } finally {
+      FIXTURES['GET /api/me'] = ME;
+      delete FIXTURES['POST /api/me/acceptance'];
+    }
+  });
+});

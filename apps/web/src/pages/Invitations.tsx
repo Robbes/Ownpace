@@ -30,6 +30,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Check, X } from 'lucide-react';
 import { answerInvitation, fetchMe, type Invitation } from '../services/session.ts';
+import { rememberSignIn } from '../services/acceptance.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
@@ -88,6 +89,9 @@ const Invitations: React.FC = () => {
         me.operator === true,
         me.tenants.length,
       );
+      // Joining is when an invited member is first asked to accept the texts
+      // (0139 T3): the page this lands on shows the screen from this answer.
+      rememberSignIn(me);
       const left = me.invitations ?? [];
       setWaiting(left);
       if (choice === 'accept' || left.length === 0) {

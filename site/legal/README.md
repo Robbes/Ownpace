@@ -51,7 +51,7 @@ placeholder is left in a text the site renders.
 |---|---|---|
 | `privacy.md`, `privacy.nl.md` | `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
 | `terms.md`, `terms.nl.md` | `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
-| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, because nobody has accepted it yet: it stays 1.0 (alpha-version-number (a)), and every change after the first acceptance gets a new number. No placeholder. Not rendered yet (below) |
+| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, because nobody has accepted it yet: it stays 1.0 (alpha-version-number (a)), and every change after the first acceptance gets a new number. No placeholder. Rendered since 0139 T3, outside the site's nav, at `/alpha.html` and `/nl/alpha.html` (below) |
 | `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Unpublished until the first business customer: during the Alpha, privacy §7's table is the complete list (rec-subprocessors-url (a)). Not rendered (below) |
 | `dpa.md` | No *Version* line: its *Status* line says `draft v0.2`; 2026-09-28 | English only, on purpose. Unpublished until the first business customer, and corrected in one pass before then (dpa-unpublished-until-business (a)). Not part of the Alpha, which admits households only (0139 open question 6) |
 
@@ -294,12 +294,24 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 
 - *Problem reports by mail* (privacy §4.5): merged as #1318 (`0c019ab8`, 0130 T5), and on this
   branch. True on live once live's `.env` has no `ZAMMAD_URL`.
+- *Acceptance, with version and time* (terms §1, Alpha conditions §2, privacy §4.4;
+  terms-acceptance-route (b)): the in-app screen, 0139 T3, built 2026-09-28. While the deployment
+  runs the Alpha (`OWNPACE_STAGE=alpha`, which live sets), the app shows the Alpha conditions, the
+  privacy policy and the terms, each linked in the reader's language with its version, after
+  sign-in and before any other page; records one row per text with the version, the language and
+  the time (`legal_acceptance`, managed migration 0032); asks again whenever a version changes;
+  and refuses to store any access (adding a connection, giving one a new key, creating a
+  migration) until the current versions are accepted. The app's numbers are
+  `LEGAL_VERSIONS` in `packages/managed/src/legal-versions.ts`, and
+  `scripts/a-version-the-tester-accepted.unit.test.ts` fails when a text's *Version* line and
+  that number differ: **a new number here is a text every tester accepts again, so change both in
+  one commit.** The record is kept with the account and erased with it (privacy §9; 0139 open
+  question 4, the proposal until the owner answers). Not built: Alpha conditions §11's *"your
+  migrations carry on under the new conditions only once you have accepted them"*, for after the
+  Alpha.
 
 **To build or to do**, before the first invitation unless it says otherwise:
 
-- *Acceptance, with version and time* (terms §1, Alpha conditions §2 and §11, privacy §4.4;
-  terms-acceptance-route (b)): the in-app screen, 0139 T3. The first invitation waits for it and
-  its tests.
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
   DPA's Annex A; terms briefing, precondition B): partly done. Since #1320 (`d7868276`, merged
   2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts
@@ -481,10 +493,11 @@ commit.
   were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
   the lawyer's pass. The owner reviewed them the same day and set their *Version* line to 1.0,
   with no draft marker. The owner's answers of the same day changed §2, §4, §5, §6, §9, §10 and
-  §11, and the text stays 1.0 until the first tester accepts it (alpha-version-number (a)). They
-  are not rendered by the site build and not linked from the app
-  (`NOT_BUILT_YET` in `apps/web/src/services/legal-links.ts`). 0139 T10 renders them, and a
-  `--public` build refuses them while their *Version* line says draft.
+  §11, and the text stays 1.0 until the first tester accepts it (alpha-version-number (a)). The
+  site build renders them since 0139 T3, outside the site's nav, and the app's acceptance screen
+  links them (`LEGAL_PAGES` in `apps/web/src/services/legal-links.ts`); a `--public` build refuses
+  them while their *Version* line says draft. They are published once live serves the site
+  (0139 T10).
 - **The DPA and the sub-processor list, as published pages** (0086 T5, 0139 T10). Drafts exist —
   [`dpa.md`](./dpa.md) and [`subprocessors.md`](./subprocessors.md), first written 2026-08-30
   and revised 2026-09-28, both at 0.2 — but they are not rendered by the site build, not linked

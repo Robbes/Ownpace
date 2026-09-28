@@ -140,7 +140,7 @@
     change is not built, see beside §9).
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
-    0139 T3, not built).
+    0139 T3, built 2026-09-28; see beside §4.4).
   - §4.5: our server logs record the visitor's IP address, which NetBird
     passes on, and NetBird keeps its own log (ops-trust-proxy (b); needs
     TRUST_PROXY and both nginx logs, see beside §4.5). Searches by address and
@@ -428,8 +428,7 @@
     sharing list deleted with its migration (privacy-sharing-list (b)); the
     12-month clean-up of searches and downloads (privacy-search-records (a));
     0135 T8's daily script for sign-in accounts nobody let in, before the
-    first tester (ops-unadmitted-signin-cleanup (a)); the acceptance screen,
-    0139 T3 (terms-acceptance-route (b)); the share mail's privacy line
+    first tester (ops-unadmitted-signin-cleanup (a)); the share mail's privacy line
     (privacy-share-mail-notice (a)); the app's three sentences
     (ops-app-sentences (a)); the read-log query in the operator runbook
     (privacy-read-log-copy (a)).
@@ -583,10 +582,13 @@ sign-in page, but it opens nothing until we let that person in. The sign-in serv
 you, such as a sign-in code or a link to reset your password, goes through our mail provider
 (§7).
 
-<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
-     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
-     fits in there and should record what time/version the accepted of what document"). The
-     first invitation waits for it. -->
+<!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
+     and should record what time/version the accepted of what document"): after sign-in the app
+     shows the Alpha conditions, this policy and the terms with their versions, and records, per
+     organisation, which version of each a person accepted, the language and the time
+     (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha; nothing
+     is connected before it. Kept with the account and erased with it (§9; 0139 open question 4,
+     the proposal, until the owner answers). -->
 
 **Your account with us.** Your email address, the identifier our sign-in service gives you, the
 organisation you belong to (in the app, your household's space is called an organisation), your

@@ -1881,6 +1881,19 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
+**The same setting asks for acceptance** (workplan 0139 T3). With `alpha`,
+every tester who signs in meets one screen before any other page: the Alpha
+conditions, the privacy policy and the terms, each linked in their language
+with its version, and one button. The API records the version of each text
+they accepted, the language and the time, and until they have, it refuses to
+store any access they give (adding a connection, a new key, a new migration:
+409 `conditions_not_accepted`). The screen comes back whenever a text's
+version changes. It is the API's alone, so recreating `api` is enough for it;
+the web bundle asks `GET /api/me` rather than baking it in. The links point at
+the site `VITE_LEGAL_SITE_URL` names, so the texts must be served there before
+the first invitation (0139 T10). Who accepted what is under *Acceptance* in the
+[operator runbook](./operator-runbook.md#acceptance-who-accepted-which-version).
+
 The second line is the alpha's other half: the days the erasure sentence says a
 copy may still hold a closing organisation's data. The alpha takes no backups.
 Live's databases are dumped before each deploy, and each dump is deleted after

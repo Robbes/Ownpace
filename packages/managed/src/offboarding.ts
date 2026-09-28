@@ -158,6 +158,14 @@ export const PURGED_TABLES = [
   'grant_link_allowance',
   'payment_method',
   'usage_metric',
+  // Which versions of the texts each member accepted, and when (workplan 0139
+  // T3, managed 0032). Privacy §4.4 puts it in "your account with us", and §9
+  // keeps the account until the data is erased and then erases it, so it goes
+  // with the organisation (0139 open question 4, the proposal until the owner
+  // answers). Before `tenant_member`, whose members it names. The request path
+  // may not delete these rows, so this list is the one deleter; the key would
+  // cascade, and it is named so the receipt counts it.
+  'legal_acceptance',
   'tenant_member',
   'tenant_pricing',
   'tenant_closure',

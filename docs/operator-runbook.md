@@ -643,6 +643,42 @@ It also stops a sign-in already in progress. It records nothing in `audit_log`, 
 ticket that you did it. It does not take back access already given: only the person can, from
 their progress page (**Withdraw access**), or in their Google account.
 
+## Acceptance: who accepted which version
+
+While the deployment runs the Alpha (`OWNPACE_STAGE=alpha`, which live sets),
+every person who signs in accepts the Alpha conditions, the privacy policy and
+the terms before anything else, and the service records it (workplan 0139 T3;
+terms §1, Alpha conditions §2, privacy §4.4). One row per person, text and
+version, per organisation, with the language the screen showed and the time,
+in `legal_acceptance` (managed migration 0032). Until a person has accepted
+the current versions, adding a connection, giving one a new key and creating a
+migration answer 409 `conditions_not_accepted`, so none of their access is
+stored before it. Without the setting nobody is asked and nothing is refused.
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
+  "SELECT a.accepted_at, a.tenant_id, m.email, a.document, a.version, a.language
+     FROM legal_acceptance a
+     LEFT JOIN tenant_member m ON m.tenant_id = a.tenant_id AND m.user_id = a.subject
+    ORDER BY a.accepted_at DESC LIMIT 50;"
+```
+
+- **The versions asked for** are `LEGAL_VERSIONS` in
+  `packages/managed/src/legal-versions.ts`, the numbers on the texts' *Version*
+  lines without any draft words. `scripts/a-version-the-tester-accepted.unit.test.ts`
+  fails when a text's number and the constant differ, so a new version of a text
+  changes both in one commit. After that deploy, every tester meets the screen
+  again, and their doors refuse until they accept; the old rows stay beside the
+  new ones.
+- **Nothing on the request path can change or delete a row**: `app_user` may
+  only insert and read, and an insert must name a member of that organisation.
+  Do not edit one as the owner either: it is the record of what somebody
+  agreed to.
+- **Erasure**: the rows go with the organisation (`PURGED_TABLES`), because
+  privacy §9 keeps the account, which §4.4 says includes this record, until the
+  data is erased. Whether to keep the record after erasure instead is 0139 open
+  question 4, not answered yet.
+
 ## Tenant offboarding (GDPR right to erasure, §17)
 
 > ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously

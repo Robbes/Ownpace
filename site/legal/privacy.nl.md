@@ -162,10 +162,13 @@ maar dat opent niets zolang we die persoon niet hebben toegelaten. Mail van de i
 zoals een inlogcode of een link om uw wachtwoord opnieuw in te stellen, gaat via onze
 e-mailaanbieder (§7).
 
-<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
-     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
-     fits in there and should record what time/version the accepted of what document"). The
-     first invitation waits for it. -->
+<!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
+     and should record what time/version the accepted of what document"): after sign-in the app
+     shows the Alpha conditions, this policy and the terms with their versions, and records, per
+     organisation, which version of each a person accepted, the language and the time
+     (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha; nothing
+     is connected before it. Kept with the account and erased with it (§9; 0139 open question 4,
+     the proposal, until the owner answers). -->
 
 **Uw account bij ons.** Uw e-mailadres, het kenmerk dat onze inlogdienst u geeft, de organisatie
 waartoe u behoort (in de app heet de omgeving van uw huishouden een organisatie), uw rol daarin

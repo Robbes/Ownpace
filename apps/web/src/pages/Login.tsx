@@ -8,6 +8,7 @@ import { useLocale } from '../i18n/index.tsx';
 import { beginSignIn, oidcConfig } from '../services/oidc.ts';
 import { fetchAuthMode, type AuthMode } from '../services/auth-mode.ts';
 import { fetchMe } from '../services/session.ts';
+import { rememberSignIn } from '../services/acceptance.ts';
 import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
@@ -205,6 +206,9 @@ const Login: React.FC = () => {
           me.operator === true,
           me.tenants.length,
         );
+        // Whether the texts wait to be accepted (0139 T3), for the page this
+        // lands on, which would otherwise ask the same question again.
+        rememberSignIn(me);
         // THE SAME LANDING AuthCallback CHOOSES, and for the same reason: a
         // platform operator belongs to no organisation by design, so the
         // dashboard's first request 403s. This door was left sending them
