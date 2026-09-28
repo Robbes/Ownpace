@@ -44,8 +44,9 @@
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
-import { AbortTaskRunError, configure, schemaTask, logger } from '@trigger.dev/sdk';
-import { tenantCutoverStore, bindCutoverLedger, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
+import { AbortTaskRunError, configure, schemaTask } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
+import { tenantCutoverStore, bindCutoverLedger, appEventSinkOn, auditExportOn, pgDriver, type CutoverStateStore } from '@openmig/ledger';
 import {
   CutoverRefused,
   cutoverBeginRefusal,
@@ -56,7 +57,7 @@ import {
   type VerificationResult,
 } from '@openmig/core';
 import { Pool } from 'pg';
-import { log as appLog, setAuditExportSink } from '@openmig/shared';
+import { log as appLog, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
 import { runCutoverGate } from './cutover-gate.ts';
 
@@ -116,7 +117,7 @@ export interface CutoverPreparationDeps {
     CutoverStateStore,
     'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory' | 'loadLedgers'
   >;
-  /** Where progress goes. The Trigger.dev task passes the SDK's `logger`. */
+  /** Where progress goes. The Trigger.dev task passes the shared log, which writes to the container's output. */
   log: (message: string) => void;
   /**
    * The final sync: the pass the scheduler runs, over every data type the
@@ -326,7 +327,7 @@ export const runCutover = schemaTask({
   id: 'run-cutover',
   description: 'Cutover preparation (final sync + verification gate)',
   schema: CutoverJobSchema,
-  run: async (payload: unknown) => {
+  run: leavesAReference('run-cutover', async (payload: unknown) => {
     const { tenantId, mappingId, domain, options } = payload as CutoverJobPayload;
 
     appLog.info('Starting cutover preparation', { tenantId, mappingId, domain, options });
@@ -338,6 +339,9 @@ export const runCutover = schemaTask({
     const pool = new Pool({ connectionString: dbUrl });
     // Each audit event this run records, also as one JSON line on its output (0129 T4).
     setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+    // Its errors go to the operator's log page too (0129 T1), under the reference
+    // its failure carries in the plane (0134, open question 3 (a)).
+    setAppEventSink(appEventSinkOn(pgDriver(pool)));
     // Every ledger call inside `withTenant`: cutover_state and cutover_event
     // are row-secured since migration 0055, and a session that is not a
     // superuser sees them only with the tenant context set. A bare
@@ -354,13 +358,15 @@ export const runCutover = schemaTask({
         mappingId,
         ...(domain !== undefined ? { domain } : {}),
         cutoverStore,
-        // The SDK's `logger`, not `ctx.logger`: Trigger.dev v4's TaskRunContext
+        // The shared log, not `ctx.logger`: Trigger.dev v4's TaskRunContext
         // carries run metadata only (task/attempt/run/queue/environment/...) and
         // has no logger, so every `await ctx.logger.log(...)` in this file threw
         // "Cannot read properties of undefined (reading 'log')" on the FIRST
         // statement of the job — including the one in the catch block, which
-        // then replaced the real error and skipped the FAILED transition.
-        log: (message) => logger.info(message),
+        // then replaced the real error and skipped the FAILED transition. Nor
+        // the SDK's `logger`, which writes into Trigger.dev's own database
+        // (0134, open question 3 (a)).
+        log: (message) => appLog.info(message),
         runFinalSync: options.skipFinalSync
           ? undefined
           : async () => {
@@ -402,13 +408,11 @@ export const runCutover = schemaTask({
       if (!policy.recordFailed) {
         // Nothing was prepared and nothing was written — see the policy.
         const hint = error instanceof CutoverRefused && error.hint ? ` ${error.hint}` : '';
-        appLog.warn('Cutover preparation refused', { tenantId, mappingId, reason: err.message });
-        logger.warn(`Cutover preparation refused: ${err.message}${hint}`);
+        appLog.warn(`Cutover preparation refused: ${err.message}${hint}`, { tenantId, mappingId });
         throw new AbortTaskRunError(err.message);
       }
 
-      appLog.error('Cutover preparation failed', { error: err.message });
-      logger.error(`Cutover preparation failed: ${err.message}`);
+      appLog.error(`Cutover preparation failed: ${err.message}`, { tenantId, mappingId });
 
       // Record the failure. Best-effort: a mapping with no cutover row (the very
       // first step failed) has nothing to transition, and that must not mask the
@@ -430,5 +434,5 @@ export const runCutover = schemaTask({
       // Always release the Postgres pool (never leak it across job runs).
       await pool.end();
     }
-  },
+  }),
 });

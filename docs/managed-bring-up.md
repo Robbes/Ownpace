@@ -252,6 +252,25 @@ Compose reads the file, and names the key, not the value.
   machine needs the database, the API with its unauthenticated `/metrics`, or
   the Trigger.dev API.
 
+**The gate's log is public, and a bind is this machine's address.** The nightly
+gate runs here, anybody can read its log, and any signed-in account can
+download its evidence. None of these values is a secret, so GitHub hides none
+of them, and until 2026-09-27 every run printed the mesh address: the PORTS
+column of `docker compose ps`, the bring-up's `dashboard:` note, "External DAV
+ready at", the deploy CLI's links. So what the gate runs names a bind,
+`TRIGGER_TLS_HOST`, the dashboard's origins and Nextcloud's trusted domains by
+their KEYS: `ps` without its PORTS column, an origin printed only when its
+host is loopback, the deploy CLI without its links. Behind that, the gate
+masks each of these values for the rest of the job as soon as it restores the
+`.env` (`deploy/compose/own-addresses.sh --mask`), and the smoke's own stream,
+the container logs a failed bring-up dumps, and the uploaded evidence are
+filtered: a value becomes the key that holds it (`<MAILPIT_BIND>`), and any
+address in the mesh's range, `100.64.0.0/10`, becomes `<mesh-ip>`. A mask
+covers the gate's log and nothing else, so a new line that prints one of these
+names the key instead. `scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts`
+holds all of it. Runs published before that date keep what they printed; their
+logs can be deleted from the run's page on GitHub.
+
 ```bash
 # deploy/compose/.env — 100.64.0.1 is the SHAPE of a mesh address, not yours
 WEB_BIND=100.64.0.1
@@ -373,7 +392,13 @@ So a command reaches a stack in one of two ways, and never by a fixed name:
   `COMPOSE_PROJECT_NAME` in that checkout's `deploy/compose/.env`, or
   `ownpace-managed` when that is unset. The scripts take it the same way
   (`compose_project` in `deploy/compose/env-read.sh`), and the recipes they
-  print have it filled in. To ask Compose, from the checkout:
+  print have it filled in. One difference: a `.env` that carries live's
+  marker, `STACK_KIND=production` (`deploy/compose/stack-kind.sh`), and whose
+  project still comes out as `ownpace-managed` is refused, naming the two keys
+  and no value. Live's `.env` sets `COMPOSE_PROJECT_NAME=ownpace-live` (workplan
+  0132 T1b); without that line every script in live's checkout would drive the
+  OTA stack with live's `.env`. A `docker compose` you type yourself does not
+  refuse. To ask Compose, from the checkout:
 
   ```bash
   docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p'
@@ -1349,6 +1374,18 @@ page says this itself, in the button beside its heading.
 What it watches is `deploy/compose/gatus.yaml` — in git, reviewed, and edited
 with a restart rather than through a web console.
 
+**Who it tells** (workplan 0142 T1). With `ALERT_ENABLED=true`, a row of the
+Ownpace group that stays red for three minutes sends the owner one e-mail, and a
+second when it is green again. It goes through the product's own relay, from
+`NOTIFY_FROM` to `NOTIFY_TO`, unless `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`,
+`ALERT_SMTP_USER`, `ALERT_SMTP_PASSWORD`, `ALERT_FROM` or `ALERT_TO` say
+otherwise. Turn it on for live, once its relay is set, and leave it off on the
+OTA stack, whose web app and API the nightly gate recreates on schedule. Apply
+a change with `docker compose -f deploy/compose/managed.yml up -d gatus`.
+`ALERT_SMTP_PORT` must be a number: with a word there the page does not load.
+[`status-page.md`](./status-page.md), *Who is told*, says what an alert cannot
+tell you.
+
 ### 8e. Migrating **from** Google — what your own OAuth application carries
 
 Two different Googles show up in this document and conflating them costs an
@@ -2189,6 +2226,12 @@ persisting the one-time setup **outside** any checkout — at
 `$MANAGED_ENV_PERSIST_DIR` (default `~/.persistent/<project>`, which for the
 gate is `~/.persistent/ownpace-managed`, overridable as a repository variable) — and restoring it into
 the checkout at the start of every run, before the refuse-early check.
+Before it copies anything out of that directory, the restore asks
+[`refuse-live-env.sh`](../deploy/compose/refuse-live-env.sh) whose `.env` it is,
+and stops when it carries live's marker, `STACK_KIND=production`, or anything
+that could be a slip of it (workplan 0132 T1g). So a variable pointed at live's
+directory by mistake ends the run there, with nothing copied, written or brought
+up, and the log names the key and the variable, never a value.
 
 **Because neither checkout of the OTA stack sets `COMPOSE_PROJECT_NAME`, both
 use `managed.yml`'s own project, and the containers are the same regardless of
@@ -2206,8 +2249,8 @@ cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/ownpace-managed/userlist.
 
 Each stack has one `.env`. The operator's checkout of the OTA stack and the
 gate's share one file, which is this section. `ownpace-live` has its own, in
-`~/.persistent/ownpace-live/`, and the gate never reads it (workplan 0132 T1b,
-T1g).
+`~/.persistent/ownpace-live/`, and the gate never restores it: pointed there, it
+refuses before it copies anything (workplan 0132 T1b, T1g).
 
 **Then replace your copy with a link, and do not skip this.** The `cp` above is
 a one-time seed. Left as two files it becomes two *configurations* for one
