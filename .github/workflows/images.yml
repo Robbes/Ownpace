@@ -63,6 +63,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
+      # T2), checked before anything below builds or pushes. Without it, a tag
+      # pushed before the version bump would publish images tagged with the new
+      # version whose `/version` answers the previous one. On a tag only: a
+      # branch or a pull request runs exactly as before. The fetch lets the
+      # check see the releases already tagged, since this checkout is shallow
+      # and holds only the tag being cut. See scripts/release-names-agree.mjs.
+      - name: The tag, package.json and the changelog name one release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+          node scripts/release-names-agree.mjs
+
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         if: github.event_name != 'pull_request'
 

@@ -46,6 +46,20 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
+      # T2), checked before anything below installs or attaches. Without it, a
+      # tag pushed before the version bump would attach a payload whose build
+      # stamp names the previous version. On a tag only, the condition the
+      # attach steps below use: a dispatch on a branch runs exactly as before.
+      # The fetch lets the check see the releases already tagged, since this
+      # checkout is shallow and holds only the tag being cut. See
+      # scripts/release-names-agree.mjs.
+      - name: The tag, package.json and the changelog name one release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+          node scripts/release-names-agree.mjs
+
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:

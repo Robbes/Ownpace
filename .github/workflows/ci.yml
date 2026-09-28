@@ -237,6 +237,11 @@ jobs:
           # `one-way-to-report-a-vulnerability.unit.test.ts` holds its channels
           # to the site's security.txt, so a change to it alone must run tests.
           #
+          # `CHANGELOG.md` added 2026-09-28 (workplan 0146 T2):
+          # `a-release-that-names-itself.unit.test.ts` reads it for the root
+          # version's dated section, the heading the release check looks for, so
+          # a change to it alone must run tests.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
@@ -247,6 +252,7 @@ jobs:
             AGENTS.md
             CONTRIBUTING.md
             SECURITY.md
+            CHANGELOG.md
             docs/workplans/0117-the-conveyor-belt-not-the-home.md
             **.ts
             **.tsx

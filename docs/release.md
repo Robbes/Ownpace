@@ -43,6 +43,21 @@ stay `0.0.0` deliberately — they are never published individually). The
 
 ## 2. The tag
 
+Before pushing it, `git fetch origin --tags` and run
+`node scripts/release-names-agree.mjs v<X.Y.Z>`: it refuses a tag that is not
+`v` plus the root version, a version with no `## [<X.Y.Z>] - <YYYY-MM-DD>`
+section in `CHANGELOG.md`, and a tag SemVer orders at or below a release
+already tagged. `images.yml`, `security-scan.yml` and `windows-payload.yml`
+run the same check as their first step after the checkout, so a tag whose
+names disagree publishes nothing (workplan 0146 T2).
+
+Run it with the commit you are about to tag checked out: it reads
+`package.json` and `CHANGELOG.md` from the working tree, and the tag goes on
+the commit you name, which T2's step 5 picks from the nightly runs. And once a
+newer release is tagged, a re-run or a dispatch of an older tag's workflows is
+refused by the same rule, because that tag now sorts below one that exists.
+Cut a new tag instead of re-running an old one.
+
 ```bash
 git tag -a v<X.Y.Z> -m "Ownpace v<X.Y.Z>"
 git push origin v<X.Y.Z>
