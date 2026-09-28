@@ -125,7 +125,7 @@ function stage(setup: (s: Stage, h: { release: (tag: string, version: string, op
   writeFileSync(join(work, '.gitignore'), '.env\n');
   writeFileSync(join(work, 'package.json'), pkg('0.2.0-alpha.1'));
   mkdirSync(compose, { recursive: true });
-  for (const f of ['deploy-live.sh', 'env-read.sh', 'stack-kind.sh', 'release-tag.sh']) {
+  for (const f of ['deploy-live.sh', 'env-read.sh', 'stack-kind.sh', 'release-tag.sh', 'own-addresses.sh', 'www-live.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     chmodSync(join(compose, f), 0o755);
   }
