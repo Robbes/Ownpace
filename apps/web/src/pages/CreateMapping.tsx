@@ -9,6 +9,7 @@ import {
   type NativeFilePolicyByKind,
 } from '../components/NativeFilePolicyChooser.tsx';
 import { PaperFormatChooser, SUGGESTED_PAPER_FORMAT } from '../components/PaperFormatChooser.tsx';
+import { ScheduleChooser } from '../components/ScheduleChooser.tsx';
 import {
   measuredText,
   probeText,
@@ -2798,29 +2799,11 @@ const CreateMapping: React.FC = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">{t('wizard.schedule')}</h3>
               <p className="text-sm text-gray-500 mb-4">{t('wizard.scheduleHint')}</p>
 
-              <div className="space-y-3">
-                {(
-                  [
-                    { value: '0 * * * *', labelKey: 'wizard.schedule.hourly', hintKey: 'wizard.schedule.hourly.hint' },
-                    { value: '0 2 * * *', labelKey: 'wizard.schedule.daily', hintKey: 'wizard.schedule.daily.hint' },
-                    { value: '0 */6 * * *', labelKey: 'wizard.schedule.sixHourly', hintKey: 'wizard.schedule.sixHourly.hint' },
-                    { value: '*/15 * * * *', labelKey: 'wizard.schedule.quarterHourly', hintKey: 'wizard.schedule.quarterHourly.hint' },
-                  ] as const
-                ).map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => updateField('schedule', option.value)}
-                    className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
-                      formData.schedule === option.value
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900">{t(option.labelKey)}</p>
-                    <p className="text-sm text-gray-500">{t(option.hintKey)}</p>
-                  </button>
-                ))}
-              </div>
+              {/* The same control the migration page offers afterwards. */}
+              <ScheduleChooser
+                value={formData.schedule}
+                onChange={(next) => updateField('schedule', next)}
+              />
             </div>
           </div>
         );
