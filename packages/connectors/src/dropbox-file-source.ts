@@ -125,13 +125,17 @@ export class DropboxNativeRefused extends Error {
       message =
         `"${name}" is a Dropbox ${paper}, and Dropbox does not offer it as ${notOffered}, the ` +
         'format this migration exports Paper docs in, so nothing was copied. Choose another ' +
-        'format for Paper docs, or leave it behind.';
+        'format under Export format for Paper docs, or leave it behind.';
     } else if (paper) {
       category = 'policy_refused';
+      // NAMES THE SCREEN, as Drive's sentence does (0150 T3 (d)): from T3 on
+      // a Paper doc has a setting that changes the answer, and the owner
+      // reading this row finds it by those words on the migration's page.
       message =
-        `"${name}" is a Dropbox ${paper}. Dropbox hands one over only as an export, and this ` +
-        'service does not export Paper docs yet, so nothing was copied. Export it from Dropbox ' +
-        'yourself, or leave it behind.';
+        `"${name}" is a Dropbox ${paper}: it has no file to copy until Dropbox exports one, and ` +
+        'this migration is set not to export Paper docs. Choose a format under Export format for ' +
+        'Paper docs, and the next pass copies it in that format and closes this line, or leave ' +
+        'it behind.';
     } else if (exportable) {
       category = 'policy_refused';
       message =
@@ -224,6 +228,12 @@ export class DropboxFileSource implements FileSource {
   private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
   /** The format Paper docs arrive in, or `refuse` (0150 T3, D1). */
   private readonly paperPolicy: DropboxPaperPolicy;
+  /**
+   * The Paper docs this migration refuses, by Dropbox id, collected as folders
+   * are listed (0150 T3 (d)). Read by the preflight through
+   * `nativeRefusals()`, as Drive's count is.
+   */
+  private readonly refusedPaper = new Set<string>();
 
   private readonly transport: DropboxTransport;
   constructor(
@@ -693,6 +703,12 @@ export class DropboxFileSource implements FileSource {
     const path = `${listed}${name.slice(entry.name.length)}`;
     const formerPaths = this.formerPathsOf(entry, listed, path);
     const paper = entry.is_downloadable === false && PAPER_KINDS.has(extensionOf(entry.name));
+    const exportOnly = entry.is_downloadable === false ? exportOnlyOf(entry, this.paperPolicy) : undefined;
+    // COUNTED FOR THE CONFIRM SCREEN (0150 T3 (d), D5): a Paper doc refused
+    // here, under `refuse` or in a format its file does not offer, is one a
+    // format chosen now would carry. By id, so a folder listed twice counts
+    // each doc once. No other kind is counted: no format carries it.
+    if (paper && exportOnly?.exportAs === undefined) this.refusedPaper.add(entry.id);
     return {
       path,
       name,
@@ -718,8 +734,24 @@ export class DropboxFileSource implements FileSource {
       // the format settled on here, or refused by it. Only an explicit
       // `false`: absent is how every file listed before, and `download` still
       // states the refusal if Dropbox then answers with it.
-      ...(entry.is_downloadable === false ? { exportOnly: exportOnlyOf(entry, this.paperPolicy) } : {}),
+      ...(exportOnly !== undefined ? { exportOnly } : {}),
     };
+  }
+
+  /**
+   * The Paper docs this migration will refuse, counted over what has been
+   * listed so far (0150 T3 (d)): `{ paper: n }`, or `{}` when it listed none.
+   * The preflight reads it after walking the tree, as it reads Drive's count,
+   * and the confirm screen names it while the format can still be chosen. A
+   * Paper template counts as a Paper doc: the same setting decides both.
+   *
+   * Only what a format would carry is counted, as Drive counts only the files
+   * a format would carry (D5). A kind Dropbox offers no export for, and a
+   * kind of its own that is not Paper, which no format here exports, stay on
+   * the Failures page.
+   */
+  nativeRefusals(): Readonly<Record<string, number>> {
+    return this.refusedPaper.size > 0 ? { paper: this.refusedPaper.size } : {};
   }
 
   /**

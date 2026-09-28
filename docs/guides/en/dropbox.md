@@ -25,7 +25,7 @@ Test asks Dropbox for the top level of the root folder only, so it answers in se
 
 File bytes and the folder tree. Sharing state, file requests and version history stay behind.
 
-A Paper doc is not copied, nor is any other document Dropbox keeps in a format of its own: Dropbox hands one over only as an export, and this service does not make exports yet. Each one is listed by name on the Failures page, waiting on you: export it from Dropbox yourself, or leave it behind. Every other file carries on. Paper docs kept outside your Dropbox files, on an older Paper account, are not seen at all.
+A Paper doc arrives as an export: Dropbox hands one over only that way. The wizard asks which format, with Markdown suggested, which Nextcloud's Text app opens, or HTML. Each doc arrives under its own name with the format's suffix added, so `Notes.paper` becomes `Notes.paper.md`; Paper templates follow the same choice. You can change the format later under **Export format for Paper docs** on the migration's page: the next pass copies each doc again under its new name, and the copy in the old format stays, listed on the Deletions page as an earlier export. Leave them behind instead, and each one is listed by name on the Failures page. Any other document Dropbox keeps in a format of its own is not copied: it waits on the Failures page for you to export it from Dropbox yourself, or leave it behind. Every other file carries on. Paper docs kept outside your Dropbox files, on an older Paper account, are not seen at all.
 
 Deletions are read from Dropbox's own record of deleted files, and otherwise found by counting what is missing (two clean passes); a Dropbox "rewind" is not read.
 
