@@ -4,19 +4,21 @@
  * 2026-09-26: *"open question 4: (a), policy_refused as recommended"*).
  *
  * A Dropbox Paper doc is refused as `policy_refused` (0150 T5): Dropbox hands
- * it over only as an export, and this service does not make exports yet. The
- * Failures page chose a remedy by category alone, and the `policy_refused`
- * sentence is Drive's, naming Drive's own setting, *Export format for Google
- * files*, which a Dropbox migration does not have. So the page chooses by the
- * migration's source as well, in the two places it shows an item's remedy:
- * each row, and the group panel above them.
+ * it over only as an export. The Failures page chose a remedy by category
+ * alone, and the `policy_refused` sentence is Drive's, naming Drive's own
+ * setting, *Export format for Google files*, which a Dropbox migration does
+ * not have. So the page chooses by the migration's source as well, in the two
+ * places it shows an item's remedy: each row, and the group panel above them.
+ * Since 0150 T3 (d) a Dropbox migration has a setting of its own, and its
+ * sentence names that one.
  *
  * What this holds:
  *
  *  1. `remedyKey` answers Dropbox's sentence for a Dropbox migration's
  *     `policy_refused`, and the category's own everywhere else.
  *  2. That sentence exists in both languages, is not the English one on a
- *     Dutch page, and names no setting.
+ *     Dutch page, and names the Paper setting by the words on its screen and
+ *     the button by its label, never Drive's setting.
  *  3. The page reads the queue's `sourceKind`: a Dropbox queue's rows and
  *     group panel say Dropbox's sentence, in English and in Dutch, and a
  *     Google queue's, or one from a server that sends no source, say Drive's.
@@ -79,9 +81,13 @@ describe('Dropbox’s sentence', () => {
     expect(said('nl')).not.toBe(said('en'));
   });
 
-  it('names Paper docs, and no setting: there is none to change until 0150 T3', () => {
+  it('names the setting that exports a Paper doc, by its screen’s words, and never Drive’s', () => {
+    // As Drive's sentence names its own (0125): the words a person follows to
+    // the panel, and the button they press after, each in the page's language.
     for (const locale of LOCALES) {
       expect(said(locale)).toContain('Paper');
+      expect(said(locale), locale).toContain(STRINGS[locale]['settings.exportPolicy.paper']);
+      expect(said(locale), locale).toContain(STRINGS[locale]['failures.retry']);
       expect(said(locale)).not.toMatch(/Export format for Google files|Exportformaat voor Google-bestanden/);
     }
     // And Drive's sentence still names its setting, word for word as the

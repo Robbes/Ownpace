@@ -127,10 +127,13 @@ describe('a file Dropbox hands over only as an export is refused before any down
     expect(err).toBeInstanceOf(DropboxNativeRefused);
     expect(isDecisionError(err)).toBe(true);
     expect(statedFailureCategoryOf(err)).toBe('policy_refused');
+    // Since 0150 T3 (d) it names the setting that changes the answer, by the
+    // words on the migration's page, as Drive's sentence does.
     expect((err as Error).message).toBe(
-      '"Notes.paper" is a Dropbox Paper doc. Dropbox hands one over only as an export, and this ' +
-        'service does not export Paper docs yet, so nothing was copied. Export it from Dropbox ' +
-        'yourself, or leave it behind.',
+      '"Notes.paper" is a Dropbox Paper doc: it has no file to copy until Dropbox exports one, and ' +
+        'this migration is set not to export Paper docs. Choose a format under Export format for ' +
+        'Paper docs, and the next pass copies it in that format and closes this line, or leave ' +
+        'it behind.',
     );
     expect(downloads).toEqual([]);
   });
@@ -153,7 +156,7 @@ describe('a file Dropbox hands over only as an export is refused before any down
     ]);
     const [template] = await listed(source);
     const err = await refusal(source, template!);
-    expect((err as Error).message).toContain('"Weekly.papert" is a Dropbox Paper template.');
+    expect((err as Error).message).toContain('"Weekly.papert" is a Dropbox Paper template: it has no file to copy');
     expect(statedFailureCategoryOf(err)).toBe('policy_refused');
   });
 

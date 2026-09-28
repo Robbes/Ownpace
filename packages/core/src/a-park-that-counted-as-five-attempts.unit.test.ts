@@ -314,7 +314,7 @@ describe('a Dropbox Paper doc is parked on its first attempt (workplan 0150 T6 (
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({ category: 'policy_refused', attempts: 1, needsDecision: true });
     expect(failures[0]?.parkedAt).toBeDefined();
-    expect(failures[0]?.lastError).toContain('"Notes.paper" is a Dropbox Paper doc.');
+    expect(failures[0]?.lastError).toContain('"Notes.paper" is a Dropbox Paper doc: it has no file to copy');
   });
 
   it('is not tried again on the next pass', async () => {

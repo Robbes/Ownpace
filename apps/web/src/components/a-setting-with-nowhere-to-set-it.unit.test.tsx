@@ -36,9 +36,11 @@ const { fetchFailures } = vi.hoisted(() => ({ fetchFailures: vi.fn() }));
 vi.mock('../services/operating-service', () => ({ fetchFailures }));
 
 import ExportPolicyPanel, {
+  paperInForce,
   policiesInForce,
   policyInForce,
   refusedByPolicy,
+  refusedPaperDocs,
 } from './ExportPolicyPanel.tsx';
 
 /** One failure row, with the field the count reads and enough to be a row. */
@@ -478,5 +480,99 @@ describe('how many were refused by the format it had (0125 T5)', () => {
     renderPanel({ current: { nativeFilePolicy: 'refuse' } });
     await userEvent.selectOptions(docs(), 'export-pdf');
     expect(fetchFailures).not.toHaveBeenCalled();
+  });
+});
+
+describe('a Dropbox migration’s Paper docs, on the same panel (workplan 0150 T3 (d))', () => {
+  /**
+   * D7: one key, one panel, one rule. The Paper refusal names this screen by
+   * its title, *Export format for Paper docs*, so the title is the address a
+   * person follows from the Failures page; and what the panel says before and
+   * after the press is the same fact as Drive's, about Paper docs: a new format
+   * gives each one a new name, so it is copied again and the old copy stays.
+   */
+  const paperBox = () => screen.getByLabelText(EN['wizard.paperFormat']) as HTMLSelectElement;
+  const dropbox = (current?: { nativeFilePolicies?: unknown }) =>
+    renderPanel({ sourceType: 'dropbox', domains: ['file'], current });
+  const save = () => userEvent.click(screen.getByRole('button', { name: EN['settings.exportPolicy.save'] }));
+
+  it('is titled by the words the Paper refusal names, and offers Paper alone', () => {
+    dropbox({ nativeFilePolicies: { paper: 'markdown' } });
+    expect(screen.getByText(EN['settings.exportPolicy.paper'])).toBeInTheDocument();
+    expect(screen.queryByText(EN['settings.exportPolicy'])).toBeNull();
+    expect(paperBox()).toHaveValue('markdown');
+    expect(screen.queryByLabelText(EN['discovery.refusedNative.kind.document'])).toBeNull();
+  });
+
+  it('reads a migration that holds no format as refuse, which is what its source does', () => {
+    dropbox(undefined);
+    expect(paperBox()).toHaveValue('refuse');
+    expect(paperInForce(undefined)).toBe('refuse');
+    expect(paperInForce({ nativeFilePolicies: { paper: 'pdf' } })).toBe('refuse');
+    expect(paperInForce({ nativeFilePolicies: { document: 'export-office' } })).toBe('refuse');
+    expect(paperInForce({ nativeFilePolicies: { paper: 'html' } })).toBe('html');
+  });
+
+  it('renders nothing for a Dropbox migration that carries no files', () => {
+    const { container } = renderPanel({ sourceType: 'dropbox', domains: ['email'] });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('says what a new format does before the press, sends Paper alone, and says the next pass tries them', async () => {
+    dropbox({ nativeFilePolicies: { paper: 'markdown' } });
+    const button = screen.getByRole('button', { name: EN['settings.exportPolicy.save'] });
+    expect(button).toBeDisabled();
+    await userEvent.selectOptions(paperBox(), 'html');
+    expect(screen.getByText(EN['settings.exportPolicy.paper.consequence'])).toBeInTheDocument();
+    expect(screen.queryByText(EN['settings.exportPolicy.consequence'])).toBeNull();
+
+    await save();
+    expect(setNativeFilePolicies).toHaveBeenCalledWith('m-1', { paper: 'html' });
+    expect(await screen.findByText(EN['settings.exportPolicy.saved'])).toBeInTheDocument();
+    expect(screen.getByText(EN['settings.exportPolicy.paper.refusedBefore'])).toBeInTheDocument();
+    expect(screen.queryByText(EN['settings.exportPolicy.refusedBefore'])).toBeNull();
+  });
+
+  it('does not say the next pass tries them in a format when they are set to stay behind', async () => {
+    dropbox({ nativeFilePolicies: { paper: 'markdown' } });
+    await userEvent.selectOptions(paperBox(), 'refuse');
+    await save();
+    expect(setNativeFilePolicies).toHaveBeenCalledWith('m-1', { paper: 'refuse' });
+    expect(await screen.findByText(EN['settings.exportPolicy.saved'])).toBeInTheDocument();
+    expect(screen.queryByText(EN['settings.exportPolicy.paper.refusedBefore'])).toBeNull();
+    // And the Failures screen is still one link away.
+    expect(screen.getByRole('link', { name: EN['settings.exportPolicy.toFailures'] })).toBeInTheDocument();
+  });
+
+  it('counts the Paper docs alone, by the name each row carries, in both halves of the queue', () => {
+    expect(refusedPaperDocs(undefined)).toBeUndefined();
+    expect(refusedPaperDocs(queueOf([])['m-1'])).toBe(0);
+    const counted = refusedPaperDocs(
+      queueOf([
+        failure({ naturalKeyHash: 'a', category: 'policy_refused', displayName: 'Notes.paper' }),
+        failure({ naturalKeyHash: 'b', category: 'policy_refused', displayName: 'Weekly.PAPERT', needsDecision: false }),
+        // Another kind of Dropbox's own shares the category, and no format here exports it.
+        failure({ naturalKeyHash: 'c', category: 'policy_refused', displayName: 'Board.gsheet' }),
+        failure({ naturalKeyHash: 'd', category: 'source_refused', displayName: 'Link.paper' }),
+        failure({ naturalKeyHash: 'e', category: 'policy_refused' }),
+      ])['m-1'],
+    );
+    expect(counted).toBe(2);
+  });
+
+  it('says the number of Paper docs once a save has landed', async () => {
+    fetchFailures.mockResolvedValue(
+      queueOf([
+        failure({ naturalKeyHash: 'a', category: 'policy_refused', displayName: 'Notes.paper' }),
+        failure({ naturalKeyHash: 'b', category: 'policy_refused', displayName: 'Plan.paper' }),
+        failure({ naturalKeyHash: 'c', category: 'policy_refused', displayName: 'Board.gsheet' }),
+      ]),
+    );
+    dropbox(undefined);
+    await userEvent.selectOptions(paperBox(), 'markdown');
+    await save();
+    expect(
+      await screen.findByText(EN['settings.exportPolicy.paper.refusedBefore.count'].replace('{count}', '2')),
+    ).toBeInTheDocument();
   });
 });

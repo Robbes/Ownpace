@@ -165,7 +165,8 @@ interface DomainDepsToCount {
  * instability, when the source keeps one.
  *
  * `undefined` for every source that does not — which is all of them but Google
- * Drive — and `undefined` rather than `{}` on purpose: the preflight's field
+ * Drive and Dropbox, which counts its Paper docs (workplan 0150 T3 (d)) — and
+ * `undefined` rather than `{}` on purpose: the preflight's field
  * distinguishes "did not look" from "looked and found none", the same way
  * `generatedIdItems` and `targetExisting` already do in that interface.
  *
