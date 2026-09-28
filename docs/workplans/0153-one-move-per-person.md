@@ -4,6 +4,13 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: ADR-0050 drafted, for the owner's acceptance (T2; 0131 §6, R8's split)** on
+branch `claude/ownpace-ux-improvements-v1vjsj-adr-0050-drafted`, not merged.
+`docs/adr/0050-a-move-is-a-persons-migrations.md` is T2's proposed decision, marked Proposed.
+Its operative section says that nothing holds yet, so `OPERATIVE.md` publishes no rule the
+owner has not accepted. **The owner's step:** accept it, amend it, or turn it down. The `move`
+and `move_member` tables, and T3 and T5, wait for that answer.
+
 **2026-09-28, night: T1 (a) and (d), each proved by its guard, in #1315 and #1316.** The plan
 merged in #1321, so the two pull requests record themselves here. Both carry these same lines,
 so they merge in either order.
@@ -94,7 +101,7 @@ person, and a flow that fills it.
 |---|---|---|
 | T0 The owner's words and the ADR | 🟡 **Words decided 2026-09-28 (D6, D7); ADR-0050's acceptance ⏳ owner, before T2 merges** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. `move` is internal only. |
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen (to confirm live). (d) A raw state word on Finish. |
-| T2 ADR-0050: a move is a person's migrations | 📋 **Proposed; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
+| T2 ADR-0050: a move is a person's migrations | 🟡 **ADR drafted as Proposed, awaiting the owner's acceptance; the tables after it; before the first invitation** | §3. A move row and its members in `packages/managed/migrations`. The appliance answers one implicit move. The billed unit (a path) and the migration (a mapping) do not change. Deleting a grouping deletes no migration. |
 | T3 The Migrations page lists people | 📋 **Proposed; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |

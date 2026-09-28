@@ -914,3 +914,10 @@ Nothing in this amendment is built. It records the decision the three tasks in
 - **`POST /api/migrations` creates a migration `paused` (the default) or `active`**, and refuses
   `cutover`, `done` and `continuous` with a 400 on `status` that names their doors: a migration
   reaches them once it exists, through the cutover, Finish and Keep copying.
+
+## [ADR-0050: A move is a person's migrations](./0050-a-move-is-a-persons-migrations.md)
+
+- **Nothing is operative yet.** This ADR is proposed, and waits for the owner's acceptance (0153
+  T2). Until then a migration belongs to no grouping, and the Migrations page lists migrations.
+- On acceptance, the rules under *Decision* become this section, amended in place, and
+  `OPERATIVE.md` is regenerated.
