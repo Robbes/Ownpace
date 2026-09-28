@@ -4,9 +4,23 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, night, last: the target's walk, the leading suspect for the 40 minutes, built (T1;
-0131 §6, group M8)** on branch `claude/mailbox-sync-errors-c2xsw2-a-walk-of-the-whole-target`,
-not merged: held for the owner's word, or for the first pass's timings (the entry below).
+**2026-09-28, night, last: the 40 minutes were the target's walk, found and fixed (T1; 0131 §6,
+group M8)** on branch `claude/mailbox-sync-errors-c2xsw2-a-walk-of-the-whole-target`, not merged.
+
+- **Found, from the owner's readings** (counts and times only, from the migration's rows):
+  - the migration has no target folder, so the writer's root is the owner's whole Nextcloud
+    account;
+  - the 20:30 pass finished one folder in its first five minutes, then copied nothing until
+    21:10, and 222 files in its last ten minutes;
+  - only one folder has ever finished: one cursor row, last written in that pass's first five
+    minutes.
+
+  The code says why. The source's root folder needs no walk: `ensureDirectory('')` returns at
+  once, and its files, all copied by earlier passes, are skipped by the ledger before any write.
+  That is the folder that finished. The first folder below it calls `ensureCollectionPath`,
+  which walked the whole account (`keysUnderRoot`, one `PROPFIND` per directory, one after
+  another) before it made anything ready. Then the pass copied until its deadline. The killed
+  18:07 pass shows the same shape: its first copies came about 45 minutes in.
 
 - **What changed.** The WebDAV writer no longer walks everything under its root before its first
   write (`keysUnderRoot`). A directory is listed the first time something in it is asked about,
@@ -22,8 +36,11 @@ not merged: held for the owner's word, or for the first pass's timings (the entr
 - **Not changed:** the source still lists every folder in full on every pass, since Dropbox has no
   delta per folder. That is the other suspect. The first pass's `collectionSetupMs`, against
   `listCollectionsMs` and `collectionListingMs`, says which of the two the minutes were.
-- **Recommended:** merge it with the timings and deploy once. If the minutes before the first
-  copy are gone, the walk was it; if not, the timings name the phase that holds them.
+- **What to expect once deployed:** the first copy within a few minutes of a pass's start, and
+  about five times as many files a pass. At the 20:30 pass's copying rate (about 4 GB in ten
+  minutes), a 50-minute pass copies about 20 GB, so the ~435 GB left takes about a day of
+  back-to-back passes rather than four or five. The timings (#1335) show it: `collectionSetupMs`
+  should fall from about 38 minutes to seconds.
 
 **2026-09-28, late: the fix proven on the owner's migration, and the next wall: 40 minutes before
 the first copy (T1; 0131 §6, group M8)**, merged as #1335. From the owner's readings on the OTA
