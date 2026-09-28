@@ -36,7 +36,8 @@
   against it. The healthcheck asks `127.0.0.1` inside the container, and the status page's
   `Website` row asks `STATUS_SITE_URL`. The incident runbook's `Website` row now says that a copy
   brought up with `-p` takes the same `-p`.
-- **T0's fact 6 is not decided here.** The change is harmless to the OTA site whichever way it is
+- **T0's fact 6, supplied the same day:** the reference machine serves `www.ownpace.eu` during the
+  alpha, so the second copy this makes possible is the one the alpha needs. The change is harmless to the OTA site whichever way it is
   answered: the site keeps its project and its container name.
 - **For the owner, if fact 6 puts `www.ownpace.eu` on the reference machine:** knowing that a
   bare command in live's checkout is no longer refused, one of three: `-p` on every command for
@@ -44,6 +45,47 @@
   command is safe; or a check on live's side that refuses when live's project holds a `www`
   service. Then that copy's `WWW_PORT` and `WWW_BIND`, and the route from `www.ownpace.eu` to that
   port, as in 0132 T1e.
+
+**2026-09-28: T10 (a), one setting for every link the app makes to the texts (0131 §6, group R1,
+step 6)**, built on branch `claude/ownpace-public-readiness-y7orc6-a-policy-link-that-answers`,
+not merged.
+
+- **The setting.** `VITE_LEGAL_SITE_URL`, a build argument for the web app. `managed.yml` passes
+  it to the web build as it passes `VITE_OIDC_ISSUER`, and `apps/web/Dockerfile` declares it.
+  Empty is the production site, `https://www.ownpace.eu`, which the grant page linked before.
+  `managed.env.example` documents it. A value that is not an http(s) origin alone is refused,
+  and the error names the setting. The web build refuses it too (`vite.config.ts`), because the
+  grant page reads it while it renders and the web app has no error boundary: a typo would
+  otherwise blank the page for every recipient.
+- **The module.** `apps/web/src/services/legal-links.ts` turns the setting into an address per
+  page and per language, for the pages the site build writes: the privacy policy and the terms,
+  in English and Dutch. The grant page reads it, and its own table is gone. The request form, the
+  Connect panel and the report form link no text today, so nothing else moved. T4 adds their
+  links from this module.
+- **Not links yet.** The site build does not render the alpha conditions or `subprocessors.md`.
+  Their text comes from T2 and T5, and T10 renders them. The module names both in
+  `NOT_BUILT_YET` and gives them no address.
+- **Proved.** `scripts/a-policy-link-that-answers.unit.test.ts`, 20 cases. On `main` all fail
+  but one, the control that a good value builds. It runs the site build in a child process.
+  Every address the module produces, from `legalLinks()` as the grant page reads it and from
+  `legalUrl()`, with the setting empty and with the OTA site's value, is a file the build writes
+  for that language and page, on the site the case expects. It fails when the build renders a
+  legal page the module does not link. It checks `managed.yml`, the Dockerfile and the example,
+  that the web build refuses `www.ota.ownpace.eu` and builds the OTA value, that the default is
+  the address the site build calls itself (`PUBLIC_SITE_URL`), and that no other shipped file in
+  the web app names the site or a legal file. `site/build.mjs` now exports `SOURCE` for it.
+  `Grant.unit.test.tsx` passes unchanged: the default gives the addresses it pins.
+- **`scripts/legal-docs.unit.test.ts`.** `DOCS` gains the Dutch privacy policy and terms. A new
+  case holds the list to the build's `SOURCE`, and fails with the old list.
+- **For the owner:** the OTA stack's `.env` sets
+  `VITE_LEGAL_SITE_URL=https://www.ota.ownpace.eu`, and its web image is rebuilt. Live leaves it
+  empty.
+- **Not in this change, and still T10's:** rendering the alpha conditions (with T2) and
+  `subprocessors.md` in the site build, which gives `«SUBPROCESSORS_URL»` an address; publishing
+  the texts with `--public` at `www.ownpace.eu`, served where T0's fact 6 says; (b), `www.yml`'s
+  fixed project name and container name (group R7, step 9); and (c), the `--no-drafts` switch,
+  needed only if open question 1 chooses (b). 0135 T5's `IDP_PRIVACY_URL` and `IDP_TOS_URL` take
+  the same addresses when that task is built.
 
 **2026-09-27, late: T9 written (0131 §6, group M3, step 6, its second half)** on branch
 `claude/mailbox-sync-errors-c2xsw2-one-way-to-report-a-vulnerability`, not merged, as the owner
@@ -266,7 +308,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form still goes with T1 — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | 🔨 **(b) built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, **not merged**: `www.yml`'s container is named after its project, and a second copy names its own with `-p`; the rest 📋 **Proposed** — *was:* 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; (b) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, **not merged**: `www.yml`'s container is named after its project, and a second copy names its own with `-p`; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28), and (c) `--no-drafts` — *was:* (a) 🔨 built 2026-09-28, not merged; (b) 📋 **Proposed**; 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
@@ -566,7 +608,8 @@ is not rendered by the build, and 0086 T5 owns it.
    question 6)?
 6. **The production site.** Where `www.ownpace.eu` is served from during the alpha (T10). The
    grant page and the legal README point there, 0132 T1e does not route it, and the review found
-   it does not serve this repository's site.
+   it does not serve this repository's site. **Supplied 2026-09-28:** *"site will first be hosted
+   on this machine during alpha"*: the reference machine serves `www.ownpace.eu` for the alpha.
 
 The dates on which each fact was supplied go in the Status block.
 

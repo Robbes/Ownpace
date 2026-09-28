@@ -7,6 +7,9 @@
  * with the page they were on (never a link secret), the error's category and
  * reference, and a screenshot if they add one; the owner's reply reaches them
  * by email. Driven through the real route with Zammad faked at `fetch`.
+ *
+ * The ticket also names the build that answered, from `buildIdentity()`, as
+ * the page's build stamp writes it (workplan 0146 T2).
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
@@ -16,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setAppEventSink, type AppEvent } from '@openmig/shared';
+import { buildIdentity } from '@openmig/core';
 import {
   MAX_SCREENSHOT_BYTES,
   imageTypeOf,
@@ -70,9 +74,28 @@ function app(deps: Parameters<typeof problemReportRoutes>[0]) {
   return a;
 }
 
+/** A commit as the API image stamps it (`GIT_SHA`), and the seven characters the page shows. */
+const COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const SHORT = 'a1b2c3d';
+
+/** The root package.json, which `buildIdentity()` reads when nothing stamped a version. */
+const ROOT_VERSION = (
+  JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'package.json'), 'utf8')) as {
+    version: string;
+  }
+).version;
+
+beforeEach(() => {
+  // Every case starts from a build the way a checkout is: no version stamped,
+  // so the root package.json's, and the commit the image would stamp.
+  vi.stubEnv('OPENMIG_VERSION', '');
+  vi.stubEnv('OPENMIG_COMMIT', COMMIT);
+});
+
 afterEach(() => {
   setAppEventSink(undefined);
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('what a report may carry', () => {
@@ -147,8 +170,34 @@ describe('the ticket it becomes', () => {
     expect(ticket.article.content_type).toBe('text/plain');
     expect(ticket.article.body).toBe(
       'The Moves screen is empty\nafter the last pass\n\n---\n' +
-        `Page: /moves\nReference: 0a1b2c3d\nCategory: unknown\nOrganisation: ${TENANT}`,
+        `Page: /moves\nReference: 0a1b2c3d\nCategory: unknown\nOrganisation: ${TENANT}\n` +
+        `Build: v${ROOT_VERSION} · ${SHORT}`,
     );
+  });
+
+  // Workplan 0146 T2 (D5). Every managed build since 2026-08-04 has said the
+  // same version, and a tester may not read the stamp off the page, so the
+  // report says which build it came from: the API's own, as `buildIdentity()`
+  // gives it, written the way the page's build stamp writes it.
+  it('names the build it came from, as buildIdentity() gives it and the page shows it', () => {
+    vi.stubEnv('OPENMIG_VERSION', '9.8.7-test.1');
+    expect(buildIdentity()).toEqual({ version: '9.8.7-test.1', commit: COMMIT });
+    const ticket = ticketFor(report, { email: 'someone@example.invalid', tenantId: TENANT }, 'Users');
+    expect(ticket.article.body.split('\n')).toContain(`Build: v9.8.7-test.1 · ${SHORT}`);
+
+    // Nothing stamped: the root package.json's version, which `/version` answers too.
+    vi.stubEnv('OPENMIG_VERSION', '');
+    expect(buildIdentity().version).toBe(ROOT_VERSION);
+    expect(ticketFor(report, { email: 'someone@example.invalid' }, 'Users').article.body).toContain(
+      `\nBuild: v${ROOT_VERSION} · ${SHORT}`,
+    );
+  });
+
+  it('says when the build has no commit, rather than leaving a version that reads as a release', () => {
+    vi.stubEnv('OPENMIG_COMMIT', 'unknown');
+    expect(buildIdentity().commit).toBe('unknown');
+    const ticket = ticketFor(report, { email: 'someone@example.invalid' }, 'Users');
+    expect(ticket.article.body.split('\n')).toContain(`Build: v${ROOT_VERSION} · commit unknown`);
   });
 
   it('carries the screenshot as an attachment of its own type', () => {
@@ -225,6 +274,7 @@ describe('the route', () => {
     const sent = JSON.parse(String(calls[0]!.init.body));
     expect(sent.customer_id).toBe('guess:someone@example.invalid');
     expect(sent.article.body).toContain('Page: /grant/:link');
+    expect(sent.article.body).toContain(`\nBuild: v${buildIdentity().version} · ${SHORT}`);
     expect(JSON.stringify(sent)).not.toContain('abc.secret');
     expect(JSON.stringify(res.body)).not.toContain('test-token-not-real');
   });

@@ -2,53 +2,7 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-09-27 (update this block at the end of every session)
-
-**2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found three
-things about the stack testers would use. The nightly managed gate rebuilds it from `main` and
-seeds demo tenants into it. Its database is published with a password this repository contains.
-And 0026 row 24, the rotation of the demo-era secrets, is parked until the moment 0020 names,
-*"when that stack stops being a demo"*, which is what the alpha does. The owner keeps the alpha
-on the reference machine, at the OTA address, with CI on the same machine (§2). This plan works
-inside that decision: what has to change so that one machine can carry both, and the steps on the
-machine. It also answers the owner's question *"Who would need/het credentials?"* (§4).
-
-Nothing is built. The live `.env`, the database roles and what the machine's ports answer are not
-visible from the repository, so §1 says what the code does, and T0 is where the reference
-machine's own answers are written down: dates and outcomes, never values.
-
-**2026-09-24, later: the owner chose ownpace-live beside ownpace-managed (0132 D-new), and #1137 merged.**
-Testers now use a second compose project, `ownpace-live`, on the production names, while the OTA
-stack (`ownpace-managed`) stays the nightly gate's target and the demo (D7, which most sibling
-plans cite as 0132 D-new); T1's options A to C and T8 are superseded and kept in §3, and the table
-is rebuilt around D7, with T1 (container names and scripts follow the project name) first and T2
-and T5 now mostly about the OTA stack. The five fixes this plan was waiting on are fixed in #1137, merged
-2026-09-24, as checked in the code on `main`, and nothing of this plan is built yet; 0131 T5's
-minimum for this plan is T1, T1b to T1e, and T3.
-
-Names used from here on: **live** is the `ownpace-live` stack; **the OTA stack** is
-`ownpace-managed`. "The live `.env`" in the first entry above was written before D7 and means the
-reference machine's one `.env`.
-
-**2026-09-24, later still: two of the owner's three checks on the machine are recorded here (D8,
-D9).** The owner sets live's database passwords in live's `.env` before its first bring-up (D8,
-T1b step 5). The code still does not generate them, and `trigger-db`'s password is still a literal
-that no `.env` reaches (T2's code). Every network live's containers join is live's own and is named
-after `ownpace-live`, including the network its task runs join (D9). Compose already names live's
-two networks after the project, checked by rendering `managed.yml` under `-p ownpace-live`. T1 now
-lists what does not follow: every hard-coded `ownpace-managed_` name, 13 lines in six files. They
-include the supervisor's `DOCKER_RUNNER_NETWORKS` literal and `reset-trigger.sh`'s volume name.
-T1's guard now fails on any `ownpace-managed_` name. The first of the three checks, what the
-Google client's redirect URIs hold and whether to add one for `app.ownpace.eu` or make a new
-client, is 0140's: its T11 answers it with a new client for live, carrying live's consent
-address, and live's sign-in address only if 0140 T10 keeps a Google sign-in (T1e). Nothing is
-built.
-
-**2026-09-24, cross-plan sync after 0148 and 0149.** The entry above, D8 and T1e first said that
-0140 T11 puts "live's two addresses" on live's Google client. 0140 T11 now adds the sign-in address
-only if its T10 keeps a Google sign-in, because ADR-0041's decision gives production one redirect
-URI. All three say so now. The same message's answers on W15 and W18 are 0148 and 0149, which
-change nothing in this plan.
+## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-27: T1 built on branch `claude/ownpace-public-readiness-y7orc6-a-stack-named-by-its-project`, not merged.**
 Every name in `deploy/compose/managed.yml` now follows the compose project.
@@ -670,6 +624,381 @@ now say what D7 decided.
   case passes. This entry sits after the *evening* one, where #1264 also adds its entry, so the
   second of the two to merge keeps both, the first one's above.
 
+**2026-09-28: T3 (b) and (c) built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged.**
+The exposure check on the machine, and the probe from outside, dispatch only. T3 (a), the binds,
+is on `main` (#1236 and #1253, merged 2026-09-27). (d), the path a tester's request takes and the
+forged `X-Forwarded-For`, waits for live to stand (T1b to T1e).
+
+- **The check, (b).** `deploy/compose/exposure-check.sh` reads `docker ps` for every running
+  container on the host, so one run covers both stacks, the site and the demo's Stalwart. It
+  fails for each port published on every interface (`0.0.0.0`, `::`), whatever `EXPOSURE_ALLOW`
+  says, and for each port on an address that is neither loopback (any 127.x address, `::1`) nor
+  listed in `EXPOSURE_ALLOW`. It reads that list from the `.env` beside it, or `--env-file`, with
+  `env_value`, never from the shell; single or double quotes around it are read too. An entry that
+  is not an address, or is every interface, stops it (exit 2), naming the entry's place and not
+  its value. A publish it cannot read is a finding. A container on the host's network is named as
+  not checked. It prints the container and the port,
+  never an address, loopback included; Docker's own error is printed with every address replaced.
+  Exit 0, 1 on a finding, 2 on usage or no Docker. `--from <file>|-` reads recorded `docker ps`
+  lines instead of asking Docker. `EXPOSURE_ALLOW=` is in `managed.env.example`. T6 and T7 will
+  call it; nothing calls it yet.
+- **The probe, (c).** `.github/workflows/exposure-probe.yml` runs on `workflow_dispatch` only (open
+  question 6's proposed answer), on `ubuntu-24.04`, GitHub-hosted like the repository's other
+  hosted jobs, never the self-hosted runner. Its one step runs `scripts/exposure-probe.mjs`. That
+  resolves the three production names and the three OTA names, and tries every port on each
+  address they resolve to, and on the machine's own address when the secret `EXPOSURE_PROBE_HOST`
+  holds it. The ports come from `scripts/exposure-probe-ports.mjs`, which reads them from
+  `managed.yml`, `www.yml` and `setup-managed-demo.sh` (13 today) and refuses a publish it cannot
+  read, plus live's own from the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, without which the
+  probe does not run. It passes when 443 on each production name answers over TLS, the discovery
+  document at `id.ownpace.eu` names `https://id.ownpace.eu`, and no tried port accepts a
+  connection. The OTA names follow the dispatch input `ota_names` (open question 7, unanswered):
+  `report`, the default, records what answered; `internet` requires TLS on 443; `mesh-only`
+  requires no answer. Every address and the secret are masked before anything else is printed. A
+  finding names the names and the port, the machine's own address by the secret's name, and an
+  error by its code. An address the runner cannot reach (a hosted runner has no IPv6 route) is
+  reported as not tried, never as closed.
+- **The guards, and that they failed first.** `scripts/exposure-check.unit.test.ts`, 21 cases, all
+  red on `main` (no script). `scripts/a-probe-that-knows-every-port.unit.test.ts`, 10 cases, and
+  `scripts/exposure-probe.unit.test.ts`, 24 cases, did not load on `main` (neither module existed).
+  The first fails when `managed.yml` or `www.yml` publishes a port the probe does not try; a
+  synthetic extra port in each file proves it. Thirteen mutations each turned a guard red: a
+  schedule trigger, a self-hosted runner, a port written in the workflow, the derivation without
+  `www.yml`, the long syntax skipped, `::` read as an ordinary address, an address in a finding
+  (in the check, and in the probe), an unreadable publish passed, `EXPOSURE_ALLOW` read from the
+  shell, the masks removed, an unreachable address called closed, and the issuer ignored.
+  `two-stacks-on-one-box`'s rule that every `docker ps` filters by the project now exempts
+  `exposure-check.sh` by name, and fails if that file is gone.
+- **Docs.** `docs/managed-bring-up.md`, *Which address a port answers on*, has a paragraph on both;
+  `docs/testing.md` lists the workflow.
+- **For the owner, before the first check and probe.** `EXPOSURE_ALLOW` in each stack's `.env`:
+  every address any container on the machine is published on on purpose, not only that stack's,
+  because the check reads the whole machine. That is both stacks' `*_BIND` values, the site's
+  `WWW_BIND` and the demo's `STALWART_BIND`, separated by commas with no space; a bare space is a
+  line the bring-up refuses. The repository variable `EXPOSURE_PROBE_LIVE_PORTS`: live's `*_PORT`
+  values. The secret `EXPOSURE_PROBE_HOST`, if the machine has a public address of its own. Open
+  questions 6 and 7 stay open: the workflow takes 6's proposed answer and leaves 7 to the input.
+- **Not proved.** Neither has run on the machine or on GitHub. The probe's TLS and discovery calls
+  have no test against a real server; its TCP connect is tested against a port on the test
+  machine. 0135's check that the registration page answers 404 is not in the probe yet.
+
+**2026-09-28: T6 (a), `deploy-live.sh`, built with 0146 T5 (a), on branch
+`claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** Nothing has run
+on live, which is not stood up (T1b); the script has run only against the stubs in its guard.
+
+- **What it runs.** `deploy/compose/deploy-live.sh <tag>`, from live's checkout, runs steps 3 and 5
+  to 7 of the procedure and writes step 9. It checks the drain; it does not wait for it. Then
+  `git fetch --tags origin`, `git checkout --detach <tag>`, `pnpm install --frozen-lockfile`, and
+  `bootstrap-managed.sh --from data`, never with `--with-demo`. The bring-up takes `GIT_SHA` from
+  `git rev-parse HEAD`, which the script checks is the tag's commit before it calls it. Then the
+  checks, at the origin in live's `WEB_URL` (the address browsers use for the web app, as
+  `managed.env.example` says), never printed: `/api/version` names the tag's commit and its version,
+  `/api/ready` answers 200, `/api/auth/mode` answers `managed`, and `exposure-check.sh --env-file
+  <live's .env>` passes. It does not open the hold, take the dump of step 4, or lift the hold: step
+  8 stays the owner's, after looking.
+- **What it refuses**, before the checkout or the stack changes, each with its own message and
+  exit 1: `--with-demo` anywhere in its arguments; a `.env` without live's marker (`stack_is_live`,
+  so a slip of the marker is refused too, and its value is never printed) or without an http(s)
+  `WEB_URL`; `COMPOSE_ENV_FILES` or `COMPOSE_FILE` in the shell; a project the reader refuses, or
+  one Compose reports differently; a working tree that is not clean, untracked files included; a
+  ref that is not a tag, a name that is no tag here or on origin, a tag not on origin
+  (`git ls-remote --tags origin`), a tag here that is not origin's, a lightweight tag, a tag not
+  named `v…`, and a tag whose commit's root `package.json` version is not the tag without its `v`
+  (it names both); each of those says 0146's *"live runs releases: name a release tag"*. Then the
+  database: an answer it cannot read, which is never taken for nothing in flight (hard rule 9); a
+  role row security would bind; no open hold; a pass in flight; and a hold under five minutes old.
+  Last, a deploy log it cannot append to (below).
+- **The drain, read.** One `SELECT` over `docker compose exec postgres`, psql over the container's
+  own socket as the owner the postgres image created, as `rehearse-capacity.sh` does. It composes
+  no connection string, so `docs/rls-guide.md` §2's list, which is of scripts that do, has no row
+  for it, and `a-connection-the-docs-did-not-know-about` stays as it was. The hold is the row of
+  `platform_pause` with `ended_at IS NULL` (managed migration 0023); the in-flight count is the
+  tick's own, `running` rows younger than `STALE_RUN_AFTER_MS`, written in the script as
+  `STALE_RUN_AFTER_SECONDS=7200`, which the guard ties to the tick's constant. It also reads
+  whether the role is a superuser: `run` is FORCEd, and a bound role would count 0.
+- **One-way or reversible (0146 T5).** Before the checkout moves, and again at the end, it says
+  whether the deploy can be undone by deploying a tag this stack has run again. It compares the
+  new tag with the running tag, the one the log's last `took` line names; with every deploy since
+  that did not take, whose bring-up may have run and whose API applied its migrations when it
+  started; and with the checkout's `HEAD` when no line names it (with an empty log, the only one).
+  One-way: against any of them, a file in `packages/ledger/migrations` or
+  `packages/managed/migrations` added, changed or removed, or an `image:` line naming
+  `triggerdotdev/` or `zitadel/zitadel` in `managed.yml` different at the two, or either of those
+  that cannot be read. Otherwise reversible. With no deploy that took, what ran before the log's
+  first line is named nowhere: when that first deploy was one-way over it, the next is one-way
+  too; when it was reversible, its chains and pins were the same, and its own line stands in.
+- **The log.** `${MANAGED_ENV_PERSIST_DIR:-~/.persistent/<project>}/deploys.log`, so
+  `~/.persistent/ownpace-live/deploys.log` on live, T1's rule for the persisted directory. One
+  tab-separated line per deploy that got as far as the checkout: the UTC date, the tag, the commit,
+  `took` or `did-not-take`, `one-way` or `reversible`. A refusal is not logged. A failed
+  installation, bring-up or check logs `did-not-take`, says the hold stays on, and exits 3. The
+  log is checked for an append before the checkout moves. A line that still cannot be written at
+  the end is printed for the owner to add by hand, after what the script says about the deploy,
+  and the exit stays the deploy's, 0 or 3.
+- **NODE_ENV (T4).** Not built: `managed.yml` still has `NODE_ENV: ${NODE_ENV:-development}` for
+  the API, and no check reads it. The script does not invent one; it prints that NODE_ENV is not
+  checked and why.
+- **The guard, and that it failed first.** `scripts/a-deploy-from-a-named-tag.unit.test.ts`, 61
+  cases as first built (83 since `--dry-run`, 84 with the one-line exit, below). Each builds a checkout of its own: a real git
+  repository with a bare origin beside it, whose commits carry the script, `env-read.sh`,
+  `stack-kind.sh`, the real `managed.yml`, a file in each chain, and two stand-ins committed beside
+  the script, `bootstrap-managed.sh` (it records its arguments and the commit checked out when it
+  ran) and `exposure-check.sh` (T3 (b), on `main` since #1271, merged 2026-09-28, with its own
+  guard; the stand-in lets a case make it fail). `docker`, `psql`, `curl` and `pnpm` are stubs on
+  the PATH; the `docker` stub runs the script's own psql command line against the `psql` stub, which
+  answers a fixture, or, in the last block, hands the SQL to PGlite with both chains applied. It
+  drives: seven ref refusals (a branch, a commit, no such tag, lightweight, not on origin, not `v…`,
+  a `package.json` naming another version, both named); nineteen refusals of the stack, the checkout
+  and the moment (four `.env`s without the marker, no `WEB_URL`, a changed and an untracked file,
+  `--with-demo` in three places, `COMPOSE_ENV_FILES`, no hold, three in flight, a new hold, three
+  unreadable answers, a bound role, a deploy log it cannot append to), each checking that the
+  checkout did not move and that nothing was installed, brought up, asked, checked or logged; the
+  deploy that took (detached at the tag, `pnpm` before the bring-up, `--from data` only, at the
+  tag's commit, the three paths in order at `WEB_URL`'s origin, the exposure check with live's
+  `.env`, only `SELECT`s sent, the hold still on, one log line of five fields, the origin never
+  printed), the note when a deploy left the tree changed (and the next run's refusal of it), and a
+  second deploy after the first; twelve deploys that did not take (right commit and wrong version,
+  wrong commit, `unknown`, no answer, `/api/ready` 503, another auth mode, the exposure check
+  failing or absent from the tag, the bring-up failing or stopping for the owner, `pnpm` failing),
+  each keeping the hold, exiting non-zero and logging `did-not-take`; a log line that cannot be
+  written at the end, after a deploy that took (exit 0) and one that did not (exit 3), each saying
+  so and printing the line; one-way for a file in either chain and for either pin moved (on the real
+  `managed.yml`), reversible for neither, the running tag taken from the log and not only from what
+  a failed deploy left checked out, a deploy that did not take since compared too (A took, B with a
+  migration did not, A again is one-way), every such deploy and not only the one checked out, the
+  checkout's `HEAD` when no line names it, and with no deploy that took, a first deploy that was
+  one-way keeping the next one-way and a first reversible one not, and that the script's chain list
+  names the repository's two; and over PGlite, no hold, only a lifted hold, a lifted hold beside an
+  open one two minutes old, a pass five minutes old, a `running` row three hours old not waited for
+  (and the hold still open afterwards), and the staleness window. Without the script all 61 failed
+  (`ENOENT` on the copy). Mutations, run against the first build's script: twenty-seven, each red:
+  the lightweight check dropped (1 case), the not-on-origin refusal dropped (1), `package.json`'s
+  version not compared (1), `/api/version`'s version not compared (1), an unreadable database taken
+  for nothing in flight (1), an answer of another shape accepted (2), the in-flight count not
+  checked (2), the hold's age not checked (1), a missing hold not checked (2), the role not checked
+  (1), `--with-demo` passed through to the bring-up (3), the bring-up run with `--with-demo` (1),
+  the script lifting the hold (2), one chain compared (2), the identity-provider pin not compared
+  (1), the running tag taken from `HEAD` (1), `stack_may_be_live` for `stack_is_live` (2), a tree
+  that is not clean accepted (3), untracked files not counted (1), the note after a deploy that
+  changed the tree dropped (1), `did-not-take` logged as `took` (10), a deploy that did not take
+  exiting 0 (12), the origin printed (8), a failed exposure check ignored (1), `/api/ready` not
+  checked (1), the auth mode not compared (1), the staleness window mistyped (1).
+- **Review, the same day: three findings, all applied.**
+  - *A rollback after a deploy that did not take was called reversible.* Took A, then B with a
+    migration did not take after its bring-up ran, then A: the script compared A with A alone and
+    said reversible, though B's API had applied the migration and A's refuses that schema. It now
+    compares with every deploy that did not take since the last that took and with the checkout's
+    `HEAD`, and names each; with no deploy that took, the rule above for the log's first line.
+  - *The hold's `ended_at IS NULL` was pinned by no case.* The PGlite block now has a table with
+    only a lifted hold (refused: no hold is open) and one with a lifted hold beside an open one
+    two minutes old (refused on its age), the state live is in after its first lift.
+  - *A deploy log that could not be written made a deploy past the checkout exit 1*, which says
+    refused and as it was, and hid that the deploy did not take and that the hold stays on. The
+    log is checked before the checkout; the outcome is said before the line is written, and a
+    line that cannot be written is printed, with the outcome's exit.
+  - Mutations of the new code, eleven, ten red: deploys that did not take not compared (2
+    cases), `HEAD` not compared when a deploy took (1), only the last `took` compared, the first
+    build's rule (3), no rule for the log's first line (1), that rule after a reversible first
+    line too (1), the awk counter left uninitialised (1), the log's check before the checkout
+    dropped (1), a log that cannot be written ending the run (2), lifted holds counted as open (1),
+    and in both subqueries (1). One survives: `ended_at IS NULL` dropped from the hold's age
+    alone. No state the application can reach tells the two apart: 0023's partial unique index
+    keeps one hold open, so every lifted hold began before it, and the newest `started_at` is the
+    open one's either way.
+- **Later the same day: `--dry-run`, two refusals pinned, and #1271 on `main`.** Still only
+  against the guard's stubs; nothing has run on live.
+  - *`--dry-run`.* `deploy-live.sh --dry-run <tag>` (the flag anywhere in the arguments, beside
+    the tag) runs everything the deploy runs before the checkout: every refusal above, the
+    `git fetch --tags origin` of step 5, and one-way or reversible, by the same
+    `comparison_bases` and `compare_releases` over the same log and `HEAD`, comparing through
+    git's objects. Then it prints `dry run: a deploy of <tag> now would be one-way|reversible.`,
+    for one-way that a dump taken now, with the hold still on, is the way back that is not
+    forward, and that it stopped before the checkout, and exits 0. It checks nothing out and runs
+    no `pnpm install`, no bring-up and no check; it writes no line to `deploys.log` and does not
+    create it or its directory: whether the log can be appended to it asks of the file, or of the
+    nearest directory that exists (`log_appendable`; the deploy still makes both with an empty
+    append, as before). A refusal exits 1, as in the deploy. The header, `--help` and the usage
+    line say so. It is the owner's step 3 now (*Docs*, below).
+  - *The one-line exit.* The script ends `main "$@"; exit $?` on one line. The checkout replaces
+    `deploy-live.sh` with the tag's copy while it runs, and bash reads a script as it goes, so a
+    line after `main` would be read from the tag's file. A case holds it; splitting the line fails it.
+  - *Guard cases, 61 to 83.* Twenty for the dry run: on a tag that agrees, with the flag before
+    and after the tag (exit 0, the verdict, the line that it stopped; `HEAD`, `git status` and the
+    deploy log as they were, the log not created, and no `bootstrap`, `pnpm`, `curl` or exposure
+    check called); after a deploy that took (compared with it from the log, the log byte for byte
+    as it was, one bring-up in all); fourteen refusals the deploy makes, still made in a dry run,
+    each exit 1 with its message and no verdict (no hold, a pass in flight, a hold under five
+    minutes, an unreadable database, a bound role, a lightweight tag, a tag not on origin, another
+    `package.json` version, no marker, an untracked file, `COMPOSE_FILE`, a project Compose
+    reports differently, a log it cannot append to, `--with-demo`); and one-way for a tag adding a
+    migration to either chain and reversible for one adding none, each followed by the real deploy,
+    whose log line carries the same verdict. Two for refusals the script had and no case drove:
+    `COMPOSE_FILE` in the shell, and `docker compose config` reporting `ownpace-managed` where the
+    checkout chooses `ownpace-live` (refused after the one `config` call, before any `psql`).
+  - *Failed first.* On the script without the flag, nineteen of the twenty-two failed (`unknown
+    option '--dry-run'`, exit 2). Three passed, as they should: the two refusal cases, which pin
+    refusals that were already there, and the dry run's `--with-demo`, refused before any option
+    is read.
+  - *Mutations, ten, each red.* A dry run that checks the tag out before it stops (6 cases), that
+    skips the no-hold refusal (1), the in-flight refusal (1) or the lightweight-tag refusal (1),
+    that appends a line to the log (6), that uses the deploy's log check, which creates the file
+    (5), that calls the bring-up (6), that stops before the verdict (6); `COMPOSE_FILE` dropped
+    from the shell refusal (2: the new case and its dry-run twin); the reported-project refusal
+    dropped (2). Without either refusal the deploy went through, exit 0.
+  - *#1271 merged* on 2026-09-28, so `exposure-check.sh` is on `main`; T3 (b)'s entry above says
+    nothing calls it yet, and on this branch `deploy-live.sh` does, after every deploy. What is
+    left before it can pass on live is the owner's (*Open*, below).
+- **Departures from §3.**
+  - `pnpm install --frozen-lockfile` before the bring-up. Step 6 does not name it, and
+    `--from data` skips the preflight; the task deploy builds from the checkout's `node_modules`,
+    and `deploy-tasks.sh` refuses only an SDK that differs from the pin.
+  - A hold under five minutes old is refused (`DEPLOY_LIVE_QUIET_MINUTES`). The tick enqueues a
+    pass without writing a row, so a pass queued just before the hold is in no count until it
+    starts (the same finding as `rehearse-capacity.sh`'s).
+  - It also refuses what §3 did not list: `COMPOSE_ENV_FILES` and `COMPOSE_FILE` in the shell, a
+    tag here that is not origin's, a role row security would bind, and an answer it cannot read.
+  - A changed or removed migration file counts as one-way, not only an added one, and so does a
+    running commit or a pin that cannot be read: the error errs towards no way back.
+  - git in the guard is real, against a temporary repository and a bare origin, not a stub, so
+    tags, `ls-remote` and the diff behave as on the machine.
+  - The whole run is one function, read before it starts: the checkout replaces the script's own
+    file with the tag's copy.
+  - The checks ask the origin in live's `WEB_URL`, not the name step 7 writes out; on live that
+    is `https://app.ownpace.eu` (T1e).
+  - `--dry-run` is not in §3: step 4's dump is the owner's call, and the verdict it depends on was
+    otherwise printed only by the run that moves the checkout.
+- **Docs.** `docs/managed-bring-up.md`, *Updating a running deployment*, opens with *`ownpace-live`:
+  a release tag, with `deploy-live.sh`* (the owner's five steps, what the script refuses and
+  checks, one-way or reversible, the log), and the pull that follows is now *The OTA stack: the
+  nightly gate, or a pull*. `docs/release.md` has a §5, *Deploying a release to ownpace-live*. The
+  runbook's *Upgrade* says which stack is deployed how, points to both, and no longer promises a
+  gated migration step or a backup nobody takes. The architecture document's managed release
+  controls say staged rollout and a backup before migrating are not built, as
+  `docs/deployment.md` does (this task's first paragraph), and that the migrations run when the
+  API starts. `stack-kind.sh`'s header lists the script as built. Since `--dry-run`: the live
+  subsection's step 3 is the dry run, then a dump if it says one-way; *Draining first, and telling
+  customers why* says its step 3 on live is `deploy-live.sh` with a release tag, never a pull; the
+  live subsection says what the exposure check needs (`EXPOSURE_ALLOW`, a tag that has the
+  script) and what `--dry-run` does; *Which address a port answers on* says `deploy-live.sh` runs
+  the check; `docs/release.md` §5 has both as checklist items; the runbook's *Upgrade* names the
+  dry run.
+- **Open, and whose.** The owner's, before the first deploy: live stood up (T0, T1b to T1e), the
+  first release tag (0146 T0, T2), and `EXPOSURE_ALLOW` in live's `.env`. The exposure check is on
+  `main` since #1271 (merged 2026-09-28); it reads the whole machine, so the list is every address
+  other than loopback that any container on it is published on on purpose, or the check fails
+  for each. The tag must be cut from a commit that has `exposure-check.sh`: the script runs the
+  tag's own copy, and a tag without one cannot pass. Then, per deploy: the hold, the drain,
+  `--dry-run`, a dump if it says one-way and a way back is wanted, the script, the look, the
+  lift. Deferred to 0146's open question 6: `--external-id <tag>`
+  on the task deploy (0146's entry says why). T5's own refusal of `--with-demo` inside
+  `bootstrap-managed.sh` is still 📋; this script refuses it only in its own arguments. A run of
+  `deploy-tasks.sh` strips `apps/worker/package.json`'s last newline (its own NOTE), which would
+  make the next deploy refuse a tree that is not clean; the script says so after a deploy that
+  left the tree changed, and names the file in its refusal. Unchecked: that the machine reaches
+  its own public name for the checks (they ask `https://app.ownpace.eu` from the machine, through
+  the front T1e routes). If it does not, every check fails and the script says which.
+
+**2026-09-28: T7 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged.**
+What the gate does for the OTA stack now has a script that does it for live, and a timer to run it.
+Nothing has run on the machine, and live does not stand yet. Rebased onto `main` after #1271 (T3 (b)
+and (c), the entry above) merged, with a review's five findings taken (the last bullet).
+
+- **`setup-zitadel.sh --token-only`.** The provisioning token's clock and nothing else: it waits for
+  the provider, reads the token, asks when it dies, replaces it in its last three of seven days
+  (mint, prove, land, read back, delete, as before), writes `ZITADEL_PAT_EXPIRY`, and stops. It does
+  not run `ensure-env-secrets.sh`, the network alias or `up -d zitadel`, and nothing after the
+  clock. The clock was already one straight run in the script, so the change is three `if [ -z
+  "$ONLY" ]` guards and one stop, not a new function.
+- **`setup-zitadel.sh --count-organisations`.** 0135 T3 (a) (#1272) built the count as two functions
+  inside the full run, not a mode, so this is that code exposed: the two functions moved above the
+  clock, unchanged, and the mode stops there. Read-only: it asks who the token belongs to and `POST
+  /admin/v1/orgs/_search`, writes nothing, not even the token's note, and exits non-zero unless the
+  count is one. That is stricter than T7's "above one": zero (proto3 leaves a zero out) and a
+  refused search fail too. The full run still warns and goes on.
+- **The default run is unchanged.** Main's `setup-zitadel.sh` and this one, run side by side against
+  the same stand-in provider in six situations (token within policy, token due, one, two and no
+  organisations, and the organisation search refused; four of them to the end of the script),
+  printed the same stdout and stderr, made the same API and Docker calls, and left the same `.env`
+  and token, once dates and generated secrets are normalised. The only other change a caller can see
+  is the unknown-argument message, which now lists the two modes. The existing guards on the script
+  pass.
+- **`deploy/compose/box-duties.sh`.** Four duties, each run whatever the one before did: `token`
+  (`setup-zitadel.sh --token-only`), `drill` (`trigger-version.sh drill`), `exposure`
+  (`exposure-check.sh`, T3 (b)) and `organisations` (`setup-zitadel.sh --count-organisations`). The
+  token goes first so the count asks with a live token. A duty that fails, is missing from the
+  checkout or runs past 20 minutes (`BOX_DUTY_TIMEOUT`) is recorded; the script exits 1 naming every
+  failed duty, 0 when all pass, and 2 when it refused before any ran. It refuses a `.env` without
+  live's exact marker (`stack_is_live`): the OTA stack's duties are the gate's, a second drill there
+  would write a second set of secret-bearing dumps, and on the OTA instance 0135 T3 makes the count
+  a warning, not a failure. It also refuses when `compose_project` does, and any argument. It unsets
+  `MANAGED_BACKUP_DIR`, `MANAGED_ENV_PERSIST_DIR` and `TRIGGER_DB_CONTAINER`, so the dumps go to
+  `~/.persistent/ownpace-live/trigger-backups` whatever a shell exported, and sets `umask 077`: the
+  dumps carry the plane's API keys and the encrypted task environment, and it never prints them.
+  Every duty's stdout and stderr go through `own_address_redact`, by a named pipe. It writes plain
+  stdout and stderr, which the service hands to the journal (`SyslogIdentifier=ownpace-box-duties`),
+  with a failure line at the error priority when stderr is the stream `JOURNAL_STREAM` names, rather
+  than `logger`, so a run by hand prints the same lines. Ctrl-C or a SIGTERM stops the running duty
+  (SIGTERM to the process group `timeout` puts it in, and SIGKILL ten seconds later), prints what it
+  said to the end, names it, starts no other and exits 130 or 143.
+- **The timer.** `deploy/compose/systemd/ownpace-box-duties.service` and `.timer`, a user unit pair
+  (`systemctl --user`, `loginctl enable-linger` once), `WorkingDirectory=%h/ownpace-live`, daily at
+  13:17 UTC with `Persistent=true`. The appliance nightly fires at 23:30 and 01:30 UTC (`e2e.yml`)
+  and GitHub has dispatched it up to five hours late, so 13:17 leaves more than seven hours (five
+  late, two for a run) after the latest it has started, and a run as long as `TimeoutStartSec` (90
+  minutes) ends more than eight hours before the next firing. `docs/managed-bring-up.md`, *Live's
+  daily duties*, carries both units word for word, the install steps, how to read the journal, and
+  T7's interim, now `setup-zitadel.sh --token-only` at least every three days. `systemd-analyze
+  verify` accepts both units here (system mode, with the path filled in; a user manager is not
+  available here).
+- **The guard, and that it failed first.** `scripts/a-duty-the-gate-used-to-do.unit.test.ts`, 44
+  cases; on `main`'s code (after #1271) 37 fail and 7 pass (the rule's five, a baseline that the
+  default run reaches the project, and the time-span reader). The rule reads every `run:` block of
+  `e2e-managed.yml` for the scripts under `deploy/compose/` in command position, with the first bare
+  word as a subcommand, and classifies each in a closed table. Maintenance is what a stack whose
+  code never changed would still need: `setup-zitadel.sh` (its form for live, `--token-only`) and
+  `trigger-version.sh drill`. Not maintenance: `env-read.sh`, `refuse-live-env.sh`,
+  `own-addresses.sh`, `ensure-env-secrets.sh`, `env-upsert.sh`, `bootstrap-managed.sh`,
+  `smoke-managed.sh` and `redact-evidence.sh`. An unclassified command and a stale entry both fail.
+  It does not see a duty written inline in a `run:` block. Then `box-duties.sh` in a staged checkout
+  with stubs beside it, both new modes against a stand-in provider (`curl` and `docker` on PATH),
+  the count end to end through `box-duties.sh` with the real `setup-zitadel.sh`, and the units
+  against the doc and `e2e.yml`'s crons. Twenty-three mutations each turned it red: stopping at the
+  first failure, the full script for `token`, naming only the last failure, no marker refusal,
+  `stack_may_be_live` for it, the drill taking the shell's directory, no address filter, no umask,
+  no journal priority, the priority on `JOURNAL_STREAM` alone, a missing script passing, the count
+  before the token, `--token-only` going past the clock, generating secrets or starting the
+  provider, the count passing above one or on a refused search, the count after the clock, the timer
+  at 03:17, the timer not persistent, a unit drifting from the doc, the gate gaining an unclassified
+  command, and the gate losing the drill. After the review, twelve more: no signal trap, a filter a
+  Ctrl-C kills, a handler that does not stop the duty or goes on to the next, a duty's stderr not
+  filtered or dropped, `timeout --foreground`, the timer at 23:25, `TimeoutStartSec` of 12 hours or
+  `infinity`, and, rerun on the reworked script, no address filter and stopping at the first
+  failure.
+- **Found, and left as it is.** In a full run, `count_organisations` reads the search through a
+  here-string, so a refused search prints `FATAL` and the run goes on and exits 0 with an empty
+  count: `THIS INSTANCE HOLDS  ORGANISATIONS`, and `organisations  (one is right…)` in the summary
+  (seen on `main`'s script with the stand-in answering 403). The mode above fails on it; the full
+  run is left as it is, because this change keeps the default run byte for byte. 0135 T3 has the
+  note.
+- **Waits for.** Live standing (T1b to T1e), deployed from 0146 T0's tag, and the owner installing
+  the timer (the bring-up's steps), then one `systemctl --user start ownpace-box-duties.service`
+  read back in the journal. `exposure-check.sh` is on `main` (#1271); `EXPOSURE_ALLOW` in live's
+  `.env` is the owner's step, and without it `exposure` fails by name. Nobody is told when a duty
+  fails; 0142 is where that changes. A run of `deploy-live.sh` (T6, not built) and a drill at the
+  same moment are not kept apart.
+- **The review's findings, all five taken.** (1) A Ctrl-C in a run by hand stopped nothing: the duty
+  sat in `timeout`'s own process group, ran on, and the next duties started, the drill on live's
+  database among them; now the script stops it, as above. (2) The guard could not see a duty's
+  stderr skip the filter; the stub now says an address on each stream. (3) The timer check measured
+  only the gap after each nightly firing; it now also requires a whole run (`TimeoutStartSec`, read
+  from the unit) to end before the next one. (4) This rebase. (5) The daily drill changes what
+  `trigger-version.sh restore --latest` restores after an upgrade: the first drill after it dumps
+  the migrated schema, and pruning to seven removes a labelled `before-` backup after seven days.
+  The bring-up now says, in *Live's daily duties* and beside the upgrade commands, to restore that
+  backup by its file name and to copy it aside before the upgrade, and T6's step 4 says the same.
+  `trigger-version.sh` is unchanged: the OTA stack's gate drills nightly already.
+
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The steps on the reference machine, before the first invitation | ⏳ **Owner** | §3. In order: T1 in place, the OTA stack's passwords changed, live stood up without the demo (its database passwords set by the owner, D8), the production names routed, the checks run (live's networks among them, D9), the exposure probe from off the mesh. The outcome is written in this block. |
@@ -679,13 +1008,13 @@ now say what D7 decided.
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
-| T1g Live is deployed by hand from a tag; CI never touches it | 🔨 **The code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged** (2026-09-27) — *was:* 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
+| T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
+| T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
-| T6 One way to deploy live, from a tag | (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) — *was:* 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. |
-| T7 What the gate does for the OTA stack, done for live | 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill, T3's check and 0135's organisation count, on a timer on the machine, for live. |
+| T6 One way to deploy live, from a tag | (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
+| T7 What the gate does for the OTA stack, done for live | ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill, T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
 
 ## 1. What there is today
@@ -1786,6 +2115,10 @@ document is changed to mark staged rollout and a backup before migrating as not 
    #1137 (merged 2026-09-24) it also dumps the identity provider's database and the roles, and
    says neither dump is usable without the stack's `.env`. Without a dump, a deploy only goes
    forward, because `migrate.ts` refuses to run the previous build against a migrated schema.
+   When the tag moves Trigger.dev, also `trigger-version.sh backup before-<version>`, copied out of
+   `trigger-backups/`: once T7's timer runs, a rollback restores that file by name, never with
+   `--latest`, which is the first drill after the upgrade (2026-09-28, the bring-up's *Live's
+   daily duties*).
 5. In `~/ownpace-live`, run `git fetch --tags origin && git checkout --detach <tag>`. Not
    `git pull`: live runs the tag that was named.
 6. Run `./deploy/compose/bootstrap-managed.sh --from data`, without `--with-demo`. It checks the
@@ -1813,6 +2146,9 @@ document is changed to mark staged rollout and a backup before migrating as not 
     `a-connection-the-docs-did-not-know-about` enforces.
   - Its guard, `scripts/a-deploy-from-a-named-tag.unit.test.ts`, drives each refusal with stubbed
     `docker`, `git` and `curl`. It fails without the script.
+  - **Built 2026-09-28**, with 0146 T5 (a) (on branch
+    `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged); the Status
+    block says how, and where it departs from this list.
 - **The hold covers every enqueue.** While a hold is open, the eight enqueue sites in the API
   answer 409 with the hold's sentence. They all go through one function, so a tester who presses
   *Sync now* during a deploy cannot start a pass after the drain count has already reached 0. The

@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "drizzle-orm": "catalog:",
-    "imapflow": "^2.0.5",
+    "imapflow": "^2.0.6",
     "vitest": "^5.0.1"
   }
 }
