@@ -2,7 +2,24 @@
 
 > **In one line:** Importing provider exports: an `archive` source whose credential is a location, `ArchiveReader` for Google Photos Takeout and Apple Data and Privacy, `zip-archive.ts`, albums as folders with a manifest, and the upload relay into the target.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: the Data Portability API is not EEA-only; the conclusion stands.** §"The law was
+checked" called Google's portability API EEA-only. Alphabet's EU DMA compliance report,
+published 6 March 2026, says it *"is available for end users in all EEA countries, the UK, and
+Switzerland"* (paragraph 53), and that Pixel and Nest data joined it on 11 December 2025
+(footnote 25). The table row, the perimeter bullet and the sources are corrected in place and
+dated, as are the three other places that repeated the claim: `docs/google-workspace-setup.md`
+and the Google guide in both languages. The conclusion was re-checked rather than assumed: the
+API's discovery documents, `v1` and `v1beta` at revision 2026-09-24, list the same 73 scopes,
+and not one is for Google Photos; the only photo-shaped ones are still `maps.photos_videos` and
+`streetview.imagery`. Takeout remains the only complete route to a photo library, so nothing
+here changes T3a or T9. §"One claim not checked" is checked: Google's Photos API policy, read
+in full the same day, does forbid using the APIs for *"similar or competing products or
+services"*, beside an allowance for *"user-initiated export transfers"*; the text does not say
+which of the two a migration is, so the gate before any Picker route stands, with the owner.
+[0112](./0112-google-photos-through-takeout.md) §5, corrected the same day, says what the
+Picker actually hands over: no location, transcoded video, no albums or descriptions.
 
 **2026-09-24: the wizard's control for `where: 'target'` comes before the relay (0148 D11).** The
 owner, answering 0148's open question 6: *"the wizard should be able to read a Takeout export from a
@@ -325,13 +342,16 @@ byte of what this product migrates.**
 | | The API | What it actually carries |
 |---|---|---|
 | **Apple** | Account Data Transfer API, EU-only, for third parties a user authorises | **App Store data** — purchase history, app downloads. No iCloud content of any kind |
-| **Google** | Data Portability API, EEA-only, OAuth-scoped per resource group | Activity logs, Chrome, Maps contributions, Play, YouTube, Search UGC |
+| **Google** | Data Portability API, for end users in the EEA, the UK and Switzerland (this said EEA-only until 2026-09-28), OAuth-scoped per resource group | Activity logs, Chrome, Maps contributions, Play, YouTube, Search UGC; Pixel and Nest since 11 December 2025 |
 
 Google's scope list was read in full on 2026-09-04. Of the six domains this product carries —
 mail, calendar, contacts, files, tasks, photos — **not one appears**. The two scopes that look
 like photos are not: `maps.photos_videos` is what a person posted *on Maps*, and
 `streetview.imagery` is Street View uploads. There is no Gmail scope, no Drive scope, no
-Contacts scope, no Calendar scope, and **no Google Photos scope**.
+Contacts scope, no Calendar scope, and **no Google Photos scope**. **Read again on
+2026-09-28**, from the API's own discovery documents (`v1` and `v1beta`, both at revision
+2026-09-24, the same 73 scopes in each): Pixel and Nest have joined, and the answer has not
+moved — none of the six domains, the same two photo-shaped scopes, no Google Photos scope.
 
 That last absence is the load-bearing one. Google Photos now has **two independent reasons**
 to be unreachable: the Library API's full-library scopes were removed on 31 March 2025, and
@@ -350,8 +370,10 @@ at all. In both cases the DMA API is beside the point rather than the answer.
   them is a regulatory question with a multi-year clock, not a technical one.
 - **The archive route is not a stopgap.** For Google Photos and iCloud Drive it is *the*
   route, and the law has not changed that.
-- **It stays necessary even if that changes.** Both APIs are EU/EEA-only; a customer outside
-  that perimeter has the archive or has nothing.
+- **It stays necessary even if that changes.** Neither API is open to every customer: Apple's
+  is EU-only, and Google's serves end users in the EEA, the UK and Switzerland (this line said
+  "EU/EEA-only" until 2026-09-28). A customer outside that perimeter has the archive or has
+  nothing.
 
 ### Where the pressure actually is, for the record
 
@@ -364,7 +386,14 @@ device, not reading iCloud from outside it. Worth watching, not worth planning a
 **Sources, per the never-guess rule:** `developer.apple.com/support/account-data-transfer-api-eu`
 and `developers.google.com/data-portability/user-guide/scopes`, both read 2026-09-04; the
 Italian proceeding from AGCM's own press release of 2026-06-16. This section states what those
-pages say on that day and nothing about what they will say later.
+pages say on that day and nothing about what they will say later. **Re-checked 2026-09-28**
+against two primary sources, which corrected Google's region and added its newer coverage:
+Alphabet's EU DMA compliance report, published 6 March 2026
+([PDF](https://storage.googleapis.com/transparencyreport/report-downloads/pdf-report-bb_2025-3-7_2026-3-6_en_v1.pdf);
+paragraph 53: the API *"is available for end users in all EEA countries, the UK, and
+Switzerland"*; its footnote 25: Pixel and Nest data since 11 December 2025), and the API's
+discovery documents, `dataportability.googleapis.com/$discovery/rest?version=v1` and
+`?version=v1beta`, revision 2026-09-24.
 
 ### One claim not checked, and it would matter
 
@@ -378,6 +407,19 @@ It does not block anything today, because the API route is closed to us anyway a
 does not use it. **It becomes a gating question the moment anybody proposes reaching Photos
 through the Picker API instead of an archive** — and at that point somebody reads the actual
 terms rather than a summary of them.
+
+*2026-09-28: read in Google's own words.* The *Photos API User Data and Developer Policy*
+(`developers.google.com/photos/support/api-policy`, last updated 2025-08-28) does say it:
+*"Do not use this Google Photos APIs to create, train, or improve (directly or indirectly)
+similar or competing products or services"*, and *"Do not make a substitute for Google
+Photos."* The same page lists *"exporting"* among its approved uses and allows broad access to
+a library only for *"user-initiated export transfers"*. Which side of that line a migration
+into another photo service falls on, the text does not settle, so the gate stands — now
+against a text that has been read rather than a summary of it. The page names three more
+documents that govern these APIs (the Google APIs Terms of Service, the Google Photos User
+Content and Conduct Policy, the UX guidelines), which were not read.
+[0112](./0112-google-photos-through-takeout.md) §5 quotes the rest, beside its T5, the Picker
+button.
 
 ## The two providers are not the same shape
 

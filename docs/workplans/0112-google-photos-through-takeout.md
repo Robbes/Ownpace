@@ -2,7 +2,26 @@
 
 > **In one line:** Superseded by 0116; planned Google Photos migration through Takeout archives: a reader pairing media with JSON sidecars, a `google-photos-archive` source, albums as folders on Nextcloud, the two-monthly incremental pickup and a Picker API button.
 
-## Status — 2026-09-05 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: the Picker does not hand over the originals, and this plan said it did.** T5's
+row, the Picker row of §"The facts" and §5 said the product would download *the originals*
+(`=d`). Google's media-items guide for the Picker (last updated 2025-08-28) says a photo
+downloaded with `=d` keeps *"all the Exif metadata except the location metadata"*, and that
+`=dv` requests *"a high quality, transcoded version of the original video"*; and a picked item
+has no album, description or location field at all — the `photospicker` discovery document,
+revision 2026-09-24, gives a `PickedMediaItem` an id, a creation time, a type and one media
+file, and caps `PickingConfig.maxItemCount` at 2000. All three places are corrected in place
+and dated. **No decision moves.** T5 stays optional, for a stronger version of its own reason —
+what the picker hands over is a lesser copy of what the next Takeout carries — and before it
+is built, Google's *Photos API User Data and Developer Policy* is read again and weighed by the
+owner. Read in full the same day, it allows broad access to a library only for
+*"user-initiated export transfers"*, lists *"exporting"* among its approved uses, and forbids
+using the APIs for *"similar or competing products or services"*; whether a migration into
+another photo service is the one or the other, its text does not settle (§5 quotes it). Every
+source above was read directly on 2026-09-28. The Data Portability row was re-read the same
+day from that API's own discovery documents and still holds — 73 scopes, none for Google
+Photos; 0116 carries the API's corrected region.
 
 **2026-09-05: superseded in practice by [0116](./0116-the-data-they-give-the-person-not-us.md),
 row by row.** The owner's decisions were taken there (0116 T0, 2026-09-04: the archive route, an
@@ -30,7 +49,7 @@ to be decided before T1 starts; T0 is that decision.
 | T2 The `google-photos-archive` source kind | 📋 Planned (needs T1) | A source whose credential is an archive's location, not an account: a file uploaded, or a file in a Drive or Dropbox the product already reaches. Front door, wizard, connection card, probe (opens the archive, counts), Measured line (items, bytes). |
 | T3 Metadata into the copy, albums as folders | 📋 Planned (needs T2, decision 4) | On write to the file target: taken time and location from the sidecar into the copy's EXIF where the original lacks them; albums as folders; the original bytes in the archive never touched. |
 | T4 The two-monthly pickup | 📋 Planned (needs T2) | The person schedules Takeout's incremental export into Drive or Dropbox once; the product notices each new archive on its existing schedule and imports only what is new, idempotent by content hash. The guide walks the schedule. |
-| T5 Hand over a selection (Picker API) | 📋 Optional (needs T2) | A button for the gap between exports: the person picks in Google's picker, the product downloads the originals. Capped by Google at 2,000 items a session; never a sync. |
+| T5 Hand over a selection (Picker API) | 📋 Optional (needs T2) | A button for the gap between exports: the person picks in Google's picker, the product downloads what the picker hands over — **not the originals with their data** (corrected 2026-09-28): a photo comes without its location, a video comes transcoded, and no item carries its albums or description. Capped by Google at 2,000 items a session; never a sync. Before it is built, Google's Photos API policy is read again and weighed (§5). |
 | T6 Measure before the move | 📋 Planned (needs T1) | The archive's own numbers on the Measured line: items, bytes, albums, the export's date range — and the note that a Takeout archive is a snapshot with a date. |
 
 ## Why this exists
@@ -50,7 +69,7 @@ frequency**. Both are reachable, with two hard limits that are Google's and not 
 | route | what it gives | what it cannot do | source |
 |---|---|---|---|
 | **Photos Library API** | Only items an app uploaded itself. The full-library scopes (`photoslibrary.readonly`, `photoslibrary.sharing`, `photoslibrary`) were removed on 31 March 2025; `mediaItems.search`/`list` answer app-created content only. | Read a person's existing library at all. | Google's API updates page and the developer blog announcing the Picker API and the Library API changes. |
-| **Picker API** | The person picks items in Google's own picker UI; the app gets base URLs to download originals (`=d`), valid for 60 minutes. | A full migration: one session is capped at 2,000 picked items, nothing runs unattended, there is no "everything since". | Picker API guides; the limits page. |
+| **Picker API** | The person picks items in Google's own picker UI; the app gets base URLs, valid for 60 minutes. A photo downloaded with `=d` keeps *"all the Exif metadata except the location metadata"*; `=dv` gives *"a high quality, transcoded version of the original video"*. A picked item carries its creation time, file name, type, dimensions and camera fields. | A full migration: one session is capped at 2,000 picked items, nothing runs unattended, there is no "everything since". Nor a faithful copy of what it does hand over: location stripped, videos transcoded, and no album, description or location field on any item. | Picker API guides (media items); the limits page; the `photospicker` discovery document, revision 2026-09-24 (`PickedMediaItem`; `PickingConfig.maxItemCount`, at most 2000). *Corrected 2026-09-28: this row said "base URLs to download originals (`=d`)".* |
 | **Data Portability API** | Chrome, Maps, Play, Search, Shopping, YouTube. | Google Photos is not among its scopes. | The Data Portability API scopes page. |
 | **Takeout** | The whole library at original resolution, albums as folders, a JSON sidecar per item with taken time, description, location, people, favourite flag. Since June 2026: a schedule of one export every two months for a year, each later export **only what was added or edited since the last**, delivered into Drive, Dropbox, Box or OneDrive. | Anything more frequent than two months; it never reports deletions; the schedule expires after a year and must be renewed; Photos must be the only product selected for the incremental schedule. | Google's June 2026 announcement as reported by gHacks, WinBuzzer and Android Authority; the Takeout help page. |
 
@@ -143,9 +162,43 @@ appears, the import runs. Nothing is polled at Google itself.
 ### 5. The Picker, for the gap
 
 T5 is a button on a photos connection: it opens Google's picker, the person selects, and the
-product downloads each picked original into the same tree through the same ledger. It exists
+product downloads each picked item into the same tree through the same ledger. It exists
 because two months is long; it is capped at 2,000 items a press by Google and requires a
 person present. The guide calls it what it is.
+
+**What it downloads is not the original with its data** (corrected 2026-09-28; this said
+"each picked original"). Google's media-items guide for the Picker says a photo fetched with
+`=d` keeps *"all the Exif metadata except the location metadata"*, and that `=dv` returns
+*"a high quality, transcoded version of the original video"*; and a picked item has no album,
+description or location field to read instead. So a picked photo arrives without the place
+the Takeout sidecar would have given it, a video arrives re-encoded, and neither arrives in
+its album. Where the bytes differ from the original's — every video, and every photo that had
+a location — the content hash §4 keys each item on will not match the original when the next
+Takeout brings it. That is this plan's own reason for keeping T5 optional, made stronger: the
+picker hands over a lesser copy of what the next export carries in full.
+
+**Google's Photos API policy is read again, and weighed, before T5 is built.** The *Photos
+API User Data and Developer Policy* (<https://developers.google.com/photos/support/api-policy>,
+last updated 2025-08-28) was read in full on 2026-09-28, after a search snippet of it surfaced
+*"user-initiated export transfers"*. Three passages bear on T5, quoted rather than interpreted:
+
+- the approved use cases are *"Applications or services for storing, editing, printing,
+  exporting, and sharing images and videos"*;
+- *"Do not request permissions that access broad sections or large portions of user's Photos
+  library except for user-initiated export transfers. In addition, use cases where the user
+  needs to grant access for a limited set of content for a limited time period; for example,
+  printing, editing, and social use cases, must use the Photos Picker API."*;
+- *"Do not use this Google Photos APIs to create, train, or improve (directly or indirectly)
+  similar or competing products or services"*, and *"Do not make a substitute for Google
+  Photos."*
+
+Whether copying a person's picks into Nextcloud or Immich counts as *exporting* or as serving
+a *competing product* is not something the text settles; it is the owner's call before T5
+starts. The page also sets disclosure, consent, Limited Use and security requirements an app
+must meet, and names three more documents that govern these APIs — the Google APIs Terms of
+Service, the Google Photos User Content and Conduct Policy, and the UX guidelines — none of
+which was read here. It is the same gate as 0116's §"One claim not checked, and it would
+matter", about the Photos API terms.
 
 ## The owner's decisions
 
@@ -188,9 +241,20 @@ record on the connection like every other kind.
 
 - Google Developers Blog, *Updates to the Google Photos APIs: Picker API launch and Library API
   changes*; Google's *Updates to the Google Photos APIs* page (the 31 March 2025 scope removals).
-- Google Photos Picker API guides: media items and base URLs; the limits page (2,000 items a
-  session; 60-minute base URLs).
-- Google Data Portability API, *Available OAuth Scopes*.
+- Google Photos Picker API guides: media items and base URLs (last updated 2025-08-28, read
+  2026-09-28: `=d` keeps *"all the Exif metadata except the location metadata"*; `=dv` is
+  *"a high quality, transcoded version of the original video"*; base URLs *"remain active for
+  60 minutes"*); the limits page (2,000 items a session).
+- The Picker's discovery document, `photospicker.googleapis.com/$discovery/rest?version=v1`,
+  revision 2026-09-24, read 2026-09-28: a `PickedMediaItem` is an id, a creation time, a type
+  and one media file (file name, MIME type, dimensions, camera fields); `maxItemCount` defaults
+  to 2000 and anything higher is coerced to 2000.
+- Google's *Photos API User Data and Developer Policy*,
+  `developers.google.com/photos/support/api-policy`, last updated 2025-08-28, read in full
+  2026-09-28 (§5 quotes what bears on T5); the three documents it names beside itself were not
+  read.
+- Google Data Portability API, *Available OAuth Scopes*; re-read 2026-09-28 from its discovery
+  documents (`v1` and `v1beta`, revision 2026-09-24): 73 scopes, none for Google Photos.
 - gHacks (2 June 2026), WinBuzzer (7 June 2026), Android Authority: Google Photos' incremental,
   scheduled Takeout exports — every two months for up to a year, later exports carrying only
   what was added or edited, delivered to Drive, Dropbox, Box or OneDrive.
