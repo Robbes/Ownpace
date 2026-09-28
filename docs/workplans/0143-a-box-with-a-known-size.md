@@ -4,6 +4,13 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: the Dropbox kill code read (0150 T1).** The owner's Dropbox passes were killed
+for memory (SIGKILL on `small-1x`) while copying. The cause was a defect, not the preset: Node's
+`fetch` held every uploaded file above 8 MB whole. It is fixed in 0150's branch
+`claude/mailbox-sync-errors-c2xsw2-an-upload-that-kept-every-byte`, and after it three 256 MiB
+files peaked at 195 MiB. So the kill says nothing against `small-1x` (open question 7), and step 2
+and the plane's limit no longer wait on it.
+
 **2026-09-28, afternoon: T1 step 3's tick half merged in #1296 (`67b3e9e`), and live's number
 set.** Asked to put live's number in live's `.env`, the owner answered: *"i added
 'MAX_PASSES_IN_FLIGHT=6'"*. The tick reads it once live runs a build with #1296, whose bring-up

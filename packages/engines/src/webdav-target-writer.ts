@@ -31,7 +31,7 @@ import {
   isOnTarget,
   applyTargetFolderPrefix,
 } from '@openmig/shared';
-import { davRefusalBody, withFailureCategory } from '@openmig/shared';
+import { davRefusalBody, STREAMED_REQUEST_INIT, withFailureCategory } from '@openmig/shared';
 import { parseMultiStatus, isCollection, hrefRelativeTo, sizeOf } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
 import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
@@ -1248,18 +1248,18 @@ function createDefaultHttpClient(): HttpClient {
   return {
     async request(options: HttpRequestOptions): Promise<HttpResponse> {
       /**
-       * `duplex: 'half'` is not optional for a stream body: Node's fetch
-       * refuses one without it, with a TypeError about the RequestInit rather
-       * than about the file — so it reads as a bug in the writer. It is absent
-       * from the DOM typings, hence the cast, which is here rather than
-       * somewhere it would be easy to delete as noise.
+       * A stream body goes out with `STREAMED_REQUEST_INIT`: `duplex: 'half'`,
+       * which Node's fetch refuses a stream body without, and `redirect:
+       * 'error'`, without which fetch keeps every byte of the file in memory
+       * until the request is gone (see the constant). It is spread from there,
+       * not written out here, so the two cannot be taken apart.
        */
       const streaming = options.body instanceof ReadableStream;
       const response = await tenantFetch(options.url, {
         method: options.method,
         headers: options.headers,
         body: options.body as RequestInit['body'],
-        ...(streaming ? ({ duplex: 'half' } as Record<string, unknown>) : {}),
+        ...(streaming ? STREAMED_REQUEST_INIT : {}),
       });
 
       // Read once as bytes. Reading `.text()` alone would leave no way to hash
