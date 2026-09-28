@@ -26,6 +26,8 @@ import type { StringKey } from '../i18n/index.tsx';
 import { LOCALES } from '../i18n/strings.ts';
 import BuildStamp from './BuildStamp.tsx';
 import { fetchReportingAvailable } from '../services/problem-report-service.ts';
+import { fetchAttention } from '../services/operating-service.ts';
+import { needsYouTotal } from '../services/needs-you.ts';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import AlphaNote from './AlphaNote.tsx';
 import { supportAddress } from './SupportLine.tsx';
@@ -253,6 +255,26 @@ const Layout: React.FC = () => {
   const member = !selfHost && inOrganisation;
 
   /**
+   * THE COUNT BESIDE *NEEDS YOU* (0153 T3 (c)): what the Migrations cards count,
+   * added up, and the organisation's own decisions (`needsYouTotal`). The same
+   * read, under the same key, as Migrations and the page itself, so the three
+   * agree. A read that failed, or a queue it could not look in, shows `?` and
+   * says it could not count: a menu with no number would read as nothing
+   * waiting (hard rule 9). Nothing is shown while it loads, or at nought.
+   */
+  const attention = useQuery({ queryKey: ['attention'], queryFn: fetchAttention, enabled: member });
+  const needsYouBadge = ((): { text: string; description: string } | undefined => {
+    if (!member || attention.isPending) return undefined;
+    const total = attention.isSuccess ? needsYouTotal(attention.data) : undefined;
+    if (total === undefined) return { text: '?', description: t('people.needsUnknown') };
+    if (total === 0) return undefined;
+    return {
+      text: String(total),
+      description: total === 1 ? t('nav.needsYou.count.one') : t('nav.needsYou.count.many', { n: total }),
+    };
+  })();
+
+  /**
    * THE MENU A MEMBER READS (0153 T3 (c), T6 (b); the owner's D7, 2026-09-28):
    * Migrations, Needs you, Accounts, Help, Team, Billing. The Dashboard went,
    * and Migrations is the landing page. *Help* is the setup checklist and the
@@ -392,20 +414,32 @@ const Layout: React.FC = () => {
                 navigation.flatMap((n) => [n.href, ...(n.also ?? [])]),
               );
               const isActive = lit === item.href || (lit !== null && (item.also ?? []).includes(lit));
+              // Beside the link, not in it: the link's name stays the page's
+              // name, and the count is its description.
+              const badge = member && item.href === '/decisions' ? needsYouBadge : undefined;
               return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  onClick={() => followLink(item.href)}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <item.icon className="w-5 h-5 mr-3" />
-                  {item.name}
-                </Link>
+                <div key={item.href} className="relative">
+                  <Link
+                    to={item.href}
+                    onClick={() => followLink(item.href)}
+                    aria-describedby={badge ? 'nav-needs-you-count' : undefined}
+                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      badge ? 'pr-14 ' : ''
+                    }${isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    <item.icon className="w-5 h-5 mr-3" />
+                    {item.name}
+                  </Link>
+                  {badge && (
+                    <span
+                      id="nav-needs-you-count"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 inline-flex min-w-6 h-6 px-2 items-center justify-center rounded-full bg-amber-100 text-amber-900 text-xs font-semibold"
+                    >
+                      <span aria-hidden="true">{badge.text}</span>
+                      <span className="sr-only">{badge.description}</span>
+                    </span>
+                  )}
+                </div>
               );
             })}
           </nav>

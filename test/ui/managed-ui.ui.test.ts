@@ -558,6 +558,24 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     await page.close();
   });
 
+  it('counts beside Needs you what waits, in the menu (0153 T3 (c))', async () => {
+    const saved = FIXTURES['GET /api/attention'] as { mappings: Record<string, unknown>[] };
+    FIXTURES['GET /api/attention'] = {
+      mappings: [{ ...saved.mappings[0], failuresWaiting: 2, pendingDecisions: 1 }],
+    };
+    try {
+      const l = await open('/mappings');
+      await l.page.waitForSelector('#nav-needs-you-count');
+      expect(await l.page.textContent('#nav-needs-you-count')).toContain('3 waiting on you');
+      const described = await l.page.getAttribute('nav a[href="/decisions"]', 'aria-describedby');
+      expect(described, 'the count is not the link\'s description').toBe('nav-needs-you-count');
+      expectClean(l, 'the menu with a count');
+      await l.page.close();
+    } finally {
+      FIXTURES['GET /api/attention'] = saved;
+    }
+  });
+
   it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
     const l = await open('/dashboard');
     await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });

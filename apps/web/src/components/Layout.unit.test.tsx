@@ -56,6 +56,14 @@ const { mappingGet } = vi.hoisted(() => ({
 }));
 vi.mock('../services/mapping-service', () => ({ mappingApi: { get: mappingGet } }));
 
+// What waits on the organisation, for the count beside *Needs you* (0153 T3
+// (c)). Never resolving by default, so every test that is not about the count
+// renders the menu as it loads: no count at all.
+const { attentionFetch } = vi.hoisted(() => ({
+  attentionFetch: vi.fn((): Promise<unknown> => new Promise<never>(() => {})),
+}));
+vi.mock('../services/operating-service', () => ({ fetchAttention: attentionFetch }));
+
 import Layout from './Layout.tsx';
 
 /**
@@ -87,6 +95,21 @@ beforeEach(() => {
   authState.user = null;
   authState.operator = false;
   authState.tenantCount = 1;
+  attentionFetch.mockReset();
+  attentionFetch.mockImplementation(() => new Promise<never>(() => {}));
+});
+
+/** A migration's line of `GET /api/attention` with nothing waiting. */
+const quiet = (mappingId: string, over: Record<string, unknown> = {}) => ({
+  mappingId,
+  pendingDecisions: 0,
+  deletionsWaiting: 0,
+  movesWaiting: 0,
+  failuresWaiting: 0,
+  readyForCutover: false,
+  autoApplied: 0,
+  sharingOpen: 0,
+  ...over,
 });
 
 describe('the sidebar identity block (T2)', () => {
@@ -415,5 +438,69 @@ describe("a member's menu", () => {
   it('opens Help on the setup checklist', () => {
     renderLayout('/mappings');
     expect(within(screen.getByRole('navigation')).getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/setup');
+  });
+});
+
+/**
+ * THE COUNT BESIDE *NEEDS YOU* (0153 T3 (c)): what the cards on Migrations
+ * count, added up, and the organisation's own decisions, which no card
+ * claims. The link keeps its name; the count is its description.
+ */
+describe('the count beside Needs you', () => {
+  const needsYou = () => within(screen.getByRole('navigation')).getByRole('link', { name: 'Needs you' });
+
+  it("adds up what the cards count and the organisation's decisions", async () => {
+    attentionFetch.mockResolvedValue({
+      mappings: [
+        // Two failures and a grace period nobody chose; and the organisation's
+        // decision riding on the first migration that reported.
+        quiet('m1', { failuresWaiting: 2, graceEnded: ['email'], pendingDecisions: 1 }),
+        // Neither Ready to switch nor the sharing checklist is counted.
+        quiet('m2', { movesWaiting: 1, readyForCutover: true, sharingOpen: 3 }),
+      ],
+    });
+    renderLayout('/mappings');
+
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('5 waiting on you'));
+    expect(needsYou().textContent?.trim()).toBe('Needs you');
+  });
+
+  it("counts the organisation's decisions when no migration reported", async () => {
+    attentionFetch.mockResolvedValue({ mappings: [], tenant: { pendingDecisions: 1 } });
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('1 waiting on you'));
+  });
+
+  it('shows nothing when nothing waits', async () => {
+    attentionFetch.mockResolvedValue({ mappings: [quiet('m1')] });
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(attentionFetch).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(needsYou()).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('says it could not count when the read fails, never nothing (hard rule 9)', async () => {
+    attentionFetch.mockRejectedValue(new Error('the database is unreachable'));
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('Could not count what needs you.'));
+  });
+
+  it('says it could not count when a queue could not be read', async () => {
+    attentionFetch.mockResolvedValue({
+      mappings: [quiet('m1', { failuresWaiting: 2, blindSpots: ['the moves queue: timeout'] })],
+    });
+    renderLayout('/mappings');
+    await vi.waitFor(() => expect(needsYou()).toHaveAccessibleDescription('Could not count what needs you.'));
+  });
+
+  it('asks nothing on the appliance, or for somebody in no organisation', () => {
+    editionFlag.selfhost = true;
+    const view = renderLayout('/confirm');
+    view.unmount();
+    editionFlag.selfhost = false;
+    authState.operator = true;
+    authState.tenantCount = 0;
+    renderLayout('/access-requests');
+    expect(attentionFetch).not.toHaveBeenCalled();
   });
 });
