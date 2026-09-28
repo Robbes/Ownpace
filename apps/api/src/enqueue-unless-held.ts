@@ -41,8 +41,9 @@
  * idempotency key in `discoveryTriggerOptions`), decided inside the enqueue,
  * so the door asks first, and while a hold is open a discovery press is
  * refused even when it would only have joined a count begun in the last
- * `DISCOVERY_JOIN_WINDOW`. That count still lands; the confirm screen that
- * starts it ignores the refusal.
+ * `DISCOVERY_JOIN_WINDOW`. That count still lands. The confirm screen that
+ * starts it shows the refusal's sentence under whatever rows arrive, and
+ * counts again once it reads the hold lifted (`ConfirmMigration.tsx`).
  *
  * ## The sentence
  *

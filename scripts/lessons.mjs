@@ -30,6 +30,22 @@
 // own header, run --write, and `scripts/lessons.unit.test.ts` fails any state
 // where the two disagree.
 //
+// NO COUNT (the owner, 2026-09-28: "yes, drop the counts"). The document said
+// "Assembled from the 186 cross-cutting guards". Every pull request that added
+// a guard changed that line, and two that each added one wrote the SAME new
+// number, so git merged them without a conflict and main was wrong: #968 and
+// #969 left 133 over 134 guards (CI run #2654 red), #1236 and #1246 left 167
+// over 168. #1241 (0cbc77cf) put it right, because it regenerated the file
+// when it was brought up to date with main; #1250, opened to fix it, then
+// merged as an empty commit. Nothing written here sums over guards any more;
+// `a-count-every-merge-made-stale` merges two regenerated copies for real.
+//
+// WHAT IS LEFT. git refuses two insertions at the same place. So two new
+// guards whose entries land next to each other, under a file both read or in
+// file-name order in §2, still conflict: 12 of the 153 pairs of the 18 commits
+// that added guards on the night of 2026-09-27 to 28 did. That conflict is
+// resolved by regenerating on the merged tree, never by hand.
+//
 // SCOPE: `scripts/*.unit.test.ts`. Those are the cross-cutting guards — the
 // ones whose subject is a file somewhere else in the repository. A colocated
 // unit test is found by being next to the code it tests and needs no index.
@@ -184,7 +200,7 @@ export function assemble(dir = GUARD_DIR, index = repoIndex()) {
     '',
     '# What this repository has already learned',
     '',
-    `Assembled from the ${guards.length} cross-cutting guards in [\`scripts/\`](../scripts/) —`,
+    'Assembled from the cross-cutting guards in [`scripts/`](../scripts/) —',
     'the tests whose subject is a file somewhere else, and whose filenames are',
     'sentences. Each one records a defect that actually happened and the property',
     'that now cannot regress.',

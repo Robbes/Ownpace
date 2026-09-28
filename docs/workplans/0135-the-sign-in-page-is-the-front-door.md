@@ -4,6 +4,49 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T7 (b), the weekly watch, built; its first run found v4.19.2 (open question 12).**
+On branch `claude/mailbox-sync-errors-c2xsw2-a-pin-that-knows-it-is-behind`, not merged. The pin's
+move to v4.19.1 merged first, in #1285 (`f839929`).
+
+- **What it compares.** `scripts/idp-pin-watch.mjs` reads the pin from `managed.yml`, its one
+  `image:` line for the provider, and upstream's newest release of the same major from
+  `git ls-remote`, with no token. Tags are ordered by their numbers. A pre-release and another
+  major are not releases of it, and an empty list is an error, never "current".
+- **The one issue.** It is opened while the pin is behind. A newer release updates it and says so
+  in a comment, since an edit notifies nobody. A week with nothing new writes nothing, and the
+  issue is closed when the pin catches up. Its body gives the route: a dump by hand first, by the
+  runbook's recipe, then its own PR, the gate, and live from a tag. It opens no pull request.
+- **When.** `.github/workflows/idp-pin-watch.yml`, Mondays at 06:23 UTC and on demand, on a
+  GitHub-hosted runner, with `contents: read` and `issues: write` and nothing else.
+- **Proved by** its guard, `a-pin-that-knows-it-is-behind`, 19 cases, and 25 mutations, all
+  killed. `docs/testing.md` and `SECURITY.md` name it.
+- **Its first run, by hand before it merged:** pinned v4.17.3, which `main` still held then, newest
+  release **v4.19.2**. Upstream tagged v4.19.2 on 2026-09-28 at 04:24 UTC, after this plan's first
+  read. Read commit by commit, it holds three security fixes, none in what this stack switches on,
+  and adds no setup step (open question 12).
+
+**2026-09-28, morning: the pin moves to v4.19.1 (open question 11: go), and three more answers.**
+The owner ran open question 11's two hand steps on the OTA machine first:
+
+- **Nobody used the hole there.** The renames the OTA instance holds, `user.username.changed`: **0
+  rows**.
+- **A way back.** The OTA instance's `zitadel` database, dumped by hand in the custom format and
+  read back with `pg_restore --list` (699 entries), with the server's roles, and the stack's `.env`
+  kept beside them, since the dump cannot be read without its `ZITADEL_MASTERKEY`.
+
+Then, in the owner's words, *"dump done"*. `managed.yml` moves to
+`ghcr.io/zitadel/zitadel:v4.19.1`, on branch `claude/mailbox-sync-errors-c2xsw2-a-rename-nobody-can-make`,
+not merged. The gate run on the branch applies it to the OTA instance, whose schema then moves one
+way (setup steps 76 to 79); live starts on it. The three facts `managed.yml` pins about the
+provider were re-read at v4.19.1.
+
+- **Open question 5, the watch:** *"a+b, 7 days"*. (a) The owner watches `zitadel/zitadel`'s
+  releases and security alerts on GitHub. (b) A weekly job compares the pin with the newest `v4`
+  tag and keeps one issue open while they differ; it is built next, with T7's guard. A security
+  release is applied within seven days.
+- **T0, the owner's sign-in:** *"yes, worked on current running version '1353f06'"*, on the OTA
+  instance after E2E (managed) #203 closed the organisation form and turned the project check on.
+
 **2026-09-28: T7's first read, the three releases after the pin (0131 §6, group M7, step 4's
 first half).** Read in upstream's repository, commit by commit: v4.18.0 (2026-09-21), v4.19.0 and
 v4.19.1 (both 2026-09-23), 13 commits after v4.17.3 (2026-09-04). Nothing was run.
@@ -39,6 +82,34 @@ v4.19.1 (both 2026-09-23), 13 commits after v4.17.3 (2026-09-04). Nothing was ru
 - **The upgrade is the owner's call**, as 0119 §3 item 2 had it for the last one: its own PR,
   proven by the gate on the OTA instance, and live from a tag. Open question 11 asks for it now,
   ahead of open question 5's watch.
+
+**2026-09-27, night: T6 (a), the page's languages, built (0131 §6, group M7, step 3)** on branch
+`claude/mailbox-sync-errors-c2xsw2-a-sign-in-page-in-our-own-words`, not merged, after T1 to T3.
+The mails and the brand, T6's other halves, are not in it.
+
+- **Dutch and English, and no other.** `setup-zitadel.sh` writes the instance restriction
+  `allowedLanguages: {list: ["nl","en"]}` when it differs, and reads it back.
+- **The default from `.env`.** `ZITADEL_DEFAULT_LANGUAGE`, `nl` or `en`, is set when it differs
+  and read back. `nl` belongs in live's `.env`. Empty keeps the instance's own default. Any other
+  value stops the run before anything is written, and so does an empty one when the current
+  default is neither `nl` nor `en`, because the list could not then be written.
+- **In that order, read in Zitadel's source at v4.17.3** (`internal/command`): it refuses a default
+  the allowed list leaves out, a list that leaves out the default, and a default set to the value
+  it already has (NotChanged). So the default goes first, then the list, and neither is sent when
+  it is already right. `managed.yml` is not changed. The script relies on the API call, as §3
+  says, and a fresh instance gets both on its first bring-up.
+- **The summary** prints the two languages and the default. The env example and the bring-up
+  guide's 8b name the setting.
+- **Proved.** `scripts/a-sign-in-page-in-our-own-words.unit.test.ts`, 9 cases, with a stand-in
+  provider that refuses what Zitadel refuses:
+  - a fresh instance gets `nl` first, then the list;
+  - an empty setting keeps the default and still sets the list;
+  - nothing is written when both are right, whatever the list's order;
+  - the default moves between the two without touching the list;
+  - `de` stops the run before any write, and so does an empty setting over a `de` default;
+  - a list or a default that does not take stops the run, naming it;
+  - the bring-up sets them on every run, after the form is closed, and its summary says so.
+- **Left for the owner (§3):** once on live's instance, that a Dutch browser gets the Dutch page.
 
 **2026-09-27, night: T3 (a) built (0131 §6, group M7, step 2)** on branch
 `claude/mailbox-sync-errors-c2xsw2-one-organisation-counted`, not merged, after T1 and T2.
@@ -147,14 +218,14 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7); on the OTA instance both were set and read back by E2E (managed) #203 on 2026-09-27, and the owner's own sign-in is left | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
+| T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7) for live; on the OTA instance ✅ both set and read back by E2E (managed) #203 on 2026-09-27, and the owner's sign-in checked 2026-09-28 on `1353f06` | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
 | T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
 | T2 The project admits its own organisation only | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
-| T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
-| T7 A watch on the pinned identity provider | 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
+| T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and 🔨 **(a) the languages built 2026-09-27, not merged**; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
+| T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
@@ -687,8 +758,10 @@ to social sign-ins, and sessions. That text is 0139's.
   `allowedLanguages: {list: ["nl","en"]}`, read back from `allowedLanguages`. `managed.yml` can
   set `ZITADEL_DEFAULTINSTANCE_RESTRICTIONS_ALLOWEDLANGUAGES` as well. How a list is written in
   that variable was not checked, so the API call is the one the script relies on.
-- **The default language.** `PUT /admin/v1/languages/default/{language}`, from `.env` (working
-  name `IDP_DEFAULT_LANGUAGE`), set to `nl` on live, where the testers are. The OTA instance
+- **The default language.** `PUT /admin/v1/languages/default/{language}`, from `.env`
+  (`ZITADEL_DEFAULT_LANGUAGE`; the working name `IDP_DEFAULT_LANGUAGE` was dropped, because every
+  `IDP_` key in `managed.env.example` belongs to a second way in, and the operator guide's section
+  on those must name each), set to `nl` on live, where the testers are. The OTA instance
   follows its own `.env`. The script sets the default before
   the allowed list. At the pinned tag Zitadel refuses a list that leaves the default out
   (`Errors.Restrictions.DefaultLanguageMustBeAllowed` in upstream `restrictions.go`), and a
@@ -772,10 +845,13 @@ promise to testers. 0134 decides whether it becomes a rule. The runbook's recipe
 Dependabot leaves alone, so `idp-security-md-dependabot-overclaim` is fixed. T7 names the watch
 that takes Dependabot's place for the identity provider.
 
-**Guard for (b).** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` fails today, because
-nothing exists. Given a stubbed tag list, the comparison reports "behind" for `v4.19.1` against
-`v4.17.3`, and "current" when the two are equal. It reads the pin from `managed.yml`, not from a
-copy.
+**Guard for (b).** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts`, built 2026-09-28. Given a
+stubbed tag list, the comparison reports "behind" for `v4.19.1` against `v4.17.3`, and "current"
+when the two are equal. It reads the pin from `managed.yml`, not from a copy. It also holds the
+numeric order of tags, that a pre-release or another major is never the newest release, and that
+an empty list is an error. A fake `gh` holds the one issue: opened, updated with a comment, left
+alone, closed, and never a second. The workflow's trigger, permissions, runner and command are
+held too.
 
 ### T8 — accounts nobody let in, and erasure that reaches the identity provider (→ 0139)
 
@@ -954,7 +1030,7 @@ carried T1 and T2.
    anyone off the mesh, at `id.ownpace.eu` and at `id.ota.ownpace.eu`? If it can, that is worth
    doing for the alpha. If it cannot, T4 carries the risk alone.
 5. **The release watch (T7).** Which of (a), (b) and (c)? And is seven days the right window for a
-   security release?
+   security release? *Answered 2026-09-28: "a+b, 7 days".*
 6. **Accounts nobody let in (T8).** Is 30 days the retention period? 0139 then writes it into the
    privacy policy.
 7. **Self-registration during the alpha.** Keep it on, which is recommended and follows 0095 T0?
@@ -978,7 +1054,8 @@ carried T1 and T2.
     *Recommended: yes*, with a dump of the OTA instance's `zitadel` database taken by hand before
     the gate's run: the gate drills Trigger.dev's database, not the identity provider's. Before
     that, whether anybody used the hole there: every rename the instance holds, with its time and
-    the id of whoever made it. A row nobody here made is one.
+    the id of whoever made it. A row nobody here made is one. *Answered 2026-09-28: go. The query
+    returned no rows, and the dump was taken first ("dump done").*
 
     ```bash
     docker compose -f deploy/compose/managed.yml exec -T postgres \
@@ -987,3 +1064,20 @@ carried T1 and T2.
      WHERE event_type = 'user.username.changed' ORDER BY created_at;
     SQL
     ```
+
+12. **v4.19.2 (tagged 2026-09-28), after v4.19.1.** Take it? Read commit by commit, it holds three
+    security fixes, each in something this stack does not switch on:
+    - a SAML assertion signed by one SAML provider could complete a sign-in started with another;
+      this stack has no SAML provider;
+    - an impersonation token could be minted for an administrator without the right to
+      impersonate administrators; impersonation is off here, as the instance's security policy
+      starts, and nothing here turns it on;
+    - login v2's application now signs its session cookie entries; this stack does not run that
+      application.
+
+    The rest: the events API and the projections read the event store in a cheaper order, and the
+    sessions projection takes up to 1,000 events a batch. No setup step is added, so it moves the
+    schema no further than v4.19.1 did. *Recommended: yes, this week, in its own pull request*
+    after the language change's gate run, by the same route, a dump by hand first. The seven days
+    do not apply, since none of the three fixes is in something this stack uses. Until the pin
+    moves, the watch keeps its issue open.

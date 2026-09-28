@@ -101,6 +101,54 @@ describe('an operator hold', () => {
   });
 });
 
+describe('what starts again by itself when a hold lifts (0132 T6 (b))', () => {
+  /**
+   * Since T6 (b) a hold refuses every button that would start work, with the
+   * operator's sentence, and a refused press is NOT remembered: a *Start*
+   * refused leaves the migration unstarted, a refused sync or check is never
+   * queued. The fold under the banner said *"new copying starts again by
+   * itself once the update is done"*, which is true of the scheduled passes
+   * and untrue of every press the hold turned away. A tester who believed it
+   * would wait for a pass nobody was going to start.
+   *
+   * The two sentences are pinned word for word. A guard of keywords passed a
+   * line that said the opposite (*"… it is scheduled and starts by itself
+   * after the update, so you need not start it again"*), so these are the
+   * sentences themselves: *by itself* said of the scheduled copying, and the
+   * press told, in the imperative, to be made again.
+   */
+  const PINNED = {
+    en: {
+      scheduled:
+        'Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped.',
+      press: 'Any copying you tried to start during the pause did not start: start it again after the update.',
+    },
+    nl: {
+      scheduled:
+        'Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte.',
+      press: 'Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
+    },
+  } as const;
+  const ITSELF = { en: /by itself/i, nl: /vanzelf/i } as const;
+
+  for (const locale of LOCALES) {
+    const why = STRINGS[locale]['pause.hold.why'];
+
+    it(`${locale}: says scheduled copying starts again by itself`, () => {
+      expect(why).toContain(PINNED[locale].scheduled);
+    });
+
+    it(`${locale}: says a press made during the pause did not start and must be made again`, () => {
+      expect(why).toContain(PINNED[locale].press);
+    });
+
+    it(`${locale}: promises "by itself" nowhere but of the scheduled copying`, () => {
+      // Whatever else the line grows, it must not add a second promise.
+      expect(why.split(PINNED[locale].scheduled).join('')).not.toMatch(ITSELF[locale]);
+    });
+  }
+});
+
 describe('the progress strip', () => {
   const row = (over: Partial<LiveProgressRow> = {}): LiveProgressRow => ({
     domain: 'email',
