@@ -41,7 +41,7 @@ import {
   type SupportTenantMember,
   type PlatformStatus,
 } from '../services/support.ts';
-import { STRINGS } from '../i18n/strings.ts';
+import { STRINGS, LOCALES } from '../i18n/strings.ts';
 
 vi.mock('../services/support.ts', () => ({
   listSupportTenants: vi.fn(),
@@ -349,6 +349,59 @@ describe('both languages carry every sentence these screens ask for', () => {
   });
 });
 
+describe('the hold’s hint says what the sentence also answers (0132 T6 (b))', () => {
+  /**
+   * Since T6 (b) the operator's sentence is not only the banner: it is the
+   * answer, word for word, to every button that would start work while the
+   * hold is on (*Trigger sync*, *Start migration*, a check), and the press is
+   * not remembered. The hint said only that new passes stop, so an operator
+   * wrote *"Back in about an hour."* and every refused button answered that,
+   * with no word that the press had done nothing and had to be made again.
+   *
+   * Pinned word for word. A guard of keywords passed a fold that denied both
+   * claims (*"… it queues and starts by itself when copying resumes, so
+   * nobody needs to try again"*). Not *every button a customer presses*:
+   * pausing a migration and adding a data type are not refused, and the count
+   * the confirm screen starts has no button.
+   */
+  const PINNED = {
+    en: {
+      hint: 'Stops new passes, buttons included; the ones already running finish.',
+      answers:
+        "Your message is also the answer, word for word, to every button that would start work while the hold is on ('Trigger sync', 'Start migration', a check), and a refused press is not remembered.",
+      ask: "So say when copying resumes and ask them to try again after that, for example: 'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.'",
+    },
+    nl: {
+      hint: 'Stopt nieuwe rondes, ook via een knop; wat al loopt wordt afgerond.',
+      answers:
+        "Uw tekst is ook, woord voor woord, het antwoord op elke knop die werk zou starten terwijl de pauze aanstaat ('Synchroniseer nu', 'Start migratie', een controle), en wat zo geweigerd wordt, onthoudt het platform niet.",
+      // 0132 T6 step 2's example, verbatim.
+      ask: "Zeg dus wanneer het kopiëren weer begint en vraag de klant het daarna opnieuw te proberen, bijvoorbeeld: 'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw.'",
+    },
+  } as const;
+
+  for (const locale of LOCALES) {
+    const why = STRINGS[locale]['support.hold.hint.why'];
+
+    it(`${locale}: the visible line says the buttons are held too`, () => {
+      expect(STRINGS[locale]['support.hold.hint']).toBe(PINNED[locale].hint);
+    });
+
+    it(`${locale}: the fold says the sentence answers the refused buttons, word for word`, () => {
+      expect(why).toContain(PINNED[locale].answers);
+    });
+
+    it(`${locale}: the fold asks for when copying resumes, and to try again after`, () => {
+      expect(why).toContain(PINNED[locale].ask);
+    });
+
+    it(`${locale}: the buttons named are ones the hold refuses`, () => {
+      // Their labels, as the migration's page shows them.
+      expect(why).toContain(`'${STRINGS[locale]['mappings.action.triggerSync']}'`);
+      expect(why).toContain(`'${STRINGS[locale]['confirm.start']}'`);
+    });
+  }
+});
 
 describe('failing and waiting are two different conversations (workplan 0110 T5)', () => {
   it('counts what is waiting on the customer, beside what is failing', async () => {

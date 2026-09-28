@@ -4,6 +4,19 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, morning: T0's machine reads, taken by the owner on the reference machine.**
+
+- **A task's container:** `536870912 500000000`. So every task runs on `small-1x`, half a CPU and
+  512 MB, enforced, as T1 step 1 read in the source. A sync tick's runner used 190 MB of its 512.
+- **`triggerdb`:** eight environments, two projects' `prod`, `dev`, `stg` and `preview`, each with
+  `maximumConcurrencyLimit` 300.
+- **The host:** 121 GB of memory, 115 GB in use and 5 GB available; 15 GB of swap, 10 GB in use.
+  The stacks' containers use about 4 GB of it (`docker stats`), so about 110 GB is held outside
+  them.
+
+So nothing bounds how many runs start at once but 300 per environment, 150 GB at 512 MB each, on
+a machine with 5 GB to spare. Open question 7 proposes the cap and the preset.
+
 **2026-09-28: T1 step 1, the half upstream's source answers (0131 §6, group M4, step 6's first
 read).** Step 1 asks the plane five things before a preset is chosen. Four are answered by
 Trigger.dev's source at the pinned v4.5.16, and by `@trigger.dev/platform` 1.3.0, the preset
@@ -459,7 +472,7 @@ unproved until then:
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ⏳ **Owner** for the overall cap on the machine — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
+| T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
@@ -1402,3 +1415,12 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
 6. **If T9 shows the machine carries fewer than 20.** Invite fewer, or keep 20 and make the waves
    smaller? Waves are recommended, because the load that matters is first copies at once, not
    organisations.
+7. **The overall cap and the tasks' preset (T0, T1 steps 2 and 3), 2026-09-28.** The machine
+   reads are in the Status block. *Recommended:*
+   - every task stays on `small-1x`: a tick used 190 MB of its 512;
+   - live's `prod` environment runs at most 6 at once, about 3 GB, and the OTA stack's at most 3,
+     about 1.5 GB, each set in its own `triggerdb` and read back on every bring-up;
+   - before live, what holds the machine's other 110 GB is known, since live adds a second stack
+     of about the same size.
+
+   Or other numbers.

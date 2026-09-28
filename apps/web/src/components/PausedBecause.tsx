@@ -22,6 +22,11 @@
  * both ways — so it is a note, with `role="note"`, in the same amber the
  * counted-earlier line uses.
  *
+ * One thing under a hold is owed a second press: a button pressed while it
+ * was on. The door refused it with the operator's sentence and did not
+ * remember it (0132 T6 (b)), so only the scheduled passes continue by
+ * themselves, and `pause.hold.why` says so.
+ *
  * ## The reason is on screen; the reassurance folds
  *
  * Task #124's precedent: a hover fails on touch, on a keyboard and in a screen

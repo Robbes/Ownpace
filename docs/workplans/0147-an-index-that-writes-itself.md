@@ -2,7 +2,53 @@
 
 > **In one line:** Generating the workplan table in `docs/workplans/README.md` with `scripts/workplan-index.mjs` and a CI drift check, keeping the old hand-written sections as history, correcting stale plan Status blocks, explaining 0048 to 0050, and a numbering rule.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: neither generated index carries a total (D6, T6), on branch
+`claude/ownpace-public-readiness-y7orc6-an-index-without-counts`, not merged.** The index opened
+with *"147 plans. Task rows by the marker their Status cell starts with: ✅ 639 · …"*, and
+`docs/LESSONS.md` with *"Assembled from the 186 cross-cutting guards"*. Of the 39 commits that
+reached `main` in the night of 2026-09-27 to 28 (58f5f645 to cde67035), 27 changed one of those
+two lines. Each time, every other open pull request that had regenerated held a stale copy. The
+owner: *"yes, drop the counts"*. So `scripts/workplan-index.mjs` writes no line above the table,
+and `scripts/lessons.mjs` writes *"Assembled from the cross-cutting guards"*. Both headers say
+why. Nothing else in either file sums over plans or guards. The index's rows are in number order,
+LESSONS.md's entries in path and file-name order, and neither numbers its rows or names a newest
+plan or a last-updated date.
+
+The guard is `scripts/a-count-every-merge-made-stale.unit.test.ts`. It regenerates two copies of a
+fixture tree, each with one change, and merges the two outputs with `git merge-file`, in both
+orders. It requires no conflict, and the text `--write` gives for the tree with both changes. Its
+four cases: two plans numbered in parallel, each filling its own gap; a task row in each of two
+plans; a new plan at the end while an earlier plan changes; two new guards. All four failed on the
+unchanged scripts. The three index cases conflicted. The LESSONS.md case merged cleanly and said 4
+guards over 5, which is what #968 and #969, and later #1236 and #1246, did on `main`. All four pass
+now. Each of six mutations turns at least one case red: the plan count back, the guard count back,
+a line naming the newest Status date, numbered rows, rows sorted by date, and a count per path in
+LESSONS.md. On this branch's own plans, a task row added to 0132 in one copy and to 0146 in
+another merges cleanly in both orders, into what `--write` gives. `main`'s script merges the same
+pair cleanly too, and says ✅ 640 where the tree holds 641. `npx vitest run --project unit
+scripts/`: 192 files, 3267 tests, all pass.
+
+Not solved, and not claimed. git refuses two changes on neighbouring lines, even when neither is a
+total. So two pull requests that change neighbouring plans (0131 and 0132, say), or that both add
+a plan at the end of the table, still conflict and are resolved by regenerating, as T1 said. Of the
+351 pairs of that night's commits that changed index rows, 296 changed different plans, and 32 of
+those would still have conflicted. The same holds in `docs/LESSONS.md`: two new guards whose
+entries land next to each other, under a file both read or in file-name order, still conflict. 12
+of the 153 pairs of the 18 commits that added guards that night do, replayed on this branch's
+`lessons.mjs`, and none merges cleanly into the wrong text. Both are resolved by regenerating.
+
+One case is worse, and not solved either: two pull requests that change different task rows of
+the *same* plan. Each writes that plan's Rows and Markers cells, and the two can come out the
+same. Tried on a copy of this branch: 0132 T1b from 📋 to ✅ on one side and 0132 T4 from 📋 to ✅
+on the other both write *"✅ 8 · 📋 4 · ⏳ 2 · ⛔ 1"*. git merges the plan and the index without a
+conflict, and `--check` then fails on the merge, whose plan holds ✅ 9 and 📋 3. That is the #968 and #969 failure
+inside one row. The per-plan cells were kept on the reading that they change only when that plan
+does, which is true and not enough. It has not happened on `main`: `--check` on every first-parent
+commit since the index was generated (8349d8dc) is red 13 times, and each time only the total
+differs. But 55 of that night's 351 pairs changed a common plan. Open question 6 asks the owner
+whether the counts in those two cells go too.
 
 **2026-09-27: `--check` refuses a plan that holds its body twice.** The merge of 2026-09-25 that
 resolved #1172 (536f56ab) left 0131's §2 to §6 and its open questions in it twice, and `--check`
@@ -97,6 +143,7 @@ never reads `docs/workplans/`. 0026 row 24 is in T3 (b), not (a): since 0132 D7 
 | T3 The stale Status blocks, corrected as dated notes, in one pull request | (a) ✅ **done** in #1155, merged 2026-09-24, with T1. (b) 📋 **Proposed** | §3. (a) 0009, 0008 T7 and 0026 row 14: **before the first invitation**. (b) 0026 row 24 and 19 more plans: **after**, when the session writing the alpha's plans is idle. |
 | T4 The numbers 0048, 0049 and 0050, explained in the index | ✅ **done** in #1155, merged 2026-09-24, with T1: the full history confirms no file was ever added — *was:* 📋 Proposed | §3. They were used in PR #416's description and in code comments, and no file was written, as far as GitHub's API shows. A full-history `git log` confirms it first, because both local clones are shallow. **After.** |
 | T5 How a plan gets its number, written down | 🔨 **Built 2026-09-24**, with T1 (the README's `## Numbering`); the owner still confirms the rule (open question 5) — *was:* 📋 Proposed | §3. The next free number when the file is created, in creation order. T1's check refuses a duplicate number. **After.** |
+| T6 Neither generated index carries a total (D6) | 🔨 **Built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-an-index-without-counts`, not merged | §3 T1, *What it writes*. `workplan-index.mjs` writes no line above the table, and `lessons.mjs` no guard count. Guard: `scripts/a-count-every-merge-made-stale.unit.test.ts`. |
 
 ## 1. What there is today
 
@@ -312,6 +359,15 @@ carries one sentence under its title that the table shows. The sentence says wha
 about, never how far it is, so it does not go stale when the work moves; the markers and the
 date say how far. `--check` fails a plan without one, so a new plan cannot arrive without it.
 
+**D6 — no totals in either generated index (2026-09-28).** *Every merge changes the total above
+the index table and the guard count in `docs/LESSONS.md`, so every other open pull request needs a
+re-level and a new CI run. Drop the counts?* — *"yes, drop the counts"*. So neither file carries a
+line that sums over plans or guards (T6). Each plan's own row keeps its row count and markers,
+which change only when that plan does. That does not make them safe: two pull requests that change
+different task rows of the same plan can write the same counts, merge without a conflict, and
+leave `--check` red on `main` (Status, 2026-09-28). Whether "the counts" covers those two cells as
+well is open question 6.
+
 ## 3. What each task does
 
 ### T1 — the index table is generated (proposed; after)
@@ -383,6 +439,9 @@ under each marker. Then a table:
 (These two rows are what the rules above give today. After T3, 0009 has a thirteenth row, 📋,
 decided on 2026-09-24 and carried by 0149 T4.)
 
+*2026-09-28 (D6, T6):* the line above the table is no longer written. The table is the whole
+region.
+
 **Deliberately dumb, as `adr-operative.mjs` is.** The index does not say what a marker means for a
 given plan, and it does not decide whether a plan is open or done, what depends on what, or what
 comes next. The plans mostly use ✅ for done, 🟡 for partly done, ⏳ for waiting on the owner,
@@ -408,6 +467,9 @@ trigger. The legend above the table says that, and says that the plan's own row 
 **Two pull requests that each regenerate the table can conflict**, because rows for neighbouring
 plans sit on neighbouring lines. The conflict is resolved by regenerating on the merged tree,
 never by hand, as `ci.yml` already says of the other two.
+*2026-09-28:* the total above the table was a second cause, and it fired on every merge. D6
+removed it. Neighbouring rows are the cause of a conflict that is left. Two changes to one plan's
+task rows can also merge *without* one into a stale row (Status, 2026-09-28; open question 6).
 
 **Guard.** `scripts/workplan-index.unit.test.ts`. It fails today, because the script does not
 exist. It works on fixture directories under the system's temporary directory, never on
@@ -624,3 +686,15 @@ The `## Numbering` section of the README says, written by hand:
 5. **The numbering rule.** 0141 to 0147 took the next free number each, in creation order
    (D3). Is that the rule for every plan from now on, as T5 proposes? If it is, T5's section
    says so as the owner's decision, with the date.
+6. **The counts inside each plan's row (2026-09-28).** D6 dropped the totals over every plan.
+   Each row still carries two counts of its own plan: Rows, and the Markers cell
+   (*"✅ 8 · 📋 4 · ⏳ 2 · ⛔ 1"*). Two pull requests that change different task rows of one plan
+   can write the same cell, merge without a conflict, and leave `--check` red on `main` (Status,
+   2026-09-28). Does *"drop the counts"* cover these as well? (a) Keep them. A red `main` is
+   fixed by one regeneration, and it has not happened yet. (b) Keep the cells, and write them so
+   that two different changes cannot give the same text: the Markers cell names the task rows
+   under each marker (*"✅ T1 T1f T3 · 📋 T1b T1c"*), and Rows goes. The case then becomes a
+   visible conflict, resolved by regenerating like any other. Markers in row order without the
+   task names are not enough: two rows added or removed in a run of one marker still write the
+   same text. (c) Drop both columns, and leave how far a plan is to its own Status block. (b) is
+   recommended, because it keeps what D5 asked the table to show.
