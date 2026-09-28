@@ -9,7 +9,9 @@ for memory (SIGKILL on `small-1x`) while copying. The cause was a defect, not th
 `fetch` held every uploaded file above 8 MB whole. It is fixed in 0150's branch
 `claude/mailbox-sync-errors-c2xsw2-an-upload-that-kept-every-byte`, and after it three 256 MiB
 files peaked at 195 MiB. So the kill says nothing against `small-1x` (open question 7), and step 2
-and the plane's limit no longer wait on it.
+and the plane's limit no longer wait on it. Verification's checksum read of a sampled file had the
+same shape, and streams too since the branch
+`claude/mailbox-sync-errors-c2xsw2-a-checksum-that-downloaded-the-whole-file` (0150's Status).
 
 **2026-09-28, afternoon: T1 step 3's tick half merged in #1296 (`67b3e9e`), and live's number
 set.** Asked to put live's number in live's `.env`, the owner answered: *"i added
