@@ -308,6 +308,10 @@ reading a file drops off its entry by itself.
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
 
+### `apps/web/src/components/SupportLine.tsx`
+
+- [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
+
 ### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -2258,6 +2262,7 @@ A HELPDESK THE API WAS NEVER HANDED.
 Reads:
 
 - `apps/api/src/services/zammad.ts`
+- `apps/web/src/components/SupportLine.tsx`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `docs/managed-bring-up.md`
