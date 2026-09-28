@@ -214,6 +214,7 @@ load_env() {
   # .env reached a bring-up unremarked on 2026-08-24.
   note_env_divergence
   note_mail_goes_nowhere_real
+  note_relay_to_nowhere
   note_status_page_probes_itself
   note_site_row_half_configured
   note_dashboard_on_this_machine_only
@@ -434,6 +435,64 @@ note_mail_goes_nowhere_real() {
   note "  For real delivery, point SMTP_HOST at a relay and set NOTIFY_TO to an"
   note "  address somebody reads, then re-run ./deploy/compose/set-task-env.sh"
   note "  so the task containers see it too."
+}
+
+# A RELAY THAT CANNOT DELIVER TO AN ADDRESS NOBODY OWNS (workplan 0133 T3 (c)).
+#
+# `.invalid` is reserved: no such domain exists, so no mail to or from one is
+# ever delivered. The catcher does not care, which is why the example `.env`
+# and the gate use them. A real relay refuses or bounces them, so a stack that
+# moved to a relay and kept a `.invalid` NOTIFY_FROM or NOTIFY_TO sends
+# nothing the owner will ever read: not the notice that somebody asked for
+# access, not the digest.
+#
+# A NOTE, NOT A REFUSAL, beside `note_mail_goes_nowhere_real`: a relay is set
+# before its addresses more often than not, and the bring-up goes on.
+note_relay_to_nowhere() {
+  local smtp name value
+  smtp="$(env_get SMTP_HOST)"
+  [ -n "$smtp" ] && [ "$smtp" != "mailpit" ] || return 0
+  for name in NOTIFY_FROM NOTIFY_TO; do
+    value="$(env_get "$name")"
+    # `Name <address>` or a bare address: the domain is what ends it.
+    case "${value%>}" in
+      *.invalid)
+        note "${name} IS STILL AN ADDRESS NOBODY OWNS (${value}), and mail now goes"
+        note "  to a real relay (${smtp}), which refuses or bounces it: the owner"
+        note "  would never hear that somebody asked for access. Set a real address:"
+        note "    ./deploy/compose/env-upsert.sh ${name}=<an address>"
+        note "  then re-run ./deploy/compose/set-task-env.sh for the tasks."
+        ;;
+    esac
+  done
+}
+
+# THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
+#
+# Mailpit keeps what it is handed and delivers nothing. Two things send to it:
+# the demo's Nextcloud, pointed at it on purpose (0103), and a stack whose
+# SMTP_HOST is `mailpit`, the OTA stack and every development one. A stack
+# whose mail goes to a relay and that runs no demo sends it nothing, and
+# starting it there anyway kept an idle catcher on the production stack.
+catcher_needed() {
+  [ "$WITH_DEMO" -eq 1 ] && return 0
+  [ "$(env_get SMTP_HOST)" = "mailpit" ]
+}
+
+# A CATCHER LEFT RUNNING from before the relay was set is said, and never
+# stopped here: what it caught, testers' addresses and grant mails among it,
+# is the owner's to read and delete first (0133 T3, T4).
+note_catcher_left_running() {
+  # Read whole, then searched: `grep -q` in a pipe would stop reading early and
+  # can kill `docker compose` under pipefail.
+  local running
+  running="$("${COMPOSE[@]}" ps --status running --services 2>/dev/null || true)"
+  grep -qx mailpit <<<"$running" || return 0
+  note "THE MAIL CATCHER IS STILL RUNNING, and nothing on this stack sends to it"
+  note "  now: SMTP_HOST is a relay and there is no demo. What it caught stays"
+  note "  readable until it is gone. Read and delete that first, then, from this"
+  note "  checkout:"
+  note "    docker compose -f deploy/compose/managed.yml stop mailpit"
 }
 
 # A STATUS PAGE PROBING ITSELF.
@@ -1600,12 +1659,8 @@ phase_app() {
     # could sign in. A service the product cannot run without is not optional
     # scenery (workplan 0099).
     zitadel
-    # The mail catcher. In the list for the same reason zitadel is: it is
-    # defined, interpolated and depended on, and a service the product's
-    # notifications cannot work without is not optional scenery. Every
-    # notification this stack sends lands here and is readable in a browser;
-    # nothing reaches a real inbox unless SMTP_HOST is changed on purpose.
-    mailpit
+    # The mail catcher is added below, only where something sends to it
+    # (`catcher_needed`).
     api web
     # The status page (workplan 0094). It was in managed.yml, had STATUS_PORT in
     # managed.env.example, a section in docs/managed-bring-up.md claiming it
@@ -1620,6 +1675,15 @@ phase_app() {
     gatus
   )
   [ "$WITH_DEMO" -eq 1 ] && services+=(nextcloud)
+  # Every notification a stack with `SMTP_HOST=mailpit` sends lands in the
+  # catcher and is readable in a browser, and the demo's Nextcloud is pointed
+  # at it on purpose (0103). A stack whose mail goes to a relay, with no demo,
+  # sends it nothing (0133 T3 (b)).
+  if catcher_needed; then
+    services+=(mailpit)
+  else
+    note_catcher_left_running
+  fi
 
   # GIT_SHA so `GET /version` answers with a commit rather than "unknown".
   # THE IDENTITY PROVIDER IS PROVISIONED BEFORE `web` IS BUILT, and the order is

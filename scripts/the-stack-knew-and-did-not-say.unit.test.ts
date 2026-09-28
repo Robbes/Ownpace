@@ -480,6 +480,77 @@ describe('a catcher serving what looks like a real deployment', () => {
   });
 });
 
+/**
+ * A RELAY THAT CANNOT DELIVER TO AN ADDRESS NOBODY OWNS (workplan 0133 T3 (c)).
+ *
+ * The example `.env` and the gate send from and to `.invalid` addresses, which
+ * the catcher takes and a real relay refuses or bounces. A stack that moved to
+ * a relay and kept one would send the owner nothing, not even the notice that
+ * somebody asked for access. Run against a written `.env`, as the catcher's
+ * note above is.
+ */
+describe('a relay asked to deliver to an address nobody owns', () => {
+  function noteFor(env: Record<string, string>): string {
+    const home = mkdtempSync(join(tmpdir(), 'relaynote-'));
+    try {
+      const envFile = join(home, '.env');
+      writeFileSync(
+        envFile,
+        Object.entries(env)
+          .map(([k, v]) => `${k}=${v}`)
+          .join('\n') + '\n',
+      );
+      const fn = (name: string) => {
+        const at = bootstrap.indexOf(`${name}() {`);
+        return at < 0 ? '' : bootstrap.slice(at, bootstrap.indexOf('\n}\n', at) + 3);
+      };
+      const program = [
+        'set -uo pipefail',
+        `. "${join(COMPOSE_DIR, 'env-read.sh')}"`,
+        `ENV_FILE="${envFile}"`,
+        'note() { echo "    $*"; }',
+        fn('env_get'),
+        fn('note_relay_to_nowhere'),
+        'note_relay_to_nowhere',
+      ].join('\n');
+      const r = spawnSync('bash', ['-c', program], { encoding: 'utf8' });
+      return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
+
+  it('the function was found in the script, and is called', () => {
+    expect(bootstrap).toContain('note_relay_to_nowhere() {');
+    expect(bootstrap, 'defined but never called').toMatch(/^ {2}note_relay_to_nowhere$/m);
+  });
+
+  it('speaks when a relay is configured and NOTIFY_FROM or NOTIFY_TO is still .invalid', () => {
+    const said = noteFor({
+      SMTP_HOST: 'smtp.relay.test',
+      NOTIFY_FROM: 'Ownpace <notify@ownpace.invalid>',
+      NOTIFY_TO: 'owner@ownpace.invalid',
+    });
+    expect(said).toContain('NOTIFY_FROM IS STILL AN ADDRESS NOBODY OWNS');
+    expect(said).toContain('NOTIFY_TO IS STILL AN ADDRESS NOBODY OWNS');
+    expect(said, 'the note does not name the relay').toContain('smtp.relay.test');
+    expect(said, 'the note does not say how to fix it').toContain('env-upsert.sh NOTIFY_TO=');
+  });
+
+  it('says nothing once both are real addresses', () => {
+    expect(
+      noteFor({ SMTP_HOST: 'smtp.relay.test', NOTIFY_FROM: 'support@ownpace.eu', NOTIFY_TO: 'owner@example.com' }),
+    ).toBe('');
+  });
+
+  it('says nothing to the catcher, which takes them, or with no mail at all', () => {
+    expect(noteFor({ SMTP_HOST: 'mailpit', NOTIFY_FROM: 'a@ownpace.invalid', NOTIFY_TO: 'b@ownpace.invalid' })).toBe(
+      '',
+    );
+    expect(noteFor({ SMTP_HOST: '', NOTIFY_TO: 'b@ownpace.invalid' })).toBe('');
+  });
+});
+
 describe('one environment name, resolved in one place (2026-08-31)', () => {
   // Three scripts choose a Trigger environment. They used to read TWO
   // variables for it, at three different moments relative to sourcing .env —

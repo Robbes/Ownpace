@@ -2000,7 +2000,11 @@ Two things that stay true after you do it:
 **Mailpit is for OTA and development only.** It is in `managed.yml` because
 every environment that is not production wants its mail caught rather than
 delivered. A production stack points `SMTP_HOST` at a real relay and never
-starts this service.
+starts this service: the bring-up starts it only with `--with-demo`, whose
+Nextcloud sends to it, or while `SMTP_HOST` is `mailpit` (workplan 0133 T3). A
+catcher still running from before the relay was set is named, with the command
+that stops it, and never stopped by the bring-up: read and delete what it caught
+first.
 
 **A catcher rather than a relay, on purpose.** Every mail the product sends is
 visible in a browser; the gate exercises grant, decline and now request on every
@@ -2010,7 +2014,9 @@ reach a real relay the result is a bounce rather than mail to a stranger.
 
 **For real delivery**, point `SMTP_HOST` at a relay, set `SMTP_PORT` /
 `SMTP_SECURE` to match and `SMTP_USER` / `SMTP_PASSWORD` to its login, and set
-`NOTIFY_TO` to an address a person reads. The identity provider takes the same
+`NOTIFY_TO` to an address a person reads. A relay refuses the example's
+`.invalid` addresses, so the bring-up says so while `NOTIFY_FROM` or `NOTIFY_TO`
+still ends in one. The identity provider takes the same
 relay, login and sender, with TLS on whatever `SMTP_SECURE` says. Then apply it:
 
 - `./deploy/compose/bootstrap-managed.sh --only app` updates the identity

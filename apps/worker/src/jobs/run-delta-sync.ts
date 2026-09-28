@@ -42,7 +42,16 @@ import {
 } from '@openmig/ledger';
 import { PgBytesMovedStore } from '@openmig/managed';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { log, passDeadlineFrom, domainFailedEvent, recordAppEvent, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import {
+  log,
+  passDeadlineFrom,
+  passOrder,
+  domainDeadline,
+  domainFailedEvent,
+  recordAppEvent,
+  setAppEventSink,
+  setAuditExportSink,
+} from '@openmig/shared';
 
 /**
  * ADR-0031 (accepted 2026-08-16): apply open relocations unattended, after a
@@ -230,7 +239,10 @@ export const runDeltaSync = schemaTask({
     // below has to tell "the owner did not select this" apart from "this run
     // was asked for less", and only scope_selection knows which is which.
     const selected = await enabledDomains(pool, tenantId, mappingId);
-    const domains = typedPayload.domains ?? [...selected];
+    // SMALL FIRST (workplan 0143 T5): contacts, calendars and tasks, then mail
+    // and files, whatever order the mapping or the caller listed them in, so a
+    // large mailbox's first copy no longer holds back everything behind it.
+    const domains = passOrder(typedPayload.domains ?? [...selected]);
 
     /**
      * Does THIS domain scan from the beginning this pass?
@@ -248,10 +260,11 @@ export const runDeltaSync = schemaTask({
     /**
      * WHEN THIS PASS STOPS TAKING NEW WORK.
      *
-     * Computed once, here, and shared by every domain — not per domain. Five
-     * domains each given the whole budget is five times the budget, and the
-     * runner's kill does not care how the time was divided. What the deadline
-     * bounds is THIS RUN.
+     * Computed once, here, for the whole pass. Each data type is handed its
+     * share of what is left of it (`domainDeadline`, in the loop below), never
+     * the whole of it and never past it: five domains each given the whole
+     * budget is five times the budget, and the runner's kill does not care how
+     * the time was divided. What the deadline bounds is THIS RUN.
      *
      * From now rather than from the run row's `started_at`: the difference is
      * a database round trip, and anchoring to the later of the two is the
@@ -437,6 +450,14 @@ export const runDeltaSync = schemaTask({
           // status row. Taken after the row is opened so the two agree.
           const domainPassStartedAt = new Date();
 
+          // ITS SHARE OF WHAT IS LEFT, not the whole pass (workplan 0143 T5, the
+          // owner's (c)): the time left divided by the types left, this one
+          // included. The last type gets whatever remains, and time an earlier
+          // one did not use flows to the ones after it. A mailbox and a drive
+          // share what the small types leave, about half each.
+          const typesLeft = domains.length - domains.indexOf(domain);
+          const typeDeadline = domainDeadline(deadline, Date.now(), typesLeft);
+
           // Whether this domain rescans from scratch — per domain, so "redo the
           // tasks" does not re-read a mailbox that was already right.
           const fullScan = scansFromTheBeginning(domain);
@@ -466,7 +487,7 @@ export const runDeltaSync = schemaTask({
             try {
               const pass = await runShadowPass({
                 ...deps,
-                deadline,
+                deadline: typeDeadline,
                 ...(fullScan ? { cursors: undefined } : {}),
               });
               result = {
@@ -494,12 +515,12 @@ export const runDeltaSync = schemaTask({
           } else if (domain === 'calendar') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'calendar');
             try {
-              result = await runCalendarSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runCalendarSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
             } finally { await deps.close(); }
           } else if (domain === 'contact') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'contact');
             try {
-              result = await runContactSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runContactSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
             } finally { await deps.close(); }
           } else if (domain === 'task') {
             // The managed half of the seventh fan-out (workplan 0113). This
@@ -512,7 +533,7 @@ export const runDeltaSync = schemaTask({
             // together.
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'task');
             try {
-              result = await runTaskSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runTaskSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
             } finally { await deps.close(); }
           } else if (domain === 'file') {
             const deps = await buildDomainDepsFromMapping(pool, tenantId, mappingId, 'file');
@@ -520,7 +541,7 @@ export const runDeltaSync = schemaTask({
             // a move this pass records from being auto-applied by this pass.
             const passStartedAt = new Date().toISOString();
             try {
-              result = await runFileSync({ ...deps, deadline, ...(fullScan ? { cursors: undefined } : {}) });
+              result = await runFileSync({ ...deps, deadline: typeDeadline, ...(fullScan ? { cursors: undefined } : {}) });
               await autoApplyOpenRelocations(tenantId, mappingId, runId, deps, passStartedAt);
             } finally { await deps.close(); }
           } else {
@@ -563,7 +584,7 @@ export const runDeltaSync = schemaTask({
           const pause = result.deadlinePause
             ? {
                 why:
-                  `stopped at this pass's own deadline after ${result.deadlinePause.ranForMs}ms` +
+                  `stopped at its share of this pass's time after ${result.deadlinePause.ranForMs}ms` +
                   (result.deadlinePause.collectionsNotReached
                     ? `, with ${result.deadlinePause.collectionsNotReached} collection(s) not reached`
                     : ''),
