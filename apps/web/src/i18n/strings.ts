@@ -1314,6 +1314,12 @@ const en = {
   'confirm.start': 'Start migration',
   'confirm.startError': 'Could not start it:',
   'confirm.startErrorFallback': 'the request failed',
+  // The count this screen starts by itself, refused (0132 T6 (b)): the
+  // server's sentence follows, verbatim. While the hold that refused it is
+  // still on, the second line says the screen asks again when it lifts, which
+  // it does (`ConfirmMigration.tsx`); nothing else here is there to press.
+  'confirm.countError': 'Counting did not start:',
+  'confirm.countAgain': 'This screen counts again by itself once copying resumes.',
   'confirm.openConsole': 'Open the migration console',
   'confirm.whatMigrates': 'What migrates',
   'confirm.note.active': 'Active. It syncs on its schedule and reports anything that needs you.',
@@ -1465,9 +1471,11 @@ const en = {
   // The drain (managed migration 0023): the one thing on these screens that
   // writes, and the only pause a customer can neither derive nor wait out.
   'support.hold': 'Hold new passes',
-  'support.hold.hint': 'Stops new passes; the ones already running finish.',
+  // Since 0132 T6 (b) the message is also every refused button's answer, and
+  // a refused press is not remembered, so the fold says what it should say.
+  'support.hold.hint': 'Stops new passes, buttons included; the ones already running finish.',
   'support.hold.hint.why':
-    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when you leave the box empty. Lifting the hold starts passes again on the next tick.',
+    'This is the drain: the sync tick stops enqueueing within a minute, and whatever is mid-pass finishes normally. Every signed-in customer sees a notice with your message on it, or a default sentence when you leave the box empty. Your message is also the answer, word for word, to every button that would start work while the hold is on (\'Trigger sync\', \'Start migration\', a check), and a refused press is not remembered. So say when copying resumes and ask them to try again after that, for example: \'We are updating the platform and copying resumes around 15:00. Nothing starts until then. Please try again after that.\' Lifting the hold starts the scheduled passes again on the next tick.',
   'support.hold.on': 'Held since {since}. No new passes are starting.',
   'support.hold.off': 'Not held. New passes start on the usual schedule.',
   'support.hold.start': 'Hold new passes',
@@ -1640,8 +1648,11 @@ const en = {
   // nobody typed one. An operator's own words replace it, verbatim.
   'pause.hold.default': 'We have paused copying while we update the platform.',
   'pause.hold.since': 'Paused since',
+  // "By itself" is said of the SCHEDULED passes only (0132 T6 (b)): a button
+  // pressed during the hold is refused with the operator's sentence and not
+  // remembered, so nothing restarts it.
   'pause.hold.why':
-    'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally; new copying starts again by itself once the update is done, and continues from exactly where it stopped.',
+    'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped. Any copying you tried to start during the pause did not start: start it again after the update.',
   // The alpha note (workplan 0131 T1): three sentences, one paragraph, the
   // same words as the access-granted mail (`grantedAlpha` in @openmig/shared's
   // notifications.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
@@ -1939,6 +1950,15 @@ const en = {
   'tenants.invite.hint': 'No email yet; tell them yourself, and they appear below as invited.',
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
+  // Workplan 0137 T7: the two roles the alpha offers, and what the second one
+  // may do. Checked against the API's owner-only routes: close and reopen
+  // (tenants/index.ts), the applying-deletions and auto-applying-relocations
+  // flags, owner-only in both directions (operating-routes.ts), and granting
+  // owner (members.ts). `a-role-that-promises-less-than-it-allows.unit.test.ts`
+  // in apps/api pins that set and fails when it changes.
+  'tenants.invite.adminCan':
+    'An admin can do everything an owner can, except close or reopen the organisation, turn applying deletions or auto-applying relocations on or off, and make somebody an owner.',
+  'tenants.ownerOrAdminOnly': 'During the alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
     'How often a summary of waiting decisions is emailed; an empty one is never sent.',
@@ -2571,9 +2591,9 @@ const nl: Record<keyof typeof en, string> = {
   'support.noMigrations': 'Geen migraties.',
   'support.noInvoices': 'Geen facturen.',
   'support.hold': 'Nieuwe rondes pauzeren',
-  'support.hold.hint': 'Stopt nieuwe rondes; wat al loopt wordt afgerond.',
+  'support.hold.hint': 'Stopt nieuwe rondes, ook via een knop; wat al loopt wordt afgerond.',
   'support.hold.hint.why':
-    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat al loopt wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin als u het veld leeg laat. Zodra u de pauze opheft, starten de rondes bij de volgende tick weer.',
+    'Dit is de drain: de synchronisatietick stopt binnen een minuut met inplannen, en wat al loopt wordt normaal afgerond. Elke ingelogde klant ziet een melding met uw tekst, of een standaardzin als u het veld leeg laat. Uw tekst is ook, woord voor woord, het antwoord op elke knop die werk zou starten terwijl de pauze aanstaat (\'Synchroniseer nu\', \'Start migratie\', een controle), en wat zo geweigerd wordt, onthoudt het platform niet. Zeg dus wanneer het kopiëren weer begint en vraag de klant het daarna opnieuw te proberen, bijvoorbeeld: \'We werken het platform bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw.\' Zodra u de pauze opheft, starten de geplande rondes bij de volgende tick weer.',
   'support.hold.on': 'Gepauzeerd sinds {since}. Er starten geen nieuwe rondes.',
   'support.hold.off': 'Niet gepauzeerd. Nieuwe rondes starten volgens schema.',
   'support.hold.start': 'Nieuwe rondes pauzeren',
@@ -3670,6 +3690,8 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.start': 'Start migratie',
   'confirm.startError': 'Kon niet starten:',
   'confirm.startErrorFallback': 'het verzoek is mislukt',
+  'confirm.countError': 'Het tellen is niet gestart:',
+  'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
   'confirm.note.active': 'Actief. Het synchroniseert volgens schema en meldt alles wat uw aandacht nodig heeft.',
@@ -3704,7 +3726,7 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.default': 'We hebben het kopiëren gepauzeerd terwijl we het platform bijwerken.',
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
-    'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond; nieuw kopiëren start vanzelf weer zodra de update klaar is, en gaat verder waar het stopte.',
+    'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte. Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
   // 0131 T1's words. `alpha.note.terms` is sixteen words here, and stays so: a
   // safety sentence is not shortened (0118).
   'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
@@ -3971,6 +3993,9 @@ const nl: Record<keyof typeof en, string> = {
     'Nog geen e-mail; vertel het zelf, en ze verschijnen hieronder als uitgenodigd.',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
+  'tenants.invite.adminCan':
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het toepassen van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten en iemand eigenaar maken.',
+  'tenants.ownerOrAdminOnly': 'Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
     'Hoe vaak een samenvatting van wachtende beslissingen wordt gemaild; een lege wordt nooit verstuurd.',
