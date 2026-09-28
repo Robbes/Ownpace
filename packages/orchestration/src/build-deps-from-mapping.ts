@@ -21,6 +21,7 @@ import {
   type TargetConfig,
   type FileSource,
   DEFAULT_CONCURRENCY,
+  parseDropboxSource,
   parseGoogleDriveSource,
   type ProviderClientEnv,
   microsoftTenant,
@@ -84,10 +85,11 @@ import { sourceFaceBuilder, type SourceFaceBuilder } from './source-face-builder
 import {
   CredentialRefusalError,
   grantWithdrawnRefusal,
+  organisationClosedRefusal,
   publishedEndpoint,
   isProviderAccountKind,
 } from '@openmig/shared';
-import { PgLedger, PgCursorStore, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
+import { PgLedger, PgCursorStore, organisationIsOpen, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
 import { HANDED_BY_THE_CALLER, withClose, type WithClose } from './deps-lifecycle.ts';
@@ -148,6 +150,34 @@ function mergeMappingCredentials(
 export function refuseAWithdrawnGrant(mapping: { readonly grantWithdrawnAt: Date | null }): void {
   if (mapping.grantWithdrawnAt) {
     throw new CredentialRefusalError(grantWithdrawnRefusal(mapping.grantWithdrawnAt));
+  }
+}
+
+/**
+ * A closed organisation is read by nobody, HERE too (workplan 0085 T2; the
+ * owner's report of 2026-09-28).
+ *
+ * The tick starts no pass for it and a pass under way stops before its next
+ * data type. This is the backstop for everything else that builds a reader of
+ * its accounts: a discovery, a verification, a confirmation, an apply, a
+ * cutover's gate, and a retry of any of them queued before the close. Asked
+ * before the withdrawal and before any credential is decrypted or merged,
+ * from the organisation's status, as the tick and the pass ask it
+ * (`organisationIsOpen`). A reopen sets the status back, and the builders
+ * build again.
+ *
+ * Without the days: they are the managed edition's (`tenant_closure`), and
+ * this package is the appliance's too. The doors in the managed API name them.
+ *
+ * An ordinary error, so the task fails and the plane retries it; each retry is
+ * refused here again. A verification, a confirmation and a cutover's gate open
+ * their targets through `fanOutTargets`, which leaves out a data type it cannot
+ * open. This refusal it passes through instead (`target-fan-out.ts`), so none
+ * of them records a verdict for a closed organisation.
+ */
+export function refuseAClosedOrganisation(open: boolean): void {
+  if (!open) {
+    throw new CredentialRefusalError(organisationClosedRefusal({ closedAt: null, purgeAfter: null }));
   }
 }
 
@@ -260,12 +290,15 @@ export async function buildDepsFromMapping(
   if (mappings.length === 0) {
     throw new Error('Mapping not found or access denied');
   }
-  refuseAWithdrawnGrant(mappings[0]!);
   // Mail's own phase (0128 T5), read by the one reader every gate asks, so
-  // this pass and the pass's stop check cannot disagree about it.
-  const mailPhase = await withTenant(pool, tenantId, async (txDb) =>
-    (await readPathPhases(txDb, tenantId, mappingId))?.phaseOf('email'),
-  );
+  // this pass and the pass's stop check cannot disagree about it; and whether
+  // the organisation is open (0085 T2), in the same transaction.
+  const { open, mailPhase } = await withTenant(pool, tenantId, async (txDb) => ({
+    open: await organisationIsOpen(txDb, tenantId),
+    mailPhase: (await readPathPhases(txDb, tenantId, mappingId))?.phaseOf('email'),
+  }));
+  refuseAClosedOrganisation(open);
+  refuseAWithdrawnGrant(mappings[0]!);
   if (mailPhase === undefined) {
     throw new Error('Mapping not found or access denied');
   }
@@ -538,6 +571,7 @@ async function loadDomainConnections(
     if (!mapping || !phases) {
       throw new Error(`Mapping not found or access denied: ${mappingId}`);
     }
+    refuseAClosedOrganisation(await organisationIsOpen(txDb, tenantId));
     refuseAWithdrawnGrant(mapping);
 
     const load = async (role: 'source' | 'target') => {
@@ -1122,11 +1156,25 @@ export function buildFileSourceFromConnection(
         throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
-    case 'dropbox':
+    case 'dropbox': {
       // Dropbox (workplan 0055): stored under the shared trio keys, mapped to
-      // Dropbox's own words by the naming (see the factory).
+      // Dropbox's own words by the naming (see the factory). The format for
+      // Paper docs is read through the parser the appliance's mapping file
+      // goes through (0150 T3 (c)), so a format one edition refuses is not one
+      // the other hands the source unread. Only the `paper` kind is read: a
+      // Google format the update door merged into a Dropbox row before it
+      // asked which source a format is for was never read, and is not now.
+      // Refused here, that leftover would stop every pass. The root is read
+      // as it always was: an empty one means the whole account, as the probe
+      // sends it.
+      const raw = src.config as { rootPath?: string; nativeFilePolicies?: { paper?: unknown } };
+      const paper = raw.nativeFilePolicies?.paper;
+      const formats =
+        paper === undefined
+          ? undefined
+          : parseDropboxSource({ nativeFilePolicies: { paper } }).nativeFilePolicies;
       return buildDropboxSourceFrom(
-        { rootPath: (src.config as { rootPath?: string }).rootPath },
+        { rootPath: raw.rootPath, ...(formats === undefined ? {} : { nativeFilePolicies: formats }) },
         {
           appKey: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
           appSecret: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
@@ -1134,6 +1182,7 @@ export function buildFileSourceFromConnection(
         },
         STORED_DROPBOX_CREDENTIAL_NAMES,
       );
+    }
     case 'box': {
       // Box (workplan 0056): client id + secret from the stored credentials;
       // the SUBJECT user id rides the source config — one subject per mapping,

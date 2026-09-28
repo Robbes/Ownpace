@@ -16,11 +16,13 @@
 
 import { CREDENTIAL_STORE_NL } from '@openmig/shared';
 import { missingCredentials } from '@openmig/shared';
-import type { FileSource } from '@openmig/shared';
+import type { DropboxNativeFilePolicies, FileSource } from '@openmig/shared';
 import { DropboxFileSource, DropboxTokenProvider, dropboxTransport } from '@openmig/connectors';
 
 export interface DropboxEndpoint {
   readonly rootPath?: string | undefined;
+  /** The format Paper docs arrive in (workplan 0150 T3); unset refuses them by name. */
+  readonly nativeFilePolicies?: DropboxNativeFilePolicies | undefined;
   readonly apiBaseUrl?: string | undefined;
   readonly contentBaseUrl?: string | undefined;
 }
@@ -96,6 +98,9 @@ export function buildDropboxSourceFrom(
   });
   return new DropboxFileSource(dropboxTransport(tokens), {
     ...(endpoint.rootPath === undefined ? {} : { rootPath: endpoint.rootPath }),
+    ...(endpoint.nativeFilePolicies === undefined
+      ? {}
+      : { nativeFilePolicies: endpoint.nativeFilePolicies }),
     ...(endpoint.apiBaseUrl === undefined ? {} : { apiBaseUrl: endpoint.apiBaseUrl }),
     ...(endpoint.contentBaseUrl === undefined ? {} : { contentBaseUrl: endpoint.contentBaseUrl }),
   });

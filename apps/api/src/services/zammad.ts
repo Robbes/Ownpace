@@ -13,10 +13,9 @@
  * - `ZAMMAD_GROUP`: the group a new ticket lands in, `Users` when unset
  *   (the group a fresh Zammad starts with).
  *
- * Without the first two, the form is not offered at all.
+ * Without the first two, a report goes by mail when the API's mail is set up,
+ * and otherwise the form is not offered at all (`report-channel.ts`).
  */
-
-import { log } from '@openmig/shared';
 
 export interface ZammadConfig {
   readonly url: string;
@@ -57,20 +56,6 @@ export function zammadConfigFrom(env: NodeJS.ProcessEnv = process.env): ZammadCo
     );
   }
   return { url: url.replace(/\/+$/, ''), token, group: env.ZAMMAD_GROUP?.trim() || 'Users' };
-}
-
-/**
- * The configuration a door may send with, or undefined when reporting is not
- * set up or is set up wrongly, and then said in the log. Every door asks this
- * and nothing else: the signed-in form (0130) and a link's report (0108 T8 (d)).
- */
-export function reportingConfig(env: NodeJS.ProcessEnv | undefined): ZammadConfig | undefined {
-  try {
-    return zammadConfigFrom(env);
-  } catch (err) {
-    log.error(`[api] problem reports are switched off: ${(err as Error).message}`);
-    return undefined;
-  }
 }
 
 /**

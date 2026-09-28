@@ -149,10 +149,12 @@ against the stubs in their guards.
    every migration; the English says *"Your migrations"* and *"with your migrations"*.
 3. *"ok."* From the current hosting environment to another hosting provider, as it stands.
 4. *"yes."* §6: *"That copy does not leave the hosting environment."*
-5. *"yes, we need that. I haven't seen it funcitonal yet."* The report form (0130, `ZAMMAD_URL`,
-   `ZAMMAD_TOKEN`, `ZAMMAD_GROUP` in live's `.env`, a Zammad the owner runs) is on in live for the
-   whole Alpha, so §12's *Report a problem* is true. T0 fact 3 below is answered by it, and the
-   form's working on live joins what waits for the first invitation (0131 T5's 0130 row).
+5. *"yes, we need that. I haven't seen it funcitonal yet."* The report form (0130) is on in live
+   for the whole Alpha, so §12's *Report a problem* is true. It sends by mail, not to a Zammad (the
+   owner's *"b"*, later the same day): `REPORT_MAIL_TO=support@ownpace.eu` in live's `.env`,
+   through the Proton relay (0133), and no `ZAMMAD_*` keys, since no Zammad runs during the alpha
+   (0130 T5). T0 fact 3 below is answered by it, and the form's working on live joins what waits
+   for the first invitation (0131 T5's 0130 row).
 6. *"We do tell the tester."* §4: *"Wij melden u een datalek"* / *"We tell you about a data
    breach"*, where that is required.
 7. *"explain context, i dont get it."*, then, told that the italics in §2 name privacy §9 by its
@@ -297,7 +299,8 @@ and terms §11's export.
   - §10: the access is kept until the tester deletes the connection or the migration. After
     closing nothing uses it, and it is destroyed when the data is erased, at the end of the
     chosen window. That is what the service does (`closeTenant` stops the service, and the purge
-    destroys it), and it departs from the owner's *"keep until deleted or closes"* and from terms
+    destroys it; **corrected 2026-09-28:** the close did not stop syncs until 0085's Status entry of
+    that day, and since then nothing uses the access after closing), and it departs from the owner's *"keep until deleted or closes"* and from terms
     §11's *"On closure we delete your credentials"*. The briefing flags it for the owner. A new
     paragraph: at erasure the owner also deletes the sign-in account (T7, by hand until 0135 T8)
     and the Google test-user entry (0131 T4), and the access request is erased with the data
@@ -998,7 +1001,12 @@ is not rendered by the build, and 0086 T5 owns it.
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
 3. **Zammad.** Is the report form (0130) configured on live, and where does that Zammad run?
    **Supplied 2026-09-28:** *"yes, we need that. I haven't seen it funcitonal yet."* The form is
-   on in live for the whole Alpha; where its Zammad runs is still the owner's to say.
+   on at `ownpace-live` for the whole Alpha. Later that day, where it sends: *"b"*, by mail, not
+   to a Zammad. Each report is a mail to `support@ownpace.eu` through the Proton relay (0133), with
+   the screenshot attached. No Zammad runs during the alpha; it stays the long-term plan. So no
+   helpdesk route is added behind fact 1's ingress, and no sub-processor is added: Proton already
+   is one (0133). The report does land in the support mailbox, which 0130 T4's paragraph must say
+   (0130 T5, built 2026-09-28, not merged).
 4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys will live's `.env` set?
 5. **Organisations in the alpha.** Is any tester a business rather than a household (open
    question 6)? **Supplied 2026-09-28:** *"tester: households only for now."*
@@ -1178,7 +1186,9 @@ mirror and `subprocessors.md` carry the same rows.
   forwards from, and its provider is the one the texts name for that period.
 - **The support channel.** Whoever hosts `support@ownpace.eu` handles every rights request and
   support mail. The same goes for the Zammad that holds problem reports (0130), unless it runs on
-  the machine the hosting row already covers.
+  the machine the hosting row already covers. During the alpha there is no Zammad: reports go by
+  mail through the Proton relay and sit in the support mailbox (T0 fact 3, 0130 T5), so this row
+  and the relay's cover them.
 
 No code changes, so there is no guard. T10 renders `subprocessors.md`, which gives
 `«SUBPROCESSORS_URL»` an address.

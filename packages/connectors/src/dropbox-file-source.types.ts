@@ -2,7 +2,16 @@
 
 /** Types for the Dropbox file source (workplan 0055). */
 
-import type { FileItem, TokenProvider } from '@openmig/shared';
+import type {
+  DropboxNativeFilePolicies,
+  DropboxPaperFormat,
+  DropboxPaperPolicy,
+  FileItem,
+  TokenProvider,
+} from '@openmig/shared';
+
+/** The Paper policy's types live in `shared`, where both editions' parser reads them (0150 T3 (c)). */
+export type { DropboxPaperFormat, DropboxPaperPolicy };
 
 /**
  * The one seam to the world — a fetch-shaped function, so a unit test can be
@@ -55,18 +64,8 @@ export interface DropboxFileSourceConfig {
    * setting uses, with a `paper` kind). It covers Paper docs and Paper
    * templates. Unset, or `refuse`, refuses each one by name (D1).
    */
-  readonly nativeFilePolicies?: { readonly paper?: DropboxPaperPolicy };
+  readonly nativeFilePolicies?: DropboxNativeFilePolicies;
 }
-
-/**
- * The formats a Paper doc can arrive in (workplan 0150 T3 (a)): Dropbox's own
- * `export_format` values, which rclone sends too. Markdown opens in
- * Nextcloud's Text app, and is the one the wizard suggests (D1).
- */
-export type DropboxPaperFormat = 'markdown' | 'html';
-
-/** What a migration says about Paper docs: a format, or `refuse`, the default (D1). */
-export type DropboxPaperPolicy = DropboxPaperFormat | 'refuse';
 
 /** One entry as `files/list_folder` returns it, reduced to the fields used. */
 export interface DropboxEntry {

@@ -52,7 +52,9 @@ import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-creden
 import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
+import { refusedAsClosed } from '../../closed-organisation.ts';
 import type {
+  DropboxNativeFilePolicies,
   GoogleNativeFilePolicy,
   MappingId,
   NativeFilePolicies,
@@ -109,6 +111,7 @@ import {
   providerClientFacts,
   resolveGoogleClient,
   resolveDropboxClient,
+  parseDropboxSource,
   parseGoogleDriveSource,
   carriesGoogleNativeFiles,
   refusalsFor,
@@ -121,6 +124,7 @@ import {
   kindAdditionRefusal,
   kindChoices,
   updateTransition,
+  PASS_RUNNING_STATES,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
@@ -209,9 +213,15 @@ export function sourceConnectionConfig(
     }) as unknown as Record<string, unknown>;
   }
   if (body.sourceType === 'dropbox') {
-    // The config carries only WHERE the migration is rooted; credentials live
-    // encrypted on the connection. Engine shape, like every source here.
-    return { type: 'dropbox', ...(cfg.rootPath ? { rootPath: cfg.rootPath } : {}) };
+    // WHERE the migration is rooted, and the format its Paper docs arrive in
+    // (workplan 0150 T3 (c)); credentials live encrypted on the connection.
+    // Engine shape, through the parser the appliance's mapping file goes
+    // through (hard rule 5): until this, a format sent here was dropped in
+    // silence. The superRefine has already refused an unreadable one.
+    return parseDropboxSource({
+      ...(cfg.rootPath ? { rootPath: cfg.rootPath } : {}),
+      ...dropboxFormatOverride(cfg),
+    }) as unknown as Record<string, unknown>;
   }
   if (body.sourceType === 'archive') {
     // WHICH export and WHERE — and nothing encrypted beside it, because there
@@ -495,6 +505,48 @@ interface ExportFormat {
 }
 
 /**
+ * A Dropbox migration's format for Paper docs as a request sent it (workplan
+ * 0150 T3 (c)), read by the shared parser, and nothing when none was sent.
+ * The key is Drive's, with a `paper` kind (D7).
+ */
+export function dropboxFormatOverride(cfg: {
+  readonly nativeFilePolicies?: Readonly<Record<string, string>> | undefined;
+}): { readonly nativeFilePolicies?: DropboxNativeFilePolicies } {
+  if (cfg.nativeFilePolicies === undefined) return {};
+  const parsed = parseDropboxSource({ nativeFilePolicies: cfg.nativeFilePolicies });
+  return parsed.nativeFilePolicies === undefined ? {} : { nativeFilePolicies: parsed.nativeFilePolicies };
+}
+
+/**
+ * Whether a request's formats are a Dropbox migration's: a `paper` kind among
+ * them. Drive's four kinds and Dropbox's one never share a migration, so the
+ * shape says which parser reads it, and the update route then checks it
+ * against the migration it names.
+ */
+export function isDropboxFormat(cfg: {
+  readonly nativeFilePolicies?: Readonly<Record<string, string>> | undefined;
+}): boolean {
+  return cfg.nativeFilePolicies !== undefined && Object.hasOwn(cfg.nativeFilePolicies, 'paper');
+}
+
+/** The Dropbox format through the shared parser, its refusal anchored on the key. */
+function refuseUnreadableDropboxFormat(
+  ctx: IssueSink,
+  sourceConfig: { readonly nativeFilePolicies?: Readonly<Record<string, string>> | undefined },
+): void {
+  if (sourceConfig.nativeFilePolicies === undefined) return;
+  try {
+    parseDropboxSource({ nativeFilePolicies: sourceConfig.nativeFilePolicies });
+  } catch (err) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['sourceConfig', 'nativeFilePolicies'],
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * Refuse a Drive setting the CONNECTOR could not read — in the shared parser's
  * own words, for every source type whose files come out of Google Drive.
  *
@@ -532,6 +584,12 @@ function refuseUnreadableDriveSettings(
  * create route and the appliance's mapping file use.
  */
 function refuseUnreadableExportFormat(ctx: IssueSink, sourceConfig: DriveSettingsAsSent): void {
+  // A Dropbox migration's format (0150 T3 (c)) is read by Dropbox's parser:
+  // run through Drive's, its `paper` kind answered 400 on every request.
+  if (isDropboxFormat(sourceConfig)) {
+    refuseUnreadableDropboxFormat(ctx, sourceConfig);
+    return;
+  }
   if (sourceConfig.nativeFilePolicy) refuseUnreadableKey(ctx, sourceConfig, 'nativeFilePolicy');
   if (sourceConfig.nativeFilePolicies !== undefined) {
     refuseUnreadableKey(ctx, sourceConfig, 'nativeFilePolicies');
@@ -694,7 +752,7 @@ export function sourceConfigOverride(
     case 'google-drive':
       return keep({ rootFolderId: cfg.rootFolderId, ...exportFormatOverride(cfg) });
     case 'dropbox':
-      return keep({ rootPath: cfg.rootPath });
+      return keep({ rootPath: cfg.rootPath, ...dropboxFormatOverride(cfg) });
     case 'box':
       // The CCG subject is per-mapping by ADR-0033, and the superRefine above
       // demands it on the reuse path too — without it this override would be
@@ -1484,6 +1542,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       });
     }
     refuseHalfDropboxClientPair(ctx, body.sourceConfig);
+    refuseUnreadableDropboxFormat(ctx, body.sourceConfig);
     const sourceRefusal = sourceDomainRefusal('dropbox', body.syncConfig.domains);
     if (sourceRefusal) {
       ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: sourceRefusal });
@@ -2162,6 +2221,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       }
     }
 
+    // A closed organisation takes no new migration, and stores no new
+    // credential (0085 T2): refused before anything is written.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
+
     // The deployment's cap on unfinished migrations (0143 T2a), read per
     // request like every other deployment setting here. A value it cannot read
     // is a fault with a reference, not a silent default.
@@ -2770,6 +2833,17 @@ router.put(
 
       const pool = getSharedPool();
 
+      // Into a state the tick runs passes in (0085 T2): refused while the
+      // organisation is closed, before anything is written. Other edits, and a
+      // move that stops work, are not.
+      if (
+        body.status !== undefined &&
+        (PASS_RUNNING_STATES as readonly string[]).includes(body.status) &&
+        (await refusedAsClosed(res, tenantId, pool))
+      ) {
+        return;
+      }
+
       // Update mapping in database with RLS enforcement via withTenantDb
       // Note: mailbox_mapping has limited fields - we only update what's available
       const updateData: Partial<typeof schema.mailboxMapping.$inferInsert> = {};
@@ -2858,7 +2932,11 @@ router.put(
        * ones, so a control offering one format for all four kinds is never
        * contradicted by a per-kind format it cannot show.
        */
-      const revisedFormat = exportFormatOverride(body.sourceConfig ?? {});
+      const sentConfig = body.sourceConfig ?? {};
+      const dropboxFormat = isDropboxFormat(sentConfig);
+      const revisedFormat: Readonly<Record<string, unknown>> = dropboxFormat
+        ? { ...dropboxFormatOverride(sentConfig) }
+        : { ...exportFormatOverride(sentConfig) };
       const revisesFormat = Object.keys(revisedFormat).length > 0;
 
       const outcome = await withTenantDb(tenantId, pool, async (db) => {
@@ -2899,6 +2977,23 @@ router.put(
         // Read inside the same transaction, for the same reason the status is:
         // a merge built from a value read outside it can be written over a row
         // that moved in between.
+        // WHICH SOURCE THE FORMAT IS FOR (0150 T3 (c)). A Paper format on a
+        // migration that is not Dropbox's, or Drive's formats on one that is,
+        // would be stored and never read, or read by a parser that refuses it
+        // on the next pass. Asked in the same transaction as the write.
+        if (revisesFormat) {
+          const [source] = await db
+            .select({ kind: schema.connection.kind })
+            .from(schema.mailboxMapping)
+            .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+            .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+            .where(
+              and(eq(schema.mailboxMapping.id, mappingId), eq(schema.mailboxMapping.tenantId, tenantId)),
+            );
+          if (source && (source.kind === 'dropbox') !== dropboxFormat) {
+            return { kind: 'format_for_another_source', sourceKind: source.kind } as const;
+          }
+        }
         const currentOverride = !revisesFormat
           ? undefined
           : ((
@@ -2953,6 +3048,26 @@ router.put(
         return { kind: 'updated', row } as const;
       });
 
+      if (outcome.kind === 'format_for_another_source') {
+        // 400: the request names a setting this migration's source does not
+        // have, anchored on the key the way the schema's refusals are.
+        res.status(400).json({
+          error: 'Validation error',
+          details: [
+            {
+              code: 'custom',
+              path: ['sourceConfig', 'nativeFilePolicies'],
+              message:
+                outcome.sourceKind === 'dropbox'
+                  ? 'A Dropbox migration chooses a format for its Paper docs only: ' +
+                    '{ "paper": "markdown" }, "html" or "refuse". Google formats do not apply to it.'
+                  : 'A format for Paper docs applies to a Dropbox migration only, and this ' +
+                    'migration does not copy from Dropbox.',
+            },
+          ],
+        });
+        return;
+      }
       if (outcome.kind === 'refused') {
         // 409, not 400: the body is well-formed and understood. What refuses
         // it is the lifecycle of the migration it names — and `code` is the
@@ -3136,6 +3251,12 @@ router.post(
         });
         return;
       }
+
+      // A closed organisation first (0085 T2): the paused and withdrawn
+      // sentences below would send the owner to a press that is refused too.
+      // `enqueueUnlessHeld` reads the close again; the other doors that
+      // enqueue rely on that read alone.
+      if (await refusedAsClosed(res, tenantId, pool)) return;
 
       // 0013 T5: a paused (draft) mapping must not sync until the owner green-lights it
       // via POST …/start. Refuse rather than silently kicking off a pass.
@@ -3599,6 +3720,13 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
       return void res.status(409).json({ error: 'Conflict', message: `Cannot start a mapping in '${mapping.status}' state` });
     }
 
+    // A closed organisation (0085 T2), before the grant's refusals and before
+    // `activated` is known. The close leaves a migration `active`, and a press
+    // on one would otherwise answer 200 without naming the close; an
+    // `awaiting_grant` answer would send the owner to a grant link that is
+    // refused too.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
+
     // Waiting on somebody's grant is not runnable (workplan 0108 T4). Starting
     // it would enqueue a pass that fails at the first request, and the failure
     // would arrive as a provider authentication error in a run report — read
@@ -3720,6 +3848,9 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
       return void res.status(400).json({ error: 'invalid_body', message: reason, reason });
     }
     const { domain } = parsed.data;
+    // A data type added to a closed organisation's migration would be copied
+    // at its next pass (0085 T2): refused before anything is written.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
 
     const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
       const [mapping] = await db
@@ -3838,6 +3969,9 @@ function stopOrResumeRoute(stop: boolean) {
         return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
       }
       const domain = parsed.data;
+      // A resume re-arms the data type's passes (0085 T2): refused while the
+      // organisation is closed. A stop is not: stopping is not starting.
+      if (!stop && (await refusedAsClosed(res, tenantId, getSharedPool()))) return;
 
       const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
         stopOrResumeDataType(db, tenantId, { mappingId, domain, stop, actor: req.userId ?? 'unknown' }),
@@ -3887,6 +4021,9 @@ function endOrKeepRoute(ending: PathEnding) {
       }
       const domain = parsed.data;
       const force = String(req.query.force) === 'true';
+      // Keeping copying puts the data type in the lane the tick runs (0085 T2):
+      // refused while the organisation is closed. Ending it is not.
+      if (ending === 'keep' && (await refusedAsClosed(res, tenantId, getSharedPool()))) return;
 
       const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
         const failures =

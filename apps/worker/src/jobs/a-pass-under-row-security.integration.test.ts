@@ -56,12 +56,17 @@
  *      the audit sink left on the same pool, the second fails: the key read is
  *      refused and the line never prints. The key's pool is found the way the
  *      sink finds it, as the pool asked for a connection: `openTaskPools`
- *      hands a job the tenant pool alone. And a run that opens its pools and
- *      fails still leaves its event on the log page, which is on the tenant
- *      pool: `leavesAReference` records the failure before it runs the end
- *      the run left it in `afterwards`. Ended in the run's own `finally`, as
- *      run-cutover and run-rollback ended it until the step's review, the
- *      event is lost, and the last case shows that too.
+ *      hands a job the tenant pool alone. Whether its organisation is open
+ *      (0085 T2, `tenant.status`) is read in its scope too: closed, the pass
+ *      stops before its next data type and neither builder builds; open, it
+ *      runs. Read outside the scope on `app_user` it would find no row, which
+ *      is not an open organisation, and every pass would stop as closed. And
+ *      a run that opens its pools and fails still leaves its event on the log
+ *      page, which is on the tenant pool: `leavesAReference` records the
+ *      failure before it runs the end the run left it in `afterwards`. Ended
+ *      in the run's own `finally`, as run-cutover and run-rollback ended it
+ *      until the step's review, the event is lost, and the last case shows
+ *      that too.
  *
  * Handed its database (`an-integration-test-is-handed-its-database`): it reads
  * `TEST_DATABASE_URL` and derives `app_user`'s URL from it, as
@@ -91,8 +96,10 @@ import {
 } from '@openmig/ledger';
 import { PgBytesMovedStore } from '@openmig/managed';
 import {
+  ACCOUNT_CLOSED,
   asMappingId,
   asTenantId,
+  isCredentialRefusal,
   log,
   recordAppEvent,
   setAppEventSink,
@@ -107,7 +114,7 @@ import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-d
 import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
 import { runCutoverGate } from './cutover-gate.ts';
 import { mappingNameOf } from './run-rollback.ts';
-import { passStepBefore } from './stopping-a-pass.ts';
+import { passStepBefore, whyThePassStops } from './stopping-a-pass.ts';
 import { openTaskPools, type TaskPools } from './task-pools.ts';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
@@ -444,6 +451,44 @@ describe('third: a pass on the pools its task opens runs as the application role
     );
     expect(who.rows[0]).toEqual({ role: 'app_user', superuser: 'off' });
     // And the step a pass asks before each data type finds the migration.
+    expect(await passStepBefore(pools.tenant, asTenantId(A), asMappingId(A_MAIL), 'email')).toEqual({ run: true });
+  });
+
+  it('reads whether its organisation is open in its scope: closed, the pass stops and nothing is built; open, it runs', async () => {
+    // A closed organisation gets no pass (0085 T2): the step before each data
+    // type and both builders read `tenant.status` inside the organisation's
+    // own transaction. On app_user a read outside it finds no row, and no row
+    // is not an open organisation, so every pass would stop as closed: the
+    // `{ run: true }` above is the open half of this. Here the owner closes A,
+    // as the close does, and B, open, is left as it was.
+    const bBefore = await whyThePassStops(pools.tenant, asTenantId(B), asMappingId(B_MAPPING));
+    expect(bBefore).not.toBe('organisation_closed');
+    await owner.execute(sql`UPDATE tenant SET status = 'closed' WHERE id = ${A}`);
+    try {
+      expect(await whyThePassStops(pools.tenant, asTenantId(A), asMappingId(A_MAIL))).toBe('organisation_closed');
+      expect(await passStepBefore(pools.tenant, asTenantId(A), asMappingId(A_MAIL), 'email')).toEqual({
+        halt: 'organisation_closed',
+      });
+      // The backstop: neither builder builds a reader of a closed organisation's accounts.
+      for (const build of [
+        () => buildDepsFromMapping(pools.tenant, A, A_MAIL),
+        () => buildDomainDepsFromMapping(pools.tenant, A, A_ACCOUNT, 'contact'),
+      ]) {
+        const refused = await build().then(
+          async (deps) => {
+            await deps.close();
+            return null;
+          },
+          (error: unknown) => error,
+        );
+        expect(isCredentialRefusal(refused) ? refused.refusal.code : refused).toBe(ACCOUNT_CLOSED);
+      }
+      // Another organisation's pass, on the same pool, is not stopped by A's close.
+      expect(await whyThePassStops(pools.tenant, asTenantId(B), asMappingId(B_MAPPING))).toBe(bBefore);
+    } finally {
+      await owner.execute(sql`UPDATE tenant SET status = 'active' WHERE id = ${A}`);
+    }
+    // Reopened, it runs again.
     expect(await passStepBefore(pools.tenant, asTenantId(A), asMappingId(A_MAIL), 'email')).toEqual({ run: true });
   });
 

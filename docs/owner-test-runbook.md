@@ -455,13 +455,39 @@ one of them.
    Since #1208 (0145 T6), that refusal and the page after Google come in the language the grant
    page was in. Write down the language each came in.
 7. **Report a problem.** Look in the menu for *Een probleem melden* / *Report a problem*.
-   **Expect:** where live has a helpdesk (0130), the menu has it. Open it, describe anything, and
-   press *Melding versturen* / *Send the report*. The page answers *"Verstuurd. Uw melding heeft
-   nummer …"* / *"Sent. Your report is number …"*, and the report reaches you. Where live has
-   none, the menu has no such entry, and that missing entry is the result to record. A tester's
-   route is then the address in the alpha conditions (0131 T5). Opening `/report` by hand shows
-   *"Een probleem melden is op deze dienst niet ingesteld."* / *"Reporting a problem is not set
-   up on this service."* Write down which of the two it was.
+   Live has no helpdesk: a report goes by mail to `support@ownpace.eu`, through the relay the
+   sign-in codes use (0130 T5, 0133 T0), once live's `.env` has `REPORT_MAIL_TO` (step 8f of
+   [`managed-bring-up.md`](./managed-bring-up.md)). Open the entry, describe anything, add a
+   screenshot (*Schermafbeelding* / *Screenshot*, a PNG or JPEG), and press *Melding versturen* /
+   *Send the report*.
+   **Expect:**
+   - The menu has the entry. The page answers *"Verstuurd naar ons supportteam, met
+     meldingskenmerk …"* for A and *"Sent to our support team, with report reference …"* for B,
+     and then *"We antwoorden per e-mail naar …"* / *"We will reply by email to …"* with the
+     address the tester signed in with. Write down the report reference.
+   - The report is in `support@ownpace.eu` within a few minutes. Its Subject is *Ownpace:* and
+     the first line of the description. Its body ends with a `Reply to:` line naming the tester's
+     sign-in address and a `Report reference:` line with the reference the page gave. The
+     screenshot is attached.
+   - **The reply check** (0131, the row for 0130). The mail goes from `support@ownpace.eu` to
+     itself, so open it in Proton's own client and press Reply. The To field shows the tester's
+     sign-in address. Send the reply and the tester receives it. If To shows the support address
+     instead, answer with a new mail to the `Reply to:` line's address, and write down that Reply
+     did not reach the tester: 0130 records it.
+
+   A menu with no entry on live is a failure of this step, not a result. The API's mail is off or
+   `REPORT_MAIL_TO` did not reach it, and the API's log says `problem reports are switched off`,
+   with what is missing. Opening `/report` by hand then shows *"Een probleem melden is op deze
+   dienst niet ingesteld."* / *"Reporting a problem is not set up on this service."*
+
+   On a stack with a Zammad (`ZAMMAD_URL` and `ZAMMAD_TOKEN` set), the report becomes a ticket
+   there instead, and the page answers *"Verstuurd. Uw melding heeft nummer …"* / *"Sent. Your
+   report is number …"*. On a stack with neither a Zammad nor the API's mail, the menu has no
+   entry, and a tester's route is the address in the alpha conditions (0131 T5).
+
+   Write down which answer the page gave, whether the mail arrived with its screenshot and the
+   same reference, and whether Reply's To field showed the tester's address or the support
+   address.
 8. **The permission list.** On the Finish page (`/mappings/<id>/finish`), press *Haal de
    rechtenlijst op* / *Get the permission list*, and read the file it downloads.
    **Expect:** every sentence in it is true of that source. For A's Google account, the

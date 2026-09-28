@@ -441,7 +441,8 @@ export function deleteTenantRefusal(): {
       'Deleting a tenant outright is no longer available: it destroyed invoices that must be ' +
       'kept for tax purposes, and left no window in which to undo a mistake. Close the ' +
       'account instead — POST /api/tenants/:tenantId/close with windowDays of 0, 7, 30 or 90. ' +
-      'Closing stops syncs and billing immediately; the erasure runs when the window is up, ' +
+      'Closing stops syncs and billing immediately, and nothing uses the access you gave from ' +
+      'then on; the erasure runs when the window is up, ' +
       'and can be undone until then.',
     // The other half of the answer, and the half nobody thinks to ask for
     // (0085 T6). Somebody calling DELETE is trying to end the relationship, and
@@ -466,7 +467,9 @@ router.delete(
  *
  * Stops syncs and billing now; schedules the erasure for the window the
  * customer chose. Owner only, because it is the one action that ends the
- * relationship.
+ * relationship. From then on no pass starts and no door that would start work
+ * or use the stored access goes through (0085 T2, `closed-organisation.ts`);
+ * reading, and the reopen below, stay open.
  */
 router.post(
   '/:tenantId/close',
@@ -520,6 +523,12 @@ router.post(
  *
  * The reason the staged flow exists: a mistaken click, a resolved dispute, or
  * a bug in the purge spotted before it ran.
+ *
+ * Nothing is restored by hand: the close left every migration as it was, and
+ * the tick, the pass and the doors read the organisation's status, which this
+ * sets back to `active` (0085 T2). The next tick picks the migrations up. The
+ * route goes through `authenticate`, which is why the close is never checked
+ * there.
  */
 router.post(
   '/:tenantId/reopen',

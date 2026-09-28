@@ -247,7 +247,8 @@ app.use('/api/migrations', mappingRoutes);
  */
 app.use('/api/grant', grantRoutes);
 // "Report this link" (workplan 0108 T8 (d)): the person holding a link can
-// tell the owner they doubt it, as a ticket on the owner's Zammad (0130).
+// tell the owner they doubt it, as a ticket on the owner's Zammad or, without
+// one, as a mail to the support mailbox (0130, services/report-channel.ts).
 // Beside each kind of link's own routes, authenticating that kind only.
 app.use('/api/grant', linkReportRoutes('grant'));
 /**

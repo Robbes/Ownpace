@@ -153,7 +153,15 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: trigger
-      POSTGRES_PASSWORD: trigger_password
+      # From .env (workplan 0132 T2), and only at this volume's first
+      # initialisation: Postgres keeps the password a role was created with.
+      # The fallback is the literal every stack used before, and it has to
+      # stay: the OTA stack's trigger_db_data was initialised with it, and any
+      # other value would lock its trigger-api out at the next gate run. So
+      # ensure-env-secrets.sh never writes this key; stand-up-live.sh sets it
+      # on live, before live's volume exists. Hex, or another value safe in a
+      # URL: it is part of trigger-api's DATABASE_URL below.
+      POSTGRES_PASSWORD: ${TRIGGER_DB_PASSWORD:-trigger_password}
       POSTGRES_DB: triggerdb
     volumes:
       - trigger_db_data:/var/lib/postgresql
@@ -194,8 +202,9 @@ services:
     command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
     environment:
       # Database
-      DATABASE_URL: postgresql://trigger:trigger_password@trigger-db:5432/triggerdb
-      DIRECT_URL: postgresql://trigger:trigger_password@trigger-db:5432/triggerdb
+      # trigger-db's password, the same variable and fallback as there.
+      DATABASE_URL: postgresql://trigger:${TRIGGER_DB_PASSWORD:-trigger_password}@trigger-db:5432/triggerdb
+      DIRECT_URL: postgresql://trigger:${TRIGGER_DB_PASSWORD:-trigger_password}@trigger-db:5432/triggerdb
       # Auth secrets — fail-closed (0020 T2): these gate the trigger dashboard,
       # its magic-link login and its stored env vars. The old hardcoded
       # fallbacks were committed to a public repository, i.e. not secrets.
@@ -902,12 +911,15 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3001
       # DATABASE_URL = DB owner: the fallback for the migrations and the audit
-      # key's pool when DIRECT_DATABASE_URL is unset, and the pool of two routes
-      # (the permission report and the sharing rescan, routes/permissions.ts).
+      # key's pool when DIRECT_DATABASE_URL is unset. No route opens a pool on
+      # it or reads tenant data as the owner (0138 T6;
+      # scripts/a-route-that-opened-the-owners-pool.unit.test.ts). The one
+      # owner connection a request uses is that key pool, for the audit
+      # pseudonym key, which holds no tenant's rows (docs/rls-guide.md §2).
       # APP_DATABASE_URL = non-owner `app_user` role the request path connects
-      # through, so RLS is enforced there apart from those two routes (a
-      # superuser/owner bypasses RLS even under FORCE — see workplan 0011 T1;
-      # docs/rls-guide.md, "Where row security holds today").
+      # through, so RLS is enforced there (a superuser/owner bypasses RLS even
+      # under FORCE — see workplan 0011 T1; docs/rls-guide.md, "Where row
+      # security holds today").
       # DB_HOST/DB_PORT default to the pooler. Setting them to postgres:5432 in
       # .env puts the whole stack back on direct connections — the rollback the
       # pgbouncer service documents.
@@ -1009,9 +1021,12 @@ services:
       # the close endpoint TELLS a customer about when their erasure actually
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared,
       # and that default assumes backups exist: nothing in this repository
-      # backs this database up yet. `ownpace-live` sets 0 during the alpha
-      # (workplan 0134). The api warns about a blank value in production, and
-      # with OWNPACE_STAGE=alpha refuses to start (`config-guards.ts`).
+      # backs this database up yet. `ownpace-live` takes no backups during the
+      # alpha and sets 7: its databases are dumped before each deploy and each
+      # dump is deleted after at most 7 days, both by the owner for now (0132
+      # T6 step 4; workplan 0134 open question 1 (b)). The api warns about a
+      # blank value in production, and with OWNPACE_STAGE=alpha refuses to
+      # start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
       # How many migrations one organisation may have that are not finished
       # (workplan 0143 T2a). Unset means the default in the api's
@@ -1052,13 +1067,17 @@ services:
       # set them. `scripts/a-limit-the-api-was-never-handed.unit.test.ts`.
       TRUST_PROXY: ${TRUST_PROXY:-}
       ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
-      # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts.
-      # Empty is no form at all; setting URL and TOKEN offers "Report a problem".
-      # managed.env.example and managed-bring-up.md step 8f carry the note.
-      # `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`.
+      # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts
+      # and report-channel.ts. Setting URL and TOKEN files each report as a
+      # Zammad ticket. Without them, a report goes by mail through the SMTP_*
+      # relay above, from NOTIFY_FROM to REPORT_MAIL_TO, or to NOTIFY_TO when
+      # that is empty (the owner, for the alpha, 2026-09-28). Neither is no form
+      # at all. managed.env.example and managed-bring-up.md step 8f carry the
+      # note. `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`.
       ZAMMAD_URL: ${ZAMMAD_URL:-}
       ZAMMAD_TOKEN: ${ZAMMAD_TOKEN:-}
       ZAMMAD_GROUP: ${ZAMMAD_GROUP:-}
+      REPORT_MAIL_TO: ${REPORT_MAIL_TO:-}
       # THE ALPHA (workplan 0131 T1): `alpha` makes the access-granted mail say
       # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts. The
       # web build below takes the same setting as VITE_OWNPACE_STAGE. Empty is

@@ -10,6 +10,15 @@
  *
  * The ticket also names the build that answered, from `buildIdentity()`, as
  * the page's build stamp writes it (workplan 0146 T2).
+ *
+ * And the body is read last (2026-09-28): sign-in, the helpdesk, the reply
+ * address and the hour's five are decided before a byte of up to 8 MB is
+ * parsed, and a body too large, not JSON, or in a charset or encoding the
+ * parser does not read is answered 413, 400 or 415 in JSON, never the API's
+ * 500 "fault on our side"
+ * (`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts`). The
+ * largest report the form sends, a screenshot of the most it allows and a
+ * description as long, is taken whole.
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
@@ -21,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { setAppEventSink, type AppEvent } from '@openmig/shared';
 import { buildIdentity } from '@openmig/core';
 import {
+  MAX_DESCRIPTION,
   MAX_SCREENSHOT_BYTES,
   imageTypeOf,
   isRefusal,
@@ -30,6 +40,7 @@ import {
 } from './problem-report.ts';
 import { createZammadTicket, zammadConfigFrom, ZammadMisconfigured, ZammadRefused } from './services/zammad.ts';
 import { createKnockLimiter } from './knock-limit.ts';
+import { serverFault } from './server-fault.ts';
 
 const TENANT = '0e260000-e29b-41d4-a716-446655440001';
 
@@ -37,8 +48,17 @@ vi.mock('./middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./middleware/auth.ts')>();
   return {
     ...actual,
-    // Signed in as the header says, or with no address when it says none.
-    authenticate: (req: Record<string, unknown> & { headers: Record<string, string> }, _res: unknown, next: () => void) => {
+    // Signed in as the header says, or with no address when it says none, or
+    // not signed in at all, answered 401 as the real one answers it.
+    authenticate: (
+      req: Record<string, unknown> & { headers: Record<string, string> },
+      res: { status: (code: number) => { json: (body: unknown) => void } },
+      next: () => void,
+    ) => {
+      if (req.headers['x-test-user'] === 'none') {
+        res.status(401).json({ error: 'Unauthorized', message: 'Missing or invalid Authorization header' });
+        return;
+      }
       req.userId = req.headers['x-test-user'] ?? 'user-1';
       const email = req.headers['x-test-email'];
       if (email !== 'none') req.userEmail = email ?? 'someone@example.invalid';
@@ -71,6 +91,10 @@ function zammad(answer: { status?: number; number?: unknown } = {}) {
 function app(deps: Parameters<typeof problemReportRoutes>[0]) {
   const a = express();
   a.use('/api/problem-reports', problemReportRoutes(deps));
+  // The API's own last word on an error, as `index.ts` mounts it.
+  a.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    serverFault(res, 'unhandled', 'handling this request', err);
+  });
   return a;
 }
 
@@ -288,6 +312,24 @@ describe('the route', () => {
     expect(res.status).toBe(201);
   });
 
+  it('takes the largest report the form sends: a screenshot of the most it allows, and a description as long', async () => {
+    const { calls, fetchImpl } = zammad();
+    const largest = Buffer.concat([PNG, Buffer.alloc(MAX_SCREENSHOT_BYTES - PNG.length)]).toString('base64');
+    // Each character one JSON writes as six bytes, so no description of this
+    // length makes a larger body.
+    const description = '\u0001'.repeat(MAX_DESCRIPTION - 1) + 'x';
+    const body = { description, page: '/', screenshot: { data: largest } };
+    // About 7 MB on the wire: what PROBLEM_REPORT_BODY_LIMIT, and every front
+    // before it, must let through.
+    expect(Buffer.byteLength(JSON.stringify(body))).toBeGreaterThan(7_000_000);
+    const res = await request(app({ env: CONFIGURED, fetchImpl }))
+      .post('/api/problem-reports')
+      .send(body);
+    expect(res.status).toBe(201);
+    const sent = JSON.parse(String(calls[0]!.init.body));
+    expect(sent.article.attachments[0].data).toBe(largest);
+  });
+
   it('says which field is wrong', async () => {
     const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
       .post('/api/problem-reports')
@@ -329,6 +371,98 @@ describe('the route', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ level: 'error', event: 'report.not-delivered', tenantId: TENANT });
     expect(res.body.reason).toContain(`Reference ${events[0]!.reference}`);
+  });
+});
+
+describe('the body, read last', () => {
+  let events: AppEvent[];
+  beforeEach(() => {
+    events = [];
+    setAppEventSink({ record: async (e) => void events.push(e) });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  /** Seven megabytes that are not JSON: what the parser would have read and choked on. */
+  const NOT_JSON = `{"description":"${'x'.repeat(7 * 1024 * 1024)}`;
+
+  it('asks for sign-in before it reads a byte of the body', async () => {
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
+      .post('/api/problem-reports')
+      .set('x-test-user', 'none')
+      .set('content-type', 'application/json')
+      .send(NOT_JSON);
+    expect(res.status).toBe(401);
+    expect(events).toEqual([]);
+  });
+
+  it("counts against the hour's five before it reads the body", async () => {
+    const limiter = createKnockLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
+    for (let i = 0; i < 5; i += 1) limiter.take('user-1');
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl, limiter }))
+      .post('/api/problem-reports')
+      .set('content-type', 'application/json')
+      .send(NOT_JSON);
+    expect(res.status).toBe(429);
+    expect(events).toEqual([]);
+  });
+
+  it('answers a body larger than the route takes 413, in JSON the form reads, not a fault on our side', async () => {
+    const nine = Buffer.concat([PNG, Buffer.alloc(9 * 1024 * 1024)]).toString('base64');
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
+      .post('/api/problem-reports')
+      .send({ description: 'x', page: '/', screenshot: { data: nine } });
+    expect(res.status).toBe(413);
+    expect(res.body).toMatchObject({ error: 'report_too_large' });
+    expect(events).toEqual([]);
+  });
+
+  it('answers a body that is not JSON 400, not a fault on our side', async () => {
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
+      .post('/api/problem-reports')
+      .set('content-type', 'application/json')
+      .send('{"description": "x", "page": ');
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'invalid_report' });
+    expect(events).toEqual([]);
+  });
+
+  // The sender's other refusals, as body-parser raises them: each a 4xx with
+  // its own `type`. Until 2026-09-28 these went on to the API's handler, 500.
+  const unreadable: ReadonlyArray<readonly [string, string, string, number]> = [
+    ['a charset the parser does not read', 'content-type', 'application/json; charset=latin1', 415],
+    ['a Content-Encoding the parser does not read', 'content-encoding', 'compress', 415],
+  ];
+
+  it.each(unreadable)('answers %s with its own status, not a fault on our side', async (_what, header, value, status) => {
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl }))
+      .post('/api/problem-reports')
+      .set('content-type', 'application/json')
+      .set(header, value)
+      .send(JSON.stringify({ description: 'x', page: '/' }));
+    expect(res.status).toBe(status);
+    expect(res.body).toMatchObject({ error: 'invalid_report' });
+    expect(events).toEqual([]);
+  });
+
+  // Thrown where the limiter is asked, before the body: a fault in the route's
+  // own code, a 5xx the parser raises about itself, and a 4xx that is not the
+  // parser's (it has no `type`) are all ours to record, not the sender's.
+  const faults: ReadonlyArray<readonly [string, Error]> = [
+    ['a plain fault', new Error('the limiter broke')],
+    ["a 5xx the parser raises about itself", Object.assign(new Error('stream is not readable'), { status: 500, expose: false, type: 'stream.not.readable' })],
+    ["a 4xx that is not the parser's", Object.assign(new Error('forbidden'), { status: 403, expose: true })],
+  ];
+
+  it.each(faults)("still sends %s to the API's own handler", async (_what, fault) => {
+    const limiter = createKnockLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
+    vi.spyOn(limiter, 'take').mockImplementation(() => {
+      throw fault;
+    });
+    const res = await request(app({ env: CONFIGURED, fetchImpl: zammad().fetchImpl, limiter }))
+      .post('/api/problem-reports')
+      .send({ description: 'x', page: '/' });
+    expect(res.status).toBe(500);
+    expect(events).toMatchObject([{ event: 'api.unhandled' }]);
   });
 });
 

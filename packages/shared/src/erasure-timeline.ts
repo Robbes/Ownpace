@@ -29,11 +29,14 @@
  *
  * **7 days is the owner's number for when backups exist** (owner, 2026-08-18).
  * Nothing in this repository backs up the managed application database yet,
- * and `ownpace-live`, the stack testers use, takes no backups during the alpha
- * and sets 0 (workplan 0134). On a stack without backups a blank value names
- * backups that do not exist, so the API warns about a blank value at start-up
- * in production, and refuses to start with one when the alpha setting is on
- * (`describeBackupRetentionProblem` in `apps/api/src/config-guards.ts`).
+ * and `ownpace-live`, the stack testers use, takes no backups during the alpha.
+ * It sets 7 all the same: its databases are dumped before each deploy and each
+ * dump is deleted after at most 7 days (workplan 0134 open question 1 (b),
+ * 2026-09-28), both by the owner for now. On a stack without backups a blank
+ * value names backups that do not exist, so the API warns about a blank value
+ * at start-up in production, and refuses to start with one when the alpha
+ * setting is on (`describeBackupRetentionProblem` in
+ * `apps/api/src/config-guards.ts`).
  *
  * ## What this does NOT claim
  *
@@ -54,8 +57,10 @@ import type { RefusalLocale } from './credential-refusals.ts';
  * The backup retention window used when `BACKUP_RETENTION_DAYS` is blank, in
  * days: the owner's number for a deployment that takes backups (owner
  * decision, 2026-08-18). It assumes backups exist. A deployment with a
- * different schedule sets its own number, and one with no backups sets 0, as
- * `ownpace-live` does during the alpha (workplan 0134).
+ * different schedule sets its own number, and one with no backups and no
+ * dumps sets 0. `ownpace-live` sets 7 during the alpha, the most days a dump
+ * of its databases taken before a deploy is kept (workplan 0134 open question
+ * 1 (b)).
  *
  * It stays 7 and not 0 (0134 §3): a deployment that takes backups and is left
  * on 0 would call an erasure complete while a backup still holds the data,

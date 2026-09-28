@@ -62,11 +62,11 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforced through it:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
-  **superuser**, which **bypasses RLS even under FORCE**. Meant never to be the API's request path;
-  today two API routes open a pool on it, the permission report and the sharing rescan
-  (`apps/api/src/routes/permissions.ts`; `docs/rls-guide.md`, "Where row security holds today").
-  The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its audit key's
-  one connection. It is held
+  **superuser**, which **bypasses RLS even under FORCE**. Not the API's request path: no route
+  opens a pool on it (the permission report and the sharing rescan did until 2026-09-28; workplan
+  0138 T6). The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its
+  audit key's one connection, which requests do reach: the audit lines and the operator's audit
+  download read the pseudonym key through it, and no tenant's rows. It is held
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
   (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
   `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **the six jobs
@@ -74,8 +74,7 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   (below). `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script composes
   an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
-  row-level security is in force on its request path (workplan 0011 T1), with two routes excepted:
-  the permission report and the sharing rescan read on their own owner pool. If you ever point the
+  row-level security is in force on its request path (workplan 0011 T1). If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
 - **The deployed Trigger.dev tasks: the eight per-tenant ones connect as `app_user`, the six that
   span organisations as the owner.** `set-task-env.sh` uploads two URLs, beside
@@ -601,7 +600,10 @@ can be found in `mapping_link` and in these rows without the rest of it.
 Since 2026-09-24 the person holding a link can report it from the grant page or the progress
 page (workplan 0108 T8 (d)). A report arrives on the helpdesk of bring-up step 8f as a ticket
 titled *Ownpace: a grant link was reported*, or *a progress link*. Its one article is an
-internal note. First come the facts, from the rows, one line each:
+internal note. Without a helpdesk, as on live during the alpha, it arrives as a mail to the
+support mailbox with the same title and note, and with no Reply-To: to answer, write a new mail
+to the reply address the note names, and leave the facts out. First come the facts, from the
+rows, one line each:
 
 - the link's id, the organisation and the migration with their ids and state;
 - who issued the link, from, to, and whether access was given;
@@ -674,10 +676,61 @@ records the close as `tenant.closed`, with you as the actor and the reference
 beside `via: operator`; a close from the button names its owner and
 `via: screen`.
 
-Syncs and billing stop immediately and the account goes read-only. Nothing is
-deleted yet. A window of `0` cannot be undone and the response says so
-(`canReopenUntil: null`); every other window can, with
-`POST /api/tenants/:tenantId/reopen`, until it runs out.
+Syncs and billing stop immediately. Nothing is deleted yet. A window of `0`
+cannot be undone and the response says so (`canReopenUntil: null`); every other
+window can, with `POST /api/tenants/:tenantId/reopen`, until it runs out.
+
+**What stops, and how** (workplan 0085 T2; built 2026-09-28, after the owner
+found a closed organisation still syncing). The close does not touch the
+migrations: each keeps its own status. Everything that would start a pass or
+use the access the organisation gave reads the organisation's status instead,
+so a reopen needs nothing restored.
+
+- **No new pass.** The sync tick starts nothing for a closed organisation, in
+  any state its migrations are in: active, in the continuous lane, a cutover
+  still in its grace period, or a data type kept in the lane.
+- **A pass under way stops** before its next data type, before it builds any
+  credential, and its run log says the organisation was closed (the halt
+  `organisation_closed`). It ends without an error, so the plane does not retry
+  it. This is what stops a pass the tick queued in the minute before the close,
+  and a retry. The close asks the orchestrator to cancel only the runs whose
+  rows say `running` or `queued` (`passesStopped`), and a pass has a row only
+  once a runner starts it: `startRun` writes `running`, and nothing writes
+  `queued`.
+- **No reader is built.** Both credential builders refuse a closed organisation
+  before any stored credential is decrypted, with an ordinary error. So a
+  discovery or an apply queued before the close fails there, and each retry is
+  refused the same way. A verification, a confirmation and a cutover's gate
+  open their targets through a fan-out that leaves out a data type it cannot
+  open (`fanOutTargets`). The close's refusal it passes up instead, so they fail
+  too and record no verdict: a verification's run says `failed` with the
+  close's sentence, a confirmation writes no run, and a cutover's preparation
+  is marked `FAILED` with a reason that names the close (its final sync stops
+  first, with the halt above). None of them leaves a report of nothing (every
+  data type NOT_VERIFIABLE, every row `unchecked`) for a reopen to find. Run
+  them again after a reopen.
+- **Every door that would start work answers 409 `account_closed`**, with a
+  sentence that names the day of the close and the day the data is removed:
+  Sync now, a cutover's preparation, a discovery, Start, a verification, both
+  applies, a confirmation; creating a migration, moving one into the continuous
+  lane, adding, resuming or keeping a data type; adding, testing or re-keying a
+  connection; the permission report; the sharing rescan and the share applies;
+  and a grant link's page, consent and ending, which store no token and lift no
+  withdrawal. Start and Sync now ask the close before the migration's own
+  state, so a migration the close left running, a draft, or one waiting for a
+  grant is answered with the close.
+- **What stays open:** reading (migrations, queues, reports, run history, the
+  organisation), export and download, the close itself, the reopen, deleting a
+  migration or a connection (which revokes what it can at the provider),
+  stopping or ending a data type, and edits that start nothing (a name, a
+  schedule, a decision, a failure marked for retry). The check is never in
+  `authenticate`, because the owner reopens through it.
+
+After a reopen the next tick picks the migrations up where they were, and every
+door answers as before. The guards are
+`apps/worker/src/jobs/a-closed-organisation-gets-no-pass.unit.test.ts`,
+`apps/api/src/an-organisation-closed-at-every-door.unit.test.ts` and
+`packages/orchestration/src/a-closed-organisation-is-read-by-nobody.integration.test.ts`.
 
 The response is what you tell the customer. It carries **two dates**:
 
@@ -685,9 +738,14 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **0** during the alpha, workplan 0134) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days a dump of its databases taken before a deploy is kept; the owner takes and deletes that dump by hand, since no script does yet, workplan 0134) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
-| `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
+| `windowDays` | the window they chose |
+| `canReopenUntil` | until when `POST /api/tenants/:tenantId/reopen` works: `purgeAfter`, or `null` for a window of `0` |
+| `passesStopped` | how many runs in flight we **asked** the orchestrator to cancel, not how many stopped; a pass with no run row yet stops by itself (above) |
+| `outlivingAccess` | everything that keeps working after we have forgotten them, `en` and `nl`: the consents in their providers' consoles and the app passwords in their own accounts. What to send them |
+| `neverTouched` | what the erasure will **not** do (their source and their new provider), `en` and `nl`, with the list as `boundaries` |
+| `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them. Kept for older callers; `outlivingAccess` supersedes it |
 
 **Why two dates.** A row deleted from the live database is still in last
 night's backup. Saying "deleted" on the day of the purge would be false, and it
@@ -698,9 +756,16 @@ and the wording says exactly that.
 **Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is the
 owner's number for a deployment that takes backups, and it assumes they exist.
 Nothing in this repository backs up the application database yet (see
-[Backup & restore](#backup--restore-221)), and `ownpace-live`, the stack
-testers use, takes no backups during the alpha and sets `0`
-([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)).
+[Backup & restore](#backup--restore-221)). `ownpace-live`, the stack testers
+use, takes none during the alpha and sets `7` (the owner's answer of
+2026-09-28 to
+[workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)'s
+open question 1): its databases are dumped before each deploy, with the
+commands under *Backup & restore*, and each dump is deleted after at most
+seven days. Both are the owner's steps for now. `deploy-live.sh` takes no dump
+(0132 T6 step 4 comes before it), and nothing deletes one, so delete each dump
+by its seventh day, whether or not a deploy followed. The automatic copy and
+its deletion are not built yet.
 If your backups are kept for a month, a deployment left on the default promises
 a date it cannot honour. `0` is a valid answer for a deployment that takes no
 backups, and produces different wording rather than the same date twice. The
@@ -732,11 +797,13 @@ somebody could reasonably expect to mean the opposite.
 
 ### 4. Access, and the part only they can do
 
-Closing makes the account read-only. To invalidate outstanding tokens as well,
-rotate `JWT_SECRET` (affects every tenant — prefer short token lifetimes) or
-set `tenant_member.status = 'suspended'`.
+Closing refuses every door that would start work or use the access they gave,
+and leaves reading open (section 1). Their members can still sign in and read,
+and the owner can reopen. To invalidate outstanding tokens as well, rotate `JWT_SECRET` (affects
+every tenant — prefer short token lifetimes) or set
+`tenant_member.status = 'suspended'`.
 
-Then send them `standingGrants` from the close response. Revoking a token is
+Then send them `outlivingAccess` from the close response. Revoking a token is
 not withdrawing a consent: an Entra admin consent, a Google OAuth
 authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.

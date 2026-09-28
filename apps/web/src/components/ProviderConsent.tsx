@@ -39,14 +39,31 @@ import {
   type DiscoveryDomain,
   type ProviderAccountKind,
   type WizardSourceType,
+  CONSENT_STATE_TTL_MS,
 } from '@openmig/shared';
 import {
   mappingApi,
   providerAccountsApi,
   providerClientsApi,
 } from '../services/mapping-service.ts';
+import {
+  closeConsentWindow,
+  type ConsentWindow,
+  consentLinkText,
+  consentProviderName,
+  consentWindowName,
+  openConsentWindow,
+  sendConsentWindow,
+} from '../services/consent-window.ts';
 import { useLocale, useT, type StringKey } from '../i18n/index.tsx';
 import { Hint } from './Hint.tsx';
+
+/** A consent address no window was opened for, and when it was pressed for. */
+export interface UnopenedConsent {
+  readonly url: string;
+  /** `Date.now()` in the press, before the server began the consent. */
+  readonly pressedAt: number;
+}
 
 export interface ProviderConsent {
   /** The provider whose consent mints this kind's token, or undefined. */
@@ -67,6 +84,11 @@ export interface ProviderConsent {
   readonly setDomains: React.Dispatch<React.SetStateAction<DiscoveryDomain[]>>;
   readonly note: string | null;
   readonly redirect: string | null;
+  /**
+   * The consent address, when the browser opened no window for it (0145 T5):
+   * the door then offers it as a link (`ConsentWindowLink`). Null otherwise.
+   */
+  readonly unopened: UnopenedConsent | null;
   readonly pairMissing: boolean;
   readonly facesMissing: boolean;
   readonly accountMissing: boolean;
@@ -139,6 +161,7 @@ export function useProviderConsent(opts: {
   const asked = consentAsks(type, domains, faces);
   const [note, setNote] = React.useState<string | null>(null);
   const [redirect, setRedirect] = React.useState<string | null>(null);
+  const [unopened, setUnopened] = React.useState<UnopenedConsent | null>(null);
   const [landed, setLanded] = React.useState(0);
 
   const clientIdTyped = (values.clientId ?? '').trim() !== '';
@@ -186,6 +209,8 @@ export function useProviderConsent(opts: {
 
   const start = async () => {
     setNote(null);
+    setUnopened(null);
+    let consentWindow: ConsentWindow | null = null;
     try {
       // ONE ASK PER PROVIDER, off a table rather than a `?:` chain (workplan
       // 0114). A chain's else branch ran GOOGLE's authorize for anything that
@@ -216,13 +241,20 @@ export function useProviderConsent(opts: {
           ),
       };
       const begin = provider === undefined ? undefined : beginConsent[provider];
-      if (!begin) {
+      if (provider === undefined || !begin) {
         // Never silently Google's. A descriptor naming a provider this table
         // has no row for is a defect, and saying so beats consenting to the
         // wrong company on somebody's behalf.
         setNote(t('wizard.consent.noProvider'));
         return;
       }
+      // THE WINDOW OPENS IN THE PRESS (workplan 0145 T5), before anything is
+      // awaited: after the server's answer, Safari is reported no longer to
+      // count the press, and blocks the window without a word. It is sent to
+      // the provider below, closed if the server refuses, and when the
+      // browser opened none the panel offers the address as a link.
+      consentWindow = openConsentWindow(consentWindowName(provider));
+      const pressedAt = Date.now();
       const { url, redirectUri } = await begin();
       // The address this consent used, shown on every attempt: it has to be
       // registered with the provider BEFORE the first one can work — by whoever
@@ -231,8 +263,9 @@ export function useProviderConsent(opts: {
       // operator's to register, so the line would send them to a console they
       // have no app in (workplan 0148 T2 (a)).
       setRedirect('clientId' in ownPair ? (redirectUri ?? null) : null);
-      window.open(url, `ownpace-${provider ?? 'google'}-consent`, 'popup,width=520,height=640');
+      if (!sendConsentWindow(consentWindow, url)) setUnopened({ url, pressedAt });
     } catch (err) {
+      closeConsentWindow(consentWindow);
       setNote(refusalText(err));
     }
   };
@@ -241,6 +274,7 @@ export function useProviderConsent(opts: {
     setDomains([]);
     setNote(null);
     setRedirect(null);
+    setUnopened(null);
   };
 
   const words = (suffix: ConsentWord) => t(`wizard.${provider ?? 'google'}.${suffix}` as StringKey);
@@ -256,6 +290,7 @@ export function useProviderConsent(opts: {
     asked,
     note,
     redirect,
+    unopened,
     pairMissing,
     facesMissing,
     accountMissing,
@@ -426,6 +461,95 @@ export const ConsentNote: React.FC<{ readonly note: string | null }> = ({ note }
 };
 
 /**
+ * A CONSENT WINDOW THE BROWSER DID NOT OPEN (workplan 0145 T5), for both
+ * doors.
+ *
+ * The window now opens in the press itself (`services/consent-window.ts`).
+ * When the browser still opens none (a strict blocker, or an app's own
+ * browser that refuses windows), or the blank window was closed while the
+ * server answered, this says so in one sentence and offers the provider's page
+ * as a link. Tapping it is a new press, so no blocker stops it.
+ *
+ * - The link opens the consent's own named window, not `_blank`, and carries
+ *   `rel="opener"`: the ending hands the result back to the window that
+ *   opened it, so the link has to keep that tie. Whether Safari honours it is
+ *   0145 T8 (c)'s and T10's to confirm.
+ * - Its words are the host it goes to (`accounts.google.com`): short enough
+ *   for a phone, and it says whose page it is.
+ * - A status, not an alert: nothing was refused, and the line says what to do
+ *   next. Nothing is drawn without an address, and each door clears it when it
+ *   asks again or is shown again, as it does its note (`ConsentNote`).
+ * - It reads on from the in-app browser line above it (0140 T3 (a)): that one
+ *   says where to open the page, this one what to do when no window came.
+ * - It lives as long as the consent's state (`CONSENT_STATE_TTL_MS`), counted
+ *   from the press, which came before the server began it. A tap after that
+ *   would end on the server's English *"expired"* refusal, so the link gives
+ *   way to a sentence asking for a new press. A timer does it on screen, and
+ *   the tap reads the clock too: a phone that slept may run the timer late.
+ */
+export const ConsentWindowLink: React.FC<{
+  readonly provider: string | undefined;
+  /** The consent address no window was opened for, and its press; or null. */
+  readonly unopened: UnopenedConsent | null;
+}> = ({ provider, unopened }) => {
+  const t = useT();
+  const [expired, setExpired] = React.useState<UnopenedConsent | null>(null);
+  React.useEffect(() => {
+    if (unopened === null) return;
+    const left = unopened.pressedAt + CONSENT_STATE_TTL_MS - Date.now();
+    const timer = setTimeout(() => setExpired(unopened), left);
+    return () => clearTimeout(timer);
+  }, [unopened]);
+  if (provider === undefined || unopened === null) return null;
+  const name = consentProviderName(provider);
+  if (expired === unopened) {
+    const button = t(`wizard.${provider}.connect` as StringKey);
+    return (
+      <p role="status" className="mt-1 text-sm text-amber-800">
+        {t('wizard.consent.windowExpired', { provider: name, button })}
+      </p>
+    );
+  }
+  return (
+    <p role="status" className="mt-1 text-sm text-amber-800">
+      {t('wizard.consent.windowBlocked', { provider: name })}{' '}
+      <a
+        href={unopened.url}
+        target={consentWindowName(provider)}
+        rel="opener"
+        className="break-all underline hover:no-underline"
+        onClick={(event) => {
+          if (Date.now() - unopened.pressedAt < CONSENT_STATE_TTL_MS) return;
+          event.preventDefault();
+          setExpired(unopened);
+        }}
+      >
+        {consentLinkText(unopened.url)}
+      </a>
+    </p>
+  );
+};
+
+/**
+ * WHY A CONNECT BUTTON IS GREYED OUT, AS TEXT UNDER IT (workplan 0145 T7
+ * (a)), for both doors.
+ *
+ * The reason used to be the button's `title`, a tooltip that shows on a
+ * mouse's hover. A phone has no hover, a disabled button takes no focus, and a
+ * screen reader need not read a title, so a finger met a grey button and no
+ * reason. Now it is a line straight under the button with `role="status"`, the
+ * pattern of Next's reason at the foot of the wizard (`CreateMapping.tsx`),
+ * and it changes as the reason does. Each door decides one reason and derives
+ * `disabled` from it, so a greyed-out button always says why.
+ */
+export const ConnectReason: React.FC<{ readonly reason: string | undefined }> = ({ reason }) =>
+  reason === undefined ? null : (
+    <p role="status" className="mt-1 text-sm text-amber-800">
+      {reason}
+    </p>
+  );
+
+/**
  * The faces to ask for, the button, and what came back — in the provider's own
  * words. Renders nothing for a kind whose descriptor names no consent.
  */
@@ -437,6 +561,16 @@ export const ProviderConsentPanel: React.FC<{
   const linesId = React.useId();
   if (!consent.isGrantKind) return null;
   const { words } = consent;
+  // Why the button is greyed out, or undefined when it is live (0145 T7 (a)).
+  const reason = consent.pairMissing
+    ? consent.deploymentClient
+      ? words('connect.halfClient')
+      : words('connect.needsClient')
+    : consent.facesMissing
+      ? t('wizard.google.connect.needsDomains')
+      : consent.accountMissing
+        ? t('wizard.consent.needsAccount')
+        : undefined;
   return (
     <div className={className}>
       {consent.isAccountKind && (
@@ -463,25 +597,16 @@ export const ProviderConsentPanel: React.FC<{
       <button
         type="button"
         onClick={consent.start}
-        disabled={consent.pairMissing || consent.facesMissing || consent.accountMissing}
+        disabled={reason !== undefined}
         aria-describedby={consentLineIds(consent.provider, linesId)}
         className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
-        title={
-          consent.pairMissing
-            ? consent.deploymentClient
-              ? words('connect.halfClient')
-              : words('connect.needsClient')
-            : consent.facesMissing
-              ? t('wizard.google.connect.needsDomains')
-              : consent.accountMissing
-                ? t('wizard.consent.needsAccount')
-                : undefined
-        }
       >
         {words('connect')}
       </button>
+      <ConnectReason reason={reason} />
       <ConsentLines provider={consent.provider} asked={consent.asked} idBase={linesId} />
       <ConsentNote note={consent.note} />
+      {consent.note !== 'received' && <ConsentWindowLink provider={consent.provider} unopened={consent.unopened} />}
       {consent.redirect && consent.note !== 'received' && (
         <p className="mt-1 text-sm text-gray-500">
           {words('redirectUri')}{' '}

@@ -381,6 +381,12 @@ export const runDeltaSync = schemaTask({
         // same re-read, and a line of its own, because what brings the
         // migration back is a new grant, not the owner's Resume.
         //
+        // AND THE ORGANISATION MAY HAVE BEEN CLOSED (0085 T2): the same
+        // re-read, asked first. A pass the tick enqueued just before the close,
+        // or a retry, has no run row the close could cancel; it stops here,
+        // before any credential is built, and ends without an error, so the
+        // plane does not retry it.
+        //
         // AND THIS DATA TYPE MAY NO LONGER RUN while the others do (0128 T5):
         // its own cutover past its grace period, ended, or stopped by its owner
         // (0128 T4), each said as what it is. Then the pass moves
@@ -403,9 +409,11 @@ export const runDeltaSync = schemaTask({
         if ('halt' in step) {
           const halt = step.halt;
           const line =
-            halt === 'grant_withdrawn'
-              ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`
-              : `pass stopped before ${domain}: this migration no longer runs passes (paused, finished, or past its cutover's grace period) — nothing failed, the next pass continues from the cursors when it runs again`;
+            halt === 'organisation_closed'
+              ? `pass stopped before ${domain}: this organisation was closed — nothing failed, and nothing uses the access it gave; if it is reopened, the next pass continues from the cursors`
+              : halt === 'grant_withdrawn'
+                ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`
+                : `pass stopped before ${domain}: this migration no longer runs passes (paused, finished, or past its cutover's grace period) — nothing failed, the next pass continues from the cursors when it runs again`;
           log.info(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });

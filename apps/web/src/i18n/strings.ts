@@ -48,6 +48,10 @@ const en = {
   'report.screenshotHint': 'PNG or JPEG, up to 5 MB. It shows your screen: check it first.',
   'report.screenshotTooBig': 'That picture is larger than 5 MB.',
   'report.screenshotType': 'Choose a PNG or a JPEG.',
+  'report.tooLarge': 'The screenshot is too large to send: choose a smaller one and send the report again.',
+  'report.timedOut':
+    'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
+    'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
   'report.sentWith': 'Sent with your report:',
   'report.page': 'the page you were on: {page}',
   'report.reference': 'the reference on your screen: {reference}',
@@ -56,6 +60,12 @@ const en = {
   'report.send': 'Send the report',
   'report.sending': 'Sending…',
   'report.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
+  // Where the service has no helpdesk, a report goes to the support mailbox by
+  // mail (the owner, for the alpha, 2026-09-28): no ticket, so no number, and
+  // the report's own reference instead, which the mail carries too as `Report
+  // reference:`. Named apart from the error's reference the form listed above
+  // (`report.reference`), which the Log page finds and this one it does not.
+  'report.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
   'report.unavailable': 'Reporting a problem is not set up on this service.',
   'language.label': 'Language',
   'common.requestFailed': 'The request did not complete.',
@@ -102,6 +112,9 @@ const en = {
   'discovery.refusedNative.kind.spreadsheet': 'Google Sheets',
   'discovery.refusedNative.kind.presentation': 'Google Slides',
   'discovery.refusedNative.kind.drawing': 'Google Drawings',
+  // A Dropbox migration's one kind (workplan 0150 T3 (d)): Paper docs and
+  // templates alike, which the same setting decides.
+  'discovery.refusedNative.kind.paper': 'Dropbox Paper docs',
   'discovery.refusedNative.kind.other': 'Google files',
   'discovery.refusedNative.strong': 'will not be copied',
   // Fifteen words, like every `discovery.*.post` beside it (0118). The whole
@@ -325,6 +338,15 @@ const en = {
   // The account first (owner's walk, 2026-09-02): the consent saves and
   // tests in one go, and the save needs the address.
   'wizard.consent.needsAccount': 'Enter the account address first.',
+  // A consent window the browser did not open (workplan 0145 T5): the window
+  // opens in the press now, and when it still does not, this sentence and a
+  // link to the provider's page take its place. Tapping the link is a new
+  // press. Written to read on from the in-app browser line above it.
+  'wizard.consent.windowBlocked': 'Your browser did not open {provider}’s page. Open it with this link:',
+  // That link past the consent's ten minutes (CONSENT_STATE_TTL_MS): the
+  // server has forgotten it, and a tap would end on its English "expired"
+  // refusal. So the link goes, and this asks for the press that starts anew.
+  'wizard.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
   // The deployment's own client (ADR-0041, owner decision 2026-09-01): the
   // pair becomes optional as a whole, and a half-typed pair is named rather
   // than silently completed with the deployment's other half.
@@ -552,6 +574,22 @@ const en = {
   'wizard.nativePolicy.allEditable': 'All four kinds arrive as files you can edit.',
   'wizard.nativePolicy.allEditable.why':
     'Each arrives as a rendering Google makes, not the original: fine formatting can shift, and drawings arrive as .svg images because Drive offers no editable drawing format. You can change a format later; files already copied keep the format they arrived in.',
+  // THE SAME QUESTION FOR DROPBOX PAPER DOCS (workplan 0150 T3 (d)). One
+  // select, since Paper is the one kind a Dropbox migration chooses a format
+  // for (D7). The wizard suggests Markdown (D1): Nextcloud's Text app opens it.
+  'wizard.paperFormat': 'Dropbox Paper docs',
+  'wizard.paperFormat.hint': 'They have no file to copy, only an export Dropbox makes.',
+  'wizard.paperFormat.hint.why':
+    'A Paper doc lives in Dropbox, not in a file: there is nothing to download. Dropbox can export one as Markdown or HTML, and that export is what would arrive, under the doc’s own name with the format’s suffix added: Notes.paper arrives as Notes.paper.md. Paper templates follow the same choice. Leaving them behind is the alternative.',
+  'wizard.paperFormat.leave': 'Leave behind, and report each one',
+  'wizard.paperFormat.as.markdown': 'Markdown (.md), opens in Nextcloud Text',
+  'wizard.paperFormat.as.html': 'HTML (.html), opens in a web browser',
+  'wizard.paperFormat.leftBehind': 'Paper docs stay behind in Dropbox, each reported by name.',
+  'wizard.paperFormat.leftBehind.why':
+    'Nothing is copied for them and nothing is lost: each one appears on the Failures screen with its name, and you can choose a format for them later, or leave them behind.',
+  'wizard.paperFormat.arrives': 'Each Paper doc arrives as a {ext} file you can edit.',
+  'wizard.paperFormat.arrives.why':
+    'An export is a rendering Dropbox makes, not the Paper doc itself: fine formatting can shift, and nothing you change on the new system goes back to Dropbox. You can change the format later; docs already copied keep the format they arrived in.',
   // THE SETTINGS PANEL ON A RUNNING MIGRATION (0125 T3) — the screen behind the
   // remedy `policy_refused` prints per item: *"set an export policy on the
   // mapping"*. It named an action the product did not have; these are the words
@@ -587,6 +625,21 @@ const en = {
   'settings.exportPolicy.toFailures': 'See them on the Failures screen',
   'settings.exportPolicy.refused': 'This could not be changed:',
   'settings.exportPolicy.failed': 'That did not save:',
+  // THE SAME PANEL ON A DROPBOX MIGRATION (workplan 0150 T3 (d); D7: one key,
+  // one panel, one rule). Its title is the words the Paper refusal names, on
+  // the row and in `failure.policyRefused.dropbox`.
+  'settings.exportPolicy.paper': 'Export format for Paper docs',
+  'settings.exportPolicy.paper.consequence':
+    'Paper docs are copied again under their new names. Old copies stay, listed as earlier exports.',
+  'settings.exportPolicy.paper.consequence.why':
+    'A Paper doc has no file name of its own: its format adds one to its name (Notes.paper.md, Notes.paper.html), and the name is how a migration recognises a file. So under a new format the next pass copies each Paper doc under its new name. Nothing on the new system is rewritten or removed: a copy in the old format stays where it is, and the Deletions screen lists it as an earlier export, never as deleted in Dropbox. Keep it, or remove it yourself on the new system.',
+  'settings.exportPolicy.paper.refusedBefore':
+    'The next pass tries the Paper docs left behind so far again, in this format.',
+  // With the count, only when it is KNOWN and above zero, as Drive's.
+  'settings.exportPolicy.paper.refusedBefore.count':
+    'The next pass tries {count} Paper doc(s) left behind so far again, in this format.',
+  'settings.exportPolicy.paper.refusedBefore.why':
+    'Under a format a Paper doc arrives under a new name (Notes.paper.md), so it is new to the migration. The next pass copies each one, and the line recorded under its old name closes by itself, because the doc is no longer listed by it. A doc Dropbox does not offer in this format stays on the Failures screen once, saying so. Saving changes nothing by itself: the pass does it. Other documents Dropbox keeps in a format of its own stay behind.',
   // WHAT THIS MIGRATION COPIES, and what it may still gain (workplan 0125 T6).
   // Adding only: the page never offers to take a data type off.
   'settings.kinds': 'Data types this migration copies',
@@ -1125,6 +1178,9 @@ const en = {
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
   'linkReport.sent.anonymous': 'Sent. Your report is number {ticket}. Without an address, we cannot answer you.',
+  'linkReport.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
+  'linkReport.sent.mail.anonymous':
+    'Sent to our support team, with report reference {reference}. Without an address, we cannot answer you.',
   'linkReport.next.grant': 'You need not continue: nothing is read unless you allow it at Google.',
   'linkReport.next.withdraw': 'To stop the copying now, withdraw the access above.',
   'state.lifecycle.active': 'Active',
@@ -1358,11 +1414,13 @@ const en = {
     'Not migrated yet: Google files in a format the new account cannot receive. Choose one both sides can handle under Export format for Google files, then press Try again \u2014 or leave these items behind.',
   // The same category on a DROPBOX migration (workplan 0150 D9, the owner's
   // choice of 2026-09-26): a Paper doc, which Dropbox hands over only as an
-  // export this service does not make yet. There is no setting to name until
-  // 0150 T3 adds one, so this names none, and Drive's sentence above stays as
-  // the owner worded it. `remedyKey` chooses between the two by source.
+  // export. Since 0150 T3 (d) it names the setting that exports one, by the
+  // words on its screen (`settings.exportPolicy.paper`), and the button by its
+  // label, as Drive's sentence above does; Drive's stays as the owner worded
+  // it. The other kinds of Dropbox's own are exported by no setting, so the
+  // second sentence keeps their remedy. `remedyKey` chooses by source.
   'failure.policyRefused.dropbox':
-    'Not migrated: Dropbox Paper docs, and other documents Dropbox keeps in a format of its own, which this service does not export yet. Export them from Dropbox yourself, or leave them behind.',
+    'Not migrated yet: Dropbox Paper docs, which Dropbox hands over only as an export. Choose a format under Export format for Paper docs, then press Try again \u2014 or leave these items behind. Other documents Dropbox keeps in a format of its own are not exported here: export them from Dropbox yourself, or leave them behind.',
   // The tenth category (0143 T4), the owner's choice of 2026-09-27: a file
   // larger than this service copies, refused before a byte was read. No
   // setting changes the answer, so the remedy names none.
@@ -2521,6 +2579,10 @@ const nl: Record<keyof typeof en, string> = {
   'report.screenshotHint': 'PNG of JPEG, tot 5 MB. Hij toont uw scherm: bekijk hem eerst.',
   'report.screenshotTooBig': 'Die afbeelding is groter dan 5 MB.',
   'report.screenshotType': 'Kies een PNG of een JPEG.',
+  'report.tooLarge': 'De schermafbeelding is te groot om te versturen: kies een kleinere en verstuur de melding opnieuw.',
+  'report.timedOut':
+    'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
+    'Wat u schreef staat er nog. Verstuurt u de melding opnieuw, dan gaat een kleinere schermafbeelding sneller.',
   'report.sentWith': 'Wordt met uw melding meegestuurd:',
   'report.page': 'de pagina waarop u was: {page}',
   'report.reference': 'de referentie op uw scherm: {reference}',
@@ -2529,6 +2591,7 @@ const nl: Record<keyof typeof en, string> = {
   'report.send': 'Melding versturen',
   'report.sending': 'Versturen…',
   'report.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
+  'report.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
   'report.unavailable': 'Een probleem melden is op deze dienst niet ingesteld.',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
@@ -2543,7 +2606,7 @@ const nl: Record<keyof typeof en, string> = {
   'failure.policyRefused':
     'Nog niet gemigreerd: Google-bestanden in een formaat dat het nieuwe account niet kan ontvangen. Kies er een dat beide kanten aankunnen onder Exportformaat voor Google-bestanden en klik op Probeer opnieuw \u2014 of laat deze items achter.',
   'failure.policyRefused.dropbox':
-    'Niet gemigreerd: Dropbox Paper-documenten, en andere documenten die Dropbox in een eigen formaat bewaart, die deze dienst nog niet exporteert. Exporteer ze zelf vanuit Dropbox, of laat ze achter.',
+    'Nog niet gemigreerd: Dropbox Paper-documenten, die Dropbox alleen als export afgeeft. Kies een formaat onder Exportformaat voor Paper-documenten en klik op Probeer opnieuw \u2014 of laat deze items achter. Andere documenten die Dropbox in een eigen formaat bewaart, worden hier niet geëxporteerd: exporteer ze zelf vanuit Dropbox, of laat ze achter.',
   'failure.tooLarge':
     'Niet gemigreerd: groter dan deze dienst tijdens de alfa kopieert. Kopieer deze bestanden met de hand, of laat ze achter.',
   'failure.sourceRefused':
@@ -2759,6 +2822,7 @@ const nl: Record<keyof typeof en, string> = {
   'discovery.refusedNative.kind.spreadsheet': 'Google Spreadsheets',
   'discovery.refusedNative.kind.presentation': 'Google Presentaties',
   'discovery.refusedNative.kind.drawing': 'Google Tekeningen',
+  'discovery.refusedNative.kind.paper': 'Dropbox Paper-documenten',
   'discovery.refusedNative.kind.other': 'Google-bestanden',
   'discovery.refusedNative.strong': 'worden niet gekopieerd',
   'discovery.refusedNative.post':
@@ -2907,6 +2971,9 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.consent.noProvider':
     'Deze installatie heeft geen toestemmingsknop voor dit type; plak in plaats daarvan een vernieuwingstoken.',
   'wizard.consent.needsAccount': 'Vul eerst het accountadres in.',
+  'wizard.consent.windowBlocked':
+    'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
+  'wizard.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
   'wizard.google.deploymentClient':
     'Deze installatie heeft een eigen Google-client; vul beide in om uw eigen te gebruiken.',
   'wizard.google.connect.halfClient':
@@ -3049,6 +3116,17 @@ const nl: Record<keyof typeof en, string> = {
     'De volgende ronde probeert {count} Google-bestand(en) die het oude formaat weigerde opnieuw, in dit formaat.',
   'settings.exportPolicy.refused': 'Dit kon niet worden gewijzigd:',
   'settings.exportPolicy.failed': 'Dat is niet opgeslagen:',
+  'settings.exportPolicy.paper': 'Exportformaat voor Paper-documenten',
+  'settings.exportPolicy.paper.consequence':
+    'Paper-documenten worden opnieuw gekopieerd onder hun nieuwe namen. Oude kopieën blijven, vermeld als eerdere exports.',
+  'settings.exportPolicy.paper.consequence.why':
+    'Een Paper-document heeft geen eigen bestandsnaam: het formaat voegt er een toe aan de naam (Notities.paper.md, Notities.paper.html), en aan de naam herkent een migratie een bestand. Onder een nieuw formaat kopieert de volgende ronde dus elk Paper-document onder de nieuwe naam. Op het nieuwe systeem wordt niets herschreven of verwijderd: een kopie in het oude formaat blijft staan, en het scherm Verwijderingen vermeldt die als eerdere export, nooit als verwijderd in Dropbox. Behoud hem, of verwijder hem zelf op het nieuwe systeem.',
+  'settings.exportPolicy.paper.refusedBefore':
+    'De volgende ronde probeert de Paper-documenten die tot nu toe bleven staan opnieuw, in dit formaat.',
+  'settings.exportPolicy.paper.refusedBefore.count':
+    'De volgende ronde probeert {count} Paper-document(en) die tot nu toe bleven staan opnieuw, in dit formaat.',
+  'settings.exportPolicy.paper.refusedBefore.why':
+    'Onder een formaat komt een Paper-document aan onder een nieuwe naam (Notities.paper.md), dus het is nieuw voor de migratie. De volgende ronde kopieert elk document, en de regel die onder de oude naam is vastgelegd, sluit vanzelf, omdat het document niet meer onder die naam voorkomt. Een document dat Dropbox niet in dit formaat aanbiedt, staat één keer bij Mislukkingen, met die reden. Opslaan verandert zelf niets: de ronde doet het. Andere documenten die Dropbox in een eigen formaat bewaart, blijven staan.',
   'settings.kinds': 'Gegevenstypen die deze migratie kopieert',
   'settings.kinds.add': '{kind} toevoegen',
   'settings.kinds.adding': 'Toevoegen…',
@@ -3106,6 +3184,19 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.nativePolicy.allEditable': 'Alle vier de soorten komen aan als bestanden die u kunt bewerken.',
   'wizard.nativePolicy.allEditable.why':
     'Elk bestand komt aan als weergave van Google, niet als origineel: fijne opmaak kan verschuiven, en tekeningen komen aan als .svg-afbeelding omdat Drive geen bewerkbaar formaat voor tekeningen aanbiedt. U kunt een formaat later wijzigen; al gekopieerde bestanden houden het formaat waarin ze aankwamen.',
+  'wizard.paperFormat': 'Dropbox Paper-documenten',
+  'wizard.paperFormat.hint': 'Ze hebben geen bestand om te kopiëren, alleen een export van Dropbox.',
+  'wizard.paperFormat.hint.why':
+    'Een Paper-document staat in Dropbox, niet in een bestand: er valt niets te downloaden. Dropbox kan het exporteren als Markdown of HTML, en die export komt aan, onder de eigen naam van het document met de extensie van het formaat erachter: Notities.paper komt aan als Notities.paper.md. Paper-sjablonen volgen dezelfde keuze. Laten staan is het alternatief.',
+  'wizard.paperFormat.leave': 'Laten staan, en elk document melden',
+  'wizard.paperFormat.as.markdown': 'Markdown (.md), opent in Nextcloud Text',
+  'wizard.paperFormat.as.html': 'HTML (.html), opent in een webbrowser',
+  'wizard.paperFormat.leftBehind': 'Paper-documenten blijven staan in Dropbox, elk met naam gemeld.',
+  'wizard.paperFormat.leftBehind.why':
+    'Er wordt niets voor gekopieerd en er gaat niets verloren: elk document staat met zijn naam bij Mislukkingen, en u kunt er later een formaat voor kiezen, of ze laten staan.',
+  'wizard.paperFormat.arrives': 'Elk Paper-document komt aan als {ext}-bestand dat u kunt bewerken.',
+  'wizard.paperFormat.arrives.why':
+    'Een export is een weergave die Dropbox maakt, niet het Paper-document zelf: fijne opmaak kan verschuiven, en wat u op het nieuwe systeem wijzigt, gaat niet terug naar Dropbox. U kunt het formaat later wijzigen; al gekopieerde documenten houden het formaat waarin ze aankwamen.',
   'wizard.step.migration': 'Migratie',
   'wizard.testConnections.reused': 'Al bewaard; dit controleert alleen of hij nog werkt.',
   'wizard.connectionName': 'Naam van de verbinding',
@@ -3524,6 +3615,9 @@ const nl: Record<keyof typeof en, string> = {
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
   'linkReport.sent.anonymous': 'Verstuurd. Uw melding heeft nummer {ticket}. Zonder adres kunnen we u niet antwoorden.',
+  'linkReport.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
+  'linkReport.sent.mail.anonymous':
+    'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. Zonder adres kunnen we u niet antwoorden.',
   'linkReport.next.grant': 'U hoeft niet door te gaan: er wordt niets gelezen zonder uw toestemming bij Google.',
   'linkReport.next.withdraw': 'Wilt u het kopiëren nu stoppen? Trek dan hierboven de toegang in.',
   'state.lifecycle.active': 'Actief',

@@ -78,6 +78,17 @@ beforeEach(() => {
   globalThis.sessionStorage.clear();
 });
 
+/**
+ * Why a Connect button is greyed out: the status line straight under it
+ * (workplan 0145 T7 (a)), where a finger can read it. It used to be the
+ * button's `title`.
+ */
+const reasonUnder = (button: HTMLElement): HTMLElement => {
+  const line = button.nextElementSibling;
+  expect(line?.getAttribute('role'), 'no reason under the greyed-out button').toBe('status');
+  return line as HTMLElement;
+};
+
 const renderWizard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -919,6 +930,70 @@ describe('CreateMapping — a Google Drive source (workplan 0042)', () => {
   });
 });
 
+describe('CreateMapping — a Dropbox source chooses its Paper docs’ format (workplan 0150 T3 (d))', () => {
+  /**
+   * The owner moved Paper export before the alpha (*"yes, paper export before
+   * the alpha"*). A Paper doc has no file to download, so the migration needs
+   * a format for it, asked where Drive's is asked, with Markdown suggested
+   * (D1): Nextcloud's Text app opens it.
+   */
+  beforeEach(() => {
+    createMock.mockReset();
+  });
+
+  const pickDropbox = () => fireEvent.click(screen.getByRole('button', { name: /^Dropbox/ }));
+  const paperBox = () => screen.getByLabelText('Dropbox Paper docs') as HTMLSelectElement;
+
+  /** Walk a Dropbox source to submit, choosing `paper` first unless it is left as suggested. */
+  const submitWith = async (paper?: string) => {
+    renderWizard();
+    pickDropbox();
+    fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
+    satisfySourceStep();
+    if (paper) fireEvent.change(paperBox(), { target: { value: paper } });
+    fireEvent.click(nextButton());
+    fireEvent.change(targetHostBox(), { target: { value: 'nextcloud.acme.example' } });
+    satisfyTargetStep();
+    fireEvent.click(nextButton());
+    fireEvent.change(screen.getByPlaceholderText('My Migration'), { target: { value: 'Acme papers' } });
+    fireEvent.click(nextButton());
+    fireEvent.click(nextButton());
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    return createMock.mock.calls[0]![0] as unknown as Record<string, unknown>;
+  };
+
+  it('offers a format for Paper docs, Markdown suggested, and none of Google’s kinds', () => {
+    renderWizard();
+    pickDropbox();
+    expect(paperBox()).toBeVisible();
+    expect(paperBox()).toHaveValue('markdown');
+    expect([...paperBox().options].map((o) => o.value)).toEqual(['refuse', 'markdown', 'html']);
+    expect(screen.queryByLabelText('Google Docs')).toBeNull();
+    // What the suggestion makes of a doc, before anybody presses anything.
+    expect(screen.getByText('Each Paper doc arrives as a .md file you can edit.')).toBeInTheDocument();
+  });
+
+  it('says so, in caution, when Paper docs are to stay behind', () => {
+    renderWizard();
+    pickDropbox();
+    fireEvent.change(paperBox(), { target: { value: 'refuse' } });
+    expect(screen.getByText('Paper docs stay behind in Dropbox, each reported by name.')).toBeInTheDocument();
+  });
+
+  it('sends the suggested format when nobody changed it', async () => {
+    createMock.mockResolvedValue({ id: 'map-dropbox-md' } as never);
+    const posted = await submitWith();
+    expect(posted.sourceType).toBe('dropbox');
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicies: { paper: 'markdown' } });
+  });
+
+  it.each(['html', 'refuse'])('carries %s, when chosen, all the way to the created mapping', async (paper) => {
+    createMock.mockResolvedValue({ id: `map-dropbox-${paper}` } as never);
+    const posted = await submitWith(paper);
+    expect(posted.sourceConfig).toMatchObject({ nativeFilePolicies: { paper } });
+  });
+});
+
 describe('CreateMapping — a Gmail source (workplan 0044)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1094,7 +1169,10 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     // substitute anything for an empty tick set since T1b and said callers
     // must refuse rather than default; this is the caller reaching it, and a
     // `sourceType` here would silently ask for one fixed scope instead.
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    // The window opens blank in the press and is sent to the provider once
+    // the server answers (0145 T5), so the address lands on its location.
+    const popup = { location: { href: 'about:blank' }, closed: false, close: vi.fn() };
+    const open = vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
     try {
       renderWizard();
       pickAccount();
@@ -1115,8 +1193,10 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
       expect(sent).not.toHaveProperty('sourceType');
       expect(sent.clientId).toBe('cid.apps.googleusercontent.com');
       // The secret goes in the BODY and never into a URL — the popup is
-      // opened with the server's answer, which carries no secret.
-      expect(String(open.mock.calls[0]?.[0] ?? '')).not.toContain('client-secret');
+      // sent to the server's answer, which carries no secret.
+      expect(open.mock.calls[0]?.[0], 'the window opens blank, in the press').toBe('');
+      await waitFor(() => expect(popup.location.href).not.toBe('about:blank'));
+      expect(popup.location.href).not.toContain('client-secret');
     } finally {
       open.mockRestore();
     }
@@ -1153,10 +1233,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
 
     const connect = screen.getByRole('button', { name: /Connect with Google/i });
     expect(connect).toBeDisabled();
-    expect(connect).toHaveAttribute(
-      'title',
-      expect.stringContaining('Tick what to migrate first'),
-    );
+    expect(reasonUnder(connect)).toHaveTextContent('Tick what to migrate first');
     expect(authorizeMock).not.toHaveBeenCalled();
   });
 });
@@ -1464,7 +1541,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       target: { value: 'cid.apps.googleusercontent.com' },
     });
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute('title', expect.stringContaining('or neither'));
+    expect(reasonUnder(connectButton())).toHaveTextContent('or neither');
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@gmail.com' },
     });
@@ -1490,10 +1567,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
     await act(async () => {});
 
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute(
-      'title',
-      expect.stringContaining('Enter the Client ID and client secret first'),
-    );
+    expect(reasonUnder(connectButton())).toHaveTextContent('Enter the Client ID and client secret first');
     expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
     // And no fold: the pair is required here, so it is in plain view.
     expect(screen.queryByText('Use your own Google client')).not.toBeInTheDocument();
@@ -1606,7 +1680,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
 
     fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute('title', expect.stringContaining('or neither'));
+    expect(reasonUnder(connectButton())).toHaveTextContent('or neither');
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
@@ -1636,10 +1710,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     await act(async () => {});
 
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute(
-      'title',
-      expect.stringContaining('Enter the App key and App secret first'),
-    );
+    expect(reasonUnder(connectButton())).toHaveTextContent('Enter the App key and App secret first');
     expect(screen.queryByText('Use your own Dropbox app')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
   });
@@ -1654,10 +1725,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     // the call itself, so the assertion waits for the sentence rather than
     // for the call (2026-09-03: one red in 5768 with nothing else changed).
     await waitFor(() =>
-      expect(connectButton()).toHaveAttribute(
-        'title',
-        expect.stringContaining('Enter the account address first'),
-      ),
+      expect(reasonUnder(connectButton())).toHaveTextContent('Enter the account address first'),
     );
     expect(connectButton()).toBeDisabled();
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {

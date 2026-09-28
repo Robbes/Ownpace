@@ -34,6 +34,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
+// The organisation is open here. Whether a closed one is refused is
+// `an-organisation-closed-at-every-door.unit.test.ts`'s subject, and this file
+// has no organisation to read (workplan 0085 T2).
+vi.mock('../../closed-organisation.ts', () => ({
+  refusedAsClosed: async () => false,
+  closedOrganisation: async () => null,
+}));
+
 vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../middleware/auth.ts')>();
   return {

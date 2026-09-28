@@ -547,17 +547,23 @@ is therefore not possible for any product, and a connection that offered it woul
 something Google refuses. The complete route Google leaves open is **Google Takeout** — the
 person exports their library as an archive — which is a snapshot to download rather than an
 account to read, and so a different kind of migration than the account faces on this page.
-If you need your photos moved, say so; it decides whether an archive-import route is worth
-building, and nothing here will quietly pretend to cover it.
+The **Export archive** card reads a Takeout of Google Photos:
+[`archive-setup.md`](archive-setup.md) says how to ask Google for one, and where it has to be
+for the card to read it.
 
 **And the obvious hope does not rescue it.** Google publishes a Data Portability API for
-people in the European Economic Area, built to satisfy the Digital Markets Act, which sounds
-like exactly the answer. Its full list of scopes was read on 4 September 2026 and **Google
-Photos is not among them** — nor is Drive, Gmail, Contacts or Calendar. What it carries is
-search and activity history, Chrome, Maps contributions, Play and YouTube. The two scopes
-that look like photos are not: one is what you posted *on Maps*, the other is Street View
-uploads. So a photo library now has two separate reasons to be out of reach, and Takeout is
-not a workaround while something better arrives — it is the only complete route there is.
+people in the European Economic Area, the United Kingdom and Switzerland, built to satisfy
+the Digital Markets Act, which sounds like exactly the answer. Its full list of scopes was
+read on 4 September 2026, and again on 28 September 2026, when it held 73: **Google Photos is
+not among them**, nor is Drive, Gmail, Contacts or Calendar. What it carries is search and
+activity history, Chrome, Maps contributions, Play and YouTube, and since 11 December 2025
+Pixel and Nest data too. The two scopes that look like photos are not: one is what you
+posted *on Maps*, the other is Street View uploads. So a photo library now has two separate
+reasons to be out of reach, and Takeout is not a workaround while something better arrives —
+it is the only complete route there is. (The three regions and the Pixel and Nest date are
+from Alphabet's [EU DMA compliance report](https://storage.googleapis.com/transparencyreport/report-downloads/pdf-report-bb_2025-3-7_2026-3-6_en_v1.pdf)
+of 6 March 2026, paragraph 53 and its footnote 25; the scopes are from the API's own
+discovery documents, `v1` and `v1beta`, at their revision of 24 September 2026.)
 
 **Device backups** (the "Back-up van apparaat" line in Google's storage overview) are Android's
 own app-and-settings backups, readable only by an Android device signing in. They are not data

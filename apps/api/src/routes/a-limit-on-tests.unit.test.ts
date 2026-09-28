@@ -27,10 +27,23 @@ import { SecretStore } from '@openmig/core/secret-store';
 process.env.SECRET_ENCRYPTION_KEY ??=
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-const h = vi.hoisted(() => ({ row: {} as Record<string, unknown> }));
+const h = vi.hoisted(() => ({
+  row: {} as Record<string, unknown>,
+  /** The organisation each of the report's target lookups was asked in (0138 T6). */
+  targetAskedIn: [] as unknown[],
+}));
+
+// The organisation is open here. Whether a closed one is refused is
+// `an-organisation-closed-at-every-door.unit.test.ts`'s subject, and this file
+// has no organisation to read (workplan 0085 T2).
+vi.mock('../closed-organisation.ts', () => ({
+  refusedAsClosed: async () => false,
+  closedOrganisation: async () => null,
+}));
 
 vi.mock('../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../middleware/auth.ts')>();
+  const { Pool } = await import('pg');
   return {
     ...actual,
     // The member is whoever the request says, so a case can be two people.
@@ -39,16 +52,30 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
       next();
     },
     withTenantDb: vi.fn(async () => [h.row]),
-    getDbPool: () => ({}),
+    // The permission report runs its reads on it, inside `withTenant` (0138 T6).
+    getDbPool: () => new Pool(),
   };
 });
 
 vi.mock('pg', () => ({
   Pool: class {
-    async query(text: string) {
-      return text.includes("role = 'target'")
-        ? { rows: [{ kind: h.row.kind, config: h.row.config, secret_ref: h.row.secretRef }] }
-        : { rows: [] };
+    async connect() {
+      // What `withTenant` sets on this client: `app.current_tenant`, for one
+      // transaction. The stored target answers in its own organisation only,
+      // as row security would.
+      let tenant: unknown;
+      return {
+        async query(q: string | { text: string }, values: readonly unknown[] = []) {
+          const text = typeof q === 'string' ? q : q.text;
+          if (text.includes("set_config('app.current_tenant'")) tenant = values[0];
+          if (!text.includes("role = 'target'")) return { rows: [] };
+          h.targetAskedIn.push(tenant);
+          return tenant === h.row.tenantId
+            ? { rows: [{ kind: h.row.kind, config: h.row.config, secret_ref: h.row.secretRef }] }
+            : { rows: [] };
+        },
+        release() {},
+      };
     }
     async end() {}
   },
@@ -116,6 +143,7 @@ const test = (member = 'a-member') => DOORS['the Test door']!(member);
 beforeEach(() => {
   resetProbeTestLimit();
   vi.mocked(probe.probeTargetConnection).mockClear();
+  h.targetAskedIn = [];
   h.row = {
     id: 'conn-1',
     tenantId: 'a-tenant',
@@ -151,6 +179,9 @@ describe('a person pressing Test by hand never meets it; a script does', () => {
     for (const [door, call] of Object.entries(DOORS)) {
       expect((await call('a-member')).status, door).toBe(429);
     }
+    // The report asked for the member's own organisation's target (0138 T6).
+    expect(h.targetAskedIn.length, 'the report never looked up a target').toBeGreaterThan(0);
+    for (const tenant of h.targetAskedIn) expect(tenant, 'the target lookup was asked outside a-tenant').toBe('a-tenant');
   });
 
   it('it is per member: another member of the organisation still tests', async () => {

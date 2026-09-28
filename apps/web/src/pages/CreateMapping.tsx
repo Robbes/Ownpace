@@ -8,6 +8,7 @@ import {
   NativeFilePolicyChooser,
   type NativeFilePolicyByKind,
 } from '../components/NativeFilePolicyChooser.tsx';
+import { PaperFormatChooser, SUGGESTED_PAPER_FORMAT } from '../components/PaperFormatChooser.tsx';
 import {
   measuredText,
   probeText,
@@ -51,6 +52,7 @@ import {
   credentialFieldRequired,
   carriesGoogleNativeFiles,
   sourceFaceIsExperimental,
+  type DropboxPaperPolicy,
 } from '@openmig/shared';
 import {
   connectionsApi,
@@ -62,7 +64,22 @@ import {
 } from '../services/mapping-service.ts';
 import { duplicateMapping, serverMessage, tooManyTests } from '../services/api.ts';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { ConsentLines, ConsentNote, consentAsks, consentLineIds } from '../components/ProviderConsent.tsx';
+import {
+  ConnectReason,
+  ConsentLines,
+  ConsentNote,
+  ConsentWindowLink,
+  consentAsks,
+  consentLineIds,
+  type UnopenedConsent,
+} from '../components/ProviderConsent.tsx';
+import {
+  closeConsentWindow,
+  type ConsentWindow,
+  consentWindowName,
+  openConsentWindow,
+  sendConsentWindow,
+} from '../services/consent-window.ts';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import {
@@ -143,6 +160,12 @@ interface FormData {
    * format carries all four.
    */
   sourceNativeFilePolicies: NativeFilePolicyByKind;
+  /**
+   * Dropbox: the format its Paper docs arrive in, or `refuse` (workplan 0150
+   * T3 (d)). Starts at Markdown, the one the wizard suggests (D1), which
+   * Nextcloud's Text app opens.
+   */
+  sourcePaperFormat: DropboxPaperPolicy;
   /** Dropbox: root the migration at a folder ('' = the whole Dropbox). */
   sourceRootPath: string;
   /** Box (workplan 0056): the NUMERIC user id the CCG token reads for. */
@@ -204,6 +227,7 @@ const initialFormData: FormData = {
   // `refuse` is also the server's default, so this changes nothing by
   // itself — it makes the choice VISIBLE, and records that somebody made it.
   sourceNativeFilePolicies: LEAVE_ALL_BEHIND,
+  sourcePaperFormat: SUGGESTED_PAPER_FORMAT,
   sourceRootPath: '',
   sourceBoxUserId: '',
   sourceArchiveProvider: '',
@@ -336,6 +360,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceServiceAccountKey: '',
     sourceRootFolderId: '',
     sourceNativeFilePolicies: LEAVE_ALL_BEHIND,
+    sourcePaperFormat: SUGGESTED_PAPER_FORMAT,
     sourceRootPath: '',
     sourceBoxUserId: '',
     sourceArchiveProvider: '',
@@ -695,6 +720,12 @@ const CreateMapping: React.FC = () => {
               refreshToken: formData.sourceRefreshToken,
               ...(formData.sourceRootPath.trim()
                 ? { rootPath: formData.sourceRootPath.trim() }
+                : {}),
+              // The format its Paper docs arrive in (0150 T3 (d)), sent
+              // whenever the migration carries files, `refuse` included, for
+              // the reason Drive's is: the mapping then says somebody chose.
+              ...(paperFormatApplies
+                ? { nativeFilePolicies: { paper: formData.sourcePaperFormat } }
                 : {}),
             }
           : isBoxSource
@@ -1148,6 +1179,8 @@ const CreateMapping: React.FC = () => {
   const [consentNote, setConsentNote] = React.useState<string | null>(null);
   /** The callback address the last consent asked Google to return to. */
   const [consentRedirect, setConsentRedirect] = React.useState<string | null>(null);
+  /** The consent address no window was opened for, offered as a link (0145 T5). */
+  const [consentUnopened, setConsentUnopened] = React.useState<UnopenedConsent | null>(null);
   /**
    * FORGET WHAT THE LAST CONSENT SAID (0145 T4) when the block it answered
    * goes away or asks something else: another card, a stored connection, or
@@ -1159,6 +1192,7 @@ const CreateMapping: React.FC = () => {
   const forgetConsent = () => {
     setConsentNote(null);
     setConsentRedirect(null);
+    setConsentUnopened(null);
   };
   /**
    * ONE GO (owner remark 2026-09-02, after the first working round trip):
@@ -1202,6 +1236,8 @@ const CreateMapping: React.FC = () => {
 
   const startConsent = async () => {
     setConsentNote(null);
+    setConsentUnopened(null);
+    let consentWindow: ConsentWindow | null = null;
     try {
       // The ACCOUNT asks for exactly the faces ticked (workplan 0106 T3b);
       // the four single-purpose sources ask for their own one scope. The
@@ -1238,11 +1274,15 @@ const CreateMapping: React.FC = () => {
           ),
       };
       const begin = grantProvider === undefined ? undefined : beginConsent[grantProvider];
-      if (!begin) {
+      if (grantProvider === undefined || !begin) {
         // Never silently Google's — see the Connections door, same rule.
         setConsentNote(t('wizard.consent.noProvider'));
         return;
       }
+      // The window opens in the press, before anything is awaited (workplan
+      // 0145 T5): see the Connections door, same helper.
+      consentWindow = openConsentWindow(consentWindowName(grantProvider));
+      const pressedAt = Date.now();
       const { url, redirectUri } = await begin();
       /**
        * THE ADDRESS THIS CONSENT USED, kept rather than discarded.
@@ -1269,8 +1309,9 @@ const CreateMapping: React.FC = () => {
        */
       const typedOwnClient = 'clientId' in ownClientPair;
       setConsentRedirect(typedOwnClient ? (redirectUri ?? null) : null);
-      window.open(url, `ownpace-${grantProvider ?? 'google'}-consent`, 'popup,width=520,height=640');
+      if (!sendConsentWindow(consentWindow, url)) setConsentUnopened({ url, pressedAt });
     } catch (error) {
+      closeConsentWindow(consentWindow);
       setConsentNote(serverMessage(error));
     }
   };
@@ -1423,6 +1464,13 @@ const CreateMapping: React.FC = () => {
   const nativePolicyApplies =
     carriesGoogleNativeFiles(formData.sourceType) && formData.domains.includes('file');
   /**
+   * AND WHETHER IT HAS PAPER DOCS TO DECIDE ABOUT (workplan 0150 T3 (d), D1):
+   * every Dropbox migration that carries files, which is every one, since
+   * the card pins `['file']`. Asked the same way anyway, so the day Dropbox
+   * carries a second data type this does not ask a calendar about Paper.
+   */
+  const paperFormatApplies = formData.sourceType === 'dropbox' && formData.domains.includes('file');
+  /**
    * What the picked source IS — one line after the card, the rest under
    * More (0118 T1). Six amber panels of forty to seventy words stood here
    * before; the facts are the same (which client or app it signs in with,
@@ -1471,6 +1519,26 @@ const CreateMapping: React.FC = () => {
   // the save-and-test, which needs the address — every grant source's
   // descriptor requires it, and the door answers "Still needed" without it.
   const accountMissing = formData.sourceUsername.trim() === '';
+  /**
+   * WHY CONNECT IS GREYED OUT, or undefined when it is live (0145 T7 (a)):
+   * said as text under the button (`ConnectReason`), and the button's
+   * `disabled` is derived from it, so a grey button always says why.
+   *
+   * The account consent asks for the ticked faces and nothing else, so with
+   * nothing ticked there is nothing to ask for. The server refuses that with a
+   * sentence; the button refuses it before the round trip, which is the same
+   * answer given sooner.
+   */
+  const connectReason =
+    clientPairRequired && (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())
+      ? deploymentClient
+        ? ps('connect.halfClient')
+        : ps('connect.needsClient')
+      : isGoogleAccountSource && formData.domains.length === 0
+        ? t('wizard.google.connect.needsDomains')
+        : accountMissing
+          ? t('wizard.consent.needsAccount')
+          : undefined;
 
   // Each step's gate checks only fields that step RENDERS (0037 T1, pulled
   // forward into 0033 T3 because no wizard test can exist without it): the
@@ -2097,6 +2165,14 @@ const CreateMapping: React.FC = () => {
             }
           />
         )}
+        {/* THE SAME QUESTION FOR DROPBOX PAPER DOCS (0150 T3 (d)), in the
+            same place, with Markdown suggested (D1). */}
+        {isSource && paperFormatApplies && (
+          <PaperFormatChooser
+            value={formData.sourcePaperFormat}
+            onChange={(next) => setFormData((prev) => ({ ...prev, sourcePaperFormat: next }))}
+          />
+        )}
         {/* What happens to these secrets — one sentence, at the foot of the
             fields it is about rather than in a panel of its own. */}
         {!chosen && <p className="text-sm text-blue-900">{t('wizard.credentials.storage')}</p>}
@@ -2493,33 +2569,14 @@ const CreateMapping: React.FC = () => {
                     type="button"
                     onClick={startConsent}
                     aria-describedby={consentLineIds(grantProvider, consentLinesId)}
-                    disabled={
-                      accountMissing ||
-                      (clientPairRequired &&
-                        (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())) ||
-                      // The account consent asks for the ticked faces and
-                      // nothing else, so with nothing ticked there is nothing
-                      // to ask for. The server refuses that with a sentence;
-                      // the button refuses it before the round trip, which is
-                      // the same answer given sooner.
-                      (isGoogleAccountSource && formData.domains.length === 0)
-                    }
+                    disabled={connectReason !== undefined}
                     className="btn btn-secondary"
-                    title={
-                      clientPairRequired &&
-                      (!formData.sourceClientId.trim() || !formData.sourceClientSecret.trim())
-                        ? deploymentClient
-                          ? ps('connect.halfClient')
-                          : ps('connect.needsClient')
-                        : isGoogleAccountSource && formData.domains.length === 0
-                          ? t('wizard.google.connect.needsDomains')
-                          : accountMissing
-                            ? t('wizard.consent.needsAccount')
-                            : undefined
-                    }
                   >
                     {ps('connect')}
                   </button>
+                  {/* Why it is greyed out, as text a finger can read (0145
+                      T7 (a)); the Connections door's line, one component. */}
+                  <ConnectReason reason={connectReason} />
                   {/* The lines beside the button, laid out once for both
                       doors (workplan 0144 T3 (a)): the button's hint; for
                       Google, what the permission allows and what Ownpace does,
@@ -2537,6 +2594,11 @@ const CreateMapping: React.FC = () => {
                   {/* A refusal is an alert, a consent that landed a status:
                       the Connections door's line, one component (0145 T4). */}
                   <ConsentNote note={consentNote} />
+                  {/* A window the browser did not open, offered as a link
+                      (0145 T5): the Connections door's line, one component. */}
+                  {consentNote !== 'received' && (
+                    <ConsentWindowLink provider={grantProvider} unopened={consentUnopened} />
+                  )}
                   {consentRedirect && consentNote !== 'received' && (
                     <p className="mt-1 text-sm text-gray-500">
                       {ps('redirectUri')}{' '}
