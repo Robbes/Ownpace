@@ -1656,6 +1656,13 @@ const en = {
   // "Charged", as the note says it, and not "invoiced", which is what a tier
   // says (0109 T8).
   'alpha.nothingCharged': 'Nothing is charged during the alpha.',
+  // A person to write to (workplan 0144 T6 (a)), in §3's words. `{address}` is
+  // the deployment's VITE_SUPPORT_EMAIL, drawn as a mailto: link where it
+  // stands (`SupportLine.tsx`); without it neither is shown. `help.line` goes
+  // on the pages before sign-in. `help.sidebar` goes in the sidebar, where
+  // *Report a problem* would be, while the report form is off.
+  'help.line': 'Stuck? Mail {address} and name the page you are on. Never send a password.',
+  'help.sidebar': 'Help: {address}',
   'confirm.snapshot.heading': 'Pre-start scan (snapshot)',
   'confirm.snapshot.more':
     'Counted once, before the start, to show what would migrate. The source keeps changing afterwards and these numbers do not update; live progress above is the ledger speaking.',
@@ -3705,6 +3712,10 @@ const nl: Record<keyof typeof en, string> = {
     'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
   'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
   'alpha.nothingCharged': 'Tijdens de alfa wordt niets in rekening gebracht.',
+  // 0144 §3 T6's woorden; zie het Engelse blok.
+  'help.line':
+    'Komt u er niet uit? Mail naar {address} en noem de pagina waarop u bent. Stuur nooit een wachtwoord.',
+  'help.sidebar': 'Hulp: {address}',
   'confirm.snapshot.heading': 'Scan van voor de start (momentopname)',
   'confirm.snapshot.more':
     'Eenmalig geteld, voor de start, om te tonen wat er zou migreren. De bron verandert daarna gewoon door en deze aantallen niet; de live voortgang hierboven komt uit het grootboek.',

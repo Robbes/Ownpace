@@ -20,6 +20,7 @@ import { requestAccessHref } from '../services/no-organisation.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
+import SupportLine from '../components/SupportLine.tsx';
 
 const AuthCallback: React.FC = () => {
   const t = useT();
@@ -132,6 +133,10 @@ const AuthCallback: React.FC = () => {
               {t('login.noOrganisation.ask')}
             </Link>
             <Hint className="" text={t('login.noOrganisation.already')} why={t('login.noOrganisation.already.why')} />
+            {/* A person to write to (workplan 0144 T6 (a)), when the
+                deployment names one: here and under a failed sign-in below,
+                and not while the page is still working. */}
+            <SupportLine />
           </>
         ) : error === null ? (
           <p className="text-sm text-gray-600">{t('login.callback.working')}</p>
@@ -148,6 +153,7 @@ const AuthCallback: React.FC = () => {
             >
               {t('login.callback.again')}
             </button>
+            <SupportLine />
           </>
         )}
       </div>
