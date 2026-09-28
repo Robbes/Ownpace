@@ -542,6 +542,9 @@ the string `"1"`, so read it with `jq -r`). When it is more than one:
   second organisation on purpose. The line gives the number only, never names, because the
   gate's log is public;
 - daily on live, by 0132 T7's duties, read-only, where a count above one fails the duty.
+  (2026-09-28: built on 0132 T7's branch, not merged, as `setup-zitadel.sh --count-organisations`,
+  which fails on any count but one, a refused search included; a full run still goes on after a
+  refused search with an empty count, as 0132's Status says.)
 
 **The OTA instance is counted too, by the gate.** 0132 T7 leaves it to this plan whether the OTA
 instance is counted, and from where. The proposal: by the nightly gate, which runs

@@ -1,0 +1,13 @@
+# ownpace-box-duties.timer — once a day at 13:17 UTC, away from the appliance
+# nightly (e2e.yml, 23:30 and 01:30 UTC, dispatched up to five hours late),
+# whose dev Nextcloud publishes on every interface while it runs. A run missed
+# while the machine was off runs at the next start (Persistent=true).
+[Unit]
+Description=ownpace-live: the daily duties, once a day
+
+[Timer]
+OnCalendar=*-*-* 13:17:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

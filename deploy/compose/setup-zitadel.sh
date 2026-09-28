@@ -36,6 +36,8 @@
 #   ./deploy/compose/setup-zitadel.sh --print      # show what is configured
 #   ./deploy/compose/setup-zitadel.sh --offer-one Google   # one Google button on the sign-in screen: the extras'
 #                                                         # login-policy links go, every provider stays
+#   ./deploy/compose/setup-zitadel.sh --token-only         # the provisioning token's clock, and nothing else
+#   ./deploy/compose/setup-zitadel.sh --count-organisations # 0135 T3's count, read-only; non-zero unless one
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,21 +87,44 @@ zitadel_log_tail() {
 # organisation page's toggles were undone by the next bring-up (it resets an
 # organisation's own login policy on purpose), and a pasted loop was never
 # proved to have run. A flag the script owns can be proved, and re-run.
+#
+# TWO MODES FOR A TIMER, which do a part of the run and stop (workplan 0132
+# T7). Live has no nightly gate to run this script, so `box-duties.sh` runs
+# these daily from live's checkout:
+#
+#   --token-only           the provisioning token's clock and nothing else. It
+#                          does not generate secrets, decide the network alias
+#                          or start the provider, and it stops before the
+#                          project: everything after the clock reconciles the
+#                          provider's configuration, which 0135 hardens, and a
+#                          timer must not do that behind the owner's back. It
+#                          writes ZITADEL_PAT_EXPIRY, as the clock always does.
+#   --count-organisations  0135 T3's count, read-only: it asks who the token
+#                          belongs to and how many organisations there are, and
+#                          writes nothing, not even the token's note. Non-zero
+#                          unless the answer is one.
+#
+# Both need the provider running and ready, and wait for it as a full run does.
 OFFER_ONE=""
+ONLY=""
 case "${1:-}" in
   ''|--print) ;;
   --offer-one)
     OFFER_ONE="${2:-}"
     [ -n "$OFFER_ONE" ] || die "--offer-one needs a provider name, e.g. --offer-one Google" ;;
-  *) die "unknown argument '${1}' — this script takes --print, --offer-one <name>, or nothing" ;;
+  --token-only) ONLY=token ;;
+  --count-organisations) ONLY=organisations ;;
+  *) die "unknown argument '${1}' — this script takes --print, --offer-one <name>, --token-only, --count-organisations, or nothing" ;;
 esac
 
 # --------------------------------------------------------------- environment --
 
 [ -f "$ENV_FILE" ] || die ".env not found — run ./deploy/compose/bootstrap-managed.sh --only env first"
 
-say "generating any missing secrets"
-"${SCRIPT_DIR}/ensure-env-secrets.sh" >/dev/null
+if [ -z "$ONLY" ]; then
+  say "generating any missing secrets"
+  "${SCRIPT_DIR}/ensure-env-secrets.sh" >/dev/null
+fi
 
 read_env() { # read_env <key> [default]
   local v
@@ -273,10 +298,12 @@ iso_to_epoch() { # tolerates the provider stamping fractional seconds
 # maintained by the rotation section against the LIVE token, and overwriting it
 # here would put a date in the file that no credential actually carries. It is
 # written before the container starts because first init is the one moment the
-# provider reads it.
-PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
-  die "could not compute a date ${PAT_LIFETIME_DAYS} days from now — neither GNU nor BSD \`date\` worked"
-"$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${PAT_EXPIRY}" >/dev/null
+# provider reads it. The two timer modes skip it: they never start the provider.
+if [ -z "$ONLY" ]; then
+  PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
+    die "could not compute a date ${PAT_LIFETIME_DAYS} days from now — neither GNU nor BSD \`date\` worked"
+  "$UPSERT" --if-absent "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${PAT_EXPIRY}" >/dev/null
+fi
 
 # ------------------------------------------------------------------- bring up --
 
@@ -284,10 +311,16 @@ PAT_EXPIRY="$(future_iso "$PAT_LIFETIME_DAYS")" ||
 # three values the issuer above is built from, and it has to be written before
 # the container joins the network. Called here as well as from
 # bootstrap-managed.sh because this script is also run on its own.
-"${SCRIPT_DIR}/zitadel-network-alias.sh"
+#
+# The timer modes leave the provider as they find it: `up -d` recreates a
+# container whose settings in .env have changed, and on live that is the
+# owner's deploy (0132 T6), not a timer's. They only wait for it below.
+if [ -z "$ONLY" ]; then
+  "${SCRIPT_DIR}/zitadel-network-alias.sh"
 
-say "starting the identity provider (issuer will be ${ISSUER})"
-"${COMPOSE[@]}" up -d zitadel
+  say "starting the identity provider (issuer will be ${ISSUER})"
+  "${COMPOSE[@]}" up -d zitadel
+fi
 
 # ASKED FROM THE HOST, because the provider has no healthcheck to wait on.
 #
@@ -632,6 +665,50 @@ SETUP_UID="$(jq -r '.user.id // empty' <<<"$me")"
 [ -n "$SETUP_UID" ] || die "the provider accepted the token but named no user id in its answer:
     ${me}"
 
+# ---------------------------------------------- how many organisations here --
+#
+# ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3). The two settings further
+# down keep a stranger from founding a second organisation from now on; this
+# says whether anybody did before they were in place, or since, by some other
+# door. An organisation somebody founded could hold an account whose address
+# the provider calls verified, and a grant could have been bound to it (0135 §1).
+#
+# A full run counts after those settings, where it is called below, and it
+# WARNS AND DOES NOT REFUSE: whoever runs this instance may create a second
+# organisation on purpose, and a bring-up that stopped for it would stop the
+# stack as well. And it gives the NUMBER ONLY, never a name, because the nightly
+# gate's log is public. 0135 T3 says what to do when it is more than one.
+#
+# Defined here, above the clock, because --count-organisations stops here.
+#
+# `details.totalResult` is a 64-bit count, which proto3 JSON writes as a string,
+# and leaves out when it is zero.
+count_organisations() { jq -r '.details.totalResult // "0"' <<<"$(api POST /admin/v1/orgs/_search '{}')"; }
+say_organisation_count() {   # <count>
+  if [ "$1" = "1" ]; then
+    say "organisations on this instance: 1, as it should be"
+    return 0
+  fi
+  say "WARNING: THIS INSTANCE HOLDS $1 ORGANISATIONS, AND IT SHOULD HOLD ONE."
+  say "  Somebody may have founded one of their own, and made an account there whose"
+  say "  address this provider calls verified. Stop granting access until it is checked:"
+  say "  workplan 0135, T3, says how to find who is in which organisation, and what"
+  say "  to do about a membership bound through one."
+}
+
+# THE COUNT ALONE, for live's daily duties (0132 T7, 0135 T3). Read-only, and
+# it stops before the clock, which may mint and delete. Here a count that is
+# not one FAILS, where a full run warns: live holds testers' grants, and a
+# daily duty that only warned would be read by nobody. An empty count is a
+# search that was refused (its reason is printed above), not zero.
+if [ "$ONLY" = organisations ]; then
+  counted="$(count_organisations)"
+  [ -n "$counted" ] || die "the organisation search gave no count to read — the provider's answer is above; nothing was counted"
+  say_organisation_count "$counted"
+  [ "$counted" = "1" ] || exit 1
+  exit 0
+fi
+
 # ------------------------------------------------------ the credential's clock --
 #
 # THE TOKEN THIS SCRIPT RUNS ON EXPIRES, AND UNTIL NOW NOTHING RENEWED IT. Its
@@ -753,6 +830,13 @@ else
   # The note tracks the LIVE token even when nothing rotates, so the file never
   # again carries a date no credential holds.
   "$UPSERT" "$ENV_FILE" "ZITADEL_PAT_EXPIRY=${NEAREST}" >/dev/null
+fi
+
+# --token-only ends with the clock (0132 T7): what follows reconciles the
+# provider's configuration.
+if [ "$ONLY" = token ]; then
+  say "--token-only: the clock is all this run does; the provider's configuration was not read or changed"
+  exit 0
 fi
 
 # ------------------------------------------------------------------- project --
@@ -2032,31 +2116,10 @@ close_public_org_registration
 
 # ---------------------------------------------- how many organisations here --
 #
-# ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3). The two settings above keep
-# a stranger from founding a second organisation from now on; this says
-# whether anybody did before they were in place, or since, by some other door.
-# An organisation somebody founded could hold an account whose address the
-# provider calls verified, and a grant could have been bound to it (0135 §1).
-#
-# It WARNS AND DOES NOT REFUSE: whoever runs this instance may create a second
-# organisation on purpose, and a bring-up that stopped for it would stop the
-# stack as well. And it gives the NUMBER ONLY, never a name, because the nightly
-# gate's log is public. 0135 T3 says what to do when it is more than one.
-#
-# `details.totalResult` is a 64-bit count, which proto3 JSON writes as a string,
-# and leaves out when it is zero.
-count_organisations() { jq -r '.details.totalResult // "0"' <<<"$(api POST /admin/v1/orgs/_search '{}')"; }
-say_organisation_count() {   # <count>
-  if [ "$1" = "1" ]; then
-    say "organisations on this instance: 1, as it should be"
-    return 0
-  fi
-  say "WARNING: THIS INSTANCE HOLDS $1 ORGANISATIONS, AND IT SHOULD HOLD ONE."
-  say "  Somebody may have founded one of their own, and made an account there whose"
-  say "  address this provider calls verified. Stop granting access until it is checked:"
-  say "  workplan 0135, T3, says how to find who is in which organisation, and what"
-  say "  to do about a membership bound through one."
-}
+# ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3), after the two settings
+# above. It warns and does not refuse, and gives the number only; the two
+# functions, and why, are above the credential's clock, where
+# --count-organisations stops.
 ORG_COUNT="$(count_organisations)"
 say_organisation_count "$ORG_COUNT"
 
