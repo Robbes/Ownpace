@@ -35,9 +35,8 @@ import './refuse-internal-addresses.ts';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
-import { tenantCutoverStore, mappingLifecyclePort, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { tenantCutoverStore, mappingLifecyclePort, appEventSinkOn, auditExportOn, pgDriver, withTenant } from '@openmig/ledger';
 import { performRollback, RollbackRefused } from '@openmig/core';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import * as schemaPg from '@openmig/ledger/schema-pg';
@@ -65,6 +64,29 @@ const RollbackJobSchema = z.object({
 });
 
 type RollbackJobPayload = z.infer<typeof RollbackJobSchema>;
+
+/**
+ * What the customer called this migration, for the rollback's notice. They
+ * know it as "Gmail to Nextcloud"; the UUID appears on no screen they have
+ * ever seen (owner report, 2026-09-14). Read inside the tenant's scope, like
+ * every other read here (0138 T1 part 4), so that on `app_user` it finds the
+ * row. `name` is nullable and `mappingLabel` falls back to the id, so a
+ * migration nobody named still sends.
+ */
+export async function mappingNameOf(
+  pool: Pool,
+  tenantId: string,
+  mappingId: string,
+): Promise<string | null | undefined> {
+  const [row] = await withTenant(pool, tenantId, (db) =>
+    db
+      .select({ name: schemaPg.mailboxMapping.name })
+      .from(schemaPg.mailboxMapping)
+      .where(and(eq(schemaPg.mailboxMapping.id, mappingId), eq(schemaPg.mailboxMapping.tenantId, tenantId)))
+      .limit(1),
+  );
+  return row?.name;
+}
 
 // Register the job with Trigger.dev
 export const runRollback = schemaTask({
@@ -107,7 +129,6 @@ export const runRollback = schemaTask({
     // Its errors go to the operator's log page too (0129 T1), under the reference
     // its failure carries in the plane (0134, open question 3 (a)).
     setAppEventSink(appEventSinkOn(pgDriver(pool)));
-    const db = drizzle(pool, { schema: schemaPg });
     // The cutover ledger is row-secured since migration 0055: every call
     // inside `withTenant`, or a non-superuser session reads nothing.
     const cutoverPersistence = tenantCutoverStore(pool, asTenantId(tenantId));
@@ -139,24 +160,11 @@ export const runRollback = schemaTask({
         ...(options.notifyUsers
           ? {
               notify: async () => {
-                // What the customer called it, read at send time. They know
-                // this migration as "Gmail to Nextcloud"; the UUID appears on
-                // no screen they have ever seen (owner report, 2026-09-14).
-                // `name` is nullable and `mappingLabel` falls back to the id,
-                // so a migration nobody named still sends.
-                const [row] = await db
-                  .select({ name: schemaPg.mailboxMapping.name })
-                  .from(schemaPg.mailboxMapping)
-                  .where(
-                    and(
-                      eq(schemaPg.mailboxMapping.id, mappingId),
-                      eq(schemaPg.mailboxMapping.tenantId, tenantId),
-                    ),
-                  )
-                  .limit(1);
+                // What the customer called it, read at send time.
+                const name = await mappingNameOf(pool, tenantId, mappingId);
                 await channel.notifier.notify(
                   renderEvent(
-                    { kind: 'rollback_finished', mapping: { id: mappingId, name: row?.name }, reason },
+                    { kind: 'rollback_finished', mapping: { id: mappingId, name }, reason },
                     channel.locale,
                   ),
                 );

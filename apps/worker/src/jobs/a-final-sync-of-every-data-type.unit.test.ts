@@ -398,7 +398,7 @@ describe('the doors, read as text', () => {
 
     expect(cutover).not.toContain('runShadowPass');
     expect(cutover).not.toContain('buildDepsFromMapping');
-    expect(cutover).toContain('runCutoverGate(pool, dbUrl, tenantId, mappingId, domain)');
+    expect(cutover).toContain('runCutoverGate(pool, tenantId, mappingId, domain)');
   });
 
   it("the final sync is run-delta-sync, waited for on the migration's own queue", () => {
@@ -440,7 +440,7 @@ describe('the doors, read as text', () => {
 
   it("the operator's verify runs the same gate, of the one data type a --kind cutover is of (0128 T5, slice 5b)", () => {
     expect(code('../cli/index.ts')).toContain(
-      'runDataVerification: () => runCutoverGate(pool, dbUrl, tenantId, mappingId, kind)',
+      'runDataVerification: () => runCutoverGate(pool, tenantId, mappingId, kind)',
     );
   });
 
