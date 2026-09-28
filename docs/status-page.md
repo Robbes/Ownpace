@@ -57,6 +57,27 @@ has one is news in itself.
 | **Sources** | Somebody else's service that migrations read FROM. Nothing is wrong with Ownpace; migrations out of that provider will be stalled until it returns. |
 | **Targets** | A destination we RECOMMEND (ADR-0011). Self-hosted targets are not listed: those are the customer's to operate, and reporting on infrastructure we do not run would be claiming a responsibility we explicitly decline. |
 
+## Who is told
+
+**The owner, by e-mail, for the Ownpace rows only** (workplan 0142 T1, and the
+owner's choice of channel). A row that stays red for three minutes sends one
+mail, and a second when it has been green twice in a row. Each mail names the
+row's line in [`incident-runbook.md`](./incident-runbook.md), which says what to
+look at first. Sources and Targets are never alerted on: a Google outage is not
+ours to fix, and the page already shows it.
+
+**It is off unless the stack turns it on.** `ALERT_ENABLED` defaults to `false`.
+Live's `.env` sets it to `true`; the OTA stack leaves it off, because the nightly
+gate recreates its web app and API on schedule. The mail goes through the same
+relay as the product's own (`SMTP_*`), from `NOTIFY_FROM` to `NOTIFY_TO`, unless
+`ALERT_SMTP_*`, `ALERT_FROM` or `ALERT_TO` say otherwise. A stack with no relay
+loads the page exactly as before and sends nothing.
+
+**It cannot tell anyone the machine is gone.** The page runs on the machine it
+watches (the first section): when the machine, its network or Docker is down,
+nothing sends a mail, and the silence looks exactly like a quiet night. Only a
+check from somewhere else can say that (0142 T5).
+
 ## Why the checks are shaped the way they are
 
 **`/api/health` versus `/api/ready`.** `/health` returns `{ status: 'ok' }` from

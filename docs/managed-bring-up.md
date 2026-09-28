@@ -1359,6 +1359,18 @@ page says this itself, in the button beside its heading.
 What it watches is `deploy/compose/gatus.yaml` — in git, reviewed, and edited
 with a restart rather than through a web console.
 
+**Who it tells** (workplan 0142 T1). With `ALERT_ENABLED=true`, a row of the
+Ownpace group that stays red for three minutes sends the owner one e-mail, and a
+second when it is green again. It goes through the product's own relay, from
+`NOTIFY_FROM` to `NOTIFY_TO`, unless `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`,
+`ALERT_SMTP_USER`, `ALERT_SMTP_PASSWORD`, `ALERT_FROM` or `ALERT_TO` say
+otherwise. Turn it on for live, once its relay is set, and leave it off on the
+OTA stack, whose web app and API the nightly gate recreates on schedule. Apply
+a change with `docker compose -f deploy/compose/managed.yml up -d gatus`.
+`ALERT_SMTP_PORT` must be a number: with a word there the page does not load.
+[`status-page.md`](./status-page.md), *Who is told*, says what an alert cannot
+tell you.
+
 ### 8e. Migrating **from** Google — what your own OAuth application carries
 
 Two different Googles show up in this document and conflating them costs an
