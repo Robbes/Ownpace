@@ -993,6 +993,10 @@ acceptance in their own words, with the date it ends.
 2. **T3's end state.** Is the system role of step 2 the end, or should step 3's functions follow
    at its trigger, so that no run holds a credential that reads past the policies? Recommended:
    step 2 for the alpha, step 3 before the service admits people the owner has not let in.
+   **Answered 2026-09-28: as recommended.** The owner: *"yes, For the Alpha, the jobs that span
+   organisations get their own account, one that is not a superuser."* Step 2 (PR E) is the
+   alpha's end state; step 3 stays parked until the service admits people the owner has not let
+   in.
 3. **The digest, the drift detector and group discovery.** Split them as T2 proposes, or keep
    them whole on the system connection? They are on T4's list either way, for their list of
    organisations. Splitting puts their per-tenant reads under the policies. Keeping them whole is
