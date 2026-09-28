@@ -14,8 +14,15 @@
 > `DIRECT_DATABASE_URL` (§2's `set-task-env.sh` row). And on 2026-09-28 for
 > 0138 T1 step 1: the builders build on the job's pool, the ledger, cursor and
 > verification stores a pass builds run each statement inside `withTenant`
-> (`tenantScopedDb`, §3), what is left outside a scope is named (§1's task
-> row), and no task changed the role it connects as.
+> (`tenantScopedDb`, §3), what is left outside a scope is named (the task row
+> under "Where row security holds today"), and no task changed the role it
+> connects as.
+>
+> Updated 2026-09-28 (0138 T6): the permission report and the sharing rescan
+> read as `app_user` inside `withTenant`, like every other route, so no route
+> reads tenant data on the owner's connection. A request still reaches the
+> owner in two places, for the audit pseudonym key only, through `index.ts`'s
+> pool of one (its row under "Where row security holds today").
 
 ## What RLS buys here
 
@@ -42,10 +49,9 @@ organisations, and the same question as `app_user` counted one.
 
 | path | connects as | row security |
 | --- | --- | --- |
-| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb` | `app_user` | **in force** |
-| The API's permission report (`GET /api/permissions/report`) and sharing rescan (`POST /api/migrations/:id/sharing/rescan`): `apps/api/src/routes/permissions.ts` opens its own pool on `DATABASE_URL` and reads `connection`, `mailbox_mapping` and `mailbox` there | the owner, a superuser on managed | **not in force**: each query's own `tenant_id = $1` is the only filter |
+| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb`. Every route, the permission report and the sharing rescan (`apps/api/src/routes/permissions.ts`) included since 2026-09-28 (0138 T6); until then that file opened its own pool on `DATABASE_URL` | `app_user` | **in force** |
 | The API's operator screens: the `support_*` views (managed migrations `0009` onward) | `app_user`, but a view runs with its owner's rights, and its owner is the owner | **passed by design**: the operator check written into each view is the only net, and `packages/managed/src/support-views.unit.test.ts` checks every view has it |
-| The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
+| The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset. The key pool is reached from the request path in two places: the audit line printed after an audit event commits (the export sink, `auditExportOn`), and the operator's audit download (`GET /api/support/audit-export`, `routes/support.ts`, through `apps/api/src/audit-key.ts`). Each keeps the key once it has read it, and reads it again only after a read that failed | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
 | **Every managed Trigger.dev task**: the eight per-tenant jobs (`run-delta-sync`, `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`, `run-cutover`, `run-rollback`) and the six scheduled ones (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`, `managed-digest`, `managed-drift-detect`, `managed-group-discovery`), and the builders they call (`buildDepsFromMapping`, `buildDomainDepsFromMapping`, `createLedgerVerificationReader`) | the owner, a superuser: each builds its pool from `DATABASE_URL`, and none gives `withTenant` a role. Since 0138 T1 step 1 the builders and the reader build on that pool and open none of their own, and a per-tenant pass's ledger, cursor and verification stores and its four helper reads (`enabledDomains`, `stoppedDomains`, `targetProviderKey`, the rollback's mapping name) run inside `withTenant` for its tenant, which on this connection changes nothing. Three things a pass touches are outside any scope: the rate and byte budgets (`plainDb`, by design: their tables have no row security), the app-event sink (it only inserts, into a table with no row security), and the audit sink's read of `deployment_key`, which ledger migration 0062 closes to `app_user` and which stays on the job's owner pool until T1 step 2 gives it a key pool of its own (0138 T1 part 5) | **not in force**: the separation between organisations rests on each query's own tenant filter |
 | The appliance's `withTenant` scopes (`apps/selfhost/src/index.ts`) | the bundled image's owner or PGlite's `postgres`, dropping to `app_user` with `SET LOCAL ROLE` | **in force** |
 | The appliance's `PgLedger` and `PgCursorStore`, over `persistenceBackend.db` | the bundled image's owner or PGlite's `postgres`, both superusers | not in force; the appliance holds one organisation, so there is nothing to separate |
@@ -73,9 +79,18 @@ is: the budgets and the app-event sink need no scope, their tables having no
 row security, and the audit sink reads `deployment_key`, which `app_user` may
 not read. So the switch to `app_user`, T1's second step, is more than a new
 URL: without a key pool of its own for that sink (0138 T1 part 5), every audit
-line a task writes would be lost. The
-permission report's pool is not in 0138's task table yet (its Status block,
-2026-09-27), and that guard does not read `apps/api`.
+line a task writes would be lost. That guard does not read `apps/api`;
+`scripts/a-route-that-opened-the-owners-pool.unit.test.ts` does (0138 T6): a
+file in `apps/api/src` that reads a database URL other than `APP_DATABASE_URL`,
+builds a pool of its own, or names a function that reads the owner's URL or
+opens a pool on the URL it is handed (`migrationConnectionString`,
+`poolerInFront`, `createLedgerVerificationReader`; the orchestration builders
+left that list when T1's first step removed their fallback) must be on its
+closed list of four, and no route may be on it. The process entry and
+`getDbPool()`'s file hold request-path code too, so each is pinned to exactly
+what it reaches and where; the operator script and the seed are exempt whole,
+and nothing outside `apps/api/src/scripts` may import them. It does not see a
+connection handed in: the audit key's pool of one (§2).
 
 ## The enforcement model — three parts, all load-bearing
 
@@ -111,14 +126,14 @@ database roles"):
 
 - `APP_DATABASE_URL` → `app_user`. **The request path, always.** The API reads
   and writes tenant data through this, so row security is in force on its
-  queries, with the permission report's own pool, which two routes use, as the
-  one exception ("Where row security holds today"). **The deployed Trigger.dev tasks do not use it yet.**
+  queries ("Where row security holds today"). **The deployed Trigger.dev tasks do not use it yet.**
   `set-task-env.sh` uploads it and no task reads it: every task connects with
   `DATABASE_URL`, the owner, so row security does not bind them (workplan 0138).
-- `DATABASE_URL` → the DB owner. **Meant never to be the request path.** Today
-  two API routes open a pool on it, the permission report and the sharing
-  rescan (`apps/api/src/routes/permissions.ts`; "Where row security holds
-  today"). It is for the acts performed AT THE MACHINE by whoever runs the
+- `DATABASE_URL` → the DB owner. **Not the request path.** No route opens a
+  pool on it (the permission report and the sharing rescan did until
+  2026-09-28, 0138 T6); in the API it serves the migrations and the audit key's
+  pool of one when `DIRECT_DATABASE_URL` is unset (the table above). It is for
+  the acts performed AT THE MACHINE by whoever runs the
   deployment — the ones that by their nature span tenants, or precede one
   existing — and, until workplan 0138 lands, for every Trigger.dev task as
   well:
@@ -347,8 +362,9 @@ ROLLBACK;
   connection path, add the in-force proof for it.
 - **The owner URL in the request path.** Everything works, nothing is
   isolated. `APP_DATABASE_URL` exists so this is a configuration you can
-  grep for. The managed Trigger.dev tasks and the permission report's pool
-  are in this state today ("Where row security holds today").
+  grep for. The managed Trigger.dev tasks are in this state today, and the
+  permission report's pool was until 2026-09-28 ("Where row security holds
+  today").
 - **Session-level context.** `SET app.current_tenant` without `LOCAL`
   survives the transaction and rides the pooled connection into another
   request. `withTenant` uses transaction-local everything; keep it that way.

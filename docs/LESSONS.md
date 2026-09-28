@@ -125,6 +125,10 @@ reading a file drops off its entry by itself.
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
+### `apps/api/src/audit-key.ts`
+
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
 ### `apps/api/src/enqueue-unless-held.ts`
 
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
@@ -134,6 +138,7 @@ reading a file drops off its entry by itself.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
@@ -149,6 +154,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/middleware/auth.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-sentence-two-files-must-agree-on](../scripts/a-sentence-two-files-must-agree-on.unit.test.ts) — A SENTENCE TWO FILES MUST AGREE ON, AND NOTHING MADE THEM.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -179,6 +185,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/connections.ts`
 
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+
+### `apps/api/src/routes/grant.ts`
+
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
 ### `apps/api/src/routes/migrations/dropbox-consent.ts`
 
@@ -230,12 +240,14 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/migrations/operating-routes.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 
 ### `apps/api/src/routes/permissions.ts`
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 
 ### `apps/api/src/routes/platform-status.ts`
@@ -263,6 +275,10 @@ reading a file drops off its entry by itself.
 
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/api/src/routes/view.ts`
+
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
 ### `apps/api/src/scripts/operator-links.ts`
 
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
@@ -270,6 +286,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/scripts/operator.ts`
 
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
@@ -277,6 +294,7 @@ reading a file drops off its entry by itself.
 
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
@@ -460,6 +478,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/package.json`
 
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 
 ### `apps/worker/src/cli/index.ts`
@@ -562,9 +581,11 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/bootstrap-managed.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -579,6 +600,7 @@ reading a file drops off its entry by itself.
 - [no-pipeline-its-own-consumer-can-kill](../scripts/no-pipeline-its-own-consumer-can-kill.unit.test.ts) — A PIPELINE WHOSE CONSUMER EXITS EARLY REPORTS FAILURE WHEN IT SUCCEEDED.
 - [nothing-ever-parsed-the-bring-up](../scripts/nothing-ever-parsed-the-bring-up.unit.test.ts) — NOTHING EVER PARSED THE BRING-UP.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-catcher-only-where-it-catches](../scripts/the-catcher-only-where-it-catches.unit.test.ts) — THE CATCHER ONLY WHERE IT CATCHES (workplan 0133 T3 (b), the owner's D5).
@@ -591,6 +613,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/box-duties.sh`
 
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 
 ### `deploy/compose/check-env-agreement.sh`
 
@@ -605,6 +628,8 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/deploy-live.sh`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/deploy-tasks.sh`
 
@@ -633,6 +658,7 @@ reading a file drops off its entry by itself.
 
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
@@ -643,12 +669,15 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-read.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-listing-that-counted-closing-tags](../scripts/a-listing-that-counted-closing-tags.unit.test.ts) — A DIAGNOSTIC THAT LIES IS WORSE THAN NO DIAGNOSTIC.
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
@@ -657,6 +686,7 @@ reading a file drops off its entry by itself.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
@@ -670,7 +700,9 @@ reading a file drops off its entry by itself.
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -686,7 +718,9 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/gatus.yaml`
@@ -702,8 +736,10 @@ reading a file drops off its entry by itself.
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
@@ -733,14 +769,17 @@ reading a file drops off its entry by itself.
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -750,6 +789,7 @@ reading a file drops off its entry by itself.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
@@ -767,6 +807,7 @@ reading a file drops off its entry by itself.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -795,9 +836,11 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/own-addresses.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/redact-evidence.sh`
 
@@ -814,6 +857,11 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/rehearse-capacity.sh`
 
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+
+### `deploy/compose/release-tag.sh`
+
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/reset-trigger.sh`
 
@@ -923,17 +971,28 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/stack-kind.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
+### `deploy/compose/stand-up-live.sh`
+
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+
 ### `deploy/compose/trigger-cli-lib.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
@@ -963,10 +1022,13 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/www.yml`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -1145,6 +1207,7 @@ reading a file drops off its entry by itself.
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -1395,6 +1458,7 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/direct-url.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b)).
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
 ### `packages/ledger/src/mapping-status-audit.ts`
 
@@ -1412,6 +1476,10 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/schema-pg.ts`
 
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+
+### `packages/ledger/src/verification-queries.ts`
+
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 
 ### `packages/managed/migrations/0001_the_managed_service.sql`
 
@@ -1742,6 +1810,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
 
+- [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 
 ### `scripts/a-refusal-that-named-no-remedy.unit.test.ts`
@@ -2293,6 +2362,19 @@ Reads:
 - `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
 - `packages/core/src/dav-sync.ts`
 
+### [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts)
+
+A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/own-addresses.sh`
+- `deploy/compose/stack-kind.sh`
+- `deploy/compose/trigger-cli-lib.sh`
+
 ### [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts)
 
 A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -2482,6 +2564,28 @@ Reads:
 
 - `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 - `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
+
+### [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts)
+
+A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+
+Reads:
+
+- `apps/worker/package.json`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
+- `deploy/compose/exposure-check.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/compose/release-tag.sh`
+- `deploy/compose/stack-kind.sh`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/trigger-cli-lib.sh`
+- `deploy/compose/www-live.sh`
+- `deploy/compose/www.yml`
 
 ### [a-fixture-smaller-than-a-chunk](../scripts/a-fixture-smaller-than-a-chunk.unit.test.ts)
 
@@ -2853,6 +2957,19 @@ Reads:
 - `apps/worker/trigger.config.ts`
 - `packages/shared/src/pass-deadline.ts`
 
+### [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts)
+
+A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
+
+Reads:
+
+- `deploy/compose/ensure-env-secrets.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/managed.yml`
+- `deploy/compose/stand-up-live.sh`
+
 ### [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts)
 
 Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
@@ -3149,6 +3266,27 @@ A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER CHECK
 Reads:
 
 - `deploy/compose/smoke-managed.sh`
+
+### [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts)
+
+A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
+Reads:
+
+- `apps/api/src/audit-key.ts`
+- `apps/api/src/index.ts`
+- `apps/api/src/middleware/auth.ts`
+- `apps/api/src/routes/grant.ts`
+- `apps/api/src/routes/migrations/operating-routes.ts`
+- `apps/api/src/routes/permissions.ts`
+- `apps/api/src/routes/view.ts`
+- `apps/api/src/scripts/operator.ts`
+- `apps/api/src/scripts/seed-managed.ts`
+- `deploy/compose/managed.yml`
+- `docs/rls-guide.md`
+- `packages/ledger/src/direct-url.ts`
+- `packages/ledger/src/verification-queries.ts`
+- `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`
 
 ### [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts)
 
@@ -3826,6 +3964,23 @@ ONE ORGANISATION, COUNTED (workplan 0135 T3).
 Reads:
 
 - `deploy/compose/setup-zitadel.sh`
+
+### [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts)
+
+ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/exposure-check.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/own-addresses.sh`
+- `deploy/compose/release-tag.sh`
+- `deploy/compose/stack-kind.sh`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/www-live.sh`
 
 ### [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts)
 

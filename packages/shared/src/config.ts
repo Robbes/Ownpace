@@ -17,6 +17,12 @@ import {
   type GoogleEditorKind,
   type NativeFilePolicies,
 } from './google-native-coverage.ts';
+import {
+  DROPBOX_NATIVE_KINDS,
+  DROPBOX_PAPER_POLICIES,
+  isDropboxPaperPolicy,
+  type DropboxNativeFilePolicies,
+} from './dropbox-native-policy.ts';
 
 export type SourceAuth =
   | { readonly kind: 'xoauth2'; readonly tokenFromEnv: string }
@@ -391,6 +397,12 @@ export interface DropboxSource {
   readonly type: 'dropbox';
   /** Unset = the whole Dropbox; a path ('/Team') scopes the migration to it. */
   readonly rootPath?: string;
+  /**
+   * The format Paper docs arrive in (workplan 0150 T3), under the key Drive's
+   * formats use, with a `paper` kind (D7). Unset refuses each one by name
+   * (D1). See `DropboxNativeFilePolicies`.
+   */
+  readonly nativeFilePolicies?: DropboxNativeFilePolicies;
 }
 
 /**
@@ -1044,12 +1056,7 @@ function parseSource(obj: Record<string, unknown>): SourceConfig {
     };
   }
   if (type === 'dropbox') {
-    return {
-      type: 'dropbox',
-      ...(obj['rootPath'] === undefined
-        ? {}
-        : { rootPath: reqString(obj, 'rootPath', 'source.rootPath') }),
-    };
+    return parseDropboxSource(obj);
   }
   if (type === 'archive') {
     return parseArchiveSource(obj);
@@ -1166,6 +1173,71 @@ export function parseGoogleDriveSource(obj: Record<string, unknown>): GoogleDriv
       ? {}
       : { nativeFilePolicies: parseNativeFilePolicies(obj['nativeFilePolicies']) }),
   };
+}
+
+/**
+ * Validate a Dropbox source's settings — from a mapping FILE or from a managed
+ * connection's stored `config` blob (workplan 0150 T3 (c)).
+ *
+ * Exported, and called by both editions, for the reason
+ * `parseGoogleDriveSource` is: a format for Paper docs the appliance refuses
+ * must not be one the managed edition stores and then ignores (hard rule 5).
+ * `type` is not required in the input, and is always set on the way out.
+ */
+export function parseDropboxSource(obj: Record<string, unknown>): DropboxSource {
+  // Drive's one format for every kind, written on a Dropbox source by analogy,
+  // would be read as nothing, and every Paper doc refused for a reason the
+  // file does not show. Said where it was typed, with the key that works.
+  if (obj['nativeFilePolicy'] !== undefined) {
+    throw new ConfigError(
+      'source.nativeFilePolicy: a Dropbox source has no single format for every kind. Its ' +
+        'Paper docs take theirs from source.nativeFilePolicies, such as { "paper": "markdown" }.',
+    );
+  }
+  return {
+    type: 'dropbox',
+    ...(obj['rootPath'] === undefined
+      ? {}
+      : { rootPath: reqString(obj, 'rootPath', 'source.rootPath') }),
+    ...(obj['nativeFilePolicies'] === undefined
+      ? {}
+      : { nativeFilePolicies: parseDropboxNativeFilePolicies(obj['nativeFilePolicies']) }),
+  };
+}
+
+/**
+ * A Dropbox migration's format per kind (workplan 0150 T3 (a)), refusing BY
+ * NAME a kind that is not Dropbox's and a format Dropbox does not export
+ * Paper docs in, as `parseNativeFilePolicies` does for Drive's. A Google kind
+ * here is refused too: it would be read as nothing, and the Paper docs would
+ * stay refused for a reason no screen shows.
+ */
+function parseDropboxNativeFilePolicies(value: unknown): DropboxNativeFilePolicies {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ConfigError(
+      'source.nativeFilePolicies: expected an object naming a format for Paper docs, such as ' +
+        `{ "paper": "markdown" }, got ${JSON.stringify(value)}`,
+    );
+  }
+  const policies: { paper?: DropboxNativeFilePolicies['paper'] } = {};
+  for (const [kind, policy] of Object.entries(value)) {
+    if (!(DROPBOX_NATIVE_KINDS as ReadonlyArray<string>).includes(kind)) {
+      throw new ConfigError(
+        `source.nativeFilePolicies: unknown kind ${JSON.stringify(kind)} for a Dropbox source ` +
+          `(expected ${DROPBOX_NATIVE_KINDS.map((k) => `"${k}"`).join(', ')}).`,
+      );
+    }
+    if (!isDropboxPaperPolicy(policy)) {
+      throw new ConfigError(
+        `source.nativeFilePolicies.paper: unsupported ${JSON.stringify(policy)} (expected ` +
+          `${DROPBOX_PAPER_POLICIES.map((p) => `"${p}"`).join(', ')}). "refuse" is the default and ` +
+          'reports each Paper doc as not migrated, with a reason; "markdown" and "html" ask Dropbox ' +
+          'to export it, and it arrives under its name with the suffix appended (Notes.paper.md).',
+      );
+    }
+    policies.paper = policy;
+  }
+  return policies;
 }
 
 /**

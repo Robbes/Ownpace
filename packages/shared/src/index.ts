@@ -8,6 +8,7 @@ export * from './contact.ts';
 export * from './file.ts';
 export * from './container-hash.ts';
 export * from './google-native-coverage.ts';
+export * from './dropbox-native-policy.ts';
 export * from './fingerprint-scheme.ts';
 export * from './hash.ts';
 // The JMAP parent-chain -> WebDAV path reconstruction (0031 T3). Beside hash.ts
@@ -75,6 +76,7 @@ export * from './dropbox-deployment-client.ts';
 export * from './microsoft-deployment-client.ts';
 export * from './microsoft-scopes.ts';
 export * from './provider-clients.ts';
+export * from './consent-state.ts';
 export * from './redirect-uris.ts';
 export * from './standing-grants.ts';
 export * from './erasure-timeline.ts';

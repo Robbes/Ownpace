@@ -2018,6 +2018,13 @@ paths:
         `nativeFilePolicies` clears the per-kind formats, so all four kinds
         follow the one sent.
 
+        A Dropbox migration's format is `sourceConfig.nativeFilePolicies.paper`
+        (workplan 0150 T3): `markdown`, `html` or `refuse`, for its Paper docs
+        and templates. It is merged and validated the same way. A format for
+        Paper docs sent to a migration that does not copy from Dropbox, or a
+        Google format sent to one that does, is a `400` naming
+        `sourceConfig.nativeFilePolicies`, and nothing is written.
+
         Fields that cannot change on a migration that already holds items are
         REFUSED rather than dropped: the source or target system, the source
         root folder, and the destination account. Reconnecting the same account
@@ -6638,6 +6645,17 @@ components:
                 spreadsheet: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
                 presentation: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
                 drawing: { type: string, enum: [refuse, export-odf, export-office, export-pdf] }
+                paper:
+                  type: string
+                  enum: [refuse, markdown, html]
+                  description: |
+                    Dropbox sources only (workplan 0150 T3): the format Paper
+                    docs and templates are exported in, arriving under their
+                    name with the suffix appended (`Notes.paper.md`). Unset
+                    means `refuse`: each one is reported as not migrated, with
+                    a reason. A Dropbox source takes no Google kind here, and
+                    a Google source takes no `paper`; either is refused by
+                    name.
               additionalProperties: false
           required: [username]
         targetConfig:

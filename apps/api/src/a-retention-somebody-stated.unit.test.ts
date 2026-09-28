@@ -20,7 +20,9 @@
  *   - with the alpha setting on (`OWNPACE_STAGE=alpha`, 0131 T1), blank is
  *     FATAL whatever `NODE_ENV` says, because `managed.yml` defaults
  *     `NODE_ENV` to `development` and an alpha stack must not start while it
- *     quotes backups by default;
+ *     quotes backups by default. It names `ownpace-live`'s own number, 7, the
+ *     most days a dump taken before a deploy is kept (0134 open question 1
+ *     (b), 2026-09-28), and no longer points at 0 "as during the alpha";
  *   - a stated number, `0` or `7`, is never a problem.
  *
  * Whether the alpha case should be fatal or only a warning is 0134 open
@@ -83,6 +85,22 @@ describe('with the alpha setting on, a blank retention is fatal, in production a
       expect(problems[0]!.message).toMatch(/\bto 0\b/);
       expect(problems[0]!.message).toContain('0134');
     }
+  });
+
+  it("names live's 7, the days its pre-deploy dump is kept, and never points live's operator at 0 as the alpha's answer", () => {
+    // 0134 open question 1 (b), 2026-09-28: live's databases are dumped before
+    // each deploy and each dump is kept at most 7 days, so live sets 7. A
+    // refusal saying "0 ... as during the alpha" would have an operator who
+    // blanked it on live set 0, and the erasure sentence would then say no
+    // copy exists while a dump still holds the data.
+    const [problem] = describeBackupRetentionProblem({
+      NODE_ENV: 'production',
+      OWNPACE_STAGE: 'alpha',
+      BACKUP_RETENTION_DAYS: '',
+    });
+    expect(problem!.message).toContain('7 on ownpace-live');
+    expect(problem!.message).toContain('dump');
+    expect(problem!.message).not.toMatch(/as during the alpha/i);
   });
 
   it('reads the setting the way the grant mail does: trimmed, in any case', () => {

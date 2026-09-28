@@ -39,7 +39,7 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
-import { fileVersion, markNeedsDecision, withFailureCategory } from '@openmig/shared';
+import { DROPBOX_PAPER_POLICIES, fileVersion, markNeedsDecision, withFailureCategory } from '@openmig/shared';
 import type {
   DropboxEntry,
   DropboxExportOnly,
@@ -85,7 +85,7 @@ const PAPER_SUFFIX: Readonly<Record<DropboxPaperFormat, string>> = {
 };
 
 /** Every policy a Paper doc's name can come from, `refuse` first (0150 T3 (b)). */
-const EVERY_PAPER_POLICY: ReadonlyArray<DropboxPaperPolicy> = ['refuse', 'markdown', 'html'];
+const EVERY_PAPER_POLICY: ReadonlyArray<DropboxPaperPolicy> = DROPBOX_PAPER_POLICIES;
 
 /**
  * A FILE DROPBOX HANDS OVER ONLY AS AN EXPORT, REFUSED BY NAME (workplan 0150
