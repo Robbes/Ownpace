@@ -88,6 +88,21 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
+      # T2), checked before anything below installs or publishes. Without it, a
+      # tag pushed before the version bump and the changelog rename would create
+      # a release whose body links a section that is not there. On a tag only,
+      # the condition the two release steps below use: main, the weekly sweep
+      # and pull requests run exactly as before. The fetch lets the check see
+      # the releases already tagged, since this checkout is shallow and holds
+      # only the tag being cut. See scripts/release-names-agree.mjs.
+      - name: The tag, package.json and the changelog name one release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+          node scripts/release-names-agree.mjs
+
       # Node.js 24 is pre-installed on the self-hosted runner via apt
       # Install pnpm using the standalone installer
       - name: Install pnpm
@@ -187,7 +202,7 @@ jobs:
       - name: Upload SARIF to code scanning
         id: upload_sarif
         if: always() && hashFiles('trivy.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           sarif_file: trivy.sarif
 

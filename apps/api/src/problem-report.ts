@@ -23,8 +23,14 @@
  *   reference (0129 T1), each checked against its own shape, never free text.
  * - **A screenshot**, if the person adds one: a PNG or JPEG, checked by its
  *   own first bytes rather than by the name it arrived with, at most 5 MB.
+ *
+ * And one line the server adds: **the build** that answered, as `/version`
+ * gives it (workplan 0146 T2). Every managed build since 2026-08-04 has said
+ * the same version, so the commit is what tells two apart, and a person
+ * reporting a problem is not asked to copy it off the page.
  */
 
+import { buildIdentity, type BuildIdentity } from '@openmig/core';
 import { APP_EVENT_REFERENCE, isFailureCategory, type FailureCategory } from '@openmig/shared';
 import { loggableUrl } from './access-log.ts';
 
@@ -137,14 +143,36 @@ export interface Reporter {
 }
 
 /**
+ * The build, written as the web app's build stamp writes it (`describeBuild` in
+ * `apps/web/src/services/build-identity.ts`): `v<version> · <seven characters
+ * of the commit>`, so the ticket and the bottom of the page read alike.
+ *
+ * One difference, on purpose. With no commit the stamp shows the version
+ * alone; the ticket says the commit is unknown. It is read later, by somebody
+ * who cannot look at that page again, and a bare `v0.1.0-rc.1` reads as the
+ * release of that name, which a build without a commit almost never is.
+ */
+function buildLine(build: BuildIdentity): string {
+  const commit = build.commit && build.commit !== 'unknown' ? build.commit.slice(0, 7) : 'commit unknown';
+  return `Build: v${build.version} · ${commit}`;
+}
+
+/**
  * The Zammad ticket a report becomes (Zammad's REST API, `POST /api/v1/tickets`).
  *
  * The customer is the reporter's own address, `guess:` so Zammad finds or makes
  * the customer record: that is what makes the owner's reply reach them by email.
  * The article is plain text, so nothing the person wrote is ever rendered as
  * HTML in the owner's helpdesk.
+ *
+ * `build` is this API's own unless a caller says otherwise; the route never does.
  */
-export function ticketFor(report: ProblemReport, reporter: Reporter, group: string) {
+export function ticketFor(
+  report: ProblemReport,
+  reporter: Reporter,
+  group: string,
+  build: BuildIdentity = buildIdentity(),
+) {
   const firstLine = report.description.split('\n')[0]!.trim();
   const title = `Ownpace: ${firstLine.length > 80 ? `${firstLine.slice(0, 79)}…` : firstLine}`;
   const facts = [
@@ -152,6 +180,7 @@ export function ticketFor(report: ProblemReport, reporter: Reporter, group: stri
     ...(report.reference ? [`Reference: ${report.reference}`] : []),
     ...(report.category ? [`Category: ${report.category}`] : []),
     ...(reporter.tenantId ? [`Organisation: ${reporter.tenantId}`] : []),
+    buildLine(build),
   ];
   return {
     title,
