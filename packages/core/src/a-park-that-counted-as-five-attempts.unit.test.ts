@@ -21,17 +21,26 @@
  * Migration 0046 separates them. These are over `MemoryLedger`, the mirror
  * `PgLedger` is written against; the Postgres half of the same contract is
  * pinned in `packages/ledger/src/a-parked-row-is-not-a-tall-count.integration.test.ts`.
+ *
+ * The last block is a Dropbox Paper doc (workplan 0150 T6 (a)), through the
+ * real sync loop: the owner's met the other route, five attempts and then a
+ * wait, because nothing said it was a decision.
  */
 
 import { describe, it, expect } from 'vitest';
-import { MemoryLedger } from './__testing__/memory.ts';
+import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
 import { classifyKnownItem } from './domain-sync.ts';
+import { runFileSync } from './dav-sync.ts';
 import {
   asMappingId,
   asTenantId,
   MAX_ITEM_ATTEMPTS,
+  type FileFolder,
   type LedgerRecord,
+  type RawFileItem,
+  type UpsertResult,
 } from '@openmig/shared';
+import { DropboxFileSource, type DropboxEntry, type DropboxTransport } from '@openmig/connectors';
 
 const TENANT = asTenantId('11111111-1111-4111-8111-111111111111' as never);
 const MAPPING = asMappingId('33333333-3333-4333-8333-333333333333' as never);
@@ -209,5 +218,130 @@ describe('the sync loop skips a parked item without consulting its count', () =>
         undefined,
       ),
     ).toBe('needs-decision');
+  });
+});
+
+describe('a Dropbox Paper doc is parked on its first attempt (workplan 0150 T6 (a))', () => {
+  // THE OWNER'S CASE, 2026-09-25 to 2026-09-28. A `.paper` in a Dropbox
+  // migration read `source_refused` at five attempts, waiting on a person and
+  // never parked: `files/download` refused it with 409 `unsupported_file`, and
+  // that came back as a bare error, so the loop counted it as the world
+  // failing, five times, and toward the pass's 25 in a row.
+
+  /**
+   * A Dropbox with one folder, listed as given. A download hands over three
+   * bytes, except of a file it lists as not downloadable, which it refuses as
+   * it refused the owner's: 409 `unsupported_file`.
+   */
+  function dropbox(entries: DropboxEntry[]) {
+    const downloads: string[] = [];
+    const transport: DropboxTransport = async (url, init) => {
+      let refused = false;
+      if (url.endsWith('/files/download')) {
+        const id = JSON.parse(init.headers['Dropbox-API-Arg'] ?? '{}').path as string;
+        downloads.push(id);
+        refused = entries.some((e) => e.id === id && e.is_downloadable === false);
+      }
+      return {
+        ok: !refused,
+        status: refused ? 409 : 200,
+        json: async () => ({ entries, cursor: 'end', has_more: false }),
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer as ArrayBuffer,
+        text: async () =>
+          refused ? '{"error":{".tag":"unsupported_file"},"error_summary":"unsupported_file/"}' : '',
+      };
+    };
+    return {
+      source: new DropboxFileSource(transport, {
+        apiBaseUrl: 'https://api.test/2',
+        contentBaseUrl: 'https://content.test/2',
+      }),
+      downloads,
+    };
+  }
+
+  const file = (name: string, over: Partial<DropboxEntry> = {}): DropboxEntry => ({
+    '.tag': 'file',
+    id: `id:${name}`,
+    name,
+    path_display: `/${name}`,
+    size: 100,
+    server_modified: '2026-09-25T10:00:00Z',
+    content_hash: `hash-${name}`,
+    ...over,
+  });
+  const paper = (name: string): DropboxEntry =>
+    file(name, { is_downloadable: false, export_info: { export_as: 'markdown' } });
+
+  function memoryTarget() {
+    const written: string[] = [];
+    return {
+      written,
+      ensureDirectory: async (folder: FileFolder) => `t/${folder.path || 'root'}`,
+      upsertFile: async (parentId: string, raw: RawFileItem): Promise<UpsertResult> => {
+        written.push(raw.item.path);
+        return { targetId: `${parentId}:${raw.item.path}`, created: true };
+      },
+      findFileByNaturalKey: async () => undefined,
+    };
+  }
+
+  async function pass(source: DropboxFileSource, ledger: MemoryLedger) {
+    const target = memoryTarget();
+    // One at a time, so "in a row" means the listing's order.
+    const result = await runFileSync({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      source,
+      target,
+      ledger,
+      cursors: new MemoryCursorStore(),
+      concurrency: 1,
+      sourceIsAuthorityOnExistence: true,
+    });
+    return { result, written: target.written };
+  }
+
+  it('parks it on one attempt, stating policy_refused, and copies the rest', async () => {
+    const { source, downloads } = dropbox([paper('Notes.paper'), file('letter.pdf')]);
+    const ledger = new MemoryLedger();
+    const { result, written } = await pass(source, ledger);
+
+    expect(written).toEqual(['letter.pdf']);
+    expect(downloads).toEqual(['id:letter.pdf']);
+    expect(result.needsDecision).toBe(1);
+    const failures = await ledger.listFailures(TENANT, MAPPING, 'file');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ category: 'policy_refused', attempts: 1, needsDecision: true });
+    expect(failures[0]?.parkedAt).toBeDefined();
+    expect(failures[0]?.lastError).toContain('"Notes.paper" is a Dropbox Paper doc.');
+  });
+
+  it('is not tried again on the next pass', async () => {
+    const { source, downloads } = dropbox([paper('Notes.paper'), file('letter.pdf')]);
+    const ledger = new MemoryLedger();
+    await pass(source, ledger);
+    await pass(source, ledger);
+
+    // The second pass downloads nothing: the file is already copied, and the
+    // Paper doc waits on a person.
+    expect(downloads).toEqual(['id:letter.pdf']);
+    const [failure] = await ledger.listFailures(TENANT, MAPPING, 'file');
+    expect(failure?.attempts).toBe(1);
+  });
+
+  it('never stops a pass, however many there are: thirty Paper docs, then a file', async () => {
+    // Twenty-five failures in a row stop a pass, and a refusal that counted
+    // would stop this one before the file listed after them.
+    const papers = Array.from({ length: 30 }, (_, i) => paper(`Doc ${String(i).padStart(2, '0')}.paper`));
+    const { source } = dropbox([...papers, file('zz-after-them.pdf')]);
+    const ledger = new MemoryLedger();
+    const { result, written } = await pass(source, ledger);
+
+    expect(written).toEqual(['zz-after-them.pdf']);
+    expect(result.needsDecision).toBe(30);
+    const failures = await ledger.listFailures(TENANT, MAPPING, 'file');
+    expect(failures).toHaveLength(30);
+    expect(failures.every((f) => f.parkedAt !== undefined && f.attempts === 1)).toBe(true);
   });
 });

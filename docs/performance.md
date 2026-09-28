@@ -35,7 +35,10 @@ default:
 Nobody has measured the managed stack under load. `deploy/compose/rehearse-capacity.sh` is the tool
 for it, on a stack brought up with the demo:
 
-- `--seed N M` adds N rehearsal organisations with M migrations each.
+- `--seed N M` adds N rehearsal organisations with M migrations each. The sync tick starts no more
+  of their passes at once than the stack's caps, `MAX_PASSES_IN_FLIGHT` and
+  `MAX_PASSES_PER_ORGANISATION` (workplan 0143 T1), so the sitting sets them to the numbers it
+  measures and runs `set-task-env.sh` first.
 - `--sample` writes a line every 10 seconds: the task containers and their memory, the host's
   memory, swap and load, PgBouncer's waiting clients and longest wait, and Postgres' connections.
 - `--remove` takes the organisations back, with every row their passes wrote. It takes two runs:

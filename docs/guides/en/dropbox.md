@@ -23,7 +23,11 @@ Test asks Dropbox for the top level of the root folder only, so it answers in se
 
 ## What moves {#what-moves}
 
-File bytes and the folder tree. Sharing state, file requests, Paper docs and version history stay behind. Deletions are detected by absence-counting (two clean passes); a Dropbox "rewind" or deleted-entry read is not yet supported.
+File bytes and the folder tree. Sharing state, file requests and version history stay behind.
+
+A Paper doc is not copied, nor is any other document Dropbox keeps in a format of its own: Dropbox hands one over only as an export, and this service does not make exports yet. Each one is listed by name on the Failures page, waiting on you: export it from Dropbox yourself, or leave it behind. Every other file carries on. Paper docs kept outside your Dropbox files, on an older Paper account, are not seen at all.
+
+Deletions are read from Dropbox's own record of deleted files, and otherwise found by counting what is missing (two clean passes); a Dropbox "rewind" is not read.
 
 ## When the test reports a problem {#when-test-says}
 

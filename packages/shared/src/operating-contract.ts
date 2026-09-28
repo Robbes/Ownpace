@@ -152,6 +152,16 @@ export interface FailuresQueue extends QueueEnvelope {
   readonly needsDecision: readonly ItemFailure[];
   readonly retrying: readonly ItemFailure[];
   readonly howToResolve: FailureGuidance;
+  /**
+   * The kind of the migration's source (workplan 0150 D9): the source
+   * connection's `kind` on managed, the mapping's `source.type` on the
+   * appliance. Both say `dropbox` for Dropbox, and that is the one value the
+   * page reads. A remedy is chosen by category, and for `policy_refused` by
+   * source as well, since Drive's names a setting a Dropbox migration does
+   * not have. Absent from a server that predates it, and the page then reads
+   * the category alone, as before.
+   */
+  readonly sourceKind?: string;
 }
 
 /**

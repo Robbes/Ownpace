@@ -377,9 +377,23 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
   try {
     const s = await scope(req, res);
     if (!s) return;
-    const all = await withLedger(s.tenantId, (l) =>
-      l.listFailures(s.tenantId as TenantId, s.mappingId as MappingId),
-    );
+    const { all, sourceKind } = await withTenantDb(s.tenantId, pool(), async (db) => {
+      const failures = await new PgLedger(db).listFailures(
+        s.tenantId as TenantId,
+        s.mappingId as MappingId,
+      );
+      // THE SOURCE'S KIND, so the page can choose a remedy by source as well
+      // as by category (workplan 0150 D9): Drive's `policy_refused` sentence
+      // names a setting a Dropbox migration does not have. Read as the
+      // completion report reads it, from the source mailbox's connection.
+      const [source] = await db
+        .select({ kind: schema.connection.kind })
+        .from(schema.mailboxMapping)
+        .innerJoin(schema.mailbox, eq(schema.mailbox.id, schema.mailboxMapping.sourceMailboxId))
+        .innerJoin(schema.connection, eq(schema.connection.id, schema.mailbox.connectionId))
+        .where(eq(schema.mailboxMapping.id, s.mappingId));
+      return { all: failures, sourceKind: source?.kind };
+    });
     const body: FailuresResponse = {
       [s.mappingId]: {
         migrationStatus: s.lifecycle,
@@ -390,6 +404,7 @@ router.get('/:mappingId/failures', authenticate, async (req: AuthenticatedReques
         needsDecision: all.filter((f) => f.needsDecision),
         retrying: all.filter((f) => !f.needsDecision),
         howToResolve: FAILURE_GUIDANCE,
+        ...(sourceKind ? { sourceKind } : {}),
       },
     };
     res.json(body);

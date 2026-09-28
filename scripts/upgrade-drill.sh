@@ -76,9 +76,20 @@ COMPOSE=(docker compose -p "$PROJECT"
 say() { printf '\n=== %s\n' "$*"; }
 fail() { printf '\nDRILL FAILED: %s\n' "$*" >&2; exit 1; }
 
+# The drill's own project, containers and volumes. Run once before step 1, so a
+# stale drill project cannot poison the result, and again on exit.
+down_project() {
+  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+}
+
+# On exit only. It also removes the config directory, which is why step 1 calls
+# down_project and not this: until 2026-09-28 step 1 called cleanup, which
+# deleted the mapping the drill had just written. Docker then created the
+# missing mount source itself, empty and owned by root, the released appliance
+# configured nothing, and the guard in step 1 stopped the run (0146's Status).
 cleanup() {
   say "Cleaning up the drill's own project (your appliances are untouched)"
-  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  down_project
   [ -n "${DRILL_CONFIG_DIR:-}" ] && rm -rf "$DRILL_CONFIG_DIR"
   return 0
 }
@@ -90,6 +101,20 @@ trap cleanup EXIT
 command -v docker >/dev/null || fail "docker is not installed"
 git rev-parse --verify "${FROM_TAG}^{commit}" >/dev/null 2>&1 \
   || fail "$FROM_TAG is not reachable. Run: git fetch origin --tags"
+
+# Step 2 builds the appliance from this checkout, and its Dockerfile copies
+# deploy/selfhost/config/ into the image's /data/config, where every *.json is
+# loaded. compose.drill.yml mounts the drill's mapping over mapping.json only,
+# so any other *.json there (a second mapping, or the files the selfhost e2e
+# gate writes) would reach the upgraded appliance and not the released one,
+# and step 4 would report a different set of mappings as if the upgrade had
+# lost or invented one. Gitignored, so git status does not show them.
+stray_configs=()
+for f in deploy/selfhost/config/*.json; do
+  [ -e "$f" ] && [ "$f" != deploy/selfhost/config/mapping.json ] && stray_configs+=("$f")
+done
+[ "${#stray_configs[@]}" -eq 0 ] || fail "this checkout has config files the upgraded image would load and the released one would not: ${stray_configs[*]}
+    Run the drill from a clean clone of its own (git clone https://github.com/Robbes/Ownpace.git ~/ownpace-drill), or move them out of deploy/selfhost/config/ first."
 
 # `env_file:` is not optional to compose — a missing .env aborts the whole run
 # with a message about the file rather than about the drill.
@@ -112,10 +137,24 @@ else
   say "Upgrading across $((HEAD_MIGRATIONS - FROM_MIGRATIONS)) new migration(s)."
 fi
 
-# One real mapping, from the shipped example. The appliance has to CONFIGURE
-# it and keep reporting it across the upgrade; it never has to reach anything,
-# because this drills an appliance upgrade, not a migration.
-cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
+# One real mapping. The appliance has to CONFIGURE it and keep reporting it
+# across the upgrade; it never has to reach anything, because this drills an
+# appliance upgrade, not a migration. It is the example FROM_TAG shipped, the
+# file an operator of that release copied, so "same mappings before and after"
+# also says the new build still reads an old release's config. A tag without
+# the example falls back to the working tree's.
+if git cat-file -e "${FROM_TAG}:deploy/selfhost/config/mapping.json.example" 2>/dev/null; then
+  git show "${FROM_TAG}:deploy/selfhost/config/mapping.json.example" >"$DRILL_CONFIG_DIR/mapping.json"
+else
+  cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
+fi
+# The appliance runs as appuser (uid 10001, apps/selfhost/Dockerfile), not as
+# whoever runs this script, and compose.drill.yml mounts this one file, so its
+# mode is what the container sees (the directory's does not reach it). Under a
+# strict umask the redirect above makes a file only its owner can read, and
+# the appliance then fails at boot reading its config. The file holds the
+# example's values and the NAMES of environment variables, no credential.
+chmod 644 "$DRILL_CONFIG_DIR/mapping.json"
 
 wait_healthy() {
   local what="$1" i
@@ -135,7 +174,12 @@ wait_healthy() {
 #    the artifact an operator would actually be running.
 # ---------------------------------------------------------------------------
 say "1/5  Starting the released appliance ($REGISTRY:$FROM_VERSION)"
-cleanup                                     # a stale drill project would poison the result
+down_project                                # a stale drill project would poison the result
+# The mount source has to be the drill's mapping when the container starts. A
+# missing source is created by Docker, as an empty directory owned by root, and
+# the run then fails further on for a reason this line names first.
+[ -r "$DRILL_CONFIG_DIR/mapping.json" ] && grep -q '"mappingId"' "$DRILL_CONFIG_DIR/mapping.json" \
+  || fail "the drill's own mapping is missing from $DRILL_CONFIG_DIR before the released appliance starts"
 export SELFHOST_IMAGE="${REGISTRY}:${FROM_VERSION}"
 export SELFHOST_PORT="$PORT"
 export SELFHOST_BIND=127.0.0.1
