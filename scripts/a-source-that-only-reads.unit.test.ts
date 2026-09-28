@@ -18,7 +18,8 @@
  * - the only HTTP methods they name are GET, HEAD, PROPFIND, REPORT and
  *   OPTIONS. Dropbox's API reads over POST, so its POSTs are allowed by the
  *   path they go to: the RPCs that list folders and pages, the space in use
- *   and the shared folders, and the content download;
+ *   and the shared folders, the content download, and the export of a file
+ *   Dropbox hands over only that way, a Paper doc (workplan 0150 T4);
  * - `packages/connectors/src/imapflow-source.ts` calls none of imapflow's
  *   mutators, by the names in imapflow's own typings;
  * - every mailbox that file opens is opened read-only, so imapflow sends
@@ -27,7 +28,7 @@
  *
  * A new source class is found on its own. A source that sends through a
  * transport of its own needs a line in TRANSPORTS, and a new Dropbox POST needs
- * its path in DROPBOX_READ_RPCS.
+ * its path in DROPBOX_READ_RPCS, or its URL in DROPBOX_POST_URLS.
  *
  * PARSED, not searched. The sources are read with the TypeScript parser, so a
  * method named in a comment is not a use of it, and a regular expression or an
@@ -86,8 +87,17 @@ const DROPBOX_READ_RPCS = new Set([
   'sharing/list_folders/continue',
 ]);
 
-/** The two requests Dropbox's POSTs may be: an RPC above, or a file's bytes. */
-const DROPBOX_POST_URLS = new Set(['`${this.apiBase}/${path}`', '`${this.contentBase}/files/download`']);
+/**
+ * The three requests Dropbox's POSTs may be: an RPC above, a file's bytes, or
+ * a file's bytes in a format Dropbox renders it in. `files/export` reads under
+ * the same `files.content.read` scope as the download, and changes nothing in
+ * the account (0150 T4).
+ */
+const DROPBOX_POST_URLS = new Set([
+  '`${this.apiBase}/${path}`',
+  '`${this.contentBase}/files/download`',
+  '`${this.contentBase}/files/export`',
+]);
 
 /** imapflow's calls that change a mailbox or what is in it. */
 const IMAP_MUTATORS = [
@@ -212,7 +222,7 @@ describe('a source only reads', () => {
       );
     }
 
-    // And every POST is one of the two requests: an RPC, or a file's bytes.
+    // And every POST is one of the three requests: an RPC, a file's bytes, or its export.
     const posts = namedMethods(dropbox).filter((m) => m === 'POST').length;
     const requests = callsTo(dropbox, 'transport').filter((call) => {
       const init = call.arguments[1];
