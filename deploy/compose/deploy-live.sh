@@ -25,8 +25,45 @@
 #      /api/auth/mode answers `managed`; and runs exposure-check.sh
 #      (0132 T3 (b), on main since #1271), the tag's own copy, which must
 #      pass. It reads EXPOSURE_ALLOW from live's .env, which the owner sets;
-#      a tag cut before #1271 has no such script, and cannot pass
+#      a tag cut before #1271 has no such script, and cannot pass. Before
+#      that check, when live's .env switches the site on, the site step
+#      (below), so the exposure check covers the site too
 #   9. appends one line to deploys.log (below)
+#
+# THE SITE, www.ownpace.eu (workplan 0139 T10, with 0132 T6). Switched on by
+#
+#   WWW_LIVE=true
+#
+# in live's .env, beside a WWW_PORT of its own (not the OTA site's, 3125
+# unless its .env says otherwise) and WWW_BIND (the address the front connects
+# to, the value WEB_BIND has). Off (false, or no line at all), nothing about
+# the site runs, and a deploy is what it was. On, it refuses before the
+# checkout (below), and after the bring-up and the app's checks:
+#
+#   OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public
+#   docker compose -p <project>-www -f deploy/compose/www.yml --env-file <live's .env> up -d --force-recreate
+#
+# in the checkout, now at the tag. Then it waits until the container is
+# healthy, and asks it on loopback at WWW_PORT: `/` answers 200 without
+# `noindex`, has at least one request-access link and every one leads to
+# https://app.ownpace.eu, and robots.txt allows. So www.ownpace.eu serves the
+# texts of the release that runs, the ones a tester accepts (0139 T3), with
+# its version in the footer. The site's project is live's with `-www` after
+# it, the one name the docs give for it. This script builds it from live's
+# project, and every `docker compose` command a person types for the site
+# carries it: a bare `docker compose -f deploy/compose/www.yml` in live's
+# checkout puts the site in live's own project, where one --remove-orphans
+# removes live or the site (www-live.sh's header). A site that does not build,
+# come up healthy or answer as a public site is a deploy that DID NOT TAKE
+# (exit 3, the hold stays), like any other check: an app on a new release
+# beside texts of the old one is not a deploy that took. OWNPACE_STATUS_URL is
+# not passed on: the site derives status.ownpace.eu from the app.
+#
+# Like every step, the site step is the one in the script that started, which
+# is the checkout's copy from before it moved. A deploy started from a
+# checkout without the step does not serve the site; running this again with
+# the same tag, the hold still on, does. The OTA site (www.ota.ownpace.eu,
+# ownpace-www, from the OTA stack's checkout) is never touched.
 #
 # WHAT IT DOES NOT DO. It does not open the hold (step 2) or dump the database
 # (step 4): both are the owner's, before it; --dry-run (below) says whether
@@ -63,6 +100,21 @@
 #       it starts (rehearse-capacity.sh met the same thing).
 #   a deploy log it cannot append to (below): every deploy past the checkout is
 #       logged, and the next deploy reads the log to say one-way or reversible.
+#   a WWW_LIVE that is neither true nor false (it names the key); and with
+#       WWW_LIVE=true: no WWW_PORT or WWW_BIND, or a WWW_PORT that is not one
+#       port from 1 to 65535; a container of live's project with the compose
+#       service www (PR #1275's option 4); a tag whose www.yml gives the
+#       site's container a fixed name (before 0139 T10 (b)), or that has no
+#       www.yml or site/build.mjs; a tag whose site still has
+#       unfilled placeholders, named by their count; and a tag whose
+#       `--public` build refuses for any other reason, with its last words.
+#       For those two it test-builds the tag's own site from git's objects
+#       (git archive of site/ and package.json) in a directory of its own,
+#       which it removes: `--public --check` for the count, then the full
+#       `--public` build, the one the deploy runs after the checkout, whose
+#       exit code is the verdict: `--check` is not that build, and a refusal
+#       only the build makes would otherwise pass the dry run and fail the
+#       deploy after the checkout.
 #
 # ONE-WAY OR REVERSIBLE (0146 T5). Before the checkout moves, and again at the
 # end, it says whether the deploy can be undone by deploying a tag this stack
@@ -113,7 +165,9 @@
 # 5 (it adds tags and moves nothing), and one-way or reversible, said by the
 # same function over the same deploys.log and HEAD, comparing through git's
 # objects. Then it says that it stopped, and exits 0. It checks nothing out,
-# runs no pnpm install, no bring-up and no check, and writes no line to
+# runs no pnpm install, no bring-up and none of step 7's checks, builds
+# nothing in the checkout (with WWW_LIVE=true the site's test build is among
+# the refusals, in a directory of its own), and writes no line to
 # deploys.log. Whether the log can be appended to it asks of what is there,
 # the file or the nearest directory that exists, and makes neither. Run it
 # with the hold on and the drain done, before step 4: when it says one-way, a
@@ -138,6 +192,8 @@
 #   DEPLOY_LIVE_QUIET_MINUTES     how old the hold must be (default 5)
 #   DEPLOY_LIVE_CHECK_TRIES       tries per HTTP check (default 5)
 #   DEPLOY_LIVE_CHECK_INTERVAL    seconds between them (default 3)
+#   DEPLOY_LIVE_SITE_WAIT         seconds the site has to be healthy after its
+#                                 up (default 120; www.yml asks every 30)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -150,8 +206,18 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 # Live's marker, named once.
 # shellcheck source=deploy/compose/stack-kind.sh
 . "${SCRIPT_DIR}/stack-kind.sh"
+# own_address_redact, for what Compose says about the site's publishes.
+# shellcheck source=deploy/compose/own-addresses.sh
+. "${SCRIPT_DIR}/own-addresses.sh"
+# Live's copy of the site: its project, its switch, and what asks Docker.
+# shellcheck source=deploy/compose/www-live.sh
+. "${SCRIPT_DIR}/www-live.sh"
 # The .env named to Compose, so that it reads the file checked below.
 COMPOSE=(docker compose -f "${SCRIPT_DIR}/managed.yml" --env-file "${ENV_FILE}")
+# Live's copy of the site: its project, and Compose under it, never live's
+# (0139 T10). Set by main from the project, with the reader's answer.
+WWW_LIVE_PROJECT=''
+WWW_COMPOSE=()
 
 # The two chains a release can add a migration to (ADR-0036, ADR-0045).
 MIGRATION_CHAINS=(packages/ledger/migrations packages/managed/migrations)
@@ -161,6 +227,7 @@ STALE_RUN_AFTER_SECONDS=7200
 QUIET_MINUTES="${DEPLOY_LIVE_QUIET_MINUTES:-5}"
 CHECK_TRIES="${DEPLOY_LIVE_CHECK_TRIES:-5}"
 CHECK_INTERVAL="${DEPLOY_LIVE_CHECK_INTERVAL:-3}"
+SITE_WAIT="${DEPLOY_LIVE_SITE_WAIT:-120}"
 
 RELEASE_SENTENCE='live runs releases: name a release tag'
 # The compose project this checkout drives, set by main from the one reader.
@@ -235,6 +302,25 @@ main() {
   local deploy_log
   COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || refuse "the checkout's project could not be read (above)."
   deploy_log="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}/deploys.log"
+  WWW_LIVE_PROJECT="${COMPOSE_PROJECT}-www"
+  WWW_COMPOSE=(docker compose -p "${WWW_LIVE_PROJECT}" -f "${SCRIPT_DIR}/www.yml" --env-file "${ENV_FILE}")
+  # The site (0139 T10): on or off, from live's .env. Off, nothing below
+  # about the site runs.
+  local site www_port='' key
+  site="$(www_live_switch "$ENV_FILE")" ||
+    refuse "${WWW_LIVE_KEY} in ${ENV_FILE} is neither true nor false. Its value is not printed." \
+      "Set ${WWW_LIVE_KEY}=true to build and serve www.ownpace.eu from this checkout with each deploy (workplan 0139 T10), or ${WWW_LIVE_KEY}=false."
+  if [ "$site" = on ]; then
+    for key in WWW_PORT WWW_BIND; do
+      [ -n "$(env_value "$ENV_FILE" "$key")" ] ||
+        refuse "${key} is not set in ${ENV_FILE}, and ${WWW_LIVE_KEY} is true. Live's copy of the site is published on WWW_PORT, on loopback and on WWW_BIND, the address the front connects to." \
+          "Set both (./deploy/compose/env-upsert.sh ${ENV_FILE} WWW_PORT=<a port of its own> WWW_BIND=<the address WEB_BIND has>), or set ${WWW_LIVE_KEY}=false."
+    done
+    www_port="$(env_value "$ENV_FILE" WWW_PORT)"
+    if ! [[ "$www_port" =~ ^[1-9][0-9]{0,4}$ ]] || [ "$www_port" -gt 65535 ]; then
+      refuse "WWW_PORT in ${ENV_FILE} is not one port number (1 to 65535). Its value is not printed."
+    fi
+  fi
 
   # ---- The checkout: clean -----------------------------------------------------
   local dirty
@@ -290,6 +376,11 @@ main() {
       "A release's tag is its package.json version with a v in front (docs/release.md §1)."
   fi
   say "${tag} is an annotated release tag on origin, at ${commit}, version ${version}"
+
+  # ---- The site at this tag: its own project, a port, no blank in its texts --------
+  if [ "$site" = on ]; then
+    site_ready "$tag" "$commit"
+  fi
 
   # ---- The database: a hold, and the drain done (T6 steps 2 and 3) ---------------
   local reported
@@ -352,7 +443,10 @@ main() {
     else
       say "dry run: run this again without --dry-run to deploy it."
     fi
-    say "dry run: stopped before the checkout. Nothing was checked out, installed, built or deployed, no check was run, and deploys.log was not written. The checkout and the stack are as they were; the hold is as you left it."
+    say "dry run: stopped before the checkout. Nothing was checked out, installed or deployed, nothing was built in the checkout, none of the checks after the bring-up was run, and deploys.log was not written. The checkout and the stack are as they were; the hold is as you left it."
+    if [ "$site" = on ]; then
+      say "dry run: the site at ${tag} was test-built from git's objects in a directory of its own, now removed; site/dist and ${WWW_LIVE_PROJECT} are as they were."
+    fi
     exit 0
   fi
 
@@ -414,6 +508,11 @@ main() {
     fi
   else
     failures+=("/api/auth/mode: ${code}.")
+  fi
+  # The site (0139 T10): the tag's, built here and brought up under its own
+  # project, before the exposure check, which then covers it too.
+  if [ "$site" = on ]; then
+    site_up "$commit" "$www_port"
   fi
   # 0132 T3 (b): every container on the machine, read from Docker. The tag's
   # own copy, beside this script after the checkout.
@@ -601,11 +700,12 @@ compare_releases() {
   fi
 }
 
-# http_get <origin> <path> <body-var> <code-var> — true on a 200. Tries
-# CHECK_TRIES times, a CHECK_INTERVAL apart, while the answer is not a 200.
-# Never prints the origin or curl's own words, which name the host.
+# http_get <origin> <path> <body-var> <code-var> [<where>] — true on a 200.
+# Tries CHECK_TRIES times, a CHECK_INTERVAL apart, while the answer is not a
+# 200. Never prints the origin or curl's own words, which name the host; a
+# failure says <where> it asked (default: at the origin in WEB_URL).
 http_get() {
-  local origin="$1" path="$2" tmp http rc try=1
+  local origin="$1" path="$2" where="${5:-at the origin in WEB_URL}" tmp http rc try=1
   local -n _body="$3" _code="$4"
   tmp="$(mktemp)"
   while :; do
@@ -618,7 +718,7 @@ http_get() {
       return 0
     fi
     if [ "$rc" -ne 0 ]; then
-      _code="not reached at the origin in WEB_URL (curl exit ${rc}: 6 is no such name, 7 no connection, 28 a timeout, 35 or 60 TLS)"
+      _code="not reached ${where} (curl exit ${rc}: 6 is no such name, 7 no connection, 28 a timeout, 35 or 60 TLS)"
     else
       _code="answered HTTP ${http:-nothing}, not 200"
     fi
@@ -677,6 +777,180 @@ did_not_take() {
     log_deploy "$log" "$tag" "$commit" did-not-take "$verdict"
   } >&2
   exit 3
+}
+
+# ---- The site, www.ownpace.eu (workplan 0139 T10) --------------------------------
+
+# site_ready <tag> <commit> — refuses, before anything moves, what would put
+# live's copy of the site in live's own project, stop it coming up beside the
+# OTA site, or publish a tag's texts with blanks in them, or any site at the
+# tag that a --public build refuses (site_test_build).
+site_ready() {
+  local tag="$1" commit="$2" names yml line count
+  names="$(www_in_project)" ||
+    refuse "docker could not be asked which containers of ${COMPOSE_PROJECT} have the compose service www (above)."
+  if [ -n "$names" ]; then
+    refuse "a container of ${COMPOSE_PROJECT} has the compose service www: ${names//$'\n'/, }. The site is in live's own project, where one --remove-orphans removes live or the site (www-live.sh's header)." \
+      "It got there by a docker compose -f deploy/compose/www.yml without -p ${WWW_LIVE_PROJECT}, in this checkout. Remove it by that name (docker rm -f <name>), never with a compose command in live's project, and run this again: live's copy is ${WWW_LIVE_PROJECT}, which this script brings up."
+  fi
+  yml="$(git -C "$REPO_ROOT" show "${commit}:deploy/compose/www.yml" 2>/dev/null)" ||
+    refuse "the tag '${tag}' has no deploy/compose/www.yml, so live's copy of the site cannot be served from it." \
+      "Set ${WWW_LIVE_KEY}=false to deploy the app alone."
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^[[:space:]]*container_name: ]] && [[ "$line" != *'${COMPOSE_PROJECT_NAME}'* ]]; then
+      refuse "deploy/compose/www.yml at ${tag} gives the site's container a fixed name (container_name), the OTA site's, so live's copy (${WWW_LIVE_PROJECT}) cannot start beside it." \
+        "Cut a tag from a main whose www.yml names the container after its project (workplan 0139 T10 (b)), or set ${WWW_LIVE_KEY}=false to deploy the app alone."
+    fi
+  done <<<"$yml"
+  git -C "$REPO_ROOT" cat-file -e "${commit}:site/build.mjs" 2>/dev/null ||
+    refuse "the tag '${tag}' has no site/build.mjs, so live's copy of the site cannot be built from it." \
+      "Set ${WWW_LIVE_KEY}=false to deploy the app alone."
+  say "test-building the site at ${tag} (--public --check, then --public), from git's objects"
+  local rc=0
+  count="$(site_test_build "$commit")" || rc=$?
+  case "$rc" in
+    0) ;;
+    3)
+      refuse "the site at ${tag} has no unfilled placeholder, and its --public build refused it all the same (its last words above): www.ownpace.eu serves the tag's texts, the ones a tester accepts, and this deploy would build them the same way after the checkout." \
+        "Fix what it names on main, cut a new tag and deploy that, or set ${WWW_LIVE_KEY}=false to deploy the app alone."
+      ;;
+    *)
+      refuse "the site at ${tag} did not build with --public --check (its last words above)." \
+        "Fix what it names on main (a legal page whose version line says draft needs its final text), cut a new tag and deploy that, or set ${WWW_LIVE_KEY}=false to deploy the app alone."
+      ;;
+  esac
+  if [ "$count" != 0 ]; then
+    refuse "the site at ${tag} has ${count} unfilled placeholder(s) in its texts, and a --public build refuses them: www.ownpace.eu serves the tag's texts, the ones a tester accepts." \
+      "Fill them on main (site/legal/README.md; workplan 0139 T0 and T1), cut a new tag and deploy that, or set ${WWW_LIVE_KEY}=false to deploy the app alone."
+  fi
+  say "the site at ${tag}: no www service in ${COMPOSE_PROJECT}, 0 unfilled placeholder(s), and a --public build that passed"
+}
+
+# site_test_build <commit> — the site at <commit>, built as the deploy will
+# build it after the checkout, on the copy of site/ and package.json that git
+# archive makes in a directory of its own, which is removed after. Nothing in
+# the checkout is read or written; the build writes that directory's
+# site/dist. Two runs there:
+#
+#   --public --check   for the count of unfilled placeholders, which it prints;
+#   --public           the full build, run when that count is 0. Its exit code
+#                      is the verdict: --check is not the build site_up runs.
+#                      In site/build.mjs it prints the count and stops, so a
+#                      refusal only the build makes (one --check does not
+#                      repeat) would pass a dry run that ran --check alone,
+#                      and fail the deploy after the checkout, the app moved.
+#
+# Prints the count. Fails 1, printing the build's last lines, when --check does
+# not build or prints no count; 3, printing them, when the full build refuses.
+site_test_build() {
+  local commit="$1" tmp out rc=0 count='' line
+  local re='^\[site\] [0-9]+ pages across [0-9]+ locales, ([0-9]+) unfilled placeholder\(s\)$'
+  tmp="$(mktemp -d)" || return 1
+  if ! git -C "$REPO_ROOT" archive --format=tar "$commit" site package.json | tar -x -C "$tmp"; then
+    rm -rf "$tmp"
+    echo "git archive of site/ and package.json at ${commit} failed (above)." >&2
+    return 1
+  fi
+  out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" GIT_SHA="$commit" \
+    node site/build.mjs --public --check 2>&1)" || rc=$?
+  while IFS= read -r line; do
+    if [[ "$line" =~ $re ]]; then count="${BASH_REMATCH[1]}"; fi
+  done <<<"$out"
+  if [ "$rc" -ne 0 ] || [ -z "$count" ]; then
+    rm -rf "$tmp"
+    tail -n 20 <<<"$out" >&2
+    return 1
+  fi
+  # A count refuses by itself; the full build would only say it again.
+  if [ "$count" = 0 ]; then
+    out="$(cd "$tmp" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" GIT_SHA="$commit" \
+      node site/build.mjs --public 2>&1)" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      rm -rf "$tmp"
+      tail -n 20 <<<"$out" >&2
+      return 3
+    fi
+  fi
+  rm -rf "$tmp"
+  printf '%s' "$count"
+}
+
+# site_up <commit> <port> — builds the site in this checkout, now at the tag,
+# brings it up as WWW_LIVE_PROJECT with live's .env, waits until it is healthy
+# and asks it on loopback. Each failure goes into main's `failures` (bash's
+# dynamic scope), so a site that is not served is a deploy that did not take.
+site_up() {
+  local commit="$1" port="$2" rc=0 state body code where='on loopback at WWW_PORT'
+  local origin="http://127.0.0.1:${port}" rest link wrong=0 right=0
+  local re='(https?://[^"'"'"'?#[:space:]<>]*/request-access)'
+  say "the site: node site/build.mjs --public, at ${commit}"
+  if ! (cd "$REPO_ROOT" && env -u OWNPACE_STATUS_URL OWNPACE_APP_URL="$WWW_LIVE_APP_URL" GIT_SHA="$commit" \
+    node site/build.mjs --public); then
+    failures+=("the site: node site/build.mjs --public failed (above), so ${WWW_LIVE_PROJECT} was not brought up.")
+    return 0
+  fi
+  say "the site: docker compose -p ${WWW_LIVE_PROJECT} -f deploy/compose/www.yml --env-file <live's .env> up -d --force-recreate"
+  # Compose's words can name WWW_BIND's address (a bind that failed does).
+  "${WWW_COMPOSE[@]}" up -d --force-recreate 2>&1 | own_address_redact "$ENV_FILE" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    failures+=("the site: docker compose -p ${WWW_LIVE_PROJECT} -f deploy/compose/www.yml up -d --force-recreate failed (exit ${rc}, above). A WWW_PORT another container publishes is one reason: live's copy needs a port of its own.")
+    return 0
+  fi
+  if ! state="$(site_wait_healthy)"; then
+    failures+=("the site: ${WWW_LIVE_PROJECT} is not healthy after ${SITE_WAIT} second(s): ${state}. Its log: docker compose -p ${WWW_LIVE_PROJECT} -f deploy/compose/www.yml --env-file deploy/compose/.env logs --tail 100")
+    return 0
+  fi
+  say "  ${WWW_LIVE_PROJECT}: running healthy"
+  if http_get "$origin" / body code "$where"; then
+    if grep -qi 'noindex' <<<"$body"; then
+      failures+=("the site's home page, ${where}, asks not to be indexed (noindex): that is a test build, not a --public one.")
+    fi
+    rest="$body"
+    while [[ "$rest" =~ $re ]]; do
+      link="${BASH_REMATCH[1]}"
+      if [ "$link" = "${WWW_LIVE_APP_URL}/request-access" ]; then right=$((right + 1)); else wrong=$((wrong + 1)); fi
+      rest="${rest#*"$link"}"
+    done
+    if [ "$wrong" -gt 0 ] || [ "$right" -eq 0 ]; then
+      failures+=("the site's home page, ${where}: ${wrong} request-access link(s) lead somewhere other than ${WWW_LIVE_APP_URL}/request-access, and ${right} there.")
+    fi
+    if ! grep -qi 'noindex' <<<"$body" && [ "$wrong" -eq 0 ] && [ "$right" -gt 0 ]; then
+      say "  /: 200, indexable, its request-access links lead to ${WWW_LIVE_APP_URL}"
+    fi
+  else
+    failures+=("the site's home page, ${where}: ${code}.")
+  fi
+  if http_get "$origin" /robots.txt body code "$where"; then
+    if grep -qx 'Allow: /' <<<"$body" && ! grep -q '^Disallow:[[:space:]]*/' <<<"$body"; then
+      say "  /robots.txt: 200, Allow: /"
+    else
+      failures+=("the site's robots.txt, ${where}, does not allow the site (Allow: /, and no Disallow: /): that is a test build, not a --public one.")
+    fi
+  else
+    failures+=("the site's robots.txt, ${where}: ${code}.")
+  fi
+}
+
+# site_wait_healthy — waits until live's copy of the site is running and
+# healthy, for at most SITE_WAIT seconds, asking every CHECK_INTERVAL. Prints
+# what it last found, and fails when that is not `running healthy`.
+site_wait_healthy() {
+  local deadline=$((SECONDS + SITE_WAIT)) state=''
+  while :; do
+    if ! state="$(www_live_state)"; then
+      printf 'docker could not be asked'
+      return 1
+    fi
+    if [ "$state" = 'running healthy' ]; then
+      printf '%s' "$state"
+      return 0
+    fi
+    [ "$SECONDS" -lt "$deadline" ] || break
+    sleep "$CHECK_INTERVAL"
+  done
+  state="${state//$'\n'/, }"
+  printf '%s' "${state:-no container}"
+  return 1
 }
 
 # ONE LINE, ON PURPOSE. The checkout above replaces this file with the tag's

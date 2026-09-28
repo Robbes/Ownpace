@@ -111,6 +111,8 @@ async function main() {
   }
   const db = createPgDb(databaseUrl);
   const statusStore = new PgMigrationStatusStore(db);
+  // Every pass is handed its ledger and opens none of its own (0138 T1 part 2).
+  const ledgerOptions = { ledgerDb: db };
   // A failed domain is also recorded for the operator's log page (0129 T1).
   setAppEventSink(appEventSinkOn(pgDriver(db.$pool)));
   setAuditExportSink(auditExportOn(pgDriver(db.$pool), { 'service.name': 'ownpace-worker' }));
@@ -153,7 +155,7 @@ async function main() {
   if (once) {
     // Run once mode
     log.info('[Worker] Running all enabled domains...');
-    const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle));
+    const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), ledgerOptions);
     
     const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
     const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
@@ -174,7 +176,7 @@ async function main() {
     scheduler.schedule(config.mappingId, config.schedule.cron, async () => {
       log.info('[Worker] Running scheduled sync...');
       try {
-        const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle));
+        const results = await runAllDomains(config, statusStore, phasesOfTheMigration(lifecycle), ledgerOptions);
         
         const totalScanned = results.reduce((sum, r) => sum + r.scanned, 0);
         const totalCreated = results.reduce((sum, r) => sum + r.created, 0);

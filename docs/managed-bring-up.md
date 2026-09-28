@@ -302,12 +302,16 @@ the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
 takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`.
 
-**The site is recreated by hand, and only by hand.** No workflow and no script
-runs `www.yml`; the bring-up does not start the site (*The public site*,
-below). So a change to its publish, or to `WWW_BIND`, reaches the machine at the
-next `docker compose -f deploy/compose/www.yml up -d` from an updated checkout,
-and not before. Until then `docker ps` shows the site's old publish, and its
-name keeps answering whatever `WWW_BIND` says.
+**The OTA site is recreated by hand, and only by hand.** No workflow runs
+`www.yml`, and the bring-up does not start the site (*The public site*, below).
+So a change to its publish, or to `WWW_BIND`, reaches the OTA site at the next
+`docker compose -f deploy/compose/www.yml up -d` from an updated checkout, and
+not before. Until then `docker ps` shows the site's old publish, and its name
+keeps answering whatever `WWW_BIND` says. Live's copy, `ownpace-live-www`, is
+the one exception: while `WWW_LIVE=true`, `deploy-live.sh` builds and recreates
+it with each deploy of live. By hand it is only restarted as it is (the
+incident runbook) or taken down after switching it off, each with its `-p`
+(*`www.ownpace.eu`: live's copy*, below).
 
 **A bind on a mesh address ties the container's start to that address.**
 Docker binds the address when it starts the container, and the address has to
@@ -1961,6 +1965,135 @@ be wrong silently. Neither side is the safe side; being told is.
 If you are ever unsure which environment a served `dist` was built for, read the
 host out of a *Request access* link in the page source.
 
+### `www.ownpace.eu`: live's copy
+
+The commands above are the OTA site's (`www.ota.ownpace.eu`, the container
+`ownpace-www`, from `~/ownpace-managed`), and they stay as they are. During the
+alpha the reference machine also serves the production site, `www.ownpace.eu`
+(workplan 0139 T0 fact 6). **That copy is served from live's own checkout, at
+the release tag, and once `WWW_LIVE=true` switches it on, `deploy-live.sh`
+builds and starts it with every deploy of live.** The texts a tester accepts
+are then the release's (0139 T3), and the footer names that release. A fix to a
+text rides a new tag and a deploy, with the hold, like any other change.
+
+**Only `deploy-live.sh` builds it, and every `docker compose` command for it
+carries `-p ownpace-live-www`.** Live's `.env` sets
+`COMPOSE_PROJECT_NAME=ownpace-live`, and `www.yml` reads that `.env`, so
+`docker compose -f deploy/compose/www.yml up -d` there, without `-p`, puts the
+site in live's own project. There each file sees the other's containers as
+orphans, and one `--remove-orphans` from either removes live or the site.
+Nothing in a compose file can refuse that. So live's copy has one project,
+`ownpace-live-www` (live's project with `-www`). `deploy-live.sh` and
+`www-live.sh` build that name from live's project themselves. Each
+`docker compose` command you type for the site carries that `-p` and live's
+`--env-file`, and is typed exactly as given: the ones under *Looking at it*,
+below, the incident runbook's restart, and the `down` after switching it off.
+A build by hand in `~/ownpace-live` is not one of them: `site/dist` is
+bind-mounted, so it would be served at once, without the deploy's checks.
+`deploy-live.sh` refuses to deploy while a container of live's project has the
+compose service `www`, and the daily duty `site` (*Live's daily duties*) fails
+on it too.
+
+**Keep `WWW_LIVE=false` until the legal texts are final.** With it `true`,
+every deploy, and every dry run, test-builds the tag's site with `--public`
+before anything moves, and a site that build refuses stops the whole deploy,
+the app's release with it. Today's texts are refused: they still have unfilled
+placeholders. And every legal text's version line says it is a draft (*draft
+for legal review*, *concept voor juridische toetsing*): a tag whose
+`site/build.mjs` has 0139 T2's draft check refuses that with `--public` by
+itself, and its `--public --check` exits 1 on it too. So with `WWW_LIVE=true`
+and today's texts, `deploy-live.sh` refuses before the checkout, and live does
+not move at all. Switch it on with the first tag whose texts are final.
+
+**Switching it on,** once the texts are final and live stands. It publishes an
+**indexable** site (`--public`: no `noindex`, and `robots.txt` says
+`Allow: /`). That follows the owner's answer to 0139 open question 1, (a), on
+2026-09-28: *"public site: yes, search engine index."* So 0139 T10 (c)'s
+`--no-drafts` is not needed.
+
+1. The tag. Cut it from a `main` whose `www.yml` names the container after its
+   project (0139 T10 (b)) and whose legal texts are final: no unfilled
+   placeholder, and no version line that says draft. From any checkout, this
+   writes nothing, must exit 0, and its last line must say
+   `0 unfilled placeholder(s)`:
+
+   ```bash
+   OWNPACE_APP_URL=https://app.ownpace.eu node site/build.mjs --public --check
+   ```
+
+   `--check` is not the `--public` build itself, which may refuse what
+   `--check` does not repeat. Step 3's dry run runs that full build too.
+
+2. Live's `.env`, from `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env \
+     WWW_LIVE=true WWW_PORT=<a port of its own> WWW_BIND=<the value WEB_BIND has>
+   ```
+
+   `WWW_PORT` must be a port nothing else on the machine publishes, and not the
+   OTA site's (3125 unless its `.env` says otherwise). `WWW_BIND` is the address
+   the front connects to, the value `WEB_BIND` has, so `EXPOSURE_ALLOW` needs
+   nothing new. Add `WWW_PORT` to the repository variable
+   `EXPOSURE_PROBE_LIVE_PORTS`, and for the status page's *Website* row set
+   `STATUS_SITE_ENABLED=true` and `STATUS_SITE_URL=https://www.ownpace.eu`.
+3. Deploy as usual (*`ownpace-live`: a release tag, with `deploy-live.sh`*,
+   below). `--dry-run` runs the site's refusals too: a `WWW_LIVE` that is
+   neither `true` nor `false`, no `WWW_PORT` or `WWW_BIND`, a `WWW_PORT` that
+   is not one port from 1 to 65535, a `www` service in live's project, a tag
+   whose `www.yml` gives the container a fixed name, a tag whose site still
+   has unfilled placeholders, named by their count, and a tag whose `--public`
+   build refuses for any other reason, with its last words.
+   It learns the last two by test-building the tag's own site from git's
+   objects (`git archive` of `site/` and `package.json`) in a directory of its
+   own, which it removes, before anything moves: `--public --check` for the
+   count, then the full `--public` build, the same one the deploy runs after
+   the checkout, whose exit code decides. A dry run runs that test build too;
+   it builds nothing in the checkout. After the bring-up the deploy
+   builds the site in the checkout
+   (`OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public`),
+   brings it up with
+   `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
+   (a `WWW_PORT` another container publishes makes this `up` fail, and the
+   site's step stops there), waits until it is healthy, and asks it on
+   loopback at `WWW_PORT`: `/` answers 200 without `noindex`, has at least one
+   request-access link, and every one leads to `https://app.ownpace.eu`; and
+   `robots.txt` allows. Then the exposure check runs, over the site too. **A
+   site that fails any of that is a deploy that did not take** (exit 3, the
+   hold stays on), as any other check: an app on a new release beside the old
+   release's texts is not a deploy that took.
+4. Route `www.ownpace.eu` to live's `WWW_PORT` in NetBird, as in 0132 T1e.
+   Then dispatch *Exposure probe* with `site_name` set to `required`. Until
+   then leave it at `report`, its default: the name points at another host
+   before the route, and the probe tries no port on an address of it that is
+   not live's front (an address a production name or `EXPOSURE_PROBE_HOST`
+   resolves to), and does not ask 443 for it.
+
+`deploy-live.sh` runs the copy the checkout had before it moved, so the site
+step runs from the first deploy started from a checkout that already has it. If
+live runs a tag from before this step, deploy the new tag, then run
+`./deploy/compose/deploy-live.sh <that same tag>` once more, the hold still on:
+the checkout is already there, and this time the site comes up.
+
+**Looking at it,** from `~/ownpace-live`, each `docker compose` command with
+the `-p` (`www-live.sh` builds the name itself):
+
+```bash
+./deploy/compose/www-live.sh check
+docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env ps
+docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env logs --tail 100
+```
+
+`www-live.sh check` is the daily duty: read-only, it fails when live's project
+holds a `www` service and, with `WWW_LIVE=true`, when `ownpace-live-www` is not
+running and healthy. Restarting it as it is, when its container is gone or
+stuck (after a reboot whose bind failed, say), is the incident runbook's
+*Website* row, with the same `-p`. **Switching it off** (`WWW_LIVE=false`) makes the next
+deploys leave the site alone, and leaves `ownpace-live-www` running what it
+last served, the texts of an older release. Take it down then, with the same
+`-p`: `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file
+deploy/compose/.env down`.
+
 ## What cannot work on a mesh-only host
 
 A box that is reachable only over a private mesh (NetBird, Tailscale, a
@@ -2492,7 +2625,7 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does four duties, each one
+`~/ownpace-live` by a systemd timer (0132 T7). It does five duties, each one
 whatever the one before it did:
 
 | Duty | What it runs | What it does |
@@ -2501,8 +2634,9 @@ whatever the one before it did:
 | `drill` | `trigger-version.sh drill` | Dumps live's Trigger.dev database, restores it into a throwaway and compares. The dumps go to `~/.persistent/ownpace-live/trigger-backups` and are **secret-bearing** (the plane's API keys and the encrypted task environment); the script makes them readable by this account only. |
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
+| `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
 
-It exits 0 when all four pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all five pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -2523,9 +2657,10 @@ and reaches Docker. Both are in
 
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
-# provisioning token's clock, the Trigger.dev drill, the exposure check and the
-# organisation count. A user unit, started by ownpace-box-duties.timer; the
-# install steps are in docs/managed-bring-up.md, "Live's daily duties".
+# provisioning token's clock, the Trigger.dev drill, the exposure check, the
+# organisation count and the site's (0139 T10). A user unit, started by
+# ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
+# "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -2534,9 +2669,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Four duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Five duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=90min
+TimeoutStartSec=110min
 ```
 
 ```ini
@@ -2695,10 +2830,14 @@ thing. One script moves it:
    ```
 
    It runs every refusal the deploy runs and prints *one-way* or *reversible*,
-   then stops: nothing is checked out, built or deployed, and nothing is
-   logged. **If it says one-way** and you want a way back that is not a fix
-   and a new tag, dump live's database now, with the hold still on (the
-   operator runbook's *Backup & restore*). Nothing takes a dump for you.
+   then stops: nothing is checked out, installed or deployed, nothing is built
+   in the checkout, and nothing is logged. With `WWW_LIVE=true` it does build
+   one thing: the tag's site, from git's objects, in a directory of its own
+   that it removes, to learn whether the deploy's own build would refuse it
+   (*`www.ownpace.eu`: live's copy*). **If it says one-way** and you want a
+   way back that is not a fix and a new tag, dump live's database now, with
+   the hold still on (the operator runbook's *Backup & restore*). Nothing
+   takes a dump for you.
    First check that live's `BACKUP_RETENTION_DAYS` is N and not `0` (§8g).
    Keep the dump until the next deploy succeeds and never longer than N days,
    and nothing deletes it for you either: delete it by its N-th day, whether
@@ -2731,7 +2870,13 @@ builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
 `/api/ready` answers 200, `/api/auth/mode` answers `managed`, and
 `exposure-check.sh` passes. `NODE_ENV` is not checked yet: workplan 0132 T4's
-check is not built, and the script says so.
+check is not built, and the script says so. With `WWW_LIVE=true` in live's
+`.env` it also builds and serves `www.ownpace.eu` from the tag, before the
+exposure check, and refuses what would stop that before anything moves
+(*`www.ownpace.eu`: live's copy*, under *The public site*); without it, nothing
+about the site runs. **Keep it `false` until the legal texts are final:** with
+today's texts a deploy with it `true` refuses before the checkout, and the app
+does not move either.
 
 **The exposure check needs two things before live's first deploy.** The check is
 on `main` since #1271, and it reads the whole machine: set `EXPOSURE_ALLOW` in
@@ -2743,9 +2888,11 @@ own copy, and a tag without one cannot pass.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
 fetch, and one-way or reversible, by the same comparison) and then stops, exit
-0: no checkout, no install, no bring-up, no checks, and no line in the deploy
-log, which it does not even create. A refusal exits 1, as in the deploy. Step 3
-above is what it is for.
+0: no checkout, no install, no bring-up, none of the checks after it, and no
+line in the deploy log, which it does not even create. With `WWW_LIVE=true`
+the site's refusals are among those it runs, and so is their test build of the
+tag's site, in a directory of its own that it removes; nothing is built in the
+checkout. A refusal exits 1, as in the deploy. Step 3 above is what it is for.
 
 **If a check fails, the deploy did not take.** The script says which check, the
 hold stays on, and it exits 3. The checkout is at the new tag: fix the cause and

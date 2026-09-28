@@ -40,7 +40,7 @@ import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
-import { PgRateBudget, createPgDb, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { PgRateBudget, plainDb, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import {
   DEFAULT_THROTTLE_CONFIG,
   DISCOVERY_DOMAINS,
@@ -123,13 +123,15 @@ export const runConfirmationTask = schemaTask({
       return { started: false as const, reason: 'no_target_connection' };
     }
 
-    // `createPgDb`, not a `withTenant` scope: the budget is a token bucket
+    // A plain handle, not a `withTenant` scope: the budget is a token bucket
     // consulted per request for the pass's whole lifetime, so a scope would
     // hold one transaction open for all of it — and a scope's handle is dead
     // once it commits anyway. Its own table is keyed by the (tenant, provider)
-    // columns it writes itself, and its tenant is bound at construction
-    // precisely so no caller supplies one (0082 T5).
-    const rate = new PgRateBudget(createPgDb(DATABASE_URL), {
+    // columns it writes itself, has no row security by design (ledger 0024),
+    // and its tenant is bound at construction precisely so no caller supplies
+    // one (0082 T5). On this job's pool (0138 T1 part 2): it used to open a
+    // second pool from the same URL, which nothing ever closed.
+    const rate = new PgRateBudget(plainDb(pool), {
       tenantId,
       requestsPerSecond: DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
     });

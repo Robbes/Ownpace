@@ -10,8 +10,8 @@
  * ## It borrows the verification gate's builder, deliberately
  *
  * `buildTargetReindexers` already assembles exactly what is needed — one
- * `TargetReindexer` per domain whose target can enumerate itself, each with its
- * own pool and a `close()` that releases them all. Building a second assembler
+ * `TargetReindexer` per domain whose target can enumerate itself, built on the
+ * caller's pool, and a `close()` for them all. Building a second assembler
  * beside it is how this repository ends up with two copies of a fan-out and one
  * of them silently stops being the product (`job-resolution.ts` records the
  * cost of that shape). So this adapts rather than duplicates.
@@ -45,6 +45,8 @@
  */
 
 import type { Pool } from 'pg';
+import { sql } from 'drizzle-orm';
+import { withTenant, type LedgerDriver } from '@openmig/ledger';
 import { readerOverTarget, type ConfirmationReader, type TargetBudget } from '@openmig/core';
 import {
   DISCOVERY_DOMAINS,
@@ -140,8 +142,9 @@ export async function buildConfirmationReaders(args: {
  * it reads connection ROWS, so it is the managed worker's answer to "whose
  * limit is this", and the D9 reasoning below is what makes the builder's
  * `budget` argument mean anything. The appliance resolves the same question
- * from its own config. (`pg` is a type-only import here, so nothing about this
- * reaches an appliance bundle.)
+ * from its own config. (`pg` is a type-only import here, and the `withTenant`
+ * it runs in comes from `@openmig/ledger`, which the appliance loads anyway,
+ * so nothing about this adds to an appliance bundle.)
  *
  * D9 is about a limit that *"belongs to the PROVIDER, not to us"*, so the key
  * has to name the provider. A per-mapping label would hand the confirmation a
@@ -162,18 +165,21 @@ export async function buildConfirmationReaders(args: {
  * corrected to avoid.
  */
 export async function targetProviderKey(
-  pool: Pool,
+  source: LedgerDriver | Pool,
   tenantId: string,
   mappingId: string,
 ): Promise<string | undefined> {
-  const { rows } = await pool.query<{ id: string; config: Record<string, unknown> }>(
-    `SELECT c.id, c.config
+  // Inside `withTenant` (workplan 0138 T1 part 4): on `app_user` the join to
+  // the mailbox and the connection is then held to this tenant by the
+  // policies too, not only by the ids the tenant's own mapping names.
+  const rows = await withTenant(source, tenantId, async (db) => {
+    const result = await db.execute(sql`SELECT c.id, c.config
        FROM mailbox_mapping m
        JOIN mailbox mb ON mb.id = m.target_mailbox_id
        JOIN connection c ON c.id = mb.connection_id
-      WHERE m.tenant_id = $1 AND m.id = $2`,
-    [tenantId, mappingId],
-  );
+      WHERE m.tenant_id = ${tenantId} AND m.id = ${mappingId}`);
+    return (result as unknown as { rows: Array<{ id: string; config: Record<string, unknown> }> }).rows;
+  });
   const row = rows[0];
   if (!row) return undefined;
   const host = hostFromStoredConfig(row.config);

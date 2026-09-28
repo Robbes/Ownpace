@@ -28,7 +28,8 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **BUILT, BUT NOT YET REACHING THE LEDGER (0042 T8 (e)).** A rendering a source marks as such
-  (`RawFileItem.rendering`, set only by Drive's `files.export` branch) is meant to be hashed by
+  (`RawFileItem.rendering`, set by Drive's `files.export` branch and, since 2026-09-28, by
+  Dropbox's `files/export`) is meant to be hashed by
   `containerContentHash`, with the target re-read in the row's own scheme and the confirmed list
   saying `container-parts` rather than "by hash". All of that is built, and none of it is reached:
   the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
@@ -44,6 +45,12 @@
   `EXPORT_STABILITY` stays as the record of what was measured, and the instrument measures
   through the connector like any caller. The preflight still counts what a choice leaves behind,
   a kind set not to export, and the confirm screen names it before the run.
+- **A DROPBOX PAPER DOC FOLLOWS THE SAME TWO RULES (workplan 0150 D8, since 2026-09-28).**
+  Exported through `files/export` in the format the migration chose, Markdown or HTML (0150 T3,
+  T4), it is rewritten when the listing's version moves (`content_hash`, else
+  `server_modified`), never on the export's bytes, and a renamed one is paired by its Dropbox id
+  ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended). Neither format is a zip, so
+  its stored hash is the whole file's.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,
@@ -341,3 +348,24 @@ while Drive's modified time holds (not even exported), and once more when it mov
 
 Refusals already recorded on a live migration are parked, as every refusal is, and leave the
 Failures screen when somebody presses Try again (per row or per group).
+
+## 2026-09-28: a Dropbox Paper doc follows the same two rules (workplan 0150 D8)
+
+On 2026-09-28 the owner moved Paper export before the alpha: *"yes, paper export before the
+alpha"*. Dropbox hands a Paper doc over only through `files/export`, so its bytes are a rendering
+this product asks for, as a Google document's are, and nothing promises that two exports of an
+unchanged doc are the same bytes. 0150 D8 chose to amend this ADR rather than write another.
+
+The two rules that took the nightly rewrite away for Drive carry over unchanged. A rewrite
+follows the source's version, which for a Paper doc is the listing's (`content_hash`, else
+`server_modified`), so a doc is exported again only when Dropbox lists it as changed. A renamed
+Paper doc is paired by its Dropbox id, which the source sets as the item's identity, as Drive
+sets the Drive id. The source marks the export as a rendering. Neither Markdown nor HTML is a
+zip, so the marker changes no hash: the stored one is the whole file's.
+
+`packages/core/src/a-paper-doc-exported-once.unit.test.ts` holds it through the real Dropbox
+connector and the real file pass, with an export that differs on every fetch: a Paper doc is
+copied once, not again while the listing's version holds (not even exported), again when an
+edit moves it, and reported as moved, by its id, when it is renamed. Whether an edit in Paper
+moves `content_hash` or only `server_modified` is 0150 open question 3 (b), which the owner's
+listing answers.
