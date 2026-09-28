@@ -22,6 +22,7 @@ import apiClient from '../services/api.ts';
 import { useT, useLocale } from '../i18n/index.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote, { isAlpha } from '../components/AlphaNote.tsx';
+import SupportLine from '../components/SupportLine.tsx';
 
 /**
  * ADR-0014's five, by name only.
@@ -118,6 +119,10 @@ const RequestAccess: React.FC = () => {
           <Link to="/login" className="inline-block text-sm text-blue-600 hover:text-blue-500">
             {t('access.backToSignIn')}
           </Link>
+          {/* A person to write to (workplan 0144 T6 (a)), here too: waiting
+              for an answer is when somebody wonders whether the request
+              arrived. */}
+          <SupportLine />
         </div>
       </div>
     );
@@ -278,7 +283,10 @@ const RequestAccess: React.FC = () => {
             and this is a page somebody sees BEFORE they are inside the app,
             which makes it where "what build is this?" gets asked most. See
             components/BuildStamp.tsx. */}
-        <div className="text-center">
+        {/* A person to write to (workplan 0144 T6 (a)), when the deployment
+            names one: somebody without an account has no report form. */}
+        <div className="text-center space-y-2">
+          <SupportLine />
           <BuildStamp />
         </div>
       </div>
