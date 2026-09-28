@@ -9,7 +9,7 @@
  * are Dutch (the owner's D4), so:
  *
  * - the page allows Dutch and English, and no other;
- * - its default comes from `IDP_DEFAULT_LANGUAGE` in `.env`, nl or en, and an
+ * - its default comes from `ZITADEL_DEFAULT_LANGUAGE` in `.env`, nl or en, and an
  *   empty one keeps the instance's own; any other value stops the run before
  *   anything is written;
  * - the default is set first and the list second, each only when it differs,
@@ -134,7 +134,7 @@ describe('the page’s languages', () => {
     expect(said).toContain('the sign-in page speaks Dutch and English, nl by default');
   });
 
-  it('keeps the instance’s own default when IDP_DEFAULT_LANGUAGE is empty, and still allows only the two', () => {
+  it('keeps the instance’s own default when ZITADEL_DEFAULT_LANGUAGE is empty, and still allows only the two', () => {
     const { code, writes, after } = run({ default: 'en', allowed: [] }, '');
     expect(code).toBe(0);
     expect(writes).toEqual([LIST]);
@@ -157,14 +157,14 @@ describe('the page’s languages', () => {
   it('stops before writing anything for a language the page does not offer', () => {
     const { code, said, writes } = run({ default: 'en', allowed: [] }, 'de');
     expect(code).not.toBe(0);
-    expect(said).toContain("IDP_DEFAULT_LANGUAGE is 'de'");
+    expect(said).toContain("ZITADEL_DEFAULT_LANGUAGE is 'de'");
     expect(writes).toEqual([]);
   });
 
-  it('stops, and says to set IDP_DEFAULT_LANGUAGE, when an empty one would leave the default out of the list', () => {
+  it('stops, and says to set ZITADEL_DEFAULT_LANGUAGE, when an empty one would leave the default out of the list', () => {
     const { code, said, writes } = run({ default: 'de', allowed: [] }, '');
     expect(code).not.toBe(0);
-    expect(said).toContain('Set IDP_DEFAULT_LANGUAGE to nl or en');
+    expect(said).toContain('Set ZITADEL_DEFAULT_LANGUAGE to nl or en');
     expect(writes).toEqual([]);
   });
 
@@ -185,7 +185,7 @@ describe('the bring-up', () => {
   it('sets them on every run, from .env, after the organisation form is closed, and says so in its summary', () => {
     const code = directives(setup);
     const closed = code.search(/^close_public_org_registration$/m);
-    const set = code.search(/^set_page_languages "\$\(read_env IDP_DEFAULT_LANGUAGE ''\)"$/m);
+    const set = code.search(/^set_page_languages "\$\(read_env ZITADEL_DEFAULT_LANGUAGE ''\)"$/m);
     expect(set, 'nothing sets the page’s languages').toBeGreaterThan(0);
     expect(set).toBeGreaterThan(closed);
     const summary = code.slice(code.lastIndexOf('cat <<EOF'));

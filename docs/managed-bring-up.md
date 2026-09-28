@@ -820,7 +820,7 @@ stays on: it registers people in the project's own organisation, and they
 confirm their address by mail.
 
 **Its languages** (workplan 0135 T6). The sign-in page offers Dutch and English
-and no other. `IDP_DEFAULT_LANGUAGE` in `.env`, `nl` or `en`, is its default:
+and no other. `ZITADEL_DEFAULT_LANGUAGE` in `.env`, `nl` or `en`, is its default:
 set `nl` on live, where the testers are. Empty keeps the instance's own. Every run
 sets both and reads them back, and prints them in its summary.
 

@@ -2036,7 +2036,7 @@ close_public_org_registration
 # testers are Dutch). Upstream allows every language it has and defaults to
 # English, so a visitor could be shown a sign-in page in a language nobody here
 # reads. The allowed list is the instance restriction beside T1's; the default
-# is the instance's own, from IDP_DEFAULT_LANGUAGE in .env: nl on live, where
+# is the instance's own, from ZITADEL_DEFAULT_LANGUAGE in .env: nl on live, where
 # the testers are, and whatever the OTA stack's .env says there. Empty keeps
 # the instance's default as it is.
 #
@@ -2051,7 +2051,7 @@ set_page_languages() {
   local want_default="$1" current
   case "$want_default" in
     ''|nl|en) ;;
-    *) die "IDP_DEFAULT_LANGUAGE is '${want_default}', and the sign-in page offers Dutch and English
+    *) die "ZITADEL_DEFAULT_LANGUAGE is '${want_default}', and the sign-in page offers Dutch and English
 only (workplan 0135 T6). Set it to nl or en in ${ENV_FILE}, or leave it empty to keep
 the instance's own default." ;;
   esac
@@ -2061,7 +2061,7 @@ the instance's own default." ;;
     api PUT "/admin/v1/languages/default/${want_default}" >/dev/null
   elif [ -z "$want_default" ] && [ "$current" != "nl" ] && [ "$current" != "en" ]; then
     die "the sign-in page's default language is '${current:-unset}', which Dutch and English
-leave out, so the allowed list cannot be written. Set IDP_DEFAULT_LANGUAGE to nl or en
+leave out, so the allowed list cannot be written. Set ZITADEL_DEFAULT_LANGUAGE to nl or en
 in ${ENV_FILE}, and run this again."
   fi
   if [ "$(page_allowed_languages)" != '["en","nl"]' ]; then
@@ -2083,7 +2083,7 @@ Read it with:
   fi
   say "the sign-in page speaks Dutch and English, ${PAGE_DEFAULT_LANGUAGE} by default"
 }
-set_page_languages "$(read_env IDP_DEFAULT_LANGUAGE '')"
+set_page_languages "$(read_env ZITADEL_DEFAULT_LANGUAGE '')"
 
 # ---------------------------------------------- how many organisations here --
 #
@@ -2181,7 +2181,7 @@ cat <<EOF
   client     ${CLIENT_ID}
   console    ${ISSUER}/ui/console
   organisations ${ORG_COUNT} (one is right: workplan 0135 T3)
-  languages  nl, en; ${PAGE_DEFAULT_LANGUAGE} by default (IDP_DEFAULT_LANGUAGE)
+  languages  nl, en; ${PAGE_DEFAULT_LANGUAGE} by default (ZITADEL_DEFAULT_LANGUAGE)
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed

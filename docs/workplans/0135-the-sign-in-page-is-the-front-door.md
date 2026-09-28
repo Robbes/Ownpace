@@ -10,10 +10,10 @@ The mails and the brand, T6's other halves, are not in it.
 
 - **Dutch and English, and no other.** `setup-zitadel.sh` writes the instance restriction
   `allowedLanguages: {list: ["nl","en"]}` when it differs, and reads it back.
-- **The default from `.env`.** `IDP_DEFAULT_LANGUAGE`, `nl` or `en`, is set when it differs and read
-  back. `nl` belongs in live's `.env`. Empty keeps the instance's own default. Any other value
-  stops the run before anything is written, and so does an empty one when the current default is
-  neither `nl` nor `en`, because the list could not then be written.
+- **The default from `.env`.** `ZITADEL_DEFAULT_LANGUAGE`, `nl` or `en`, is set when it differs
+  and read back. `nl` belongs in live's `.env`. Empty keeps the instance's own default. Any other
+  value stops the run before anything is written, and so does an empty one when the current
+  default is neither `nl` nor `en`, because the list could not then be written.
 - **In that order, read in Zitadel's source at v4.17.3** (`internal/command`): it refuses a default
   the allowed list leaves out, a list that leaves out the default, and a default set to the value
   it already has (NotChanged). So the default goes first, then the list, and neither is sent when
@@ -676,8 +676,10 @@ to social sign-ins, and sessions. That text is 0139's.
   `allowedLanguages: {list: ["nl","en"]}`, read back from `allowedLanguages`. `managed.yml` can
   set `ZITADEL_DEFAULTINSTANCE_RESTRICTIONS_ALLOWEDLANGUAGES` as well. How a list is written in
   that variable was not checked, so the API call is the one the script relies on.
-- **The default language.** `PUT /admin/v1/languages/default/{language}`, from `.env` (working
-  name `IDP_DEFAULT_LANGUAGE`), set to `nl` on live, where the testers are. The OTA instance
+- **The default language.** `PUT /admin/v1/languages/default/{language}`, from `.env`
+  (`ZITADEL_DEFAULT_LANGUAGE`; the working name `IDP_DEFAULT_LANGUAGE` was dropped, because every
+  `IDP_` key in `managed.env.example` belongs to a second way in, and the operator guide's section
+  on those must name each), set to `nl` on live, where the testers are. The OTA instance
   follows its own `.env`. The script sets the default before
   the allowed list. At the pinned tag Zitadel refuses a list that leaves the default out
   (`Errors.Restrictions.DefaultLanguageMustBeAllowed` in upstream `restrictions.go`), and a
