@@ -4,6 +4,27 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T7 (b), the weekly watch, built; its first run found v4.19.2 (open question 12).**
+On branch `claude/mailbox-sync-errors-c2xsw2-a-pin-that-knows-it-is-behind`, not merged. The pin's
+move to v4.19.1 merged first, in #1285 (`f839929`).
+
+- **What it compares.** `scripts/idp-pin-watch.mjs` reads the pin from `managed.yml`, its one
+  `image:` line for the provider, and upstream's newest release of the same major from
+  `git ls-remote`, with no token. Tags are ordered by their numbers. A pre-release and another
+  major are not releases of it, and an empty list is an error, never "current".
+- **The one issue.** It is opened while the pin is behind. A newer release updates it and says so
+  in a comment, since an edit notifies nobody. A week with nothing new writes nothing, and the
+  issue is closed when the pin catches up. Its body gives the route: a dump by hand first, by the
+  runbook's recipe, then its own PR, the gate, and live from a tag. It opens no pull request.
+- **When.** `.github/workflows/idp-pin-watch.yml`, Mondays at 06:23 UTC and on demand, on a
+  GitHub-hosted runner, with `contents: read` and `issues: write` and nothing else.
+- **Proved by** its guard, `a-pin-that-knows-it-is-behind`, 19 cases, and 25 mutations, all
+  killed. `docs/testing.md` and `SECURITY.md` name it.
+- **Its first run, by hand before it merged:** pinned v4.17.3, which `main` still held then, newest
+  release **v4.19.2**. Upstream tagged v4.19.2 on 2026-09-28 at 04:24 UTC, after this plan's first
+  read. Read commit by commit, it holds three security fixes, none in what this stack switches on,
+  and adds no setup step (open question 12).
+
 **2026-09-28, morning: the pin moves to v4.19.1 (open question 11: go), and three more answers.**
 The owner ran open question 11's two hand steps on the OTA machine first:
 
@@ -176,7 +197,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
-| T7 A watch on the pinned identity provider | 🔨 **the pin moved to v4.19.1 2026-09-28** on branch `claude/mailbox-sync-errors-c2xsw2-a-rename-nobody-can-make`, not merged (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5), (b) to build — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
+| T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) 🔨 **built 2026-09-28** on branch `claude/mailbox-sync-errors-c2xsw2-a-pin-that-knows-it-is-behind`, not merged; its first run found v4.19.2 (open question 12) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
@@ -794,10 +815,13 @@ promise to testers. 0134 decides whether it becomes a rule. The runbook's recipe
 Dependabot leaves alone, so `idp-security-md-dependabot-overclaim` is fixed. T7 names the watch
 that takes Dependabot's place for the identity provider.
 
-**Guard for (b).** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts` fails today, because
-nothing exists. Given a stubbed tag list, the comparison reports "behind" for `v4.19.1` against
-`v4.17.3`, and "current" when the two are equal. It reads the pin from `managed.yml`, not from a
-copy.
+**Guard for (b).** `scripts/a-pin-that-knows-it-is-behind.unit.test.ts`, built 2026-09-28. Given a
+stubbed tag list, the comparison reports "behind" for `v4.19.1` against `v4.17.3`, and "current"
+when the two are equal. It reads the pin from `managed.yml`, not from a copy. It also holds the
+numeric order of tags, that a pre-release or another major is never the newest release, and that
+an empty list is an error. A fake `gh` holds the one issue: opened, updated with a comment, left
+alone, closed, and never a second. The workflow's trigger, permissions, runner and command are
+held too.
 
 ### T8 — accounts nobody let in, and erasure that reaches the identity provider (→ 0139)
 
@@ -1010,3 +1034,20 @@ carried T1 and T2.
      WHERE event_type = 'user.username.changed' ORDER BY created_at;
     SQL
     ```
+
+12. **v4.19.2 (tagged 2026-09-28), after v4.19.1.** Take it? Read commit by commit, it holds three
+    security fixes, each in something this stack does not switch on:
+    - a SAML assertion signed by one SAML provider could complete a sign-in started with another;
+      this stack has no SAML provider;
+    - an impersonation token could be minted for an administrator without the right to
+      impersonate administrators; impersonation is off here, as the instance's security policy
+      starts, and nothing here turns it on;
+    - login v2's application now signs its session cookie entries; this stack does not run that
+      application.
+
+    The rest: the events API and the projections read the event store in a cheaper order, and the
+    sessions projection takes up to 1,000 events a batch. No setup step is added, so it moves the
+    schema no further than v4.19.1 did. *Recommended: yes, this week, in its own pull request*
+    after the language change's gate run, by the same route, a dump by hand first. The seven days
+    do not apply, since none of the three fixes is in something this stack uses. Until the pin
+    moves, the watch keeps its issue open.
