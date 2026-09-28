@@ -417,6 +417,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   publish, derived from the files, on the addresses the production and OTA names resolve to, and
   passes when only 443 answers on the production names, over TLS, with live's issuer. Its log
   names names and ports, never an address.
+- `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
+  the identity provider's pin in `managed.yml` against upstream's newest release of the same
+  major (workplan 0135 T7 (b)). It keeps one issue open while the two differ, says a newer
+  release in a comment, and closes the issue when the pin catches up. It moves nothing:
+  Dependabot ignores the provider by name, and an upgrade is the owner's call.
 - `images.yml` — the three application images: an amd64 build-only check on a pull request that
   touches a Dockerfile, `deploy/` or the workflow; a multi-arch build and publish on `main` and
   on `v*` tags.
