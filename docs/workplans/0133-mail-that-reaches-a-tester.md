@@ -4,6 +4,28 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later: T0's relay chosen and proved by hand, to a Proton-hosted mailbox.** The
+owner: *"I was hoping to reuse my proton SMTP"*. The relay is Proton Mail's SMTP submission, the
+host of `support@ownpace.eu` already, so one sub-processor serves the mailbox and the relay:
+`smtp.protonmail.ch`, port 587 with STARTTLS, the login `support@ownpace.eu` and an SMTP token made
+in Proton's settings for that address, never the account's password. The domain's records were
+already Proton's: SPF `include:_spf.protonmail.ch`, DKIM under the selector `protonmail` (three
+CNAMEs), and DMARC `p=quarantine; sp=quarantine; aspf=r`.
+
+- **Proved by hand, from the reference machine, with `curl` and no stack involved.** One mail from
+  `support@ownpace.eu` through `smtp.protonmail.ch:587`, delivered with `spf=pass`, `dkim=pass`
+  (2048-bit key, `header.d=ownpace.eu`, `s=protonmail`) and `dmarc=pass (p=quarantine)`, spam score
+  0. The recipient was Proton-hosted too, so this is Proton's internal path. **Still owed:** the same
+  send to a mailbox outside Proton (Gmail or Microsoft), in the inbox and passing all three.
+- **Live's `.env` then carries** `SMTP_HOST=smtp.protonmail.ch`, `SMTP_PORT=587`, `SMTP_SECURE`
+  empty, `SMTP_USER=support@ownpace.eu`, `SMTP_PASSWORD` the token, `NOTIFY_FROM=support@ownpace.eu`
+  (set at live's first bring-up, 0132 T1b; never in the OTA stack's). `SMTP_PORT` must be set:
+  `setup-zitadel.sh` falls back to 1025, the catcher's port, when it is empty.
+- **For the legal texts (T5, the owner's final-text pass):** Proton AG is the mail provider, in
+  Switzerland, which has an EU adequacy decision; `site/legal/README.md` says the provider *"Must
+  be EU"*, which the lawyer's pass reads against that. `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` stay
+  placeholders until then.
+
 **2026-09-28: the owner answered open questions 5 and 1: no interim on live.** *"mail at the
 start: real mail relay day one."* That is open question 5's alternative: nobody is invited to
 `ownpace-live` until T3 is done, so no tester's mail is caught on live and T1's passing by hand is
@@ -214,7 +236,7 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) for the relay, its login and the DNS; the sending address 📋 **Decided 2026-09-27**: `support@ownpace.eu` (open question 2 (a)) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
+| T0 The mail-sending account, the sending address and its DNS | 🔨 **Relay chosen and proved by hand 2026-09-28**: Proton Mail's SMTP submission, SPF, DKIM and DMARC passing to a Proton-hosted mailbox; ⏳ **Owner**: the same send to a mailbox outside Proton — *was:* ⏳ **Owner** (D1) for the relay, its login and the DNS; the sending address 📋 **Decided 2026-09-27**: `support@ownpace.eu` (open question 2 (a)) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
 | T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself is not used: nobody is invited to live before T3 (open question 5, answered 2026-09-28), which makes T1 unnecessary. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
 | T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 to 4 ✅ **done** in #1249, merged 2026-09-27 (TLS for any relay but the catcher, one provider updated in place, the guide) — *was:* items 2 to 4 🔨 built 2026-09-27, not merged | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; (b) and (c) ✅ **done** in #1260, merged 2026-09-28: the gating and the `.invalid` note — *was:* 🔨 **(b) and (c) built 2026-09-27, not merged**; before that **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
