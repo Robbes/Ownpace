@@ -20,9 +20,11 @@
  * `DATABASE_URL` is the owner's credential as well, through the pooler. Since
  * T1's second step (2026-09-28) the per-tenant tasks read tenant data as
  * `app_user` (`APP_DATABASE_URL`) and read this one only for the audit key's
- * pool of one (`task-pools.ts`), while the six jobs that span organisations
- * still connect with it. It goes in T3 step 2, once T2's jobs and that key's
- * pool have a role of their own. Until then it is the one exception below, on
+ * pool of one (`task-pools.ts`), the three jobs split in two read their list
+ * of organisations with it and each organisation as `app_user` (T2), and the
+ * three jobs that span organisations whole still connect with it. It goes in
+ * T3 step 2, once those jobs, the list and that key's pool have a role of
+ * their own. Until then it is the one exception below, on
  * a list that may only shrink.
  *
  * WHAT IS CHECKED. The upload block is read whole, and a part of it this cannot
@@ -61,9 +63,10 @@ const SCRIPT = readFileSync(join(REPO_ROOT, 'deploy/compose/set-task-env.sh'), '
  */
 const OWNER_URL_UNTIL_T3_STEP_2: Record<string, string> = {
   DATABASE_URL:
-    'the six cross-tenant jobs connect with it, and the per-tenant tasks read it for the audit ' +
-    "key's pool of one alone, their tenant data being on APP_DATABASE_URL since 0138 T1 step 2; " +
-    'T2 and T3 step 2 give both a role that is not a superuser, and then this goes',
+    'the three jobs that span organisations whole connect with it, the three split jobs read their ' +
+    "list of organisations with it (0138 T2), and every task reads it for the audit key's pool of " +
+    'one, their tenant data being on APP_DATABASE_URL since 0138 T1 step 2 and T2; T3 step 2 gives ' +
+    'all three a role that is not a superuser, and then this goes',
 };
 
 /**
