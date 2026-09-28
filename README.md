@@ -110,11 +110,13 @@ cutover machine.
 The **managed edition** runs on one execution plane (workplan 0022): every job — sync, verify,
 apply, discovery — executes as a deployed Trigger.dev task, started by a scheduled tick; there is
 no worker container. Tenant isolation is enforced at runtime in the API (FORCE RLS through a
-non-owner role + a tenant-membership auth gate), and in the eight per-tenant Trigger.dev tasks,
-which connect as the same non-owner role (workplan 0138 T1). The six scheduled jobs that span organisations still connect as the
-database owner, a superuser, so in those it rests on each query's own tenant filter until the
-rest of workplan 0138 lands ([`docs/rls-guide.md`](./docs/rls-guide.md) says where row security
-holds and where it does not).
+non-owner role + a tenant-membership auth gate), in the eight per-tenant Trigger.dev tasks,
+which connect as the same non-owner role (workplan 0138 T1), and in everything the digest, the
+drift detector and group discovery read for one organisation: they take the list of organisations
+from the owner's connection and read each one as itself (workplan 0138 T2). The three scheduled
+jobs that span organisations whole still connect as the database owner, a superuser, so in those
+it rests on each query's own tenant filter until the rest of workplan 0138 lands
+([`docs/rls-guide.md`](./docs/rls-guide.md) says where row security holds and where it does not).
 `apply`/`verify` run asynchronously with receipts, and the compose operator stack is
 live-verified (`docs/operator-runbook.md`, `smoke-managed.sh`).
 Billing is not live yet: the Mollie webhook marks an invoice paid (tested with Mollie mocked),

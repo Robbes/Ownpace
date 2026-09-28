@@ -309,10 +309,11 @@ export class DropboxFileSource implements FileSource {
    * tombstones' paths. They used to gather every entry into one array first.
    * On the owner's account that is 55,245 files, and for the bin read every
    * tombstone Dropbox still keeps as well, on a pass machine of half a
-   * gigabyte. From the first pass that did not stop at its deadline, every
-   * pass was killed for memory before it ended. The bin read runs only on a
-   * pass that reached every folder, and of what such a pass holds at its end
-   * it held the most (T1, T8).
+   * gigabyte. The bin read runs only on a pass that reached every folder, and
+   * of what such a pass holds at its end it held the most. It was suspected
+   * first when every pass of the owner's migration was killed for memory, but
+   * those passes died while copying, of an upload that kept each file whole
+   * (`STREAMED_REQUEST_INIT`), and none reached it (T1, T8).
    */
   private async *listPages(
     path: string,
