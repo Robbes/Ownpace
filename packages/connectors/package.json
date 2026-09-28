@@ -21,8 +21,8 @@
     "@azure/msal-node": "^6.0.1",
     "@openmig/core": "workspace:*",
     "@openmig/shared": "workspace:*",
-    "imapflow": "^2.0.5",
-    "jmap-jam": "^0.13.7",
+    "imapflow": "^2.0.6",
+    "jmap-jam": "^0.13.8",
     "nodemailer": "^10.0.10"
   }
 }
