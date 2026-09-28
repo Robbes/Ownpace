@@ -4,6 +4,106 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T7 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged.**
+What the gate does for the OTA stack now has a script that does it for live, and a timer to run it.
+Nothing has run on the machine, and live does not stand yet. Rebased onto `main` after #1271 (T3 (b)
+and (c), the entry below) merged, with a review's five findings taken (the last bullet).
+
+- **`setup-zitadel.sh --token-only`.** The provisioning token's clock and nothing else: it waits for
+  the provider, reads the token, asks when it dies, replaces it in its last three of seven days
+  (mint, prove, land, read back, delete, as before), writes `ZITADEL_PAT_EXPIRY`, and stops. It does
+  not run `ensure-env-secrets.sh`, the network alias or `up -d zitadel`, and nothing after the
+  clock. The clock was already one straight run in the script, so the change is three `if [ -z
+  "$ONLY" ]` guards and one stop, not a new function.
+- **`setup-zitadel.sh --count-organisations`.** 0135 T3 (a) (#1272) built the count as two functions
+  inside the full run, not a mode, so this is that code exposed: the two functions moved above the
+  clock, unchanged, and the mode stops there. Read-only: it asks who the token belongs to and `POST
+  /admin/v1/orgs/_search`, writes nothing, not even the token's note, and exits non-zero unless the
+  count is one. That is stricter than T7's "above one": zero (proto3 leaves a zero out) and a
+  refused search fail too. The full run still warns and goes on.
+- **The default run is unchanged.** Main's `setup-zitadel.sh` and this one, run side by side against
+  the same stand-in provider in six situations (token within policy, token due, one, two and no
+  organisations, and the organisation search refused; four of them to the end of the script),
+  printed the same stdout and stderr, made the same API and Docker calls, and left the same `.env`
+  and token, once dates and generated secrets are normalised. The only other change a caller can see
+  is the unknown-argument message, which now lists the two modes. The existing guards on the script
+  pass.
+- **`deploy/compose/box-duties.sh`.** Four duties, each run whatever the one before did: `token`
+  (`setup-zitadel.sh --token-only`), `drill` (`trigger-version.sh drill`), `exposure`
+  (`exposure-check.sh`, T3 (b)) and `organisations` (`setup-zitadel.sh --count-organisations`). The
+  token goes first so the count asks with a live token. A duty that fails, is missing from the
+  checkout or runs past 20 minutes (`BOX_DUTY_TIMEOUT`) is recorded; the script exits 1 naming every
+  failed duty, 0 when all pass, and 2 when it refused before any ran. It refuses a `.env` without
+  live's exact marker (`stack_is_live`): the OTA stack's duties are the gate's, a second drill there
+  would write a second set of secret-bearing dumps, and on the OTA instance 0135 T3 makes the count
+  a warning, not a failure. It also refuses when `compose_project` does, and any argument. It unsets
+  `MANAGED_BACKUP_DIR`, `MANAGED_ENV_PERSIST_DIR` and `TRIGGER_DB_CONTAINER`, so the dumps go to
+  `~/.persistent/ownpace-live/trigger-backups` whatever a shell exported, and sets `umask 077`: the
+  dumps carry the plane's API keys and the encrypted task environment, and it never prints them.
+  Every duty's stdout and stderr go through `own_address_redact`, by a named pipe. It writes plain
+  stdout and stderr, which the service hands to the journal (`SyslogIdentifier=ownpace-box-duties`),
+  with a failure line at the error priority when stderr is the stream `JOURNAL_STREAM` names, rather
+  than `logger`, so a run by hand prints the same lines. Ctrl-C or a SIGTERM stops the running duty
+  (SIGTERM to the process group `timeout` puts it in, and SIGKILL ten seconds later), prints what it
+  said to the end, names it, starts no other and exits 130 or 143.
+- **The timer.** `deploy/compose/systemd/ownpace-box-duties.service` and `.timer`, a user unit pair
+  (`systemctl --user`, `loginctl enable-linger` once), `WorkingDirectory=%h/ownpace-live`, daily at
+  13:17 UTC with `Persistent=true`. The appliance nightly fires at 23:30 and 01:30 UTC (`e2e.yml`)
+  and GitHub has dispatched it up to five hours late, so 13:17 leaves more than seven hours (five
+  late, two for a run) after the latest it has started, and a run as long as `TimeoutStartSec` (90
+  minutes) ends more than eight hours before the next firing. `docs/managed-bring-up.md`, *Live's
+  daily duties*, carries both units word for word, the install steps, how to read the journal, and
+  T7's interim, now `setup-zitadel.sh --token-only` at least every three days. `systemd-analyze
+  verify` accepts both units here (system mode, with the path filled in; a user manager is not
+  available here).
+- **The guard, and that it failed first.** `scripts/a-duty-the-gate-used-to-do.unit.test.ts`, 44
+  cases; on `main`'s code (after #1271) 37 fail and 7 pass (the rule's five, a baseline that the
+  default run reaches the project, and the time-span reader). The rule reads every `run:` block of
+  `e2e-managed.yml` for the scripts under `deploy/compose/` in command position, with the first bare
+  word as a subcommand, and classifies each in a closed table. Maintenance is what a stack whose
+  code never changed would still need: `setup-zitadel.sh` (its form for live, `--token-only`) and
+  `trigger-version.sh drill`. Not maintenance: `env-read.sh`, `refuse-live-env.sh`,
+  `own-addresses.sh`, `ensure-env-secrets.sh`, `env-upsert.sh`, `bootstrap-managed.sh`,
+  `smoke-managed.sh` and `redact-evidence.sh`. An unclassified command and a stale entry both fail.
+  It does not see a duty written inline in a `run:` block. Then `box-duties.sh` in a staged checkout
+  with stubs beside it, both new modes against a stand-in provider (`curl` and `docker` on PATH),
+  the count end to end through `box-duties.sh` with the real `setup-zitadel.sh`, and the units
+  against the doc and `e2e.yml`'s crons. Twenty-three mutations each turned it red: stopping at the
+  first failure, the full script for `token`, naming only the last failure, no marker refusal,
+  `stack_may_be_live` for it, the drill taking the shell's directory, no address filter, no umask,
+  no journal priority, the priority on `JOURNAL_STREAM` alone, a missing script passing, the count
+  before the token, `--token-only` going past the clock, generating secrets or starting the
+  provider, the count passing above one or on a refused search, the count after the clock, the timer
+  at 03:17, the timer not persistent, a unit drifting from the doc, the gate gaining an unclassified
+  command, and the gate losing the drill. After the review, twelve more: no signal trap, a filter a
+  Ctrl-C kills, a handler that does not stop the duty or goes on to the next, a duty's stderr not
+  filtered or dropped, `timeout --foreground`, the timer at 23:25, `TimeoutStartSec` of 12 hours or
+  `infinity`, and, rerun on the reworked script, no address filter and stopping at the first
+  failure.
+- **Found, and left as it is.** In a full run, `count_organisations` reads the search through a
+  here-string, so a refused search prints `FATAL` and the run goes on and exits 0 with an empty
+  count: `THIS INSTANCE HOLDS  ORGANISATIONS`, and `organisations  (one is right…)` in the summary
+  (seen on `main`'s script with the stand-in answering 403). The mode above fails on it; the full
+  run is left as it is, because this change keeps the default run byte for byte. 0135 T3 has the
+  note.
+- **Waits for.** Live standing (T1b to T1e), deployed from 0146 T0's tag, and the owner installing
+  the timer (the bring-up's steps), then one `systemctl --user start ownpace-box-duties.service`
+  read back in the journal. `exposure-check.sh` is on `main` (#1271); `EXPOSURE_ALLOW` in live's
+  `.env` is the owner's step, and without it `exposure` fails by name. Nobody is told when a duty
+  fails; 0142 is where that changes. A run of `deploy-live.sh` (T6, not built) and a drill at the
+  same moment are not kept apart.
+- **The review's findings, all five taken.** (1) A Ctrl-C in a run by hand stopped nothing: the duty
+  sat in `timeout`'s own process group, ran on, and the next duties started, the drill on live's
+  database among them; now the script stops it, as above. (2) The guard could not see a duty's
+  stderr skip the filter; the stub now says an address on each stream. (3) The timer check measured
+  only the gap after each nightly firing; it now also requires a whole run (`TimeoutStartSec`, read
+  from the unit) to end before the next one. (4) This rebase. (5) The daily drill changes what
+  `trigger-version.sh restore --latest` restores after an upgrade: the first drill after it dumps
+  the migrated schema, and pruning to seven removes a labelled `before-` backup after seven days.
+  The bring-up now says, in *Live's daily duties* and beside the upgrade commands, to restore that
+  backup by its file name and to copy it aside before the upgrade, and T6's step 4 says the same.
+  `trigger-version.sh` is unchanged: the OTA stack's gate drills nightly already.
+
 **2026-09-28: T3 (b) and (c) built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged.**
 The exposure check on the machine, and the probe from outside, dispatch only. T3 (a), the binds,
 is on `main` (#1236 and #1253, merged 2026-09-27). (d), the path a tester's request takes and the
@@ -739,11 +839,11 @@ now say what D7 decided.
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | 🔨 **The code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged** (2026-09-27) — *was:* 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | 🔨 (b) the exposure check and (c) the outside probe **built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged** (2026-09-28); (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
+| T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) — *was:* 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. |
-| T7 What the gate does for the OTA stack, done for live | 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill, T3's check and 0135's organisation count, on a timer on the machine, for live. |
+| T7 What the gate does for the OTA stack, done for live | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged** (2026-09-28): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill, T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
 
 ## 1. What there is today
@@ -1844,6 +1944,10 @@ document is changed to mark staged rollout and a backup before migrating as not 
    #1137 (merged 2026-09-24) it also dumps the identity provider's database and the roles, and
    says neither dump is usable without the stack's `.env`. Without a dump, a deploy only goes
    forward, because `migrate.ts` refuses to run the previous build against a migrated schema.
+   When the tag moves Trigger.dev, also `trigger-version.sh backup before-<version>`, copied out of
+   `trigger-backups/`: once T7's timer runs, a rollback restores that file by name, never with
+   `--latest`, which is the first drill after the upgrade (2026-09-28, the bring-up's *Live's
+   daily duties*).
 5. In `~/ownpace-live`, run `git fetch --tags origin && git checkout --detach <tag>`. Not
    `git pull`: live runs the tag that was named.
 6. Run `./deploy/compose/bootstrap-managed.sh --from data`, without `--with-demo`. It checks the
