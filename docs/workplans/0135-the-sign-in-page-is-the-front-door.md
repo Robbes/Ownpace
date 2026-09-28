@@ -4,6 +4,15 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, afternoon: v4.19.2 merged, and the owner signed in on it.** The pin merged in #1292
+(`73d94eb`).
+
+- **The owner's sign-in on the OTA instance,** after E2E (managed) #210 had applied v4.19.2 there:
+  *"signing with an account still works in the app.ota.ownpace.eu"*.
+- **The watch's first run on GitHub,** started by hand on `main` after the merge: *"identity
+  provider: pinned v4.19.2, newest release v4.19.2: current"*, and *"issue: untouched"*. It had
+  never run on GitHub before, so no issue had been opened, and none needed closing.
+
 **2026-09-28, midday: the pin moves to v4.19.2 (open question 12).** In #1292. The owner, asked
 about v4.19.2: *"v4.19.2: how do i make the dump? Can you give script i can use more often? since i
 need it for each update"*. The script merged in #1289 (`d4a0a9b`).
