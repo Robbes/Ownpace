@@ -21,6 +21,7 @@ import {
   type TargetConfig,
   type FileSource,
   DEFAULT_CONCURRENCY,
+  parseDropboxSource,
   parseGoogleDriveSource,
   type ProviderClientEnv,
   microsoftTenant,
@@ -1120,11 +1121,25 @@ export function buildFileSourceFromConnection(
         throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
-    case 'dropbox':
+    case 'dropbox': {
       // Dropbox (workplan 0055): stored under the shared trio keys, mapped to
-      // Dropbox's own words by the naming (see the factory).
+      // Dropbox's own words by the naming (see the factory). The format for
+      // Paper docs is read through the parser the appliance's mapping file
+      // goes through (0150 T3 (c)), so a format one edition refuses is not one
+      // the other hands the source unread. Only the `paper` kind is read: a
+      // Google format the update door merged into a Dropbox row before it
+      // asked which source a format is for was never read, and is not now.
+      // Refused here, that leftover would stop every pass. The root is read
+      // as it always was: an empty one means the whole account, as the probe
+      // sends it.
+      const raw = src.config as { rootPath?: string; nativeFilePolicies?: { paper?: unknown } };
+      const paper = raw.nativeFilePolicies?.paper;
+      const formats =
+        paper === undefined
+          ? undefined
+          : parseDropboxSource({ nativeFilePolicies: { paper } }).nativeFilePolicies;
       return buildDropboxSourceFrom(
-        { rootPath: (src.config as { rootPath?: string }).rootPath },
+        { rootPath: raw.rootPath, ...(formats === undefined ? {} : { nativeFilePolicies: formats }) },
         {
           appKey: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
           appSecret: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
@@ -1132,6 +1147,7 @@ export function buildFileSourceFromConnection(
         },
         STORED_DROPBOX_CREDENTIAL_NAMES,
       );
+    }
     case 'box': {
       // Box (workplan 0056): client id + secret from the stored credentials;
       // the SUBJECT user id rides the source config — one subject per mapping,
