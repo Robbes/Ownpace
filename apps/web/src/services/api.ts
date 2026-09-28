@@ -250,6 +250,19 @@ export function tooManyTests(err: unknown): boolean {
 }
 
 /**
+ * Whether the members routes refused a role below admin
+ * (`owner_or_admin_only`, workplan 0137 T7).
+ *
+ * Ours, like `too_many_tests`, so the Team page says it in the reader's
+ * language. The server's `message` is the English for the same sentence.
+ */
+export function ownerOrAdminOnly(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const data = err.response?.data as { error?: unknown } | undefined;
+  return err.response?.status === 400 && data?.error === 'owner_or_admin_only';
+}
+
+/**
  * The migration a `duplicate_mapping` refusal points at, or null (0071 T6).
  *
  * Same split again: the existing migration's name and id are the finding, the

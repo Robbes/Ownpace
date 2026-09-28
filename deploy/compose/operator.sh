@@ -60,6 +60,14 @@
 # writes nothing. `clean` resolves the findings that need no decision, and even
 # then writes nothing without `--confirm` — see operator-housekeeping.ts, which
 # carries a paragraph per check on why it is a question worth asking.
+# `check role-below-admin` is a precondition, not a tidy-up: it exits non-zero
+# while any membership that grants something is `member` or `viewer`, and is
+# run on ownpace-live before the first invitation (workplan 0137 T7), from
+# live's own checkout, since this script drives the stack its checkout's .env
+# names: `cd ~/ownpace-live && ./deploy/compose/operator.sh check
+# role-below-admin`. The full `check` exits 1 too while that check finds
+# anything, and pnpm prints its own failure (ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL)
+# after the report; the report is still the whole answer, and wrote nothing.
 #
 # `secrets` asks the one question `check` cannot: not "is this row shaped
 # wrongly", which is SQL, but "can this credential still be DECRYPTED", which

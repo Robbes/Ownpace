@@ -1950,6 +1950,15 @@ const en = {
   'tenants.invite.hint': 'No email yet; tell them yourself, and they appear below as invited.',
   'tenants.invite.email': 'Email address',
   'tenants.invite.role': 'Role',
+  // Workplan 0137 T7: the two roles the alpha offers, and what the second one
+  // may do. Checked against the API's owner-only routes: close and reopen
+  // (tenants/index.ts), the applying-deletions and auto-applying-relocations
+  // flags, owner-only in both directions (operating-routes.ts), and granting
+  // owner (members.ts). `a-role-that-promises-less-than-it-allows.unit.test.ts`
+  // in apps/api pins that set and fails when it changes.
+  'tenants.invite.adminCan':
+    'An admin can do everything an owner can, except close or reopen the organisation, turn applying deletions or auto-applying relocations on or off, and make somebody an owner.',
+  'tenants.ownerOrAdminOnly': 'During the alpha, a person can only be an owner or an admin.',
   'tenants.notify.heading': 'Email summaries',
   'tenants.notify.intro':
     'How often a summary of waiting decisions is emailed; an empty one is never sent.',
@@ -3984,6 +3993,9 @@ const nl: Record<keyof typeof en, string> = {
     'Nog geen e-mail; vertel het zelf, en ze verschijnen hieronder als uitgenodigd.',
   'tenants.invite.email': 'E-mailadres',
   'tenants.invite.role': 'Rol',
+  'tenants.invite.adminCan':
+    'Een beheerder kan alles wat een eigenaar kan, behalve de organisatie sluiten of heropenen, het toepassen van verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten en iemand eigenaar maken.',
+  'tenants.ownerOrAdminOnly': 'Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn.',
   'tenants.notify.heading': 'E-mailsamenvattingen',
   'tenants.notify.intro':
     'Hoe vaak een samenvatting van wachtende beslissingen wordt gemaild; een lege wordt nooit verstuurd.',
