@@ -961,6 +961,10 @@ reading a file drops off its entry by itself.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 
+### `deploy/selfhost/config/mapping.json.example`
+
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's released appliance starts with the mapping the drill wrote for it (workplan 0146 T0, 0025 T5).
+
 ### `deploy/selfhost/selfhost.env.example`
 
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
@@ -1824,6 +1828,10 @@ reading a file drops off its entry by itself.
 
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
+### `scripts/upgrade-drill.sh`
+
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's released appliance starts with the mapping the drill wrote for it (workplan 0146 T0, 0025 T5).
+
 ### `scripts/workplan-index.mjs`
 
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
@@ -2306,6 +2314,15 @@ Reads:
 - `packages/shared/src/target-domains.unit.test.ts`
 - `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 - `scripts/a-fifth-domain-the-database-would-refuse.unit.test.ts`
+
+### [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts)
+
+The upgrade drill's released appliance starts with the mapping the drill wrote for it (workplan 0146 T0, 0025 T5).
+
+Reads:
+
+- `deploy/selfhost/config/mapping.json.example`
+- `scripts/upgrade-drill.sh`
 
 ### [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts)
 

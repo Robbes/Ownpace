@@ -76,9 +76,20 @@ COMPOSE=(docker compose -p "$PROJECT"
 say() { printf '\n=== %s\n' "$*"; }
 fail() { printf '\nDRILL FAILED: %s\n' "$*" >&2; exit 1; }
 
+# The drill's own project, containers and volumes. Run once before step 1, so a
+# stale drill project cannot poison the result, and again on exit.
+down_project() {
+  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+}
+
+# On exit only. It also removes the config directory, which is why step 1 calls
+# down_project and not this: until 2026-09-28 step 1 called cleanup, which
+# deleted the mapping the drill had just written. Docker then created the
+# missing mount source itself, empty and owned by root, the released appliance
+# configured nothing, and the guard in step 1 stopped the run (0146 T0's drill).
 cleanup() {
   say "Cleaning up the drill's own project (your appliances are untouched)"
-  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  down_project
   [ -n "${DRILL_CONFIG_DIR:-}" ] && rm -rf "$DRILL_CONFIG_DIR"
   return 0
 }
@@ -112,10 +123,24 @@ else
   say "Upgrading across $((HEAD_MIGRATIONS - FROM_MIGRATIONS)) new migration(s)."
 fi
 
-# One real mapping, from the shipped example. The appliance has to CONFIGURE
-# it and keep reporting it across the upgrade; it never has to reach anything,
-# because this drills an appliance upgrade, not a migration.
-cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
+# One real mapping. The appliance has to CONFIGURE it and keep reporting it
+# across the upgrade; it never has to reach anything, because this drills an
+# appliance upgrade, not a migration. It is the example FROM_TAG shipped, the
+# file an operator of that release copied, so "same mappings before and after"
+# also says the new build still reads an old release's config. A tag without
+# the example falls back to the working tree's.
+if git cat-file -e "${FROM_TAG}:deploy/selfhost/config/mapping.json.example" 2>/dev/null; then
+  git show "${FROM_TAG}:deploy/selfhost/config/mapping.json.example" >"$DRILL_CONFIG_DIR/mapping.json"
+else
+  cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
+fi
+# The appliance runs as appuser (uid 10001, apps/selfhost/Dockerfile), not as
+# whoever runs this script, and mktemp -d makes a directory only its owner can
+# enter. Without these two modes the mount is there and unreadable, and the
+# released appliance configures nothing. The file holds the example's values
+# and the NAMES of environment variables, no credential.
+chmod 755 "$DRILL_CONFIG_DIR"
+chmod 644 "$DRILL_CONFIG_DIR/mapping.json"
 
 wait_healthy() {
   local what="$1" i
@@ -135,7 +160,12 @@ wait_healthy() {
 #    the artifact an operator would actually be running.
 # ---------------------------------------------------------------------------
 say "1/5  Starting the released appliance ($REGISTRY:$FROM_VERSION)"
-cleanup                                     # a stale drill project would poison the result
+down_project                                # a stale drill project would poison the result
+# The mount source has to be the drill's directory, with the mapping in it, when
+# the container starts. A missing source is created by Docker, empty and owned by
+# root, and the run then fails below for a reason this line names first.
+[ -r "$DRILL_CONFIG_DIR/mapping.json" ] && grep -q '"mappingId"' "$DRILL_CONFIG_DIR/mapping.json" \
+  || fail "the drill's own mapping is missing from $DRILL_CONFIG_DIR before the released appliance starts"
 export SELFHOST_IMAGE="${REGISTRY}:${FROM_VERSION}"
 export SELFHOST_PORT="$PORT"
 export SELFHOST_BIND=127.0.0.1

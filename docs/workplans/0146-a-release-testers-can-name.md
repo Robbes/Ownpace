@@ -4,6 +4,36 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later: the first drill across a real gap stopped on two defects in the drill, fixed
+on branch `claude/ownpace-public-readiness-y7orc6-a-drill-that-keeps-its-mapping`, not merged.**
+The owner ran `./scripts/upgrade-drill.sh v0.1.0-rc.1` on `main` at `a0897c0b`, in a clone of its
+own, after the release name was accepted. It pulled rc.1, started it healthy, and stopped at step
+1: *"DRILL FAILED: the released appliance configured NO mappings"*, with `rm: cannot remove
+'/tmp/tmp.…': Operation not permitted` on the way out. The guard that refuses an empty comparison
+did its job; the drill itself was wrong, twice, since the fix of 2026-08-04 (`7cb1af4e`), which
+was never run again:
+
+- **Step 1 removed the mapping it had just written.** It called `cleanup`, whose last line removes
+  the config directory. Docker then created the missing mount source itself, empty and owned by
+  root, which is also why the run's own `rm` could not remove it. Step 1 now calls
+  `down_project`, the project half of `cleanup`, and refuses to start the appliance unless the
+  mapping is there.
+- **The mapping could not have been read anyway.** `mktemp -d` makes a directory only its owner
+  can enter, and the appliance runs as appuser, uid 10001 (`apps/selfhost/Dockerfile`). The drill
+  now sets 755 on the directory and 644 on the file, which holds the example's values and the
+  names of environment variables, no credential.
+- **The mapping is the one the tag shipped.** `git show <tag>:deploy/selfhost/config/mapping.json.example`,
+  the file an operator of that release copied, so "same mappings before and after" also says the
+  new build reads an old release's config. rc.1's example parses with `main`'s parser (checked with
+  `parseMappingConfigJson`), including its `baseUrl` with a path.
+
+Guard: `scripts/a-drill-that-keeps-its-mapping.unit.test.ts` runs the drill against a throwaway
+repository with `docker` and `curl` as stubs; the docker stub configures the mapping only when
+neither its owner nor its group is needed to read it. Against `main`'s script it fails with the
+owner's message; two variants show the old step 1 stopped before the appliance starts, and the
+script without its modes failing on the empty comparison. **Open:** the owner's run on `main` once
+this merges, and the required run on the commit to be tagged (T2).
+
 **2026-09-28: T5 (a) built with 0132 T6 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** The rule is in
 `deploy/compose/deploy-live.sh`; 0132's Status entry of the same date has the script as a whole.
