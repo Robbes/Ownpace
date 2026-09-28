@@ -309,9 +309,24 @@ cd "${REPO_ROOT}/apps/worker"
 # with "Failed to fetch environment variables: Connection error" once the port
 # answered on loopback only. The CLI recreates its `trigger` builder on the host
 # network the first time it sees this flag.
+#
+# NO LINKS, AND NOTHING WRITTEN FOR THE RUNNER TO PRINT. The CLI's links are
+# on the dashboard's origin, which on the reference machine is its mesh
+# address, and the gate that runs this has a public log. Without a terminal it
+# prints both raw ("View deployment", "Test tasks"), and it appends both to
+# $GITHUB_ENV and $GITHUB_OUTPUT whenever those are set, so the runner printed
+# them again in the header of every later step: nine more copies a run (E2E
+# (managed) #198). Checked against 4.5.16's commands/deploy.js: `--plain`
+# prints the links only when TRIGGER_DEPLOYMENT_LINK_OUTPUT_DISABLED is not 1,
+# and the Actions files are written whenever their variables are set, so those
+# are unset for this one command. Nothing reads what it wrote there. The
+# deployment is on the dashboard's Deployments page, and the smoke is the
+# proof that it runs.
 TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
   TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://127.0.0.1:${TRIGGER_PORT:-3090}}" \
-  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}" --network host
+  TRIGGER_DEPLOYMENT_LINK_OUTPUT_DISABLED=1 \
+  env -u GITHUB_ENV -u GITHUB_OUTPUT \
+  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}" --network host --plain
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
 #

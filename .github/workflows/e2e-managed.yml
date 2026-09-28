@@ -213,6 +213,26 @@ jobs:
             echo "no persisted CLI login at ${PERSIST_DIR}/trigger-cli-config.json yet"
           fi
 
+      - name: Mask this machine's own addresses for the rest of the job
+        # THIS LOG IS PUBLIC, AND THE .env JUST RESTORED NAMES THE MACHINE IT
+        # RUNS ON: every *_BIND a laptop or a front reaches, TRIGGER_TLS_HOST,
+        # the dashboard's origins, Nextcloud's trusted domains. None of them is
+        # a secret, so GitHub hid none of them, and runs printed them on every
+        # night and more on every failure: a PORTS column, a dashboard note,
+        # "External DAV ready at", the deploy CLI's links, a curl that could not
+        # connect, a container log dumped on a failed bring-up (the sweep of
+        # 2026-09-27; scripts/a-public-log-that-named-the-machine-it-ran-on).
+        #
+        # The places that printed them were fixed. This is behind them: from
+        # here on the runner prints `***` for each value, in every step and step
+        # header, whatever prints it. BEFORE anything reads the stack, and with
+        # no `set -x`, which would print each value before the runner is told
+        # to hide it. A mask does not reach the uploaded evidence;
+        # redact-evidence.sh does that, and the smoke filters its own stream.
+        run: |
+          set -euo pipefail
+          ./deploy/compose/own-addresses.sh --mask deploy/compose/.env
+
       - name: Refuse early if the one-time setup was never done
         # Loud and specific, because the alternative is a failure fifteen
         # minutes later inside the smoke, pointing at a task that never
@@ -628,7 +648,11 @@ jobs:
         # done here.
         run: |
           set -uo pipefail
-          docker compose $MANAGED_COMPOSE ps || true
+          # No PORTS column: it prints every publish, and the binds are this
+          # machine's addresses. `docker ps --format '{{.Names}} {{.Ports}}'`
+          # on the machine itself shows them to whoever needs them. No COMMAND
+          # either: zitadel's carries its `--masterkey`.
+          docker compose $MANAGED_COMPOSE ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}' || true
           health=$(docker compose $MANAGED_COMPOSE ps --format '{{.Name}} {{.Health}}' 2>/dev/null || true)
           echo '--- no healthcheck defined (this gate cannot speak for these) ---'
           echo "$health" | awk 'NF==1 && $1!=""' || true
