@@ -4,9 +4,9 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, night: T1 (a), the stages in words, built beside R (0131 §6, R8's split)** on
-branch `claude/ownpace-ux-improvements-v1vjsj-a-stage-in-words`, not merged. Nothing renders
-them yet: T1 (b) to (d) and the pages that show them (0153 T3, T5) are R's.
+**2026-09-28, night: T1 (a), the stages in words, built beside R (0131 §6, R8's split)**,
+merged in #1326. Nothing renders them yet: T1 (b) to (d) and the pages that show them (0153
+T3, T5) are R's.
 
 - **`stageOf`** (`packages/shared/src/stage.ts`) reads one data type's facts:
   - its phase, from `path-phase.ts` or the migration's status;
@@ -59,7 +59,7 @@ of a move after it. The evening's answer puts everything before.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 One line that says where a person's migrations are | 🟡 **(a) built beside R, on its branch; (b) to (d) proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
+| T1 One line that says where a person's migrations are | 🟡 **(a) merged in #1326; (b) to (d) proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | 📋 **Proposed; before the first invitation** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
 | T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | 📋 **Proposed; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
