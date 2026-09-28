@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1560" viewBox="0 0 1280 1560" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<title id="t">Wireframe: the pricing page</title>
+<desc id="d">A labelled switch that opens on yearly, five tier cards with the per-month price, the year total and the comparison with monthly, the calculator button, the monthly view of one card, the renewal line, questions and answers, and the principle.</desc>
+<defs>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="5" width="18" height="14" rx="2"/>
+<path d="M3 7l9 6 9-6"/>
+</symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="5" width="18" height="16" rx="2"/>
+<path d="M3 10h18M8 3v4M16 3v4"/>
+</symbol>
+<symbol id="i-contacts" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="8" r="4"/>
+<path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>
+</symbol>
+<symbol id="i-files" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+</symbol>
+<symbol id="i-photos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="16" rx="2"/>
+<circle cx="9" cy="10" r="2"/>
+<path d="M21 16l-5-5-9 9"/>
+</symbol>
+<symbol id="i-tasks" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17M10 6h11M10 12h11M10 18h11"/>
+</symbol>
+</defs>
+<rect width="1280" height="1560" fill="#FFFFFF"/>
+<rect x="0" y="0" width="1280" height="64" rx="0" fill="#FFFFFF"/>
+<path d="M0 64H1280" stroke="#E5E7EB"/>
+<rect x="40" y="18" width="28" height="28" rx="7" fill="#0E4F4A"/>
+<text x="80" y="38" font-size="17" font-weight="700" fill="#111827" text-anchor="start">Ownpace</text>
+<rect x="1130" y="20" width="112" height="26" rx="13" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<text x="1186" y="38" font-size="13" font-weight="500" fill="#374151" text-anchor="middle">Nederlands</text>
+<text x="1104" y="38" font-size="14" font-weight="500" fill="#374151" text-anchor="end">Sign in</text>
+<text x="1016.6" y="38" font-size="14" font-weight="500" fill="#374151" text-anchor="end">Leaving… ▾</text>
+<text x="904.6" y="38" font-size="14" font-weight="600" fill="#111827" text-anchor="end">Pricing</text>
+<text x="817.2" y="38" font-size="14" font-weight="500" fill="#374151" text-anchor="end">How it works</text>
+<text x="688.8000000000001" y="38" font-size="14" font-weight="500" fill="#374151" text-anchor="end">Home</text>
+<text x="40" y="130" font-size="40" font-weight="800" fill="#111827" text-anchor="start">Pricing</text>
+<text x="40" y="164" font-size="16" font-weight="400" fill="#374151" text-anchor="start">Published in full. No quote, no sales call. All prices include VAT.</text>
+<text x="40" y="206" font-size="13" font-weight="700" fill="#111827" text-anchor="start">How you pay</text>
+<rect x="40" y="216" width="262" height="44" rx="22" fill="#F3F4F6"/>
+<rect x="44" y="220" width="126" height="36" rx="18" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<text x="107" y="243" font-size="14" font-weight="700" fill="#111827" text-anchor="middle">Yearly</text>
+<text x="236" y="243" font-size="14" font-weight="500" fill="#6B7280" text-anchor="middle">Monthly</text>
+<text x="320" y="243" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (e): opens on yearly; two radio inputs and :checked, no script; a visible label</text>
+<text x="40" y="290" font-size="14" font-weight="400" fill="#374151" text-anchor="start">Done within six months? Pay monthly. Longer, or not sure? A year costs the same as six months.</text>
+<rect x="40" y="314" width="228" height="412" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+<text x="60" y="350" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Free</text>
+<text x="60" y="374" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">One person,</text>
+<text x="60" y="392" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">one thing at a time</text>
+<text x="60" y="450" font-size="34" font-weight="800" fill="#111827" text-anchor="start">Free</text>
+<text x="60" y="480" font-size="15" font-weight="600" fill="#111827" text-anchor="start">for as long as it runs</text>
+<text x="60" y="502" font-size="13" font-weight="400" fill="#374151" text-anchor="start">No invoice, no card</text>
+<path d="M60 554H248" stroke="#E5E7EB"/>
+<text x="60" y="580" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">1</tspan><tspan font-size="13" font-weight="400" fill="#374151"> migration</tspan></text>
+<text x="60" y="598" font-size="13" font-weight="400" fill="#374151" text-anchor="start">at the same time</text>
+<text x="60" y="622" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">250 GB</tspan><tspan font-size="13" font-weight="400" fill="#374151"> of data moved</tspan></text>
+<text x="60" y="644" font-size="13" font-weight="400" fill="#374151" text-anchor="start">No setup fee</text>
+<rect x="60" y="664" width="188" height="42" rx="8" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="1.5"/>
+<text x="154.0" y="689.55" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="middle">Start with Free</text>
+<rect x="284" y="314" width="228" height="412" rx="14" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="2"/>
+<text x="304" y="350" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Small</text>
+<text x="304" y="374" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">One person,</text>
+<text x="304" y="392" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">everything at once</text>
+<text x="304" y="450" text-anchor="start"><tspan font-size="34" font-weight="800" fill="#111827">€2.50</tspan><tspan font-size="14" font-weight="500" fill="#374151"> a month</tspan></text>
+<text x="304" y="480" font-size="18" font-weight="700" fill="#111827" text-anchor="start">€30 a year</text>
+<text x="304" y="502" font-size="13" font-weight="400" fill="#374151" text-anchor="start">paid yearly, in advance</text>
+<rect x="304" y="514" width="169.11999999999998" height="22" rx="11.0" fill="#E8F5F2"/>
+<text x="388.56" y="527.5" font-size="12" font-weight="600" fill="#0E4F4A" text-anchor="middle">half the monthly price</text>
+<path d="M304 554H492" stroke="#E5E7EB"/>
+<text x="304" y="580" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">4</tspan><tspan font-size="13" font-weight="400" fill="#374151"> migrations</tspan></text>
+<text x="304" y="598" font-size="13" font-weight="400" fill="#374151" text-anchor="start">at the same time</text>
+<text x="304" y="622" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">750 GB</tspan><tspan font-size="13" font-weight="400" fill="#374151"> of data moved</tspan></text>
+<text x="304" y="644" font-size="13" font-weight="400" fill="#374151" text-anchor="start">No setup fee</text>
+<rect x="304" y="664" width="188" height="42" rx="8" fill="#0E4F4A"/>
+<text x="398.0" y="689.55" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Start with Small</text>
+<rect x="528" y="314" width="228" height="412" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+<text x="548" y="350" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Medium</text>
+<text x="548" y="374" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">A household, a team,</text>
+<text x="548" y="392" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">or a small business</text>
+<text x="548" y="450" text-anchor="start"><tspan font-size="34" font-weight="800" fill="#111827">€6</tspan><tspan font-size="14" font-weight="500" fill="#374151"> a month</tspan></text>
+<text x="548" y="480" font-size="18" font-weight="700" fill="#111827" text-anchor="start">€72 a year</text>
+<text x="548" y="502" font-size="13" font-weight="400" fill="#374151" text-anchor="start">paid yearly, in advance</text>
+<rect x="548" y="514" width="169.11999999999998" height="22" rx="11.0" fill="#E8F5F2"/>
+<text x="632.56" y="527.5" font-size="12" font-weight="600" fill="#0E4F4A" text-anchor="middle">half the monthly price</text>
+<path d="M548 554H736" stroke="#E5E7EB"/>
+<text x="548" y="580" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">20</tspan><tspan font-size="13" font-weight="400" fill="#374151"> migrations</tspan></text>
+<text x="548" y="598" font-size="13" font-weight="400" fill="#374151" text-anchor="start">at the same time</text>
+<text x="548" y="622" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">2 TB</tspan><tspan font-size="13" font-weight="400" fill="#374151"> of data moved</tspan></text>
+<text x="548" y="644" font-size="13" font-weight="400" fill="#374151" text-anchor="start">No setup fee</text>
+<rect x="548" y="664" width="188" height="42" rx="8" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="1.5"/>
+<text x="642.0" y="689.55" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="middle">Start with Medium</text>
+<rect x="772" y="314" width="228" height="412" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+<text x="792" y="350" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Large</text>
+<text x="792" y="374" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">An SME</text>
+<text x="792" y="392" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start"></text>
+<text x="792" y="450" text-anchor="start"><tspan font-size="34" font-weight="800" fill="#111827">€20</tspan><tspan font-size="14" font-weight="500" fill="#374151"> a month</tspan></text>
+<text x="792" y="480" font-size="18" font-weight="700" fill="#111827" text-anchor="start">€240 a year</text>
+<text x="792" y="502" font-size="13" font-weight="400" fill="#374151" text-anchor="start">paid yearly, in advance</text>
+<rect x="792" y="514" width="169.11999999999998" height="22" rx="11.0" fill="#E8F5F2"/>
+<text x="876.56" y="527.5" font-size="12" font-weight="600" fill="#0E4F4A" text-anchor="middle">half the monthly price</text>
+<path d="M792 554H980" stroke="#E5E7EB"/>
+<text x="792" y="580" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">50</tspan><tspan font-size="13" font-weight="400" fill="#374151"> migrations</tspan></text>
+<text x="792" y="598" font-size="13" font-weight="400" fill="#374151" text-anchor="start">at the same time</text>
+<text x="792" y="622" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">7.5 TB</tspan><tspan font-size="13" font-weight="400" fill="#374151"> of data moved</tspan></text>
+<text x="792" y="644" font-size="13" font-weight="400" fill="#374151" text-anchor="start">No setup fee</text>
+<rect x="792" y="664" width="188" height="42" rx="8" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="1.5"/>
+<text x="886.0" y="689.55" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="middle">Start with Large</text>
+<rect x="1016" y="314" width="228" height="412" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+<text x="1036" y="350" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Extra large</text>
+<text x="1036" y="374" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">An organisation,</text>
+<text x="1036" y="392" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">or an MSP</text>
+<text x="1036" y="450" text-anchor="start"><tspan font-size="34" font-weight="800" fill="#111827">€40</tspan><tspan font-size="14" font-weight="500" fill="#374151"> a month</tspan></text>
+<text x="1036" y="480" font-size="18" font-weight="700" fill="#111827" text-anchor="start">€480 a year</text>
+<text x="1036" y="502" font-size="13" font-weight="400" fill="#374151" text-anchor="start">paid yearly, in advance</text>
+<rect x="1036" y="514" width="169.11999999999998" height="22" rx="11.0" fill="#E8F5F2"/>
+<text x="1120.56" y="527.5" font-size="12" font-weight="600" fill="#0E4F4A" text-anchor="middle">half the monthly price</text>
+<path d="M1036 554H1224" stroke="#E5E7EB"/>
+<text x="1036" y="580" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">200</tspan><tspan font-size="13" font-weight="400" fill="#374151"> migrations</tspan></text>
+<text x="1036" y="598" font-size="13" font-weight="400" fill="#374151" text-anchor="start">at the same time</text>
+<text x="1036" y="622" text-anchor="start"><tspan font-size="13" font-weight="700" fill="#111827">15 TB</tspan><tspan font-size="13" font-weight="400" fill="#374151"> of data moved</tspan></text>
+<text x="1036" y="644" font-size="13" font-weight="400" fill="#374151" text-anchor="start">No setup fee</text>
+<rect x="1036" y="664" width="188" height="42" rx="8" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="1.5"/>
+<text x="1130.0" y="689.55" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="middle">Start with Extra large</text>
+<rect x="40" y="746" width="240" height="44" rx="8" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="1.5"/>
+<text x="160.0" y="772.9" font-size="14" font-weight="600" fill="#0E4F4A" text-anchor="middle">Work out what yours costs</text>
+<text x="300" y="774" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (c): the calculator’s button under the cards</text>
+<text x="40" y="812" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (e) guardrails: nothing struck through; no &quot;was&quot; price; the discount compares two prices on sale now;</text>
+<text x="40" y="832" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">the year’s total bold on the line under the per-month figure, never in small print; VAT included; no countdown</text>
+<text x="40" y="876" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">The same card when Monthly is chosen:</text>
+<rect x="40" y="890" width="228" height="150" rx="14" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="2"/>
+<text x="60" y="926" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Small</text>
+<text x="60" y="976" text-anchor="start"><tspan font-size="34" font-weight="800" fill="#111827">€5</tspan><tspan font-size="14" font-weight="500" fill="#374151"> a month</tspan></text>
+<text x="60" y="1004" font-size="13" font-weight="400" fill="#374151" text-anchor="start">Stop at the end of any month</text>
+<text x="300" y="916" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">T6 (f): the renewal line, under the cards on Yearly; its words wait for T0 and the lawyer</text>
+<text x="300" y="944" font-size="14" font-weight="400" fill="#374151" text-anchor="start">A year renews by itself. You can stop at any time, and the whole months you have not used are refunded.</text>
+<text x="300" y="968" font-size="14" font-weight="400" fill="#374151" text-anchor="start">We remind you 30 days before each renewal.</text>
+<text x="40" y="1094" font-size="22" font-weight="700" fill="#111827" text-anchor="start">Questions</text>
+<rect x="40" y="1112" width="760" height="40" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="60" y="1137" font-size="14" font-weight="600" fill="#111827" text-anchor="start">▸  Is there a free way?</text>
+<rect x="40" y="1160" width="760" height="40" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="60" y="1185" font-size="14" font-weight="600" fill="#111827" text-anchor="start">▸  Does the bill go down when I finish?</text>
+<rect x="40" y="1208" width="760" height="40" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="60" y="1233" font-size="14" font-weight="600" fill="#111827" text-anchor="start">▸  Does pausing lower it?</text>
+<rect x="40" y="1256" width="760" height="40" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="60" y="1281" font-size="14" font-weight="600" fill="#111827" text-anchor="start">▸  What if I keep copying after I switch?</text>
+<rect x="40" y="1304" width="760" height="40" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="60" y="1329" font-size="14" font-weight="600" fill="#111827" text-anchor="start">▸  How do I stop a year, and what comes back?</text>
+<rect x="40" y="1352" width="760" height="40" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="60" y="1377" font-size="14" font-weight="600" fill="#111827" text-anchor="start">▸  How do I withdraw within 14 days?</text>
+<text x="820" y="1138" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (b): each a &lt;details&gt;, written by build.mjs;</text>
+<text x="820" y="1158" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">the withdrawal answer names the Billing button (T6 f)</text>
+<text x="40" y="1460" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Why it is priced this way</text>
+<text x="40" y="1488" font-size="14" font-weight="400" fill="#374151" text-anchor="start">Ownpace is priced to pay for what it takes to run and build it: the servers, the support, and the time spent</text>
+<text x="40" y="1510" font-size="14" font-weight="400" fill="#374151" text-anchor="start">building and improving the software. There are no investors to answer to. Running it yourself is free, and always will be.</text>
+<text x="40" y="1540" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (g): replaces the cost-recovery paragraph once the owner amends ADR-0014</text>
+</svg>

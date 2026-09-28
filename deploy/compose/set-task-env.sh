@@ -13,10 +13,16 @@
 # Reads deploy/compose/.env (the same file the stack runs on) and uploads:
 #   DATABASE_URL       — owner role, at the IN-NETWORK address (the pooler;
 #                        runners join the compose network, so `localhost` here
-#                        would point a task at itself). Every task reads this
-#                        today, as a superuser row security never binds;
-#                        workplan 0138 T1 to T3 move them off it.
-#   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address
+#                        would point a task at itself). The six scheduled
+#                        jobs that span organisations connect with it, as a
+#                        superuser row security never binds, and the eight
+#                        per-tenant tasks read it for their audit key's pool
+#                        of one alone; workplan 0138 T2 and T3 step 2 move
+#                        both off it.
+#   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address. The
+#                        eight per-tenant tasks read and write tenant data
+#                        through it (workplan 0138 T1), and refuse to start
+#                        without it
 #   SECRET_ENCRYPTION_KEY — must equal the api/worker containers' value or
 #                        stored connection credentials cannot be decrypted
 #   OAUTH2_*           — the Entra app registration the Graph connectors and

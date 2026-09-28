@@ -19,6 +19,10 @@
  * gap. The wizard never reaches it — it iterates `GOOGLE_EDITOR_KINDS`, which
  * are exactly the four — so the fallback belongs to the confirm screen's
  * reading of whatever the ledger holds.
+ *
+ * And `paper`, the one kind a Dropbox source counts (workplan 0150 T3 (d)):
+ * without its row, a Dropbox migration's Paper docs read "Google files" on
+ * the confirm screen.
  */
 
 import type { StringKey } from './strings.ts';
@@ -28,6 +32,7 @@ const NATIVE_KIND_KEY: Readonly<Record<string, StringKey>> = {
   spreadsheet: 'discovery.refusedNative.kind.spreadsheet',
   presentation: 'discovery.refusedNative.kind.presentation',
   drawing: 'discovery.refusedNative.kind.drawing',
+  paper: 'discovery.refusedNative.kind.paper',
 };
 
 /** The string key naming this editor kind, or the catch-all for an unknown one. */

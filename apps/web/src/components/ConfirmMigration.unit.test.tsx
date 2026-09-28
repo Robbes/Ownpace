@@ -12,7 +12,9 @@ vi.mock('../services/mapping-service', () => ({
       mappingId: 'm1',
       discovered: true,
       domains: [
-        { domain: 'email', collections: 2, items: 10, bytes: 1024, discoveredAt: '2026-01-01T00:00:00Z' },
+        // Counted after the migration's last change (its `updatedAt` below):
+        // an older row is not the answer to the count this screen starts.
+        { domain: 'email', collections: 2, items: 10, bytes: 1024, discoveredAt: '2026-09-17T00:05:00Z' },
       ],
     }),
     start: vi.fn().mockResolvedValue({ id: 'm1', status: 'active' }),

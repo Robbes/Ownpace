@@ -57,6 +57,7 @@ import { formatNumber } from '../i18n/datetime.ts';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import { Hint } from '../components/Hint.tsx';
 import MappingHubLink from '../components/MappingHubLink.tsx';
+import StateChip from '../components/StateChip.tsx';
 import PermissionsHandover from '../components/finish/PermissionsHandover.tsx';
 import CompletionReportDownload from '../components/CompletionReportDownload.tsx';
 import EachDataTypeEnds from '../components/finish/EachDataTypeEnds.tsx';
@@ -295,7 +296,8 @@ const Finish: React.FC = () => {
           <section key={id} className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold text-gray-900"><MappingHubLink mappingId={id} /></h3>
-              <span className="text-xs text-gray-500">{m.lifecycle}</span>
+              {/* The state in words, as every other screen says it (0153 T1 (d)). */}
+              <StateChip entity="lifecycle" state={m.lifecycle} />
             </div>
             <p className="mt-1 text-sm text-gray-600">{t(LIFECYCLE_NOTE_KEY[m.lifecycle])}</p>
 

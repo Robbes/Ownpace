@@ -150,6 +150,60 @@ describe('a task’s run', () => {
     const run = leavesAReference('run-verification', async (_payload: unknown, _context: unknown) => output);
     expect(await run({}, {})).toBe(output);
   });
+
+  it('ends what the run opened only after its failure is recorded, since the event goes to that pool', async () => {
+    // run-cutover and run-rollback open their pools per run, and the operator's
+    // log page is on the tenant pool (task-pools.ts). Ended in the run's own
+    // `finally`, the pool was gone before this wrapper recorded the failure,
+    // and the event was lost to "Cannot use a pool after calling end on the
+    // pool" (0138 T1 step 2's review).
+    const order: string[] = [];
+    setAppEventSink({ record: async (event) => void order.push(`recorded ${event.event}`) });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const run = leavesAReference('run-cutover', async (_payload: unknown, _context: unknown, afterwards) => {
+      afterwards(async () => void order.push('ended'));
+      throw new Error(WORDS);
+    });
+    const thrown = await run({ tenantId: TENANT, mappingId: MAPPING }, {}).catch((e: unknown) => e);
+    expect((thrown as Error).message).toMatch(SAID);
+    expect(order).toEqual(['recorded task.run-cutover.failed', 'ended']);
+  });
+
+  it('ends it when the run succeeds too, once the run is over, last opened first', async () => {
+    const order: string[] = [];
+    const run = leavesAReference('run-rollback', async (_payload: unknown, _context: unknown, afterwards) => {
+      afterwards(async () => void order.push('first opened, ended last'));
+      afterwards(async () => void order.push('last opened, ended first'));
+      order.push('ran');
+      return 'done';
+    });
+    expect(await run({}, {})).toBe('done');
+    expect(order).toEqual(['ran', 'last opened, ended first', 'first opened, ended last']);
+  });
+
+  it('says so when ending fails, and changes neither the plane’s error nor what the run returned', async () => {
+    const { events, lines } = watch();
+    const ending = 'Called end on pool more than once';
+    const failed = leavesAReference('run-rollback', async (_payload: unknown, _context: unknown, afterwards) => {
+      afterwards(async () => {
+        throw new Error(ending);
+      });
+      throw new Error(WORDS);
+    });
+    const thrown = await failed({}, {}).catch((e: unknown) => e);
+    expect((thrown as Error).message).toMatch(SAID);
+    expect(events.map((e) => e.event)).toEqual(['task.run-rollback.failed']);
+    expect(lines.filter((l) => l.includes(ending))).toHaveLength(1);
+
+    const succeeded = leavesAReference('run-rollback', async (_payload: unknown, _context: unknown, afterwards) => {
+      afterwards(async () => {
+        throw new Error(ending);
+      });
+      return 'done';
+    });
+    expect(await succeeded({}, {})).toBe('done');
+    expect(lines.filter((l) => l.includes(ending))).toHaveLength(2);
+  });
 });
 
 describe('discovery’s output', () => {
@@ -229,7 +283,33 @@ describe('every task', () => {
   });
 
   it.each(tasks.map((t) => [t.file, t.code] as const))('%s points its errors at the operator’s log page', (_file, code) => {
-    expect(code).toContain('setAppEventSink(appEventSinkOn(pgDriver(pool)));');
+    // Itself, on its own pool (a job that spans organisations), or through
+    // openTaskPools (a per-tenant one, 0138 T1), which points it at the
+    // tenant pool: the case below.
+    expect(
+      code.includes('setAppEventSink(appEventSinkOn(pgDriver(pool)));') || code.includes('openTaskPools()'),
+    ).toBe(true);
+  });
+
+  it('a task that opens its pools in its run opens them before anything it throws, and ends them afterwards', () => {
+    // Until it opens them, the log page has no sink in a fresh process, and a
+    // refusal thrown first (run-rollback's notify check) left a reference that
+    // named no event. And ended anywhere but in afterwards, a failure's event
+    // lost its pool (0138 T1 step 2's review).
+    const perRun = tasks.filter(({ code }) => /\n {2}run: [\s\S]*\bopenTaskPools\(\)/.test(code));
+    expect(perRun.map((t) => t.file).sort()).toEqual(['run-cutover.ts', 'run-rollback.ts']);
+    for (const { file, code } of perRun) {
+      const body = code.slice(code.indexOf('\n  run: '));
+      const firstThrow = body.search(/\bthrow\b/);
+      expect(body.indexOf('openTaskPools()'), file).toBeGreaterThan(0);
+      expect(body.indexOf('openTaskPools()'), `${file} throws before it opens its pools`).toBeLessThan(firstThrow);
+      expect(body, file).toContain('afterwards(() => pools.end());');
+    }
+  });
+
+  it('openTaskPools points a per-tenant task’s errors at its tenant pool, where app_user may insert them', () => {
+    const code = readFileSync(join(HERE, 'task-pools.ts'), 'utf8');
+    expect(code).toContain('setAppEventSink(appEventSinkOn(pgDriver(tenant)));');
   });
 });
 

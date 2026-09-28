@@ -2,7 +2,92 @@
 
 > **In one line:** Tenant offboarding: close, grace window and purge replacing the cascading tenant DELETE, detached invoices and an `erasure_record`, token revocation also on connection delete, standing-grant reminders, backup retention wording and self-host `forget-me`.
 
-## Status — 2026-08-18 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: a closed organisation kept syncing. It no longer does (T2).**
+
+- **The owner's report.** Closing an organisation did not stop later sync
+  passes, so the stored access kept being used until the purge, up to 90 days
+  later. That broke the alpha conditions (`site/legal/alpha.md` §10, *"If you
+  close your account, nothing uses it from then on, and it is destroyed when
+  your data is erased"*, and `alpha.nl.md`) and T2's own row below.
+- **Why.** `closeTenant` set `tenant.status` to `closed` and nothing that
+  starts work read it. The tick chose migrations by their own status. A pass
+  already queued, or a retry, read only the migration's phases. No door
+  refused. The close cancels only runs whose rows say `running` or `queued`,
+  and a pass has a row only once a runner starts it (nothing writes `queued`),
+  so a pass the tick queued just before the close, or a retry, was out of its
+  reach.
+- **The owner's two answers.** On the design: *"Read tenant status
+  (Recommended)"*. The tick and the doors read `tenant.status`; the close does
+  not pause the migrations; a reopen needs no migration code, and the next tick
+  resumes. On how far read-only goes: *"Every write door (Recommended)"*.
+  Everything that starts a pass, re-arms one, or uses the stored access is
+  refused. Reading, export, the reopen and the erasure stay open.
+- **What was built.**
+  - *The tick.* `ACTIVE_MAPPINGS_SQL` asks `AN_OPEN_ORGANISATION_WHERE`
+    (`packages/ledger/src/organisation-open.ts`) over all three of its branches:
+    active or continuous, a cutover in its grace period, a data type kept in the
+    lane.
+  - *The pass.* A new halt, `organisation_closed`, read in the same
+    transaction as the migration's phases and before them. It comes before any
+    credential is built, ends the pass without an error (so no retry), and is
+    said in the run log and in a cutover's final sync.
+  - *The builders.* Both credential builders refuse a closed organisation before
+    any decrypt (`refuseAClosedOrganisation`), which covers discovery,
+    verification, confirmation, both applies and the cutover gate. The fan-out
+    that opens a verification's, a confirmation's and a gate's targets leaves
+    out a data type it cannot open; the close's refusal it passes up
+    (`target-fan-out.ts`), so none of them records a verdict of nothing for a
+    closed organisation.
+  - *The doors.* One reader, `readOrganisationClosure` in
+    `packages/managed/src/offboarding.ts`, under row security. `enqueueUnlessHeld`
+    asks it before the hold, so all eight enqueueing doors refuse. Every other
+    write door on the owner's list asks it itself (`closed-organisation.ts`):
+    creating a migration, a PUT into the continuous lane, adding, resuming or
+    keeping a data type, adding, testing or re-keying a connection, the
+    permission report, the sharing rescan and the share applies, a grant link's
+    page and consent, the consent's callback (before the code exchange), and
+    the grant ending (in its own transaction: no token stored, no withdrawal
+    lifted, the link not spent). Start and Sync now ask it before the
+    migration's own state, so a migration the close left running is refused
+    too. The answer is 409 `account_closed` with a sentence in English and
+    Dutch that names the day of the close and the day the data is removed.
+    Never in `authenticate`: the owner reopens through it.
+  - *The spec and the docs.* `AccountClosed` in `apps/api/docs/openapi.yaml` on
+    every such door; `docs/operator-runbook.md`, Tenant offboarding, says what
+    stops and what stays open, and its table now names `windowDays`,
+    `canReopenUntil`, `passesStopped`, `outlivingAccess` and `neverTouched`.
+- **The guards.** `apps/worker/src/jobs/a-closed-organisation-gets-no-pass.unit.test.ts`
+  (the tick and the pass, on one set of rows, closed and reopened),
+  `apps/api/src/an-organisation-closed-at-every-door.unit.test.ts` (every door
+  closed through the owner's Close; every door but two open, and reopened
+  through the real `authenticate`; the spec; a grant arriving after the close)
+  and
+  `packages/orchestration/src/a-closed-organisation-is-read-by-nobody.integration.test.ts`
+  (both builders and a verification's fan-out, nothing decrypted). All three
+  failed before the fix. The two doors the door guard presses only closed are
+  applying one share and applying every open share: pressed open on PGlite's
+  one connection, they wait for themselves.
+  `a-share-waits-for-its-own-cutover.integration.test.ts` presses both open,
+  over Postgres. Applying one folder's shares is pressed open without a
+  folder, so there it reaches only its own 400.
+- **Review fixes, the same day.** Rebased on #1302 and #1303: the permission
+  report asks the close on the pool its reads already use. Start and Sync now
+  ask the close first; before, Start on a migration the close left running
+  answered 200, and a paused one answered with its own state. The fan-out
+  passes the close's refusal up (above); before, a verification queued before
+  the close finished as a report of nothing but NOT_VERIFIABLE, still the
+  latest after a reopen. The door guard now also counts, per file, every call
+  that uses the stored access, and a file that makes one asks the close or
+  says why it need not, so a new use fails until its door is looked at;
+  before, it caught a check taken out and not one never written. The sentence itself has a test
+  of its own (`packages/shared/src/a-reopen-offered-only-while-it-can-happen.unit.test.ts`):
+  the reopen is offered only while the removal is ahead, in both languages.
+- **Not changed.** What a close does to billing was not examined here. Links
+  can still be issued for a closed organisation's migrations; a grant link is
+  refused where it is used. The wizard's probes of credentials typed into it,
+  which store nothing, are not refused.
 
 **Complete (2026-08-18, finished 2026-08-19).** T1–T9 are done. T9 was a
 decision as much as a task; the owner chose option A (a documented procedure
@@ -29,7 +114,7 @@ retention window — **7 days** — which T5 was blocked on.
 | Task | Status | Notes |
 |---|---|---|
 | T1 the delete that already exists is dangerous | ✅ **Fixed 2026-08-18** | `DELETE /api/tenants/:tenantId` exists now (`routes/tenants/index.ts`), is owner-only, and does a hard `DELETE FROM tenant` that **cascades twenty-five tables** — `invoice` and `audit_log` among them. No confirmation, no grace, no receipt, no revocation, and nothing that says it happened. **This is the most urgent row in the workplan and it is a removal, not an addition:** the current endpoint should refuse before the staged flow replaces it, rather than sitting there as an unguarded one-call purge of a customer's billing history. |
-| T2 close → grace → purge, customer picks the window | ✅ **Built 2026-08-18** (owner decision) | Closing stops syncs and billing **immediately** and the account goes read-only. The purge runs after a window the customer chooses at close time: **immediate, 7, 30 or 90 days**. Four windows means four states to test, and `immediate` is the one that needs the type-the-name confirmation — it has no window in which to catch a mistake or a bug. |
+| T2 close → grace → purge, customer picks the window | ✅ **Built 2026-08-18** (owner decision); **syncs stopped 2026-09-28** | Closing stops syncs and billing **immediately** and the account goes read-only. **2026-09-28: the syncs half was not true until then** (Status above): the tick, a queued pass and every door went on. Now nothing starts and nothing uses the access, every write door answers `account_closed`, and reading stays open. The purge runs after a window the customer chooses at close time: **immediate, 7, 30 or 90 days**. Four windows means four states to test, and `immediate` is the one that needs the type-the-name confirmation — it has no window in which to catch a mistake or a bug. |
 | T3 what survives: invoices, detached, plus an erasure record | ✅ **Built 2026-08-18** (owner decision) | Invoices and payment records survive **detached from the tenant** — company name, VAT id, amount, date; nothing about what was migrated. This is the GDPR art. 17(3)(b) carve-out: Dutch tax law wants invoices for years, and "erase everything" would put the operator in breach of a different law than the one they were trying to obey. Needs a schema change — the `ON DELETE CASCADE` from `invoice` to `tenant` is exactly what must not fire. |
 | T4a a credential that is forgotten but still works is not forgotten | ✅ **Built 2026-08-18** | **The task was not what it looked like.** It read as "call revoke on each provider"; the useful work was finding out that **most of these providers have no revocation we can call**. Google has one and it is implemented (`HttpTokenRevoker`, revoking the REFRESH token because revoking an access token leaves the thing that mints more of them untouched). Microsoft publishes **no** OAuth revocation endpoint — consent withdrawal is the customer's or their admin's. Dropbox's revoke call disables the access token presented with it, not the app link. Box CCG mints short-lived tokens from OUR secret, so there is no customer credential in play. Everything else authenticates with a password only its owner can change. So the outcome for most kinds is `unsupported` **with the reason**, and the receipt says that rather than implying a revocation happened: **a row of green ticks, four-fifths of them nothing, would be worse than no revocation at all, because it would stop the customer doing the one thing that works.** An unknown kind defaults to `unsupported`, never to silence. Revocation runs BEFORE the purge (it needs the rows the purge deletes) and OUTSIDE its transaction (network calls must not hold one open), and is **never** a reason to refuse an erasure — a provider being down records `failed` and the purge proceeds. This and T4b are two halves of one honest sentence: we revoked what we could, deleted our copy of the rest, and here is what only you can remove. **2026-09-20 — the everyday delete button revokes too.** `DELETE /api/connections/:id` deleted our copy and never called this helper, while the privacy text promised, for exactly that press, that the credential is *destroyed, and the grant revoked where the provider supports it*: a deleted Google connection left a live refresh token at Google that nobody held. The route now reads the row inside its tenant transaction, deletes, and revokes AFTER the delete has gone through (a refused delete must leave a working credential; a network call must not hold the transaction), answering 200 with the outcome (`revoked` / `failed` / `unsupported` / `no_credential`) where it answered 204 with nothing; the Connections page says it in the reader's language, the provider's reason verbatim after the frame. The per-row half of this helper is exported for it, so the two paths cannot drift. |
 | T4b the grant only THEY can remove | ✅ **Built 2026-08-18**, **widened 2026-08-18** (owner's findings) | Revoking a token is not withdrawing a consent. `standing-grants.ts` names the four provider consoles bilingually, for the kinds a tenant actually used, keyed on BOTH vocabularies so the reminder cannot silently never fire. **Widened after the owner's second finding** — *"they just need to be reminded … and not leave credentials wandering around"*. The original list excluded password kinds on the reasoning that an IMAP connection has *"no consent object sitting in a console"*. **Half right, and the wrong half was load-bearing:** there is no consent object, but there is very often a **credential** object — an app password we deleted our copy of that still authenticates. Same risk, different screen. `CREDENTIAL_RETIREMENTS` now covers every password-shaped kind, with a coverage-lock test so a kind added to the schema without an entry fails rather than going silently unmentioned. Where we can name the screen (Nextcloud, Proton) we do; where we cannot — a generic IMAP or WebDAV account belongs to a provider we do not know — we name **what to look for** ("app password", "application-specific password"), because the customer knows who their provider is and that is the half they cannot supply. Saying nothing rather than something imprecise would leave a working credential in place. `accessThatOutlivesErasure()` merges both, **credentials first**: a consent is a permission sitting unused, a live app password is a working way in. Surfaced at CLOSE (the API response) and at FINISH (the completion report, now with a "Passwords that still work" section above "Permissions you granted"). A test that asserted an IMAP migration says nothing was **replaced, not widened** — its premise was the gap. |

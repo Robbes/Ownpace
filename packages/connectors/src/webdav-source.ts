@@ -29,7 +29,7 @@ import type {
   PropfindResponse,
 } from './webdav-source.types.ts';
 import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
-import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES } from '@openmig/shared';
+import { davRefusalBody, STREAM_FILES_LARGER_THAN_BYTES, STREAMED_REQUEST_INIT } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import {
   TRASHBIN_PROPFIND_BODY,
@@ -945,12 +945,11 @@ export function createFileHttpClient(): HttpClient {
        * A STREAMED REQUEST BODY, which is how a file larger than this process
        * gets uploaded at all (see `FileBody`).
        *
-       * `duplex: 'half'` is not optional: Node's fetch REFUSES a stream body
-       * without it ("RequestInit: duplex option is required when sending a
-       * body"), and the refusal is a TypeError at the call rather than
-       * anything about the file — so it looks like a bug in the connector.
-       * It is absent from the DOM's own typings, which is why the cast is
-       * here and not somewhere it would be easy to delete as noise.
+       * It goes out with `STREAMED_REQUEST_INIT`: `duplex: 'half'`, which
+       * Node's fetch REFUSES a stream body without ("RequestInit: duplex
+       * option is required when sending a body"), and `redirect: 'error'`,
+       * without which fetch keeps every byte of the file in memory until the
+       * request is gone (see the constant, workplan 0150 T1).
        */
       const streaming = options.body instanceof ReadableStream;
       const init: RequestInit = {
@@ -959,7 +958,7 @@ export function createFileHttpClient(): HttpClient {
         body: (streaming
           ? options.body
           : body) as RequestInit['body'],
-        ...(streaming ? ({ duplex: 'half' } as Record<string, unknown>) : {}),
+        ...(streaming ? STREAMED_REQUEST_INIT : {}),
       };
       const response = await tenantFetch(options.url, init);
 
