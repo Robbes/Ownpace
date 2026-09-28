@@ -26,6 +26,15 @@
 > reads tenant data on the owner's connection. A request still reaches the
 > owner in two places, for the audit pseudonym key only, through `index.ts`'s
 > pool of one (its row under "Where row security holds today").
+>
+> Updated 2026-09-28 (0138 T2): the digest, the drift detector and group
+> discovery are split in two. Their one question across organisations, which
+> ones are active, is read on the owner's connection by `activeOrganisations`
+> (`task-pools.ts`), ids only; everything they read or write for one
+> organisation is in that organisation's scope on the tenant pool, `app_user`.
+> The three jobs that span organisations whole (the tick, retention, the purge)
+> are the only tasks left on the owner's connection for tenant data, until T3
+> step 2.
 
 ## What RLS buys here
 
@@ -34,8 +43,10 @@ session predicate. In this stack it is the **tenancy boundary of the managed
 edition**: on a connection it binds, Tenant A can never read or write Tenant
 B's rows, even through a bug in application-level filtering, because the
 database itself refuses. **It binds only some of the connections today**: the
-API's request path and the managed edition's eight per-tenant Trigger.dev tasks,
-yes; the six managed jobs that span organisations, not yet. The next section
+API's request path, the managed edition's eight per-tenant Trigger.dev tasks, and
+everything the digest, the drift detector and group discovery read for one
+organisation, yes; the three managed jobs that span organisations whole (the
+sync tick, retention, the purge of closed organisations), not yet. The next section
 says which, and [workplan 0138](./workplans/0138-tasks-under-row-security.md)
 is the way to close the rest of the gap. The self-host appliance runs the **same schema and
 the same policies**, and its `withTenant` scopes drop to `app_user`, but its
@@ -44,7 +55,8 @@ ledger and cursor stores run outside them (the next section).
 ## Where row security holds today
 
 Checked against the code and against a database with both migration chains
-applied, 2026-09-27, and the task rows again on 2026-09-28 (0138 T1 step 2).
+applied, 2026-09-27, and the task rows again on 2026-09-28 (0138 T1 step 2, and
+T2 for the three jobs split in two).
 Postgres never applies row security to a superuser,
 `FORCE` or not, and the managed edition's database owner is a superuser (§2).
 On an owner connection, `withTenant` still sets `app.current_tenant`, but
@@ -59,21 +71,24 @@ organisations, and the same question as `app_user` counted one.
 | The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset. The key pool is reached from the request path in two places: the audit line printed after an audit event commits (the export sink, `auditExportOn`), and the operator's audit download (`GET /api/support/audit-export`, `routes/support.ts`, through `apps/api/src/audit-key.ts`). Each keeps the key once it has read it, and reads it again only after a read that failed | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
 | **The eight per-tenant Trigger.dev tasks** (`run-delta-sync`, `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`, `run-cutover`, `run-rollback`), and the standalone worker (`apps/worker/src/index.ts`): the tenant pool `openTaskPools` builds (`apps/worker/src/jobs/task-pools.ts`) on `APP_DATABASE_URL`, and the builders they hand it to (`buildDepsFromMapping`, `buildDomainDepsFromMapping`, `createLedgerVerificationReader`) | `app_user`, since 0138 T1 step 2 (2026-09-28). `openTaskPools` refuses to start without `APP_DATABASE_URL` and never falls back to `DATABASE_URL`. Every store and read a pass makes runs inside `withTenant` for its tenant: the ledger, cursor and verification stores on `tenantScopedDb`, the helper reads (`enabledDomains`, `stoppedDomains`, `targetProviderKey`, the rollback's mapping name, the step before each data type), the organisation's own `tenant` row, which the step and both builders read to refuse a closed organisation (`organisationIsOpen`, 0085 T2; outside a scope `app_user` would find no row there, and every pass would stop as closed), and the run, status, receipt, cutover and confirmation writes in scopes of their own. Two things it touches need no scope and have none: the rate and byte budgets (`plainDb`: their tables have no row security, by design) and the operator's log page's events (`app_event`, which `app_user` may insert into and not read) | **in force** |
 | The same tasks' audit key: `openTaskPools`'s second pool, on `DATABASE_URL` | the owner; one connection, closed a second after its last use | not needed: it reads `deployment_key` only, which holds no tenant's rows and which ledger migration 0062 closes to `app_user`. It is the API's audit key pool, in a task. 0138 T3 step 2 moves it to the system role |
-| **The six scheduled Trigger.dev jobs** that span organisations (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`, `managed-digest`, `managed-drift-detect`, `managed-group-discovery`) | the owner, a superuser: each builds its pool from `DATABASE_URL`, and none gives `withTenant` a role. The tick reads every organisation's `tenant.status` in one statement to start no pass for a closed one (`AN_OPEN_ORGANISATION_WHERE`, 0085 T2), which on `app_user` would find no organisation open | **not in force**: the separation between organisations rests on each query's own tenant filter. 0138 T2 splits the digest, the drift detector and group discovery (their per-organisation reads onto the tenant pool), and T3 step 2 gives all six a role that is not a superuser |
+| **The three scheduled jobs split in two** (`managed-digest`, `managed-drift-detect`, `managed-group-discovery`, 0138 T2), everything they read or write for one organisation: the tenant pool `openTaskPools` builds, opened in the run and ended in `afterwards` | `app_user`, since 0138 T2 (2026-09-28). Each organisation's reads and writes run in its own scope: the digest's organisation row (name and notification settings), recipients, migrations, their queues through the ledger, pending decisions, last send and the audit row recording this one; the drift detector's coverage, Microsoft sources, dismissed decisions, standing preset and the decisions it raises and closes; group discovery's source connections, the groups it records and the decisions it raises. `withTenant` for a job's own reads, `tenantScopedDb` for the ledger, decision, preset and group stores. The operator's log page's events go to the same pool (`app_event`, insert only), the audit lines to the key's pool below | **in force**. `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts` runs each job's per-organisation half on the pools it opens, as `app_user`, for two organisations |
+| The same three jobs' one question across organisations: `activeOrganisations` (`task-pools.ts`), on `DATABASE_URL` | the owner; one connection, closed before it answers | not needed: one statement, the ids of the active organisations (`SELECT id FROM tenant WHERE status = 'active'`), no other column and no other table. It first asks whether its connection sees every organisation, and refuses when it does not: on `app_user`, with no organisation set, `tenant` answers no row, and a job handed that empty list would visit nobody and call it a quiet morning. Until T2 each of the three read its list and every organisation's rows on its own owner pool, and group discovery's list was every source connection across organisations, with its config. 0138 T3 step 2 moves the list to the system role |
+| **The three scheduled Trigger.dev jobs** that span organisations whole (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`) | the owner, a superuser: each builds its pool from `DATABASE_URL`, and none gives `withTenant` a role. The tick reads every organisation's `tenant.status` in one statement to start no pass for a closed one (`AN_OPEN_ORGANISATION_WHERE`, 0085 T2), which on `app_user` would find no organisation open | **not in force**: the separation between organisations rests on each query's own tenant filter. 0138 T3 step 2 gives the three a role that is not a superuser |
 | The appliance's `withTenant` scopes (`apps/selfhost/src/index.ts`) | the bundled image's owner or PGlite's `postgres`, dropping to `app_user` with `SET LOCAL ROLE` | **in force** |
 | The appliance's `PgLedger` and `PgCursorStore`, over `persistenceBackend.db` | the bundled image's owner or PGlite's `postgres`, both superusers | not in force; the appliance holds one organisation, so there is nothing to separate |
 | The scripts in §2's table | the owner | not in force, by nature: they act across tenants at the machine |
 | The commands an operator runs with their own `DATABASE_URL`: the cutover CLI (`apps/worker/src/cli/index.ts`), the appliance's `forget-me` (`apps/selfhost/src/forget-me.ts`), and the two Drive measurements (`scripts/drive-export-stability.ts`, `scripts/drive-share-inheritance.ts`) | whatever that URL names (`forget-me` on PGlite: PGlite's `postgres`); none of them sets a role | **not in force** on a superuser's URL (the managed owner, the bundled image's owner, PGlite's `postgres`): each query's own filter, on a tenant or on one connection's id, is what separates. On an ordinary owner the `FORCE`d policies do apply, which is why the CLI calls the cutover store inside `withTenant`, and why the stores its `reindex` builds are tenant-scoped since 0138 T1 step 1 |
 
 What that means in the managed edition: the database stops a query that forgets
-its tenant in the API and in a per-tenant task, and nothing stops one in the six
-jobs that span organisations. The queries of those six that workplan 0138 read
-do carry their tenant filters; nobody has audited them all. Every task run also
+its tenant in the API, in a per-tenant task and in the per-organisation half of
+the three split jobs, and nothing stops one in the three jobs that span
+organisations whole. The queries of those three that workplan 0138 read do
+carry their tenant filters; nobody has audited them all. Every task run also
 holds `SECRET_ENCRYPTION_KEY`, so a query in one of them that crossed
 organisations could reach another organisation's stored credentials and the key
 to decrypt them. Workplan 0138 T1 to T4 are the plan to move the per-tenant
 tasks to `app_user` and keep the owner's reach to the jobs that span tenants.
-Of them T1, T4 and T3's first step are built. T1's second step is the switch:
+Of them T1, T2, T4 and T3's first step are built. T1's second step is the switch:
 the eight per-tenant tasks take their pools from `openTaskPools`, the tenant
 pool on `APP_DATABASE_URL`, `app_user`, and every scope in them is under the
 policies (`apps/worker/src/jobs/a-pass-under-row-security.integration.test.ts`
@@ -94,7 +109,45 @@ counts as much as `pools.end()`; it reads the task's own file, so it does not se
 an end inside a function in another file that the pool is handed to; none
 has one), if any
 file but the module names the key's pool, or if the module does anything at
-import. A run still
+import. T2 split the digest, the drift detector and group discovery the same
+way: each opens `openTaskPools` in its run and ends it in `afterwards`, takes
+its list of organisations from `activeOrganisations`, and reads and writes
+every organisation in that organisation's scope. The same guard holds them as
+its third kind, `SPLIT`, closed, each entry saying why the job crosses
+organisations and what it reads per organisation: a split job reads no
+database URL and builds no pool; it names its tenant pool only as the first
+argument of `withTenant` or `tenantScopedDb` (or hands it to a function of its
+own file whose `Pool` parameter the rule reads in turn), since a statement on
+that pool outside a scope finds nothing; and only the three and the module
+name `activeOrganisations`. No URL and no pool of its own did not keep the
+owner's connection out of a split job: review added one export to the module
+that handed its caller the list's pool, and read every organisation on it from
+a split job and from a per-tenant one with every guard green. So the same
+guard closes the module at both ends (its rule 7): `task-pools.ts` exports
+`openTaskPools`, `activeOrganisations` and the list's text, and types, and
+nothing else; imports only its own short list, so no query builder and no
+schema; names each pool it builds on the owner's URL (the key's, the list's)
+only to ask it the list or the question whether it sees every organisation,
+each by name and each held to its literal, to end it, to hear its errors, or,
+the key's, as the audit sink's driver, never returned or handed on; and
+declares `activeOrganisations` as `Promise<string[]>`, returning
+`rows.map((row) => row.id)`. A per-tenant job and the standalone worker take
+`openTaskPools` from it and a split job that and `activeOrganisations`, nothing
+else (types aside), and none of them imports a value from another file on the
+guard's cross-tenant list. It reads each file's own imports: a pool of the
+owner's handed on through a module in between would be out of its sight, and
+no file on that list exports one. What no static rule tells is a
+per-organisation read in the wrong organisation's scope.
+`apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts`
+is for that: it runs each job's per-organisation half on the pools it opens,
+for two organisations, with every queue the digest counts seeded and A's
+numbers never B's: each produces the digest (every line of each
+organisation's mail compared), the findings and the groups it produced on the
+owner's, as `app_user`, on no pool but the tenant pool and the audit key's,
+one connection at a time; the list names the active ones and refuses on
+`app_user`; and the jobs' own statements outside a scope find nothing. It
+runs the halves, not the tasks' `run` bodies, which the static rules above
+hold. A run still
 receives the owner's URL (§2's `set-task-env.sh` row) until T3 step 2. That
 guard does not read `apps/api`;
 `scripts/a-route-that-opened-the-owners-pool.unit.test.ts` does (0138 T6): a
@@ -146,16 +199,24 @@ database roles"):
   queries ("Where row security holds today"). **The eight per-tenant
   Trigger.dev tasks use it too**, since 0138 T1 step 2: `openTaskPools` builds
   their tenant pool on it and on nothing else, and refuses to start without it.
-  The six jobs that span organisations do not yet.
+  So do the digest, the drift detector and group discovery for everything they
+  read or write about one organisation, since 0138 T2. The three jobs that span
+  organisations whole do not yet.
 - `DATABASE_URL` → the DB owner. **Not the request path.** No route opens a
   pool on it (the permission report and the sharing rescan did until
   2026-09-28, 0138 T6); in the API it serves the migrations and the audit key's
   pool of one when `DIRECT_DATABASE_URL` is unset (the table above). It is for
   the acts performed AT THE MACHINE by whoever runs the
   deployment — the ones that by their nature span tenants, or precede one
-  existing — and, until workplan 0138 T2 and T3 step 2 land, for the six
-  Trigger.dev jobs that span organisations and for the per-tenant tasks' audit
-  key, a pool of one that reads `deployment_key` alone:
+  existing — and, until workplan 0138 T3 step 2 lands, for three things in
+  the Trigger.dev tasks. **Who holds the cross-tenant connection there**: the
+  three jobs that span organisations whole (`managed-sync-tick`,
+  `managed-retention`, `managed-purge-closed`), which connect with it for
+  everything; the list of organisations the three split jobs visit
+  (`activeOrganisations`, `task-pools.ts`), one connection, one statement, ids
+  only, since 0138 T2; and the audit key, a pool of one that reads
+  `deployment_key` alone, in every task that opens `openTaskPools`. A run
+  receives it from the last row below. At the machine, these hold it:
 
 | who holds it | what for |
 | --- | --- |
@@ -163,7 +224,7 @@ database roles"):
 | `deploy/compose/seed-managed.sh` | writes the demo tenants |
 | `deploy/compose/operator.sh` | appoints operators, manages their memberships, and runs `check` / `clean` — all of which ask questions that span every tenant, which is why they are scripts and not routes (see `apps/api/src/scripts/operator.ts`) |
 | `deploy/compose/rotate-db-passwords.sh` | acts as the owner without composing a URL: `psql` over the database container's socket, as `POSTGRES_USER`, to list the login roles and to `ALTER ROLE` the owner and `app_user` to `.env`'s values (`--sync`, `--rotate`; the functions are `db-roles.sh`'s, which T2 (b)'s bring-up is to call). It asks each password over the stack's network and through PgBouncer, and prints no value (workplan 0132 T2; `docs/managed-bring-up.md`, "Changing the database passwords") |
-| `deploy/compose/set-task-env.sh` | uploads two database URLs into the Trigger.dev task environment, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run of every task receives both. `DATABASE_URL` (composed as `TASK_DATABASE_URL`) is the owner through the pooler: **the six jobs that span organisations connect with it**, and the eight per-tenant tasks read it for their audit key's pool of one alone. `APP_DATABASE_URL` is `app_user`: the eight per-tenant tasks read and write tenant data through it since 0138 T1 step 2. Until 0138 T3 step 1 it uploaded a third, `DIRECT_DATABASE_URL`, the owner straight to `postgres:5432`; no task read it, and no task runs migrations (the API and the seed do), so it no longer does. A plane that stored it keeps it until it is deleted once (`docs/managed-bring-up.md`, "Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`") |
+| `deploy/compose/set-task-env.sh` | uploads two database URLs into the Trigger.dev task environment, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run of every task receives both. `DATABASE_URL` (composed as `TASK_DATABASE_URL`) is the owner through the pooler: **the three jobs that span organisations whole connect with it**; the three split jobs (the digest, the drift detector, group discovery) read their list of organisations on it, ids only, since 0138 T2; and every task that opens `openTaskPools` reads it for the audit key's pool of one. `APP_DATABASE_URL` is `app_user`: the eight per-tenant tasks read and write tenant data through it since 0138 T1 step 2, and the three split jobs every organisation's rows since 0138 T2. Until 0138 T3 step 1 it uploaded a third, `DIRECT_DATABASE_URL`, the owner straight to `postgres:5432`; no task read it, and no task runs migrations (the API and the seed do), so it no longer does. A plane that stored it keeps it until it is deleted once (`docs/managed-bring-up.md`, "Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`") |
 
 **That list is checked, not maintained by hand.**
 `scripts/a-connection-the-docs-did-not-know-about.unit.test.ts` fails if a
@@ -173,11 +234,14 @@ the day `operator.sh` was written (workplan 0093 T6) and stayed wrong because a
 sentence in a document has nothing checking it.
 
 Point the APP at the owner URL and tenant isolation silently disappears. That
-is where the six managed jobs that span organisations still are ("Where row
-security holds today"): what keeps one organisation's rows from another there
-is each query's own `WHERE`. It is also why `openTaskPools` has no fallback to
-`DATABASE_URL`: a per-tenant task that took one would be back there with
-nothing to say so.
+is where the three managed jobs that span organisations whole still are
+("Where row security holds today"): what keeps one organisation's rows from
+another there is each query's own `WHERE`. It is also why `openTaskPools` has
+no fallback to `DATABASE_URL`: a per-tenant task that took one would be back
+there with nothing to say so. And it is why `activeOrganisations` has no
+fallback the other way: the list read on `app_user` finds no organisation, and
+a split job handed it would visit nobody, so it asks its connection first and
+refuses.
 
 ### 3. `LedgerDriver.role` + `withTenant()` — the gate on the shipped path
 
@@ -344,7 +408,11 @@ There is no `pnpm test:rls`. The coverage lives in named suites:
   `DATABASE_URL` in its place, the audit key's pool is one connection on the
   owner's URL, the audit export asks that pool for its key and the log page's
   events go to the tenant pool, and importing the module builds nothing
-  (0138 T1 step 2).
+  (0138 T1 step 2). And `activeOrganisations` refuses without `DATABASE_URL`
+  and never takes `APP_DATABASE_URL` in its place, asks one connection on the
+  owner's URL whether it sees every organisation before it reads the list,
+  refuses when it does not, and ends that connection before it answers
+  (0138 T2).
 
 **In the integration gate (`pnpm test:integration` — real Postgres via
 testcontainers):**
@@ -363,6 +431,18 @@ testcontainers):**
   (0138 T1); and its organisation's status is read in its scope, so a closed
   organisation's pass stops before its next data type and neither builder
   builds, while an open one's runs (0085 T2).
+- `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts`
+  — the digest, the drift detector and group discovery, split in two (0138
+  T2): the list names the active organisations and refuses on `app_user`; each
+  job's per-organisation half, on the pools the job opens, produces for each
+  of two organisations what it produced on the owner's (the mail and its
+  recipients, every queue it counts seeded with A's numbers never B's and
+  each line compared, the relocations counted since that organisation's own
+  last digest; the new mailboxes, a dismissal and a standing answer honoured;
+  the groups and the question asked), as `app_user`, on no pool but the tenant
+  pool and the audit key's, one connection at a time; and each of the jobs'
+  own statements answers in its organisation's scope and finds nothing
+  outside one. It runs the halves, not the tasks' `run` bodies.
 - The API route suites (`apps/api/src/routes/**/*.integration.test.ts`) run
   every request through `withTenant` + the membership gate; each seeds the
   memberships its tokens imply (`apps/api/src/__tests__/seed-membership.ts`),
@@ -396,9 +476,10 @@ ROLLBACK;
   connection path, add the in-force proof for it.
 - **The owner URL in the request path.** Everything works, nothing is
   isolated. `APP_DATABASE_URL` exists so this is a configuration you can
-  grep for. The six managed jobs that span organisations are in this state
-  today, and the permission report's pool was until 2026-09-28 ("Where row
-  security holds today").
+  grep for. The three managed jobs that span organisations whole are in this
+  state today, the digest, the drift detector and group discovery were until
+  0138 T2, and the permission report's pool was until 0138 T6 (both
+  2026-09-28; "Where row security holds today").
 - **Session-level context.** `SET app.current_tenant` without `LOCAL`
   survives the transaction and rides the pooled connection into another
   request. `withTenant` uses transaction-local everything; keep it that way.
