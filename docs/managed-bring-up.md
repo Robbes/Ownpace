@@ -2426,6 +2426,123 @@ Neither path makes the login *itself* automatable — creating the account
 and project is still the one step that opens a browser (0084 T6). Both only
 let a credential obtained once survive to the next run.
 
+## Live's daily duties
+
+The nightly gate keeps the OTA stack alive as a side effect of testing it. Two
+of `e2e-managed.yml`'s steps are maintenance: `setup-zitadel.sh` runs the
+identity provider's provisioning token's clock (the token lives seven days, a
+run replaces it in its last three, and past its deadline no successor can be
+minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
+proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
+[`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
+`~/ownpace-live` by a systemd timer (0132 T7). It does four duties, each one
+whatever the one before it did:
+
+| Duty | What it runs | What it does |
+|---|---|---|
+| `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
+| `drill` | `trigger-version.sh drill` | Dumps live's Trigger.dev database, restores it into a throwaway and compares. The dumps go to `~/.persistent/ownpace-live/trigger-backups` and are **secret-bearing** (the plane's API keys and the encrypted task environment); the script makes them readable by this account only. |
+| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
+| `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
+
+It exits 0 when all four pass, 1 naming every duty that failed, and 2 when it
+refused before any duty: a `.env` without live's marker (the OTA stack's duties
+are the gate's), a project the reader refuses, or an argument. A duty that runs
+past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
+run by hand, or a SIGTERM, stops the running duty, says which, starts no other
+and exits 130 or 143. It prints no value from the `.env`, and this machine's
+addresses in a duty's output, stdout and stderr alike, are replaced by the key
+that holds them. Nobody is told when it fails (0142 is where that changes):
+read the journal.
+
+**Until the timer is installed,** run `./deploy/compose/setup-zitadel.sh
+--token-only` from `~/ownpace-live` at least every three days. It replaces the
+token only when fewer than three of its seven days remain, so a gap of four
+days can miss that window.
+
+**The units.** A user unit pair, run as the account that owns live's checkout
+and reaches Docker. Both are in
+[`deploy/compose/systemd/`](../deploy/compose/systemd/):
+
+```ini
+# ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
+# provisioning token's clock, the Trigger.dev drill, the exposure check and the
+# organisation count. A user unit, started by ownpace-box-duties.timer; the
+# install steps are in docs/managed-bring-up.md, "Live's daily duties".
+[Unit]
+Description=ownpace-live: the duties the nightly gate does for the OTA stack
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ownpace-live
+ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
+SyslogIdentifier=ownpace-box-duties
+# Four duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# which failed.
+TimeoutStartSec=90min
+```
+
+```ini
+# ownpace-box-duties.timer — once a day at 13:17 UTC, away from the appliance
+# nightly (e2e.yml, 23:30 and 01:30 UTC, dispatched up to five hours late),
+# whose dev Nextcloud publishes on every interface while it runs. A run missed
+# while the machine was off runs at the next start (Persistent=true).
+[Unit]
+Description=ownpace-live: the daily duties, once a day
+
+[Timer]
+OnCalendar=*-*-* 13:17:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+**Installing them,** once live stands (T1b to T1e), on the machine, as that
+account:
+
+```bash
+# Once, as root: this account's timers run when nobody is signed in.
+sudo loginctl enable-linger "$USER"
+
+# Copied, not linked: a checkout of another tag must not change the timer.
+mkdir -p ~/.config/systemd/user
+cp ~/ownpace-live/deploy/compose/systemd/ownpace-box-duties.service \
+   ~/ownpace-live/deploy/compose/systemd/ownpace-box-duties.timer \
+   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now ownpace-box-duties.timer
+
+# When it fires next, then one run now, and what it said.
+systemctl --user list-timers ownpace-box-duties.timer
+systemctl --user start ownpace-box-duties.service
+journalctl --user -u ownpace-box-duties -n 200 --no-pager
+```
+
+- **The journal.** A failure line is logged at the error priority, so
+  `journalctl --user -u ownpace-box-duties -p err` shows only those. Where the
+  user journal is not kept apart (a volatile journal), `sudo journalctl -t
+  ownpace-box-duties` reads the same lines.
+- **What it runs with.** The user manager's `PATH`, which holds `/usr/bin`:
+  `docker`, `curl` and `jq` must be there, and the account must reach Docker
+  (the `docker` group). `systemctl --user edit ownpace-box-duties.service`
+  adds an `Environment=` line if not.
+- **After a deploy that changed the units,** copy them again and run
+  `systemctl --user daemon-reload`.
+- **A run after a stop.** `Persistent=true` runs a missed day at the next
+  start, which may fall inside the appliance nightly's hours; its dev
+  Nextcloud then fails `exposure`, by name.
+- **A rollback after a Trigger.dev upgrade.** Once the timer runs, restore the
+  backup taken before the upgrade by its file name, never with `--latest`:
+  `trigger-version.sh restore ~/.persistent/ownpace-live/trigger-backups/triggerdb-<stamp>-before-<version>.sql.gz --yes`.
+  The webapp migrates its schema on boot, one way, so the first drill after
+  the upgrade dumps the migrated schema, and `--latest` is that dump. The drill
+  also keeps only the newest seven dumps (`TRIGGER_BACKUP_KEEP`), a labelled
+  one included, so seven days after the upgrade the `before-` backup is gone:
+  before the upgrade, copy it out of `trigger-backups/` with `cp -p` into a
+  directory only this account can read. It is as secret-bearing as the rest.
+- **Turning it off:** `systemctl --user disable --now ownpace-box-duties.timer`.
+
 ## When it goes wrong
 
 | What you see | What it is | What to do |
@@ -2791,6 +2908,10 @@ the SDK alone, passed all seventeen checks and broke the managed gate.
 ./deploy/compose/trigger-version.sh backups           # what dumps exist
 ./deploy/compose/trigger-version.sh restore --latest --yes   # DESTRUCTIVE rollback
 ```
+
+On a stack whose drill runs every day, `--latest` is the last drill's dump,
+taken after the upgrade migrated the schema: on live, restore the `before-`
+backup by its file name (*Live's daily duties*).
 
 `list` probes the registry by manifest rather than reading its tag list: ghcr's
 `/tags/list` is neither newest-first nor complete in one page — with `n=1000`
