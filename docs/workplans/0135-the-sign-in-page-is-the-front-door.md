@@ -4,8 +4,25 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28: the dump before an upgrade, by script (T7, *Before an upgrade*).** On branch
-`claude/mailbox-sync-errors-c2xsw2-a-way-back-before-every-upgrade`, not merged. The dump before
+**2026-09-28, midday: the pin moves to v4.19.2 (open question 12).** On branch
+`claude/mailbox-sync-errors-c2xsw2-the-pin-that-caught-up`, not merged. The owner, asked about
+v4.19.2: *"v4.19.2: how do i make the dump? Can you give script i can use more often? since i
+need it for each update"*. The script merged in #1289 (`d4a0a9b`).
+
+- **What moves.** `managed.yml` pins `ghcr.io/zitadel/zitadel:v4.19.2`, the patch after v4.19.1.
+  Its three security fixes are in nothing this stack switches on (open question 12). It adds no
+  setup step, so the schema moves no further than v4.19.1 did.
+- **Re-read at v4.19.2, against the tag:** the defaults still ship `LoginV2.Required: true`.
+  `zitadel ready`, the admin SMTP and notification handlers and the API definitions are
+  unchanged. `setup-zitadel.sh` never calls the events API whose order changed.
+- **The route, as for v4.19.1.** The owner dumps the OTA instance's `zitadel` database with
+  `deploy/compose/dump-idp.sh` first. Then E2E (managed) on the branch applies it to the OTA
+  instance, and live takes it from a tag.
+- **The watch.** Its issue closes on its next run once this merges, since the pin is then the
+  newest release.
+
+**2026-09-28: the dump before an upgrade, by script (T7, *Before an upgrade*).** Merged in #1289
+(`d4a0a9b`). The dump before
 v4.19.1 was four commands pasted from a chat. The owner asked the same day, with open question 12
 in view: *"Can you give script i can use more often? since i need it for each update"*.
 
@@ -246,7 +263,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and 🔨 **(a) the languages built 2026-09-27, not merged**; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
-| T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
+| T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin 🔨 **moved to v4.19.2 2026-09-28** on branch `claude/mailbox-sync-errors-c2xsw2-the-pin-that-caught-up`, not merged (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
@@ -1103,4 +1120,7 @@ carried T1 and T2.
     schema no further than v4.19.1 did. *Recommended: yes, this week, in its own pull request*
     after the language change's gate run, by the same route, a dump by hand first. The seven days
     do not apply, since none of the three fixes is in something this stack uses. Until the pin
-    moves, the watch keeps its issue open.
+    moves, the watch keeps its issue open. *Answered 2026-09-28, in the owner's words: "v4.19.2:
+    how do i make the dump? Can you give script i can use more often? since i need it for each
+    update". The script is `deploy/compose/dump-idp.sh` (#1289), and the dump comes before the
+    gate's run.*
