@@ -17,8 +17,8 @@
 #                               values below as data, it cannot source this)
 #   bootstrap-managed.sh        refuses --with-demo on live (0132 T5, not
 #                               built yet)
-#   deploy-live.sh              refuses a .env WITHOUT the marker (0132 T6, not
-#                               built yet)
+#   deploy-live.sh              refuses a .env WITHOUT the marker (0132 T6,
+#                               built: stack_is_live)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line

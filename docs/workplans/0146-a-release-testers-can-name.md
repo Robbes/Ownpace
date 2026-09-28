@@ -4,6 +4,60 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T5 (a) built with 0132 T6 (a), on branch
+`claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** The rule is in
+`deploy/compose/deploy-live.sh`; 0132's Status entry of the same date has the script as a whole.
+Nothing has run on `ownpace-live`, which is not stood up (0132 T1b).
+
+- **Only a release tag.** A tag on origin (`git ls-remote --tags origin`), the same object here and
+  there, annotated, named `v…`, whose commit's root `package.json` version is the tag without its
+  `v`. Anything else is refused before the checkout or the stack changes, with *"live runs
+  releases: name a release tag"*; the version refusal names both values.
+- **The tag's commit as `GIT_SHA`.** The bring-up takes it from `git rev-parse HEAD`; the script
+  checks that `HEAD` is the tag's commit after `git checkout --detach` and before the bring-up.
+- **`/api/version`, commit and version.** After the bring-up, both must be the tag's. A right commit
+  with another version is a deploy that did not take: the script says so, the hold stays, it logs
+  `did-not-take` and exits 3.
+- **One-way or reversible**, said before the checkout moves and again before the owner lifts the
+  hold, and written as the last field of the deploy log's line. One-way when a file in either
+  chain was added, changed or removed since the running tag, or the Trigger.dev
+  (`triggerdotdev/`) or identity-provider (`zitadel/zitadel`) `image:` lines in `managed.yml`
+  differ; otherwise reversible. It compares the new tag with the running tag, the last one the
+  deploy log says took, and also with every deploy since that did not take (its bring-up may have
+  migrated the database) and the checkout's `HEAD`: going back to the running tag after a failed
+  deploy with a migration is one-way, which the first build called reversible (fixed on review,
+  the same day; 0132's entry has the three findings).
+- **`--external-id <tag>` on the task deploy: deferred, and `deploy-tasks.sh` is unchanged.** Read
+  in the published CLI, `trigger.dev@4.5.16`, `dist/esm/commands/deploy.js`: the flag exists
+  (line 86), and on an id already deployed the CLI builds nothing (lines 346 to 376), syncs no
+  environment variables, and, when that version is not the current deployment, only warns: *"This
+  version is not the current deployment."*, with *"Promote it from the dashboard, or deploy again
+  with --force to build a new version."* (lines 758 to 763). A redeploy of the previous tag is
+  the one case the id is for, and there the tasks could stay on the newer version while every
+  check on the API passes. What the self-hosted server does on a repeat is unchecked, as this task
+  says. So it waits for open question 6, and for a redeploy of one id on the OTA stack that shows
+  whether the server promotes it.
+- **The guard's four cases** are in `scripts/a-deploy-from-a-named-tag.unit.test.ts` (0132 T6's
+  guard, 61 cases as first built, 84 since `--dry-run` and the one-line exit): a lightweight tag and a tag not on
+  origin refused; a `package.json` naming another version refused, naming both; `/api/version`
+  with the right commit and another version failing the deploy; a migration file in either chain
+  or either pin moved printing one-way (four cases, the pins moved in the real `managed.yml`),
+  and neither printing reversible; since the review, a return to the running tag after a failed
+  deploy with a migration printing one-way too. All failed without the script.
+- **Said before anything moves, too (later the same day).** `deploy-live.sh --dry-run <tag>` runs
+  every refusal of the deploy, the release rule's included, prints the same one-way or reversible
+  by the same comparison, and stops before the checkout: nothing checked out, installed, built,
+  deployed or logged. The owner runs it with the hold on, and dumps the database when it says
+  one-way and a way back is wanted. Its cases in the guard: one-way for a tag adding a migration
+  to either chain and reversible for one adding none, each matching the verdict the real deploy
+  then logs; a lightweight tag, a tag not on origin and another `package.json` version still
+  refused. 0132's entry has the rest, and the mutations.
+- **Docs.** `docs/managed-bring-up.md`'s *Updating a running deployment* has the `ownpace-live`
+  paragraph, rollback stated plainly included, and `docs/release.md` has §5, *Deploying a release
+  to ownpace-live*, pointing to 0132's procedure.
+- **Open.** T0's name and T2's tag, the first release this can deploy; 0132 T1b, live standing;
+  open question 6.
+
 **2026-09-28, build: T2 steps 2 and 3, built on branch
 `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged.** Steps 1 and 4
 to 6 wait for T0, the owner's choice of the name, and for the owner. Nothing is bumped, renamed or
@@ -176,10 +230,10 @@ T7 and T8. T7 is one sentence from the owner, and is best given with T0.
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | 🔨 **Steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged** (2026-09-28): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 1 and 4 to 6 wait for T0 (the name) and the owner — *was:* 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 1 and 4 to 6 📋 wait for T0 (the name) and the owner — *was:* 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | 📋 **Proposed** (D3) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
-| T5 `ownpace-live` runs only a release tag | 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
+| T5 `ownpace-live` runs only a release tag | (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged** (2026-09-28), in 0132 T6's `deploy-live.sh`: the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
 | T6 The tasks run the Node the images run | ✅ **done** in #1231, merged 2026-09-27: (a), `runtime: 'node-24'` and Guard 1. Guard 2, the bundle-load check, not built (after the first invitation) — *was:* 📋 Proposed | §3. **Alpha minimum:** `runtime: 'node-24'` in `trigger.config.ts` (supported by the pinned CLI, read from its package) and the version guard extended. **After the first invitation:** a pull-request check that the bundle loads. |
 | T7 The object store: replace the frozen MinIO, or accept it for the alpha in writing | ⏳ **Owner** | §3. Recommended: accept it for the alpha, in writing, and replace it after the alpha in the next Trigger.dev drain window (0119 §3, item 5). |
 | T8 A watch on the pinned images Dependabot leaves alone | 📋 **Proposed** | §3. After the first invitation. Extends 0135 T7's job (the identity provider) to Trigger.dev, ClickHouse, MinIO and the task base image. |
@@ -796,6 +850,10 @@ before the hold lifts. On live, the script:
   deploy shows the first, a redeploy on the OTA stack can show the second, and the flag is dropped
   if the server ignores it;
 - adds "one-way" or "reversible" to the line 0132 T6 appends to live's deploy log.
+
+**Built 2026-09-28** in 0132 T6's script (on branch
+`claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged), all but
+`--external-id`, which is deferred; the Status block says why.
 
 On the OTA stack nothing changes: the nightly gate still deploys `main`, and it never runs this
 script.
