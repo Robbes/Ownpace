@@ -78,6 +78,7 @@ import {
   type DiscoveryDomain,
 } from '@openmig/shared';
 import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
+import { refusedAsClosed } from '../closed-organisation.ts';
 import type { MappingLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import {
@@ -234,6 +235,9 @@ router.get(
   async (req: MappingLinkRequest, res: Response) => {
     try {
       const { linkId, tenantId, mappingId, expiresAt } = req.mappingLink!;
+      // The organisation that sent the link was closed (0085 T2): nobody is
+      // asked to grant it anything, and the page says why in its language.
+      if (await refusedAsClosed(res, tenantId, pool())) return;
       const loaded = await loadSubject(tenantId, mappingId);
       if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(loaded.reason) });
       const { askedBy, checkedCompany } = await withTenantDb(tenantId, pool(), async (db) => ({
@@ -291,6 +295,9 @@ router.post(
   async (req: MappingLinkRequest, res: Response) => {
     try {
       const { linkId, tenantId, mappingId } = req.mappingLink!;
+      // No consent begins for a closed organisation (0085 T2): nothing would
+      // be allowed to use what it granted.
+      if (await refusedAsClosed(res, tenantId, pool())) return;
       const loaded = await loadSubject(tenantId, mappingId);
       if (!loaded.ok) return void res.status(409).json({ error: 'not_ready', ...reasonPair(loaded.reason) });
 

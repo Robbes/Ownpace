@@ -87,6 +87,7 @@ import { davUrl } from '@openmig/orchestration/dav-endpoint';
 import { serverFault } from '../server-fault.ts';
 import { probeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
+import { refusedAsClosed } from '../closed-organisation.ts';
 
 const router = Router();
 
@@ -172,6 +173,11 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       });
       return;
     }
+
+    // The report reads the source and measures the destination with their
+    // stored access, so a closed organisation gets none (0085 T2). Asked in
+    // the caller's organisation, on the same pool as every read here.
+    if (await refusedAsClosed(res, tenantId, pool())) return;
 
     // The report measures the organisation's own DAV target again, at the
     // address somebody typed: one test against the member's limit (0136 T3).

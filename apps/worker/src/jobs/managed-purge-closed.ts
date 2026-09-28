@@ -18,9 +18,12 @@
  * has, so the check is a precondition rather than a nicety, and a tenant that
  * cannot be quiesced is skipped and said out loud rather than forced.
  *
- * Closing already stops the sync tick picking the mapping up (status is no
- * longer `active`), so a run still in flight means one that was already
- * underway.
+ * Closing stops the sync tick picking the organisation's migrations up: the
+ * tick reads the organisation's status, `tenant.status`, and not only each
+ * migration's own (workplan 0085 T2). A pass already under way stops before
+ * its next data type, and the credential builders refuse a closed
+ * organisation. So a run still in flight here is one that was already copying
+ * a data type when the close came, or a row a killed worker left behind.
  *
  * ## Why waiting was not enough on its own (T8's second half)
  *
@@ -152,10 +155,12 @@ export const managedPurgeClosed = schedules.task({
 
     // The dates live in `tenant_closure` since ADR-0036, so this is a join
     // rather than two columns. The `status = 'closed'` half is kept, and is not
-    // redundant: a closure row is written first and the status second, so a
-    // close interrupted between the two statements leaves a due date on a
-    // tenant that is still active. Requiring both means such a tenant is
-    // skipped by this job rather than purged by it.
+    // redundant. `closeTenant` writes the status first and the closure row
+    // second, and the close and the reopen each run in one transaction, so the
+    // two agree once either has committed. A tenant where they disagree was
+    // changed some other way; requiring both means it is skipped by this job
+    // rather than purged by it. It also leaves out a tenant whose purge has
+    // already begun (`deleting`).
     const { rows } = await pool.query<DueRow>(
       `SELECT t.id
          FROM tenant t

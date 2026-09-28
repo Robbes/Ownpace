@@ -61,7 +61,8 @@ import {
   type LedgerDriver,
 } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { LINK_SPENT, log, reasonPair, type TenantId } from '@openmig/shared';
+import { LINK_SPENT, log, organisationClosedRefusal, reasonPair, type TenantId } from '@openmig/shared';
+import { readOrganisationClosure } from '@openmig/managed';
 import { withTenantDb } from '../../middleware/auth.ts';
 import { progressPageUrl, type ProgressPageUrl } from './progress-page-url.ts';
 import { namedAccount, readGrantRows, whereFromAndTo } from './grant-subject.ts';
@@ -115,6 +116,11 @@ export type GrantStoreResult =
       reasonNl: string;
       /** True when the link was left unspent, so the SAME link can be used again. */
       linkStillWorks?: boolean;
+      /**
+       * True when nothing reached the link at all: its organisation was closed
+       * (0085 T2). Not spent, and of no use until the organisation is reopened.
+       */
+      linkUnused?: boolean;
     };
 
 /**
@@ -174,6 +180,15 @@ export async function storeGrantedToken(
 
   try {
     return await withTenantDb(target.tenantId, source, async (db) => {
+      // A closed organisation takes no new grant (0085 T2): no token is stored,
+      // a withdrawal is not lifted, and the link is not spent. Asked in this
+      // transaction, before anything is written, whatever the callback asked
+      // before the code exchange: a close can land in between.
+      const closure = await readOrganisationClosure(db, target.tenantId);
+      if (closure) {
+        const refusal = organisationClosedRefusal(closure);
+        return { ok: false as const, reason: refusal.en, reasonNl: refusal.nl, linkUnused: true };
+      }
       const spent = await spendMappingLink(db, {
         tenantId: target.tenantId,
         linkId: target.linkId,

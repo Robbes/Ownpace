@@ -99,7 +99,9 @@ export function managedOpener(pool: Pool, tenantId: string, mappingId: string): 
  * build (no DAV connection configured for this mapping, say) is omitted
  * rather than throwing — verification then reports it
  * NOT_VERIFIABLE with the reason, which is more useful than failing the whole
- * gate before it measures the domains that DO work.
+ * gate before it measures the domains that DO work. A closed organisation is
+ * the exception: its refusal is every domain's, so this throws it and no
+ * verdict is recorded (workplan 0085 T2, `target-fan-out.ts`).
  *
  * Tries all five, unconditionally: the verification gate decides per domain
  * whether it WANTED one, and a domain it wanted but could not open has to be

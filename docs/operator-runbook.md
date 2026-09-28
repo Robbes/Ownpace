@@ -665,10 +665,61 @@ records the close as `tenant.closed`, with you as the actor and the reference
 beside `via: operator`; a close from the button names its owner and
 `via: screen`.
 
-Syncs and billing stop immediately and the account goes read-only. Nothing is
-deleted yet. A window of `0` cannot be undone and the response says so
-(`canReopenUntil: null`); every other window can, with
-`POST /api/tenants/:tenantId/reopen`, until it runs out.
+Syncs and billing stop immediately. Nothing is deleted yet. A window of `0`
+cannot be undone and the response says so (`canReopenUntil: null`); every other
+window can, with `POST /api/tenants/:tenantId/reopen`, until it runs out.
+
+**What stops, and how** (workplan 0085 T2; built 2026-09-28, after the owner
+found a closed organisation still syncing). The close does not touch the
+migrations: each keeps its own status. Everything that would start a pass or
+use the access the organisation gave reads the organisation's status instead,
+so a reopen needs nothing restored.
+
+- **No new pass.** The sync tick starts nothing for a closed organisation, in
+  any state its migrations are in: active, in the continuous lane, a cutover
+  still in its grace period, or a data type kept in the lane.
+- **A pass under way stops** before its next data type, before it builds any
+  credential, and its run log says the organisation was closed (the halt
+  `organisation_closed`). It ends without an error, so the plane does not retry
+  it. This is what stops a pass the tick queued in the minute before the close,
+  and a retry. The close asks the orchestrator to cancel only the runs whose
+  rows say `running` or `queued` (`passesStopped`), and a pass has a row only
+  once a runner starts it: `startRun` writes `running`, and nothing writes
+  `queued`.
+- **No reader is built.** Both credential builders refuse a closed organisation
+  before any stored credential is decrypted, with an ordinary error. So a
+  discovery or an apply queued before the close fails there, and each retry is
+  refused the same way. A verification, a confirmation and a cutover's gate
+  open their targets through a fan-out that leaves out a data type it cannot
+  open (`fanOutTargets`). The close's refusal it passes up instead, so they fail
+  too and record no verdict: a verification's run says `failed` with the
+  close's sentence, a confirmation writes no run, and a cutover's preparation
+  is marked `FAILED` with a reason that names the close (its final sync stops
+  first, with the halt above). None of them leaves a report of nothing (every
+  data type NOT_VERIFIABLE, every row `unchecked`) for a reopen to find. Run
+  them again after a reopen.
+- **Every door that would start work answers 409 `account_closed`**, with a
+  sentence that names the day of the close and the day the data is removed:
+  Sync now, a cutover's preparation, a discovery, Start, a verification, both
+  applies, a confirmation; creating a migration, moving one into the continuous
+  lane, adding, resuming or keeping a data type; adding, testing or re-keying a
+  connection; the permission report; the sharing rescan and the share applies;
+  and a grant link's page, consent and ending, which store no token and lift no
+  withdrawal. Start and Sync now ask the close before the migration's own
+  state, so a migration the close left running, a draft, or one waiting for a
+  grant is answered with the close.
+- **What stays open:** reading (migrations, queues, reports, run history, the
+  organisation), export and download, the close itself, the reopen, deleting a
+  migration or a connection (which revokes what it can at the provider),
+  stopping or ending a data type, and edits that start nothing (a name, a
+  schedule, a decision, a failure marked for retry). The check is never in
+  `authenticate`, because the owner reopens through it.
+
+After a reopen the next tick picks the migrations up where they were, and every
+door answers as before. The guards are
+`apps/worker/src/jobs/a-closed-organisation-gets-no-pass.unit.test.ts`,
+`apps/api/src/an-organisation-closed-at-every-door.unit.test.ts` and
+`packages/orchestration/src/a-closed-organisation-is-read-by-nobody.integration.test.ts`.
 
 The response is what you tell the customer. It carries **two dates**:
 
@@ -678,7 +729,12 @@ The response is what you tell the customer. It carries **two dates**:
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
 | `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days a dump of its databases taken before a deploy is kept; the owner takes and deletes that dump by hand, since no script does yet, workplan 0134) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
-| `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
+| `windowDays` | the window they chose |
+| `canReopenUntil` | until when `POST /api/tenants/:tenantId/reopen` works: `purgeAfter`, or `null` for a window of `0` |
+| `passesStopped` | how many runs in flight we **asked** the orchestrator to cancel, not how many stopped; a pass with no run row yet stops by itself (above) |
+| `outlivingAccess` | everything that keeps working after we have forgotten them, `en` and `nl`: the consents in their providers' consoles and the app passwords in their own accounts. What to send them |
+| `neverTouched` | what the erasure will **not** do (their source and their new provider), `en` and `nl`, with the list as `boundaries` |
+| `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them. Kept for older callers; `outlivingAccess` supersedes it |
 
 **Why two dates.** A row deleted from the live database is still in last
 night's backup. Saying "deleted" on the day of the purge would be false, and it
@@ -730,11 +786,13 @@ somebody could reasonably expect to mean the opposite.
 
 ### 4. Access, and the part only they can do
 
-Closing makes the account read-only. To invalidate outstanding tokens as well,
-rotate `JWT_SECRET` (affects every tenant — prefer short token lifetimes) or
-set `tenant_member.status = 'suspended'`.
+Closing refuses every door that would start work or use the access they gave,
+and leaves reading open (section 1). Their members can still sign in and read,
+and the owner can reopen. To invalidate outstanding tokens as well, rotate `JWT_SECRET` (affects
+every tenant — prefer short token lifetimes) or set
+`tenant_member.status = 'suspended'`.
 
-Then send them `standingGrants` from the close response. Revoking a token is
+Then send them `outlivingAccess` from the close response. Revoking a token is
 not withdrawing a consent: an Entra admin consent, a Google OAuth
 authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.
