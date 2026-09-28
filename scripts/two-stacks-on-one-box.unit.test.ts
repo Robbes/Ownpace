@@ -344,9 +344,19 @@ describe('the first half: nothing names a stack that the project does not', () =
     // public job log and evidence. It would also have counted a live runner as
     // the OTA stack's own. A listing is narrowed by a `--filter` built from the
     // project, or from a name derived from it. Comments are prose.
+    //
+    // ONE SCRIPT ASKS THE WHOLE DAEMON ON PURPOSE: the exposure check (0132 T3
+    // (b)) covers both stacks, the site and the demo's Stalwart in one run. It
+    // reads names and ports and prints no log, no environment and no address;
+    // `exposure-check.unit.test.ts` holds what it prints.
+    const wholeDaemon = new Set(['deploy/compose/exposure-check.sh']);
+    expect(
+      sources.filter((s) => wholeDaemon.has(s.file)).map((s) => s.file),
+      'an exemption for a script that is not there exempts nothing, and hides the next one',
+    ).toEqual([...wholeDaemon]);
     const hits: Line[] = [];
     let listings = 0;
-    for (const s of sources.filter((x) => x.file !== MANAGED)) {
+    for (const s of sources.filter((x) => x.file !== MANAGED && !wholeDaemon.has(x.file))) {
       const derived = new Set(['COMPOSE_PROJECT', 'COMPOSE_PROJECT_NAME']);
       for (let grew = true; grew; ) {
         grew = false;

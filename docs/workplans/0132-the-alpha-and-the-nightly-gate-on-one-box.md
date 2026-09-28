@@ -2,7 +2,65 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T3 (b) and (c) built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged.**
+The exposure check on the machine, and the probe from outside, dispatch only. T3 (a), the binds,
+is on `main` (#1236 and #1253, merged 2026-09-27). (d), the path a tester's request takes and the
+forged `X-Forwarded-For`, waits for live to stand (T1b to T1e).
+
+- **The check, (b).** `deploy/compose/exposure-check.sh` reads `docker ps` for every running
+  container on the host, so one run covers both stacks, the site and the demo's Stalwart. It
+  fails for each port published on every interface (`0.0.0.0`, `::`), whatever `EXPOSURE_ALLOW`
+  says, and for each port on an address that is neither loopback (any 127.x address, `::1`) nor
+  listed in `EXPOSURE_ALLOW`. It reads that list from the `.env` beside it, or `--env-file`, with
+  `env_value`, never from the shell; single or double quotes around it are read too. An entry that
+  is not an address, or is every interface, stops it (exit 2), naming the entry's place and not
+  its value. A publish it cannot read is a finding. A container on the host's network is named as
+  not checked. It prints the container and the port,
+  never an address, loopback included; Docker's own error is printed with every address replaced.
+  Exit 0, 1 on a finding, 2 on usage or no Docker. `--from <file>|-` reads recorded `docker ps`
+  lines instead of asking Docker. `EXPOSURE_ALLOW=` is in `managed.env.example`. T6 and T7 will
+  call it; nothing calls it yet.
+- **The probe, (c).** `.github/workflows/exposure-probe.yml` runs on `workflow_dispatch` only (open
+  question 6's proposed answer), on `ubuntu-24.04`, GitHub-hosted like the repository's other
+  hosted jobs, never the self-hosted runner. Its one step runs `scripts/exposure-probe.mjs`. That
+  resolves the three production names and the three OTA names, and tries every port on each
+  address they resolve to, and on the machine's own address when the secret `EXPOSURE_PROBE_HOST`
+  holds it. The ports come from `scripts/exposure-probe-ports.mjs`, which reads them from
+  `managed.yml`, `www.yml` and `setup-managed-demo.sh` (13 today) and refuses a publish it cannot
+  read, plus live's own from the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, without which the
+  probe does not run. It passes when 443 on each production name answers over TLS, the discovery
+  document at `id.ownpace.eu` names `https://id.ownpace.eu`, and no tried port accepts a
+  connection. The OTA names follow the dispatch input `ota_names` (open question 7, unanswered):
+  `report`, the default, records what answered; `internet` requires TLS on 443; `mesh-only`
+  requires no answer. Every address and the secret are masked before anything else is printed. A
+  finding names the names and the port, the machine's own address by the secret's name, and an
+  error by its code. An address the runner cannot reach (a hosted runner has no IPv6 route) is
+  reported as not tried, never as closed.
+- **The guards, and that they failed first.** `scripts/exposure-check.unit.test.ts`, 21 cases, all
+  red on `main` (no script). `scripts/a-probe-that-knows-every-port.unit.test.ts`, 10 cases, and
+  `scripts/exposure-probe.unit.test.ts`, 24 cases, did not load on `main` (neither module existed).
+  The first fails when `managed.yml` or `www.yml` publishes a port the probe does not try; a
+  synthetic extra port in each file proves it. Thirteen mutations each turned a guard red: a
+  schedule trigger, a self-hosted runner, a port written in the workflow, the derivation without
+  `www.yml`, the long syntax skipped, `::` read as an ordinary address, an address in a finding
+  (in the check, and in the probe), an unreadable publish passed, `EXPOSURE_ALLOW` read from the
+  shell, the masks removed, an unreachable address called closed, and the issuer ignored.
+  `two-stacks-on-one-box`'s rule that every `docker ps` filters by the project now exempts
+  `exposure-check.sh` by name, and fails if that file is gone.
+- **Docs.** `docs/managed-bring-up.md`, *Which address a port answers on*, has a paragraph on both;
+  `docs/testing.md` lists the workflow.
+- **For the owner, before the first check and probe.** `EXPOSURE_ALLOW` in each stack's `.env`:
+  every address any container on the machine is published on on purpose, not only that stack's,
+  because the check reads the whole machine. That is both stacks' `*_BIND` values, the site's
+  `WWW_BIND` and the demo's `STALWART_BIND`, separated by commas with no space; a bare space is a
+  line the bring-up refuses. The repository variable `EXPOSURE_PROBE_LIVE_PORTS`: live's `*_PORT`
+  values. The secret `EXPOSURE_PROBE_HOST`, if the machine has a public address of its own. Open
+  questions 6 and 7 stay open: the workflow takes 6's proposed answer and leaves 7 to the input.
+- **Not proved.** Neither has run on the machine or on GitHub. The probe's TLS and discovery calls
+  have no test against a real server; its TCP connect is tested against a port on the test
+  machine. 0135's check that the registration page answers 404 is not in the probe yet.
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found three
 things about the stack testers would use. The nightly managed gate rebuilds it from `main` and
@@ -594,7 +652,7 @@ GitHub hid none of it.
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. |
+| T3 "Not reachable from the internet", checked | 🔨 (b) the exposure check and (c) the outside probe **built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged** (2026-09-28); (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) — *was:* 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. |
