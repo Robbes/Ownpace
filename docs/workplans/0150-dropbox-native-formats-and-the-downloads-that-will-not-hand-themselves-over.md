@@ -4,10 +4,30 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night, last: the target's walk, the leading suspect for the 40 minutes, built (T1;
+0131 §6, group M8)** on branch `claude/mailbox-sync-errors-c2xsw2-a-walk-of-the-whole-target`,
+not merged: held for the owner's word, or for the first pass's timings (the entry below).
+
+- **What changed.** The WebDAV writer no longer walks everything under its root before its first
+  write (`keysUnderRoot`). A directory is listed the first time something in it is asked about,
+  once, and its listing is shared by every item asking at the same moment. A directory the writer
+  made itself is known to be empty and is never listed. One the server says was there already
+  (405) is listed when asked about. One that cannot be listed falls back to the per-item check,
+  as the walk's failure did. The answers are the walk's: the same adoption of a file the target
+  holds, the same refusal of a directory where a file has to go. What it costs is what the pass
+  touches, where it cost the whole target, on every pass.
+- **Proved** by `packages/engines/src/a-walk-of-the-whole-target.unit.test.ts` (8 cases, against
+  a fake DAV server that writes down every request; 3 fail on the old writer). 8 of 8 mutations
+  caught.
+- **Not changed:** the source still lists every folder in full on every pass, since Dropbox has no
+  delta per folder. That is the other suspect. The first pass's `collectionSetupMs`, against
+  `listCollectionsMs` and `collectionListingMs`, says which of the two the minutes were.
+- **Recommended:** merge it with the timings and deploy once. If the minutes before the first
+  copy are gone, the walk was it; if not, the timings name the phase that holds them.
+
 **2026-09-28, late: the fix proven on the owner's migration, and the next wall: 40 minutes before
-the first copy (T1; 0131 §6, group M8)** on branch
-`claude/mailbox-sync-errors-c2xsw2-where-a-pass-spent-its-time`, not merged. From the owner's
-readings on the OTA stack, with the migration's id left out.
+the first copy (T1; 0131 §6, group M8)**, merged as #1335. From the owner's readings on the OTA
+stack, with the migration's id left out.
 
 - **Proven live.** The first pass on the fixed build (#1328 and #1329, deployed as v20260928.12)
   started at 20:30 UTC and ended `COMPLETED_SUCCESSFULLY` at its 50-minute deadline. It handled
