@@ -115,20 +115,39 @@ its list of organisations from `activeOrganisations`, and reads and writes
 every organisation in that organisation's scope. The same guard holds them as
 its third kind, `SPLIT`, closed, each entry saying why the job crosses
 organisations and what it reads per organisation: a split job reads no
-database URL and builds no pool, so it has no owner's connection to read an
-organisation on; it names its tenant pool only as the first argument of
-`withTenant` or `tenantScopedDb` (or hands it to a function of its own file
-whose `Pool` parameter the rule reads in turn), since a statement on that pool
-outside a scope finds nothing; only the three and the module name
-`activeOrganisations`; and the module's one statement across organisations is
-the list, ids from `tenant`, beside the question whether its connection sees
-every organisation. `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts`
-runs each job's per-organisation half on the pools it opens, for two
-organisations: each produces the digest, the findings and the groups it
-produced on the owner's, as `app_user`, on no pool but the tenant pool and the
-audit key's, one connection at a time; the list names the active ones and
-refuses on `app_user`; and the jobs' own statements outside a scope find
-nothing. A run still
+database URL and builds no pool; it names its tenant pool only as the first
+argument of `withTenant` or `tenantScopedDb` (or hands it to a function of its
+own file whose `Pool` parameter the rule reads in turn), since a statement on
+that pool outside a scope finds nothing; and only the three and the module
+name `activeOrganisations`. No URL and no pool of its own did not keep the
+owner's connection out of a split job: review added one export to the module
+that handed its caller the list's pool, and read every organisation on it from
+a split job and from a per-tenant one with every guard green. So the same
+guard closes the module at both ends (its rule 7): `task-pools.ts` exports
+`openTaskPools`, `activeOrganisations` and the list's text, and types, and
+nothing else; imports only its own short list, so no query builder and no
+schema; names each pool it builds on the owner's URL (the key's, the list's)
+only to ask it the list or the question whether it sees every organisation,
+each by name and each held to its literal, to end it, to hear its errors, or,
+the key's, as the audit sink's driver, never returned or handed on; and
+declares `activeOrganisations` as `Promise<string[]>`, returning
+`rows.map((row) => row.id)`. A per-tenant job and the standalone worker take
+`openTaskPools` from it and a split job that and `activeOrganisations`, nothing
+else (types aside), and none of them imports a value from another file on the
+guard's cross-tenant list. It reads each file's own imports: a pool of the
+owner's handed on through a module in between would be out of its sight, and
+no file on that list exports one. What no static rule tells is a
+per-organisation read in the wrong organisation's scope.
+`apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts`
+is for that: it runs each job's per-organisation half on the pools it opens,
+for two organisations, with every queue the digest counts seeded and A's
+numbers never B's: each produces the digest (every line of each
+organisation's mail compared), the findings and the groups it produced on the
+owner's, as `app_user`, on no pool but the tenant pool and the audit key's,
+one connection at a time; the list names the active ones and refuses on
+`app_user`; and the jobs' own statements outside a scope find nothing. It
+runs the halves, not the tasks' `run` bodies, which the static rules above
+hold. A run still
 receives the owner's URL (§2's `set-task-env.sh` row) until T3 step 2. That
 guard does not read `apps/api`;
 `scripts/a-route-that-opened-the-owners-pool.unit.test.ts` does (0138 T6): a
@@ -416,12 +435,14 @@ testcontainers):**
   — the digest, the drift detector and group discovery, split in two (0138
   T2): the list names the active organisations and refuses on `app_user`; each
   job's per-organisation half, on the pools the job opens, produces for each
-  of two organisations what it produced on the owner's (the mail, its
-  recipients and counts; the new mailboxes, a dismissal and a standing answer
-  honoured; the groups and the question asked), as `app_user`, on no pool but
-  the tenant pool and the audit key's, one connection at a time; and each of
-  the jobs' own statements answers in its organisation's scope and finds
-  nothing outside one.
+  of two organisations what it produced on the owner's (the mail and its
+  recipients, every queue it counts seeded with A's numbers never B's and
+  each line compared, the relocations counted since that organisation's own
+  last digest; the new mailboxes, a dismissal and a standing answer honoured;
+  the groups and the question asked), as `app_user`, on no pool but the tenant
+  pool and the audit key's, one connection at a time; and each of the jobs'
+  own statements answers in its organisation's scope and finds nothing
+  outside one. It runs the halves, not the tasks' `run` bodies.
 - The API route suites (`apps/api/src/routes/**/*.integration.test.ts`) run
   every request through `withTenant` + the membership gate; each seeds the
   memberships its tokens imply (`apps/api/src/__tests__/seed-membership.ts`),

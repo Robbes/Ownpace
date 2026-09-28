@@ -50,19 +50,57 @@
  *      the digest, the drift detector and group discovery ask ONE question
  *      across organisations, which organisations are active, and everything
  *      else they read or write is one organisation's. A SPLIT file reads no
- *      database URL and builds no pool: it takes the list from
- *      `activeOrganisations` (task-pools.ts), which hands back ids and nothing
- *      else, and its pools from `openTaskPools`, under rules 3 and 5, opened in
- *      its run and ended in `afterwards`. So it has no owner's pool to do a
- *      per-organisation read on: it would have to read the URL (rule 1) or
- *      build a pool (rule 2). And on the pool it does have, the tenant pool,
- *      a read outside a scope finds nothing, fail closed, so it names that
- *      pool, under whatever name and in whatever function, only as the first
- *      argument of `withTenant` or `tenantScopedDb`, or hands it to a function
- *      of its own file whose parameter is a `Pool` and which this rule reads
- *      in turn. `activeOrganisations` is named by the three and by the module
- *      alone, and the module's one statement across organisations is the
- *      list: `id` from `tenant`, no other column and no other table.
+ *      database URL and builds no pool (rules 1 and 2); takes its pools from
+ *      `openTaskPools`, under rules 3 and 5, opened in its run and ended in
+ *      `afterwards`; and takes its list from `activeOrganisations`
+ *      (task-pools.ts). On the tenant pool a read outside a scope finds
+ *      nothing, fail closed, so it names that pool, under whatever name and in
+ *      whatever function, only as the first argument of `withTenant` or
+ *      `tenantScopedDb`, or hands it to a function of its own file whose
+ *      parameter is a `Pool` and which this rule reads in turn.
+ *      `activeOrganisations` is named by the three and by the module alone.
+ *      Rule 7 is what keeps the owner's side of a split job to ids. Neither
+ *      rule sees a per-organisation read in the WRONG organisation's scope:
+ *      that is the integration guard's
+ *      (`a-job-that-reads-each-organisation-as-itself`), which seeds every
+ *      queue the digest counts with different numbers per organisation.
+ *   7. What reaches a job from the owner's connection is closed at both ends
+ *      (0138 T2's review). Rule 6 alone rested on a split job having no
+ *      owner's connection because it reads no URL and builds no pool. Review
+ *      added one export to task-pools.ts, `acrossOrganisations(work)`, which
+ *      asked the role question and then handed `work` the owner's pool of
+ *      one, and with it read every organisation's coverage in the drift
+ *      detector's run, every organisation's name and settings in the
+ *      digest's, and other organisations' connections from `run-discovery`,
+ *      a per-tenant job: every guard green, unit and integration. And a second
+ *      list the module built with drizzle, `drizzle(list).select(…)
+ *      .from(tenant)`, had no statement text for the rule on the module's
+ *      statements to read. So:
+ *        - task-pools.ts exports the values on TASK_POOLS_EXPORTS and types,
+ *          nothing else: no `export … from`, no default.
+ *        - it imports the values on TASK_POOLS_IMPORTS and nothing else: no
+ *          query builder, no schema.
+ *        - every pool it builds on the owner's URL (any pool whose connection
+ *          string is not read from `APP_DATABASE_URL`: today the key's and
+ *          the list's) is a `const`'s value, and that name is named again
+ *          only to ask it one of the two statements, to `.end()` it, to hear
+ *          its `.on(…)`, or, as the key's is, as `pgDriver(…)` inside
+ *          `auditExportOn(…)`. Never returned, handed to another call, stored
+ *          or spread. Every `.query(` in the module asks
+ *          `ACTIVE_ORGANISATIONS_SQL` or `SEES_EVERY_ORGANISATION_SQL`, and
+ *          each is the literal the list and the role question are held to:
+ *          the list is `id` from `tenant`, no other column and no other table.
+ *        - `activeOrganisations` is declared `Promise<string[]>` and returns
+ *          `rows.map((row) => row.id)`, and nothing else.
+ *        - a file takes from task-pools.ts only what its kind may: a
+ *          PER_TENANT file and the standalone worker `openTaskPools`, a SPLIT
+ *          file that and `activeOrganisations`, any other file nothing (types
+ *          are free; tests are not read). No `import * as`, no `import(…)`,
+ *          no re-export. And none of those files imports a value from another
+ *          file on CROSS_TENANT.
+ *      It reads each file's own imports: an owner's pool handed on through a
+ *      module none of them imports directly would be out of its sight. No
+ *      file on CROSS_TENANT exports a pool.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -201,6 +239,46 @@ const STANDALONE_WORKER = 'apps/worker/src/index.ts';
 
 /** The one module that builds a task's pools. */
 const TASK_POOLS = 'apps/worker/src/jobs/task-pools.ts';
+
+/**
+ * What task-pools.ts hands out: its values, by name, closed (rule 7). A type
+ * carries nothing at run time and is not listed. The module holds the owner's
+ * URL, and one more export that handed its caller the owner's pool
+ * (`acrossOrganisations(work)`, 0138 T2's review) put a split job and a
+ * per-tenant one on it with every guard green. A value added here is one more
+ * thing the owner's side hands out, and says what.
+ */
+const TASK_POOLS_EXPORTS: Record<string, string> = {
+  openTaskPools: "the tenant pool and its end (rules 3 and 5); the key's pool stays with its sink",
+  activeOrganisations: 'the ids of the active organisations, for the SPLIT jobs (rule 6)',
+  ACTIVE_ORGANISATIONS_SQL: "the list's statement as text, for the tests that read it",
+};
+
+/**
+ * What task-pools.ts imports, as `<module>: <name>`, values only, closed
+ * (rule 7). No query builder and no schema: a read built with drizzle has no
+ * statement text for the rule on the module's statements to read, and review
+ * added one (`drizzle(list).select(…).from(tenant)`) with every guard green.
+ */
+const TASK_POOLS_IMPORTS: Record<string, string> = {
+  'pg: Pool': "the three pools it builds: the tenant pool, the key's and the list's",
+  '@openmig/ledger: appEventSinkOn': "the operator's log page's sink, on the tenant pool",
+  '@openmig/ledger: auditExportOn': "the audit export's sink, on the key's pool",
+  '@openmig/ledger: pgDriver': 'the driver each sink writes through',
+  '@openmig/shared: log': "a dropped connection's warning",
+  '@openmig/shared: setAppEventSink': 'points the log page at the tenant pool',
+  '@openmig/shared: setAuditExportSink': "points the audit export at the key's pool",
+};
+
+/** The two statements the module may send, by the names it declares them under (rule 7). */
+const THE_MODULES_STATEMENTS = ['ACTIVE_ORGANISATIONS_SQL', 'SEES_EVERY_ORGANISATION_SQL'] as const;
+
+/** What a file may take from task-pools.ts, by the name the module exports it under (rule 7). Types are free. */
+function mayTakeFromTaskPools(file: string): readonly string[] {
+  if (SPLIT[file] !== undefined) return ['activeOrganisations', 'openTaskPools'];
+  if (PER_TENANT.includes(file) || file === STANDALONE_WORKER) return ['openTaskPools'];
+  return [];
+}
 
 /**
  * Functions that read the owner's URL for their caller, from the environment
@@ -741,6 +819,312 @@ function importTimeEffects(file: string, text: string): string[] {
   return effects;
 }
 
+/** Where a node is, for a message: its line and its first line of text. */
+function whereIs(sf: ts.SourceFile, node: ts.Node): string {
+  return `line ${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}: ${node.getText(sf).split('\n')[0]!.slice(0, 90)}`;
+}
+
+/** A module specifier that names task-pools.ts. */
+const NAMES_TASK_POOLS = (specifier: string): boolean => /(?:^|\/)task-pools(?:\.[cm]?[jt]s)?$/.test(specifier);
+
+/**
+ * What a file takes from the modules `names` picks out: each value it imports,
+ * by the name the module exports it under, and each shape whose names are out
+ * of sight (`import * as`, a default import, `export … from`, `import(…)`,
+ * `require(…)`). A type-only import takes nothing; a bare `import '…'` takes
+ * nothing either (rule 4: the module runs nothing when loaded).
+ */
+function valuesTakenFrom(file: string, text: string, names: (specifier: string) => boolean): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const taken = new Set<string>();
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && names(node.moduleSpecifier.text)) {
+      const clause = node.importClause;
+      if (clause && !clause.isTypeOnly) {
+        if (clause.name) taken.add('a default import');
+        const named = clause.namedBindings;
+        if (named && ts.isNamespaceImport(named)) taken.add('import * as');
+        if (named && ts.isNamedImports(named)) {
+          for (const el of named.elements) if (!el.isTypeOnly) taken.add((el.propertyName ?? el.name).text);
+        }
+      }
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      names(node.moduleSpecifier.text) &&
+      !node.isTypeOnly
+    ) {
+      const clause = node.exportClause;
+      const typesOnly = clause !== undefined && ts.isNamedExports(clause) && clause.elements.every((el) => el.isTypeOnly);
+      if (!typesOnly) taken.add('export … from');
+    } else if (ts.isCallExpression(node)) {
+      const first = node.arguments[0];
+      const loads =
+        node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require');
+      if (loads && first !== undefined && ts.isStringLiteralLike(first) && names(first.text)) taken.add('import(…)');
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return [...taken].sort();
+}
+
+/**
+ * The CROSS_TENANT files other than task-pools.ts that a file names by a
+ * relative specifier, for {@link valuesTakenFrom}.
+ */
+function namesAnotherCrossTenantFile(file: string): (specifier: string) => boolean {
+  return (specifier) => {
+    if (!specifier.startsWith('.')) return false;
+    const resolved = join(dirname(file), specifier).replace(/\.js$/, '.ts');
+    const withExtension = /\.[cm]?tsx?$/.test(resolved) ? resolved : `${resolved}.ts`;
+    return withExtension !== TASK_POOLS && CROSS_TENANT[withExtension] !== undefined;
+  };
+}
+
+/**
+ * What a module exports as a value: each name, and each shape that hands out
+ * names not written here (`export * from`, `export { … } from`, a default).
+ * Interfaces and type aliases carry nothing at run time and are left out.
+ */
+function valueExports(file: string, text: string): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const found = new Set<string>();
+  const exported = (node: ts.Node) =>
+    ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+  const isDefault = (node: ts.Node) =>
+    ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+  for (const st of sf.statements) {
+    if (ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st)) continue;
+    if (ts.isExportAssignment(st)) found.add(st.isExportEquals ? 'export =' : 'default');
+    else if (ts.isExportDeclaration(st)) {
+      if (st.isTypeOnly) continue;
+      if (st.moduleSpecifier !== undefined) {
+        found.add(`export … from ${st.moduleSpecifier.getText(sf)}`);
+      } else if (st.exportClause && ts.isNamedExports(st.exportClause)) {
+        for (const el of st.exportClause.elements) if (!el.isTypeOnly) found.add(el.name.text);
+      }
+    } else if (exported(st)) {
+      if (isDefault(st)) found.add('default');
+      else if (ts.isVariableStatement(st)) {
+        for (const d of st.declarationList.declarations) {
+          if (ts.isIdentifier(d.name)) found.add(d.name.text);
+          else found.add(`a destructured export, ${d.name.getText(sf)}`);
+        }
+      } else if (
+        (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st) || ts.isModuleDeclaration(st)) &&
+        st.name !== undefined
+      ) {
+        found.add(st.name.text);
+      } else found.add(`an export, ${whereIs(sf, st)}`);
+    }
+  }
+  return [...found].sort();
+}
+
+/** What a module imports as a value, as `<module>: <name>`, `<module>: * as`, `<module>: default` or `<module>: (loaded)`. */
+function valueImports(file: string, text: string): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const found = new Set<string>();
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const from = node.moduleSpecifier.text;
+      const clause = node.importClause;
+      if (clause === undefined) found.add(`${from}: (loaded)`);
+      else if (!clause.isTypeOnly) {
+        if (clause.name) found.add(`${from}: default`);
+        const named = clause.namedBindings;
+        if (named && ts.isNamespaceImport(named)) found.add(`${from}: * as`);
+        if (named && ts.isNamedImports(named)) {
+          for (const el of named.elements) if (!el.isTypeOnly) found.add(`${from}: ${(el.propertyName ?? el.name).text}`);
+        }
+      }
+    } else if (ts.isCallExpression(node)) {
+      const first = node.arguments[0];
+      const loads =
+        node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require');
+      if (loads) found.add(`${first !== undefined && ts.isStringLiteralLike(first) ? first.text : first?.getText(sf)}: import(…)`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return [...found].sort();
+}
+
+/** Whether a connection string's text reads `APP_DATABASE_URL` and no other database URL. */
+const READS_THE_TENANT_URL = (text: string): boolean =>
+  text.includes('APP_DATABASE_URL') && !text.replace(/APP_DATABASE_URL/g, '').includes('DATABASE_URL');
+
+/**
+ * How a module uses each pool it builds on the owner's URL (rule 7).
+ *
+ * A pool is the owner's unless its connection string is read from
+ * `APP_DATABASE_URL`, followed through the `const` it is named by: every other
+ * `new Pool`/`new Client`, whatever it is built from, counts, a pool with no
+ * connection string among them. Each must be a `const`'s value, so it has a
+ * name to follow; each other place that name is read must be
+ * `.query(<one of THE_MODULES_STATEMENTS>, …)`, `.end()`, `.on(…)`, or the one
+ * argument of `pgDriver(…)` that is itself the first argument of
+ * `auditExportOn(…)`, the key's sink. Anything else (returned, handed to a
+ * call, stored, spread, `.connect()`, another statement) is listed with its
+ * line. Names are matched in the whole file, not per scope.
+ */
+function ownerPoolUses(file: string, text: string): { owners: string[]; outside: string[] } {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const pgNames = new Set<string>();
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || st.moduleSpecifier.text !== 'pg') continue;
+    const named = st.importClause?.namedBindings;
+    if (named && ts.isNamedImports(named)) {
+      for (const el of named.elements) if (['Pool', 'Client'].includes((el.propertyName ?? el.name).text)) pgNames.add(el.name.text);
+    }
+  }
+  const isAPool = (callee: string) => /(?:^|\.)(?:Pool|Client)$/.test(callee) || pgNames.has(callee);
+
+  // Every const's initialisers, by name: a name declared twice is the tenant's only if both are.
+  const initialisers = new Map<string, ts.Expression[]>();
+  const collect = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      initialisers.set(node.name.text, [...(initialisers.get(node.name.text) ?? []), node.initializer]);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sf);
+  const onTheTenantsUrl = (built: ts.NewExpression): boolean => {
+    const options = built.arguments?.[0];
+    if (options === undefined || !ts.isObjectLiteralExpression(bare(options))) return false;
+    const property = (bare(options) as ts.ObjectLiteralExpression).properties.find(
+      (p) => p.name !== undefined && ts.isIdentifier(p.name) && p.name.text === 'connectionString',
+    );
+    if (property === undefined) return false;
+    const value = ts.isPropertyAssignment(property)
+      ? bare(property.initializer)
+      : ts.isShorthandPropertyAssignment(property)
+        ? property.name
+        : undefined;
+    if (value === undefined) return false;
+    const texts =
+      ts.isIdentifier(value) && initialisers.has(value.text)
+        ? initialisers.get(value.text)!.map((e) => e.getText(sf))
+        : [value.getText(sf)];
+    return texts.every(READS_THE_TENANT_URL);
+  };
+
+  const owners = new Set<string>();
+  const outside: string[] = [];
+  const findOwners = (node: ts.Node) => {
+    if (ts.isNewExpression(node) && isAPool(node.expression.getText(sf)) && !onTheTenantsUrl(node)) {
+      let up: ts.Node = node;
+      while (ts.isParenthesizedExpression(up.parent) || ts.isAsExpression(up.parent) || ts.isSatisfiesExpression(up.parent)) {
+        up = up.parent;
+      }
+      const decl = up.parent;
+      if (
+        ts.isVariableDeclaration(decl) &&
+        decl.initializer === up &&
+        ts.isIdentifier(decl.name) &&
+        ts.isVariableDeclarationList(decl.parent) &&
+        (decl.parent.flags & ts.NodeFlags.Const) !== 0
+      ) {
+        owners.add(decl.name.text);
+      } else {
+        outside.push(`a pool on the owner's URL that no const names, ${whereIs(sf, node)}`);
+      }
+    }
+    ts.forEachChild(node, findOwners);
+  };
+  findOwners(sf);
+
+  const allowed = (id: ts.Identifier): boolean => {
+    const p = id.parent;
+    if (ts.isVariableDeclaration(p) && p.name === id) return true; // the pool's own const
+    if (ts.isPropertyAccessExpression(p) && p.name === id) return true; // another object's property of that name
+    if (ts.isPropertyAssignment(p) && p.name === id) return true;
+    if (ts.isBindingElement(p) && p.propertyName === id) return true;
+    if (ts.isPropertyAccessExpression(p) && p.expression === id) {
+      const call = p.parent;
+      if (!ts.isCallExpression(call) || call.expression !== p) return false;
+      if (p.name.text === 'end' || p.name.text === 'on') return true;
+      const first = call.arguments[0];
+      return (
+        p.name.text === 'query' &&
+        first !== undefined &&
+        ts.isIdentifier(first) &&
+        (THE_MODULES_STATEMENTS as readonly string[]).includes(first.text)
+      );
+    }
+    if (ts.isCallExpression(p) && ts.isIdentifier(p.expression) && p.expression.text === 'pgDriver' && p.arguments.length === 1) {
+      const sink = p.parent;
+      return (
+        ts.isCallExpression(sink) &&
+        ts.isIdentifier(sink.expression) &&
+        sink.expression.text === 'auditExportOn' &&
+        sink.arguments[0] === p
+      );
+    }
+    return false;
+  };
+  const uses = (node: ts.Node) => {
+    if (ts.isIdentifier(node) && owners.has(node.text) && !allowed(node)) outside.push(whereIs(sf, node.parent));
+    ts.forEachChild(node, uses);
+  };
+  uses(sf);
+  return { owners: [...owners].sort(), outside };
+}
+
+/** The first argument of every `.query(…)` call in a file, as text. */
+function queriesAsked(file: string, text: string): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const asked: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'query') {
+      asked.push(node.arguments[0]?.getText(sf) ?? '(nothing)');
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return asked;
+}
+
+/** The text a module-level const is a string literal of, or undefined when it is anything else. */
+function literalOf(file: string, text: string, name: string): string | undefined {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st)) continue;
+    for (const d of st.declarationList.declarations) {
+      if (!ts.isIdentifier(d.name) || d.name.text !== name || d.initializer === undefined) continue;
+      const value = bare(d.initializer);
+      return ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ? value.text : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * What `activeOrganisations` says it answers and what it returns: its declared
+ * return type and each `return`'s expression, whitespace dropped, not counting
+ * the returns of the functions inside it.
+ */
+function activeOrganisationsAnswers(file: string, text: string): { declared?: string; returns: string[] } {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const squeeze = (n: ts.Node) => n.getText(sf).replace(/\s+/g, '');
+  const fn = sf.statements.find(
+    (st): st is ts.FunctionDeclaration => ts.isFunctionDeclaration(st) && st.name?.text === 'activeOrganisations',
+  );
+  if (fn === undefined || fn.body === undefined) return { returns: [] };
+  const returns: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isFunctionLike(node)) return;
+    if (ts.isReturnStatement(node)) returns.push(node.expression ? squeeze(node.expression) : '(nothing)');
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(fn.body, visit);
+  return { ...(fn.type ? { declared: squeeze(fn.type) } : {}), returns };
+}
+
 const files = sourceFiles();
 const texts = new Map(files.map((f) => [f, readFileSync(join(REPO_ROOT, f), 'utf8')]));
 const readers = new Map(
@@ -1047,9 +1431,9 @@ describe('a split job asks across organisations for the list alone, and reads ea
   });
 
   it.each(splitFiles.map((f) => [f]))('%s reads no database URL and builds no pool of its own', (file) => {
-    // Rules 1 and 2 say so too; said here in the category's own words. With no
-    // URL and no pool of its own, a split job has no owner's connection to do a
-    // per-organisation read on.
+    // Rules 1 and 2 say so too; said here in the category's own words. No URL
+    // and no pool of its own is half of it: the other half is what task-pools.ts
+    // may hand it, which the cases under rule 7 below close.
     expect(
       readers.get(file) ?? [],
       `${file} reads ${readers.get(file)?.join(', ')} from the environment. A split job asks its one question\n` +
@@ -1157,5 +1541,246 @@ describe('a split job asks across organisations for the list alone, and reads ea
     // And the list's caller, seen as one.
     expect(activeOrganisationsUse('shape.ts', `${imp}const ids = await activeOrganisations();`)).toEqual({ names: true, calls: true });
     expect(activeOrganisationsUse('shape.ts', '// activeOrganisations in a comment')).toEqual({ names: false, calls: false });
+  });
+});
+
+describe("what reaches a job from the owner's connection is ids, closed at both ends", () => {
+  const moduleText = () => texts.get(TASK_POOLS)!;
+
+  it('task-pools.ts exports openTaskPools, activeOrganisations and the list\'s text, and types, and nothing else', () => {
+    expect(texts.has(TASK_POOLS), `${TASK_POOLS} is not a source file here`).toBe(true);
+    const exported = valueExports(TASK_POOLS, moduleText());
+    expect(
+      exported.filter((name) => TASK_POOLS_EXPORTS[name] === undefined),
+      `${TASK_POOLS} exports ${exported.join(', ')}. It holds the owner's URL, and what it exports is what\n` +
+        "the owner's side hands a job: the tenant pool (openTaskPools), the ids of the active\n" +
+        "organisations (activeOrganisations) and the list's text. One more export that handed its caller the\n" +
+        "owner's pool (acrossOrganisations(work), 0138 T2's review) put a split job and a per-tenant job\n" +
+        'on it, reading every organisation, with every guard green. A value added goes on TASK_POOLS_EXPORTS\n' +
+        'with what it hands out.',
+    ).toEqual([]);
+    // And each listed one is still there, so the list is not wider than the module.
+    expect(exported).toEqual(Object.keys(TASK_POOLS_EXPORTS).sort());
+  });
+
+  it('task-pools.ts imports no query builder and no schema: only what TASK_POOLS_IMPORTS says', () => {
+    const imported = valueImports(TASK_POOLS, moduleText());
+    expect(
+      imported.filter((name) => TASK_POOLS_IMPORTS[name] === undefined),
+      `${TASK_POOLS} imports ${imported.join(', ')}. A statement built with a query builder has no text for\n` +
+        "the rule on the module's statements to read: review built a second list with drizzle,\n" +
+        'drizzle(list).select({ id, name, settings }).from(tenant), and every guard stayed green (0138 T2).\n' +
+        'An import added goes on TASK_POOLS_IMPORTS with what the module needs it for.',
+    ).toEqual([]);
+    expect(imported).toEqual(Object.keys(TASK_POOLS_IMPORTS).sort());
+  });
+
+  it("every pool task-pools.ts builds on the owner's URL is asked its two statements, ended and heard, and goes nowhere", () => {
+    const { owners, outside } = ownerPoolUses(TASK_POOLS, moduleText());
+    expect(
+      outside,
+      `${TASK_POOLS} hands out a pool it built on the owner's URL, or asks it something else:\n  ${outside.join('\n  ')}\n\n` +
+        "The owner is a superuser on the managed stack, whom row security never binds. The key's pool\n" +
+        "goes to the audit sink (pgDriver inside auditExportOn) and nowhere else; the list's is asked\n" +
+        'ACTIVE_ORGANISATIONS_SQL and SEES_EVERY_ORGANISATION_SQL and ended. Returned, handed to a call\n' +
+        "(work(list), drizzle(list)), stored or connected to, it is the owner's connection in a job's\n" +
+        "hands (0138 T2's review).",
+    ).toEqual([]);
+    // Found the two it builds, so the rule is not passing over nothing.
+    expect(owners).toEqual(['auditKey', 'list']);
+  });
+
+  it('every statement task-pools.ts asks is the list or the role question, by name, each the literal it is held to', () => {
+    const asked = queriesAsked(TASK_POOLS, moduleText());
+    expect(
+      asked.filter((a) => !(THE_MODULES_STATEMENTS as readonly string[]).includes(a)),
+      `${TASK_POOLS} asks ${asked.join(', ')}. It asks two things on the owner's connection, by name:\n` +
+        'whether that connection sees every organisation, and which organisations are active (0138 T2).',
+    ).toEqual([]);
+    expect([...new Set(asked)].sort()).toEqual([...THE_MODULES_STATEMENTS].sort());
+    const list = literalOf(TASK_POOLS, moduleText(), 'ACTIVE_ORGANISATIONS_SQL');
+    const question = literalOf(TASK_POOLS, moduleText(), 'SEES_EVERY_ORGANISATION_SQL');
+    expect(list !== undefined && THE_LIST.test(list), `ACTIVE_ORGANISATIONS_SQL is not the list: ${list}`).toBe(true);
+    expect(
+      question !== undefined && THE_ROLE_QUESTION.test(question),
+      `SEES_EVERY_ORGANISATION_SQL is not the role question: ${question}`,
+    ).toBe(true);
+  });
+
+  it('activeOrganisations says it answers ids, and answers the ids of the rows and nothing else', () => {
+    const answers = activeOrganisationsAnswers(TASK_POOLS, moduleText());
+    expect(
+      answers,
+      `${TASK_POOLS}'s activeOrganisations is declared ${answers.declared} and returns ${answers.returns.join(', ')}.\n` +
+        "It answers the ids of the active organisations and nothing else: rows or a handle handed back\n" +
+        "would carry what the owner's connection read to a split job (0138 T2).",
+    ).toEqual({ declared: 'Promise<string[]>', returns: ['rows.map((row)=>row.id)'] });
+  });
+
+  // The files that name the module at all: parsing every file would put this over the unit budget.
+  const naming = files.filter((f) => f !== TASK_POOLS && texts.get(f)!.includes('task-pools'));
+
+  it('found every file that opens the pools among those that name the module', () => {
+    expect(naming).toEqual(expect.arrayContaining([...PER_TENANT, ...Object.keys(SPLIT), STANDALONE_WORKER]));
+  });
+
+  it.each(naming.map((f) => [f]))('%s takes from task-pools.ts only what its kind may', (file) => {
+    const text = texts.get(file)!;
+    const taken = valuesTakenFrom(file, text, NAMES_TASK_POOLS);
+    const may = mayTakeFromTaskPools(file);
+    expect(
+      taken.filter((name) => !may.includes(name)),
+      `${file} takes ${taken.join(', ')} from task-pools.ts, and may take ${may.join(' and ') || 'nothing'}.\n` +
+        'A per-tenant job and the standalone worker take openTaskPools; a split job that and\n' +
+        'activeOrganisations; any other file nothing (types are free). The whole module, a re-export or\n' +
+        "an import(…) takes names out of this guard's sight (0138 T2's review).",
+    ).toEqual([]);
+  });
+
+  it.each([...PER_TENANT, ...Object.keys(SPLIT), STANDALONE_WORKER].map((f) => [f]))(
+    '%s imports no value from another file on CROSS_TENANT',
+    (file) => {
+      const taken = valuesTakenFrom(file, texts.get(file)!, namesAnotherCrossTenantFile(file));
+      expect(
+        taken,
+        `${file} takes ${taken.join(', ')} from a file on CROSS_TENANT, which reads the owner's URL.\n` +
+          "What a job gets of the owner's side comes through task-pools.ts, and is ids (0138 T2's review).",
+      ).toEqual([]);
+    },
+  );
+
+  it('sees each shape review found, and each way around them', () => {
+    // What a file takes from the module.
+    const takes = (code: string) => valuesTakenFrom('apps/worker/src/jobs/shape.ts', code, NAMES_TASK_POOLS);
+    expect(takes("import { openTaskPools, type TaskPools } from './task-pools.ts';")).toEqual(['openTaskPools']);
+    expect(takes("import type { TaskPools } from './task-pools.ts';")).toEqual([]);
+    expect(takes("import { acrossOrganisations as across, openTaskPools } from '../jobs/task-pools';")).toEqual([
+      'acrossOrganisations',
+      'openTaskPools',
+    ]);
+    expect(takes("import * as pools from './task-pools.ts';")).toEqual(['import * as']);
+    expect(takes("export { activeOrganisations } from './task-pools.ts';")).toEqual(['export … from']);
+    expect(takes("export * from './task-pools.ts';")).toEqual(['export … from']);
+    expect(takes("export type { TaskPools } from './task-pools.ts';")).toEqual([]);
+    expect(takes("const m = await import('./task-pools.ts');")).toEqual(['import(…)']);
+    expect(takes("import { openTaskPools } from './task-pools-of-another-kind.ts';")).toEqual([]);
+    expect(mayTakeFromTaskPools('apps/worker/src/jobs/run-discovery.ts')).toEqual(['openTaskPools']);
+    expect(mayTakeFromTaskPools('apps/worker/src/jobs/managed-digest.ts')).toEqual(['activeOrganisations', 'openTaskPools']);
+    expect(mayTakeFromTaskPools('apps/worker/src/jobs/managed-sync-tick.ts')).toEqual([]);
+    // Another CROSS_TENANT file, by a relative path.
+    const fromTheTick = (code: string) =>
+      valuesTakenFrom('apps/worker/src/jobs/run-cutover.ts', code, namesAnotherCrossTenantFile('apps/worker/src/jobs/run-cutover.ts'));
+    expect(fromTheTick("import { ACTIVE_MAPPINGS_SQL } from './managed-sync-tick.ts';")).toEqual(['ACTIVE_MAPPINGS_SQL']);
+    expect(fromTheTick("import { openTaskPools } from './task-pools.ts';")).toEqual([]);
+    expect(fromTheTick("import { leavesAReference } from './what-a-run-leaves.ts';")).toEqual([]);
+
+    // What the module exports and imports.
+    expect(
+      valueExports(
+        'shape.ts',
+        'export async function acrossOrganisations<T>(work: (p: Pool) => Promise<T>) { return work(p); }\n' +
+          "export const A = 'x'; const b = 1; export { b as c }; export type T = 1; export interface I { x: 1 }",
+      ),
+    ).toEqual(['A', 'acrossOrganisations', 'c']);
+    expect(valueExports('shape.ts', "export * from './a.ts';\nexport default function f() {}")).toEqual([
+      'default',
+      "export … from './a.ts'",
+    ]);
+    expect(
+      valueImports(
+        'shape.ts',
+        "import { eq } from 'drizzle-orm';\nimport { drizzle } from 'drizzle-orm/node-postgres';\n" +
+          "import { tenant } from '@openmig/ledger/schema-pg';\nimport type { PgDatabase } from '@openmig/ledger';\n" +
+          "import * as ledger from '@openmig/ledger';\nimport { Pool } from 'pg';",
+      ),
+    ).toEqual([
+      '@openmig/ledger/schema-pg: tenant',
+      '@openmig/ledger: * as',
+      'drizzle-orm/node-postgres: drizzle',
+      'drizzle-orm: eq',
+      'pg: Pool',
+    ]);
+
+    // What the module does with a pool on the owner's URL.
+    const head =
+      "import { Pool } from 'pg';\n" +
+      "const ACTIVE_ORGANISATIONS_SQL = \"SELECT id FROM tenant WHERE status = 'active'\";\n" +
+      "const SEES_EVERY_ORGANISATION_SQL = 'SELECT rolsuper OR rolbypassrls AS s FROM pg_roles WHERE rolname = current_user';\n";
+    const owned = (body: string) => ownerPoolUses('shape.ts', `${head}${body}`);
+    const ownersList =
+      'export async function activeOrganisations(env: E): Promise<string[]> {\n' +
+      '  const ownerUrl = env.DATABASE_URL?.trim();\n' +
+      '  const list = new Pool({ connectionString: ownerUrl, max: 1 });\n' +
+      "  list.on('error', () => {});\n" +
+      '  try {\n' +
+      '    await list.query(SEES_EVERY_ORGANISATION_SQL);\n' +
+      '    const { rows } = await list.query(ACTIVE_ORGANISATIONS_SQL);\n' +
+      '    return rows.map((row) => row.id);\n' +
+      '  } finally { await list.end(); }\n' +
+      '}\n';
+    expect(owned(ownersList)).toEqual({ owners: ['list'], outside: [] });
+    // The review's: the pool handed to a callback, returned, handed to drizzle,
+    // stored, connected to, asked another statement; and one no const names.
+    const across = ownersList.replace('return rows.map((row) => row.id);', 'return await work(list);');
+    expect(owned(across).outside).toHaveLength(1);
+    expect(owned(ownersList.replace('return rows.map((row) => row.id);', 'return list;')).outside).toHaveLength(1);
+    expect(owned(ownersList.replace('return rows.map((row) => row.id);', 'return drizzle(list).select().from(tenant);')).outside).toHaveLength(1);
+    expect(owned(ownersList.replace('return rows.map((row) => row.id);', 'held.pool = list; return [];')).outside).toHaveLength(1);
+    expect(owned(ownersList.replace('return rows.map((row) => row.id);', 'return { owner: list };')).outside).toHaveLength(1);
+    expect(owned(ownersList.replace('return rows.map((row) => row.id);', 'return { list };')).outside).toHaveLength(1);
+    expect(owned(ownersList.replace('return rows.map((row) => row.id);', 'const c = await list.connect(); return [];')).outside).toHaveLength(1);
+    expect(
+      owned(ownersList.replace('return rows.map((row) => row.id);', "return (await list.query('SELECT id, name FROM tenant')).rows;"))
+        .outside,
+    ).toHaveLength(1);
+    expect(owned('export function f(env: E) { return new Pool({ connectionString: env.DATABASE_URL }); }').outside).toHaveLength(1);
+    // A pool with no connection string, or one read through something unseen, is the owner's.
+    expect(owned('export function f() { const p = new Pool(); return p; }')).toEqual({
+      owners: ['p'],
+      outside: [expect.stringContaining('return p')],
+    });
+    // The key's pool goes to its sink and nowhere else; the tenant pool may be handed back.
+    const keyAndTenant =
+      'export function open(env: E) {\n' +
+      '  const appUrl = env.APP_DATABASE_URL?.trim();\n' +
+      '  const ownerUrl = env.DATABASE_URL?.trim();\n' +
+      '  const tenant = new Pool({ connectionString: appUrl });\n' +
+      '  const auditKey = new Pool({ connectionString: ownerUrl, max: 1 });\n' +
+      "  auditKey.on('error', () => {});\n" +
+      '  setAppEventSink(appEventSinkOn(pgDriver(tenant)));\n' +
+      '  setAuditExportSink(auditExportOn(pgDriver(auditKey), {}));\n' +
+      '  return { tenant, end: () => tenant.end() };\n' +
+      '}\n';
+    expect(owned(keyAndTenant)).toEqual({ owners: ['auditKey'], outside: [] });
+    expect(owned(keyAndTenant.replace('pgDriver(tenant)', 'pgDriver(auditKey)')).outside).toHaveLength(1);
+    expect(owned(keyAndTenant.replace('return { tenant,', 'return { tenant, auditKey,')).outside).toHaveLength(1);
+    // The tenant pool built on the owner's URL is an owner's pool, and handing it back is refused.
+    expect(owned(keyAndTenant.replace('connectionString: appUrl', 'connectionString: ownerUrl')).outside.length).toBeGreaterThan(0);
+
+    // What the module asks, and what activeOrganisations answers.
+    expect(queriesAsked('shape.ts', `${head}${ownersList}`)).toEqual(['SEES_EVERY_ORGANISATION_SQL', 'ACTIVE_ORGANISATIONS_SQL']);
+    expect(queriesAsked('shape.ts', "await owner.query<DigestTenant>(\"SELECT id, name, settings FROM tenant\");")).toEqual([
+      '"SELECT id, name, settings FROM tenant"',
+    ]);
+    expect(literalOf('shape.ts', head, 'ACTIVE_ORGANISATIONS_SQL')).toBe("SELECT id FROM tenant WHERE status = 'active'");
+    expect(literalOf('shape.ts', "const ACTIVE_ORGANISATIONS_SQL = ['SELECT id', 'FROM tenant'].join(' ');", 'ACTIVE_ORGANISATIONS_SQL')).toBe(
+      undefined,
+    );
+    expect(activeOrganisationsAnswers('shape.ts', `${head}${ownersList}`)).toEqual({
+      declared: 'Promise<string[]>',
+      returns: ['rows.map((row)=>row.id)'],
+    });
+    // The review's own: the answer handed through a callback on the owner's pool.
+    expect(
+      activeOrganisationsAnswers(
+        'shape.ts',
+        'export async function activeOrganisations(env: E = process.env): Promise<string[]> {\n' +
+          '  return acrossOrganisations(async (owner) => (await owner.query(ACTIVE_ORGANISATIONS_SQL)).rows.map((row) => row.id), env);\n' +
+          '}\n',
+      ).returns,
+    ).toEqual(['acrossOrganisations(async(owner)=>(awaitowner.query(ACTIVE_ORGANISATIONS_SQL)).rows.map((row)=>row.id),env)']);
+    expect(
+      activeOrganisationsAnswers('shape.ts', 'export async function activeOrganisations(): Promise<unknown[]> { return rows; }'),
+    ).toEqual({ declared: 'Promise<unknown[]>', returns: ['rows'] });
   });
 });

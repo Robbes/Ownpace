@@ -4,8 +4,103 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, later still (placed first, the latest): T2 built: the digest, the drift detector and
-group discovery read each organisation as itself,** on branch
+**2026-09-28, later still (placed first, the latest): review fixes for T2, same branch, not
+merged.** Review found two major things and three minor ones; one of the minor ones and one of the
+major ones are the same gap, seen twice. Each is fixed here, in one more commit:
+
+- **A split job could still read every organisation on the owner's connection (major, and the
+  minor that saw the same gap).** Rule 6 of `a-pass-that-opened-the-owners-pool` rested on a split
+  job having no owner's connection because its file reads no URL and builds no pool. That held of
+  the job's file, not of what `task-pools.ts`, which may build the owner's pools, hands it. Review
+  added one export to the module, `acrossOrganisations(work)`, which asked the role question and
+  then called `work(list)` on the owner's pool of one, and with it read every organisation's
+  coverage in the drift detector's run, every organisation's name and settings in the digest's (a
+  `listTenants:` after the spread, which overrides it), and other organisations' connections from
+  `run-discovery`, a per-tenant job. In review's run: typecheck and eslint clean, the six guard
+  files 204 of 204, the integration guard 7 of 7, and the whole unit run of `apps/worker` and
+  `scripts`, 232 files and 4129 tests, green. The integration guard runs the halves, never a task's `run`, so it could not
+  see a read added there. The guard gains **rule 7**, which closes the module at both ends:
+  - `task-pools.ts` exports `openTaskPools`, `activeOrganisations` and `ACTIVE_ORGANISATIONS_SQL`,
+    and types, and nothing else (`TASK_POOLS_EXPORTS`, closed, each with what it hands out); no
+    `export … from`, no default.
+  - It imports `TASK_POOLS_IMPORTS` and nothing else: `Pool`, the two sinks, `pgDriver`, `log` and
+    the two setters. No query builder, no schema.
+  - Each pool it builds on the owner's URL (any pool whose connection string is not read from
+    `APP_DATABASE_URL`, followed through its `const`: today the key's and the list's) is a
+    `const`'s value, and that name is named again only as `.query(ACTIVE_ORGANISATIONS_SQL)` or
+    `.query(SEES_EVERY_ORGANISATION_SQL)`, `.end()`, `.on(…)`, or, the key's, `pgDriver(…)` inside
+    `auditExportOn(…)`. Returned, handed to a call, stored, spread or connected to is refused. Every
+    `.query(` in the module asks one of the two by name, and each is held to its literal (`THE_LIST`,
+    `THE_ROLE_QUESTION`).
+  - `activeOrganisations` is declared `Promise<string[]>` and returns `rows.map((row) => row.id)`.
+  - A file takes from `task-pools.ts` only what its kind may: a `PER_TENANT` file and the
+    standalone worker `openTaskPools`, a `SPLIT` file that and `activeOrganisations`, any other
+    source file nothing; types are free and tests are not read. No `import * as`, no `import(…)`, no
+    re-export. And a `PER_TENANT` or `SPLIT` file, or the standalone worker, imports no value from
+    another file on `CROSS_TENANT`, by any of those shapes.
+  It reads each file's own imports: an owner's pool handed on through a module none of them imports
+  directly would be out of its sight. No file on `CROSS_TENANT` exports a pool (the sync tick's is
+  its module's own). Found-at-least checks: the module's two owner's pools found by name, both
+  statements asked, every file that opens the pools among those that name the module. 31 new cases,
+  127 in the file; on this branch's code, before any other change, all 127 pass, since the module
+  already had this shape.
+- **A second list the module built with drizzle was invisible to the rule on its statements
+  (minor).** That rule reads string literals; `drizzle(list).select({ id, name, settings })
+  .from(tenant)` has none. The closed imports refuse `drizzle-orm`, `drizzle-orm/node-postgres` and
+  `@openmig/ledger/schema-pg`, the closed exports the new function, and the owner's-pool rule the
+  pool handed to `drizzle(…)`; every `.query(` now asks a named constant held to its literal.
+- **The integration guard proved less of the digest than it said (major).** It seeded failures and
+  decisions alone, so a read made in a scope that is not its organisation's own, which answers
+  nothing, met an expected zero in every other queue. Review moved four of the digest's reads
+  (deletions, moves, the relocations applied, the sharing checklist) into the scope of the
+  mapping's id, which is no organisation: every guard green. In production every organisation's
+  digest would have reported none of those, and nothing would have said so. The seed now fills
+  every queue the digest counts, A's number never B's, with rows that must not count beside those
+  that must: failures A 2 and B 1; deletions the source reported and nobody acknowledged A 3 and B
+  1, beside one of A's acknowledged; moves A 1 and B 2, beside one of A's acknowledged; relocations
+  applied since the organisation's own last digest A 2 and B 1, each last digest seeded between two
+  of its relocations, so a window read in the wrong scope falls back to a day and counts one more;
+  open sharing rows A 1 and B 3, beside one of A's decided; both migrations in their cutover with
+  the grace period over and nobody choosing, A for email and calendar, B for email; pending
+  decisions A 1 and B 2. Each organisation's mail is compared line for line, eight lines each. Its
+  header and the rls-guide's paragraph and test list now say so, and that it runs the halves, not
+  the `run` bodies, which rules 6 and 7 hold statically.
+- **"Half an hour apart" (minor).** The jobs run at 06:30, 07:00 and 08:00 UTC; `task-pools.ts`'s
+  header and the sizing note in `pgbouncer.ini` now say so.
+- **Not taken:** review's optional rule that each `SPLIT` file send no statement literal but its own
+  exported builders. With the module closed, a split job's only connection is the tenant pool, and
+  rule 6 holds every use of it to a scope, where a statement reads its organisation's rows or
+  none; a statement in the wrong organisation's scope is what the integration guard's seed is now
+  there for. A literal rule would add a list of statements to keep in step without a failure it
+  alone catches.
+
+**Each regression, against HEAD's guards and against these** (applied to this branch, run, and
+reverted with `git apply -R`; the tree compared after each; logs in the session's scratchpad). The
+unit column is `a-pass-that-opened-the-owners-pool` with the five other unit guards of T2's entry;
+the integration column is `a-job-that-reads-each-organisation-as-itself` on a throwaway Postgres 16
+with both chains:
+
+| # | Regression | HEAD's guards | These |
+|---|---|---|---|
+| G1 | `acrossOrganisations(work)` in the module; the drift detector's run reads every organisation's coverage on it | unit 204 of 204 green | 3 of 127 red: the exports, the owner's pool handed to `work`, the drift detector takes `acrossOrganisations` |
+| G2 | `activeOrganisations` rebuilt on `acrossOrganisations`; the digest's run overrides `listTenants` with every organisation's name and settings | 204 of 204 | 4 of 127: those three, and `activeOrganisations` returns `acrossOrganisations(…)` |
+| G3 | The same module; `run-discovery`, per-tenant, exports `hostSeenElsewhere`, other organisations' connections read on the owner's pool | 204 of 204 | 4 of 127: the same, and `run-discovery` takes `acrossOrganisations` |
+| G4 | `activeOrganisationsWithSettings`: a second owner's pool, read with drizzle; the digest's run takes it | 204 of 204 | 4 of 127: the exports, the imports, the pool handed to `drizzle`, the digest takes it |
+| G5 | The sync tick exports its pool; the drift detector's run loads it with `import(…)` and reads every organisation's coverage | 204 of 204 | 1 of 127: a value from another file on `CROSS_TENANT` |
+| I1 | The digest's deletions, moves, relocations applied and sharing checklist read in the scope of the mapping's id (review's) | integration 7 of 7 green | 1 of 7: A's mail has 4 of its 8 lines |
+| I2 | The digest's last send read in the scope of no organisation (the nil id) | 7 of 7 | 1 of 7: A's relocations 3, not 2 |
+| I3 | The grace periods read in the scope of the mapping's id | 7 of 7 (`managed-digest-sql`'s pin of that line red, 1 of 8) | 1 of 7: A's grace line gone |
+
+Gates: `pnpm -s typecheck` green; `eslint` on the three changed TypeScript files clean. Unit,
+`apps/worker` and `scripts`, 232 files and 4160 tests passed, T2's 4129 and the 31 new cases.
+Integration on a throwaway Postgres 16 with both chains (`scripts/local-pg.sh`, its own directory
+and port), as its owner: every `apps/worker` integration file, 7 files and 64 tests, the two that
+need Stalwart skipped; the two row-security guards alone, 2 files and 21 tests. The three indexes
+regenerated with `--write` and current under `--check`; `adr-operative.mjs --check` current; the
+commit convention checked. Nothing was exercised against a running stack.
+
+**2026-09-28, later still (placed second, under its review fixes): T2 built: the digest, the drift
+detector and group discovery read each organisation as itself,** on branch
 `claude/ownpace-public-readiness-y7orc6-three-jobs-read-each-organisation-as-itself`, stacked on
 T1 step 2's branch at b99d7607 (#1323), not merged. Built on the owner's answer to open question 3,
 *"0138 open question 3: a - split them"*. The sync tick, retention and the purge are unchanged, on
@@ -87,8 +182,9 @@ branch's base, b99d7607:
 
 - `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`: the three leave `CROSS_TENANT` for a
   third kind, `SPLIT`, closed, each entry saying why the job crosses organisations and what it
-  reads per organisation. A `SPLIT` file reads no database URL and builds no pool, so it has no
-  owner's connection to do a per-organisation read on; takes its pools from `openTaskPools`, points
+  reads per organisation. A `SPLIT` file reads no database URL and builds no pool (which did not
+  keep the owner's connection out of it: review, above, reached it through the module, and rule 7
+  closes that); takes its pools from `openTaskPools`, points
   no sink, takes the tenant pool and its end only and ends nothing outside `afterwards`; calls
   `activeOrganisations`; and names its tenant pool, under any name and as any parameter typed
   `Pool`, only as the first argument of `withTenant` or `tenantScopedDb`, or hands it to a
@@ -153,7 +249,7 @@ restored from a copy after each, and the files compared with it):
 M4 and M4b are red in the module's unit test alone, as T1 step 2's own fallback mutation was: the
 integration guard hands both URLs, so a fallback changes nothing it can see. M8 is the reverse:
 every statement is in a scope, the wrong one, which no static rule can tell and the integration
-guard does.
+guard does, for the queues its seed fills: review, above, found four it left empty.
 
 **Where the build departs from §3:**
 
@@ -165,8 +261,9 @@ guard does.
   and in which language an organisation is written to, and are its own row.
 - **The jobs read no owner's URL at all.** §3 T4 has T2's jobs on its list *"for their list of
   organisations"*. The list is `task-pools.ts`'s, which T4 already names for the audit key, so a
-  split job file names no database URL and holds no owner's connection: stricter than a job that
-  may read the URL for its list only, and checkable by the rules T1 already enforces.
+  split job file names no database URL and builds no owner's pool: stricter than a job that may
+  read the URL for its list only, and checkable by the rules T1 already enforces, with the
+  module's own surface closed by rule 7 since review (above).
 - **The pools are opened per run**, as run-cutover's and run-rollback's are, not at the module's
   top, where the three built their one owner pool.
 - **The list refuses on a connection that cannot see every organisation.** §3 did not ask; it is

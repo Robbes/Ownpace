@@ -23,8 +23,12 @@
  *      organisation set, `tenant` answers no row and every split job would
  *      visit nobody and report a quiet morning.
  *   2. each job's per-organisation half, run on those pools, produces what it
- *      produced on the owner's: A's digest names A's migration and counts A's
- *      queues and goes to A's owner, B's names B's; the drift detector raises
+ *      produced on the owner's: A's digest names A's migration and goes to
+ *      A's owner, B's names B's, and each says every one of its
+ *      organisation's queues, each with a number the other organisation does
+ *      not have (pending decisions, deletions, moves, failures, relocations
+ *      applied since its own last digest, open sharing rows, the data types
+ *      whose grace period ended); the drift detector raises
  *      A's new mailbox in A, honours A's dismissal and A's standing preset, and
  *      raises B's in B; group discovery records A's groups in A, asks A's
  *      question, states A's IMAP blind spot, and records B's in B. Each runs as
@@ -36,6 +40,21 @@
  *      `withTenant` does not read another organisation's rows: it reads none,
  *      and the second assertion is what turns red (the mutations in 0138's
  *      Status, T2's entry, move one read at a time and show it).
+ *
+ * WHY EVERY QUEUE IS SEEDED, AND DIFFERENTLY PER ORGANISATION (0138 T2's
+ * review). A read made in a scope that is not its organisation's own finds
+ * nothing, so it reports a zero; a queue seeded empty expects a zero, and the
+ * wrong scope passes. This seeded failures and decisions alone, and review
+ * moved four of the digest's reads (deletions, moves, the relocations applied,
+ * the sharing checklist) into the scope of the mapping's id, which is no
+ * organisation: every guard green, and in production every organisation's
+ * digest would have said none of those, with nothing to say so. So each queue
+ * the digest counts is seeded here, A's numbers differing from B's, with rows
+ * that must NOT count beside the ones that must (an acknowledged deletion and
+ * move, a decided sharing row, a relocation from before the last digest), and
+ * each organisation's mail is compared line for line. The last digest each
+ * organisation was sent lies between two of its relocations, so a window read
+ * in the wrong scope (the cadence-sized fallback) counts one too many.
  *
  * Handed its database (`an-integration-test-is-handed-its-database`): it reads
  * `TEST_DATABASE_URL`, derives `app_user`'s URL from it as
@@ -107,6 +126,20 @@ let owner: ReturnType<typeof createPgDb>;
 
 const rowsOf = <R>(result: unknown): R[] => (result as { rows: R[] }).rows;
 
+/** The digest's words for two of its lines, as the mail writes them in English. */
+const AUTO_APPLIED = 'old copies of moved or renamed files removed automatically (auto-apply — each is recorded)';
+const GRACE_ENDED =
+  'grace period over and nobody chose, so no longer copying (end each, or keep it copying, on the Finish page):';
+
+/** What a digest says of one migration: the lines under its heading, each without its dash. */
+function linesUnder(body: string, name: string): string[] {
+  const lines = body.split('\n');
+  const heading = lines.indexOf(`Migration: ${name}`);
+  expect(heading, `the mail has a heading for ${name}:\n${body}`).toBeGreaterThanOrEqual(0);
+  const end = lines.indexOf('', heading);
+  return lines.slice(heading + 1, end === -1 ? undefined : end).map((line) => line.replace(/^ {2}- /, ''));
+}
+
 /** A statement the job builds, as text and parameters, for a pool that is handed it bare. */
 const asText = (query: SQL) => new PgDialect().sqlToQuery(query);
 
@@ -141,20 +174,77 @@ beforeAll(async () => {
       (${B_BOX}, ${B}, ${B_GRAPH}, 'user', 'sam@b.example.invalid'),
       (${B_TARGET_BOX}, ${B}, ${B_TARGET}, 'user', 'sam@target.example.invalid')
     ON CONFLICT (id) DO NOTHING`);
+  // Both in their cutover, so each migration's grace period can have ended.
   await owner.execute(sql`
     INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, name, mode, status) VALUES
-      (${A_MAPPING}, ${A}, ${A_BOX}, ${A_TARGET_BOX}, ${A_NAME}, 'mirror', 'active'),
-      (${B_MAPPING}, ${B}, ${B_BOX}, ${B_TARGET_BOX}, ${B_NAME}, 'mirror', 'active')
-    ON CONFLICT (id) DO NOTHING`);
-  // What the digest counts: two items A could not copy and one of B's, each
-  // past its retries (MAX_ITEM_ATTEMPTS), so each wants a person; one decision
-  // waiting in A and two in B.
+      (${A_MAPPING}, ${A}, ${A_BOX}, ${A_TARGET_BOX}, ${A_NAME}, 'mirror', 'cutover'),
+      (${B_MAPPING}, ${B}, ${B_BOX}, ${B_TARGET_BOX}, ${B_NAME}, 'mirror', 'cutover')
+    ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status`);
+  // What the digest counts, every queue of it, A's numbers never B's (see
+  // the header): failures past their retries (MAX_ITEM_ATTEMPTS), A 2 and B 1;
+  // deletions the source reported and nobody acknowledged, A 3 and B 1, beside
+  // one of A's acknowledged; moves nobody acknowledged, A 1 and B 2, beside one
+  // of A's acknowledged.
   await owner.execute(sql`DELETE FROM item WHERE tenant_id IN (${A}, ${B})`);
   await owner.execute(sql`
     INSERT INTO item (tenant_id, mapping_id, domain, item_type, collection, natural_key, natural_key_hash, status, attempt_count, last_error) VALUES
       (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-1', 'h-0138e-a-1', 'failed', 5, 'refused'),
       (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-2', 'h-0138e-a-2', 'failed', 5, 'refused'),
       (${B}, ${B_MAPPING}, 'email', 'mail', 'INBOX', 'b-1', 'h-0138e-b-1', 'failed', 5, 'refused')`);
+  await owner.execute(sql`
+    INSERT INTO item (tenant_id, mapping_id, domain, item_type, collection, natural_key, natural_key_hash, status,
+                      deletion_reported_at, deletion_acknowledged_at) VALUES
+      (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-del-1', 'h-0138e-a-del-1', 'copied', now(), NULL),
+      (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-del-2', 'h-0138e-a-del-2', 'copied', now(), NULL),
+      (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-del-3', 'h-0138e-a-del-3', 'copied', now(), NULL),
+      (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-del-4', 'h-0138e-a-del-4', 'copied', now(), now()),
+      (${B}, ${B_MAPPING}, 'email', 'mail', 'INBOX', 'b-del-1', 'h-0138e-b-del-1', 'copied', now(), NULL)`);
+  await owner.execute(sql`
+    INSERT INTO item (tenant_id, mapping_id, domain, item_type, collection, natural_key, natural_key_hash, status,
+                      moved_to_collection, move_acknowledged_at) VALUES
+      (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-mv-1', 'h-0138e-a-mv-1', 'copied', 'Archive', NULL),
+      (${A}, ${A_MAPPING}, 'email', 'mail', 'INBOX', 'a-mv-2', 'h-0138e-a-mv-2', 'copied', 'Archive', now()),
+      (${B}, ${B_MAPPING}, 'email', 'mail', 'INBOX', 'b-mv-1', 'h-0138e-b-mv-1', 'copied', 'Archive', NULL),
+      (${B}, ${B_MAPPING}, 'email', 'mail', 'INBOX', 'b-mv-2', 'h-0138e-b-mv-2', 'copied', 'Archive', NULL)`);
+  // Relocations applied by themselves, and each organisation's last digest
+  // between two of them: A's two hours ago, with one relocation before it and
+  // two after; B's five hours ago, with one before and one after. Read in the
+  // wrong scope, the last digest is none, the window falls back to a day, and
+  // each counts one more.
+  await owner.execute(sql`DELETE FROM audit_log WHERE tenant_id IN (${A}, ${B})`);
+  const relocation = (mapping: string) => JSON.stringify({ mappingId: mapping });
+  await owner.execute(sql`
+    INSERT INTO audit_log (tenant_id, actor, action, detail, at) VALUES
+      (${A}, 'system:digest', 'digest_sent_daily', NULL, now() - interval '2 hours'),
+      (${A}, 'system:auto-apply', 'auto_apply_relocation', ${relocation(A_MAPPING)}::jsonb, now() - interval '3 hours'),
+      (${A}, 'system:auto-apply', 'auto_apply_relocation', ${relocation(A_MAPPING)}::jsonb, now() - interval '1 hour'),
+      (${A}, 'system:auto-apply', 'auto_apply_relocation', ${relocation(A_MAPPING)}::jsonb, now() - interval '30 minutes'),
+      (${B}, 'system:digest', 'digest_sent_daily', NULL, now() - interval '5 hours'),
+      (${B}, 'system:auto-apply', 'auto_apply_relocation', ${relocation(B_MAPPING)}::jsonb, now() - interval '6 hours'),
+      (${B}, 'system:auto-apply', 'auto_apply_relocation', ${relocation(B_MAPPING)}::jsonb, now() - interval '4 hours')`);
+  // The sharing checklist: A one row open beside one decided, B three open.
+  await owner.execute(sql`DELETE FROM share_grant WHERE tenant_id IN (${A}, ${B})`);
+  await owner.execute(sql`
+    INSERT INTO share_grant (tenant_id, mapping_id, grant_hash, subject, on_label, role, raw, verdict, verdict_target, state, decided_at) VALUES
+      (${A}, ${A_MAPPING}, 'g-0138e-a-1', 'pat', 'Budget.xlsx', 'reader', 'raw', 'clean', 'target', 'open', NULL),
+      (${A}, ${A_MAPPING}, 'g-0138e-a-2', 'pat', 'Plan.docx', 'reader', 'raw', 'clean', 'target', 'applied', now()),
+      (${B}, ${B_MAPPING}, 'g-0138e-b-1', 'sam', 'Notes.txt', 'reader', 'raw', 'clean', 'target', 'open', NULL),
+      (${B}, ${B_MAPPING}, 'g-0138e-b-2', 'sam', 'Roster.ods', 'writer', 'raw', 'manual', 'target', 'open', NULL),
+      (${B}, ${B_MAPPING}, 'g-0138e-b-3', 'sam', 'Photos', 'reader', 'raw', 'clean', 'target', 'open', NULL)`);
+  // Grace periods over with nobody choosing: A carries email and calendar, B
+  // email alone, and each migration's cutover finished yesterday.
+  await owner.execute(sql`DELETE FROM scope_selection WHERE tenant_id IN (${A}, ${B})`);
+  await owner.execute(sql`
+    INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES
+      (${A}, ${A_MAPPING}, 'email', true),
+      (${A}, ${A_MAPPING}, 'calendar', true),
+      (${B}, ${B_MAPPING}, 'email', true)`);
+  await owner.execute(sql`DELETE FROM cutover_state WHERE tenant_id IN (${A}, ${B})`);
+  await owner.execute(sql`
+    INSERT INTO cutover_state (tenant_id, mapping_id, state, phase, grace_period_started_at, grace_period_completed_at) VALUES
+      (${A}, ${A_MAPPING}, 'COMPLETED', 'completion', now() - interval '4 days', now() - interval '1 day'),
+      (${B}, ${B_MAPPING}, 'COMPLETED', 'completion', now() - interval '4 days', now() - interval '1 day')`);
+  // Decisions waiting, A 1 and B 2, and one A dismissed, for the drift detector.
   await owner.execute(sql`DELETE FROM decision WHERE tenant_id IN (${A}, ${B})`);
   await owner.execute(sql`
     INSERT INTO decision (tenant_id, category, subject_key, summary, status) VALUES
@@ -175,6 +265,9 @@ afterAll(async () => {
     'group_def',
     'decision',
     'policy_preset',
+    'share_grant',
+    'scope_selection',
+    'cutover_state',
     'item',
     'mailbox_mapping',
     'mailbox',
@@ -277,7 +370,7 @@ describe('the list: which organisations are active, on a connection that sees th
 });
 
 describe("the digest writes each organisation its own, read in that organisation's scope", () => {
-  it('sends A its migration and its counts and B its own, as app_user', async () => {
+  it('sends A its migration and every one of its queues, and B its own, as app_user', async () => {
     const listed = (await activeOrganisations(taskEnv())).filter((id) => id === A || id === B);
     const sent: Array<{ to: readonly string[]; message: NotificationMessage }> = [];
     const warnings: string[] = [];
@@ -300,15 +393,32 @@ describe("the digest writes each organisation its own, read in that organisation
     // Owners and admins only; the viewer is not told.
     expect(toA.to).toEqual(['owner@a.example.invalid']);
     expect(toB.to).toEqual(['owner@b.example.invalid']);
-    // A's migration by the name A gave it, A's two failures and A's one decision.
-    expect(toA.message.body).toContain(`: ${A_NAME}`);
-    expect(toA.message.body).toContain('2 items that could not be copied');
-    expect(toA.message.body).toContain('1 changes needing a decision');
+    // A's migration by the name A gave it, and every queue of A's, line for
+    // line, each number A's and not B's (the seed); B's the same. A read in a
+    // scope not its organisation's own finds nothing: its line would be gone,
+    // or, for the window, one more relocation counted.
     expect(toA.message.body).not.toContain(B_NAME);
-    expect(toB.message.body).toContain(`: ${B_NAME}`);
-    expect(toB.message.body).toContain('1 items that could not be copied');
-    expect(toB.message.body).toContain('2 changes needing a decision');
     expect(toB.message.body).not.toContain(A_NAME);
+    expect(linesUnder(toA.message.body, A_NAME)).toEqual([
+      '1 changes needing a decision',
+      '3 deletions to confirm',
+      '1 moves to acknowledge',
+      '2 items that could not be copied',
+      'checked and ready to finish',
+      `2 ${AUTO_APPLIED}`,
+      '1 rows open on the sharing checklist',
+      `${GRACE_ENDED} Email, Calendar`,
+    ]);
+    expect(linesUnder(toB.message.body, B_NAME)).toEqual([
+      '2 changes needing a decision',
+      '1 deletions to confirm',
+      '2 moves to acknowledge',
+      '1 items that could not be copied',
+      'checked and ready to finish',
+      `1 ${AUTO_APPLIED}`,
+      '3 rows open on the sharing checklist',
+      `${GRACE_ENDED} Email`,
+    ]);
     // A queue it could not read would be named in the mail: none was.
     for (const { message } of sent) expect(message.body).not.toContain('COULD NOT BE READ');
 
@@ -316,7 +426,10 @@ describe("the digest writes each organisation its own, read in that organisation
     // the key read on the key's own pool.
     const recorded = rowsOf<{ tenant_id: string }>(
       await owner.execute(
-        sql`SELECT tenant_id FROM audit_log WHERE tenant_id IN (${A}, ${B}) AND action = 'digest_sent_daily' ORDER BY tenant_id`,
+        // This morning's, not the two seeded hours before.
+        sql`SELECT tenant_id FROM audit_log
+             WHERE tenant_id IN (${A}, ${B}) AND action = 'digest_sent_daily' AND at > now() - interval '1 hour'
+             ORDER BY tenant_id`,
       ),
     );
     expect(recorded.map((r) => r.tenant_id)).toEqual([A, B]);

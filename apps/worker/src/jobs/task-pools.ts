@@ -27,6 +27,21 @@
  * step 2's system role will have), and refuses when it does not. It never
  * reads `APP_DATABASE_URL`, and it never falls back to it.
  *
+ * WHAT THIS HANDS OUT, AND NOTHING MORE (0138 T2's review). Review added one
+ * export here that asked the role question and then handed its caller the
+ * list's pool, `acrossOrganisations(work)`, and read every organisation on it
+ * from a split job's run and from a per-tenant job, with every guard green.
+ * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` (rule 7) now holds
+ * this module to three values, `openTaskPools`, `activeOrganisations` and
+ * `ACTIVE_ORGANISATIONS_SQL`, and types; to its own short list of imports, so
+ * no query builder and no schema; to naming each pool it builds on the owner's
+ * URL (the key's and the list's) only to ask it one of its two statements by
+ * name, end it, hear its errors or, the key's, hand it to the audit sink; and
+ * `activeOrganisations` to answering `rows.map((row) => row.id)`, declared
+ * `Promise<string[]>`. And it holds each file that imports this to what its
+ * kind may take: a per-tenant job and the standalone worker `openTaskPools`, a
+ * split job that and `activeOrganisations`.
+ *
  * TWO POOLS.
  *
  *   - `tenant`, on `APP_DATABASE_URL`: `app_user`, whom row security binds.
@@ -94,8 +109,8 @@
  * the API's request path since T1's second step (docs/rls-guide.md, "Where
  * row security holds today"; 0138 Status, 2026-09-28, for the sizing). Every
  * scope here is one transaction, so a server connection is held for the scope
- * and not for the pass. The three split jobs run once a day each, half an
- * hour apart, one organisation and one scope at a time: one more of
+ * and not for the pass. The three split jobs run once a day each, at 06:30,
+ * 07:00 and 08:00 UTC, one organisation and one scope at a time: one more of
  * `app_user`'s server connections at most while one runs.
  */
 
