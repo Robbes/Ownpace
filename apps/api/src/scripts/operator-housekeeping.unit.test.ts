@@ -25,6 +25,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   checkByKind,
   HOUSEKEEPING_CHECKS,
@@ -310,5 +313,74 @@ describe('a kind that does not exist', () => {
   it('checkByKind answers null rather than throwing', () => {
     expect(checkByKind('nope')).toBeNull();
     expect(checkByKind('empty-tenant')?.kind).toBe('empty-tenant');
+  });
+});
+
+/**
+ * A PRECONDITION, NOT A TIDY-UP (workplan 0137 T7).
+ *
+ * Until every write route names its roles (0137 T2), `member` and `viewer`
+ * promise less than they allow, and the product no longer grants them. The
+ * rows that hold one anyway are listed on `ownpace-live` before the first
+ * invitation, by `operator.sh check role-below-admin`, which prints `none`
+ * when there are none and exits non-zero while there is one, so the step can
+ * stop on it. The query itself runs in the integration file.
+ */
+describe('the roles below admin, listed before the first invitation', () => {
+  const check = checkByKind('role-below-admin')!;
+  const SOURCE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'operator.ts'), 'utf8');
+
+  it('asks for member and viewer, and for nothing else', () => {
+    expect(check, 'the check is gone from the registry').not.toBeNull();
+    expect(check.find).toContain("WHERE tm.role IN ('member', 'viewer')");
+    // Every status that grants something now or can (an invited viewer is a
+    // viewer the moment they accept), and not the two that grant nothing:
+    // a declined or removed row would hold the first invitation back forever.
+    expect(check.find).toContain("AND tm.status NOT IN ('removed', 'declined')");
+    expect(check.find.match(/tm\.status\s*(=|IN|NOT IN)/g)).toHaveLength(1);
+  });
+
+  it('says who, in which organisation, as what, and in which state', () => {
+    // The note is composed in the query as "<role> (<status>) in <organisation>".
+    expect(check.find).toContain("format('%s (%s) in %s', tm.role, tm.status, t.name) AS note");
+    const line = check.describe(
+      row({ label: 'lid@acme.test', note: 'viewer (invited) in Acme Families' }),
+    );
+    for (const fact of ['lid@acme.test', 'viewer', 'invited', 'Acme Families']) {
+      expect(line).toContain(fact);
+    }
+  });
+
+  it('is reported, never cleaned: whether somebody becomes an admin is the organisation’s call', () => {
+    expect(check.clean).toBeNull();
+    const remedy = check.remedy(row({ id: 'm-1' }));
+    expect(remedy).toContain("UPDATE tenant_member SET role = 'admin'");
+    expect(remedy).toContain("WHERE id = 'm-1'");
+  });
+
+  it('prints one statement, so a pasted remedy cannot promote somebody and then delete them', () => {
+    // It printed the UPDATE and a DELETE one under the other, and the block
+    // pasted into psql ran both. Removing is the Team page's Remove.
+    const remedy = check.remedy(row({ id: 'm-1' }));
+    expect(remedy.match(/^\s*(UPDATE|DELETE|INSERT)\b/gm), remedy).toHaveLength(1);
+    expect(remedy).not.toContain('DELETE');
+    expect(remedy).toContain('Team');
+  });
+
+  it('is the one check that holds a step back', () => {
+    expect(check.gates).toContain('first invitation');
+    expect(
+      HOUSEKEEPING_CHECKS.filter((c) => c.gates !== undefined).map((c) => c.kind),
+      'another check exits non-zero now: say why here, or drop its `gates`',
+    ).toEqual(['role-below-admin']);
+  });
+
+  it('check exits non-zero while it finds anything, and still says none when it finds nothing', () => {
+    const from = SOURCE.indexOf("case 'check': {");
+    expect(from, "case 'check' is gone").toBeGreaterThan(0);
+    const body = SOURCE.slice(from, SOURCE.indexOf("case 'secrets': {", from));
+    expect(body).toContain('if (rows.length > 0 && check.gates !== undefined) stopped.push(check);');
+    expect(body).toContain('if (stopped.length > 0) process.exitCode = 1;');
+    expect(body).toContain('log.info(`\\n${check.kind}: none — ${check.title}`);');
   });
 });
