@@ -58,6 +58,7 @@ Two kinds of words render; only the first belongs to this glossary:
 | entity | states (EN) | notes |
 |---|---|---|
 | Mapping lifecycle | Active / Paused / In cutover / Done | NL: Actief / Gepauzeerd / In cutover / Afgerond |
+| Stage: where a migration, or a person's migrations, are (workplan 0154 T1) | Not started / Paused / Copying / Kept in step / Ready to switch / Switching / Done | NL: Nog niet gestart / Gepauzeerd / Wordt gekopieerd / Wordt bijgehouden / Klaar om over te stappen / Bezig met overstappen / Afgerond. Read from the lifecycle and each data type's phase by `stageOf` (shared); none is a new state. A person's is the least advanced (`leastAdvancedStage`). The lifecycle row above stays the operator's word. |
 | Domain pass | Pending / Syncing / Completed / Failed / Skipped | NL pending = **In afwachting** |
 | Run | Pending / Running / Succeeded / Failed / Cancelled | `success` keeps "Succeeded"; NL pending = **In afwachting** (the *wachtrij* words are reserved for **queued**) |
 | Decision | Decided / Decided by preset / Set aside | dismissed is gray, not green |
