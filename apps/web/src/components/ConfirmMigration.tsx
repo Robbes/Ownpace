@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mappingApi, scopeManifestApi } from '../services/mapping-service.ts';
 import { forgetMappingLifecycle } from '../services/mapping-cache.ts';
 import { serverMessage } from '../services/api.ts';
+import { fetchPlatformPause } from '../services/platform-service.ts';
 import { useT } from '../i18n/index.tsx';
 
 export interface ConfirmMigrationProps {
@@ -61,10 +62,60 @@ const POLL_CEILING_MS = 5 * 60 * 1000;
  */
 export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps): React.ReactElement {
   const t = useT();
-  // Kick off discovery once on mount.
+  const queryClient = useQueryClient();
+  const startedAt = React.useRef(Date.now());
+  const [gaveUp, setGaveUp] = React.useState(false);
+
+  // Kick off discovery on mount, and keep the answer when it is a no.
+  //
+  // THE REFUSAL IS SHOWN (0132 T6 (b)). While the operator holds the platform
+  // the door answers 409 with the operator's sentence, as every door does, and
+  // a refused press is not remembered: nothing is counting. This screen threw
+  // that answer away and went on saying it was scanning. The sentence goes
+  // through `serverMessage`, as the refused Start below does, so any other
+  // refusal (a migration not found, a server fault) says its own words too.
+  const [countRefused, setCountRefused] = React.useState<string | null>(null);
+  const [countAsked, setCountAsked] = React.useState(0);
+  const sawHold = React.useRef(false);
   React.useEffect(() => {
-    void mappingApi.discover(mappingId);
-  }, [mappingId]);
+    let current = true;
+    setCountRefused(null);
+    sawHold.current = false;
+    mappingApi.discover(mappingId).catch((error: unknown) => {
+      if (current) setCountRefused(serverMessage(error));
+    });
+    return () => {
+      current = false;
+    };
+  }, [mappingId, countAsked]);
+
+  // AND ASKED AGAIN WHEN THE HOLD LIFTS. The operator's sentence says to try
+  // again after, and on this screen there is nothing to press: the count has
+  // no button, and *Start* with no rows landed skips the refused-files tick
+  // (`needsAcknowledgement([])` is false). So while a count stands refused the
+  // screen reads the hold the banner reads (same key, same cache), and when a
+  // hold it saw open is lifted it counts again, with the polling's five
+  // minutes started afresh. Only a hold it SAW is waited on: a refusal for
+  // any other reason, with no hold open, is not asked again in a loop.
+  const hold = useQuery({
+    queryKey: ['platform-pause'],
+    queryFn: fetchPlatformPause,
+    retry: false,
+    refetchInterval: 60_000,
+    enabled: countRefused !== null,
+  });
+  const held = countRefused === null ? undefined : hold.data?.held;
+  React.useEffect(() => {
+    if (held === true) {
+      sawHold.current = true;
+    } else if (held === false && sawHold.current) {
+      sawHold.current = false;
+      startedAt.current = Date.now();
+      setGaveUp(false);
+      setCountAsked((n) => n + 1);
+      void queryClient.invalidateQueries({ queryKey: ['discovery', mappingId] });
+    }
+  }, [held, mappingId, queryClient]);
 
   // WHAT TO WAIT FOR. Read from the mapping rather than assumed, for the same
   // reason the job reads scope_selection rather than defaulting: assuming all
@@ -76,8 +127,6 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   });
   const expected = mapping.data?.syncConfig.domains;
 
-  const startedAt = React.useRef(Date.now());
-  const [gaveUp, setGaveUp] = React.useState(false);
   const [refusedAcked, setRefusedAcked] = React.useState(false);
 
   const discovery = useQuery({
@@ -117,7 +166,6 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
   const scoped =
     manifest.data && scopeManifestFor(manifest.data, family ? [family] : []);
 
-  const queryClient = useQueryClient();
   const startMutation = useMutation({
     mutationFn: () => mappingApi.start(mappingId),
     /**
@@ -157,7 +205,19 @@ export function ConfirmMigration({ mappingId, onStarted }: ConfirmMigrationProps
       {/* Discovery counts — shared with the appliance's confirm screen. */}
       <section aria-label="discovery-counts">
         <h3 className="text-sm font-medium text-gray-700 mb-2">{t('confirm.foundInSource')}</h3>
-        <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
+        {/* With nothing landed, the counts say *Scanning your source*, which a
+            refused count makes untrue. A count begun a moment before the hold
+            still lands (the door refused the join, not the count), so rows
+            that arrive are shown with the refusal under them. */}
+        {(countRefused === null || domains.length > 0) && (
+          <DiscoveryCounts domains={domains} expected={expected} slow={gaveUp} />
+        )}
+        {countRefused !== null && (
+          <p className="text-sm text-red-600" role="alert">
+            {t('confirm.countError')} {countRefused}
+            {held === true && <> {t('confirm.countAgain')}</>}
+          </p>
+        )}
         {/* Beside the count it acknowledges, not in a dialog after the press:
             the thing being confirmed is a number on this screen. */}
         <RefusedNativeAcknowledgement
