@@ -108,6 +108,17 @@ const panelLabel = (kind: string, role: 'source' | 'target'): string =>
     ? STRINGS.en['connections.reconnect']
     : STRINGS.en['connections.rotate'];
 
+/**
+ * Why a Connect button is greyed out: the status line straight under it
+ * (workplan 0145 T7 (a)), where a finger can read it. It used to be the
+ * button's `title`.
+ */
+const reasonUnder = (button: HTMLElement): HTMLElement => {
+  const line = button.nextElementSibling;
+  expect(line?.getAttribute('role'), 'no reason under the greyed-out button').toBe('status');
+  return line as HTMLElement;
+};
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -410,7 +421,10 @@ describe('replacing credentials', () => {
       conn({ kind: 'google', role: 'source', knownValues: { username: 'anna@acme.net' } }),
     ]);
     googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.example/o/oauth2/v2/auth?x=1' });
-    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    // The window opens in the press, blank, and is sent to the provider once
+    // the address arrives (0145 T5, `services/consent-window.ts`).
+    const popup = { location: { href: 'about:blank' }, closed: false, close: vi.fn() };
+    const opened = vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
     renderPage();
 
     fireEvent.click(await screen.findByText('Reconnect'));
@@ -422,10 +436,9 @@ describe('replacing credentials', () => {
     fireEvent.click(connect);
 
     await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
-    expect(opened).toHaveBeenCalledWith(
-      'https://accounts.google.example/o/oauth2/v2/auth?x=1',
-      'ownpace-google-consent',
-      expect.stringContaining('popup'),
+    expect(opened).toHaveBeenCalledWith('', 'ownpace-google-consent', expect.stringContaining('popup'));
+    await waitFor(() =>
+      expect(popup.location.href).toBe('https://accounts.google.example/o/oauth2/v2/auth?x=1'),
     );
 
     // The popup's answer, over the same postMessage the add form listens for.
@@ -506,7 +519,9 @@ describe('replacing credentials', () => {
     fireEvent.click(await screen.findByText('Reconnect'));
     fireEvent.click(screen.getByText('Check and replace'));
 
-    expect(await screen.findByText(/App key/)).toBeTruthy();
+    // The refusal's own sentence: the greyed-out Connect's reason under it
+    // names the App key too (0145 T7 (a)).
+    expect(await screen.findByText(/To continue, fill in:.*App key/)).toBeTruthy();
     expect(screen.queryByText(/clientId/), 'a storage key is not a field name').toBeNull();
   });
 
@@ -1214,10 +1229,7 @@ describe('adding a connection through the front door', () => {
       });
       const button = screen.getByRole('button', { name: /Connect with Dropbox/ });
       expect(button).toBeDisabled();
-      expect(button).toHaveAttribute(
-        'title',
-        expect.stringContaining('Enter the App key and App secret first'),
-      );
+      expect(reasonUnder(button)).toHaveTextContent('Enter the App key and App secret first');
       // No fold: the pair is required here, so it is in plain view.
       expect(screen.queryByText('Use your own Dropbox app')).toBeNull();
       expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
@@ -1248,7 +1260,7 @@ describe('adding a connection through the front door', () => {
     const button = await screen.findByRole('button', { name: /Connect with Dropbox/ });
     await act(async () => {});
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', expect.stringContaining('Enter the account address first'));
+    expect(reasonUnder(button)).toHaveTextContent('Enter the account address first');
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
