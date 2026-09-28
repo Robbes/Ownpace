@@ -15,12 +15,13 @@
  * for mail only: only mail's buttons wait for it.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { PathEndingChoice, StatusReport } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 const {
   fetchStatus,
@@ -142,6 +143,37 @@ beforeEach(() => {
 });
 
 const END_MAIL = /^End Email$/;
+
+describe('the migration state, said in words (workplan 0153 T1 (d))', () => {
+  afterEach(() => {
+    globalThis.localStorage.removeItem('ownpace.locale');
+  });
+
+  it.each([
+    ['en', 'Active'],
+    ['nl', 'Actief'],
+  ] as const)('reads the state table word in %s, never the bare token', async (locale, word) => {
+    // Finish printed `{m.lifecycle}`: "active", untranslated, beside a note
+    // about the same state that was translated. The chip says what every other
+    // screen says; the guard in StateChip.unit.test.tsx keeps it that way.
+    globalThis.localStorage.setItem('ownpace.locale', locale);
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Finish />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+
+    expect(STRINGS[locale]['state.lifecycle.active']).toBe(word);
+    expect((await screen.findAllByText(word)).length).toBeGreaterThan(0);
+    expect(screen.queryByText('active')).toBeNull();
+  });
+});
 
 describe('the cutover order', () => {
   it('will not end mail until delivery has been confirmed moved', async () => {
