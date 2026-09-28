@@ -11,6 +11,14 @@
  * repository variable, on each address they resolve to and on the machine's
  * own address when the secret `EXPOSURE_PROBE_HOST` holds it.
  *
+ * `www.ownpace.eu`, the production site live serves once its `.env` switches
+ * it on (0139 T10), is tried only on live's front, the addresses a production
+ * name or the secret resolves to. Until the site is routed the name points at
+ * another host (the apex's), and a port answering there is not the machine's:
+ * such an address is never tried, and 443 is not asked for the name. The
+ * dispatch input `site_name` says whether it must answer yet: `report`, the
+ * default, records; `required` fails.
+ *
  * IT PASSES WHEN, per 0132 T3: 443 on each production name answers over TLS;
  * the discovery document at `https://id.ownpace.eu` names `https://id.ownpace.eu`
  * as its issuer, so the production names reach live and not the OTA stack; and
@@ -34,6 +42,7 @@ import { createServer, type Server } from 'node:net';
 import {
   OTA_NAMES,
   PRODUCTION_NAMES,
+  SITE_NAME,
   probeConfig,
   realNetwork,
   runProbe,
@@ -45,6 +54,8 @@ const FRONT = '192.0.2.10';
 const FRONT_2 = '192.0.2.11';
 const OTA_FRONT = '198.51.100.20';
 const MACHINE = '203.0.113.5';
+/** Another host's address: where www.ownpace.eu points until the site is routed to live. */
+const APEX = '198.51.100.30';
 /** An IPv6 address, written as the IPv4-mapped form of a documentation address. */
 const V6 = '::ffff:192.0.2.12';
 
@@ -63,6 +74,7 @@ const ALL_RESOLVED: Record<string, string[]> = {
   'app.ownpace.eu': [FRONT, FRONT_2],
   'id.ownpace.eu': [FRONT],
   'status.ownpace.eu': [FRONT],
+  'www.ownpace.eu': [FRONT],
   'app.ota.ownpace.eu': [OTA_FRONT, V6],
   'id.ota.ownpace.eu': [OTA_FRONT],
   'www.ota.ownpace.eu': [OTA_FRONT],
@@ -85,7 +97,10 @@ function fakeIo(fake: Fake): { io: ProbeIo; lines: string[]; tried: string[]; tl
     },
     tls: async (name) => {
       tlsAsked.push(name);
-      return fake.tls?.[name] ?? (PRODUCTION_NAMES.includes(name) ? { state: 'tls' } : { state: 'none', why: 'timeout' });
+      return (
+        fake.tls?.[name] ??
+        ([...PRODUCTION_NAMES, SITE_NAME].includes(name) ? { state: 'tls' } : { state: 'none', why: 'timeout' })
+      );
     },
     issuer: async () => fake.issuer ?? { issuer: 'https://id.ownpace.eu' },
     print: (line) => lines.push(line),
@@ -93,7 +108,7 @@ function fakeIo(fake: Fake): { io: ProbeIo; lines: string[]; tried: string[]; tl
   return { io, lines, tried, tlsAsked };
 }
 
-const CONFIG: ProbeConfig = { ports: [3001, 3123, 5432], host: MACHINE, otaMode: 'report' };
+const CONFIG: ProbeConfig = { ports: [3001, 3123, 5432], host: MACHINE, otaMode: 'report', siteMode: 'report' };
 
 /** Every IPv4 and IPv6 literal the fake network handed out. */
 const ADDRESSES = [FRONT, FRONT_2, OTA_FRONT, MACHINE, V6];
@@ -104,7 +119,7 @@ function expectNoAddress(lines: readonly string[]): void {
   const lastMask = lines.map((l) => l.startsWith('::add-mask::')).lastIndexOf(true);
   expect(lastMask, 'a mask was printed after another line').toBeLessThan(firstOther === -1 ? Infinity : firstOther);
   const printed = lines.filter((l) => !l.startsWith('::add-mask::')).join('\n');
-  for (const a of ADDRESSES) expect(printed, `the log names ${a}`).not.toContain(a);
+  for (const a of [...ADDRESSES, APEX]) expect(printed, `the log names ${a}`).not.toContain(a);
   expect(printed).not.toMatch(/(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])/);
   expect(printed).not.toContain('::');
 }
@@ -136,7 +151,7 @@ describe('the probe from outside', () => {
     expect(await runProbe(CONFIG, io)).toBe(1);
     const finding = lines.filter((l) => l.includes('5432') && /answers/.test(l));
     expect(finding).toHaveLength(1);
-    for (const n of ['app.ownpace.eu', 'id.ownpace.eu', 'status.ownpace.eu']) expect(finding[0]).toContain(n);
+    for (const n of ['app.ownpace.eu', 'id.ownpace.eu', 'status.ownpace.eu', 'www.ownpace.eu']) expect(finding[0]).toContain(n);
     expectNoAddress(lines);
   });
 
@@ -206,6 +221,80 @@ describe('the probe from outside', () => {
   });
 });
 
+describe('www.ownpace.eu, tried only on live\'s front (0139 T10)', () => {
+  const silent = { state: 'none' as const, why: 'timeout' };
+  const report = CONFIG;
+  const required: ProbeConfig = { ...CONFIG, siteMode: 'required' };
+  const pointedAway = { ...ALL_RESOLVED, 'www.ownpace.eu': [APEX] };
+
+  it('is its own name, not a production name, and reports by default', () => {
+    expect(SITE_NAME).toBe('www.ownpace.eu');
+    expect(PRODUCTION_NAMES).not.toContain(SITE_NAME);
+  });
+
+  it('on live\'s front: asked over TLS on 443, its address tried like the others\', and failed when it does not answer only if required', async () => {
+    const answering = fakeIo({});
+    expect(await runProbe(required, answering.io), answering.lines.join('\n')).toBe(0);
+    expect(answering.tlsAsked).toContain(SITE_NAME);
+    expect(answering.lines.join('\n')).toMatch(/pass {2}www\.ownpace\.eu: 443 answers over TLS, on live's front/);
+    for (const p of CONFIG.ports) expect(answering.tried).toContain(`${FRONT}#${p}`);
+    const quietRequired = fakeIo({ tls: { [SITE_NAME]: silent } });
+    expect(await runProbe(required, quietRequired.io)).toBe(1);
+    expect(quietRequired.lines.join('\n')).toMatch(/FAIL {2}www\.ownpace\.eu: 443 does not answer \(timeout\); site_name is required/);
+    const quietReport = fakeIo({ tls: { [SITE_NAME]: silent } });
+    expect(await runProbe(report, quietReport.io)).toBe(0);
+    expect(quietReport.lines.join('\n')).toMatch(/note {2}www\.ownpace\.eu: 443 does not answer \(timeout\); recorded/);
+    expectNoAddress(quietRequired.lines);
+  });
+
+  it('pointed at another host: that address is never tried on any port, 443 is not asked, and it fails only if required', async () => {
+    for (const config of [report, required]) {
+      const f = fakeIo({ resolved: pointedAway });
+      const code = await runProbe(config, f.io);
+      expect(code, f.lines.join('\n')).toBe(config.siteMode === 'required' ? 1 : 0);
+      expect(f.tried.filter((t) => t.startsWith(`${APEX}#`)), 'an address that is not live\'s front was tried').toEqual([]);
+      expect(f.tlsAsked).not.toContain(SITE_NAME);
+      expect(f.lines.join('\n')).toMatch(/www\.ownpace\.eu: 1 of its 1 address\(es\) are not live's front/);
+      // Masked all the same, and never printed.
+      expect(f.lines).toContain(`::add-mask::${APEX}`);
+      expectNoAddress(f.lines);
+    }
+    // And no finding names it, even when that host answers every port.
+    const open = fakeIo({ resolved: pointedAway, open: CONFIG.ports.map((p) => [APEX, p] as [string, number]) });
+    expect(await runProbe(report, open.io)).toBe(0);
+    expect(open.lines.join('\n')).not.toMatch(/port \d+ answers/);
+  });
+
+  it('partly on live\'s front: only the front\'s address is tried, the other never, and 443 is not asked', async () => {
+    const f = fakeIo({ resolved: { ...ALL_RESOLVED, 'www.ownpace.eu': [FRONT, APEX] } });
+    expect(await runProbe(required, f.io)).toBe(1);
+    expect(f.tried).toContain(`${FRONT}#5432`);
+    expect(f.tried.filter((t) => t.startsWith(`${APEX}#`))).toEqual([]);
+    expect(f.tlsAsked).not.toContain(SITE_NAME);
+    expect(f.lines.join('\n')).toMatch(/FAIL {2}www\.ownpace\.eu: 1 of its 2 address\(es\) are not live's front/);
+    expectNoAddress(f.lines);
+  });
+
+  it('on the machine\'s own address (EXPOSURE_PROBE_HOST) counts as live\'s front', async () => {
+    const f = fakeIo({ resolved: { ...ALL_RESOLVED, 'www.ownpace.eu': [MACHINE] } });
+    expect(await runProbe(required, f.io), f.lines.join('\n')).toBe(0);
+    expect(f.tlsAsked).toContain(SITE_NAME);
+    const without = fakeIo({ resolved: { ...ALL_RESOLVED, 'www.ownpace.eu': [MACHINE] } });
+    expect(await runProbe({ ...required, host: '' }, without.io)).toBe(1);
+    expect(without.tried.filter((t) => t.startsWith(`${MACHINE}#`))).toEqual([]);
+  });
+
+  it('not resolving: recorded by default, failed if required', async () => {
+    const gone = { unresolvable: { [SITE_NAME]: 'ENOTFOUND' } };
+    const r = fakeIo(gone);
+    expect(await runProbe(report, r.io)).toBe(0);
+    expect(r.lines.join('\n')).toMatch(/note {2}www\.ownpace\.eu does not resolve \(ENOTFOUND\)/);
+    const q = fakeIo(gone);
+    expect(await runProbe(required, q.io)).toBe(1);
+    expect(q.lines.join('\n')).toMatch(/FAIL {2}www\.ownpace\.eu does not resolve \(ENOTFOUND\); site_name is required/);
+  });
+});
+
 describe('the OTA names, as open question 7 will decide', () => {
   const answering = { state: 'tls' as const };
   const silent = { state: 'none' as const, why: 'timeout' };
@@ -267,6 +356,14 @@ describe('the configuration the workflow hands it', () => {
   it('refuses an OTA mode that is not one of the three, and defaults to report', () => {
     expect(probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_OTA_NAMES: 'maybe' }, derived).config).toBeUndefined();
     expect(probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123' }, derived).config?.otaMode).toBe('report');
+  });
+
+  it('refuses a site mode that is not report or required, and defaults to report', () => {
+    const bad = probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_SITE_NAME: 'maybe' }, derived);
+    expect(bad.config).toBeUndefined();
+    expect(bad.errors.join('\n')).toContain('EXPOSURE_PROBE_SITE_NAME');
+    expect(probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123' }, derived).config?.siteMode).toBe('report');
+    expect(probeConfig({ EXPOSURE_PROBE_LIVE_PORTS: '4123', EXPOSURE_PROBE_SITE_NAME: 'required' }, derived).config?.siteMode).toBe('required');
   });
 
   it('never repeats the secret in a refusal', () => {

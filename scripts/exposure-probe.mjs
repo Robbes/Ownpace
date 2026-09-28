@@ -36,6 +36,19 @@
  * reach (a GitHub-hosted runner has no IPv6 route) is said to be NOT TRIED,
  * never counted as closed.
  *
+ * THE PRODUCTION SITE, `www.ownpace.eu` (workplan 0139 T10), is live's only
+ * once live's `.env` says `WWW_LIVE=true` and the name is routed to live's
+ * front, which waits on the legal texts. Until then the name points
+ * elsewhere (the apex's host, today), and that host is not the machine's. So
+ * the probe tries no port on an address of it that is not live's front: an
+ * address a production name, or `EXPOSURE_PROBE_HOST`, resolves to. It does
+ * not ask 443 for the name unless every address of it is live's front, since
+ * that would test the other host too. `EXPOSURE_PROBE_SITE_NAME` (the
+ * dispatch input `site_name`) is `report` by default, which records what it
+ * found without failing on it; `required`, once the site is switched on and
+ * routed, requires the name to resolve to live's front alone and 443 to
+ * answer over TLS.
+ *
  * ITS LOG NEVER NAMES AN ADDRESS. The run's log is public. Every address, and
  * the secret, is masked with `::add-mask::` before anything else is printed,
  * and nothing printed carries one: an address is named by the names that
@@ -61,6 +74,9 @@ import { readPorts } from './exposure-probe-ports.mjs';
 
 export const PRODUCTION_NAMES = ['app.ownpace.eu', 'id.ownpace.eu', 'status.ownpace.eu'];
 export const OTA_NAMES = ['app.ota.ownpace.eu', 'id.ota.ownpace.eu', 'www.ota.ownpace.eu'];
+/** The production site (0139 T10): live's once switched on and routed, and only then. */
+export const SITE_NAME = 'www.ownpace.eu';
+export const SITE_MODES = ['report', 'required'];
 export const ISSUER = 'https://id.ownpace.eu';
 export const DISCOVERY = `${ISSUER}/.well-known/openid-configuration`;
 export const OTA_MODES = ['report', 'internet', 'mesh-only'];
@@ -97,9 +113,13 @@ export function probeConfig(env, derivedPorts) {
   if (!OTA_MODES.includes(otaMode)) {
     errors.push(`EXPOSURE_PROBE_OTA_NAMES must be one of ${OTA_MODES.join(', ')}.`);
   }
+  const siteMode = (env.EXPOSURE_PROBE_SITE_NAME ?? '').trim() || 'report';
+  if (!SITE_MODES.includes(siteMode)) {
+    errors.push(`EXPOSURE_PROBE_SITE_NAME must be one of ${SITE_MODES.join(', ')}.`);
+  }
   if (errors.length) return { errors };
   const ports = [...new Set([...derivedPorts, ...livePorts])].sort((a, b) => a - b);
-  return { config: { ports, host: (env.EXPOSURE_PROBE_HOST ?? '').trim(), otaMode }, errors: [] };
+  return { config: { ports, host: (env.EXPOSURE_PROBE_HOST ?? '').trim(), otaMode, siteMode }, errors: [] };
 }
 
 /** Run `fn` over `items`, at most `limit` at a time, keeping the order. */
@@ -167,6 +187,8 @@ export async function runProbe(config, io) {
     r.addresses.forEach(mask);
     resolved.set(name, r);
   }
+  const site = await io.resolve(SITE_NAME);
+  site.addresses.forEach(mask);
 
   // ---- From here on, names and ports only ---------------------------------
   const findings = [];
@@ -180,12 +202,20 @@ export async function runProbe(config, io) {
 
   say(`exposure-probe: from outside, workplan 0132 T3. Ports tried on every address: ${config.ports.join(' ')}`);
   say(`exposure-probe: OTA names: ${config.otaMode} (open question 7)`);
+  say(`exposure-probe: ${SITE_NAME}: ${config.siteMode} (workplan 0139 T10)`);
+
+  // Live's front: what a production name, or the machine's own secret,
+  // resolves to. The site's name is tried only there (above).
+  const front = new Set([...PRODUCTION_NAMES.flatMap((n) => resolved.get(n).addresses), ...hostAddresses]);
+  const siteOnFront = site.addresses.filter((a) => front.has(a));
+  const siteElsewhere = site.addresses.length - siteOnFront.length;
 
   // Each address once, named by every name that resolves to it.
   const namesOf = new Map();
   for (const [name, r] of resolved) {
     for (const a of r.addresses) namesOf.set(a, [...(namesOf.get(a) ?? []), name]);
   }
+  for (const a of siteOnFront) namesOf.set(a, [...(namesOf.get(a) ?? []), SITE_NAME]);
   const groups = new Map();
   for (const [address, names] of namesOf) {
     const label = names.join(', ');
@@ -194,7 +224,7 @@ export async function runProbe(config, io) {
   const targets = labelAddresses([...groups].map(([label, addresses]) => ({ label, addresses })));
   if (config.host && !hostError) targets.push(...labelAddresses([{ label: HOST_LABEL, addresses: hostAddresses }]));
 
-  for (const [name, r] of resolved) {
+  for (const [name, r] of [...resolved, [SITE_NAME, site]]) {
     if (r.addresses.length && r.error) note(`${name}: part of the lookup failed (${r.error}); tried what it did return`);
   }
   if (!config.host) note("EXPOSURE_PROBE_HOST is not set: the machine's own address was not tried");
@@ -233,6 +263,24 @@ export async function runProbe(config, io) {
     if (t.state === 'tls') pass(`${name}: ${TLS_PORT} answers over TLS`);
     else if (t.state === 'tcp-only') fail(`${name}: ${TLS_PORT} answers, but not over TLS for the name (${t.why ?? 'no reason'})`);
     else fail(`${name}: ${TLS_PORT} does not answer (${t.why ?? 'no reason'})`);
+  }
+
+  // ---- The production site, as live's .env and its route will decide ----------
+  const siteSays = config.siteMode === 'required' ? fail : note;
+  const siteWhy = config.siteMode === 'required' ? 'site_name is required' : 'recorded; site_name is report';
+  const frontIs = `an address of ${PRODUCTION_NAMES.join(', ')} or EXPOSURE_PROBE_HOST`;
+  if (!site.addresses.length) {
+    siteSays(`${SITE_NAME} does not resolve (${site.error ?? 'no address'}); ${siteWhy}`);
+  } else if (siteElsewhere) {
+    siteSays(
+      `${SITE_NAME}: ${siteElsewhere} of its ${site.addresses.length} address(es) are not live's front (${frontIs}), ` +
+        `so no port was tried there and ${TLS_PORT} was not asked; ${siteWhy}`,
+    );
+  } else {
+    const t = await io.tls(SITE_NAME);
+    if (t.state === 'tls') pass(`${SITE_NAME}: ${TLS_PORT} answers over TLS, on live's front`);
+    else if (t.state === 'tcp-only') siteSays(`${SITE_NAME}: ${TLS_PORT} answers, but not over TLS for the name (${t.why ?? 'no reason'}); ${siteWhy}`);
+    else siteSays(`${SITE_NAME}: ${TLS_PORT} does not answer (${t.why ?? 'no reason'}); ${siteWhy}`);
   }
 
   // ---- The production names reach live --------------------------------------

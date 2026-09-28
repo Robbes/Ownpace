@@ -19,6 +19,9 @@
 #                               built yet)
 #   deploy-live.sh              refuses a .env WITHOUT the marker (0132 T6,
 #                               built: stack_is_live)
+#   rotate-db-passwords.sh      --sync and --rotate refuse live; --check runs
+#                               on any stack, it changes nothing (0132 T2,
+#                               built: stack_may_be_live)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line
@@ -38,8 +41,9 @@
 #                       any value that is not a kind listed below as not live,
 #                       and a line naming the key that the reader cannot read
 #                       (indented, or with spaces around `=`). For a REFUSAL,
-#                       which errs towards live: the rehearsal, the gate, and
-#                       --with-demo.
+#                       which errs towards live: the rehearsal, the gate,
+#                       --with-demo, and rotate-db-passwords.sh's --sync and
+#                       --rotate.
 #
 # Usage:  . "${SCRIPT_DIR}/stack-kind.sh"
 #         if stack_may_be_live "$ENV_FILE"; then …refuse…; fi

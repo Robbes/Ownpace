@@ -4,9 +4,9 @@
  * Does a pass use the ledger it was GIVEN, or one it goes and finds?
  *
  * This is the question the PGlite e2e answered the hard way. `buildDeps` and
- * `buildDomainDeps` opened their own `pg.Pool` from `DATABASE_URL`, which is
+ * `buildDomainDeps` opened their own `pg.Pool` from `DATABASE_URL`, which looked
  * correct for the managed worker — it is stateless, a pass is a job, the pool
- * dies with it — and wrong for the self-host appliance twice over:
+ * dies with it — and was wrong for the self-host appliance twice over:
  *
  *  - On the container path it silently opened a SECOND pool to the same server.
  *    Wasteful, invisible, and it looked like it worked.
@@ -22,6 +22,12 @@
  * builder does not close what it does not own. No connectors, no network, no
  * database — the failure this guards against is one of plumbing, and plumbing
  * is what it inspects.
+ *
+ * And since workplan 0138 T1 part 2 there is no fallback at all: opening the
+ * owner's pool from `DATABASE_URL` was wrong for the managed tasks too, whose
+ * caller chose the connection a pass should run on. A caller that passes no
+ * ledger does not compile; one that gets past the types is refused, on any
+ * edition, before anything is built.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -114,26 +120,25 @@ describe('a pass uses the ledger it was given', () => {
 });
 
 describe('a pass with no ledger given', () => {
-  it('still opens its own from DATABASE_URL — managed is unchanged', async () => {
-    process.env.DATABASE_URL = 'postgresql://u:p@127.0.0.1:1/x';
+  it('is refused, and does not open its own from DATABASE_URL', async () => {
+    // What it used to do, and what 0138 T1 part 2 removed: a handle from the
+    // environment, the owner's on the managed stack, whatever pool the caller
+    // had chosen.
+    process.env.DATABASE_URL = 'postgresql://nobody:nope@this-host-must-not-be-used:5432/x';
     delete process.env.SELFHOST_PERSISTENCE;
-    // A pool is lazy, so this constructs without connecting. The assertion is
-    // that a handle exists at all and is NOT the injected one.
-    const deps = await buildDeps(CONFIG);
-    expect((deps.ledger as unknown as { db: unknown }).db).toBeDefined();
-    expect((deps.ledger as unknown as { db: unknown }).db).not.toBe(APPLIANCE_DB);
-    await deps.close();
+    await expect(buildDeps(CONFIG, {} as never)).rejects.toThrow(/handed its ledger/);
+    expect(() => buildDomainDeps(CONFIG, 'calendar', {} as never)).toThrow(/handed its ledger/);
   });
 
-  it('refuses outright on the PGlite appliance rather than connecting to something else', async () => {
-    // The bug this closes for good. `DATABASE_URL` is STILL SET on the PGlite
-    // appliance — compose merges maps key by key, so an override cannot remove
-    // what the base file declares — so a fallback does not fail, it succeeds
-    // against the wrong database. On the e2e stack that host had gone away and
-    // it crashed; on a stack where it had not, a pass would have written its
-    // ledger somewhere the appliance never reads.
+  it('is refused on the PGlite appliance too, rather than connecting to something else', async () => {
+    // The bug the appliance's refusal closed first. `DATABASE_URL` is STILL SET
+    // on the PGlite appliance — compose merges maps key by key, so an override
+    // cannot remove what the base file declares — so a fallback does not fail,
+    // it succeeds against the wrong database. On the e2e stack that host had
+    // gone away and it crashed; on a stack where it had not, a pass would have
+    // written its ledger somewhere the appliance never reads.
     process.env.DATABASE_URL = 'postgresql://u:p@postgres:5432/openmigrate';
     process.env.SELFHOST_PERSISTENCE = 'pglite';
-    await expect(buildDeps(CONFIG)).rejects.toThrow(/PGlite.*ledger handle|wiring bug/s);
+    await expect(buildDeps(CONFIG, {} as never)).rejects.toThrow(/handed its ledger|wiring bug/s);
   });
 });

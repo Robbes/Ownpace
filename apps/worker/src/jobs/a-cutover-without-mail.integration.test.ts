@@ -94,14 +94,14 @@ describe('a Microsoft → Nextcloud migration of calendars, contacts and files',
   });
 
   it('is verified by the cutover gate, which goes past mail rather than failing on it', async () => {
-    const verdict = await runCutoverGate(pool, PG_CONNECTION_STRING, TENANT, MAPPING);
+    const verdict = await runCutoverGate(pool, TENANT, MAPPING);
 
     expect(verdict.tenantId).toBe(TENANT);
     expect(verdict.mappingId).toBe(MAPPING);
   });
 
   it('is not asked about the data types it does not have', async () => {
-    const verdict = await runCutoverGate(pool, PG_CONNECTION_STRING, TENANT, MAPPING);
+    const verdict = await runCutoverGate(pool, TENANT, MAPPING);
 
     for (const notCarried of ['mail', 'tasks'] as const) {
       expect(verdict[notCarried].status).toBe('SKIPPED');
@@ -110,7 +110,7 @@ describe('a Microsoft → Nextcloud migration of calendars, contacts and files',
   });
 
   it('is asked about the ones it does have, each against what the ledger recorded', async () => {
-    const verdict = await runCutoverGate(pool, PG_CONNECTION_STRING, TENANT, MAPPING);
+    const verdict = await runCutoverGate(pool, TENANT, MAPPING);
 
     for (const carried of ['calendar', 'contacts', 'files'] as const) {
       expect(verdict[carried].status).toBe('SKIPPED');

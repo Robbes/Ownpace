@@ -17,6 +17,14 @@ import {
   GoogleDriveSource,
  ArchiveFileSource } from '@openmig/connectors';
 import type { MappingConfig, SourceAuth } from '@openmig/shared';
+import type { PgDatabase } from '@openmig/ledger';
+
+/**
+ * Every pass is handed its ledger and opens none from `DATABASE_URL` (workplan
+ * 0138 T1 part 2). These build deps and never run a query, so the handle is
+ * never touched: a query through it would fail loudly, not quietly.
+ */
+const LEDGER = { ledgerDb: {} as unknown as PgDatabase };
 
 interface ImapSourceInternals {
   config: {
@@ -47,11 +55,10 @@ function configWith(auth: SourceAuth): MappingConfig {
 
 describe('buildDeps IMAP source auth wiring', () => {
   it('wires password-based (login) auth through to the connector, not XOAUTH2', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'source_password');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
+      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }), LEDGER);
       const internals = (deps.source as unknown as ImapSourceInternals).config;
       expect(internals.authType).toBe('LOGIN');
       expect(internals.auth.password).toBe('source_password');
@@ -63,11 +70,10 @@ describe('buildDeps IMAP source auth wiring', () => {
   });
 
   it('still wires xoauth2 auth through to the connector as XOAUTH2', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_TOKEN', 'tok');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(configWith({ kind: 'xoauth2', tokenFromEnv: 'SRC_TOKEN' }));
+      const deps = await buildDeps(configWith({ kind: 'xoauth2', tokenFromEnv: 'SRC_TOKEN' }), LEDGER);
       const internals = (deps.source as unknown as ImapSourceInternals).config;
       expect(internals.authType).toBe('XOAUTH2');
       expect(internals.auth.accessToken).toBe('tok');
@@ -100,12 +106,11 @@ function graphMailConfig(mailbox?: string): MappingConfig {
 
 describe('buildDeps graph-mail source wiring', () => {
   it('builds a GraphMailSource on the client-credentials flow', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(graphMailConfig());
+      const deps = await buildDeps(graphMailConfig(), LEDGER);
       expect(deps.source).toBeInstanceOf(GraphMailSource);
       await deps.close();
     } finally {
@@ -114,10 +119,9 @@ describe('buildDeps graph-mail source wiring', () => {
   });
 
   it('refuses at build time, naming OAUTH2_CLIENT_ID, when it is missing', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      await expect(buildDeps(graphMailConfig())).rejects.toThrow(/OAUTH2_CLIENT_ID/);
+      await expect(buildDeps(graphMailConfig(), LEDGER)).rejects.toThrow(/OAUTH2_CLIENT_ID/);
     } finally {
       vi.unstubAllEnvs();
     }
@@ -127,12 +131,11 @@ describe('buildDeps graph-mail source wiring', () => {
     // 0027 T0 gave the connector a `mailbox` option and nothing could set it;
     // this is the mapping-file surface that makes it reachable (SAD §14.1
     // Pattern S — a shared store has no user to sign in as).
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(graphMailConfig('gedeeld@contoso.nl'));
+      const deps = await buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER);
       expect(deps.source).toBeInstanceOf(GraphMailSource);
       await deps.close();
     } finally {
@@ -144,18 +147,17 @@ describe('buildDeps graph-mail source wiring', () => {
     // The failure this prevents: a delegated token against /users/{address}
     // gets a bare 403 from Graph, and the operator reads an access-denied
     // error that says nothing about which of the two flows they are on.
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('OAUTH2_REFRESH_TOKEN', 'a-delegated-refresh-token');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const failure = buildDeps(graphMailConfig('gedeeld@contoso.nl'));
+      const failure = buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER);
       await expect(failure).rejects.toThrow(/gedeeld@contoso\.nl/);
-      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'))).rejects.toThrow(
+      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER)).rejects.toThrow(
         /OAUTH2_REFRESH_TOKEN is set/,
       );
       // Points at the runbook rather than leaving them to guess.
-      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'))).rejects.toThrow(
+      await expect(buildDeps(graphMailConfig('gedeeld@contoso.nl'), LEDGER)).rejects.toThrow(
         /o365-application-access\.md/,
       );
     } finally {
@@ -166,12 +168,11 @@ describe('buildDeps graph-mail source wiring', () => {
   it('still allows the delegated flow when no mailbox is named', async () => {
     // The guard must not break /me reads, which is what every existing
     // delegated mapping does.
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('OAUTH2_REFRESH_TOKEN', 'a-delegated-refresh-token');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(graphMailConfig());
+      const deps = await buildDeps(graphMailConfig(), LEDGER);
       expect(deps.source).toBeInstanceOf(GraphMailSource);
       await deps.close();
     } finally {
@@ -180,11 +181,10 @@ describe('buildDeps graph-mail source wiring', () => {
   });
 
   it('refuses when neither OAUTH2_CLIENT_SECRET nor OAUTH2_REFRESH_TOKEN is set', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      await expect(buildDeps(graphMailConfig())).rejects.toThrow(
+      await expect(buildDeps(graphMailConfig(), LEDGER)).rejects.toThrow(
         /OAUTH2_CLIENT_SECRET.*OAUTH2_REFRESH_TOKEN/,
       );
     } finally {
@@ -201,14 +201,13 @@ describe('buildDeps graph-mail source wiring', () => {
 
 describe('buildDeps IMAP→Graph fallback wiring', () => {
   it('wraps the IMAP source when Graph-capable env credentials exist', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'pw');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     vi.stubEnv('OAUTH2_TENANT_ID', 'contoso.example');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
     try {
-      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
+      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }), LEDGER);
       expect(deps.source).toBeInstanceOf(MailSourceWithGraphFallback);
       await deps.close();
     } finally {
@@ -217,13 +216,12 @@ describe('buildDeps IMAP→Graph fallback wiring', () => {
   });
 
   it('leaves the IMAP source unwrapped without OAUTH2_TENANT_ID (nothing to fall back to)', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'pw');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     vi.stubEnv('OAUTH2_CLIENT_ID', 'app-id');
     vi.stubEnv('OAUTH2_CLIENT_SECRET', 'app-secret');
     try {
-      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }));
+      const deps = await buildDeps(configWith({ kind: 'login', passwordFromEnv: 'SRC_PASSWORD' }), LEDGER);
       // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06). Production builds the
       // imapflow source, and since T3b there is no other one to build — the
       // `imap-simple` implementation and both parity harnesses are gone. That
@@ -267,11 +265,10 @@ describe('IMAP TLS is configured, not deduced from the port', () => {
   }
 
   async function tlsOf(config: MappingConfig): Promise<boolean | undefined> {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'pw');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(config);
+      const deps = await buildDeps(config, LEDGER);
       const tls = (deps.source as unknown as { config: { tls?: boolean } }).config.tls;
       await deps.close();
       return tls;
@@ -312,11 +309,10 @@ describe('IMAP certificate verification is configured, not ambient', () => {
    * `"tlsVerify": false` gets a config field that silently does nothing.
    */
   async function rejectUnauthorizedOf(config: MappingConfig): Promise<boolean | undefined> {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'pw');
     vi.stubEnv('TGT_PASSWORD', 'pw');
     try {
-      const deps = await buildDeps(config);
+      const deps = await buildDeps(config, LEDGER);
       const value = (deps.source as unknown as { config: { rejectUnauthorized?: boolean } })
         .config.rejectUnauthorized;
       await deps.close();
@@ -374,12 +370,12 @@ describe('buildDeps imap-dav target wiring', () => {
   }
 
   it('builds an ImapFlowDavMailTarget from the named env var', async () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'source_password');
     vi.stubEnv('TGT_IMAP_PASSWORD', 'target_password');
     try {
       const deps = await buildDeps(
         imapDavTargetConfig({ kind: 'login', passwordFromEnv: 'TGT_IMAP_PASSWORD' }),
+        LEDGER,
       );
       // PINS THE CUTOVER (workplan 0032 T3, 2026-08-06) — the WRITE path.
       expect(deps.target).toBeInstanceOf(ImapFlowDavMailTarget);
@@ -392,11 +388,10 @@ describe('buildDeps imap-dav target wiring', () => {
   it('refuses at build time, naming the env var, when the target password is unset', async () => {
     // Rule 9: name the variable. A target whose password is missing must say
     // which one, not fail later against the server with an auth error.
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('SRC_PASSWORD', 'source_password');
     try {
       await expect(
-        buildDeps(imapDavTargetConfig({ kind: 'login', passwordFromEnv: 'TGT_IMAP_PASSWORD' })),
+        buildDeps(imapDavTargetConfig({ kind: 'login', passwordFromEnv: 'TGT_IMAP_PASSWORD' }), LEDGER),
       ).rejects.toThrow(/TGT_IMAP_PASSWORD/);
     } finally {
       vi.unstubAllEnvs();
@@ -449,13 +444,12 @@ describe('buildDomainDeps — a Google Drive file source', () => {
     // Google withdrew WebDAV years ago, so a Drive source has no url/user/
     // password to resolve. Reaching the DAV endpoint resolver would refuse for
     // missing credentials that do not exist for this provider.
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('GOOGLE_CLIENT_ID', 'client-1.apps.googleusercontent.com');
     vi.stubEnv('GOOGLE_CLIENT_SECRET', 'GOCSPX-secret');
     vi.stubEnv('GOOGLE_REFRESH_TOKEN', '1//refresh');
     vi.stubEnv('TGT_PASSWORD', 'target_password');
     try {
-      const deps = buildDomainDeps(driveMapping(), 'file');
+      const deps = buildDomainDeps(driveMapping(), 'file', LEDGER);
       expect(deps.source).toBeInstanceOf(GoogleDriveSource);
       void deps.close();
     } finally {
@@ -466,13 +460,12 @@ describe('buildDomainDeps — a Google Drive file source', () => {
   it('refuses at build time, naming the environment variable that is missing', () => {
     // Rule 9. Without this the appliance builds a source that cannot mint a
     // token, and the operator sees a 401 from Google in the middle of a pass.
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('GOOGLE_CLIENT_ID', '');
     vi.stubEnv('GOOGLE_CLIENT_SECRET', '');
     vi.stubEnv('GOOGLE_REFRESH_TOKEN', '');
     vi.stubEnv('TGT_PASSWORD', 'target_password');
     try {
-      expect(() => buildDomainDeps(driveMapping(), 'file')).toThrow(/GOOGLE_CLIENT_ID/);
+      expect(() => buildDomainDeps(driveMapping(), 'file', LEDGER)).toThrow(/GOOGLE_CLIENT_ID/);
     } finally {
       vi.unstubAllEnvs();
     }
@@ -517,10 +510,9 @@ describe('buildDomainDeps — an export archive as the file source (0116 T10)', 
   }
 
   it('builds the archive file source — a snapshot — and never reaches the DAV resolver', () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://u:p@127.0.0.1:5432/none');
     vi.stubEnv('TGT_PASSWORD', 'target_password');
     try {
-      const deps = buildDomainDeps(archiveMapping(), 'file');
+      const deps = buildDomainDeps(archiveMapping(), 'file', LEDGER);
       expect(deps.source).toBeInstanceOf(ArchiveFileSource);
       expect((deps.source as ArchiveFileSource).snapshot).toBe(true);
       void deps.close();
