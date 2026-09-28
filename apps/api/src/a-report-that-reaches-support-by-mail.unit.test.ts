@@ -26,12 +26,17 @@
  *   a provider may drop the header, and the fake transport cannot see past
  *   either; the line survives both. Reply-To only for one valid address;
  * - **a mail the relay refused:** answered as a Zammad refusal is, a 502 with
- *   a reference, recorded as `report.not-delivered`; and a relay that hangs
- *   is given up on in time, since `sendReportMail` hands the transport
- *   `REPORT_MAIL_TIMEOUTS`;
+ *   a reference, recorded as `report.not-delivered`;
+ * - **a relay that does not answer:** given up on at `REPORT_MAIL_DEADLINE_MS`,
+ *   twenty seconds, however many addresses it has. nodemailer's waits restart
+ *   at each address it falls back to, so they alone do not bound a send: with
+ *   nodemailer itself, over a relay that resolves to several addresses and
+ *   lets every connection hang, the send ends inside the deadline. A mail that
+ *   went out after it was given up on is said in the log;
  * - **the same per-person limit**, and for a link's report the same per-link
  *   one, and a day's cap on every report mail together, since the relay's
- *   login sends the identity provider's sign-in codes too;
+ *   login sends the identity provider's sign-in codes too: the one count the
+ *   service keeps, driven through all three doors, not a test's own;
  * - **a link's report has no Reply-To at all**: its note would be quoted to
  *   an address somebody typed;
  * - **a recipient set with the mail off is said in the log**, once.
@@ -41,8 +46,10 @@
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach, beforeAll, afterAll } from 'vitest';
+import net from 'node:net';
 import express from 'express';
 import request from 'supertest';
+import { dnsCache } from 'nodemailer/lib/shared';
 import { pgliteDriver, runMigrations, withTenant, issueMappingLink, expiryFromDays } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
@@ -50,11 +57,16 @@ import { setAppEventSink, type AppEvent, type MailTransport, type SmtpSettings }
 import { buildIdentity } from '@openmig/core';
 import { reportMailFor, ticketFor, type ProblemReport } from './problem-report.ts';
 import {
+  REPORT_MAIL_DEADLINE_MS,
   REPORT_MAIL_PER_DAY,
   REPORT_MAIL_TIMEOUTS,
   __forgetWhatWasSaidForTests,
+  __startTheDayAgainForTests,
   reportChannel,
   reportMailConfigFrom,
+  sendReportMail,
+  type ReportMailConfig,
+  type ReportMailTransport,
 } from './services/report-channel.ts';
 import { createKnockLimiter } from './knock-limit.ts';
 import { LINK_REPORT_MAIL_WARNING } from './link-report.ts';
@@ -132,8 +144,11 @@ beforeEach(() => {
   events = [];
   setAppEventSink({ record: async (e) => void events.push(e) });
   __forgetWhatWasSaidForTests();
+  // Each test starts the day with none of the fifty used.
+  __startTheDayAgainForTests();
 });
 afterEach(() => {
+  vi.useRealTimers();
   setAppEventSink(undefined);
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -377,12 +392,146 @@ describe('the form, on a service with mail and no Zammad', () => {
     expect(sent).toHaveLength(5);
   });
 
-  it('gives up on a relay that hangs well before the web client stops waiting at thirty seconds', () => {
-    const { connectionMs, greetingMs, socketMs } = REPORT_MAIL_TIMEOUTS;
-    for (const wait of [connectionMs, greetingMs, socketMs]) {
-      expect(wait).toBeGreaterThan(0);
-      expect(wait).toBeLessThanOrEqual(20_000);
-    }
+  it('answers a relay that never answers with a 502 and a reference at twenty seconds, before the web client stops waiting at thirty', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const lines: string[] = [];
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => void lines.push(args.map(String).join(' ')));
+    let handed!: () => void;
+    const reached = new Promise<void>((resolve) => (handed = resolve));
+    // Takes the mail and never answers, as a relay that let the connection hang.
+    const mailTransport: ReportMailTransport = () => () => {
+      handed();
+      return new Promise<void>(() => {});
+    };
+    const answered = request(app({ env: MAIL, mailTransport }))
+      .post('/api/problem-reports')
+      .send({ description: 'x', page: '/' })
+      .then((res) => res);
+    await reached;
+    const started = Date.now();
+    await vi.advanceTimersByTimeAsync(REPORT_MAIL_DEADLINE_MS);
+    const res = await answered;
+
+    expect(Date.now() - started).toBe(REPORT_MAIL_DEADLINE_MS);
+    expect(REPORT_MAIL_DEADLINE_MS).toBeLessThanOrEqual(20_000);
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBe('report_not_delivered');
+    expect(res.body.reason).toContain(`Reference ${events[0]!.reference}`);
+    expect(lines.join('\n')).toContain('the relay did not take the report mail within 20 seconds');
+  });
+});
+
+describe('a relay that does not answer', () => {
+  const RELAY_CONFIG = (host: string): ReportMailConfig => ({
+    smtp: { host, port: 587, secure: false },
+    from: 'ownpace@example.invalid',
+    to: ['support@example.invalid'],
+  });
+  const hosts: string[] = [];
+  afterEach(() => {
+    for (const host of hosts.splice(0)) dnsCache.delete(host);
+  });
+
+  /**
+   * A relay whose name resolves to `addresses`, each of which lets a
+   * connection hang, its first packet dropped, as smtp.protonmail.ch's three
+   * would if they stopped answering. nodemailer's own name cache is filled, so
+   * no name is looked up, and `net.connect` hands back a socket that never
+   * connects, so nothing leaves the machine. Returns the addresses tried.
+   */
+  function aRelayThatLetsEveryConnectionHang(host: string, addresses: string[]): string[] {
+    hosts.push(host);
+    dnsCache.set(host, { value: { addresses }, expires: Date.now() + 60 * 60 * 1000 });
+    const tried: string[] = [];
+    vi.spyOn(net, 'connect').mockImplementation(((options: net.TcpNetConnectOpts) => {
+      tried.push(String(options.host));
+      return new net.Socket();
+    }) as unknown as typeof net.connect);
+    return tried;
+  }
+
+  it('is given up on at the deadline, whatever the transport is still doing', async () => {
+    vi.useFakeTimers();
+    const outcome = sendReportMail(RELAY_CONFIG('smtp.example.invalid'), { subject: 's', body: 'b' }, () => () =>
+      new Promise<void>(() => {}),
+    ).then(
+      () => 'sent',
+      (err: unknown) => err,
+    );
+    await vi.advanceTimersByTimeAsync(REPORT_MAIL_DEADLINE_MS - 1);
+    let settled = false;
+    void outcome.then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(String(await outcome)).toContain('the relay did not take the report mail within 20 seconds');
+  });
+
+  it('says in the log what became of a mail it gave up on, above all one that went out after all', async () => {
+    vi.useFakeTimers();
+    const warned: string[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => void warned.push(args.map(String).join(' ')));
+    const late = (fails: boolean): ReportMailTransport => () => () =>
+      new Promise<void>((resolve, reject) =>
+        setTimeout(() => (fails ? reject(new Error('421 closing the connection')) : resolve()), 25_000),
+      );
+    const wentOut = sendReportMail(RELAY_CONFIG('smtp.example.invalid'), { subject: 's', body: 'b' }, late(false)).catch(
+      (err: unknown) => err,
+    );
+    const failed = sendReportMail(RELAY_CONFIG('smtp.example.invalid'), { subject: 's', body: 'b' }, late(true)).catch(
+      (err: unknown) => err,
+    );
+    await vi.advanceTimersByTimeAsync(REPORT_MAIL_DEADLINE_MS);
+    expect(String(await wentOut)).toContain('within 20 seconds');
+    expect(String(await failed)).toContain('within 20 seconds');
+    expect(warned).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(warned).toHaveLength(2);
+    expect(warned[0]).toContain('a report mail given up on at 20 seconds went out after all, 25 seconds after');
+    expect(warned[0]).toContain('the person was told it was not delivered');
+    expect(warned[1]).toContain('a report mail given up on at 20 seconds failed after all: 421 closing the connection');
+  });
+
+  it("with nodemailer itself: tries each of the relay's three addresses, and ends inside the deadline", async () => {
+    vi.useFakeTimers();
+    const addresses = ['192.0.2.1', '192.0.2.2', '192.0.2.3'];
+    const tried = aRelayThatLetsEveryConnectionHang('three.relay.example.invalid', addresses);
+    const started = Date.now();
+    let when: { ms: number; tried: string[]; error: unknown } | undefined;
+    const sending = sendReportMail(RELAY_CONFIG('three.relay.example.invalid'), { subject: 's', body: 'b' }).catch(
+      (error: unknown) => void (when = { ms: Date.now() - started, tried: [...tried], error }),
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    await sending;
+
+    // nodemailer's own failure, after all three: not the deadline's.
+    expect(when!.tried.sort()).toEqual(addresses);
+    expect(String(when!.error)).toMatch(/Connection timeout/);
+    expect(when!.ms).toBe(addresses.length * REPORT_MAIL_TIMEOUTS.connectionMs);
+    expect(when!.ms + REPORT_MAIL_TIMEOUTS.greetingMs).toBeLessThanOrEqual(REPORT_MAIL_DEADLINE_MS);
+  });
+
+  it('with nodemailer itself: is given up on at the deadline however many addresses the relay has, not after all of them', async () => {
+    vi.useFakeTimers();
+    const warned: string[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => void warned.push(args.map(String).join(' ')));
+    // Six: 6 × 5 s is thirty seconds of connecting, just when the web client gives up.
+    const addresses = ['192.0.2.1', '192.0.2.2', '198.51.100.1', '198.51.100.2', '203.0.113.1', '203.0.113.2'];
+    const tried = aRelayThatLetsEveryConnectionHang('six.relay.example.invalid', addresses);
+    const started = Date.now();
+    let when: { ms: number; error: unknown } | undefined;
+    const sending = sendReportMail(RELAY_CONFIG('six.relay.example.invalid'), { subject: 's', body: 'b' }).catch(
+      (error: unknown) => void (when = { ms: Date.now() - started, error }),
+    );
+    await vi.advanceTimersByTimeAsync(40_000);
+    await sending;
+
+    expect(when!.ms).toBe(REPORT_MAIL_DEADLINE_MS);
+    expect(String(when!.error)).toContain('the relay did not take the report mail within 20 seconds');
+    // nodemailer went on to the last address, and its failure was said when it came.
+    expect(tried.sort()).toEqual([...addresses].sort());
+    expect(warned.join('\n')).toMatch(/given up on at 20 seconds failed after all: .*Connection timeout/);
   });
 });
 
@@ -597,5 +746,33 @@ describe("a link's report, on a service with mail and no Zammad", () => {
     expect(res.body.error).toBe('too_many_reports');
     expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
     expect(sent).toHaveLength(1);
+  });
+
+  it("keeps one count for the form and both link doors as the service wires them: fifty in all, then every door refuses", async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sent, mailTransport } = relay();
+    // No `mailCap`: the day's count is the one the routes are wired with.
+    // Every other limit is out of the way, so only the day's can refuse.
+    const plenty = () => createKnockLimiter({ windowMs: 24 * 60 * 60 * 1000, max: 1000 });
+    const form = app({ env: MAIL, mailTransport, limiter: plenty() });
+    const links = linkApp({ env: MAIL, mailTransport, perLink: plenty(), overall: plenty() });
+    const grant = await mintLink('grant');
+    const view = await mintLink('view');
+    const doors = [
+      () => request(form).post('/api/problem-reports').send({ description: 'x', page: '/' }),
+      () => request(links).post(`/api/grant/${grant.token}/report`).send(REPORT),
+      () => request(links).post(`/api/view/${view.token}/report`).send(REPORT),
+    ];
+
+    for (let i = 0; i < REPORT_MAIL_PER_DAY.max; i += 1) {
+      expect((await doors[i % doors.length]!()).status).toBe(201);
+    }
+    expect(sent).toHaveLength(50);
+    for (const door of doors) {
+      const res = await door();
+      expect(res.status).toBe(429);
+      expect(res.body.reason).toBe('Many reports reached us today. Please try again tomorrow.');
+    }
+    expect(sent).toHaveLength(50);
   });
 });

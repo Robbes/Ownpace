@@ -6,7 +6,7 @@
 
 **2026-09-28: a report reaches support by mail (T5), built on branch
 `claude/ownpace-public-readiness-y7orc6-a-report-that-reaches-support-by-mail`, not merged;
-brought up to `main` at `83eb73ed` and corrected after its review the same day.**
+brought up to `main` at `683525c8` (merged in) and corrected after two reviews the same day.**
 The owner had never seen the form work: no deployment the repository defines runs a Zammad, so
 `/available` answered false and the link never showed. Two answers the same day:
 
@@ -36,9 +36,16 @@ What was built:
 - **The relay is shared, so report mail is capped and quick.** On live the relay's login also
   sends the identity provider's sign-in codes (0133 T0), and the link door needs no account. At
   most 50 report mails a day go out for both doors together (`REPORT_MAIL_PER_DAY`), refused past
-  that with 429 and a log line. A send is given up on within `REPORT_MAIL_TIMEOUTS` (10 s to
-  connect, 10 s for the greeting, 20 s of silence; nodemailer's defaults are 2 min, 30 s and
-  10 min), as a Zammad call is within 20 s, because the web client stops waiting at 30 s.
+  that with 429 and a log line. A send is given up on at `REPORT_MAIL_DEADLINE_MS`, 20 s, as a
+  Zammad call is, because the web client stops waiting at 30 s; the route then answers 502 with a
+  reference. nodemailer's own waits (`REPORT_MAIL_TIMEOUTS`: 5 s to connect, 5 s for the
+  greeting, 20 s of silence; its defaults are 2 min, 30 s and 10 min) bound each wait, not the
+  send: when a connection times out it tries the relay's next address with a fresh wait, and
+  `smtp.protonmail.ch` resolves to three. The second review measured the first round's 10 s to
+  connect against three addresses that let the connection hang: given up on after 30 s, when the
+  web client already had. With 5 s, three addresses and the greeting fit inside the deadline.
+  nodemailer cannot be stopped mid-send, so a mail given up on that goes out after all, or fails
+  after all, is said in the log (`went out after all`, `failed after all`).
   `REPORT_MAIL_TO` set with the mail still off is said in the log once, with what is missing.
 - **`GET /available`** answers true when either way is set up. A mail the relay refuses is
   answered exactly as a Zammad refusal: 502 with a reference, `report.not-delivered` recorded. The
@@ -62,16 +69,26 @@ What was built:
   `docs/managed-bring-up.md` puts the mail first and Zammad second, and now recreates the API with
   `docker compose -f deploy/compose/managed.yml up -d --wait api`, since `restart` does not read
   `.env` again. On a stack still pointed at Mailpit (`managed.env.example`'s defaults, the nightly
-  gate's stack) the form is now on, and Mailpit catches the reports.
-- **Guards.** `a-report-that-reaches-support-by-mail` in the API (28: where a report goes, the mail
+  gate's stack) the form is now on, and Mailpit catches the reports. Stage 8 step 7 of
+  `docs/owner-test-runbook.md` now expects the form on live and checks the mail, its screenshot
+  and reference, and the reply; 0141 T12, 0151 §1, 0108 T8 (d) and 0144 T6 say the form shows
+  with the mail alone (dated notes where the old sentence was a record).
+- **Guards.** `a-report-that-reaches-support-by-mail` in the API (33: where a report goes, the mail
   it becomes with its `Reply to:` line and a Reply-To only for one valid address, the form's route
   and the link doors with the relay faked at its transport, the timeouts handed to it, a link
   report with no Reply-To, Zammad still winning, the 502, the limits and the day's cap shared by
-  both doors, the log line said once), in `packages/connectors` (5: the Reply-To header and the
-  attachment as nodemailer renders them, `requireTLS` with a login, and the three timeouts reaching
+  both doors, the log line said once; from the second review, the 502 at the deadline, the late
+  outcome said in the log, nodemailer itself over a relay of three and of six addresses that let
+  every connection hang, and the day's cap as the routes are wired, with no `mailCap` of the
+  test's own, driven to fifty through all three doors), in `packages/connectors` (5: the Reply-To
+  header and the attachment as nodemailer renders them, `requireTLS` with a login, and the three timeouts reaching
   nodemailer only when given), and in the web app (8: the answer in English and Dutch for both
   forms, naming a report reference and no ticket, and Zammad's sentence kept). Each new case was
-  seen red with its line of the change undone. `a-helpdesk-the-api-was-never-handed` now also reads `reportMailConfigFrom`, so
+  seen red with its line of the change undone; the second review's eight mutations (no deadline,
+  a 30 s deadline, 10 s to connect, no late log line, the late success not said, a new day's
+  count on every call, a count of the link doors' own, and no fresh day between tests) each
+  turned a guard red. `a-helpdesk-the-api-was-never-handed` now also reads
+  `reportMailConfigFrom`, so
   `REPORT_MAIL_TO` must reach the API (12, was 10). Existing guards green:
   `a-report-that-reaches-a-person` (API 25, web 7), `a-link-that-can-be-reported` (API 18, web
   11; the web one's mocked service now answers `{ ticket }`).

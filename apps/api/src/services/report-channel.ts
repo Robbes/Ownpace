@@ -34,8 +34,8 @@
  * So report mails are capped for the whole service, {@link REPORT_MAIL_PER_DAY},
  * whichever door they came through. And a person is waiting on each one: the
  * web client gives up after thirty seconds, so a send that hangs on the relay
- * fails within {@link REPORT_MAIL_TIMEOUTS}, as a Zammad call does within its
- * twenty seconds, and the person is answered with a reference.
+ * is given up on at {@link REPORT_MAIL_DEADLINE_MS}, twenty seconds, as a
+ * Zammad call is, and the person is answered with a reference.
  */
 
 import { log, readNotifierConfig, type MailTransport, type SmtpSettings } from '@openmig/shared';
@@ -105,13 +105,27 @@ export function reportChannel(env: NodeJS.ProcessEnv = process.env): ReportChann
 }
 
 /**
- * How long a report mail may wait on the relay: ten seconds to connect, ten
- * for its greeting, twenty of silence after that. Nodemailer's own defaults
- * are two minutes, thirty seconds and ten minutes, and the web client stops
- * waiting at thirty seconds: past that, the person sees a failure with no
- * reference, sends again, and the support mailbox may get both.
+ * How long nodemailer may wait on the relay at each of its three waits: five
+ * seconds to connect, five for the greeting, twenty of silence after that.
+ * Nodemailer's own defaults are two minutes, thirty seconds and ten minutes.
+ *
+ * These bound each wait, not the send. When a connection times out, nodemailer
+ * tries the relay's next address with a fresh `connectionMs`, and
+ * `smtp.protonmail.ch` resolves to three. With ten seconds to connect, a relay
+ * that let every connection hang was given up on only after thirty (0130 T5's
+ * review), just when the web client stops waiting. So
+ * {@link REPORT_MAIL_DEADLINE_MS} bounds the send, and five seconds to connect
+ * lets three addresses be tried, and the greeting waited for, inside it.
  */
-export const REPORT_MAIL_TIMEOUTS: SmtpTimeouts = { connectionMs: 10_000, greetingMs: 10_000, socketMs: 20_000 };
+export const REPORT_MAIL_TIMEOUTS: SmtpTimeouts = { connectionMs: 5_000, greetingMs: 5_000, socketMs: 20_000 };
+
+/**
+ * The whole send, however many addresses and waits it takes: twenty seconds,
+ * as a Zammad call has. The web client stops waiting at thirty: past that, the
+ * person sees a failure with no reference, sends again, and the support
+ * mailbox may get both.
+ */
+export const REPORT_MAIL_DEADLINE_MS = 20_000;
 
 /**
  * At most fifty report mails a day, for the whole service together, the
@@ -124,8 +138,13 @@ export const REPORT_MAIL_PER_DAY = { windowMs: 24 * 60 * 60 * 1000, max: 50 } as
 /** The one key the day's count is kept under. */
 const EVERY_REPORT_MAIL = 'every-report-mail';
 
-// Module-level, so both doors count together.
-const REPORT_MAILS = createKnockLimiter(REPORT_MAIL_PER_DAY);
+// Module-level, so every door counts together: the form and both link doors.
+let REPORT_MAILS = createKnockLimiter(REPORT_MAIL_PER_DAY);
+
+/** TEST SEAM ONLY: start the day's count again, so a test drives the real one from zero. */
+export function __startTheDayAgainForTests(): void {
+  REPORT_MAILS = createKnockLimiter(REPORT_MAIL_PER_DAY);
+}
 
 /**
  * Whether one more report may go by mail today; when not, the seconds until
@@ -143,13 +162,44 @@ export type ReportMailTransport = (smtp: SmtpSettings, timeouts: SmtpTimeouts) =
 
 /**
  * Send one report as one mail, from `NOTIFY_FROM` to the support mailbox,
- * within {@link REPORT_MAIL_TIMEOUTS}. A failure is thrown to the route, which
- * answers it as it answers a Zammad refusal: a 502 with a reference.
+ * given up on at {@link REPORT_MAIL_DEADLINE_MS}. A failure is thrown to the
+ * route, which answers it as it answers a Zammad refusal: a 502 with a
+ * reference.
+ *
+ * Giving up does not stop nodemailer: a transporter that pools nothing has no
+ * connection to close. Its own waits still end the attempt, and what became of
+ * it is said in the log when it is known, above all a mail that went out after
+ * the person was told it had not.
  */
 export async function sendReportMail(
   config: ReportMailConfig,
   mail: Omit<Parameters<MailTransport>[0], 'from' | 'to'>,
   transportFor: ReportMailTransport = smtpTransport,
 ): Promise<void> {
-  await transportFor(config.smtp, REPORT_MAIL_TIMEOUTS)({ ...mail, from: config.from, to: config.to });
+  const handed = Date.now();
+  const sending = transportFor(config.smtp, REPORT_MAIL_TIMEOUTS)({ ...mail, from: config.from, to: config.to });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<'given up'>((resolve) => {
+    timer = setTimeout(() => resolve('given up'), REPORT_MAIL_DEADLINE_MS);
+  });
+  try {
+    if ((await Promise.race([sending.then(() => 'sent' as const), deadline])) === 'sent') return;
+  } finally {
+    clearTimeout(timer);
+  }
+  const seconds = REPORT_MAIL_DEADLINE_MS / 1000;
+  void sending.then(
+    () =>
+      log.warn(
+        `[api] a report mail given up on at ${seconds} seconds went out after all, ` +
+          `${Math.round((Date.now() - handed) / 1000)} seconds after it was handed to the relay; ` +
+          'the person was told it was not delivered, and may send it again',
+      ),
+    (err: unknown) =>
+      log.warn(
+        `[api] a report mail given up on at ${seconds} seconds failed after all:`,
+        err instanceof Error ? err.message : err,
+      ),
+  );
+  throw new Error(`the relay did not take the report mail within ${seconds} seconds`);
 }
