@@ -23,8 +23,9 @@
   table's row did (owner feedback 2026-08-11).
 - **Migrations that belong to nobody**, which is every one made before people existed, are
   listed under *Not with a person yet*. Each is added to a person in one press. *Add a person*
-  takes a name, and an address or none. On the appliance, the one implicit person is called
-  *Your migrations*, and nothing offers to add people.
+  takes a name, and an address or none. The page names the appliance's one implicit person
+  *Your migrations* and offers no person to add, ready for T8: the appliance does not route to
+  Migrations yet, and lands on its own review page.
 - **Add a migration** on a card opens the wizard with `?person=`. The new migration is added to
   the person before its green light. When that add is refused, the green light's page says so
   in the server's words, and the migration waits under *Not with a person yet*.
