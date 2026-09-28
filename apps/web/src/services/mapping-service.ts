@@ -9,7 +9,7 @@ import type {
   FailureSide,
   MappingLifecycle,
 } from '@openmig/shared';
-import { DISCOVERY_DOMAINS } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, SCOPE_FAMILIES } from '@openmig/shared';
 import type { DiscoveryDomain, ProbeUnit, QualificationKey } from '@openmig/shared';
 import type { Locale } from '../i18n/strings.ts';
 
@@ -597,7 +597,22 @@ export const DiscoveryResponseSchema = z.object({
 export type { DiscoveryRecord };
 export type DiscoveryResponse = z.infer<typeof DiscoveryResponseSchema>;
 
-export const ScopeManifestEntrySchema = z.object({ item: z.string(), detail: z.string() });
+/** GET /scope-manifest: shared's `SCOPE_MANIFEST`, served as it is.
+ *
+ *  `more` and `appliesTo` are listed EXPLICITLY because z.object strips
+ *  unknown keys (workplan 0153 T1 (a)). This schema named `item` and `detail`
+ *  alone, so every row reached the confirm screen without the families it is
+ *  true of, `scopeManifestFor` could no longer tell a SharePoint row from a
+ *  Drive one, and a Google Drive migration was confirmed under Teams and
+ *  Planner. Every folded `more` was dropped too, so the fold never opened.
+ *  `a-manifest-stripped-on-its-way-to-the-screen.unit.test.tsx` parses the
+ *  real manifest through this schema and fails on any key it loses. */
+export const ScopeManifestEntrySchema = z.object({
+  item: z.string(),
+  detail: z.string(),
+  more: z.string().optional(),
+  appliesTo: z.array(z.enum(SCOPE_FAMILIES)).optional(),
+});
 export const ScopeManifestSchema = z.object({
   version: z.string(),
   migrates: z.array(ScopeManifestEntrySchema),
