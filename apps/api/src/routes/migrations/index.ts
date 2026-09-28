@@ -52,6 +52,7 @@ import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-creden
 import type { TokenRevoker } from '@openmig/shared';
 import { cutoverBeginRefusal, prepareTransition } from '@openmig/core/cutover-state';
 import { enqueueUnlessHeld } from '../../enqueue-unless-held.ts';
+import { refusedAsClosed } from '../../closed-organisation.ts';
 import type {
   DropboxNativeFilePolicies,
   GoogleNativeFilePolicy,
@@ -123,6 +124,7 @@ import {
   kindAdditionRefusal,
   kindChoices,
   updateTransition,
+  PASS_RUNNING_STATES,
 } from '@openmig/shared';
 import { serverFault } from '../../server-fault.ts';
 import { probeAnswers } from '../../probe-answer.ts';
@@ -2219,6 +2221,10 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       }
     }
 
+    // A closed organisation takes no new migration, and stores no new
+    // credential (0085 T2): refused before anything is written.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
+
     // The deployment's cap on unfinished migrations (0143 T2a), read per
     // request like every other deployment setting here. A value it cannot read
     // is a fault with a reference, not a silent default.
@@ -2827,6 +2833,17 @@ router.put(
 
       const pool = getSharedPool();
 
+      // Into a state the tick runs passes in (0085 T2): refused while the
+      // organisation is closed, before anything is written. Other edits, and a
+      // move that stops work, are not.
+      if (
+        body.status !== undefined &&
+        (PASS_RUNNING_STATES as readonly string[]).includes(body.status) &&
+        (await refusedAsClosed(res, tenantId, pool))
+      ) {
+        return;
+      }
+
       // Update mapping in database with RLS enforcement via withTenantDb
       // Note: mailbox_mapping has limited fields - we only update what's available
       const updateData: Partial<typeof schema.mailboxMapping.$inferInsert> = {};
@@ -3234,6 +3251,12 @@ router.post(
         });
         return;
       }
+
+      // A closed organisation first (0085 T2): the paused and withdrawn
+      // sentences below would send the owner to a press that is refused too.
+      // `enqueueUnlessHeld` reads the close again; the other doors that
+      // enqueue rely on that read alone.
+      if (await refusedAsClosed(res, tenantId, pool)) return;
 
       // 0013 T5: a paused (draft) mapping must not sync until the owner green-lights it
       // via POST …/start. Refuse rather than silently kicking off a pass.
@@ -3697,6 +3720,13 @@ router.post('/:mappingId/start', authenticate, async (req: AuthenticatedRequest,
       return void res.status(409).json({ error: 'Conflict', message: `Cannot start a mapping in '${mapping.status}' state` });
     }
 
+    // A closed organisation (0085 T2), before the grant's refusals and before
+    // `activated` is known. The close leaves a migration `active`, and a press
+    // on one would otherwise answer 200 without naming the close; an
+    // `awaiting_grant` answer would send the owner to a grant link that is
+    // refused too.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
+
     // Waiting on somebody's grant is not runnable (workplan 0108 T4). Starting
     // it would enqueue a pass that fails at the first request, and the failure
     // would arrive as a provider authentication error in a run report — read
@@ -3818,6 +3848,9 @@ router.post('/:mappingId/domains', authenticate, async (req: AuthenticatedReques
       return void res.status(400).json({ error: 'invalid_body', message: reason, reason });
     }
     const { domain } = parsed.data;
+    // A data type added to a closed organisation's migration would be copied
+    // at its next pass (0085 T2): refused before anything is written.
+    if (await refusedAsClosed(res, tenantId, getSharedPool())) return;
 
     const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
       const [mapping] = await db
@@ -3936,6 +3969,9 @@ function stopOrResumeRoute(stop: boolean) {
         return void res.status(400).json({ error: 'invalid_domain', message: reason, reason });
       }
       const domain = parsed.data;
+      // A resume re-arms the data type's passes (0085 T2): refused while the
+      // organisation is closed. A stop is not: stopping is not starting.
+      if (!stop && (await refusedAsClosed(res, tenantId, getSharedPool()))) return;
 
       const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
         stopOrResumeDataType(db, tenantId, { mappingId, domain, stop, actor: req.userId ?? 'unknown' }),
@@ -3985,6 +4021,9 @@ function endOrKeepRoute(ending: PathEnding) {
       }
       const domain = parsed.data;
       const force = String(req.query.force) === 'true';
+      // Keeping copying puts the data type in the lane the tick runs (0085 T2):
+      // refused while the organisation is closed. Ending it is not.
+      if (ending === 'keep' && (await refusedAsClosed(res, tenantId, getSharedPool()))) return;
 
       const outcome = await withTenantDb(tenantId, getSharedPool(), async (db) => {
         const failures =

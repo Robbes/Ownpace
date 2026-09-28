@@ -69,7 +69,21 @@ export type MailTransport = (message: {
   readonly to: readonly string[];
   readonly subject: string;
   readonly body: string;
+  /**
+   * Where a reply goes, when that is not `from`. Only a problem report sets it
+   * (workplan 0130): the reporter, so the owner's reply reaches them.
+   */
+  readonly replyTo?: string;
+  /** Files sent with the message. Only a problem report's screenshot, today. */
+  readonly attachments?: readonly MailAttachment[];
 }) => Promise<void>;
+
+/** A file sent with a message, its bytes already base64 as the report carried them. */
+export interface MailAttachment {
+  readonly filename: string;
+  readonly contentType: string;
+  readonly base64: string;
+}
 
 /** Everything the channel needs to send. Secrets arrive already resolved. */
 export interface NotifierSettings {

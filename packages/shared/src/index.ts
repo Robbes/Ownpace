@@ -61,6 +61,7 @@ export * from './file-body.ts';
 export * from './credential-refusals.ts';
 export * from './link-holder-refusals.ts';
 export * from './grant-withdrawal.ts';
+export * from './organisation-closed.ts';
 export * from './failure-category.ts';
 export * from './needs-decision.ts';
 export * from './stated-failure-category.ts';

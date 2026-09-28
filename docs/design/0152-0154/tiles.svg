@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="500" viewBox="0 0 1100 500" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<title id="t">Provider and destination tiles</title>
+<desc id="d">Neutral monogram tiles in the Ownpace palette: teal for the account a person leaves, mint for where it goes. Each tile has its name written beside it.</desc>
+<defs>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="5" width="18" height="14" rx="2"/>
+<path d="M3 7l9 6 9-6"/>
+</symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="5" width="18" height="16" rx="2"/>
+<path d="M3 10h18M8 3v4M16 3v4"/>
+</symbol>
+<symbol id="i-contacts" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="8" r="4"/>
+<path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>
+</symbol>
+<symbol id="i-files" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+</symbol>
+<symbol id="i-photos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="16" rx="2"/>
+<circle cx="9" cy="10" r="2"/>
+<path d="M21 16l-5-5-9 9"/>
+</symbol>
+<symbol id="i-tasks" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17M10 6h11M10 12h11M10 18h11"/>
+</symbol>
+</defs>
+<rect width="1100" height="500" fill="#FFFFFF"/>
+<text x="32" y="44" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Provider and destination tiles</text>
+<text x="32" y="70" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">0152 D4, 0153 §5: our own, neutral, no logos. The tile is aria-hidden; the name is always written beside it,</text>
+<text x="32" y="88" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">so a screen reader reads the name once, never the letter.</text>
+<text x="32" y="116" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Where people are moving from (teal, white initial)</text>
+<rect x="32" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="56.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">G</text>
+<text x="56" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Google</text>
+<rect x="182" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="206.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">M</text>
+<text x="206" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Microsoft 365</text>
+<rect x="332" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="356.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">A</text>
+<text x="356" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Apple iCloud</text>
+<rect x="482" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="506.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">D</text>
+<text x="506" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Dropbox</text>
+<rect x="632" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="656.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">B</text>
+<text x="656" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Box</text>
+<rect x="782" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="806.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">@</text>
+<text x="806" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Another mail provider</text>
+<rect x="932" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
+<text x="956.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">E</text>
+<text x="956" y="204" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">An export archive</text>
+<text x="32" y="262" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Where it goes (mint, teal initial)</text>
+<rect x="32" y="280" width="48" height="48" rx="10.56" fill="#7FD4C1"/>
+<text x="56.0" y="311.68" font-size="21.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">S</text>
+<text x="56" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Soverin</text>
+<rect x="182" y="280" width="48" height="48" rx="10.56" fill="#7FD4C1"/>
+<text x="206.0" y="311.68" font-size="21.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">N</text>
+<text x="206" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Nextcloud</text>
+<rect x="332" y="280" width="48" height="48" rx="10.56" fill="#7FD4C1"/>
+<text x="356.0" y="311.68" font-size="21.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">J</text>
+<text x="356" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">A JMAP server</text>
+<rect x="482" y="280" width="48" height="48" rx="10.56" fill="#7FD4C1"/>
+<text x="506.0" y="311.68" font-size="21.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">+</text>
+<text x="506" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Any other provider</text>
+<text x="32" y="404" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">Sizes: 48 px on the site and in the flow’s tiles, 28 px in rows, 20 px in text.</text>
+<text x="32" y="426" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">Corner radius is 22% of the size. Letter: 45% of the size, bold. Colours: TEAL #0E4F4A, MINT #7FD4C1 (build.mjs).</text>
+<rect x="32" y="446" width="28" height="28" rx="6.16" fill="#0E4F4A"/>
+<text x="46.0" y="464.48" font-size="12.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">G</text>
+<text x="70" y="466" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Google</text>
+<text x="130" y="466" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">28 px, in a row</text>
+<rect x="300" y="446" width="28" height="28" rx="6.16" fill="#7FD4C1"/>
+<text x="314.0" y="464.48" font-size="12.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">S</text>
+<text x="338" y="466" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Soverin</text>
+<text x="398" y="466" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">28 px</text>
+</svg>

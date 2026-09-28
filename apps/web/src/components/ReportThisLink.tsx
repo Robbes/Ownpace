@@ -28,6 +28,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useT, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { linkReportApi, type ReportedLink } from '../services/link-report-service.ts';
+import type { SentReport } from '../services/problem-report-service.ts';
 
 interface Props {
   readonly kind: ReportedLink;
@@ -65,6 +66,18 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
 
   if (available.data !== true) return null;
 
+  /** The ticket's number from a helpdesk, or the report's reference when it went by mail. */
+  const sentSentence = (sent: SentReport, email: string): string => {
+    if ('ticket' in sent) {
+      return email === ''
+        ? t('linkReport.sent.anonymous', { ticket: sent.ticket })
+        : t('linkReport.sent', { ticket: sent.ticket, email });
+    }
+    return email === ''
+      ? t('linkReport.sent.mail.anonymous', { reference: sent.reference })
+      : t('linkReport.sent.mail', { reference: sent.reference, email });
+  };
+
   if (send.isSuccess) {
     return (
       <div
@@ -73,11 +86,7 @@ const ReportThisLink: React.FC<Props> = ({ kind, link, organisation, next }) => 
         role="status"
         className="mt-4 p-4 border border-gray-200 rounded-lg text-sm text-gray-900"
       >
-        <p>
-          {replyTo.trim() === ''
-            ? t('linkReport.sent.anonymous', { ticket: send.data })
-            : t('linkReport.sent', { ticket: send.data, email: replyTo.trim() })}
-        </p>
+        <p>{sentSentence(send.data, replyTo.trim())}</p>
         {next && <p className="mt-2">{t(next)}</p>}
       </div>
     );
