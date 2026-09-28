@@ -57,6 +57,10 @@ ARG VITE_OIDC_ISSUER=
 ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER
 ARG VITE_OIDC_CLIENT_ID=
 ENV VITE_OIDC_CLIENT_ID=$VITE_OIDC_CLIENT_ID
+# Where the legal pages live, for every link the app makes to them (workplan
+# 0139 T10). Empty is the production site (`services/legal-links.ts`).
+ARG VITE_LEGAL_SITE_URL=
+ENV VITE_LEGAL_SITE_URL=$VITE_LEGAL_SITE_URL
 # Where the support screen links one person's account at the provider. Empty is
 # the honest default — the screen then shows the address as plain text.
 ARG VITE_IDP_CONSOLE_USER_URL=

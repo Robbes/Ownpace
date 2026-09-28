@@ -69,7 +69,9 @@
  *
  * **The privacy policy and terms, before any redirect.** This is the in-product
  * disclosure Google's verification requires, and it belongs where a person can
- * still walk away.
+ * still walk away. The addresses, in the reader's language, come from
+ * `services/legal-links.ts`, the one module every link to the texts reads
+ * (workplan 0139 T10).
  *
  * ## What it must never do
  *
@@ -86,28 +88,13 @@ import { ShieldCheck } from 'lucide-react';
 import type { DiscoveryDomain } from '@openmig/shared';
 import { grantApi } from '../services/grant-service.ts';
 import { linkRefusal } from '../services/link-refusal.ts';
+import { legalLinks } from '../services/legal-links.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
-import type { Locale, StringKey } from '../i18n/strings.ts';
+import type { StringKey } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
 import { TARGET_CARDS } from '../components/front-door-cards.ts';
-
-/**
- * The published policy pages, in the reader's language, by the file names the
- * site build writes (`site/copy.mjs`'s `files`). The site's nginx serves files
- * as they are named, with no `.html` fallback, so `/privacy` is a 404 there.
- */
-const LEGAL: Readonly<Record<Locale, { readonly privacy: string; readonly terms: string }>> = {
-  en: {
-    privacy: 'https://www.ownpace.eu/privacy.html',
-    terms: 'https://www.ownpace.eu/terms.html',
-  },
-  nl: {
-    privacy: 'https://www.ownpace.eu/nl/privacy.html',
-    terms: 'https://www.ownpace.eu/nl/voorwaarden.html',
-  },
-};
 
 /**
  * What each data type reads, as the dictionary says it (workplan 0145 T6). A
@@ -132,6 +119,9 @@ const Grant: React.FC = () => {
   const t = useT();
   const { locale } = useLocale();
   const { dateTime, list } = useFormatters();
+  // The policy and terms, in the reader's language. A value the module would
+  // refuse never reaches here: the web build refuses it (`vite.config.ts`).
+  const legal = legalLinks(locale);
   const [starting, setStarting] = React.useState(false);
   // The refusal itself rather than its sentence, so switching language after
   // it arrived shows the other half.
@@ -296,10 +286,10 @@ const Grant: React.FC = () => {
 
           <p className="mt-6 text-sm text-gray-500">
             {t('grant.disclosure')}{' '}
-            <a className="underline" href={LEGAL[locale].privacy}>
+            <a className="underline" href={legal.privacy}>
               {t('grant.privacy')}
             </a>{' '}
-            <a className="underline" href={LEGAL[locale].terms}>
+            <a className="underline" href={legal.terms}>
               {t('grant.terms')}
             </a>
           </p>
