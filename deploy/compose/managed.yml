@@ -1094,6 +1094,8 @@ services:
         # have no session to ask with. Vite exposes only VITE_ names, hence the
         # prefix. Empty is off; changing it means rebuilding this image.
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
+        # The address a tester writes to (workplan 0144 T6 (a)). Empty shows nothing new.
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     ports:

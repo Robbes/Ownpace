@@ -40,6 +40,29 @@ v4.19.1 (both 2026-09-23), 13 commits after v4.17.3 (2026-09-04). Nothing was ru
   proven by the gate on the OTA instance, and live from a tag. Open question 11 asks for it now,
   ahead of open question 5's watch.
 
+**2026-09-27, night: T3 (a) built (0131 §6, group M7, step 2)** on branch
+`claude/mailbox-sync-errors-c2xsw2-one-organisation-counted`, not merged, after T1 and T2.
+
+- **Every run of `setup-zitadel.sh` counts the organisations**, once the form is closed:
+  `POST /admin/v1/orgs/_search`, reading `details.totalResult`, which proto3 JSON writes as a string.
+  - One is said plainly, and the closing summary carries the number.
+  - More than one is a loud warning. It says to stop granting until it is checked, and points at
+    this task's steps. The run goes on: whoever runs the instance may create a second
+    organisation on purpose (§3).
+  - It gives the number only, never a name or a domain, because the gate's log is public.
+- **So the OTA instance is counted every night** by the gate's own run, as §3 proposed, with no job
+  of its own. Live's daily count is 0132 T7's (R7's), read-only.
+- **Proved.** `scripts/one-organisation-counted.unit.test.ts`, 6 cases, the script's own functions
+  run in bash against a stand-in provider:
+  - the number is read as the provider writes it;
+  - one is said plainly;
+  - two warn, say what to do, and let the run go on, and so does an answer with no count;
+  - neither organisation's name nor its domain is printed;
+  - the count runs after the form is closed, and the summary carries it.
+
+  5 of the 6 fail without the change. The sixth, that no name is printed, holds when nothing is
+  counted.
+
 **2026-09-27, late: T1 and T2 built (0131 §6, group M7, step 1)** on branch
 `claude/mailbox-sync-errors-c2xsw2-an-organisation-a-stranger-could-found`, not merged. T0, the
 owner's hand step and read-backs on each instance, stays the owner's. Once this merges, every
@@ -127,7 +150,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7); on the OTA instance both were set and read back by E2E (managed) #203 on 2026-09-27, and the owner's own sign-in is left | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
 | T1 Public organisation registration off | 🔨 **Built 2026-09-27, not merged**: `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
 | T2 The project admits its own organisation only | 🔨 **Built 2026-09-27, not merged**: created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
-| T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; the count is 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
+| T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; 🔨 **(a) the count on every run of `setup-zitadel.sh` built 2026-09-27, not merged**; live's daily count is 0132 T7's — *was:* the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages; 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |

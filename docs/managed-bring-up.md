@@ -1750,6 +1750,29 @@ prints `0`:
 docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
 ```
 
+### 8h. A person to write to *(only on the stack testers use)*
+
+A tester who is stuck before signing in cannot reach the report form (8f): it
+needs a session. So the stack testers use names an address a person reads
+(workplan 0144 T6 (a)). With it set, the sign-in, request, callback and
+invitation pages carry one line, *"Stuck? Mail … and name the page you are on.
+Never send a password."*, in English and Dutch, with the address as a mail
+link. Signed in, the sidebar shows *Help: …* where *Report a problem* would be,
+for as long as the form is off. Empty shows nothing new.
+
+```
+VITE_SUPPORT_EMAIL=support@example.eu
+```
+
+The web bundle bakes it in at build time, so rebuild the web image:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml up -d --build --wait web
+```
+
+Open the sign-in page: the line is above the status link.
+
 ### 9. `tasks` — the task environment, then the deploy
 
 ```bash

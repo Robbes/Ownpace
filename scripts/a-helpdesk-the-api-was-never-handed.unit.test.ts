@@ -76,3 +76,45 @@ describe('problem reports can be switched on for a managed stack', () => {
     );
   });
 });
+
+/**
+ * THE OTHER WAY TO A PERSON (workplan 0144 T6 (a)). Where no helpdesk is set,
+ * or before sign-in, where the form cannot be reached at all, the web app
+ * shows an address instead: on `/login`, `/request-access`, `/auth/callback`
+ * and `/invitations`, and in the sidebar where *Report a problem* would be.
+ * Those pages have no session to ask the API with, so the address is a web
+ * BUILD argument, `VITE_SUPPORT_EMAIL`, and the same trap applies one boundary
+ * over: set in `.env` and never handed to the build, it bakes nothing into the
+ * bundle and no page names anybody. The Dockerfile's `ARG` is held by
+ * `the-issuer-the-bundle-never-learned`, which derives it from what the app
+ * reads. Empty by default: empty is "show nothing new", today's behaviour on
+ * every stack but the one testers use.
+ */
+describe('the support address reaches the web build', () => {
+  const BUILD_ARG = 'VITE_SUPPORT_EMAIL';
+
+  it('the web app reads it, so the check below compares a real name', () => {
+    expect(read('apps/web/src/components/SupportLine.tsx')).toContain(`import.meta.env.${BUILD_ARG}`);
+  });
+
+  it('managed.yml passes it among the web build\'s arguments, empty by default', () => {
+    const doc = parseYaml(read('deploy/compose/managed.yml')) as {
+      services: Record<string, { build?: { args?: Record<string, unknown> } }>;
+    };
+    const args = doc.services?.web?.build?.args ?? {};
+    expect(
+      Object.keys(args),
+      `the web build is never handed ${BUILD_ARG}. A compose build arg is a different\n` +
+        'boundary from the shell, so setting it in .env shows no address anywhere.',
+    ).toContain(BUILD_ARG);
+    expect(args[BUILD_ARG], `${BUILD_ARG} must default to empty: empty shows nothing new`).toBe(
+      `\${${BUILD_ARG}:-}`,
+    );
+  });
+
+  it('managed.env.example names it, empty', () => {
+    // Empty in the example too: the address is the owner's and goes in the
+    // live stack's own .env (0144 T0), never in this public repository.
+    expect(read('deploy/compose/managed.env.example')).toMatch(new RegExp(`^${BUILD_ARG}=$`, 'm'));
+  });
+});

@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 178 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 179 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -311,6 +311,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/StatusLink.tsx`
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `apps/web/src/components/SupportLine.tsx`
+
+- [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 
 ### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 
@@ -760,6 +764,7 @@ reading a file drops off its entry by itself.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
+- [one-organisation-counted](../scripts/one-organisation-counted.unit.test.ts) — ONE ORGANISATION, COUNTED (workplan 0135 T3).
 - [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [the-idp-refusal-that-said-nothing](../scripts/the-idp-refusal-that-said-nothing.unit.test.ts) — A REFUSAL THAT NAMES NOTHING IS A RUN SOMEBODY HAS TO REPEAT TO LEARN ANYTHING.
@@ -2316,6 +2321,7 @@ A HELPDESK THE API WAS NEVER HANDED.
 Reads:
 
 - `apps/api/src/services/zammad.ts`
+- `apps/web/src/components/SupportLine.tsx`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `docs/managed-bring-up.md`
@@ -3404,6 +3410,14 @@ Reads:
 ### [notice-and-trademark](../scripts/notice-and-trademark.unit.test.ts)
 
 NOTICE carries the one restriction this project places on an otherwise permissive licence (ADR-0040), so it gets a guard.
+
+### [one-organisation-counted](../scripts/one-organisation-counted.unit.test.ts)
+
+ONE ORGANISATION, COUNTED (workplan 0135 T3).
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
 
 ### [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts)
 
