@@ -482,8 +482,10 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   inside it. `APP_DB_PASSWORD` has the same trap from the other side:
   migration `0001_baseline.sql` creates `app_user` with the password
   `app_password` whatever `.env` says, so a new value must also be applied to
-  the role once the migrations have run — `ALTER ROLE app_user PASSWORD '…'`
-  (see [operator-runbook.md, "The two database roles"](./operator-runbook.md#the-two-database-roles-why-there-are-two-db-urls))
+  the role once the migrations have run — `./deploy/compose/rotate-db-passwords.sh --sync`
+  sets both roles to `.env`'s values without printing either
+  (see [operator-runbook.md, "The two database roles"](./operator-runbook.md#the-two-database-roles-why-there-are-two-db-urls),
+  and [Changing the database passwords](#changing-the-database-passwords) below)
   — or the API cannot connect through `APP_DATABASE_URL`.
 - `CORS_ORIGIN` / `WEB_URL` / `API_URL`. On a real deployment these are the
   public https addresses. `API_URL` is where **Mollie's servers** deliver
@@ -3232,7 +3234,70 @@ JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
 **strands stored connection credentials** — they have to be re-entered.
 Rotating `TRIGGER_LOGIN_SECRET` signs everyone out **including the deploy
 CLI**, whose stored token then fails with `Unable to validate existing personal
-access token — 500`; a `login` fixes it.
+access token — 500`; a `login` fixes it. **A database password is not enough
+changed in `.env`**: `POSTGRES_PASSWORD` and `APP_DB_PASSWORD` belong to roles
+that keep the password they were created with, so the role has to be told
+too. `./deploy/compose/rotate-db-passwords.sh` does both, and never prints a
+value; the next section is the procedure.
+
+### Changing the database passwords
+
+The OTA stack's database roles were created with values this repository
+contains: `app_user` with `app_password` (the first migration), the owner with
+compose's default or the example's `change-me-openmigrate`. `.env` alone does
+not reach a role that exists, so `deploy/compose/rotate-db-passwords.sh`
+carries a new value to it with `ALTER ROLE` (workplan 0132 T2). It has three
+modes:
+
+| mode | what it does | exit |
+|---|---|---|
+| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Reports `trigger-db`'s value, written into `managed.yml`, as waiting for T2's code, uncounted. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
+| `--sync` | Sets `app_user`'s and the owner's passwords to what `.env` holds, in one transaction over the socket, then proves both over the network and through the pooler. Idempotent. The remedy when `.env` and the roles disagree. Refuses a stack that may be live (`stack_may_be_live`), before it asks the stack anything. | 0 / 1 / 2 |
+| `--rotate [--with-trigger-stores]` | Makes new values on the machine and changes `.env` and the roles together. With `--with-trigger-stores`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD` too. Refuses on live, in CI, under `set -x`, when `.env` is not the persisted file, while a CI job runs on the machine or E2E (managed) is queued or in progress (asked before it prompts, and again once the project name is typed, before anything is written), when postgres is not healthy, when `.env` and the roles already disagree, and while a shipped value opens a login role it does not change (it names the role and 0132 T2 step 5). It asks you to type the project name. On any failure, or an interrupt, it puts the old `.env` and the old role passwords back, and says which step failed; a second Ctrl-C does not stop that. If it cannot complete, it keeps the old `.env` beside the persisted one (mode 0600) and says what to run. | 0 / 1 |
+
+Every question about a password goes over the stack's network or to
+PgBouncer's port, never the database container's socket, which trusts every
+connection and would open with any password
+([the check Postgres never made](../scripts/the-check-postgres-never-made.unit.test.ts)).
+No value is ever an argument: each travels in the environment of the one
+process that needs it, by name.
+
+**The procedure, on the OTA stack**, from `~/ownpace-managed`, with
+`deploy/compose/.env` a link to the persisted file
+([One stack, one `.env`](#one-stack-one-env)):
+
+1. **Check.** `./deploy/compose/rotate-db-passwords.sh --check`. Both controls
+   must open. Each `OPENS` line is a shipped value still in force. If a control
+   is `REFUSED`, `.env` and the database already disagree: run `--sync` first.
+   If an `OPENS` line names a role that is neither the owner nor `app_user`
+   (the owner's old name, `openmigrate`, left with `LOGIN` after a rename),
+   take its login away first with the command the check prints (workplan 0132
+   T2 step 5: `ALTER ROLE openmigrate NOLOGIN`, never `DROP`, because it owns
+   the schema); `--rotate` refuses until then.
+2. **Rotate, at a quiet time.** After that day's gate run has finished, and
+   with nothing queued in Actions → E2E (managed):
+   `./deploy/compose/rotate-db-passwords.sh --rotate --with-trigger-stores`,
+   and type the project name when it asks. From here until the next step ends,
+   the OTA app cannot open new database connections (the demo is down; no
+   tester uses this stack).
+3. **Dispatch E2E (managed)** on `main` (the script does this itself when `gh`
+   is signed in). That run restores the persisted `.env`, recreates every
+   container whose settings changed (Postgres, the API, Zitadel, ClickHouse,
+   MinIO, trigger-api), uploads `DATABASE_URL` and `APP_DATABASE_URL` to
+   Trigger.dev again, and its smoke proves a task still connects.
+4. **Check again**, once that run is green: `--check` exits 0. ClickHouse must
+   be healthy (its health check logs in with the new password). If MinIO
+   refuses the new pair on its old volume, the cost is its packets store: old
+   large run payloads.
+5. **Record the date in workplan 0132 T0** (step 2), with "refused". Never a
+   value.
+
+`--sync` and `--rotate` refuse live: its values are made fresh when it is
+stood up and are its own (0132 T1b, D8). `--check` runs on any stack, live
+included; 0132 T0 step 5 runs it there. The gate never runs `--rotate`;
+it may one day run `--check`, and T2 (b)'s bring-up is to run the `--sync`
+functions (`deploy/compose/db-roles.sh`) on every run. `trigger-db`'s password
+waits for T2's code, which makes it `TRIGGER_DB_PASSWORD`.
 
 ### `whoami` says nothing about whether you are logged in
 

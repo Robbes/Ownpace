@@ -165,8 +165,14 @@ resolve_db_addr() { # sets DB_ADDR
 }
 resolve_db_addr
 
+# The password travels in PGPASSWORD, set for the `docker` process alone and
+# passed on BY NAME: `-e PGPASSWORD`, with no `=`, makes docker read the value
+# from its own environment. `-e PGPASSWORD="$2"` put the value on docker's
+# command line, where `ps` shows it to every user on the machine (workplan
+# 0132 T2; scripts/rotate-db-passwords.unit.test.ts runs this and reads docker's
+# argv).
 ask_pg() { # ask_pg <user> <password> <database> — prints psql's output, returns its status
-  docker exec -e PGPASSWORD="$2" "$CONTAINER" \
+  PGPASSWORD="$2" docker exec -e PGPASSWORD "$CONTAINER" \
     psql -h "$DB_ADDR" -p "$DB_PORT" -U "$1" -d "$3" -tAc 'SELECT 1' 2>&1
 }
 
@@ -217,7 +223,7 @@ fi
 # hand-set one might, and the failure mode of not doing this is an ALTER that
 # sets a DIFFERENT password than the one in .env and then reports success.
 say "setting the ${ZITADEL_USER} role's password to the value in .env"
-docker exec -e PGPASSWORD="$ADMIN_PASS" -i "$CONTAINER" \
+PGPASSWORD="$ADMIN_PASS" docker exec -e PGPASSWORD -i "$CONTAINER" \
   psql -h "$DB_ADDR" -p "$DB_PORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 >/dev/null <<SQL
 ALTER ROLE "${ZITADEL_USER//\"/\"\"}" WITH PASSWORD '${ZITADEL_PASS//\'/\'\'}';
 SQL
