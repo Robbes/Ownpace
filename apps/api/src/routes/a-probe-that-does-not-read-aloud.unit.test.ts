@@ -54,10 +54,13 @@ const MARKER = 'an-internal-admin-page-7f3a';
 const h = vi.hoisted(() => ({
   /** The stored row the connection doors and the permission report read. */
   row: {} as Record<string, unknown>,
+  /** The organisation each of the report's target lookups was asked in (0138 T6). */
+  targetAskedIn: [] as unknown[],
 }));
 
 vi.mock('../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../middleware/auth.ts')>();
+  const { Pool } = await import('pg');
   return {
     ...actual,
     authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -66,21 +69,36 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
     },
     // Every database call answers with the stored row; nothing is written.
     withTenantDb: vi.fn(async () => [h.row]),
-    getDbPool: () => ({}),
+    // The permission report runs its reads on it, inside `withTenant` (0138 T6).
+    getDbPool: () => new Pool(),
   };
 });
 
-// The permission report's own pool: the organisation's DAV target, and
-// nothing else it asks for.
+// The request path's pool, as the permission report reads it inside
+// `withTenant` (0138 T6): the organisation's DAV target, and nothing else it
+// asks for. The target answers in its own organisation only, as row security
+// would, so a lookup asked anywhere else finds nothing and the report loses
+// the target's section.
 vi.mock('pg', () => ({
   Pool: class {
-    async query(text: string) {
-      if (text.includes("role = 'target'")) {
-        return {
-          rows: [{ kind: h.row.kind, config: h.row.config, secret_ref: h.row.secretRef }],
-        };
-      }
-      return { rows: [] };
+    async connect() {
+      // What `withTenant` sets on this client, for one transaction.
+      let tenant: unknown;
+      return {
+        async query(q: string | { text: string }, values: readonly unknown[] = []) {
+          const text = typeof q === 'string' ? q : q.text;
+          if (text.includes("set_config('app.current_tenant'")) tenant = values[0];
+          if (text.includes("role = 'target'")) {
+            h.targetAskedIn.push(tenant);
+            if (tenant !== h.row.tenantId) return { rows: [] };
+            return {
+              rows: [{ kind: h.row.kind, config: h.row.config, secret_ref: h.row.secretRef }],
+            };
+          }
+          return { rows: [] };
+        },
+        release() {},
+      };
     }
     async end() {}
   },
@@ -190,6 +208,7 @@ beforeEach(() => {
   // Each case starts with a fresh count: the limit on tests is not what this holds.
   resetProbeTestLimit();
   logged = [];
+  h.targetAskedIn = [];
   vi.spyOn(log, 'warn').mockImplementation((...args: unknown[]) => void logged.push(args.join(' ')));
   h.row = {
     id: 'conn-1',
@@ -258,9 +277,12 @@ describe('a server that answers with something that is not an error document', (
         );
       }
     }
-    // The report says it too, from the same parts.
+    // The report says it too, from the same parts, of the organisation's own
+    // target (0138 T6).
     const report = (await everyDoor())[4];
     expect(report?.body).toContain(`the server answered ${status} with something that is not a DAV, JMAP or IMAP error`);
+    expect(h.targetAskedIn.length, 'the report never looked up a target').toBeGreaterThan(0);
+    for (const tenant of h.targetAskedIn) expect(tenant, 'the target lookup was asked outside a-tenant').toBe('a-tenant');
     // The operator has the bytes, under the references the answers carried.
     expect(logged.some((line) => line.includes(MARKER) && /\[ref [0-9a-f]{8}\]/.test(line))).toBe(true);
   });

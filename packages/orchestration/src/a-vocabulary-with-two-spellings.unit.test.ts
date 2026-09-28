@@ -52,18 +52,26 @@ vi.mock('./build-deps-from-mapping.ts', () => ({
   },
 }));
 
-/** A pool that answers one row, or none, and records what it was asked. */
+/**
+ * A pool that answers one row, or none, and records what it was asked.
+ *
+ * A client it hands out, because the read runs inside `withTenant` (0138 T1
+ * part 4): the transaction's own statements answer nothing, and the read
+ * itself answers `rows`.
+ */
 const poolAnswering = (
   rows: Array<{ id: string; config: Record<string, unknown> }>,
 ): Pool & { sql: string[] } => {
   const sql: string[] = [];
-  return {
-    sql,
-    query: async (text: string) => {
+  const client = {
+    query: async (q: string | { text: string }) => {
+      const text = typeof q === 'string' ? q : q.text;
       sql.push(text);
-      return { rows };
+      return { rows: /^\s*(BEGIN|COMMIT|ROLLBACK|SELECT set_config)/i.test(text) ? [] : rows };
     },
-  } as unknown as Pool & { sql: string[] };
+    release: () => {},
+  };
+  return { sql, connect: async () => client } as unknown as Pool & { sql: string[] };
 };
 
 describe('every domain reaches the managed fan-out', () => {
@@ -139,6 +147,19 @@ describe('whose limit a confirmation spends', () => {
       'mapping-1',
     );
     expect(key).toBe('target-connection:conn-9');
+  });
+
+  it('asks inside the tenant\'s scope, not on the bare pool (0138 T1 part 4)', async () => {
+    // On `app_user` a read with no tenant set answers nothing, and a
+    // confirmation with no target to name is one that never starts.
+    const pool = poolAnswering([{ id: 'conn-1', config: { host: 'mail.example.net' } }]);
+    await targetProviderKey(pool, 'tenant-1', 'mapping-1');
+    expect(pool.sql.map((q) => q.trim().split(/\s+/).slice(0, 2).join(' '))).toEqual([
+      'BEGIN',
+      "SELECT set_config('app.current_tenant',",
+      'SELECT c.id,',
+      'COMMIT',
+    ]);
   });
 
   it('answers undefined only when there is no target connection at all', async () => {

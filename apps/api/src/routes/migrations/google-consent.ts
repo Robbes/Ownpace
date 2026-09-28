@@ -38,7 +38,7 @@ import {
   grantSatisfiesAskedScope,
   type GoogleGrantDomain,
 } from '@openmig/orchestration/account-qualification';
-import { localeOf, type Bilingual, type RefusalLocale } from '@openmig/shared';
+import { CONSENT_STATE_TTL_MS, localeOf, type Bilingual, type RefusalLocale } from '@openmig/shared';
 import type { ProgressPageUrl } from './progress-page-url.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
 
@@ -139,7 +139,9 @@ interface PendingConsent {
 /** The two languages an ending is written in (ADR-0013). */
 export type ConsentLocale = RefusalLocale;
 
-export const CONSENT_STATE_TTL_MS = 10 * 60_000;
+// One number with the web app, which takes a blocked window's link away at
+// the same age (`@openmig/shared`'s `consent-state.ts`, workplan 0145 T5).
+export { CONSENT_STATE_TTL_MS };
 
 /**
  * The in-flight consents, in process memory and nowhere else. `begin`

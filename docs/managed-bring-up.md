@@ -313,12 +313,16 @@ the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
 takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`.
 
-**The site is recreated by hand, and only by hand.** No workflow and no script
-runs `www.yml`; the bring-up does not start the site (*The public site*,
-below). So a change to its publish, or to `WWW_BIND`, reaches the machine at the
-next `docker compose -f deploy/compose/www.yml up -d` from an updated checkout,
-and not before. Until then `docker ps` shows the site's old publish, and its
-name keeps answering whatever `WWW_BIND` says.
+**The OTA site is recreated by hand, and only by hand.** No workflow runs
+`www.yml`, and the bring-up does not start the site (*The public site*, below).
+So a change to its publish, or to `WWW_BIND`, reaches the OTA site at the next
+`docker compose -f deploy/compose/www.yml up -d` from an updated checkout, and
+not before. Until then `docker ps` shows the site's old publish, and its name
+keeps answering whatever `WWW_BIND` says. Live's copy, `ownpace-live-www`, is
+the one exception: while `WWW_LIVE=true`, `deploy-live.sh` builds and recreates
+it with each deploy of live. By hand it is only restarted as it is (the
+incident runbook) or taken down after switching it off, each with its `-p`
+(*`www.ownpace.eu`: live's copy*, below).
 
 **A bind on a mesh address ties the container's start to that address.**
 Docker binds the address when it starts the container, and the address has to
@@ -489,8 +493,10 @@ rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
   inside it. `APP_DB_PASSWORD` has the same trap from the other side:
   migration `0001_baseline.sql` creates `app_user` with the password
   `app_password` whatever `.env` says, so a new value must also be applied to
-  the role once the migrations have run — `ALTER ROLE app_user PASSWORD '…'`
-  (see [operator-runbook.md, "The two database roles"](./operator-runbook.md#the-two-database-roles-why-there-are-two-db-urls))
+  the role once the migrations have run — `./deploy/compose/rotate-db-passwords.sh --sync`
+  sets both roles to `.env`'s values without printing either
+  (see [operator-runbook.md, "The two database roles"](./operator-runbook.md#the-two-database-roles-why-there-are-two-db-urls),
+  and [Changing the database passwords](#changing-the-database-passwords) below)
   — or the API cannot connect through `APP_DATABASE_URL`.
 - `CORS_ORIGIN` / `WEB_URL` / `API_URL`. On a real deployment these are the
   public https addresses. `API_URL` is where **Mollie's servers** deliver
@@ -582,7 +588,11 @@ backends by compose name, `nextcloud` and `stalwart`, and the API and the tasks
 refuse both unless `OWNPACE_REACHABLE_HOSTS` lists them. So the phase adds
 whichever is missing to `.env` and keeps anything else listed, before the API
 starts and before the task variables are uploaded. Live never runs this phase,
-so its list stays as its operator wrote it. The seed:
+so its list stays as its operator wrote it: the script refuses `--with-demo`,
+before anything runs, on a `.env` that carries live's marker or anything that
+could be a slip of it (`STACK_KIND`, `stack_may_be_live` in `stack-kind.sh`;
+workplan 0132 T5). The OTA stack's `.env` carries no such line, so the nightly
+gate's `--with-demo` goes on. The seed:
 
 ```bash
 DATABASE_URL=postgresql://…@localhost:5432/openmigrate \
@@ -1784,7 +1794,7 @@ stack testers use:
 
 ```
 OWNPACE_STAGE=alpha
-BACKUP_RETENTION_DAYS=0
+BACKUP_RETENTION_DAYS=7
 ```
 
 The web bundle bakes the stage in at build time and the API reads both at
@@ -1798,25 +1808,29 @@ GIT_SHA=$(git rev-parse --short HEAD) \
 Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
-The second line is the alpha's other half. The alpha takes no backups
-(workplan 0134), and a blank `BACKUP_RETENTION_DAYS` would make the erasure
-sentence name seven days of them. With `OWNPACE_STAGE=alpha` the API refuses
-to start while it is blank, and the refusal names it. Read it back; this
-prints `0`:
+The second line is the alpha's other half: the days the erasure sentence says a
+copy may still hold a closing organisation's data. The alpha takes no backups.
+Live's databases are dumped before each deploy, and each dump is deleted after
+at most seven days (workplan 0134 open question 1 (b), the owner's answer of
+2026-09-28), so live sets `7`. **Both are your steps for now:** `deploy-live.sh`
+takes no dump (0132 T6 step 4 is yours, before it), and nothing deletes one, so
+delete each dump by its seventh day, whether or not a deploy followed. The
+automatic copy and its deletion are not built yet. A stack that keeps no copy
+at all sets `0`, and the sentence then names none; a blank reads as seven days
+whether or not a copy exists. With `OWNPACE_STAGE=alpha` the API refuses to
+start while it is blank, and the refusal names it. `stand-up-live.sh` refuses
+live's `.env` with anything but a whole number above 0. Read it back; on live
+this prints `7`:
 
 ```bash
 docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
 ```
 
-`0` is true only while no copy of live's databases exists. The copy you may
-take before a deploy (step 3 under *`ownpace-live`: a release tag, with
-`deploy-live.sh`*, below) is kept at most N days (workplan 0134 open question
-1 (b); N is 7, the owner's number of 2026-09-28). So before the first one, set
-7 here instead, then rebuild and recreate as above and read it back again. With `0`
-and a copy on the machine, a tester who closes is told the erasure is complete
-while the copy still holds their data (workplan 0134 T0). Make that change
-before the first invitation, or later only while no organisation closed under
-`0` still waits for its purge: its erasure record keeps the `0` it was given.
+A stack that moves from `0` to a number of days later, because it starts
+keeping a copy, does so before the first invitation, or only while no
+organisation closed under `0` still waits for its purge: its erasure record
+keeps the `0` it was given, and a copy taken before that purge would hold its
+rows while the tester was told the erasure is complete (workplan 0134 T0).
 
 ### 8h. A person to write to *(only on the stack testers use)*
 
@@ -1975,6 +1989,135 @@ be wrong silently. Neither side is the safe side; being told is.
 
 If you are ever unsure which environment a served `dist` was built for, read the
 host out of a *Request access* link in the page source.
+
+### `www.ownpace.eu`: live's copy
+
+The commands above are the OTA site's (`www.ota.ownpace.eu`, the container
+`ownpace-www`, from `~/ownpace-managed`), and they stay as they are. During the
+alpha the reference machine also serves the production site, `www.ownpace.eu`
+(workplan 0139 T0 fact 6). **That copy is served from live's own checkout, at
+the release tag, and once `WWW_LIVE=true` switches it on, `deploy-live.sh`
+builds and starts it with every deploy of live.** The texts a tester accepts
+are then the release's (0139 T3), and the footer names that release. A fix to a
+text rides a new tag and a deploy, with the hold, like any other change.
+
+**Only `deploy-live.sh` builds it, and every `docker compose` command for it
+carries `-p ownpace-live-www`.** Live's `.env` sets
+`COMPOSE_PROJECT_NAME=ownpace-live`, and `www.yml` reads that `.env`, so
+`docker compose -f deploy/compose/www.yml up -d` there, without `-p`, puts the
+site in live's own project. There each file sees the other's containers as
+orphans, and one `--remove-orphans` from either removes live or the site.
+Nothing in a compose file can refuse that. So live's copy has one project,
+`ownpace-live-www` (live's project with `-www`). `deploy-live.sh` and
+`www-live.sh` build that name from live's project themselves. Each
+`docker compose` command you type for the site carries that `-p` and live's
+`--env-file`, and is typed exactly as given: the ones under *Looking at it*,
+below, the incident runbook's restart, and the `down` after switching it off.
+A build by hand in `~/ownpace-live` is not one of them: `site/dist` is
+bind-mounted, so it would be served at once, without the deploy's checks.
+`deploy-live.sh` refuses to deploy while a container of live's project has the
+compose service `www`, and the daily duty `site` (*Live's daily duties*) fails
+on it too.
+
+**Keep `WWW_LIVE=false` until the legal texts are final.** With it `true`,
+every deploy, and every dry run, test-builds the tag's site with `--public`
+before anything moves, and a site that build refuses stops the whole deploy,
+the app's release with it. Today's texts are refused: they still have unfilled
+placeholders. And every legal text's version line says it is a draft (*draft
+for legal review*, *concept voor juridische toetsing*): a tag whose
+`site/build.mjs` has 0139 T2's draft check refuses that with `--public` by
+itself, and its `--public --check` exits 1 on it too. So with `WWW_LIVE=true`
+and today's texts, `deploy-live.sh` refuses before the checkout, and live does
+not move at all. Switch it on with the first tag whose texts are final.
+
+**Switching it on,** once the texts are final and live stands. It publishes an
+**indexable** site (`--public`: no `noindex`, and `robots.txt` says
+`Allow: /`). That follows the owner's answer to 0139 open question 1, (a), on
+2026-09-28: *"public site: yes, search engine index."* So 0139 T10 (c)'s
+`--no-drafts` is not needed.
+
+1. The tag. Cut it from a `main` whose `www.yml` names the container after its
+   project (0139 T10 (b)) and whose legal texts are final: no unfilled
+   placeholder, and no version line that says draft. From any checkout, this
+   writes nothing, must exit 0, and its last line must say
+   `0 unfilled placeholder(s)`:
+
+   ```bash
+   OWNPACE_APP_URL=https://app.ownpace.eu node site/build.mjs --public --check
+   ```
+
+   `--check` is not the `--public` build itself, which may refuse what
+   `--check` does not repeat. Step 3's dry run runs that full build too.
+
+2. Live's `.env`, from `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-live/.env \
+     WWW_LIVE=true WWW_PORT=<a port of its own> WWW_BIND=<the value WEB_BIND has>
+   ```
+
+   `WWW_PORT` must be a port nothing else on the machine publishes, and not the
+   OTA site's (3125 unless its `.env` says otherwise). `WWW_BIND` is the address
+   the front connects to, the value `WEB_BIND` has, so `EXPOSURE_ALLOW` needs
+   nothing new. Add `WWW_PORT` to the repository variable
+   `EXPOSURE_PROBE_LIVE_PORTS`, and for the status page's *Website* row set
+   `STATUS_SITE_ENABLED=true` and `STATUS_SITE_URL=https://www.ownpace.eu`.
+3. Deploy as usual (*`ownpace-live`: a release tag, with `deploy-live.sh`*,
+   below). `--dry-run` runs the site's refusals too: a `WWW_LIVE` that is
+   neither `true` nor `false`, no `WWW_PORT` or `WWW_BIND`, a `WWW_PORT` that
+   is not one port from 1 to 65535, a `www` service in live's project, a tag
+   whose `www.yml` gives the container a fixed name, a tag whose site still
+   has unfilled placeholders, named by their count, and a tag whose `--public`
+   build refuses for any other reason, with its last words.
+   It learns the last two by test-building the tag's own site from git's
+   objects (`git archive` of `site/` and `package.json`) in a directory of its
+   own, which it removes, before anything moves: `--public --check` for the
+   count, then the full `--public` build, the same one the deploy runs after
+   the checkout, whose exit code decides. A dry run runs that test build too;
+   it builds nothing in the checkout. After the bring-up the deploy
+   builds the site in the checkout
+   (`OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public`),
+   brings it up with
+   `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
+   (a `WWW_PORT` another container publishes makes this `up` fail, and the
+   site's step stops there), waits until it is healthy, and asks it on
+   loopback at `WWW_PORT`: `/` answers 200 without `noindex`, has at least one
+   request-access link, and every one leads to `https://app.ownpace.eu`; and
+   `robots.txt` allows. Then the exposure check runs, over the site too. **A
+   site that fails any of that is a deploy that did not take** (exit 3, the
+   hold stays on), as any other check: an app on a new release beside the old
+   release's texts is not a deploy that took.
+4. Route `www.ownpace.eu` to live's `WWW_PORT` in NetBird, as in 0132 T1e.
+   Then dispatch *Exposure probe* with `site_name` set to `required`. Until
+   then leave it at `report`, its default: the name points at another host
+   before the route, and the probe tries no port on an address of it that is
+   not live's front (an address a production name or `EXPOSURE_PROBE_HOST`
+   resolves to), and does not ask 443 for it.
+
+`deploy-live.sh` runs the copy the checkout had before it moved, so the site
+step runs from the first deploy started from a checkout that already has it. If
+live runs a tag from before this step, deploy the new tag, then run
+`./deploy/compose/deploy-live.sh <that same tag>` once more, the hold still on:
+the checkout is already there, and this time the site comes up.
+
+**Looking at it,** from `~/ownpace-live`, each `docker compose` command with
+the `-p` (`www-live.sh` builds the name itself):
+
+```bash
+./deploy/compose/www-live.sh check
+docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env ps
+docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env logs --tail 100
+```
+
+`www-live.sh check` is the daily duty: read-only, it fails when live's project
+holds a `www` service and, with `WWW_LIVE=true`, when `ownpace-live-www` is not
+running and healthy. Restarting it as it is, when its container is gone or
+stuck (after a reboot whose bind failed, say), is the incident runbook's
+*Website* row, with the same `-p`. **Switching it off** (`WWW_LIVE=false`) makes the next
+deploys leave the site alone, and leaves `ownpace-live-www` running what it
+last served, the texts of an older release. Take it down then, with the same
+`-p`: `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file
+deploy/compose/.env down`.
 
 ## What cannot work on a mesh-only host
 
@@ -2181,36 +2324,36 @@ pass on what they need. This is a procedure, not a setting.
 day one (workplan 0133 open question 5: *"mail at the start: real mail relay
 day one."*). Nobody is invited to live until its `.env` names the relay (0133 T3)
 and one outside mailbox has been walked end to end (0133 T4), so no tester's
-mail is caught there and nothing below is passed on. The procedure is kept in
-case that changes.
+mail is caught there and nothing below is passed on. `stand-up-live.sh` refuses
+live's `.env` with `SMTP_HOST` empty or `mailpit` (step 6 of *Standing up
+ownpace-live*), so live is never brought up on the catcher. The procedure is
+kept in case that changes.
 
-**Where it applies.** Only on `ownpace-live`, the stack testers use (0132 D7),
-and only until its `.env` names a relay (0133 T3). If the relay is ready before
-live's first bring-up, the tag live is brought up from carries 0133 T2 (TLS for
-the identity provider), and that tag also carries 0135 T1 and T2 (so live's
-identity provider never offers public organisation registration, and its project
-admits its own organisation only), put the relay in live's `.env` from the start
-and skip this. Without 0133 T2 the identity provider takes its `tls` from
-`SMTP_SECURE`, which stays empty for a relay on 587: it connects in plain text,
-a relay that takes a login only over TLS refuses it, and the identity provider's
-codes reach neither an inbox nor a catcher while the API's mail arrives.
-Otherwise start on the catcher and switch at 0133 T3: live starts with the
-example's `SMTP_HOST=mailpit`, and a Mailpit in live's own project catches its
-mail. Until the switch it catches only your own checks (the note above), and a
-tester's request waits in the access queue,
-not answered yet. The OTA stack's Mailpit never holds a tester's mail: it is the
-nightly gate's, and the smoke reads it every night. On `main`, `managed.yml`
-still pins `name: ownpace-managed` and gives 17 services a fixed
-`container_name`, `ownpace-mailpit` among them, so live cannot run beside the
-OTA stack until 0132 T1 is built.
+**Where it would apply.** Only on `ownpace-live`, the stack testers use (0132
+D7), and only while its `.env` names no relay (0133 T3). Since the owner's
+answer, that is never: the relay goes in live's `.env` from the start, so the
+tag live is brought up from must carry 0133 T2 (TLS for the identity provider)
+and 0135 T1 and T2 (so live's identity provider never offers public
+organisation registration, and its project admits its own organisation only).
+Without 0133 T2 the identity provider takes its `tls` from `SMTP_SECURE`, which
+stays empty for a relay on 587: it connects in plain text, a relay that takes a
+login only over TLS refuses it, and the identity provider's codes reach neither
+an inbox nor a catcher while the API's mail arrives. Starting live on the
+catcher and switching at 0133 T3 was the other way, and 0133's open question 5
+recommended it; the owner chose the relay instead. The OTA stack's Mailpit
+never holds a tester's mail: it is the nightly gate's, and the smoke reads it
+every night. Were live ever to run a catcher, it would be its own: since 0132 T1
+(#1233) every container, volume and network is named after its compose project,
+so live's catcher would run in live's project beside the OTA stack's, on the
+`MAILPIT_PORT` live's `.env` gives it.
 
 **Where each mail lands.** With `SMTP_HOST=mailpit`, every mail below lands in
 that stack's Mailpit, whoever it is addressed to, and none reaches an inbox:
 
 - the API's, over the compose network to `mailpit:1025`;
 - the tasks', once `set-task-env.sh` has uploaded the SMTP settings. Task runs
-  join the network `DOCKER_RUNNER_NETWORKS` names, where `mailpit` resolves (on
-  `main` that is the OTA stack's network by name, which 0132 T1 changes).
+  join the network `DOCKER_RUNNER_NETWORKS` names, where `mailpit` resolves:
+  the stack's own `<project>_ownpace-network` since 0132 T1.
   Without the upload the tasks send nothing, and say so in their log;
 - the identity provider's, through the provider `setup-zitadel.sh` made for
   `mailpit:1025`.
@@ -2318,12 +2461,13 @@ curl -fsS -X DELETE "http://localhost:${port:?no MAILPIT_PORT in this .env}/api/
 docker compose -p ownpace-live -f deploy/compose/managed.yml stop mailpit
 ```
 
-Name live's project (0132 T1). On `main`, `managed.yml` pins
-`name: ownpace-managed`, so the same command without `-p` reaches the OTA
-stack's `ownpace-managed` and stops the catcher the nightly gate reads. Unless
-0133 T3's gating (Mailpit only with `--with-demo` or `SMTP_HOST=mailpit`) has
-been built, every bring-up of live starts it again, empty and idle. Stop it
-again after each one.
+`-p ownpace-live` names live's project out loud. From live's checkout Compose
+takes it from live's `.env` anyway (0132 T1); `-p` also wins over a shell that
+exported the other stack's name, which would otherwise stop the catcher the
+nightly gate reads. Once live's `SMTP_HOST` names the relay, the bring-up no
+longer starts Mailpit (0133 T3 (b): only with `--with-demo` or
+`SMTP_HOST=mailpit`), and while one still runs it says so on every run. It
+does not stop it: that is this command, once.
 
 ## The CI runner is a different checkout from wherever you did this by hand
 
@@ -2498,6 +2642,281 @@ Neither path makes the login *itself* automatable — creating the account
 and project is still the one step that opens a browser (0084 T6). Both only
 let a credential obtained once survive to the next run.
 
+## Standing up ownpace-live
+
+`ownpace-live`, the stack testers use, is stood up once and deployed ever after
+(workplan 0132 T1b to T1e). [`deploy-live.sh`](../deploy/compose/deploy-live.sh)
+does every deploy after the first and cannot do the first: it reads the hold
+from live's own database, which does not exist yet, and it takes the bring-up's
+two stops for a deploy that did not take. The first bring-up is
+[`stand-up-live.sh`](../deploy/compose/stand-up-live.sh): the phases of this
+guide in order, with the steps only live has around them, each one refusing
+what would be hard to undo. It stops twice for you, as the bring-up does, and
+you run it again with `--resume`.
+
+**Not yet run.** Live is not stood up, and the script has run only against the
+stubs in its guard, `scripts/a-first-bring-up-of-live.unit.test.ts`. It runs
+from the release tag live runs, so that tag has to carry it: cut the release
+(0146 T0) from a commit of `main` that has this script, once the nightly gate
+has run that commit green.
+
+### Before the script: the owner's steps
+
+No script can do these. The script checks each one before it changes anything.
+
+1. **The machine** (*Before you start*): at least 15 GB free, the journald log
+   driver, and the setting that lets a container publish on the front's address
+   before the mesh has brought it up. Create
+   `/etc/sysctl.d/90-bind-before-the-mesh.conf` holding
+   `net.ipv4.ip_nonlocal_bind = 1`, then run `sudo sysctl --system` (*Which
+   address a port answers on*). Live's web, sign-in and status ports are
+   published on the front's address, so without it they may not start after a
+   reboot.
+2. **Nine ports of live's own**: `POSTGRES_PORT`, `TRIGGER_PORT`,
+   `TRIGGER_TLS_PORT`, `ZITADEL_PORT`, `API_PORT`, `WEB_PORT`, `STATUS_PORT`,
+   `REGISTRY_PORT` and `MAILPIT_PORT`. Each must be one the OTA stack does not
+   use under any key (the script refuses any of its ports, its `NEXTCLOUD_PORT`
+   and the site's `WWW_PORT` among them, whether or not the OTA stack is up),
+   and one nothing on the machine listens on. `MAILPIT_PORT` too: live runs no
+   catcher (its mail goes to a relay, step 6), but the bring-up starts one
+   whenever `SMTP_HOST` is `mailpit`. The script refuses that, `deploy-live.sh`
+   does not check it, and its default, 3127, is the OTA stack's. The one rule
+   is that a port is live's when the bring-up starts its service for a setting
+   live's `.env` can hold. The demo's `NEXTCLOUD_PORT` is not: Nextcloud starts
+   only with `--with-demo`, which both scripts refuse. See what the OTA stack
+   publishes from its checkout with
+   `docker compose -f deploy/compose/managed.yml ps --format '{{.Service}} {{.Ports}}'`,
+   and paste that output nowhere public.
+
+   **A port in the kernel's ephemeral range is reserved first.** Linux gives an
+   outgoing connection that does not choose its own source port one from
+   `net.ipv4.ip_local_port_range` (`cat /proc/sys/net/ipv4/ip_local_port_range`;
+   32768 to 60999 unless changed): an image pull, a lookup, a mail to the relay.
+   A port live publishes inside that range can be held that way at the moment
+   Docker binds it, after a reboot or at a recreate, and the container that
+   publishes it then fails to start with *address already in use*. Nothing
+   listens there beforehand, so no check of what listens sees it coming.
+   `net.ipv4.ip_local_reserved_ports` takes ports out of that pool and still
+   lets a program bind them on purpose. The script refuses every port live
+   publishes (the nine, and any other `*_PORT` a `ports:` entry of
+   `managed.yml` names but the demo's `NEXTCLOUD_PORT`) that lies in the range
+   and is not reserved, on a resume too, names it with its number, and prints
+   the line that fixes it. Once workplan 0139 T10 lands (on its own branch on
+   2026-09-28), `deploy-live.sh` serves live's copy of `www.ownpace.eu` on
+   `WWW_PORT` while live's `.env` says `WWW_LIVE=true`, and the script asks
+   `WWW_PORT` then too; until then nothing reads `WWW_LIVE`. With live's ports
+   at, say, 40101 to 40109 (example numbers):
+
+   ```bash
+   cat /proc/sys/net/ipv4/ip_local_reserved_ports    # reserved now: keep it
+   echo 'net.ipv4.ip_local_reserved_ports = 40101-40109' | sudo tee /etc/sysctl.d/90-ownpace-reserved-ports.conf
+   sudo sysctl --system
+   cat /proc/sys/net/ipv4/ip_local_reserved_ports    # now with 40101-40109
+   ```
+
+   If the first line printed something, it goes in front, separated by a
+   comma (`= 8080,40101-40109`); the kernel takes single ports and ranges. If
+   another file in `/etc/sysctl.d` sets the key already, put the line in that
+   file instead: `sysctl --system` reads them in name order, and the last to
+   set a key wins. Ports below the range need nothing.
+3. **The routes, before the bring-up** (0132 T1e). In NetBird, on the front's
+   address and external port 443: `app.ownpace.eu` to live's `WEB_PORT`,
+   `id.ownpace.eu` to live's `ZITADEL_PORT`, `status.ownpace.eu` to live's
+   `STATUS_PORT`. Before, not after: the bring-up's sign-in setup
+   (`setup-zitadel.sh`) reaches `id.ownpace.eu` by that name, the sign-in button
+   and the API's token checks need it, and the script's last checks ask both
+   names. The script refuses while any of the three does not resolve from the
+   machine.
+4. **The checkout**, from a fresh shell, at `~/ownpace-live` exactly (the daily
+   duties' timer runs from there), parked on the release tag:
+
+   ```bash
+   unset COMPOSE_PROJECT_NAME
+   git clone <repo-url> ~/ownpace-live && cd ~/ownpace-live
+   git fetch --tags origin && git checkout --detach <tag>
+   pnpm install --frozen-lockfile
+   ```
+
+5. **Live's `.env`**, copied first and linked after: the bring-up creates a
+   `.env` only where there is none, and GNU `cp` does not write through a link
+   to a missing file. Then the two lines the example leaves out on purpose, and
+   a check that Compose takes live's project from it:
+
+   ```bash
+   mkdir -p ~/.persistent/ownpace-live
+   cp deploy/compose/managed.env.example ~/.persistent/ownpace-live/.env
+   chmod 600 ~/.persistent/ownpace-live/.env
+   ln -sfn ~/.persistent/ownpace-live/.env deploy/compose/.env
+   ./deploy/compose/env-upsert.sh deploy/compose/.env COMPOSE_PROJECT_NAME=ownpace-live STACK_KIND=production
+   docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p'
+   ```
+
+   The last line prints `ownpace-live`.
+6. **Live's settings**, in one call, with your own values in the angle
+   brackets:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env \
+     POSTGRES_PORT=<p> TRIGGER_PORT=<p> TRIGGER_TLS_PORT=<p> ZITADEL_PORT=<p> \
+     API_PORT=<p> WEB_PORT=<p> STATUS_PORT=<p> REGISTRY_PORT=<p> MAILPIT_PORT=<p> \
+     TRIGGER_API_ORIGIN=http://127.0.0.1:<TRIGGER_PORT> \
+     TRIGGER_APP_ORIGIN=https://localhost:<TRIGGER_TLS_PORT> \
+     TRIGGER_LOGIN_ORIGIN=https://localhost:<TRIGGER_TLS_PORT> \
+     TRIGGER_CLI_PROFILE=ownpace-live \
+     WEB_BIND=<front-address> ZITADEL_BIND=<front-address> STATUS_BIND=<front-address> \
+     EXPOSURE_ALLOW=<address,address> \
+     WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
+     ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
+     ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
+     NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 \
+     SMTP_HOST=<the relay's submission host> SMTP_PORT=587 SMTP_SECURE= \
+     SMTP_USER=<the sending address> NOTIFY_FROM=<the sending address> \
+     NOTIFY_TO=<an address you read> \
+     VITE_SUPPORT_EMAIL=<an address you read>
+   read -rs -p 'The relay token: ' t && printf 'SMTP_PASSWORD=%s\n' "$t" |
+     ./deploy/compose/env-upsert.sh --stdin deploy/compose/.env; unset t
+   ```
+
+   `EXPOSURE_ALLOW` is every address any container on the machine is published
+   on: both stacks' `*_BIND` values and the site's `WWW_BIND`, commas, no space,
+   and no loopback address, which never needs listing. The script hands the
+   list to `exposure-check.sh` itself, the check its last step and the daily
+   duties run, so it takes the lists that check takes and refuses the ones it
+   refuses. Leave `POSTGRES_BIND`, `API_BIND`, `TRIGGER_BIND`, `TRIGGER_ACCESS_TOKEN` and
+   `OWNPACE_REACHABLE_HOSTS` empty, and keep `APP_DB_USER=app_user`. Write
+   every line `KEY=value` at its start: Compose also reads a key indented, with
+   a space before `=`, or with `:`, the script's checks do not, and it refuses
+   such a line. `BACKUP_RETENTION_DAYS=7` is the most days a dump of live's
+   databases taken before a deploy is kept, which the erasure sentence names
+   (workplan 0134 open question 1 (b)); the script refuses it empty, `0`, or
+   anything but a whole number above 0. Taking that dump and deleting it by its
+   seventh day are yours: nothing does either yet (§8g).
+
+   **Mail goes through a real relay from the first day** (workplan 0133): live
+   runs no catcher, and the sign-up's verification code is the first mail it
+   sends, so *Before a relay: passing mail on by hand* is not for live.
+   `SMTP_HOST` is the relay's submission host (Proton Mail's, for one, is
+   `smtp.protonmail.ch`) and `SMTP_PORT` its submission port, 587, with
+   `SMTP_SECURE` empty: the connection starts plain and STARTTLS turns it to
+   TLS before the login. `SMTP_USER` is the relay's login, usually the sending
+   address, and `SMTP_PASSWORD` a token the relay issues for that address,
+   never the mailbox's own password; the `read` line puts it in on stdin, so
+   it is on no command line. `NOTIFY_FROM` is the sending address, and
+   `NOTIFY_TO` an address you read. The script refuses an `SMTP_HOST` that is
+   empty or `mailpit`, an empty `SMTP_PORT` (the identity provider's setup
+   would take the catcher's 1025), and a `NOTIFY_FROM` or `NOTIFY_TO` that is
+   empty or ends in `.invalid`. Write these four bare, or in single quotes (a
+   sender with a name, `'Ownpace <address>'`). The script refuses one in double
+   quotes: Compose takes them off, and `env_value`, the reader of the script
+   and of `setup-zitadel.sh`, keeps them, so `NOTIFY_TO=""` would pass the
+   checks and reach the API as no address at all, and a relay's host in double
+   quotes would reach the identity provider with them.
+
+   `ZITADEL_EXTERNALDOMAIN` cannot be changed after the
+   provider's first start. The database passwords are the script's (below). If
+   you set your own first, it keeps them; use hex, because they go into URLs. A
+   new owner role name (`POSTGRES_USER`) costs nothing on a new volume.
+
+### The script
+
+From `~/ownpace-live`:
+
+```bash
+./deploy/compose/stand-up-live.sh
+```
+
+**It refuses before it changes anything**, and names the key or the name, never
+a value: `--with-demo`; a shell started with tracing on, or with `COMPOSE_FILE`,
+`COMPOSE_ENV_FILES`, a `COMPOSE_PROJECT_NAME` the checkout does not choose, or
+`MANAGED_ENV_PERSIST_DIR` pointing elsewhere; a checkout that is not
+`~/ownpace-live`; a `.env` that is not a link to live's persisted file, or that
+lacks `STACK_KIND=production` or `COMPOSE_PROJECT_NAME=ownpace-live`; a `HEAD` on
+a branch, at no `v…` tag, or at a tag that is not a release by the rule
+`deploy-live.sh` applies (`release-tag.sh`); a tag without `deploy-live.sh`,
+`exposure-check.sh`, `box-duties.sh` and `stack-kind.sh`; a working tree that is
+not clean; a deploy log with a line in it (live stands: use `deploy-live.sh`);
+live's database volume already there without `--resume`; and, all listed at
+once, a line of live's `.env` that sets a key in a form Compose reads and the
+checks do not (indented, a space before `=`, or `:`), every setting from steps
+2, 3 and 6 above that is wrong for live, a port that is any of the OTA stack's
+under whatever key (read from its persisted `.env`, or the compose files'
+default) or, on a first run, already in use, a port live publishes that lies in
+the kernel's ephemeral range and is not reserved (step 2; that refusal names the
+port, because its fix lists it), and a production name that does not resolve.
+
+**What it does, in order:**
+
+1. Generates `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`,
+   `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD` (Trigger.dev's own database,
+   0132 T2) with `openssl rand -hex 24`, each one that is empty or a value this
+   repository publishes and whose volume does not exist yet, through
+   `env-upsert.sh --stdin`: on no command line, and never printed (D8).
+2. `bootstrap-managed.sh --only preflight`, `--only env`, a check that the
+   rendered `DOCKER_RUNNER_NETWORKS` is `ownpace-live_ownpace-network` (D9), and
+   `--only data`.
+3. Creates `app_user` from `APP_DB_PASSWORD` before anything migrates, the
+   statement on psql's stdin: the baseline migration creates it with a
+   published password only when it does not exist.
+4. Asks live's database over live's own network, as every container does
+   (0132 T2 step 2): the two controls must open, and the three published values
+   must not.
+5. `bootstrap-managed.sh --from trigger`. That stops twice, and the script exits
+   2 each time, saying what to do:
+   - **live's own Trigger.dev account**, organisation and project, on its
+     dashboard at `https://localhost:<TRIGGER_TLS_PORT>` on the machine, or
+     through `ssh -N -L <TRIGGER_TLS_PORT>:127.0.0.1:<TRIGGER_TLS_PORT> <you>@<machine>`
+     from a laptop (not tried yet), with `./deploy/compose/trigger-magic-link.sh`
+     for the link;
+   - **the deploy CLI's login** under live's own profile: the `npx … login`
+     line the bring-up prints (Chromium worked where Firefox did not).
+
+   After each, run `./deploy/compose/stand-up-live.sh --resume`, not the resume
+   line the bring-up printed. On a resume every step asks whether it is done
+   first: no password is generated twice, `app_user` is not created twice, and
+   each bring-up phase skips what it finds done. There is no state file.
+6. Puts `apps/worker/package.json` back when the task deploy stripped only its
+   last newline.
+7. The checks: `/api/version` at `app.ownpace.eu` names the tag's commit and
+   version, `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
+   `NODE_ENV` is `production` in the api container, `id.ownpace.eu` names
+   itself as the issuer, live's two networks exist and share no container with
+   the OTA stack's, and `exposure-check.sh` passes. Run it in daytime: the
+   appliance nightly's dev Nextcloud publishes on every interface while it
+   runs.
+8. Appends the first line of `~/.persistent/ownpace-live/deploys.log`, in
+   `deploy-live.sh`'s format: the date, the tag, the commit, `took`, `one-way`.
+9. Copies the two units of *Live's daily duties* to `~/.config/systemd/user`
+   and runs `systemctl --user daemon-reload`.
+10. Prints what is left, below.
+
+It exits 0 when live stands, 1 when it refused (nothing changed), 2 at a stop
+(do what it says, then `--resume`), and 3 when a step after the start failed:
+it says which and logs nothing; fix it and run it again with `--resume`.
+
+### After the script: the owner's steps
+
+1. **Sign up** at `https://app.ownpace.eu`, with an address you read. The
+   identity provider sends the verification code through live's relay, the
+   first mail live sends. Live runs no catcher: if the code does not arrive,
+   the `zitadel` service's log and the relay's say why.
+2. **Become the operator.** Your `userId` from `/api/me` (8c), then
+   `./deploy/compose/operator.sh add <userId> <your email> "owner"` and
+   `./deploy/compose/operator.sh list`, which names you and nobody else.
+3. **The daily duties** (*Live's daily duties*, below): the units are in place,
+   so `sudo loginctl enable-linger "$USER"`, then
+   `systemctl --user enable --now ownpace-box-duties.timer`, one
+   `systemctl --user start ownpace-box-duties.service`, and the journal: all
+   four duties pass.
+4. **Rehearse the next deploy.** Open a hold on the support screen with a Dutch
+   sentence, wait five minutes, then `./deploy/compose/deploy-live.sh --dry-run <tag>`:
+   every refusal passes, it says reversible (the same tag), and nothing moves.
+   Lift the hold. Every deploy from here on is `deploy-live.sh`.
+5. **The outside probe.** Set the repository variable
+   `EXPOSURE_PROBE_LIVE_PORTS` to live's published ports, and dispatch the
+   *Exposure probe* workflow.
+6. **The record.** The date, the tag and each check's outcome, never a value, in
+   workplan 0132's Status block (T0 step 6).
+
 ## Live's daily duties
 
 The nightly gate keeps the OTA stack alive as a side effect of testing it. Two
@@ -2507,7 +2926,7 @@ run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
 proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). It does four duties, each one
+`~/ownpace-live` by a systemd timer (0132 T7). It does five duties, each one
 whatever the one before it did:
 
 | Duty | What it runs | What it does |
@@ -2516,8 +2935,9 @@ whatever the one before it did:
 | `drill` | `trigger-version.sh drill` | Dumps live's Trigger.dev database, restores it into a throwaway and compares. The dumps go to `~/.persistent/ownpace-live/trigger-backups` and are **secret-bearing** (the plane's API keys and the encrypted task environment); the script makes them readable by this account only. |
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
+| `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
 
-It exits 0 when all four pass, 1 naming every duty that failed, and 2 when it
+It exits 0 when all five pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
 are the gate's), a project the reader refuses, or an argument. A duty that runs
 past 20 minutes (`BOX_DUTY_TIMEOUT`, in seconds) is a failed duty. Ctrl-C in a
@@ -2538,9 +2958,10 @@ and reaches Docker. Both are in
 
 ```ini
 # ownpace-box-duties.service — live's daily duties (workplan 0132 T7): the
-# provisioning token's clock, the Trigger.dev drill, the exposure check and the
-# organisation count. A user unit, started by ownpace-box-duties.timer; the
-# install steps are in docs/managed-bring-up.md, "Live's daily duties".
+# provisioning token's clock, the Trigger.dev drill, the exposure check, the
+# organisation count and the site's (0139 T10). A user unit, started by
+# ownpace-box-duties.timer; the install steps are in docs/managed-bring-up.md,
+# "Live's daily duties".
 [Unit]
 Description=ownpace-live: the duties the nightly gate does for the OTA stack
 
@@ -2549,9 +2970,9 @@ Type=oneshot
 WorkingDirectory=%h/ownpace-live
 ExecStart=%h/ownpace-live/deploy/compose/box-duties.sh
 SyslogIdentifier=ownpace-box-duties
-# Four duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
+# Five duties of at most 20 minutes each (BOX_DUTY_TIMEOUT), and room to say
 # which failed.
-TimeoutStartSec=90min
+TimeoutStartSec=110min
 ```
 
 ```ini
@@ -2691,8 +3112,9 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 
 ### `ownpace-live`: a release tag, with `deploy-live.sh`
 
-**On `ownpace-live`, the stack testers use, the pull under *The OTA stack*
-below is never run, and `git pull` never is.** Live runs a release tag and nothing
+**The first time is not this:** *Standing up ownpace-live*, above, with
+`stand-up-live.sh`. **On `ownpace-live`, the stack testers use, the pull under
+*The OTA stack* below is never run, and `git pull` never is.** Live runs a release tag and nothing
 else (workplan 0132 T6, 0146 T5), so the build a tester sees, a problem
 report's build line, the deploy log and the GitHub release all name the same
 thing. One script moves it:
@@ -2710,10 +3132,14 @@ thing. One script moves it:
    ```
 
    It runs every refusal the deploy runs and prints *one-way* or *reversible*,
-   then stops: nothing is checked out, built or deployed, and nothing is
-   logged. **If it says one-way** and you want a way back that is not a fix
-   and a new tag, dump live's database now, with the hold still on (the
-   operator runbook's *Backup & restore*). Nothing takes a dump for you.
+   then stops: nothing is checked out, installed or deployed, nothing is built
+   in the checkout, and nothing is logged. With `WWW_LIVE=true` it does build
+   one thing: the tag's site, from git's objects, in a directory of its own
+   that it removes, to learn whether the deploy's own build would refuse it
+   (*`www.ownpace.eu`: live's copy*). **If it says one-way** and you want a
+   way back that is not a fix and a new tag, dump live's database now, with
+   the hold still on (the operator runbook's *Backup & restore*). Nothing
+   takes a dump for you.
    First check that live's `BACKUP_RETENTION_DAYS` is N and not `0` (§8g).
    Keep the dump until the next deploy succeeds and never longer than N days,
    and nothing deletes it for you either: delete it by its N-th day, whether
@@ -2746,7 +3172,13 @@ builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
 `/api/ready` answers 200, `/api/auth/mode` answers `managed`, and
 `exposure-check.sh` passes. `NODE_ENV` is not checked yet: workplan 0132 T4's
-check is not built, and the script says so.
+check is not built, and the script says so. With `WWW_LIVE=true` in live's
+`.env` it also builds and serves `www.ownpace.eu` from the tag, before the
+exposure check, and refuses what would stop that before anything moves
+(*`www.ownpace.eu`: live's copy*, under *The public site*); without it, nothing
+about the site runs. **Keep it `false` until the legal texts are final:** with
+today's texts a deploy with it `true` refuses before the checkout, and the app
+does not move either.
 
 **The exposure check needs two things before live's first deploy.** The check is
 on `main` since #1271, and it reads the whole machine: set `EXPOSURE_ALLOW` in
@@ -2758,9 +3190,11 @@ own copy, and a tag without one cannot pass.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
 fetch, and one-way or reversible, by the same comparison) and then stops, exit
-0: no checkout, no install, no bring-up, no checks, and no line in the deploy
-log, which it does not even create. A refusal exits 1, as in the deploy. Step 3
-above is what it is for.
+0: no checkout, no install, no bring-up, none of the checks after it, and no
+line in the deploy log, which it does not even create. With `WWW_LIVE=true`
+the site's refusals are among those it runs, and so is their test build of the
+tag's site, in a directory of its own that it removes; nothing is built in the
+checkout. A refusal exits 1, as in the deploy. Step 3 above is what it is for.
 
 **If a check fails, the deploy did not take.** The script says which check, the
 hold stays on, and it exits 3. The checkout is at the new tag: fix the cause and
@@ -3100,7 +3534,70 @@ JWTs signed with a rotated `JWT_SECRET`. Rotating `SECRET_ENCRYPTION_KEY`
 **strands stored connection credentials** — they have to be re-entered.
 Rotating `TRIGGER_LOGIN_SECRET` signs everyone out **including the deploy
 CLI**, whose stored token then fails with `Unable to validate existing personal
-access token — 500`; a `login` fixes it.
+access token — 500`; a `login` fixes it. **A database password is not enough
+changed in `.env`**: `POSTGRES_PASSWORD` and `APP_DB_PASSWORD` belong to roles
+that keep the password they were created with, so the role has to be told
+too. `./deploy/compose/rotate-db-passwords.sh` does both, and never prints a
+value; the next section is the procedure.
+
+### Changing the database passwords
+
+The OTA stack's database roles were created with values this repository
+contains: `app_user` with `app_password` (the first migration), the owner with
+compose's default or the example's `change-me-openmigrate`. `.env` alone does
+not reach a role that exists, so `deploy/compose/rotate-db-passwords.sh`
+carries a new value to it with `ALTER ROLE` (workplan 0132 T2). It has three
+modes:
+
+| mode | what it does | exit |
+|---|---|---|
+| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Reports `trigger-db`'s value, written into `managed.yml`, as waiting for T2's code, uncounted. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
+| `--sync` | Sets `app_user`'s and the owner's passwords to what `.env` holds, in one transaction over the socket, then proves both over the network and through the pooler. Idempotent. The remedy when `.env` and the roles disagree. Refuses a stack that may be live (`stack_may_be_live`), before it asks the stack anything. | 0 / 1 / 2 |
+| `--rotate [--with-trigger-stores]` | Makes new values on the machine and changes `.env` and the roles together. With `--with-trigger-stores`, `CLICKHOUSE_PASSWORD` and `MINIO_ROOT_PASSWORD` too. Refuses on live, in CI, under `set -x`, when `.env` is not the persisted file, while a CI job runs on the machine or E2E (managed) is queued or in progress (asked before it prompts, and again once the project name is typed, before anything is written), when postgres is not healthy, when `.env` and the roles already disagree, and while a shipped value opens a login role it does not change (it names the role and 0132 T2 step 5). It asks you to type the project name. On any failure, or an interrupt, it puts the old `.env` and the old role passwords back, and says which step failed; a second Ctrl-C does not stop that. If it cannot complete, it keeps the old `.env` beside the persisted one (mode 0600) and says what to run. | 0 / 1 |
+
+Every question about a password goes over the stack's network or to
+PgBouncer's port, never the database container's socket, which trusts every
+connection and would open with any password
+([the check Postgres never made](../scripts/the-check-postgres-never-made.unit.test.ts)).
+No value is ever an argument: each travels in the environment of the one
+process that needs it, by name.
+
+**The procedure, on the OTA stack**, from `~/ownpace-managed`, with
+`deploy/compose/.env` a link to the persisted file
+([One stack, one `.env`](#one-stack-one-env)):
+
+1. **Check.** `./deploy/compose/rotate-db-passwords.sh --check`. Both controls
+   must open. Each `OPENS` line is a shipped value still in force. If a control
+   is `REFUSED`, `.env` and the database already disagree: run `--sync` first.
+   If an `OPENS` line names a role that is neither the owner nor `app_user`
+   (the owner's old name, `openmigrate`, left with `LOGIN` after a rename),
+   take its login away first with the command the check prints (workplan 0132
+   T2 step 5: `ALTER ROLE openmigrate NOLOGIN`, never `DROP`, because it owns
+   the schema); `--rotate` refuses until then.
+2. **Rotate, at a quiet time.** After that day's gate run has finished, and
+   with nothing queued in Actions → E2E (managed):
+   `./deploy/compose/rotate-db-passwords.sh --rotate --with-trigger-stores`,
+   and type the project name when it asks. From here until the next step ends,
+   the OTA app cannot open new database connections (the demo is down; no
+   tester uses this stack).
+3. **Dispatch E2E (managed)** on `main` (the script does this itself when `gh`
+   is signed in). That run restores the persisted `.env`, recreates every
+   container whose settings changed (Postgres, the API, Zitadel, ClickHouse,
+   MinIO, trigger-api), uploads `DATABASE_URL` and `APP_DATABASE_URL` to
+   Trigger.dev again, and its smoke proves a task still connects.
+4. **Check again**, once that run is green: `--check` exits 0. ClickHouse must
+   be healthy (its health check logs in with the new password). If MinIO
+   refuses the new pair on its old volume, the cost is its packets store: old
+   large run payloads.
+5. **Record the date in workplan 0132 T0** (step 2), with "refused". Never a
+   value.
+
+`--sync` and `--rotate` refuse live: its values are made fresh when it is
+stood up and are its own (0132 T1b, D8). `--check` runs on any stack, live
+included; 0132 T0 step 5 runs it there. The gate never runs `--rotate`;
+it may one day run `--check`, and T2 (b)'s bring-up is to run the `--sync`
+functions (`deploy/compose/db-roles.sh`) on every run. `trigger-db`'s password
+waits for T2's code, which makes it `TRIGGER_DB_PASSWORD`.
 
 ### `whoami` says nothing about whether you are logged in
 
@@ -3239,8 +3736,12 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   `triggerdb` IS covered, by `trigger-version.sh backup`, and its restore is
   drilled on every managed gate run. The same treatment for the application
   database is not built.) A stack without backups sets
-  `BACKUP_RETENTION_DAYS=0`, so the erasure sentence names none:
-  `ownpace-live`, the stack testers use, takes none during the alpha (§8g).
+  `BACKUP_RETENTION_DAYS=0`, so the erasure sentence names none.
+  `ownpace-live`, the stack testers use, takes none during the alpha and sets
+  `7`: its databases are dumped before each deploy and each dump is deleted
+  after at most seven days (workplan 0134 open question 1 (b)), both by hand
+  for now. `deploy-live.sh` takes no dump and nothing deletes one; the
+  automatic copy and its deletion are not built yet (§8g).
   [Workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
   is that decision. It parks building the backups (its T5) until before the
   first paying customer, or the end of the alpha, whichever comes first.

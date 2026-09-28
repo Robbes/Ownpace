@@ -203,7 +203,7 @@ describe('what a migration is recorded as', () => {
     const verdict = mayRevise('source.nativeFilePolicy');
     expect(verdict.allowed).toBe(true);
     expect(verdict.allowed ? verdict.consequence : '').toMatch(
-      /Every Google document whose format changes is copied again/,
+      /Every exported document whose format changes, a Google document or a Dropbox Paper doc, is copied again/,
     );
   });
 });

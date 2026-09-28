@@ -25,6 +25,10 @@ import {
   phasesOfTheMigration,
 } from '@openmig/shared';
 import { recordSwitchedOff, runAllDomains } from './orchestration.ts';
+import type { PgDatabase } from '@openmig/ledger';
+
+/** The pass is handed its ledger (0138 T1 part 2); nothing here reaches a query through it. */
+const NO_QUERIES = { ledgerDb: {} as unknown as PgDatabase };
 
 const dav = (enabled: boolean) => ({
   enabled,
@@ -104,7 +108,7 @@ describe('on every pass', () => {
     // Nothing is ticked, so the pass has no lane to run and reaches no
     // connector: what is left is exactly the part of a pass under test.
     const { store, calls } = fakeStore({ calendar: 3 });
-    const results = await runAllDomains(mapping({ calendar: dav(false) }), store, phasesOfTheMigration('active'));
+    const results = await runAllDomains(mapping({ calendar: dav(false) }), store, phasesOfTheMigration('active'), NO_QUERIES);
 
     for (const d of DISCOVERY_DOMAINS) expect(calls).toContain(`off ${d}`);
     expect(results.map((r) => [r.domain, r.disabled])).toEqual(

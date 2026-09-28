@@ -30,7 +30,11 @@ import {
   type VerificationConfig,
   type VerificationResult,
 } from '@openmig/core';
-import { createLedgerVerificationReader } from '@openmig/ledger';
+import {
+  createLedgerVerificationReader,
+  tenantScopedDb,
+  type DisposableLedgerVerificationReader,
+} from '@openmig/ledger';
 import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
 import { GATE_NAME } from '@openmig/orchestration/target-fan-out';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
@@ -73,10 +77,19 @@ export function gateScope(carried: ReadonlySet<DiscoveryDomain>, only?: Discover
   return new Set([...carried].filter((d) => only === undefined || d === only));
 }
 
+/**
+ * The ledger reader a verification of one migration counts through, this gate's
+ * and `run-verification`'s: on the caller's pool, each read in the tenant's
+ * scope (0138 T1 parts 2 and 3), so that on `app_user` it counts the
+ * migration's items rather than none. `close()` leaves the pool open.
+ */
+export function ledgerReaderFor(pool: Pool, tenantId: string): DisposableLedgerVerificationReader {
+  return createLedgerVerificationReader({ db: tenantScopedDb(pool, tenantId) });
+}
+
 /** The §20 gate over one migration: each data type it has, against that data type's own target. */
 export async function runCutoverGate(
   pool: Pool,
-  connectionString: string,
   tenantId: string,
   mappingId: string,
   // The cutover of one data type verifies that data type alone (0128 T5, slice 5b).
@@ -85,8 +98,9 @@ export async function runCutoverGate(
   const selected = gateScope(await enabledDomains(pool, tenantId, mappingId), only);
   const stopped = await stoppedDomains(pool, tenantId, mappingId);
   const targets = await buildTargetReindexers(pool, tenantId, mappingId);
-  // It opens a pool of its own, closed below.
-  const verificationReader = createLedgerVerificationReader({ connectionString });
+  // On the pool this gate was handed (0138 T1). It used to open a pool of its
+  // own from a connection string.
+  const verificationReader = ledgerReaderFor(pool, tenantId);
   try {
     return await runVerification(
       createRealVerificationDeps({

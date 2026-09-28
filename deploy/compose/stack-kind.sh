@@ -15,10 +15,15 @@
 #   compose_project             refuses live's exact marker on the OTA stack's
 #                               project (0132 T1b; env-read.sh reads the two
 #                               values below as data, it cannot source this)
-#   bootstrap-managed.sh        refuses --with-demo on live (0132 T5, not
-#                               built yet)
+#   bootstrap-managed.sh        refuses --with-demo on live (0132 T5,
+#                               built: stack_may_be_live)
 #   deploy-live.sh              refuses a .env WITHOUT the marker (0132 T6,
 #                               built: stack_is_live)
+#   stand-up-live.sh            refuses a .env WITHOUT the marker, before
+#                               live's first bring-up (0132 T1b: stack_is_live)
+#   rotate-db-passwords.sh      --sync and --rotate refuse live; --check runs
+#                               on any stack, it changes nothing (0132 T2,
+#                               built: stack_may_be_live)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line
@@ -38,8 +43,9 @@
 #                       any value that is not a kind listed below as not live,
 #                       and a line naming the key that the reader cannot read
 #                       (indented, or with spaces around `=`). For a REFUSAL,
-#                       which errs towards live: the rehearsal, the gate, and
-#                       --with-demo.
+#                       which errs towards live: the rehearsal, the gate,
+#                       --with-demo, and rotate-db-passwords.sh's --sync and
+#                       --rotate.
 #
 # Usage:  . "${SCRIPT_DIR}/stack-kind.sh"
 #         if stack_may_be_live "$ENV_FILE"; then …refuse…; fi

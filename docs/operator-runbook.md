@@ -62,19 +62,18 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforced through it:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
-  **superuser**, which **bypasses RLS even under FORCE**. Meant never to be the API's request path;
-  today two API routes open a pool on it, the permission report and the sharing rescan
-  (`apps/api/src/routes/permissions.ts`; `docs/rls-guide.md`, "Where row security holds today").
-  The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its audit key's
-  one connection. It is held
+  **superuser**, which **bypasses RLS even under FORCE**. Not the API's request path: no route
+  opens a pool on it (the permission report and the sharing rescan did until 2026-09-28; workplan
+  0138 T6). The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its
+  audit key's one connection, which requests do reach: the audit lines and the operator's audit
+  download read the pseudonym key through it, and no tenant's rows. It is held
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations), `seed-managed.sh`
   (the demo tenants), `operator.sh` (appointments, memberships, `check`/`clean`) and
   `set-task-env.sh`, which uploads it into the Trigger.dev task environment, where **every task
   connects with it today** (below). `docs/rls-guide.md` §2 carries the full table, and a guard
   fails if a script composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
-  row-level security is in force on its request path (workplan 0011 T1), with two routes excepted:
-  the permission report and the sharing rescan read on their own owner pool. If you ever point the
+  row-level security is in force on its request path (workplan 0011 T1). If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
 - **The deployed Trigger.dev tasks do not use `APP_DATABASE_URL` yet.** `set-task-env.sh` uploads
   two URLs, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run receives both:
@@ -89,7 +88,9 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   the pull that stopped uploading `DIRECT_DATABASE_URL`".
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
-rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
+rotate it in the DB to match: `./deploy/compose/rotate-db-passwords.sh --sync` sets `app_user` and
+the owner to `.env`'s values, and `--rotate` makes new ones for both and changes `.env` and the roles
+together (`docs/managed-bring-up.md`, "Changing the database passwords").
 
 ## Start / stop
 
@@ -672,7 +673,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **0** during the alpha, workplan 0134) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days a dump of its databases taken before a deploy is kept; the owner takes and deletes that dump by hand, since no script does yet, workplan 0134) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `standingGrants` | the permissions granted in the customer's **own** provider consoles, which survive our erasure because only they can withdraw them |
 
@@ -685,9 +686,16 @@ and the wording says exactly that.
 **Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is the
 owner's number for a deployment that takes backups, and it assumes they exist.
 Nothing in this repository backs up the application database yet (see
-[Backup & restore](#backup--restore-221)), and `ownpace-live`, the stack
-testers use, takes no backups during the alpha and sets `0`
-([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)).
+[Backup & restore](#backup--restore-221)). `ownpace-live`, the stack testers
+use, takes none during the alpha and sets `7` (the owner's answer of
+2026-09-28 to
+[workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)'s
+open question 1): its databases are dumped before each deploy, with the
+commands under *Backup & restore*, and each dump is deleted after at most
+seven days. Both are the owner's steps for now. `deploy-live.sh` takes no dump
+(0132 T6 step 4 comes before it), and nothing deletes one, so delete each dump
+by its seventh day, whether or not a deploy followed. The automatic copy and
+its deletion are not built yet.
 If your backups are kept for a month, a deployment left on the default promises
 a date it cannot honour. `0` is a valid answer for a deployment that takes no
 backups, and produces different wording rather than the same date twice. The

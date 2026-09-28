@@ -39,13 +39,15 @@ import type {
   TokenProvider,
   TrashListing,
 } from '@openmig/shared';
-import { fileVersion, markNeedsDecision, withFailureCategory } from '@openmig/shared';
+import { DROPBOX_PAPER_POLICIES, fileVersion, markNeedsDecision, withFailureCategory } from '@openmig/shared';
 import type {
   DropboxEntry,
   DropboxExportOnly,
   DropboxFileItem,
   DropboxFileSourceConfig,
   DropboxListFolderResponse,
+  DropboxPaperFormat,
+  DropboxPaperPolicy,
   DropboxTransport,
 } from './dropbox-file-source.types.ts';
 // The seam's threshold, not DAV's — every connector that moves to `FileBody`
@@ -72,6 +74,20 @@ const PAPER_KINDS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * The suffix a Paper doc arrives under in each format (workplan 0150 D4): it
+ * is APPENDED, so `Notes.paper` arrives as `Notes.paper.md`, as Drive's
+ * `Budget.xls` arrives as `Budget.xls.xlsx`. Replacing it would put a Paper
+ * doc and a real `Notes.md` on one key, which the ledger cannot hold.
+ */
+const PAPER_SUFFIX: Readonly<Record<DropboxPaperFormat, string>> = {
+  markdown: '.md',
+  html: '.html',
+};
+
+/** Every policy a Paper doc's name can come from, `refuse` first (0150 T3 (b)). */
+const EVERY_PAPER_POLICY: ReadonlyArray<DropboxPaperPolicy> = DROPBOX_PAPER_POLICIES;
+
+/**
  * A FILE DROPBOX HANDS OVER ONLY AS AN EXPORT, REFUSED BY NAME (workplan 0150
  * T5 and T6 (a); the owner's decisions D1, D5, D6 and D9, 2026-09-26).
  *
@@ -87,11 +103,12 @@ const PAPER_KINDS: ReadonlyMap<string, string> = new Map([
  * whether a setting would change the answer:
  *
  *  - `policy_refused` for a kind Dropbox exports. Dropbox would hand the file
- *    over as an export, and this service does not make exports yet (0150 T4,
- *    after the alpha, D6), so the destination was never asked. A Paper doc is
+ *    over as an export, and this migration asked for none: no format is chosen
+ *    for its kind (D1), or the one chosen is not among the formats Dropbox
+ *    offers for this file. So the destination was never asked. A Paper doc is
  *    always this (D9). Its remedy on the Failures page is Dropbox's own
- *    sentence, chosen by the migration's source, which names no setting until
- *    0150 T3 adds one.
+ *    sentence, chosen by the migration's source. A Paper doc under a chosen
+ *    format Dropbox offers is not refused: it is exported (0150 T3, T4).
  *  - `source_refused` for a kind Dropbox offers no export for (D5): no setting
  *    will ever make a file of it.
  *
@@ -99,11 +116,17 @@ const PAPER_KINDS: ReadonlyMap<string, string> = new Map([
  * counts toward a pass's 25 failures in a row (T6 (a)).
  */
 export class DropboxNativeRefused extends Error {
-  constructor(name: string, kind: string, exportable: boolean) {
+  constructor(name: string, kind: string, exportable: boolean, notOffered?: DropboxPaperFormat) {
     const paper = PAPER_KINDS.get(kind);
     let category: FailureCategory;
     let message: string;
-    if (paper) {
+    if (paper && notOffered) {
+      category = 'policy_refused';
+      message =
+        `"${name}" is a Dropbox ${paper}, and Dropbox does not offer it as ${notOffered}, the ` +
+        'format this migration exports Paper docs in, so nothing was copied. Choose another ' +
+        'format for Paper docs, or leave it behind.';
+    } else if (paper) {
       category = 'policy_refused';
       message =
         `"${name}" is a Dropbox ${paper}. Dropbox hands one over only as an export, and this ` +
@@ -135,13 +158,39 @@ function extensionOf(name: string): string {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
 }
 
-/** What a listing says about a file Dropbox hands over only as an export. */
-function exportOnlyOf(entry: DropboxEntry): DropboxExportOnly {
+/**
+ * What a listing says about a file Dropbox hands over only as an export, and
+ * what this migration does with it: the format it is exported in, or none.
+ */
+function exportOnlyOf(entry: DropboxEntry, policy: DropboxPaperPolicy): DropboxExportOnly {
   const info = entry.export_info;
-  const formats = [info?.export_as, ...(info?.export_options ?? [])].filter(
-    (format): format is string => typeof format === 'string' && format !== '',
-  );
-  return { kind: extensionOf(entry.name), formats: [...new Set(formats)] };
+  const formats = [
+    ...new Set(
+      [info?.export_as, ...(info?.export_options ?? [])].filter(
+        (format): format is string => typeof format === 'string' && format !== '',
+      ),
+    ),
+  ];
+  const kind = extensionOf(entry.name);
+  const chosen = PAPER_KINDS.has(kind) && policy !== 'refuse' ? policy : undefined;
+  if (chosen === undefined) return { kind, formats };
+  // Checked against the file's own offer, as rclone does: a format the kind
+  // offers in general may still be missing for one file.
+  return formats.includes(chosen) ? { kind, formats, exportAs: chosen } : { kind, formats, notOffered: chosen };
+}
+
+/**
+ * The name a file arrives under when `policy` is in force (0150 T3 (b)): its
+ * own, or with the format's suffix appended when that policy exports it. The
+ * name is part of the natural key, so the listing, `formerPaths` and the
+ * tombstones all ask this one function.
+ */
+function nameUnder(entry: DropboxEntry, policy: DropboxPaperPolicy): string {
+  if (entry.is_downloadable !== false) return entry.name;
+  const exportAs = exportOnlyOf(entry, policy).exportAs;
+  if (exportAs === undefined) return entry.name;
+  const suffix = PAPER_SUFFIX[exportAs];
+  return entry.name.toLowerCase().endsWith(suffix) ? entry.name : `${entry.name}${suffix}`;
 }
 
 /** The `.tag` of a Dropbox error body, when it is JSON that has one. */
@@ -173,6 +222,8 @@ export class DropboxFileSource implements FileSource {
   private readonly rootPath: string;
   /** Consume-once memo for `listKeys`, exactly like the Drive source's. */
   private lastListing?: { readonly path: string; readonly keys: ReadonlyArray<string> };
+  /** The format Paper docs arrive in, or `refuse` (0150 T3, D1). */
+  private readonly paperPolicy: DropboxPaperPolicy;
 
   private readonly transport: DropboxTransport;
   constructor(
@@ -194,6 +245,17 @@ export class DropboxFileSource implements FileSource {
     const raw = (config.rootPath ?? '').trim().replace(/\/+$/, '');
     const rootIsTheAccountItself = raw === '' || raw === '/' || /^\/?dropbox$/i.test(raw);
     this.rootPath = rootIsTheAccountItself ? '' : raw.startsWith('/') ? raw : `/${raw}`;
+    // Refusing is the default (D1): of the two ways to be wrong, only "your
+    // Paper docs did not migrate, and here is why" is one an owner can act on.
+    // A value this source does not know stops it here, naming the ones it
+    // does, rather than being read as one of them.
+    const paper = config.nativeFilePolicies?.paper ?? 'refuse';
+    if (!EVERY_PAPER_POLICY.includes(paper)) {
+      throw new Error(
+        `Unknown format for Paper docs: ${JSON.stringify(paper)}. Use one of ${EVERY_PAPER_POLICY.join(', ')}.`,
+      );
+    }
+    this.paperPolicy = paper;
   }
 
   private async rpc(path: string, arg: unknown, context?: string): Promise<unknown> {
@@ -406,7 +468,17 @@ export class DropboxFileSource implements FileSource {
         continue;
       }
       const path = this.relativePath(entry);
-      if (path) out.add(path);
+      if (!path) continue;
+      out.add(path);
+      // A DELETED PAPER DOC, UNDER THE NAME IT ARRIVED BY (0150 T3 (b)). A
+      // tombstone carries neither `is_downloadable` nor `export_info`, only
+      // the fields every entry has, so this is the one place the kind is read
+      // from the extension. Its row holds the name the export gave it, so
+      // that name is evidence too. A key no row holds resolves to nothing.
+      const exportAs = PAPER_KINDS.has(extensionOf(entry.name)) && this.paperPolicy !== 'refuse' ? this.paperPolicy : undefined;
+      if (exportAs !== undefined && !entry.name.toLowerCase().endsWith(PAPER_SUFFIX[exportAs])) {
+        out.add(`${path}${PAPER_SUFFIX[exportAs]}`);
+      }
     }
     return {
       paths: [...out],
@@ -492,6 +564,42 @@ export class DropboxFileSource implements FileSource {
     return response;
   }
 
+  /**
+   * One export, in the format the listing settled on (0150 T4): Dropbox's
+   * `files/export`, on the content host, its argument in a header as the
+   * download's is, the file named by its id.
+   *
+   * The route is marked a preview by Dropbox (D2). The one answer a setting
+   * changes, `invalid_export_format`, is stated as the refusal a setting
+   * would lift. Every other refusal, `retry_error` and `non_exportable`
+   * among them, stays an ordinary failure, retried and read from Dropbox's
+   * own words.
+   */
+  private async exportBytes(
+    item: FileItem,
+    ref: string,
+    kind: string,
+    format: DropboxPaperFormat,
+  ): Promise<Uint8Array> {
+    const response = await this.transport(`${this.contentBase}/files/export`, {
+      method: 'POST',
+      headers: { 'Dropbox-API-Arg': JSON.stringify({ path: ref, export_format: format }) },
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '(no body)');
+      if (response.status === 409 && dropboxErrorTag(text) === 'invalid_export_format') {
+        const exported = item.name ?? item.path;
+        const suffix = PAPER_SUFFIX[format];
+        const listed = exported.endsWith(suffix) ? exported.slice(0, -suffix.length) : exported;
+        throw new DropboxNativeRefused(listed, kind, true, format);
+      }
+      throw new Error(
+        `Dropbox refused the export of "${item.path}" as ${format} (${response.status}): ${text.slice(0, 300)}`,
+      );
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
   async fetch(item: FileItem): Promise<RawFileItem> {
     // A FILE DROPBOX HANDS OVER ONLY AS AN EXPORT (0150 T5), refused here,
     // before any download and before the size below chooses between a buffer
@@ -500,16 +608,37 @@ export class DropboxFileSource implements FileSource {
     // destination's. The listing has already said so, so no request is spent
     // asking.
     const exportOnly = (item as DropboxFileItem).exportOnly;
-    if (exportOnly) {
+    if (exportOnly && exportOnly.exportAs === undefined) {
       throw new DropboxNativeRefused(
         item.name ?? item.path,
         exportOnly.kind,
         exportOnly.formats.length > 0,
+        exportOnly.notOffered,
       );
     }
     const ref = item.sourceRef;
     if (!ref) {
       throw new Error(`No Dropbox file id recorded for "${item.path}" — cannot fetch it.`);
+    }
+
+    /**
+     * A PAPER DOC IN THE FORMAT THE MIGRATION CHOSE (workplan 0150 T4).
+     *
+     * Before the size below, and always buffered. The listing's size is the
+     * `.paper` file's, not the export's, which is unknown until Dropbox has
+     * made it. A body promises its size before a byte is read (the target
+     * sends it as `Content-Length`), so an export never streams: it is read
+     * whole, and the item carries the export's own length, as Drive's does.
+     */
+    if (exportOnly?.exportAs !== undefined) {
+      const bytes = await this.exportBytes(item, ref, exportOnly.kind, exportOnly.exportAs);
+      return {
+        item: { ...item, size: bytes.byteLength },
+        content: bytes,
+        // Bytes this product asked Dropbox to render, not a file the owner
+        // stored (ADR-0046): a rename is paired by the id, not by these.
+        rendering: true,
+      };
     }
 
     /**
@@ -554,11 +683,20 @@ export class DropboxFileSource implements FileSource {
   }
 
   private toFileItem(entry: DropboxEntry): DropboxFileItem | undefined {
-    const path = this.relativePath(entry);
-    if (!path || !entry.id) return undefined;
+    const listed = this.relativePath(entry);
+    if (!listed || !entry.id) return undefined;
+    // THE NAME IS CHOSEN HERE, AT LISTING (0150 T3 (b)). The sync loop writes
+    // under the listed path and keeps only the bytes `fetch` returns, so an
+    // export's name has to be the item's before anything is fetched. The path
+    // ends in the name, so the suffix is appended to both.
+    const name = nameUnder(entry, this.paperPolicy);
+    const path = `${listed}${name.slice(entry.name.length)}`;
+    const formerPaths = this.formerPathsOf(entry, listed, path);
+    const paper = entry.is_downloadable === false && PAPER_KINDS.has(extensionOf(entry.name));
     return {
       path,
-      name: entry.name,
+      name,
+      ...(formerPaths.length > 0 ? { formerPaths } : {}),
       isDirectory: false,
       size: entry.size ?? 0,
       // Dropbox's block hash: stable per content, compared against itself
@@ -571,10 +709,34 @@ export class DropboxFileSource implements FileSource {
       modifiedAt: entry.server_modified ?? entry.client_modified ?? new Date(0).toISOString(),
       // The source's own handle — stable across renames, unlike the path.
       sourceRef: entry.id,
-      // Marked here, where Dropbox says so, and refused by `fetch` (0150 T5).
-      // Only an explicit `false`: absent is how every file listed before, and
-      // `download` still states the refusal if Dropbox then answers with it.
-      ...(entry.is_downloadable === false ? { exportOnly: exportOnlyOf(entry) } : {}),
+      // AND WHAT PAIRS A RENAMED PAPER DOC (0150 T3 (b), D8), as it pairs a
+      // renamed Google document: its bytes are an export made every time it
+      // is copied, which nobody promised is the same twice. The id is: a
+      // rename does not change it.
+      ...(paper ? { sourceIdentity: entry.id } : {}),
+      // Marked here, where Dropbox says so (0150 T5): exported by `fetch` in
+      // the format settled on here, or refused by it. Only an explicit
+      // `false`: absent is how every file listed before, and `download` still
+      // states the refusal if Dropbox then answers with it.
+      ...(entry.is_downloadable === false ? { exportOnly: exportOnlyOf(entry, this.paperPolicy) } : {}),
     };
+  }
+
+  /**
+   * The paths this file would have under the OTHER Paper policies (0150
+   * T3 (b)), for `FileItem.formerPaths`, as Drive's are for its own. A switch
+   * of format lists the file under a key the ledger has not seen, and a row
+   * parked under the old key, a refused Paper doc most often, is closed by
+   * naming it here. Computed by the same function as the current name.
+   */
+  private formerPathsOf(entry: DropboxEntry, listed: string, current: string): string[] {
+    if (entry.is_downloadable !== false || !PAPER_KINDS.has(extensionOf(entry.name))) return [];
+    const paths = new Set<string>();
+    for (const policy of EVERY_PAPER_POLICY) {
+      if (policy === this.paperPolicy) continue;
+      const path = `${listed}${nameUnder(entry, policy).slice(entry.name.length)}`;
+      if (path !== current) paths.add(path);
+    }
+    return [...paths];
   }
 }

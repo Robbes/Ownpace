@@ -315,7 +315,7 @@ live in [README.md](./README.md), the register.
 
 - A **correlated relocation** (disappearance + same-content-hash arrival in one pass) is positive evidence; `apply` may remove the OLD copy. Recorded by `movedToNaturalKeyHash` — a cross-folder move and a rename are the same event.
 - All ADR-0024 gates stand, plus: the arrival must be **ours** (`copied`/`updated`, same `contentHash`, never `adopted` — refusal `relocation_unconfirmed`); the target is **asked** (`hasItem`) immediately before removal; a two-halves mass-relocation breaker; `keep` enforced server-side.
-- A **renamed Google document** (a Doc, Sheet, Slides deck or Drawing, copied as an export) is paired by its **Drive file id**, because two Office or OpenDocument exports of it are not byte-identical (owner, 2026-09-23). Where the two exports' bytes still match (PDF, SVG), the pair is an ordinary bytes pair, as before. Where they differ, the pair is recorded as such (`moved_by_identity`), and its `apply` asks for the **same id** in place of the same `contentHash`: the arrival is ours (`copied`/`updated`) with the same `source_ref`, and the target is asked (`hasItem`) as for every relocation. Unattended apply (ADR-0031) leaves those pairs for a person.
+- A **renamed Google document** (a Doc, Sheet, Slides deck or Drawing, copied as an export) is paired by its **Drive file id**, because two Office or OpenDocument exports of it are not byte-identical (owner, 2026-09-23). A **renamed Dropbox Paper doc**, copied as an export since 2026-09-28, is paired the same way by its **Dropbox id** (workplan 0150 D8). Where the two exports' bytes still match (PDF, SVG), the pair is an ordinary bytes pair, as before. Where they differ, the pair is recorded as such (`moved_by_identity`), and its `apply` asks for the **same id** in place of the same `contentHash`: the arrival is ours (`copied`/`updated`) with the same `source_ref`, and the target is asked (`hasItem`) as for every relocation. Unattended apply (ADR-0031) leaves those pairs for a person.
 - Relocated rows no longer count as absent — no phantom deletions. Manual relocation apply is served by both editions: the appliance answers once the old copy is removed, and the managed edition queues `run-apply-relocation` and answers with a receipt (the managed route since 2026-08-16, workplan 0042 T2). ADR-0031's auto path applies them unattended where a mapping opts in.
 
 ## [ADR-0031: Auto-applying relocations — what unattended would require](./0031-auto-apply-relocations.md)
@@ -749,7 +749,8 @@ Nothing in this amendment is built. It records the decision the three tasks in
 ## [ADR-0046: A rendering is compared by its parts, not by its bytes](./0046-a-rendering-is-compared-by-its-parts.md)
 
 - **BUILT, BUT NOT YET REACHING THE LEDGER (0042 T8 (e)).** A rendering a source marks as such
-  (`RawFileItem.rendering`, set only by Drive's `files.export` branch) is meant to be hashed by
+  (`RawFileItem.rendering`, set by Drive's `files.export` branch and, since 2026-09-28, by
+  Dropbox's `files/export`) is meant to be hashed by
   `containerContentHash`, with the target re-read in the row's own scheme and the confirmed list
   saying `container-parts` rather than "by hash". All of that is built, and none of it is reached:
   the file pass's `fetchRaw` drops the marker, so every export is stored with a whole-file hash.
@@ -765,6 +766,12 @@ Nothing in this amendment is built. It records the decision the three tasks in
   `EXPORT_STABILITY` stays as the record of what was measured, and the instrument measures
   through the connector like any caller. The preflight still counts what a choice leaves behind,
   a kind set not to export, and the confirm screen names it before the run.
+- **A DROPBOX PAPER DOC FOLLOWS THE SAME TWO RULES (workplan 0150 D8, since 2026-09-28).**
+  Exported through `files/export` in the format the migration chose, Markdown or HTML (0150 T3,
+  T4), it is rewritten when the listing's version moves (`content_hash`, else
+  `server_modified`), never on the export's bytes, and a renamed one is paired by its Dropbox id
+  ([ADR-0030](./0030-relocation-is-positive-evidence.md), amended). Neither format is a zip, so
+  its stored hash is the whole file's.
 - **A rendering this product asked Drive to export into a zip is compared by its PARTS.**
   `contentHash` over a canonical form: member names sorted, and for each, the sha256 of its
   uncompressed bytes. Excluded — member timestamps, member order, compression method and level,

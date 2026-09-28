@@ -399,7 +399,7 @@ export const runCutover = schemaTask({
             },
         runGate: options.skipVerification
           ? undefined
-          : () => runCutoverGate(pool, dbUrl, tenantId, mappingId, domain),
+          : () => runCutoverGate(pool, tenantId, mappingId, domain),
       });
     } catch (error) {
       const err = error as Error;

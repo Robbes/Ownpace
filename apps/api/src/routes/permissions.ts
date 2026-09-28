@@ -25,11 +25,28 @@
  * Policy cannot narrow it, so it would grant read over every file in the
  * tenant. The drive section is therefore a STATED blind spot by default,
  * behind `GRAPH_FILES_READ_CONSENTED` for a deployment that decided otherwise.
+ *
+ * READ AS `app_user`, IN THE CALLER'S ORGANISATION (workplan 0138 T6). Until
+ * 2026-09-28 this file opened its own pool on `DATABASE_URL`, which is the
+ * database owner on managed and a superuser: row security never bound it, and
+ * each query's own `tenant_id = $1` was the only thing between one organisation
+ * and another. `resolveMappingMailbox` joined `mailbox` by id alone, so a
+ * mapping whose `source_mailbox_id` named another organisation's mailbox read
+ * that organisation's address. Every read here now runs inside `withTenant` on
+ * `getDbPool()`, the request path's `app_user` pool, and the policies filter it
+ * whatever its own WHERE says. The WHERE clauses stay, and that join now asks
+ * for the mapping's own organisation too: where `getDbPool()` falls back to
+ * `DATABASE_URL` (no `APP_DATABASE_URL`), they are still the only filter.
+ * `a-report-under-row-security.integration.test.ts` holds the report to it, and
+ * `scripts/a-route-that-opened-the-owners-pool.unit.test.ts` fails if a route
+ * reads a database URL of its own again.
  */
 
 import { Router } from 'express';
 import type { Response } from 'express';
-import { authenticate } from '../middleware/auth.ts';
+import { sql } from 'drizzle-orm';
+import { withTenant, type PgDatabase } from '@openmig/ledger';
+import { authenticate, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
   googleMailboxDelegationNotRead,
@@ -67,7 +84,6 @@ import {
   qualifyAccount,
 } from '@openmig/orchestration/account-qualification';
 import { davUrl } from '@openmig/orchestration/dav-endpoint';
-import { Pool } from 'pg';
 import { serverFault } from '../server-fault.ts';
 import { probeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
@@ -84,10 +100,30 @@ const httpClient: HttpClient = {
   },
 };
 
-let _pool: Pool | null = null;
-function pool(): Pool {
-  if (!_pool) _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// The request path's pool, built on first use as the other routes build theirs:
+// `getDbPool()` throws when neither URL is set, so calling it at import would
+// fail every importer that never asks for a report.
+let _pool: ReturnType<typeof getDbPool> | null = null;
+function pool(): ReturnType<typeof getDbPool> {
+  if (!_pool) _pool = getDbPool();
   return _pool;
+}
+
+/**
+ * Run `fn` in the caller's organisation, on the request path's pool.
+ *
+ * The ledger's `withTenant`, which `withTenantDb` in `auth.ts` wraps: one
+ * transaction with `app.current_tenant` set, so on `app_user` the policies
+ * filter every statement in it. Nothing slow happens inside: the scans and the
+ * target's measurement run after the rows are read, outside the transaction.
+ */
+function inTenant<T>(tenantId: string, fn: (db: PgDatabase) => Promise<T>): Promise<T> {
+  return withTenant(pool(), tenantId, fn);
+}
+
+/** The rows of one statement, typed as the caller reads them. */
+async function rowsOf<R>(db: PgDatabase, query: ReturnType<typeof sql>): Promise<R[]> {
+  return (await db.execute(query)).rows as R[];
 }
 
 /**
@@ -204,12 +240,18 @@ export async function resolveMappingMailbox(
   tenantId: string,
   mappingId: string,
 ): Promise<string | undefined> {
-  const { rows } = await pool().query<{ primary_address: string | null }>(
-    `SELECT mb.primary_address
+  // The mailbox must be the mapping's own organisation's, not merely the one
+  // `source_mailbox_id` names. Under row security another organisation's
+  // mailbox is not there to join; on the owner's connection, which
+  // `getDbPool()` falls back to without `APP_DATABASE_URL`, this is the filter.
+  const rows = await inTenant(tenantId, (db) =>
+    rowsOf<{ primary_address: string | null }>(
+      db,
+      sql`SELECT mb.primary_address
        FROM mailbox_mapping mm
-       JOIN mailbox mb ON mb.id = mm.source_mailbox_id
-      WHERE mm.tenant_id = $1 AND mm.id = $2`,
-    [tenantId, mappingId],
+       JOIN mailbox mb ON mb.id = mm.source_mailbox_id AND mb.tenant_id = mm.tenant_id
+      WHERE mm.tenant_id = ${tenantId} AND mm.id = ${mappingId}`,
+    ),
   );
   const address = rows[0]?.primary_address?.trim() ?? '';
   return address === '' ? undefined : address;
@@ -225,10 +267,12 @@ export async function resolveMappingMailbox(
 async function tenantTargetConduct(
   tenantId: string,
 ): Promise<(() => Promise<readonly string[]>) | undefined> {
-  const { rows } = await pool().query<{ secret_ref: string | null; config: unknown; kind: string }>(
-    `SELECT secret_ref, config, kind FROM connection
-      WHERE tenant_id = $1 AND role = 'target' AND kind IN ('caldav', 'nextcloud', 'webdav') LIMIT 1`,
-    [tenantId],
+  const rows = await inTenant(tenantId, (db) =>
+    rowsOf<{ secret_ref: string | null; config: unknown; kind: string }>(
+      db,
+      sql`SELECT secret_ref, config, kind FROM connection
+      WHERE tenant_id = ${tenantId} AND role = 'target' AND kind IN ('caldav', 'nextcloud', 'webdav') LIMIT 1`,
+    ),
   );
   const target = rows[0];
   if (!target) return undefined;
@@ -287,14 +331,51 @@ export async function tenantInventoryScans(
    */
   delegationReason: string;
 }> {
-  // EVERY MICROSOFT KIND, not `o365` alone (workplan 0141 T11). A tenant whose
-  // source was a Microsoft account found nothing here, and its calendar section
-  // said the tenant had no Microsoft 365 source connection.
-  const { rows: microsoftRows } = await pool().query<{ kind: string; config: unknown }>(
-    `SELECT kind, config FROM connection
-      WHERE tenant_id = $1 AND role = 'source' AND kind = ANY($2::text[])`,
-    [tenantId, [...microsoftSourceKinds()]],
-  );
+  // The three lookups, in one transaction in the caller's organisation.
+  const { microsoftRows, driveRows, davRows } = await inTenant(tenantId, async (db) => ({
+    // EVERY MICROSOFT KIND, not `o365` alone (workplan 0141 T11). A tenant whose
+    // source was a Microsoft account found nothing here, and its calendar section
+    // said the tenant had no Microsoft 365 source connection.
+    microsoftRows: await rowsOf<{ kind: string; config: unknown }>(
+      db,
+      sql`SELECT kind, config FROM connection
+      WHERE tenant_id = ${tenantId} AND role = 'source' AND kind = ANY(${sql.param([...microsoftSourceKinds()])}::text[])`,
+    ),
+    // EVERY STORED KIND WHOSE FILE FACE IS THE DRIVE CONNECTOR — asked of the
+    // table that decides it, because the literal this line used to carry was
+    // not a `connection.kind` at all.
+    //
+    // THE DEFECT (the owner, 2026-09-17: the Sharing page found no Google
+    // sharings on a live migration full of them). This query read
+    // `kind = 'google-drive'`, and that value cannot appear in the column: the
+    // CHECK constraint migration 0008 added spells it `google_drive`, and the
+    // hyphen is the WIZARD's word for the same provider. So the lookup matched
+    // nothing for anybody, ever — not the `google` ACCOUNT kind the owner was
+    // running, and not the legacy Drive connection it was written for. The scan
+    // below never ran, and the page printed a not-discoverable sentence written
+    // for a different source, which reads as "nothing is shared". Hard rule 9
+    // forbids a blind spot to look like a finding, and this one did.
+    //
+    // Both halves are fixed by asking the right question: `connectionKindsWithFace`
+    // reads `ACCOUNT_FACE_BUILDERS` and `SINGLE_PURPOSE_FACES`, which is where
+    // `google` (the account kind, whose file face IS `google-drive`) and
+    // `google_drive` (the single-purpose row) are already written down. A kind
+    // that gains a Drive face is in this answer the day the table says so.
+    driveRows: await rowsOf<{ secret_ref: string | null; config: unknown }>(
+      db,
+      sql`SELECT secret_ref, config FROM connection
+      WHERE tenant_id = ${tenantId} AND role = 'source' AND kind = ANY(${sql.param([...connectionKindsWithFace('file', 'google-drive')])}::text[]) LIMIT 1`,
+    ),
+    // A Nextcloud (or plain-WebDAV) source: its outbound shares are one OCS GET
+    // away (0104 T2). Before this, a DAV source's sharing was a blind spot with
+    // a Graph-worded reason — the wrong errand entirely.
+    davRows: await rowsOf<{ secret_ref: string | null; config: unknown }>(
+      db,
+      sql`SELECT secret_ref, config FROM connection
+      WHERE tenant_id = ${tenantId} AND role = 'source' AND kind IN ('nextcloud', 'webdav') LIMIT 1`,
+    ),
+  }));
+
   const microsoftSource = directorySourceOf(microsoftRows);
   const graphTenantId = (microsoftSource?.config as { tenantId?: string } | undefined)?.tenantId;
   const available = directoryAvailability(process.env, graphTenantId, microsoftSource?.kind);
@@ -314,41 +395,7 @@ export async function tenantInventoryScans(
   // whether or not the connection could have made the request anyway.
   const drive = driveSharingAvailability(process.env);
 
-  // EVERY STORED KIND WHOSE FILE FACE IS THE DRIVE CONNECTOR — asked of the
-  // table that decides it, because the literal this line used to carry was
-  // not a `connection.kind` at all.
-  //
-  // THE DEFECT (the owner, 2026-09-17: the Sharing page found no Google
-  // sharings on a live migration full of them). This query read
-  // `kind = 'google-drive'`, and that value cannot appear in the column: the
-  // CHECK constraint migration 0008 added spells it `google_drive`, and the
-  // hyphen is the WIZARD's word for the same provider. So the lookup matched
-  // nothing for anybody, ever — not the `google` ACCOUNT kind the owner was
-  // running, and not the legacy Drive connection it was written for. The scan
-  // below never ran, and the page printed a not-discoverable sentence written
-  // for a different source, which reads as "nothing is shared". Hard rule 9
-  // forbids a blind spot to look like a finding, and this one did.
-  //
-  // Both halves are fixed by asking the right question: `connectionKindsWithFace`
-  // reads `ACCOUNT_FACE_BUILDERS` and `SINGLE_PURPOSE_FACES`, which is where
-  // `google` (the account kind, whose file face IS `google-drive`) and
-  // `google_drive` (the single-purpose row) are already written down. A kind
-  // that gains a Drive face is in this answer the day the table says so.
-  const { rows: driveRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
-    `SELECT secret_ref, config FROM connection
-      WHERE tenant_id = $1 AND role = 'source' AND kind = ANY($2::text[]) LIMIT 1`,
-    [tenantId, [...connectionKindsWithFace('file', 'google-drive')]],
-  );
   const googleDriveConnection = driveRows[0];
-
-  // A Nextcloud (or plain-WebDAV) source: its outbound shares are one OCS GET
-  // away (0104 T2). Before this, a DAV source's sharing was a blind spot with
-  // a Graph-worded reason — the wrong errand entirely.
-  const { rows: davRows } = await pool().query<{ secret_ref: string | null; config: unknown }>(
-    `SELECT secret_ref, config FROM connection
-      WHERE tenant_id = $1 AND role = 'source' AND kind IN ('nextcloud', 'webdav') LIMIT 1`,
-    [tenantId],
-  );
   const davSourceConnection = davRows[0];
 
   return {

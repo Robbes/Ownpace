@@ -21,6 +21,7 @@ import {
   type TargetConfig,
   type FileSource,
   DEFAULT_CONCURRENCY,
+  parseDropboxSource,
   parseGoogleDriveSource,
   type ProviderClientEnv,
   microsoftTenant,
@@ -87,10 +88,10 @@ import {
   publishedEndpoint,
   isProviderAccountKind,
 } from '@openmig/shared';
-import { PgLedger, PgCursorStore, createPgDb, withTenant } from '@openmig/ledger';
+import { PgLedger, PgCursorStore, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { mailboxMapping } from '@openmig/ledger';
-import { withClose, type WithClose } from './deps-lifecycle.ts';
+import { HANDED_BY_THE_CALLER, withClose, type WithClose } from './deps-lifecycle.ts';
 import { refuseDomainTheTargetCannotCarry } from './pass-domain-refusal.ts';
 import { largestFileBytesFromEnv } from './largest-file-setting.ts';
 import {
@@ -209,16 +210,18 @@ export function sourceCredentialsFor(
  * 2. Decrypts credentials using the secret store
  * 3. Constructs the same ReconcileDeps as buildDeps()
  * 
- * SECURITY: the queries in this function carry their own `tenantId` filter,
- * and on the managed tasks that filter is what holds today. The connection
- * load runs inside withTenant(), which binds row security only when `pool`
- * connects as `app_user` or drops to it; the managed tasks pass the owner's
- * pool, a superuser, and the mapping check runs on its own handle outside
- * withTenant (docs/rls-guide.md, "Where row security holds today"; workplan
- * 0138 T1).
+ * SECURITY: every query in this function runs inside withTenant() on `pool`,
+ * the pool the caller handed in, and so does every statement of the ledger and
+ * cursor stores it builds (`tenantScopedDb`, workplan 0138 T1 parts 2 and 3).
+ * It opens no handle of its own. Row security binds those scopes only when
+ * `pool` connects as `app_user` or drops to it; the managed tasks still pass
+ * the owner's pool, a superuser, so there each query's own `tenantId` filter
+ * is what holds until 0138 T1's switch (docs/rls-guide.md, "Where row security
+ * holds today"). The rate and byte budgets get a plain handle on the same
+ * pool: their tables have no row security, by design.
  * The tenantId must come from an authenticated request.
- * 
- * @param pool - PostgreSQL pool
+ *
+ * @param pool - PostgreSQL pool the caller owns and ends; the deps' close() leaves it open
  * @param tenantId - The tenant ID (from authenticated API request)
  * @param mappingId - The mapping ID to track (not used for config loading)
  * @returns ReconcileDeps with real source/target connectors
@@ -234,15 +237,16 @@ export async function buildDepsFromMapping(
     throw new Error('tenantId is required and must be a valid UUID');
   }
 
-  // Validate mapping exists and belongs to tenant. This query's own tenant_id
-  // filter is the only one: the handle comes from DATABASE_URL, outside
-  // withTenant, so no policy applies here (workplan 0138 T1).
-  // Use TEST_DATABASE_URL for integration tests, fall back to DATABASE_URL
-  const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL or TEST_DATABASE_URL must be set');
-  }
-  const db = createPgDb(databaseUrl);
+  // Every store below runs each statement inside withTenant for this tenant,
+  // on the pool the caller handed in (workplan 0138 T1 parts 2 and 3). It used
+  // to open a second handle of its own from TEST_DATABASE_URL || DATABASE_URL,
+  // outside withTenant, whatever pool the caller had.
+  const db = tenantScopedDb(pool, tenantId);
+  // The budgets' tables carry no row security by design (ledger 0024, 0030).
+  const budgets = plainDb(pool);
+
+  // Validate mapping exists and belongs to tenant: its own tenant_id filter,
+  // inside the tenant's scope.
   const mappings = await db.select()
     .from(mailboxMapping)
     .where(
@@ -400,7 +404,7 @@ export async function buildDepsFromMapping(
     | Partial<import('@openmig/shared').ThrottleConfig>
     | null
     | undefined;
-  const throttleLimiter = tenantThrottleLimiter(db, tenantId, storedThrottle, throttleConfigMapping);
+  const throttleLimiter = tenantThrottleLimiter(budgets, tenantId, storedThrottle, throttleConfigMapping);
 
   // The daily DOWNLOAD meter for the mail source's endpoint (workplan 0090
   // T3). Which endpoints get one is `imapDownloadPlan`'s decision — keyed by
@@ -425,7 +429,7 @@ export async function buildDepsFromMapping(
   const downloadPlan = imapDownloadPlan(imapHost, storedThrottle?.downloadBytesPerDay);
   const byteMeter: ImapByteMeter | undefined = downloadPlan
     ? {
-        budget: new PgByteBudget(db, { bytesPerDay: downloadPlan.bytesPerDay }),
+        budget: new PgByteBudget(budgets, { bytesPerDay: downloadPlan.bytesPerDay }),
         tenantId,
         provider: downloadPlan.provider,
       }
@@ -442,11 +446,11 @@ export async function buildDepsFromMapping(
   // Build target writer with decrypted credentials
   const target = buildTargetWriterFromCredentials(mappingConfig.target, targetCredentials);
   
-  // Create ledger and cursor store
+  // Create ledger and cursor store, each statement in the tenant's scope.
   const ledger = new PgLedger(db);
   const cursors = new PgCursorStore(db);
 
-  // Attach close() so the caller releases the pool after the pass (never leak it).
+  // close() is kept for the callers' `finally`; the pool is theirs to end.
   return withClose(
     {
       tenantId: tenantId as ReconcileDeps['tenantId'],
@@ -473,7 +477,7 @@ export async function buildDepsFromMapping(
       // the appliance, with nothing to say so (hard rule 5).
       concurrency: mappingConfig.concurrency ?? DEFAULT_CONCURRENCY,
     },
-    db,
+    HANDED_BY_THE_CALLER,
   );
 }
 
@@ -645,7 +649,8 @@ async function loadDomainConnections(
  * the defaults, and the defaults are what the shared budget enforces.
  */
 export function tenantThrottleLimiter(
-  db: ReturnType<typeof createPgDb>,
+  /** A plain handle (`plainDb`): the budget's table has no row security, by design. */
+  db: PgDatabase,
   /**
    * THIS DEPLOYMENT'S TENANT, and the reason this parameter is second rather
    * than optional (2026-09-08).
@@ -679,9 +684,12 @@ export function tenantThrottleLimiter(
  * Mail delegates to buildDepsFromMapping (IMAP/JMAP). Calendar/contact/file build
  * the native DAV source connectors + engine target writers from the stored
  * connection config + decrypted credentials — credentials are passed directly
- * (never via env) so the managed path is per-tenant safe. What separates
- * tenants here is each query's own tenant filter: row security binds only on an
- * app_user pool, and the managed tasks do not pass one yet (workplan 0138 T1).
+ * (never via env) so the managed path is per-tenant safe. Built on `pool`, the
+ * caller's, like the mail builder: the connection load inside withTenant, the
+ * ledger and cursor stores on `tenantScopedDb`, the rate budget on a plain
+ * handle (workplan 0138 T1 parts 2 and 3). Row security binds those scopes only
+ * on an app_user pool, and the managed tasks do not pass one yet, so there each
+ * query's own tenant filter is what separates tenants until 0138 T1's switch.
  */
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'mail'): Promise<WithClose<ReconcileDeps>>;
 export function buildDomainDepsFromMapping(pool: Pool, tenantId: string, mappingId: string, domain: 'calendar'): Promise<WithClose<CalendarSyncDeps>>;
@@ -700,161 +708,152 @@ export async function buildDomainDepsFromMapping(
     return buildDepsFromMapping(pool, tenantId, mappingId);
   }
 
-  const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL or TEST_DATABASE_URL must be set');
-  }
-  const db = createPgDb(databaseUrl);
-  // If anything below throws before we hand pool ownership to the caller (via
-  // withClose), release the pool here so a failed build never leaks it.
-  try {
-    const ledger = new PgLedger(db);
-    const cursors = new PgCursorStore(db);
-    const tId = tenantId as TenantId;
-    const mId = mappingId as MappingId;
+  // On the caller's pool, as the mail builder is: nothing opened here, so a
+  // refusal below has nothing to release (workplan 0138 T1 part 2).
+  const db = tenantScopedDb(pool, tenantId);
+  const ledger = new PgLedger(db);
+  const cursors = new PgCursorStore(db);
+  const tId = tenantId as TenantId;
+  const mId = mappingId as MappingId;
 
-    const {
-      source: src,
-      target: tgt,
-      targetFolderPrefix,
-      throttleConfig,
-      phaseOf,
-    } = await loadDomainConnections(pool, tenantId, mappingId);
-    // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
-    // Until today only `buildDepsFromMapping` built one, so every calendar,
-    // contact, file and task source — in the preflight AND in every non-mail
-    // pass — met Microsoft with no backoff at all. See `tenantThrottleLimiter`
-    // for the 429 that made it visible.
-    const throttleLimiter = tenantThrottleLimiter(db, tenantId, throttleConfig);
+  const {
+    source: src,
+    target: tgt,
+    targetFolderPrefix,
+    throttleConfig,
+    phaseOf,
+  } = await loadDomainConnections(pool, tenantId, mappingId);
+  // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
+  // Until today only `buildDepsFromMapping` built one, so every calendar,
+  // contact, file and task source — in the preflight AND in every non-mail
+  // pass — met Microsoft with no backoff at all. See `tenantThrottleLimiter`
+  // for the 429 that made it visible.
+  const throttleLimiter = tenantThrottleLimiter(plainDb(pool), tenantId, throttleConfig);
 
-    // ASKED ONCE, FOR EVERY DOMAIN, BEFORE ANY BRANCH RUNS.
-    //
-    // #858 asked it for mail alone, inside the mail target's config builder,
-    // because that is where the owner's `Unsupported target type: undefined`
-    // came from. The other four had no such question — and the reason they
-    // need one is not hypothetical: `TARGET_TYPE_DOMAINS` gained `task` in
-    // 0113 and `nextcloud` on 2026-09-07, and a mapping created before a row
-    // changed keeps a tick that nothing re-checks (`scope_selection` is
-    // written once at creation and never updated).
-    //
-    // Here rather than in each branch, for the reason this file has been
-    // repaired twice already: four branches asking the same question by hand
-    // is three chances to forget it.
-    refuseDomainTheTargetCannotCarry(domain, tgt.kind);
-    // This data type's phase, on `common` so all four branches carry it and
-    // none can be the one that forgot (0117 D4). Its own phase, not the
-    // migration's (0128 T5) — see `sourceAuthorityFor`.
-    const common = {
-      tenantId: tId,
-      mappingId: mId,
-      ledger,
-      cursors,
-      ...sourceAuthorityFor(phaseOf(domain).phase),
-    };
-    // As in `build-deps.ts`: a choice about this migration, carried with the
-    // target's dependencies rather than with the endpoint.
-    const targetDeps = {
-      ledger,
-      tenantId: tId,
-      mappingId: mId,
-      ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
-    };
+  // ASKED ONCE, FOR EVERY DOMAIN, BEFORE ANY BRANCH RUNS.
+  //
+  // #858 asked it for mail alone, inside the mail target's config builder,
+  // because that is where the owner's `Unsupported target type: undefined`
+  // came from. The other four had no such question — and the reason they
+  // need one is not hypothetical: `TARGET_TYPE_DOMAINS` gained `task` in
+  // 0113 and `nextcloud` on 2026-09-07, and a mapping created before a row
+  // changed keeps a tick that nothing re-checks (`scope_selection` is
+  // written once at creation and never updated).
+  //
+  // Here rather than in each branch, for the reason this file has been
+  // repaired twice already: four branches asking the same question by hand
+  // is three chances to forget it.
+  refuseDomainTheTargetCannotCarry(domain, tgt.kind);
+  // This data type's phase, on `common` so all four branches carry it and
+  // none can be the one that forgot (0117 D4). Its own phase, not the
+  // migration's (0128 T5) — see `sourceAuthorityFor`.
+  const common = {
+    tenantId: tId,
+    mappingId: mId,
+    ledger,
+    cursors,
+    ...sourceAuthorityFor(phaseOf(domain).phase),
+  };
+  // As in `build-deps.ts`: a choice about this migration, carried with the
+  // target's dependencies rather than with the endpoint.
+  const targetDeps = {
+    ledger,
+    tenantId: tId,
+    mappingId: mId,
+    ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
+  };
 
-    // DAV endpoints are resolved INSIDE the branches that are DAV-shaped, not
-    // hoisted above them. Hoisting was a live bug, not a style point: a
-    // `google_drive` source has OAuth credentials and no username/password, so
-    // the eager source resolution threw "missing credentials" before the file
-    // branch — the one that knows how to build a Drive source — could run at
-    // all. The managed Drive path was wired (T5) and unreachable.
-    // Attach close() so the caller releases the pool after the pass (never leak it).
-    if (domain === 'calendar') {
-      const calendarTargetEndpoint = davEndpointFromCreds('target', tgt.config, tgt.creds);
-      return withClose(
-        {
-          ...common,
-          // Off the builder TABLE, not a kind comparison and no longer a
-          // two-way condition (0106 T3b's rule, 0114 T5a's mechanism): the
-          // seam asks which builder speaks for this row's calendar face and
-          // the answer is a name. A provider arriving is a row there, and a
-          // provider MISSING from there is a failing guard rather than a
-          // silent fall-through to DAV.
-          source: buildCalendarSourceFromConnection(src, throttleLimiter),
-          target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
-          // The verdict, recorded before the mapping's first calendar write
-          // (0105 T0) — measured on the SAME endpoint the writer just got.
-          recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps),
-        } satisfies CalendarSyncDeps,
-        db,
-      );
-    }
-    if (domain === 'task') {
-      // The calendar branch with two differences and no third: the source is
-      // told to serve VTODO (0113 T3b), and there is no scheduling verdict —
-      // a to-do list invites nobody, so RFC 6638 has nothing to say about it.
-      //
-      // A Google account's task face is not its CalDAV, which carries no VTODO
-      // (Google's own developer guide): `buildTaskSourceFromConnection` sends it
-      // to the Tasks API instead (workplan 0126 T2).
-      return withClose(
-        {
-          ...common,
-          source: buildTaskSourceFromConnection(src, throttleLimiter),
-          target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
-        } satisfies CalendarSyncDeps,
-        db,
-      );
-    }
-    if (domain === 'contact') {
-      return withClose(
-        {
-          ...common,
-          // The calendar seam's argument, verbatim, over the contact face.
-          source: buildContactSourceFromConnection(src, throttleLimiter),
-          // Contacts can go over JMAP where the target speaks it (0031 T2).
-          // Read off the connection's own `kind`, which has allowed `jmap`
-          // since the 0001 baseline, so this needs no migration and no new
-          // config field. Anything else stays on CardDAV, which is what every
-          // existing mapping is and must remain.
-          target: buildContactTargetFor(
-            contactTargetProtocol(tgt.kind),
-            davEndpointFromCreds('target', tgt.config, tgt.creds),
-            targetDeps,
-          ),
-        } satisfies ContactSyncDeps,
-        db,
-      );
-    }
-    // The target endpoint is resolved BEFORE the source, because an archive
-    // may be inside it (0116 T4, the relay): `where: 'target'` means the
-    // export's path is relative to whatever this migration writes to, read
-    // there by byte range. Every other source ignores the option.
-    const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
-    const fileSource = buildFileSourceFromConnection(src, throttleLimiter, {
-      targetStore: () =>
-        archiveStoreInTarget(fileTargetProtocol(tgt.kind), fileTgtEndpoint, tgt.kind),
-    });
+  // DAV endpoints are resolved INSIDE the branches that are DAV-shaped, not
+  // hoisted above them. Hoisting was a live bug, not a style point: a
+  // `google_drive` source has OAuth credentials and no username/password, so
+  // the eager source resolution threw "missing credentials" before the file
+  // branch — the one that knows how to build a Drive source — could run at
+  // all. The managed Drive path was wired (T5) and unreachable.
+  // close() is kept for the callers' `finally`; the pool is theirs to end.
+  if (domain === 'calendar') {
+    const calendarTargetEndpoint = davEndpointFromCreds('target', tgt.config, tgt.creds);
     return withClose(
       {
         ...common,
-        source: fileSource,
-        ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
-        // The largest file a managed pass copies (0143 T4): above it a listed
-        // file is refused before a byte is read. Read here, where only the
-        // managed tasks come; a value it cannot read stops the file pass here.
-        largestFileBytes: largestFileBytesFromEnv(process.env.LARGEST_FILE_MB),
-        // Files can go over JMAP where the target speaks it (0031 T3). Read
-        // off the connection's own `kind`, which has allowed `jmap` since the
-        // 0001 baseline, so this needs no migration and no new config field.
-        // Anything else stays on WebDAV, which is what every existing mapping
-        // is and must remain.
-        target: buildFileTargetFor(fileTargetProtocol(tgt.kind), fileTgtEndpoint, targetDeps),
-      } satisfies FileSyncDeps,
-      db,
+        // Off the builder TABLE, not a kind comparison and no longer a
+        // two-way condition (0106 T3b's rule, 0114 T5a's mechanism): the
+        // seam asks which builder speaks for this row's calendar face and
+        // the answer is a name. A provider arriving is a row there, and a
+        // provider MISSING from there is a failing guard rather than a
+        // silent fall-through to DAV.
+        source: buildCalendarSourceFromConnection(src, throttleLimiter),
+        target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
+        // The verdict, recorded before the mapping's first calendar write
+        // (0105 T0) — measured on the SAME endpoint the writer just got.
+        recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps),
+      } satisfies CalendarSyncDeps,
+      HANDED_BY_THE_CALLER,
     );
-  } catch (err) {
-    await db.close();
-    throw err;
   }
+  if (domain === 'task') {
+    // The calendar branch with two differences and no third: the source is
+    // told to serve VTODO (0113 T3b), and there is no scheduling verdict —
+    // a to-do list invites nobody, so RFC 6638 has nothing to say about it.
+    //
+    // A Google account's task face is not its CalDAV, which carries no VTODO
+    // (Google's own developer guide): `buildTaskSourceFromConnection` sends it
+    // to the Tasks API instead (workplan 0126 T2).
+    return withClose(
+      {
+        ...common,
+        source: buildTaskSourceFromConnection(src, throttleLimiter),
+        target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
+      } satisfies CalendarSyncDeps,
+      HANDED_BY_THE_CALLER,
+    );
+  }
+  if (domain === 'contact') {
+    return withClose(
+      {
+        ...common,
+        // The calendar seam's argument, verbatim, over the contact face.
+        source: buildContactSourceFromConnection(src, throttleLimiter),
+        // Contacts can go over JMAP where the target speaks it (0031 T2).
+        // Read off the connection's own `kind`, which has allowed `jmap`
+        // since the 0001 baseline, so this needs no migration and no new
+        // config field. Anything else stays on CardDAV, which is what every
+        // existing mapping is and must remain.
+        target: buildContactTargetFor(
+          contactTargetProtocol(tgt.kind),
+          davEndpointFromCreds('target', tgt.config, tgt.creds),
+          targetDeps,
+        ),
+      } satisfies ContactSyncDeps,
+      HANDED_BY_THE_CALLER,
+    );
+  }
+  // The target endpoint is resolved BEFORE the source, because an archive
+  // may be inside it (0116 T4, the relay): `where: 'target'` means the
+  // export's path is relative to whatever this migration writes to, read
+  // there by byte range. Every other source ignores the option.
+  const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
+  const fileSource = buildFileSourceFromConnection(src, throttleLimiter, {
+    targetStore: () =>
+      archiveStoreInTarget(fileTargetProtocol(tgt.kind), fileTgtEndpoint, tgt.kind),
+  });
+  return withClose(
+    {
+      ...common,
+      source: fileSource,
+      ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
+      // The largest file a managed pass copies (0143 T4): above it a listed
+      // file is refused before a byte is read. Read here, where only the
+      // managed tasks come; a value it cannot read stops the file pass here.
+      largestFileBytes: largestFileBytesFromEnv(process.env.LARGEST_FILE_MB),
+      // Files can go over JMAP where the target speaks it (0031 T3). Read
+      // off the connection's own `kind`, which has allowed `jmap` since the
+      // 0001 baseline, so this needs no migration and no new config field.
+      // Anything else stays on WebDAV, which is what every existing mapping
+      // is and must remain.
+      target: buildFileTargetFor(fileTargetProtocol(tgt.kind), fileTgtEndpoint, targetDeps),
+    } satisfies FileSyncDeps,
+    HANDED_BY_THE_CALLER,
+  );
 }
 
 /**
@@ -1122,11 +1121,25 @@ export function buildFileSourceFromConnection(
         throttleLimiter,
         STORED_GRAPH_FIELD_NAMING,
       );
-    case 'dropbox':
+    case 'dropbox': {
       // Dropbox (workplan 0055): stored under the shared trio keys, mapped to
-      // Dropbox's own words by the naming (see the factory).
+      // Dropbox's own words by the naming (see the factory). The format for
+      // Paper docs is read through the parser the appliance's mapping file
+      // goes through (0150 T3 (c)), so a format one edition refuses is not one
+      // the other hands the source unread. Only the `paper` kind is read: a
+      // Google format the update door merged into a Dropbox row before it
+      // asked which source a format is for was never read, and is not now.
+      // Refused here, that leftover would stop every pass. The root is read
+      // as it always was: an empty one means the whole account, as the probe
+      // sends it.
+      const raw = src.config as { rootPath?: string; nativeFilePolicies?: { paper?: unknown } };
+      const paper = raw.nativeFilePolicies?.paper;
+      const formats =
+        paper === undefined
+          ? undefined
+          : parseDropboxSource({ nativeFilePolicies: { paper } }).nativeFilePolicies;
       return buildDropboxSourceFrom(
-        { rootPath: (src.config as { rootPath?: string }).rootPath },
+        { rootPath: raw.rootPath, ...(formats === undefined ? {} : { nativeFilePolicies: formats }) },
         {
           appKey: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appKey],
           appSecret: src.creds[STORED_DROPBOX_CREDENTIAL_NAMES.appSecret],
@@ -1134,6 +1147,7 @@ export function buildFileSourceFromConnection(
         },
         STORED_DROPBOX_CREDENTIAL_NAMES,
       );
+    }
     case 'box': {
       // Box (workplan 0056): client id + secret from the stored credentials;
       // the SUBJECT user id rides the source config — one subject per mapping,

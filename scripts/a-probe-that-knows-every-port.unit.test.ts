@@ -248,6 +248,14 @@ describe('the workflow', () => {
     expect(input?.default).toBe('report');
   });
 
+  it('takes what www.ownpace.eu must do as an input, recording by default until live serves it (0139 T10)', () => {
+    const input = wf.on?.workflow_dispatch?.inputs?.site_name;
+    expect(input, 'workflow_dispatch has no site_name input').toBeDefined();
+    expect(input?.type).toBe('choice');
+    expect(input?.options).toEqual(['report', 'required']);
+    expect(input?.default).toBe('report');
+  });
+
   it('runs the probe, which derives its ports from the files', () => {
     const probe = steps.filter((s) => /\bnode\s+scripts\/exposure-probe\.mjs\b/.test(s.run ?? ''));
     expect(probe, 'no step runs node scripts/exposure-probe.mjs').toHaveLength(1);
@@ -256,6 +264,7 @@ describe('the workflow', () => {
     expect(env.EXPOSURE_PROBE_LIVE_PORTS).toBe('${{ vars.EXPOSURE_PROBE_LIVE_PORTS }}');
     expect(env.EXPOSURE_PROBE_HOST).toBe('${{ secrets.EXPOSURE_PROBE_HOST }}');
     expect(env.EXPOSURE_PROBE_OTA_NAMES).toBe('${{ inputs.ota_names }}');
+    expect(env.EXPOSURE_PROBE_SITE_NAME).toBe('${{ inputs.site_name }}');
   });
 
   it('types no port it derives', () => {

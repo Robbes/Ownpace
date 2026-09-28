@@ -312,14 +312,362 @@ are merged (#1222). T1, T2 and T3 step 2 now come before the first invitation, p
 stack before live takes them from a tag. Their rows and 0131 T5's row for this plan say so. Open
 questions 2 and 3 are still the owner's.
 
+**2026-09-28, T1 step 1 built: every handle a pass uses is scoped to its tenant** (parts 2 to
+4), on branch `claude/ownpace-public-readiness-y7orc6-every-handle-a-pass-uses-is-scoped`, not
+merged. Built on the owner's answer to T0, *"0138 T0: build the fix first."*, which #1295
+recorded (merged 2026-09-28, the entry above). No task connects any differently: every job still
+builds its pool from `DATABASE_URL`, the owner, a superuser, and on that connection a tenant scope
+changes nothing a query sees. What changed:
+
+- **`tenantScopedDb(driverOrPool, tenantId)`** in `packages/ledger/src/db.ts` (part 3): a drizzle
+  handle each of whose statements runs inside `withTenant` for one tenant, one transaction per
+  statement, so `withTenant` stays the one place the tenant is set. Beside it, `plainDb(pool)`: a
+  plain handle on a pool the caller owns, for the rate and byte budgets, whose tables have no row
+  security. **What drizzle does, read before relying on it** (part 3 asked): in drizzle-orm
+  0.45.2's node-postgres session (`drizzle-orm/node-postgres/session.js`) every statement is one
+  `client.query(config, params)` on the client the handle was built over, and nothing else
+  touches that client. `db.transaction()` asks whether the client is a `Pool` (`instanceof`, or a
+  constructor name containing "Pool"); when it is not, it sends its `begin` and `commit` through
+  the same `query`. This handle's client is not a pool, so a transaction on it would put `begin`
+  and `commit` in scopes of their own and leave the work between them unatomic. `.transaction(`
+  still occurs nowhere in the repository, and the handle refuses any statement that opens or ends
+  a transaction and sends nothing. It speaks node-postgres only, and refuses a PGlite driver at
+  the first statement; the appliance does not use it.
+- **The builders build on the pool they are handed** (part 2). `buildDepsFromMapping` and
+  `buildDomainDepsFromMapping` no longer open a second handle from
+  `TEST_DATABASE_URL || DATABASE_URL`: their mapping check, `PgLedger` and `PgCursorStore` run on
+  `tenantScopedDb(pool, tenantId)`, and the rate and byte budgets on `plainDb(pool)`. Their
+  signatures did not change, so no caller did: the eight jobs, `build-reindexers.ts`
+  (`managedOpener`, through which the verification, the cutover gate and the confirmation reach
+  them) and the CLI's `reindex`. The `close()` on what they return releases nothing now; the pool
+  is the caller's.
+- **The verification reader takes a handle** (part 2): `run-verification.ts` and
+  `runCutoverGate` (`cutover-gate.ts`) give `createLedgerVerificationReader` a `tenantScopedDb` on
+  their own pool, and `runCutoverGate` no longer takes a connection string (`run-cutover.ts` and
+  the CLI's `verify` call it without one).
+- **The bare reads move inside `withTenant`** (part 4): `enabledDomains`, `stoppedDomains`,
+  `targetProviderKey` and the mapping-name read in `run-rollback.ts`, each keeping its own tenant
+  filter. `enabledDomainsForMappings`, the tick's, stays on the bare pool (T2).
+  `run-confirmation.ts`'s rate budget is on `plainDb(pool)`, the job's own pool, instead of a
+  second pool from `DATABASE_URL` that nothing closed.
+- **The fallbacks go** (part 2). `openLedger` (`build-deps.ts`) and `verifyMapping`
+  (`orchestration.ts`) no longer read `DATABASE_URL`. `LedgerOptions.ledgerDb` is required, and so
+  is the ledger argument of `runAllDomains`, `discoverAllDomains`, `verifyMapping`,
+  `applyMappingDeletion`, `applyMappingRelocation` and `applianceOpener`; a caller that passes
+  nothing anyway is refused, *"A pass is handed its ledger"*. The appliance already passed its
+  handle to every one of them and runs unchanged (its comment is corrected). The standalone
+  worker, `apps/worker/src/index.ts`, now passes its own `createPgDb` handle, and its lanes share
+  that one pool: `LEDGER_POOL_MAX`, the size of the pool the fallback opened per lane, went with
+  the fallback.
+- **T4's ratchet.** The three orchestration files read no database URL now and left
+  `KNOWN_REMOVED_BY_T1`. `KNOWN_REMOVED_BY_T1_AT_MOST` is 8; `KNOWN_REMOVED_BY_T1_AS_LANDED` keeps
+  the eleven it landed with, as its comment requires. The eight jobs remain until step 2. The
+  guard's non-vacuity check, which pinned the builders' two reads, now reads their old fallback
+  as two reads on a sample line and asserts the three files read none.
+
+**The guard, `apps/worker/src/jobs/a-pass-under-row-security.integration.test.ts`, with its first
+two assertions.** It seeds two organisations as the owner and builds organisation A's handles the
+way the jobs do, the mail builder's and the other data types' (contacts), on a pool that connects
+as `app_user` (the URL derived from `TEST_DATABASE_URL`, as `a-pause-nobody-could-press` derives
+it). First, what the pass writes for A reads back (a ledger item and a cursor), and what it asks
+before it runs is A's answer (`enabledDomains`, `stoppedDomains`, `targetProviderKey`). Second,
+`SELECT count(*) FROM connection`, with no `WHERE`, on the handle each of the four stores was
+given, counts A's three connections and none of B's. A fourth case shows why step 1 is safe on
+today's connection: on the owner's pool the same scoped handle counts every organisation's
+connections. **Failed first:** run against `origin/main`'s versions of the eight changed files in
+`packages/` (the test file as here), the second assertion failed, *"the mail ledger: expected 7 to
+be 3"*: the builder's own owner handle counted every connection in the database (27 on a later
+run, after the other suites had left theirs). The fourth case failed as well, *"tenantScopedDb is
+not a function"*. The first assertion's reads failed too, `enabledDomains` with *invalid input
+syntax for type uuid: ""*: the bare read on an `app_user` connection that had held a tenant, the
+failure this block found on the plain-form tables on 2026-09-27 (*"No tenant set is not always
+zero rows"*); its writes passed, because the owner's handle can write. On this branch all 4 cases
+pass. Seven mutations, each red: the mail builder's stores on a plain handle (2 of 4 cases fail);
+the other data types' builder back on its own owner handle (1); `enabledDomains` on the bare pool
+(1); `stoppedDomains` and `targetProviderKey` each scoped to the wrong tenant (1 each);
+`tenantScopedDb` scoping its statement to the wrong tenant (2 of 4, and 1 of the unit guard's 8);
+`tenantScopedDb` letting a transaction statement through (2 of the unit guard's 8). The unit guard
+is `packages/ledger/src/a-handle-scoped-to-one-tenant.unit.test.ts`: the statement order on a
+recording `pg` pool, the role when the driver has one, a scope per statement, a rollback, the
+refusals, and PGlite refused.
+
+**Where the build departs from §3:**
+
+- **T1 lands in two steps, not together.** §3 has the five parts land together, and each task in
+  its own PR with its guard. Step 1 (this) is parts 2 to 4: it changes which handle each store
+  and read uses, and no connection. Step 2 is parts 1 and 5: `task-pools.ts`, the eight jobs on
+  `APP_DATABASE_URL`, the audit sink's key pool, the third assertion, the ratchet deleted, and the
+  wall time after, against a baseline from before step 1 (below). Why that is safe: the danger that made the parts land together is a
+  pass that reads nothing and reports success, and only the switch of connection can cause it. On
+  today's connection, a superuser's, a scope changes nothing any query sees (the guard's fourth
+  case), so step 1 cannot empty a pass. Step 2 is the one change that can, and it lands with the
+  test that catches it, whose first two assertions are already here and pass on `app_user`.
+- **Part 2 is simpler than written.** The builders already took a pool; they build on it, so no
+  caller's signature changed. The verification reader was already able to take a handle; its two
+  callers now give it one.
+- **`stoppedDomains` is in part 4**, which §3 missed (it is newer than the plan), and the
+  confirmation's rate budget was a second pool as well as a bare budget.
+- **The first assertion covers the reads a pass makes before it runs** as well as its writes: a
+  missed scope there reads nothing just the same.
+- **The handle refuses transaction statements** rather than rely on nobody calling
+  `.transaction()`.
+- **Cost on today's connection.** Every store statement is now a transaction on the owner's
+  connection too, three extra round trips each (`BEGIN`, `set_config`, `COMMIT`). So step 1, not
+  step 2, is where a pass slows down: step 2's switch adds at most `SET LOCAL ROLE`. The wall time
+  step 2 reports is compared against a pass on `main` from before this step merged, not against a
+  nightly after it; measured locally in the review fixes' entry below. A pass's stores now share
+  the job's pool, node-postgres's default of ten connections, where each builder call used to
+  open a pool of its own.
+
+Gates: `pnpm -s typecheck` green; `eslint` on the 34 changed files clean; unit, `packages/ledger`,
+`apps/worker`, `packages/orchestration`, `apps/selfhost` and `packages/core`, 262 files and 2615
+tests passed; `scripts`, 197 files and 3333 tests passed; the API's tests of the routes that load
+orchestration, 47 files and 650 tests passed. Integration against a Postgres 16 with both chains
+applied (`scripts/local-pg.sh`), as the owner the harness uses, a superuser: every
+Postgres-only integration file in `packages/ledger`, `apps/worker` and
+`packages/orchestration`, 22 files and 202 tests passed; the four that need Stalwart or
+Nextcloud (`shadow-pass`, `imap-dav-target`, `jmap-reindex`, `shared-mailbox`) were not run
+here. Nothing was exercised against a running stack; the nightly deploys `main`'s tasks to the
+OTA plane, where this runs on the owner's connection until step 2.
+
+Still open: T1 step 2 and T2; T3 step 2, and the owner's one-off deletion (2026-09-27); T5 step
+2, after T1 to T3; the permission report's pool (T5 step 1's note).
+
+**2026-09-28, later: review fixes, same branch, not merged.** Review found five things. Each is
+fixed here, and the branch now sits on `main` at 73d94eb7, #1295 included:
+
+- **A scope cost more than its round trips.** `pgDriver`'s `acquire` built a drizzle handle over
+  the whole schema for every connection it handed out, and `tenantScopedDb` takes a connection per
+  statement and reached its client through that handle. The handle is now built on first use, and
+  the scoped handle sends its statement on the connection's own `pg` client. It does so through
+  `inTenantScope`, the function `withTenant` now wraps, so the tenant is still set in one place.
+  Measured on a local Postgres 16 over TCP (`scripts/local-pg.sh`), 3,000 `PgLedger.find` calls per
+  figure, the two versions alternating, two runs each:
+
+  | | plain pool handle | `tenantScopedDb` | what a scope adds | `acquire` alone |
+  |---|---|---|---|---|
+  | first version | 1.27 and 1.25 ms | 2.26 and 2.44 ms | 1.0 to 1.2 ms | 0.39 to 0.43 ms |
+  | fixed | 0.88 and 1.06 ms | 1.33 and 1.32 ms | 0.26 to 0.45 ms | 0.01 ms |
+
+  What is left is the three round trips (`BEGIN`, `set_config`, `COMMIT`). The machine was noisy:
+  the plain figure, which this change does not touch, moved by up to a third between runs. So these
+  show the shape of the cost, not its size on the box. The unit guard gains a case that counts
+  the drizzle handles built: five statements build none. It fails against the first version,
+  *"expected 5 to be +0"*, and again with only the eager build put back.
+- **The measurement had no baseline.** Step 1, not step 2, adds the transaction per statement;
+  step 2's switch adds at most `SET LOCAL ROLE`. A "before" taken from a nightly after this branch
+  merged would already carry step 1's cost, and the step 2 comparison would report the switch as
+  free. So the baseline is one pass's wall time from a scheduled OTA nightly on `main` before
+  this branch merges. Step 2 compares against that. The "Cost" bullet above and §3's "Why one
+  transaction per statement" now say so. **Not taken here:** this session cannot reach the OTA
+  stack, so it is still to be taken before the merge.
+- **Moved onto `main`.** #1295 had recorded T0 in the same lines. Its entry and its T0, T2 and T3
+  rows are kept, and step 1's status is added to its T1 row. The sentence above that called #1295
+  unmerged now says it merged.
+- **The guide said more than step 1 did.** `docs/rls-guide.md` said every store and read a
+  per-tenant pass makes runs inside `withTenant`, and that the switch would find nothing left
+  outside a scope. Three things a pass touches are outside one:
+  - the rate and byte budgets, by design, since their tables have no row security;
+  - the app-event sink, which only inserts, into a table with no row security;
+  - the audit sink's read of `deployment_key`, which ledger migration 0062 closes to `app_user`.
+    That is part 5, step 2's.
+
+  The guide's task row and its paragraph under the table now name all three, and its note at the
+  top no longer says "every store".
+- **Three scopes had no test.** They were the verification reader in `cutover-gate.ts` and
+  `run-verification.ts`, and the rollback's mapping-name read. The reader both use is now one
+  exported function, `ledgerReaderFor` (`cutover-gate.ts`). The name read is now `mappingNameOf`
+  (`run-rollback.ts`). The integration guard gains two cases on `app_user`:
+  - `runCutoverGate` on a calendar migration of A's, with 3 items recorded, blocks with *"3
+    calendar item(s) were copied"*: the reader's count. The JMAP target has no calendar listing,
+    so the gate stops before it would contact the target.
+  - `mappingNameOf` finds the name A gave it.
+
+  Two mutations, each red. With the gate's reader on `drizzle(pool)`, the gate case fails with
+  *invalid input syntax for type uuid: ""*. With the name read on a bare `drizzle(pool)`, the name
+  case fails the same way. The guard has 6 cases now, all passing.
+
+Gates: `pnpm -s typecheck` green; `eslint` on the 34 changed files clean. Unit tests all
+passed: `packages/ledger`, `apps/worker`, `packages/orchestration`, `apps/selfhost` and
+`packages/core`, 263 files and 2636 tests; `apps/api`, `packages/managed` and `packages/shared`,
+230 files and 3016 tests; `scripts`, 196 files and 3335 tests. Integration against a Postgres 16
+with both chains (`scripts/local-pg.sh`), as its owner, a superuser, all passed. That was every
+Postgres-only integration file in `packages/ledger`, `apps/worker` and `packages/orchestration`,
+23 files and 211 tests. Then the ten in `apps/api` and `packages/managed` that need nothing but
+Postgres, 82 tests, run because `withTenant` changed shape. The four that need Stalwart or
+Nextcloud were not run.
+
+Still open: the pre-step-1 baseline (above), before this branch merges; T1 step 2 and T2; T3 step
+2, and the owner's one-off deletion (2026-09-27); T5 step 2, after T1 to T3; the permission
+report's pool (T5 step 1's note).
+
+**2026-09-28: T6 built, the permission report reads as `app_user`,** on branch
+`claude/ownpace-public-readiness-y7orc6-a-permission-report-under-row-security`, not merged. The
+owner answered T0 today, *"0138 T0: build the fix first."* (recorded in #1295, above). The
+report's pool was not in the task table (T5 step 1's note, above); it is T6 now, and it goes first
+because it is small, depends on nothing, and is the last owner pool on the API's request path.
+
+- **The change.** `apps/api/src/routes/permissions.ts` no longer opens a pool of its own on
+  `DATABASE_URL`. Its three helpers read on `getDbPool()`, the request path's `app_user` pool,
+  inside `withTenant` for the caller's organisation: `resolveMappingMailbox` and
+  `tenantTargetConduct` in one transaction each, `tenantInventoryScans` its three lookups in one.
+  The SQL is the same, with its own `tenant_id` filters kept, now sent through `db.execute`. The
+  scans and the target's measurement still run after the rows are read, outside any transaction.
+  It calls the ledger's `withTenant`, which `withTenantDb` in `auth.ts` wraps, so that the two door
+  tests that stub `withTenantDb` with one stored row (`a-limit-on-tests`,
+  `a-probe-that-does-not-read-aloud`) still answer the report's reads from their own fake.
+- **Its answers for the caller's own rows are unchanged.** The integration test's two cases about
+  A's own rows pass on `main`'s code as well, with `DATABASE_URL` set to the owner as `managed.yml`
+  gives it to the API. The four unit files that run the helpers pass once their fakes answer on a
+  client, as `withTenant` uses one: 33 cases, one of them new, which checks that every lookup runs
+  with `app.current_tenant` set to the organisation it was asked for.
+- **Guard: `apps/api/src/routes/a-report-under-row-security.integration.test.ts`.** The real app,
+  as `app_user`, two organisations. A has a Google source, a migration of its own mailbox, and a
+  migration whose source mailbox is B's, seeded as the owner because no API door writes one. B has
+  a Microsoft account and a CalDAV target. Asked as A: its own migration resolves to its address;
+  the one naming B's mailbox answers 409 in the report and in the sharing rescan, and neither
+  answer carries B's address; every section is written for A's Google source, with no Microsoft or
+  Exchange sentence and no section for B's target. **Failed first:** on `main`'s
+  `permissions.ts`, with `DATABASE_URL` set to the owner, 2 of its 4 cases fail: the report's
+  heading carried B's address, and the rescan answered 200 and ran the scans. With no
+  `DATABASE_URL`, all 4 fail (`connect ECONNREFUSED`). Mutations of the fix: the scope set to
+  another organisation fails 2 of 4 (A's rows read as nothing) and the new unit case; the reads run
+  on the bare pool with no transaction fail 2 of 4 the same way; the mapping lookup's own
+  `mm.tenant_id` filter deleted passes all 4, because row security is now the net under it.
+- **Guard: `scripts/a-route-that-opened-the-owners-pool.unit.test.ts`,** a guard of its own and
+  not T4's scan widened to `apps/api`. T4's lists are about tasks (the jobs that span
+  organisations, and the ratchet T1 empties), and a route has no reason to read the owner's URL,
+  so for routes there is no list, only zero. T4's file is also what T1 and T5 step 2 change next.
+  The new guard parses every non-test `.ts` in `apps/api/src`: a file that reads a database URL
+  other than `APP_DATABASE_URL` (T4's four forms, its pattern checked against T4's file), builds a
+  pool or client itself, or names `migrationConnectionString` or `poolerInFront`, must be on a
+  closed list of four that are not the request path (`index.ts`, `middleware/auth.ts`,
+  `scripts/operator.ts`, `scripts/seed-managed.ts`), and no route may be on it. It also reads the
+  api service's environment in `managed.yml` and requires the names composed from
+  `${POSTGRES_USER` to be exactly `DATABASE_URL` and `DIRECT_DATABASE_URL`, both counted, and
+  `APP_DATABASE_URL` to be `app_user`'s. **Failed first:** on `main`'s `permissions.ts`, 1 of 8
+  cases fails (*"builds a pool (new Pool), reads DATABASE_URL"*). 6 mutations, each red: a new
+  file in `services/` opening `DIRECT_DATABASE_URL`; `const { DATABASE_URL: … } = process.env` in
+  a route; `drizzle(process.env.APP_DATABASE_URL!)` in a route; `main`'s `permissions.ts` put on
+  the list; an owner URL added to the api service under another name; a route calling
+  `migrationConnectionString`.
+- **The documents.** `docs/rls-guide.md`: the report's row joins the request path's (in force),
+  §2's two bullets lose the exception, the T4 paragraph names the new guard, and the pitfall says
+  the report's pool was the owner's until today. Also corrected, because they named the two routes:
+  the runbook's *The two database roles*, `SECURITY.md`, `README.md`, the architecture document's
+  §17.1 isolation row, the api service's comment in `managed.yml`, `managed.env.example` and
+  `.env.example`.
+
+Run here: the unit files with `npx vitest run --project unit`, and the integration test against
+`scripts/local-pg.sh` (Postgres 16, both chains) with a config that has no Testcontainers setup;
+`pnpm test:integration` did not run (no container runtime in this session). Nothing was run
+against a stack. Still open: T1 and T2; T3 step 2, and the owner's one-off deletion; T5 step 2,
+after T1 to T3.
+
+**2026-09-28, later: review fixes, same branch, not merged.** Review ran mutations on scratch
+copies and found the report's tests and T6's guard narrower than the entry above says. Each fix
+was run here against the first version and against the fix:
+
+- **Nothing held the target lookup to the caller's organisation.** A had no DAV target, so
+  `tenantTargetConduct` asked in another organisation read nothing, the report left out *What the
+  target will do with what we write* without a word, and every case passed: the integration test
+  4 of 4, the four unit files 33 of 33 (the two door tests' fakes answered with the stored target
+  whatever the tenant). A now has a CalDAV target at `localhost` port 1, where nothing listens:
+  its measurement fails at once, a failed measurement is still written as the section, and the
+  last case requires the section. The fakes in `a-limit-on-tests` and
+  `a-probe-that-does-not-read-aloud` record `app.current_tenant` from `withTenant`'s `set_config`
+  and answer the target in its own organisation only, as row security would, and each asserts
+  the scope; `a-share-scan-that-never-ran` does the same for the mapping lookup. The target
+  lookup asked in another organisation now fails 1 of 4 integration cases and 4 of 34 unit cases;
+  the mapping lookup asked in another organisation fails the new unit case and the case about A's
+  own migration.
+- **The mapping lookup was right only under row security.** It joined `mailbox` on
+  `source_mailbox_id` alone, and the entry above found that deleting its `tenant_id` filter left
+  all 4 green. The join now also asks `mb.tenant_id = mm.tenant_id`. On the owner's connection,
+  which `getDbPool()` falls back to without `APP_DATABASE_URL`, the test passes 4 of 4 with it and
+  fails the two cases about B's mailbox (the report and the rescan) without it. As `app_user` it
+  passes either way, so no test in the repository holds the condition: one would have to set
+  `DATABASE_URL` from a test, which `an-integration-test-is-handed-its-database` forbids.
+- **T6's guard exempted whole files, and two hold request-path code.** `middleware/auth.ts` is
+  `authenticate` as well as `getDbPool()`, and `index.ts` defines `/metrics`, `/health` and
+  `/api/auth/mode`. Both already built a pool and read `DATABASE_URL`, and the guard kept a set of
+  what a file reaches, so a second owner pool in either changed nothing. The entry above calls all
+  four "not the request path". Both files are now pinned to exactly what they reach, one line per
+  occurrence, each with the function it sits in. The two scripts stay exempt whole, and a case
+  checks that nothing outside `apps/api/src/scripts` imports them.
+- **The guard's header said a helper that opens the owner's pool is caught at the helper.** True
+  inside `apps/api/src`, not for a package function that falls back to `DATABASE_URL` when it is
+  handed no connection. `OWNER_URL_HELPERS` now names the eleven found today, each with the file a
+  case checks still defines it: `buildDeps` and `buildDomainDeps` (through `openLedger`, which is
+  not exported), `runAllDomains`, `discoverAllDomains`, `verifyMapping`, `applianceOpener`,
+  `applyMappingDeletion`, `applyMappingRelocation`, `buildDepsFromMapping`,
+  `buildDomainDepsFromMapping` and `createLedgerVerificationReader`. None is called in
+  `apps/api/src`. T1 part 2 takes each off the list as it removes the fallback (§3 T6). The
+  header's *What it does not see* now names the connection `index.ts` hands on instead of opening
+  it where it is used: the audit key's pool of one. 4 mutations, each passing all 7 cases of the
+  first version and failing 1 case of the fix: a second owner pool in `auth.ts`; a handler in
+  `index.ts` on an owner pool; a route calling `verifyMapping(config)`; a route re-exporting from
+  `scripts/operator.ts`. `main`'s `permissions.ts` still fails it, 1 of 12.
+- **The documents said no request reaches the owner.** The guide's note said the request path
+  "has no owner pool left", and `managed.yml` said of `DATABASE_URL` "No route reads it". The
+  operator's audit download (`routes/support.ts`, through `audit-key.ts`) and the line printed
+  after an audit event commits both read the pseudonym key through `index.ts`'s pool of one on
+  the owner's URL. It holds no organisation's rows. The note, §2's row for that pool, the guide's
+  paragraph on T6's guard, the comment in `managed.yml` and the runbook's *The two database roles*
+  now say so.
+- **The branch was behind `main`,** where #1295 had recorded T0 in this block, its rows and open
+  question 1. It is now on `origin/main` (73d94eb7), the changes carried over uncommitted, with
+  #1295's entry kept above and the T6 entry no longer saying #1295 is not merged. The index and
+  `docs/LESSONS.md` were regenerated.
+
+Run here: the four unit files and T6's guard with `npx vitest run --project unit`, the
+integration test against `scripts/local-pg.sh`, and each mutation above on the working tree,
+restored after. `pnpm test:integration` did not run (no container runtime in this session).
+Nothing was run against a stack.
+
+**2026-09-28, later still: `main` merged into this branch, #1302 (T1 step 1) with it,** by a merge
+commit; this branch is still not merged. #1302 merged 2026-09-28 (c33b441c). Both had rewritten
+the same lines of `docs/rls-guide.md` and of this block, and the result keeps both, each sentence
+checked against the merged code:
+
+- **This block and the task table.** T1 step 1's entries come first, as they reached `main`
+  first, then T6's. T1's row says step 1 is done in #1302; T6's row is as built here.
+- **The guide.** Its note at the top keeps T1 step 1's sentence, then T6's. Its table keeps T6's
+  row for the request path and its fuller row for the audit key's pool, and T1 step 1's task row.
+  The paragraph under the table keeps T1 step 1's account and ends with T6's guard in place of the
+  sentence that said the report's pool was not in the task table. Two cross-references that
+  pointed at the wrong section (*"§1's task row"*, *"§2's row for it"*) now name *Where row
+  security holds today*.
+- **T6's guard's list of package functions.** `OWNER_URL_HELPERS` named eleven that fell back to
+  `DATABASE_URL` (the review fixes, above). T1 step 1 removed the fallback of ten of them:
+  `buildDeps` and `buildDomainDeps` (through `openLedger`), `runAllDomains`,
+  `discoverAllDomains`, `verifyMapping`, `applianceOpener`, `applyMappingDeletion`,
+  `applyMappingRelocation`, `buildDepsFromMapping` and `buildDomainDepsFromMapping`. Each is handed
+  its ledger or its pool now, so each left the list at this merge, as §3 T6 asks.
+  `createLedgerVerificationReader` stays: handed a connection string, it still opens a pool of its
+  own. The guard's case for a package function names it instead of `verifyMapping` and
+  `buildDeps`, and a route handing `buildDepsFromMapping` what `getDbPool()` gave it is a shape the
+  guard must not count. `docs/LESSONS.md` was regenerated, which drops the three orchestration
+  files from what the guard reads.
+
+Run here: T6's guard, 11 of 11; T4's, 59 of 59; `a-connection-the-docs-did-not-know-about`, 6 of
+6; with the other `scripts` tests that read the guide, this plan or the index, 10 files and 381
+tests in all, every one passing; the report's four unit files, 34 of 34; `pnpm -s typecheck` green. The
+integration tests were not run again.
+
+Still open: T1 step 2 and T2; T3 step 2, and the owner's one-off deletion (2026-09-27); T5 step 2,
+after T1 to T3; the pre-step-1 baseline, which T1 step 1's review fixes left to be taken before
+#1302 merged and this block does not record as taken.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
-| T1 Per-tenant tasks read and write as the application role | 📋 **Proposed**; before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that open their own ledger from `DATABASE_URL`, the stores that filter by their own `WHERE`, and (on `main`) the audit sink's key. Changing the URL is not enough on its own: under row security, a query with no tenant set reads nothing. |
-| T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only (open question 3). |
+| T1 Per-tenant tasks read and write as the application role | Step 1 ✅ **done** in #1302, merged 2026-09-28 (c33b441c; parts 2 to 4). Step 2 📋 **Proposed** (parts 1 and 5, the switch), before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and (on `main`) the audit sink's key. Changing the URL is not enough on its own: under row security, a query with no tenant set reads nothing. |
+| T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only: split, open question 3 answered 2026-09-28. |
 | T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27; deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed**, before the first invitation (T0 (a), 2026-09-28) | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
-| T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. T1 empties `KNOWN_REMOVED_BY_T1` and deletes it. |
+| T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. T1 empties `KNOWN_REMOVED_BY_T1` and deletes it: step 1 took the three orchestration files off (11 to 8), step 2 takes the eight jobs. |
 | T5 The documents say which connection the tasks use | ✅ **Step 1 done** in #1218, merged 2026-09-27. Step 2 📋 **Proposed**, after T1 to T3 | §3. Step 1: what is true today, and an owner pool in the API that §1 missed (Status, 2026-09-27). Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
+| T6 The permission report reads as the application role | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-permission-report-under-row-security`, not merged (2026-09-28)** | §3. `apps/api/src/routes/permissions.ts`, which the report and the sharing rescan use, on `getDbPool()` inside `withTenant`. Guards: `a-report-under-row-security` (integration, as `app_user`, two organisations) and `a-route-that-opened-the-owners-pool`. Found by T5 step 1 (Status, 2026-09-27). |
 
 ## 1. What there is today
 
@@ -328,9 +676,10 @@ questions 2 and 3 are still the owner's.
 - **What every run receives.** `deploy/compose/set-task-env.sh` uploads the task environment to
   Trigger.dev. Its `variables` object always contains `DATABASE_URL` (composed from
   `${POSTGRES_USER}`, the owner, through the pooler), `APP_DATABASE_URL` (`app_user`, through the
-  pooler), `DIRECT_DATABASE_URL` (the owner again, straight to `postgres:5432`) and
-  `SECRET_ENCRYPTION_KEY`. Trigger.dev stores variables per environment, not per task, so every
-  run of every task gets all four.
+  pooler) and `SECRET_ENCRYPTION_KEY`, beside the optional values. Until T3 step 1 (#1222,
+  2026-09-27) it also held `DIRECT_DATABASE_URL` (the owner again, straight to `postgres:5432`).
+  Trigger.dev stores variables per environment, not per task, so every run of every task gets all
+  of them.
 - **What the tasks read.** Every job in `apps/worker/src/jobs/` that touches the database builds
   its pool from `process.env.DATABASE_URL`. There are eight per-tenant jobs: `run-delta-sync`,
   `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`,
@@ -353,6 +702,8 @@ questions 2 and 3 are still the owner's.
   another pool. Two more readers of `DATABASE_URL` sit in the same package but off the task path:
   `openLedger` (`build-deps.ts`), which the dev entrypoint reaches through `runAllDomains`, and
   `verifyMapping` (`orchestration.ts`), which only the appliance calls, with its own handle.
+  *T1 step 1 (Status, 2026-09-28) changed all of this:* the builders and the reader build on the
+  pool their caller hands in, and neither fallback reads `DATABASE_URL` any more.
 - **`withTenant` drops privileges only when asked.** `withTenant` (`packages/ledger/src/db.ts`)
   sets `app.current_tenant` for one transaction. It switches to a less privileged role with
   `SET LOCAL ROLE` only when the driver carries one. No job gives it one. The jobs pass the pool
@@ -377,6 +728,9 @@ questions 2 and 3 are still the owner's.
   tables have no row security on purpose (migrations 0024 and 0030), so they need the
   application role and not a tenant scope. No code in `packages/*/src` or `apps/worker/src`
   opens a drizzle transaction (`.transaction(` does not occur), which matters for T1.
+  *T1 step 1 (Status, 2026-09-28) changed this too:* the stores run each statement inside
+  `withTenant` (`tenantScopedDb`), the three reads above and `stoppedDomains` run inside it, and the
+  budgets have a plain handle on the job's own pool.
 - **The owner is a superuser.** `managed.yml` runs `postgres:18-alpine` with `POSTGRES_USER`, and
   that image creates this user as a superuser. `docs/operator-runbook.md` and
   `managed.env.example` both say so. The repository states the consequence once, for a task: the
@@ -513,7 +867,8 @@ This is the task that gives the task plane its second net. Changing the URL alon
 passes. Under row security, a read with no tenant set is not refused: it returns zero rows. An
 insert fails the policy's check, and an update or a delete finds nothing to change. A pass whose
 `enabledDomains` came back empty would copy nothing and could still end as if it had succeeded.
-So T1 has five parts, and they land together.
+So T1 has five parts. They were written to land together; they land in two steps, parts 2 to 4
+and then parts 1 and 5, and the Status block (2026-09-28) says why that is safe.
 
 1. **One place builds the tasks' pools.** It is a small module with no import side effects, for
    example `apps/worker/src/jobs/task-pools.ts`. It builds the per-tenant pool from
@@ -524,7 +879,10 @@ So T1 has five parts, and they land together.
    policies with no further change.
 2. **The builders are handed their handle.** `buildDepsFromMapping`,
    `buildDomainDepsFromMapping` and the verification reader stop reading `DATABASE_URL` and take
-   the handle from their caller. `LedgerOptions.ledgerDb` (`build-deps.ts`) is the precedent: the
+   the handle from their caller. Their callers are the eight per-tenant jobs, `managedOpener` and
+   `buildTargetReindexers` (`build-reindexers.ts`), through which the verification, the cutover
+   gate and the confirmation reach them, and the operator's CLI (`cli/index.ts`, its `reindex` and
+   its `verify`). `LedgerOptions.ledgerDb` (`build-deps.ts`) is the precedent: the
    config-file builders already take the appliance's handle that way, though the from-mapping
    builders do not take one yet. `openLedger` and `verifyMapping` lose their fallback too; their
    callers, the dev entrypoint and the appliance, can pass a handle. The header of
@@ -540,9 +898,11 @@ So T1 has five parts, and they land together.
    so that `withTenant` stays the one place the tenant is set. Because no code in these packages
    opens a drizzle transaction, a statement at a time may be enough. The build checks what
    drizzle's node-postgres session calls on its client before relying on that.
-4. **The bare helpers move inside `withTenant`.** These are `enabledDomains`,
-   `targetProviderKey` and the mapping-name read in `run-rollback.ts`. `enabledDomainsForMappings`
-   stays as it is, because the tick uses it across tenants (T2).
+4. **The bare helpers move inside `withTenant`.** These are `enabledDomains`, `stoppedDomains`
+   (`enabled-domains.ts`, added on 2026-09-25 by 0128 T4 after this plan was written: a bare read
+   of `path_lifecycle` joined to `scope_selection`, which the verification and the cutover gate
+   call), `targetProviderKey` and the mapping-name read in `run-rollback.ts`.
+   `enabledDomainsForMappings` stays as it is, because the tick uses it across tenants (T2).
 5. **The audit sink keeps a key it may read** (on `main`, §1). Built on the application pool,
    the sink of a per-tenant task would be refused the key and lose every line, as the API's
    would have. The API's answer is the model: a pool of one, on a connection that may read the
@@ -556,7 +916,9 @@ runs in transaction mode (0082 T4). A setting made for a whole session would sta
 connection and reach whoever borrows it next. `packages/ledger/src/direct-url.ts` names that as
 the one leak that would matter. A setting local to one transaction does not leak. The cost is
 three extra statements per query on the compose network. The build measures one pass's wall time
-before and after on the stack T1 is proven on (§4), and writes both figures in this block.
+before and after on the stack T1 is proven on (§4), and writes both figures in this block. T1
+landed in two steps, and the first is the one that adds the transaction per statement, so
+"before" is a pass on `main` from before step 1 merged (Status, 2026-09-28).
 
 **What it will find.** Some table may lack a grant for `app_user`. The ledger's default
 privileges cover tables the migrating role creates, and the managed migrations grant by name.
@@ -662,15 +1024,21 @@ file is not on its list. The list is closed, and each entry states its reason:
 It also fails when a per-tenant job builds a `Pool` any other way than through T1's module. It
 first checks that it found at least the tick, the way the existing guard checks that it found
 `operator.sh` and `seed-managed.sh`, so that a change in the pattern turns it red instead of
-letting it pass by matching nothing. On today's code it fails on `run-delta-sync.ts`, the seven
-other per-tenant jobs and the builders in `packages/orchestration/src`.
+letting it pass by matching nothing. On the code it was written against it failed on
+`run-delta-sync.ts`, the seven other per-tenant jobs and three files in
+`packages/orchestration/src`: the builders, `build-deps.ts` for `openLedger` and
+`orchestration.ts` for `verifyMapping`.
 
-The list is exported, and T5's guard reads the same list. The code and the guide then cannot
-disagree about who holds the cross-tenant connection.
+T5's guard is to read the same list, so that the code and the guide cannot disagree about who
+holds the cross-tenant connection. The list landed unexported (Status, 2026-09-27): importing
+from a `.unit.test.ts` runs its cases in the importer, so T5 step 2 first moves the lists to a
+plain module both guards import.
 
 **Under T0's option (b)** it lands before T1, as a ratchet. Today's per-tenant readers go on a
 second list, "known, removed by T1", which may only shrink. A new file that reads the owner's URL
-fails at once. T1 empties that second list, and its PR deletes it.
+fails at once. T1 empties that second list, and its PR deletes it. It landed as that ratchet
+while T0 was still open, with eleven entries (#1222); T1's first step took the three
+orchestration files off, and its second step, which moves the eight jobs, empties and deletes it.
 
 ### T5 — the documents say which connection the tasks use
 
@@ -712,6 +1080,23 @@ guard's own header names as the kind of sentence worth checking.
 **Guards and mutations.** Each code task's guard is written first and fails on today's code.
 Each task goes in its own PR with its guard, as 0129's tasks did. Mutations are run the way
 0129 and 0130 ran them, and the count goes in this block.
+
+### T6 — the permission report reads as the application role
+
+Found by T5 step 1 (Status, 2026-09-27), outside §1: `apps/api/src/routes/permissions.ts` built its
+own pool on `DATABASE_URL`, so the permission report and the sharing rescan read `connection`,
+`mailbox_mapping` and `mailbox` as the owner. Its three helpers take `getDbPool()` and run inside
+`withTenant` for the caller's organisation, like every other route, and keep their own `tenant_id`
+filters. The mapping lookup's join also asks for the mapping's own organisation, so it is right on
+the owner's connection too, which `getDbPool()` falls back to without `APP_DATABASE_URL`. Guards:
+an integration test as `app_user` with two organisations, in which a migration naming another
+organisation's mailbox resolves to nothing and each lookup has a row of the caller's to lose, and a
+unit guard that fails when a file in `apps/api/src` reads the owner's URL, builds a pool, or names
+a package function that reaches the owner for its caller, without being on its closed list, which
+no route may join. When T1 part 2 removes a function's fallback, the function leaves that guard's
+`OWNER_URL_HELPERS`: T1 step 1 (#1302) removed the orchestration builders', and they left it when
+this branch took `main` in (Status, 2026-09-28). T4's scan is not widened to the API: its lists are
+about tasks, and T1 and T5 step 2 change its file.
 
 ## 4. Order, and the alpha
 
@@ -773,8 +1158,8 @@ acceptance in their own words, with the date it ends.
   (`apps/selfhost/src/index.ts` builds `PgLedger` over `persistenceBackend.db`), and only its
   `withTenant` scopes drop to `app_user`. It holds one organisation, so there is nothing to
   separate. T1's handle can serve it later, which would make the guide's "same code path" true.
-- **The API's request path.** It already connects as `app_user` (§1), with one exception found
-  on 2026-09-27: the permission report's own pool (Status). That one is not in the table yet.
+- **The rest of the API's request path.** It already connects as `app_user` (§1). The one
+  exception, found on 2026-09-27, was the permission report's own pool; that is T6.
 
 ## Open questions
 
@@ -784,7 +1169,14 @@ acceptance in their own words, with the date it ends.
 2. **T3's end state.** Is the system role of step 2 the end, or should step 3's functions follow
    at its trigger, so that no run holds a credential that reads past the policies? Recommended:
    step 2 for the alpha, step 3 before the service admits people the owner has not let in.
+   **Answered 2026-09-28: as recommended.** The owner: *"yes, For the Alpha, the jobs that span
+   organisations get their own account, one that is not a superuser."* Step 2 (PR E) is the
+   alpha's end state; step 3 stays parked until the service admits people the owner has not let
+   in.
 3. **The digest, the drift detector and group discovery.** Split them as T2 proposes, or keep
    them whole on the system connection? They are on T4's list either way, for their list of
    organisations. Splitting puts their per-tenant reads under the policies. Keeping them whole is
    less work, and leaves those reads past the policies too.
+   **Answered 2026-09-28: split them**, *"0138 open question 3: a - split them"*. T2 splits the
+   three: the list of organisations from the cross-tenant connection, each organisation's reads
+   through `withTenant` on the application pool (PR D, after C).

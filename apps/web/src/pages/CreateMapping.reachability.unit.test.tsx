@@ -82,7 +82,18 @@ const renderWizard = () => {
 const nextButton = () => screen.getByRole('button', { name: /^(Next|Create Migration)$/ });
 
 /** The amber line beside a disabled Next, or null when nothing blocks it. */
-const blockedReason = () => screen.queryByRole('status')?.textContent ?? null;
+/**
+ * Next's reason, at the foot of the step. A greyed-out Connect button says its
+ * own reason as a status too, straight under that button (workplan 0145
+ * T7 (a)); that line is the button's, not Next's, so it is left out here.
+ */
+const blockedReason = () => {
+  const lines = screen
+    .queryAllByRole('status')
+    .filter((el) => el.previousElementSibling?.tagName !== 'BUTTON');
+  expect(lines.length, 'more than one line claims to be Next’s reason').toBeLessThanOrEqual(1);
+  return lines[0]?.textContent ?? null;
+};
 
 /**
  * The wizard's inputs are not associated with their labels (no `htmlFor`/`id`

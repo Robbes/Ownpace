@@ -4,7 +4,7 @@
 // Uses the `pg` driver (node-postgres) with drizzle-orm/node-postgres.
 
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { Pool, type PoolClient, type QueryConfig } from 'pg';
 
 import * as schemaPg from './schema-pg.ts';
 import { log } from '@openmig/shared';
@@ -18,6 +18,14 @@ import type { PgDatabase } from './db-types.ts';
 import { holdUntilCommit } from './after-commit.ts';
 
 export type { PgDatabase };
+
+/**
+ * The `pg` client under each connection `pgDriver` hands out, for
+ * `tenantScopedDb` to send its one statement on (workplan 0138 T1). Kept off
+ * `LedgerConnection` so the seam stays what both drivers can offer; a
+ * connection from any other driver is simply not in here.
+ */
+const pgClientOf = new WeakMap<LedgerConnection, PoolClient>();
 
 /**
  * The `pg` implementation of the connection seam (workplan 0015 T1).
@@ -40,7 +48,13 @@ export function pgDriver(pool: Pool, options: { readonly role?: string } = {}): 
     role,
     async acquire(): Promise<LedgerConnection> {
       const client = await pool.connect();
-      return {
+      // Built on first use. A drizzle handle over the whole schema costs about
+      // 0.3 ms of CPU to build, and `tenantScopedDb` takes a connection per
+      // statement and never touches it. Built on every acquire, it was about a
+      // third of what a scope added to a store's lookup (0138 Status,
+      // 2026-09-28).
+      let db: PgDatabase | undefined;
+      const conn: LedgerConnection = {
         query: <R>(text: string, params?: readonly unknown[]) =>
           client.query<R extends Record<string, unknown> ? R : never>(
             text,
@@ -51,9 +65,13 @@ export function pgDriver(pool: Pool, options: { readonly role?: string } = {}): 
         exec: async (sql: string) => {
           await client.query(sql);
         },
-        db: drizzlePg(client, { schema: schemaPg }) as unknown as PgDatabase,
+        get db(): PgDatabase {
+          return (db ??= drizzlePg(client, { schema: schemaPg }) as unknown as PgDatabase);
+        },
         release: (err?: Error) => client.release(err),
       };
+      pgClientOf.set(conn, client);
+      return conn;
     },
     end: () => pool.end(),
   };
@@ -94,6 +112,20 @@ export async function withTenant<T>(
   tenantId: string,
   fn: (db: PgDatabase) => Promise<T>
 ): Promise<T> {
+  return inTenantScope(source, tenantId, (conn) => fn(conn.db));
+}
+
+/**
+ * `withTenant`'s scope, handing over the connection rather than a drizzle
+ * handle on it. `withTenant` hands its caller `conn.db`; `tenantScopedDb`
+ * sends one statement on the connection's own client and needs no handle.
+ * Module-private: the one place the tenant is set stays in this file.
+ */
+async function inTenantScope<T>(
+  source: LedgerDriver | Pool,
+  tenantId: string,
+  fn: (conn: LedgerConnection) => Promise<T>,
+): Promise<T> {
   const driver = isLedgerDriver(source) ? source : pgDriver(source);
   // May WAIT on a single-connection driver — that is the point of the seam, and
   // the reason this is the only place a connection is taken. See `driver.ts`.
@@ -130,8 +162,8 @@ export async function withTenant<T>(
     // The third parameter `true` makes it transaction-local (equivalent to SET LOCAL)
     await conn.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
 
-    // Run the function with the transaction-scoped db
-    const result = await held.during(() => fn(conn.db));
+    // Run the function on the transaction's connection
+    const result = await held.during(() => fn(conn));
 
     // Commit transaction
     await conn.query('COMMIT');
@@ -158,6 +190,120 @@ export async function withTenant<T>(
     conn.release(releaseError);
     held.end(committed);
   }
+}
+
+/**
+ * The statements that open or close a transaction. A `tenantScopedDb` runs
+ * every statement in a transaction of its own, so one of these would open or
+ * end a scope that is not the caller's: refused, never sent.
+ */
+const TRANSACTION_CONTROL =
+  /^\s*(?:begin|start\s+transaction|commit|end|rollback|abort|savepoint|release|prepare\s+transaction)\b/i;
+
+/** The client a `tenantScopedDb` hands drizzle: every statement, one `withTenant` scope. */
+class TenantScopedClient {
+  private readonly driver: LedgerDriver;
+  private readonly tenantId: string;
+
+  constructor(driver: LedgerDriver, tenantId: string) {
+    this.driver = driver;
+    this.tenantId = tenantId;
+  }
+
+  query(config: unknown, values?: unknown[]): Promise<unknown> {
+    const text = typeof config === 'string' ? config : ((config as { text?: string } | null)?.text ?? '');
+    if (TRANSACTION_CONTROL.test(text)) {
+      return Promise.reject(
+        new Error(
+          `A tenant-scoped handle runs each statement in a transaction of its own, so it cannot run ` +
+            `"${text.trim().split(/\s+/)[0]}": the statements after it would not be in it. Use withTenant ` +
+            'for work that must commit together.',
+        ),
+      );
+    }
+    return inTenantScope(this.driver, this.tenantId, async (conn) => {
+      // The client the scope's transaction is on: BEGIN, the role and the
+      // tenant were sent on it, so this statement runs inside them.
+      const client = pgClientOf.get(conn);
+      if (!client) {
+        throw new Error(
+          'tenantScopedDb speaks node-postgres, and this driver hands out another kind of connection ' +
+            '(PGlite). Use withTenant on it instead.',
+        );
+      }
+      // drizzle sends a config object (`text`, `rowMode`, `types`), as it does
+      // on any pool; a string is taken too.
+      return typeof config === 'string' ? client.query(config, values) : client.query(config as QueryConfig, values);
+    });
+  }
+}
+
+/**
+ * A drizzle handle for ONE tenant, each of whose statements runs inside
+ * `withTenant` for that tenant (workplan 0138 T1 part 3).
+ *
+ * The stores a pass builds (`PgLedger`, `PgCursorStore`, the verification
+ * reader) are handed a drizzle handle and keep it for the whole pass, which can
+ * run for many minutes. `withTenant`'s own handle is dead once its transaction
+ * commits, and holding one transaction open for a pass would block vacuum and
+ * is what `idle_in_transaction_session_timeout` exists to end
+ * (`run-confirmation.ts` says the same). So this handle takes a fresh scope per
+ * statement: `BEGIN`, the driver's role if it carries one, the tenant, the
+ * statement, `COMMIT`. `withTenant`'s scope stays the one place the tenant is
+ * set; this only calls it (`inTenantScope`, the same function, handing over
+ * the connection). The cost is those extra round trips per statement (0138 T1,
+ * "Why one transaction per statement"), and nothing more: the statement goes
+ * on the scope's own `pg` client, so no drizzle handle is built for it.
+ *
+ * WHY ONE STATEMENT AT A TIME IS ENOUGH. Read in drizzle-orm 0.45's
+ * node-postgres session (`drizzle-orm/node-postgres/session.js`), not assumed:
+ * every statement a handle runs is one `client.query(config, params)` on the
+ * client the handle was built over, and nothing else touches that client. The
+ * stores send their statements one at a time, as they did on the plain pool
+ * handle this replaces, where each statement also committed on its own. The
+ * one call that would span statements is `db.transaction()`: on a client that
+ * is not a `Pool` (drizzle tests `instanceof Pool` or a constructor name
+ * containing "Pool"), drizzle sends its `begin` and `commit` through that same
+ * `query`, so here they would land in scopes of their own and leave the work
+ * between them unatomic. No code in this repository calls it (`.transaction(`
+ * occurs nowhere), and the client above refuses those statements rather than
+ * let one through.
+ *
+ * On a superuser's connection, which the managed tasks connect with until 0138
+ * T1's switch, the scope changes nothing a statement sees: Postgres applies no
+ * policy to a superuser. On `app_user`, a statement sees this tenant's rows and
+ * no other's, whatever its own `WHERE` says.
+ *
+ * NODE-POSTGRES ONLY. The statement goes on the `pg` client under a connection
+ * `pgDriver` handed out. A PGlite driver's connection is not one, and speaks
+ * another client's protocol, so the handle refuses there at the first
+ * statement. The appliance, the one user of PGlite,
+ * does not use it (0138, "Not in this plan").
+ *
+ * Nothing to close: it opens no pool. The caller's pool is the caller's.
+ */
+export function tenantScopedDb(source: LedgerDriver | Pool, tenantId: string): PgDatabase {
+  if (!tenantId) {
+    throw new Error('tenantScopedDb needs the tenant every statement is scoped to');
+  }
+  const driver = isLedgerDriver(source) ? source : pgDriver(source);
+  return drizzlePg(new TenantScopedClient(driver, tenantId) as unknown as Pool, {
+    schema: schemaPg,
+  }) as unknown as PgDatabase;
+}
+
+/**
+ * A drizzle handle on a pool the CALLER owns, with no tenant scope (workplan
+ * 0138 T1 part 3).
+ *
+ * For the tables that carry no row security by design and are keyed by tenant
+ * in their own columns: the rate and byte budgets (ledger migrations 0024 and
+ * 0030). A token bucket is consulted per request for a pass's whole life, so a
+ * `tenantScopedDb` would buy it nothing and cost a transaction per request.
+ * Opens nothing: the caller ends its pool.
+ */
+export function plainDb(pool: Pool): PgDatabase {
+  return drizzlePg(pool, { schema: schemaPg });
 }
 
 /**

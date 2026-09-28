@@ -456,13 +456,14 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
   /**
    * The appliance's own ledger, handed to every worker entry point it calls.
    *
-   * Without it those builders open their OWN `pg.Pool` from `DATABASE_URL`,
-   * which is right for the managed worker and wrong here twice over. On the
-   * container path it quietly opened a second pool to the same server and
-   * looked fine. On PGlite there is no server to open a pool TO — it runs
-   * in-process — so every ledger query of every domain died with
-   * `getaddrinfo ENOTFOUND postgres`, and `SELFHOST_PERSISTENCE=pglite` turned
-   * out to have wired only the half of the appliance that reads.
+   * Without it those builders used to open their OWN `pg.Pool` from
+   * `DATABASE_URL`, which was wrong here twice over. On the container path it
+   * quietly opened a second pool to the same server and looked fine. On PGlite
+   * there is no server to open a pool TO — it runs in-process — so every
+   * ledger query of every domain died with `getaddrinfo ENOTFOUND postgres`,
+   * and `SELFHOST_PERSISTENCE=pglite` turned out to have wired only the half of
+   * the appliance that reads. Since workplan 0138 T1 part 2 there is no such
+   * fallback: a caller without a handle does not compile.
    */
   const ledgerOptions = { ledgerDb: db };
   const scheduler = new InProcessScheduler();
