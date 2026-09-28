@@ -28,7 +28,7 @@ import {
 import { budgetPauseToReason } from '@openmig/shared';
 import { passStepBefore, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
 import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
-import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
+import type { TenantId, MappingId, BudgetPause, DeadlinePause, PassMetrics } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, describeAbsentDomains } from '@openmig/orchestration/enabled-domains';
@@ -317,6 +317,17 @@ export const runDeltaSync = schemaTask({
     const domainSeconds: Record<string, number> = {};
 
     /**
+     * WHERE EACH DATA TYPE'S PASS SPENT ITS TIME (2026-09-28), beside
+     * `domainSeconds` in `run.stats`. The loop measures it (`PassMetrics`)
+     * and this runner used to drop it: `markCompleted` was called without it,
+     * and nothing else read it. So a Dropbox pass that copied nothing for 40
+     * of its 50 minutes left no record of where they went. Durations and
+     * counts only, never a name (§17), on a row that is written regardless,
+     * and one per pass, where the status row keeps only the last.
+     */
+    const domainMetrics: Record<string, PassMetrics> = {};
+
+    /**
      * The run row closes EXACTLY ONCE, whichever way this task leaves.
      *
      * It used to close on the success path and in the catch, with no net
@@ -339,7 +350,12 @@ export const runDeltaSync = schemaTask({
       runClosed = true;
       try {
         await withTenant(pool, tenantId, async (db) => {
-          await new RunStore(db).finishRun(runId, outcome, { itemsProcessed, errors, domainSeconds });
+          await new RunStore(db).finishRun(runId, outcome, {
+            itemsProcessed,
+            errors,
+            domainSeconds,
+            ...(Object.keys(domainMetrics).length > 0 ? { domainMetrics } : {}),
+          });
         });
       } catch (finishErr) {
         // Best-effort — never mask the real error with a bookkeeping one.
@@ -478,6 +494,8 @@ export const runDeltaSync = schemaTask({
             firstCopyBytes?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
+            /** Where the pass spent its time; kept in `run.stats` (see `domainMetrics`). */
+            metrics?: PassMetrics;
           };
           if (domain === 'email') {
             // SECURITY: Build deps with tenant scoping: the builder's queries filter by tenant,
@@ -602,9 +620,12 @@ export const runDeltaSync = schemaTask({
                 }
               : undefined;
 
+          // Before the status is written, so a pass that stops at its deadline
+          // keeps its measurements too: that is the pass they are wanted for.
+          if (result.metrics) domainMetrics[domain] = result.metrics;
           if (!pause) {
             await withTenant(pool, tenantId, async (db) => {
-              await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain);
+              await new PgMigrationStatusStore(db).markCompleted(tenantId, mappingId, domain, result.metrics);
             });
           } else {
             /**
