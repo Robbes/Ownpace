@@ -102,6 +102,20 @@ command -v docker >/dev/null || fail "docker is not installed"
 git rev-parse --verify "${FROM_TAG}^{commit}" >/dev/null 2>&1 \
   || fail "$FROM_TAG is not reachable. Run: git fetch origin --tags"
 
+# Step 2 builds the appliance from this checkout, and its Dockerfile copies
+# deploy/selfhost/config/ into the image's /data/config, where every *.json is
+# loaded. compose.drill.yml mounts the drill's mapping over mapping.json only,
+# so any other *.json there (a second mapping, or the files the selfhost e2e
+# gate writes) would reach the upgraded appliance and not the released one,
+# and step 4 would report a different set of mappings as if the upgrade had
+# lost or invented one. Gitignored, so git status does not show them.
+stray_configs=()
+for f in deploy/selfhost/config/*.json; do
+  [ -e "$f" ] && [ "$f" != deploy/selfhost/config/mapping.json ] && stray_configs+=("$f")
+done
+[ "${#stray_configs[@]}" -eq 0 ] || fail "this checkout has config files the upgraded image would load and the released one would not: ${stray_configs[*]}
+    Run the drill from a clean clone of its own (git clone https://github.com/Robbes/Ownpace.git ~/ownpace-drill), or move them out of deploy/selfhost/config/ first."
+
 # `env_file:` is not optional to compose — a missing .env aborts the whole run
 # with a message about the file rather than about the drill.
 if [ ! -f deploy/selfhost/.env ]; then

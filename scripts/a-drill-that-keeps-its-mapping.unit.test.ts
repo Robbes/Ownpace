@@ -59,6 +59,10 @@ others_can() { [ -n "$(find "$2" -maxdepth 0 -perm "-$1" 2>/dev/null)" ]; }
 case " $* " in
   *" up "*)
     d="$DRILL_CONFIG_DIR"; f="$d/mapping.json"
+    case " $* " in
+      *" -f deploy/selfhost/compose.drill.yml "*) ;;
+      *) : >"$STUB_STATE"; echo up >"$STUB_HEALTH"; exit 0 ;;  # no override: the image's own, empty config
+    esac
     line="$(grep -E '^[[:space:]]*- [$][{]DRILL_CONFIG_DIR' "$PWD/deploy/selfhost/compose.drill.yml")"
     case "$line" in
       *'/mapping.json:/data/config/mapping.json'*) readable=file; writable=yes ;;
@@ -147,8 +151,9 @@ function makeRepo(name: string, script: string, drillYml: string): string {
   return repo;
 }
 
-function runDrill(name: string, script: string, drillYml: string = DRILL_YML) {
+function runDrill(name: string, script: string, drillYml: string = DRILL_YML, prepare?: (repo: string) => void) {
   const repo = makeRepo(name, script, drillYml);
+  prepare?.(repo);
   const bin = join(root, `${name}-bin`);
   const tmp = join(root, `${name}-tmp`);
   mkdirSync(bin);
@@ -180,7 +185,13 @@ function runDrill(name: string, script: string, drillYml: string = DRILL_YML) {
   } catch {
     configured = '(never configured)';
   }
-  return { ...r, out: `${r.stdout}\n${r.stderr}`, configured, tmpLeft: readdirSync(tmp) };
+  let dockerLog: string;
+  try {
+    dockerLog = readFileSync(join(root, `${name}-docker.log`), 'utf8');
+  } catch {
+    dockerLog = '';
+  }
+  return { ...r, out: `${r.stdout}\n${r.stderr}`, configured, dockerLog, tmpLeft: readdirSync(tmp) };
 }
 
 beforeAll(() => {
@@ -201,6 +212,31 @@ describe('the upgrade drill keeps the mapping it wrote, where both appliances ca
     expect(r.configured).toBe(TAG_MAPPING_ID);
     // The config directory is removed on exit, and nothing else was left behind.
     expect(r.tmpLeft).toEqual([]);
+    // Every appliance it started was the drill's own project, with the override that mounts the mapping.
+    const ups = r.dockerLog.split('\n').filter((l) => / up /.test(` ${l} `));
+    expect(ups.length).toBe(2);
+    for (const up of ups) {
+      expect(up).toContain('-p ownpace-upgrade-drill');
+      expect(up).toContain('-f deploy/selfhost/compose.drill.yml');
+    }
+  }, 30_000);
+
+  it('a checkout holding another config file is refused before anything starts', () => {
+    const r = runDrill('stray-config', DRILL, DRILL_YML, (repo) =>
+      writeFileSync(join(repo, 'deploy/selfhost/config/zz-archive-import.mapping.json'), example(HEAD_MAPPING_ID)),
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.out).toContain('config files the upgraded image would load and the released one would not');
+    expect(r.out).toContain('zz-archive-import.mapping.json');
+    expect(r.dockerLog).not.toMatch(/ up /);
+  }, 30_000);
+
+  it('without the override the released appliance has no mapping, and the drill stops at step 1', () => {
+    const noOverride = DRILL.replace(/^\s*-f deploy\/selfhost\/compose\.drill\.yml\)$/m, ')');
+    expect(noOverride).not.toBe(DRILL);
+    const r = runDrill('no-override', noOverride);
+    expect(r.status).not.toBe(0);
+    expect(r.out).toContain('the released appliance configured NO mappings');
   }, 30_000);
 
   it('the old step 1, which removed the mapping it had just written, is stopped before the appliance starts', () => {

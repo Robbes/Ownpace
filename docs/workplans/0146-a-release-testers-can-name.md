@@ -23,7 +23,10 @@ empty comparison did its job. The drill had not run since its fix of 2026-08-04 
   `CMD`) writes and removes a probe file in `CONFIG_DIR` before it starts, and exits when it
   cannot. rc.1 has no probe, so step 1 would have passed and step 3 failed. The drill now mounts
   the one file, `mapping.json`, read-only, and `/data/config` stays the image's own directory,
-  owned by appuser and writable.
+  owned by appuser and writable. Since the rest of that directory is what step 2 builds from the
+  checkout, the drill refuses, before anything starts, a checkout holding any other `*.json` in
+  `deploy/selfhost/config/` (a second mapping, or the files the selfhost e2e gate writes): the
+  upgraded appliance would load it and the released one would not (the second review round).
 - **The file's mode was the umask's.** The appliance runs as appuser, uid 10001
   (`apps/selfhost/Dockerfile`), neither the file's owner nor in its group. The drill sets 644. The
   file holds the example's values and the names of environment variables, no credential.
@@ -37,9 +40,11 @@ Guard: `scripts/a-drill-that-keeps-its-mapping.unit.test.ts` runs the drill unde
 a throwaway repository holding the real `compose.drill.yml`, with `docker`, `curl` and `sleep` as
 stubs and nothing of the machine's git. The docker stub reads the config mount from that file and
 plays each appliance: both need the mapping readable by a process that is neither its owner nor in
-its group, and the upgraded one needs `/data/config` writable. Four cases. It fails on `main`'s
-drill (the released appliance) and on this branch's first commit (the upgraded one); the old step
-1, the file without its mode and the directory mounted read-only each fail as they would for real.
+its group, and the upgraded one needs `/data/config` writable; without the override it has no
+mapping at all. Six cases. It fails on `main`'s drill (the released appliance) and on this branch's
+first commit (the upgraded one); the old step 1, the file without its mode, the directory mounted
+read-only, a stray config in the checkout and a drill without its override each fail as they would
+for real, and the passing run's every `up` is the drill's own project with the override.
 **Open:** the owner's run on `main` once this merges, and the required run on the commit to be
 tagged (T2).
 

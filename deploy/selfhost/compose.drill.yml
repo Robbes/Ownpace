@@ -29,7 +29,9 @@
 # the released appliance start and stopped the upgraded one. Mounting the one
 # file leaves /data/config the image's own directory, owned by appuser and
 # writable, with the mapping in it read-only. Only the file's mode matters to
-# the container then; the drill sets it.
+# the container then; the drill sets it. The rest of that directory is what
+# the image was built with, so the drill refuses a checkout holding any other
+# *.json in deploy/selfhost/config/, which step 2 would bake in.
 
 services:
   app:
