@@ -50,7 +50,23 @@ export interface DropboxFileSourceConfig {
   readonly apiBaseUrl?: string;
   /** Content (download) endpoint base. Separate host, per Dropbox's API. */
   readonly contentBaseUrl?: string;
+  /**
+   * The format a Paper doc arrives in (workplan 0150 T3; D7: the key Drive's
+   * setting uses, with a `paper` kind). It covers Paper docs and Paper
+   * templates. Unset, or `refuse`, refuses each one by name (D1).
+   */
+  readonly nativeFilePolicies?: { readonly paper?: DropboxPaperPolicy };
 }
+
+/**
+ * The formats a Paper doc can arrive in (workplan 0150 T3 (a)): Dropbox's own
+ * `export_format` values, which rclone sends too. Markdown opens in
+ * Nextcloud's Text app, and is the one the wizard suggests (D1).
+ */
+export type DropboxPaperFormat = 'markdown' | 'html';
+
+/** What a migration says about Paper docs: a format, or `refuse`, the default (D1). */
+export type DropboxPaperPolicy = DropboxPaperFormat | 'refuse';
 
 /** One entry as `files/list_folder` returns it, reduced to the fields used. */
 export interface DropboxEntry {
@@ -92,6 +108,14 @@ export interface DropboxExportOnly {
   readonly kind: string;
   /** The formats Dropbox offers to export it in, `export_as` first; empty when it offers none. */
   readonly formats: ReadonlyArray<string>;
+  /**
+   * The format it is exported in (0150 T3, T4): the migration's choice for
+   * its kind, when Dropbox offers that format for this file. Absent, it is
+   * refused.
+   */
+  readonly exportAs?: DropboxPaperFormat;
+  /** The migration's choice for its kind, when Dropbox does not offer it for this file. */
+  readonly notOffered?: DropboxPaperFormat;
 }
 
 /** A listed Dropbox file: a `FileItem`, marked when Dropbox hands it over only as an export. */
