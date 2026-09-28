@@ -39,17 +39,25 @@ them in PR that i will review."*: they stay drafts, in the pull request, and no 
 changes until the owner approves the text. The owner's other answers of 2026-09-28 fill five
 placeholders (below); 0139's Status block quotes every answer in full.
 
+**The owner's 71 answers, 2026-09-28.** The questions still open in the briefings and in 0139 went
+to the owner on one answer page, each with its options and a recommendation. The owner answered
+all 71 the same day: *"all Ownpace Legal Choices where answered (71). Can you processess the
+answers?"* Each text follows the option the owner chose, also in the 11 answers where it is not
+the one recommended, and the owner's notes are part of the answer. Each briefing comment lists the
+answers that touch its text, by id. 0139's Status block lists all 71, with the owner's notes. No
+placeholder is left in a text the site renders.
+
 | File | *Version* line | Where it stands |
 |---|---|---|
-| `privacy.md`, `privacy.nl.md` | `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review. Four placeholders, in four places, in each language |
-| `terms.md`, `terms.nl.md` | `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review. Two placeholders, in three places, in each language |
-| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. No placeholder. Not rendered yet (below) |
-| `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Not rendered yet (below) |
-| `dpa.md` | No *Version* line: its *Status* line says `draft v0.2`; 2026-09-28 | English only, on purpose. Not part of the Alpha, which admits households only (0139 open question 6) |
+| `privacy.md`, `privacy.nl.md` | `1.2 (draft — not yet published)`, `1.2 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
+| `terms.md`, `terms.nl.md` | `1.3 (draft — not yet published)`, `1.3 (concept — nog niet gepubliceerd)`; 2026-09-28 | For the owner's review, with the owner's answers applied. No placeholder |
+| `alpha.md`, `alpha.nl.md` | `1.0`; 2026-09-28 | The owner's text for the Alpha, taken as final without the lawyer's pass. Edited in place with the owner's answers, because nobody has accepted it yet: it stays 1.0 (alpha-version-number (a)), and every change after the first acceptance gets a new number. No placeholder. Not rendered yet (below) |
+| `subprocessors.md` | `0.2 (draft — not yet published)`; 2026-09-28 | English only. Unpublished until the first business customer: during the Alpha, privacy §7's table is the complete list (rec-subprocessors-url (a)). Not rendered (below) |
+| `dpa.md` | No *Version* line: its *Status* line says `draft v0.2`; 2026-09-28 | English only, on purpose. Unpublished until the first business customer, and corrected in one pass before then (dpa-unpublished-until-business (a)). Not part of the Alpha, which admits households only (0139 open question 6) |
 
 **Do not publish the drafts.** The site build refuses them in any case: on 2026-09-28, after
-the owner's answers, `node site/build.mjs --check` reports `4 legal page(s) marked draft` and
-`14 unfilled placeholder(s)`, and `--public` refuses both.
+the owner's 71 answers, `node site/build.mjs --check` reports `4 legal page(s) marked draft` and
+`0 unfilled placeholder(s)`, and `--public` refuses the drafts.
 
 ## The placeholders
 
@@ -63,21 +71,47 @@ leaves the table, and the list under it says what became of it.
 
 | Placeholder | Used in | What fills it | Who |
 |---|---|---|---|
-| `«REGISTERED_ADDRESS»` | privacy §1; terms §1 and §15; `dpa.md` (the parties) | Archico B.V.'s registered address: its vestigingsadres as the KvK register shows it. It also goes on invoices. The register already publishes it, but the form is the owner's, so it stays a token until supplied. A postbus alone is probably not the *geographic address* that BW 3:15d and terms §15's model form ask for; it can be printed beside it as a correspondence address (terms briefing, question 22, a reading for the lawyer). **The owner, 2026-09-28:** *"My address, is it needed? I also live there, and rather have correspondance by email."* Recommended: print it in privacy §1, terms §1 and the §15 form, with email first beside it (the wording, in both languages, is in terms question 22); or register a business address at the KvK as the vestigingsadres, which changes the register, not only the texts. Not decided | The owner (0139 T0) |
-| `«VAT_NUMBER»` | privacy §1; terms §1 | Archico B.V.'s btw-id. It also qualifies VIES checks (0111 T2; `VIES_REQUESTER_VAT_NUMBER` is empty in `managed.env.example`); `pricing.ts` already knows `VAT_RATE = 0.21`. **The owner, 2026-09-28:** *"VAT number was already mentioned, check Ownpace-repo for the info: site/legal/README.md"*. It is not here: this row has held the placeholder in every version of this file, and no other file in the repository records Archico B.V.'s btw-id. The KvK number, 73922706, printed beside the token since 2026-08-30, may be what was meant. A VAT number in a unit test's fixture is a format example, not Archico B.V.'s; never copy one from there. The btw-id is on the Belastingdienst's letters and on a btw-aangifte | The owner or their accountant (0139 T0) |
-| `«SUBPROCESSORS_URL»` | privacy §7; `dpa.md` (§8, Annex C, briefing); `subprocessors.md` (briefing) | The address at which `subprocessors.md` is published, once 0139 T10 renders it; the file then needs a Dutch text with the same version. Or the owner makes privacy §7's table the complete list, and the sentence goes. Since privacy 1.2 the token has no backticks there, so the site build counts it. **The owner, 2026-09-28:** *"recommend me what to do."* Recommended (privacy briefing): privacy §7's table is the complete list for the Alpha, *"This table is the complete list of our sub-processors."* / *"Deze tabel is de volledige lijst van onze subverwerkers."*, and `subprocessors.md` is published, with its Dutch text, when the first business customer and the DPA arrive (0086 T5). The token then leaves privacy §7 and stays in `dpa.md` and `subprocessors.md` until that day. Not applied | The owner decides; 0139 T10 builds it |
-| `«PRIVACY_HISTORY_URL»` | privacy §13 | Where earlier versions of the privacy policy stay available, as §13 promises. One option is this file's history in the public repository; the lawyer says whether that is enough. **The owner, 2026-09-28:** *"recommend me what to do."* Recommended: that history, per language, `https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.md` and `https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.nl.md`. The repository is public, and live's site is built from a release tag, so every published text is the file at a tag. The history also shows unpublished drafts, each marked by its own *Version* line; keeping each published version on `www.ownpace.eu` itself is a later build change (0139 T10). Not applied | The owner (0139 T0) |
+| `«SUBPROCESSORS_URL»` | `dpa.md` (§8, Annex C, briefing); `subprocessors.md` (briefing). No rendered text | The address at which `subprocessors.md` is published. **The owner, 2026-09-28** (rec-subprocessors-url (a), *"§7's table is the complete list"*): during the Alpha, privacy §7's table is the complete list of sub-processors, and says so (*"This table is the complete list of our sub-processors."* / *"Deze tabel is de volledige lijst van onze subverwerkers."*). `subprocessors.md` is published with the DPA, when the first business customer arrives (0086 T5; dpa-unpublished-until-business (a)), with a Dutch text and the same version, and the token is filled then. It left privacy §7 on 2026-09-28 | The owner decides when; 0139 T10 renders it |
 
 **Filled, or no longer used.** None of these is in a rendered text any more. Some briefing
 comments still name them, to say what filled them.
+
+- `«REGISTERED_ADDRESS»`: left out of every text on 2026-09-28, for the Alpha. The owner first
+  asked *"My address, is it needed? I also live there, and rather have correspondance by
+  email."*, and then chose rec-address (c), *"Leave the address out during the Alpha"*, with the
+  note *"KVK number: 73922706"*. Privacy §1, terms §1 and the §15 model form, and `dpa.md`'s
+  parties, now name Archico B.V., trading as Ownpace, its KvK number, its VAT number and
+  `support@ownpace.eu`, and say we correspond by email. A hidden comment beside each says the
+  address returns before the first paid tier, after the lawyer's pass, or sooner if the lawyer
+  asks for it. The option said what it costs: BW 3:15d asks a company that offers an online
+  service to show the address where it is established, probably also for a free service, so
+  leaving it out probably breaks that rule. The risk is small for an Alpha by invitation, and the
+  KvK register shows the address anyway. The lawyer confirms (terms briefing, question 22). No
+  address is written in this repository.
+- `«VAT_NUMBER»`: filled 2026-09-28 in privacy §1, terms §1 and `dpa.md`'s parties (fact-vat
+  (a)), written exactly as the owner gave it: *"NL8597.110.06.B01 (VIES might validate it only
+  without dots/spaces, but in legal document that doesnt mater.)"*. Its form is that of a Dutch
+  btw-id, and its nine digits pass the 11-proof; it was not checked against VIES from here. The
+  same number qualifies VIES checks on live, in `VIES_REQUESTER_VAT_NUMBER` beside
+  `VIES_REQUESTER_MEMBER_STATE=NL` (both or neither; 0111 T2). The owner sets both in live's
+  `.env`. A VAT number in a unit test's fixture is a format example, never this one.
+- `«PRIVACY_HISTORY_URL»`: filled 2026-09-28 in privacy §13 (rec-privacy-history-url (a),
+  *"Link to the file's history in the public repository"*): one link per language,
+  `https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.md` and
+  `https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.nl.md`. §13 also says that
+  the history shows drafts that were never published, each marked by its *Version* line. GitHub
+  is in the US; privacy §8 names it only as a route the reader chooses. Keeping each published
+  version on `www.ownpace.eu` itself stays a later build change (0139 T10).
 
 - `«HOSTING_REGION»`: filled 2026-09-28 in privacy 1.2 (§7) and `subprocessors.md` 0.2 with
   *the Netherlands* (NL: *Nederland*). The owner: *"app/site hosting is in The Netherlands,
   through NetBird (Germany) delivers the forward proxy."* The machine that the service, its
   databases, its sign-in service and this website run on during the Alpha (0139 D5; T0 fact 6)
-  is in the EU, as privacy §8 requires. Still open (0139 T0): whether any company houses the
-  machine or can reach it. If one does, it is a row in privacy §7 and `subprocessors.md`, named
-  by the owner.
+  is in the EU, as privacy §8 requires. No company houses the machine or can reach it: the owner
+  chose subprocessors-machine-housed (a) on 2026-09-28, *"No. I keep it and run it myself, for
+  Archico B.V."*, so there is no hosting row. If that changes, the company is a row in privacy §7
+  and `subprocessors.md`, with its own data-processing agreement, before the first tester is let
+  in.
 - `«INGRESS_PROVIDER»`, `«INGRESS_REGION»`: filled 2026-09-28 in privacy 1.2 (§6's transfer
   bullet, §7's first row) and `subprocessors.md` 0.2 with *NetBird GmbH*, in *Germany (EU)*
   (NL: *Duitsland (EU)*), from the same answer. *"Forward proxy"* is read as the service in
@@ -85,24 +119,31 @@ comments still name them, to say what filled them.
   what the repository says of it (`managed.yml`: *"netbird terminating TLS on 443"*; 0091:
   *"Routing and TLS are netbird's"*), and NetBird's documentation says its hosted proxy, for an
   HTTP service, *"terminates TLS at the edge"*. Germany is in the EU, so privacy §8 needs nothing
-  for it. **To confirm** before the draft markers come off: (1) the entity name, NetBird GmbH,
-  which was read from search results quoting NetBird's terms (Amtsgericht Berlin
-  (Charlottenburg), HRB 237529 B), because `netbird.io` cannot be reached from here; take it from
-  NetBird's terms or data-processing agreement; (2) that agreement accepted for the account, with
-  its date recorded in 0139 T0, as for Proton; (3) which of NetBird's proxy clusters the names
-  point to, and where it runs; (4) that the services use HTTP mode, not TLS passthrough. Two
-  findings are in the privacy briefing and not yet in the text: NetBird's reverse proxy keeps an
-  access log with the visitor's IP address, a location derived from it, and the full path, a
-  grant or progress link's secret included, so privacy §4.5's *"without the secret part of a
-  link"* holds for our own logs only; and with TLS ending at NetBird, our two nginx logs differ.
-  The app's (`apps/web/nginx.conf.template`, format `ownpace_combined`) records `$remote_addr`
-  only, which is then NetBird's proxy, not the visitor, and the API's log the same unless live
-  sets `TRUST_PROXY`. The website's (`deploy/compose/www-nginx.conf`) sets no `access_log` or
-  `log_format`, so the default of the `nginx:1.31-alpine` image applies (`www.yml`); in official
-  nginx images that is the `main` format, which also logs `$http_x_forwarded_for`. The image's
-  `nginx.conf` was not read here. If NetBird sets `X-Forwarded-For`, the website's log holds the
-  visitor's IP address. Check each on live (0132 T3 (d)); privacy §4.5 is then settled per log,
-  not for *"our nginx logs"* as one.
+  for it. **The owner, 2026-09-28** (dpa-netbird-agreement (a), *"Yes, it is already
+  accepted"*): *"NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with the
+  backend towards the hosting provider. Check https://trust.netbird.io (whitelisted for you) for
+  overview, subprocessors and other info. https://netbird.io/terms lists the reverse proxy in
+  3.1"*. So the entity name is the owner's, the agreement is accepted, and TLS ends at NetBird in
+  HTTP mode, not passthrough. Privacy §7's row and `subprocessors.md` now say that NetBird carries
+  connections on to our machine through a WireGuard tunnel, and that it keeps its own log of each
+  request, with the IP address and the page asked for, including the secret part of a link
+  (ops-trust-proxy: that line comes in every option). **Not checked from here:**
+  `trust.netbird.io` returns only an empty page shell whose content comes from a host the egress
+  proxy refuses, and `netbird.io` is refused, so NetBird's sub-processors, its terms' §3.1 and its
+  agreement were not read. NetBird's documentation on GitHub (`netbirdio/docs`) says the proxy
+  forwards through WireGuard and that its cloud keeps the access log for 7 days. **To record**
+  before the draft markers come off (0139 T0): the date the agreement was accepted; where the
+  agreement or the dashboard says the proxy and its log run (`app.`, `id.` and
+  `status.ownpace.eu` resolved to the cluster `eu1.netbird.services` on 2026-09-28; the country
+  is not confirmed); and that none of NetBird's own sub-processors takes the proxy's traffic or
+  its log outside the EU. If one does, privacy §8 and DPA §12 name it. **Our own logs**
+  (ops-trust-proxy (b), *"Keep visitors' addresses in all our logs"*): live sets `TRUST_PROXY`,
+  so the API reads the visitor's address from what NetBird passes on, and both nginx logs record
+  that address: the app's (`apps/web/nginx.conf.template`, format `ownpace_combined`, which
+  records `$remote_addr` only today) and the website's (`deploy/compose/www-nginx.conf`, which
+  sets no `access_log` or `log_format` today, so the image's default applies). Privacy §4.5 says
+  our server logs record *"your IP address, which NetBird passes on to us"*; a comment beside it
+  says what live must set. Check a log line of each on live (0132 T3 (d)).
 - `«UNADMITTED_SIGNIN_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9): 30 days after the
   sign-in account was created, unless a request for access with that address is still open (NL:
   *30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog
@@ -112,10 +153,11 @@ comments still name them, to say what filled them.
   it opens nothing in Ownpace until an operator grants a request for that address
   (`setup-zitadel.sh`: *"An account here grants nothing on its own"*). The sign-in service still
   holds a name, an email address, a user name, a password hash, sessions and its event history
-  for each, and sends each a verification mail through Proton; hence a period. **Not built**:
-  0135 T8 (`idp-strays.sh`) removes them. Until T8 is built, either the owner removes these by
-  hand in the sign-in service's console, or the row waits; the owner chooses (below). T8's rule
-  now also spares an address with an open invitation, which it did not (0135, 2026-09-28).
+  for each, and sends each a verification mail through Proton; hence a period. **Decided
+  2026-09-28** (ops-unadmitted-signin-cleanup (a), *"A daily script, built before the first
+  tester"*): 0135 T8's script (`idp-strays.sh`) removes them, run with the machine's daily
+  duties. It is **not built**; privacy §9's 30 days stay as drafted, and the first tester waits
+  for the script. T8's rule also spares an address with an open invitation (0135, 2026-09-28).
 - `«LOG_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9, *Server logs*) with a criterion, not
   a number: until the part of the service that wrote them is replaced (the app and this website
   at each update of the service; the sign-in service when its version or settings change; a
@@ -135,9 +177,12 @@ comments still name them, to say what filled them.
   `1day`, because journald deletes whole journal files, as systemd documents it); a check that
   fails when `docker info --format '{{.LoggingDriver}}'` is not `journald`, in `stand-up-live.sh`
   or `box-duties.sh`; then the row reads *30 days* / *30 dagen*. A size cap per service limits
-  volume, not age, so it cannot support a number of days. **If the machine already logs to
-  journald**, the criterion is wrong and the row must give the journal's period; the same command
-  says which.
+  volume, not age, so it cannot support a number of days. **Decided 2026-09-28** (ops-log-driver
+  (a), *"Docker's default, as the text says"*, with the note *"needs checking"*): the criterion
+  stays. The owner checks the machine with `docker info --format '{{.LoggingDriver}}'` and undoes
+  the journald setting if it is there, and the journald step comes out of
+  `docs/managed-bring-up.md`. **If the machine logs to journald** until then, the row is wrong
+  for that time.
 
 - `«SUPPORT_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9, the row *Support mail and problem
   reports*): until the question or problem is resolved, and then 6 months more. The owner chose
@@ -145,9 +190,12 @@ comments still name them, to say what filled them.
   `support@ownpace.eu` are kept (recorded in 0139's Status). Proton keeps a copy of the
   service's own sent mail in that mailbox (the owner's *"yes"*, 2026-09-28), so since that day
   privacy §4.5 says so, as do privacy §7's Proton row, `subprocessors.md` and, for the mail to
-  people items were shared with, privacy §4.6; the row covers those copies: 6 months after
-  sending. That reads the owner's period for mail that answers no question; the owner confirms it
-  in the pull request. Nothing prunes those copies yet (*Before the draft markers come off*).
+  people items were shared with, privacy §4.6. **The owner, 2026-09-28**, for those copies
+  (privacy-sent-mail-copies (b), *"The support-mail rule: until resolved, then 6 months"*): the
+  same rule as support mail, in the owner's own words, and privacy §9's rows say so. The option
+  named its cost: a mail that answers no question, such as a sign-in code, has no clear end date.
+  Nothing prunes the Sent folder; the owner does it by hand (*Before the draft markers come
+  off*).
 - `«LEGAL_ENTITY»`: filled 2026-08-30, Archico B.V., the owner's existing BV (the spelling
   checked against public KvK-registry mirrors). Whether "Ownpace" is registered as its
   handelsnaam is a question in the terms briefing (question 22). The owner, 2026-09-28:
@@ -155,9 +203,11 @@ comments still name them, to say what filled them.
   records a Benelux trademark *application* (1556706, filed 2026-08-30, registration pending),
   which is neither a registration yet nor a handelsnaam. The texts may say *"Ownpace is a
   trademark of Archico B.V."*, with ™, and never *registered trademark* or ® until the Benelux
-  office registers it. The handelsnaam is an entry of its own in the KvK register; once a current
-  uittreksel shows it, privacy §1 and terms §1 can say *"Archico B.V., trading as Ownpace"* /
-  *"Archico B.V., handelend onder de naam Ownpace"*. Nothing is added to the texts until then.
+  office registers it. The handelsnaam is an entry of its own in the KvK register. **The owner,
+  2026-09-28** (fact-trademark (b), *"Add it now; the KvK already shows it"*): privacy §1, terms
+  §1 and `dpa.md`'s parties say *"Archico B.V., trading as Ownpace"* / *"Archico B.V., handelend
+  onder de naam Ownpace"*. The option was for when the KvK extract lists the name; the owner's
+  note is empty, and no extract was seen here.
 - `«COMPANY_NUMBER»`: filled 2026-08-30, Archico B.V.'s KvK number.
 - `«COURT_DISTRICT»`: filled 2026-08-30, Overijssel, from the seat (Wijhe). Since terms 1.3 it
   is the court for business customers only (§13); the lawyer confirms the wording (terms
@@ -170,9 +220,11 @@ comments still name them, to say what filled them.
   2026-09-28** (*"yes"*): Proton AG, in Switzerland, stays; Proton's data-processing agreement is
   accepted for the account behind `support@ownpace.eu`; that account is Archico B.V.'s, not only
   the owner's own, as 0133 had it (*"my proton SMTP"*); and Proton keeps the service's sent mail
-  in that mailbox (see `«SUPPORT_RETENTION»` above). Still to check: where Proton's agreement
-  says Proton processes (the *Where* column says Switzerland), and the adequacy wording (privacy
-  briefing, question 11). Switzerland is outside the EU, under an EU adequacy decision, so the old rule that
+  in that mailbox (see `«SUPPORT_RETENTION»` above). Privacy §8 and `subprocessors.md`'s opening
+  now name the adequacy decision, *(Art. 45 GDPR; Commission Decision 2000/518/EC)*
+  (privacy-switzerland-wording (b)), and `dpa.md` §12 names Proton AG (dpa-q1-transfers (c)).
+  Still to check: where Proton's agreement says Proton processes (the *Where* column says
+  Switzerland). Switzerland is outside the EU, under an EU adequacy decision, so the old rule that
   the mail provider "must be EU" does not hold as written (see *What must stay true*, below).
 - `«HOSTING_PROVIDER»`: dropped from privacy §7 and `subprocessors.md` on 2026-09-28. During the
   Alpha the owner administers the machine (0139 D5, the owner: *"It's all controlled by me and
@@ -202,82 +254,93 @@ the text: after the lawyer's pass (0139 T1), or without it, as the owner did for
 conditions (1.0, 2026-09-28). `node site/build.mjs --public --check` then prints
 `0 legal page(s) marked draft` and exits 0.
 
-**Before the draft markers come off**, some sentences need code, product or owner steps that do
-not exist yet on `main` (683525c8). Each is also a comment beside the sentence, in both
-languages, where the text rests on it:
+**Before the draft markers come off**, some sentences need code, machine or owner steps that are
+not done yet. The owner decided each on 2026-09-28 (the answer's id is in brackets). Each is also
+a comment beside the sentence, in both languages, where the text rests on it. **Done:**
 
-- *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10): the
-  sync tick's `ACTIVE_MAPPINGS_SQL` never reads the organisation's status, so a closed
-  organisation still gets new passes until the purge. The closed-organisation fix must be merged
-  first.
-- *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha conditions
-  §6): the copy of the service's databases is taken and deleted by hand, and
-  `deploy/compose/dump-idp.sh` keeps every dump of the sign-in service's database, with its
-  accounts and password hashes, with no limit. Prune or delete those dumps within 7 days and
-  automate the copy, or change the texts. **The owner, 2026-09-28:** *"deletes only after procen
-  successfull upgrade, so we already have one backup copy of what actually works."* That is §9's
-  *"until the next update succeeds"*, and it covers `dump-idp.sh`'s dumps too. Not settled: the
-  7-day cap, on which privacy §9, the Alpha conditions §6 (1.0) and the erasure date a closing
-  organisation is told all rest (`BACKUP_RETENTION_DAYS=7`). If the copy is deleted once the
-  update it was made for is proven, and never later than day 7, the texts hold. If the last good
-  copy is kept until the *next* upgrade is proven, it is a standing backup that can last weeks,
-  which needs an Alpha conditions 1.1 and a longer period in privacy §9. Recommended, in the
-  privacy briefing: the first reading, with *proven* meaning that `deploy-live.sh` logged the
-  deploy as taken and one pass completed; one script and one directory for the whole copy (the
-  app's database, the sign-in service's database and the roles, as the runbook's recipe already
-  dumps them), and a daily duty that deletes anything older than 6 days as a backstop, which
-  leaves `dump-idp.sh` nothing to do on live.
-- *The daily copies of the background tasks' records* (privacy §9): live's daily `drill` duty
-  (`box-duties.sh`) dumps the task runner's database and keeps the newest 7. Keep it, as privacy
-  §9 now says, or stop it on live for the Alpha and drop the sentence. The Alpha conditions §6
-  say no backups *"of the service's own records"*. **The owner, 2026-09-28:** *"What about the
-  drill?"* Recommended, in the privacy briefing: take the drill off live's duties for the Alpha
-  and keep the OTA stack's nightly drill; before a Trigger.dev upgrade on live, take
-  `trigger-version.sh backup before-<version>` as part of the copy before an update, under the
-  same rule; then privacy §9 drops the drill sentence and the *"daily copies"*, in both
-  languages. Live has not been stood up, so the drill has dumped nothing there yet. Not decided.
-- *A sign-in account nobody let in, 30 days* (privacy §9): nothing removes one yet. 0135 T8
-  (`idp-strays.sh`) is proposed, not built. Until T8 is built, either the owner removes these by
-  hand in the sign-in service's console, or the row waits; the owner chooses. The owner accepted
-  the 30 days (*"30 days is ok"*), not a duty by hand.
-- *A copy of the service's own mail, 6 months after it was sent* (privacy §9, §4.5, §4.6):
-  nothing prunes the Sent folder of `support@ownpace.eu` at Proton; no script or setting here
-  does it. Until something does, it is pruned by hand at 6 months, or by a Proton setting if
-  Proton has one (not checked from here). The 6 months is our reading of the owner's *"Until
-  resolved + 6 months"* for mail that answers no question, pending the owner's confirmation.
-- *Server logs until the part that wrote them is replaced* (privacy §9): true while the machine
-  uses Docker's default log driver (0134 open question 6 (a)). If it logs to journald, as
-  `docs/managed-bring-up.md`'s steps for live still ask, the row gives the journal's period
-  instead. `docker info --format '{{.LoggingDriver}}'` on the machine says which.
-- *The sign-in service's history* (privacy §4.4, §9): removing a sign-in account does not remove
-  its earlier events in Zitadel's event store, as far as Zitadel's own statements go (privacy
-  briefing, question 19). Check it on v4.19.2, and decide: purge by hand at erasure, or a period.
-- *Problem reports by mail* (privacy §4.5): 0130 T5, committed on its branch, not merged; on
-  `main` the form needs a Zammad. Merge it, and run live without `ZAMMAD_URL`.
-- *Acceptance before the first connection* (terms §1): the sentence now names no screen, so 0139
-  T3 or a route the owner runs by hand can make it true, but one of them must exist before the
-  first invitation (terms briefing, precondition A and question 12).
-- *Where TLS ends* (privacy §6, §7): answered on 2026-09-28, at NetBird GmbH, in Germany (0139
-  T0 fact 1). To confirm: the entity name, NetBird's data-processing agreement, the proxy
-  cluster's location, and HTTP mode (the filled list above); and, for privacy §4.5, whose IP
-  address each of our logs records: the app's nginx, the website's nginx and the API, which are
-  configured differently (the filled list above; 0132 T3 (d)).
-- *Email and password only at the sign-in page* (privacy §4.4, §7, §8): 0139 T0 fact 4. If live
-  sets any `IDP_*` key, the texts name the social sign-in and its provider.
-- *Telemetry* (privacy §8's negative): `managed.yml` sets no opt-out; Trigger.dev's
-  self-hosting documentation says its webapp sends telemetry unless `TRIGGER_TELEMETRY_DISABLED`
-  is set. Set the opt-outs, or name what is sent.
-- *What the app says* must match these texts: the grant mail's *"Your password lives with the
-  sign-in service, never with us"* and *"nothing is backed up"*
-  (`packages/shared/src/notifications.ts`), the Alpha note's *"nothing is backed up"*
-  (`apps/web/src/i18n/strings.ts`, `alpha.note.terms`), and the request form's *"We keep what you
-  type only to answer you"* (`access.privacy`). Suggested: *"we store only a hash of it, in the
+- *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10): true
+  on `main` since #1320 (`d7868276`, merged 2026-09-28): a closed organisation gets no pass, and
+  no door that starts work. This branch has not merged `main` since, so it lands here with the
+  next merge of `main`.
+- *Problem reports by mail* (privacy §4.5): merged as #1318 (`0c019ab8`, 0130 T5), and on this
+  branch. True on live once live's `.env` has no `ZAMMAD_URL`.
+
+**To build or to do**, before the first invitation unless it says otherwise:
+
+- *Acceptance, with version and time* (terms §1, Alpha conditions §2 and §11, privacy §4.4;
+  terms-acceptance-route (b)): the in-app screen, 0139 T3. The first invitation waits for it and
+  its tests.
+- *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
+  conditions §6; rec-copies (a)): one copy right before each update: the app's database, the
+  sign-in service's database and the roles, and the task runner's database before a Trigger.dev
+  upgrade. It is deleted once the update is proven (`deploy-live.sh` logged it as taken, one pass
+  completed, and the hold lifted), and never kept past day 7; if the update is not proven by day
+  6, roll back from the copy. To build: one script and one directory for the copy, a delete
+  step, a daily backstop that deletes anything older than 6 days, and `dump-idp.sh` writing into
+  the same place or refusing on live.
+- *No daily copies of the task runner's database on live* (privacy §9; rec-drill (a)): the drill
+  comes off live's duties in `box-duties.sh` and stays on the test stack.
+  `trigger-version.sh backup` becomes part of the copy before a Trigger.dev upgrade on live, under
+  the rule above. Privacy §9 no longer names the drill.
+- *A sign-in account nobody let in, 30 days* (privacy §9; ops-unadmitted-signin-cleanup (a)):
+  0135 T8's script, `idp-strays.sh`, run with the machine's daily duties. Not built.
+- *Searches and downloads on the support screens, 12 months* (privacy §4.5, §9;
+  privacy-search-records (a)): a daily duty deletes those log records older than 12 months, over
+  the owner's connection, because the app cannot delete from that log. Not built.
+- *The sharing list goes with its migration* (privacy §4.6, §9; privacy-sharing-list (b)): the
+  migration delete also deletes that migration's `share_grant` rows, which have no foreign key to
+  the migration today. Not built; until it is, the list stays until erasure.
+- *Server logs until the part that wrote them is replaced* (privacy §9; ops-log-driver (a), the
+  owner: *"needs checking"*): the owner runs `docker info --format '{{.LoggingDriver}}'` on the
+  machine and undoes a journald setting if there is one; the journald step comes out of
+  `docs/managed-bring-up.md`.
+- *Visitors' IP addresses in our own logs* (privacy §4.5; ops-trust-proxy (b)): `TRUST_PROXY` in
+  live's `.env`, and both nginx configurations (`apps/web/nginx.conf.template`,
+  `deploy/compose/www-nginx.conf`) recording the address NetBird passes on.
+- *Email and password only at the sign-in page* (privacy §4.4, §7, §8; ops-social-signin (a)):
+  live's `.env` sets no `IDP_*` key.
+- *Telemetry off* (privacy §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for
+  live and the test stack (`managed.yml`), and the sign-in service, ClickHouse and MinIO checked
+  and switched off too.
+- *The service's mails go to the support mailbox* (ops-notify-addresses (a); privacy-tester-list
+  (a)): `NOTIFY_TO`, `ALERT_TO` and `REPORT_MAIL_TO` in live's `.env` are all
+  `support@ownpace.eu`. The request notices there are also the list of testers kept off the
+  machine.
+- *What the app says* (ops-app-sentences (a)): the grant mail (`packages/shared/src/notifications.ts`),
+  the Alpha note (`apps/web/src/i18n/strings.ts`, `alpha.note.terms`) and the request form
+  (`access.privacy`) are reworded, in both languages: *"we store only a hash of it, in the
   sign-in service we run"*; *"no backups, apart from one copy before each update, kept up to 7
   days"*; *"We keep what you type to decide on your request and to answer you; asking creates no
-  account."* In both languages, in a change of their own.
+  account."*
+- *A privacy line in the mail to people items were shared with* (privacy §4.6;
+  privacy-share-mail-notice (a)): one sentence and a link to the policy, in both languages, in
+  `packages/shared/src/share-announcement.ts` and its copy in
+  `docs/cutover-communication-templates.md`, before the first tester uses the feature.
+- *By hand, by the owner*: the service's sent mail and support mail pruned in Proton, until
+  resolved and then 6 months (privacy §9; privacy-sent-mail-copies (b)); a family member's
+  Google address taken off Google's test list with the tester's, at erasure, or sooner if asked
+  (privacy §6, §9, Alpha conditions §9, §10; alpha-s9-family-google (a)); and the query that
+  answers a request for what the support log records about someone, written once in the operator
+  runbook (privacy §4.5; privacy-read-log-copy (a)).
+- *The sign-in service's history* (privacy §4.4, §9; privacy-signin-history (a), the owner:
+  *"still needs to be checked."*): remove a test account on the test stack and look at what
+  stays. §9 now says the entries are kept as long as we run this sign-in service, because it
+  cannot remove them; if the check shows they go, the comment beside §9 has the other wording.
+- *NetBird* (privacy §7; dpa-netbird-agreement (a)): record the date its agreement was accepted,
+  where the proxy and its log run, and NetBird's own sub-processors (the filled list above).
+- *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
+  live's `.env`.
 
-The full list is in the terms briefing (A to F), the privacy briefing (*For the owner before
-publication*) and 0139's Status block of 2026-09-28.
+**Later, not before the first invitation:** the export of the migration records that terms §11
+and DPA §10 promise (terms-s11-export (a), dpa-q3-return-of-data (c)), made by hand until
+[workplan 0155](../../docs/workplans/0155-the-migration-records-handed-over.md) builds it; the
+background tasks' records reset at the end of the Alpha (privacy §9; privacy-task-records (a)),
+one step in the end-of-Alpha routine; the order button, the confirmation step and the withdrawal
+function before the first paid tier (terms-unbuilt-paid-steps (a)); ADR-0037's minimum TLS
+versions, after which privacy §11 gains a line (privacy-tls-wording (a)).
+
+The full list is in the terms briefing (A to F), the privacy briefing (*Still to do before the
+draft marker comes off*), the Alpha conditions' briefing and 0139's Status block of 2026-09-28.
 
 **Which language counts is not settled.** `privacy.nl.md` and `terms.nl.md` follow the English
 section for section. Terms 1.3 §13 keeps v1.2's rule: the English governs, except where
@@ -333,9 +396,12 @@ commit.
   NetBird GmbH, in Germany (the owner, 2026-09-28). If either moves outside the EU, §8 names it
   too. The exception is mail: Proton AG, in Switzerland, under an EU adequacy decision, sends the service's mail and
   holds `support@ownpace.eu` (the owner's choice, 0133, 2026-09-28). During the Alpha a tester
-  also asks us to enter a Google address in Google's list of test users (privacy §6, §8). Whether
-  both stand beside the product's premise is the owner's to confirm and the lawyer's to word
-  (privacy briefing, questions 11 and 12). A migration off US cloud through a US-hosted tool is
+  also asks us to enter a Google address in Google's list of test users (privacy §6, §8). Since
+  2026-09-28 §8 also names two routes to the US that the reader chooses, without calling them
+  transfers: a vulnerability report through our GitHub form, and our mail to a mailbox at a US
+  provider (privacy-other-transfers (b)). Whether the Google step stands beside the product's
+  premise is the lawyer's to word (privacy-google-testlist-basis (a), left for the lawyer's
+  pass). A migration off US cloud through a US-hosted tool is
   self-defeating; this is the product, not a compliance line, and anything else that leaves the
   EU changes privacy §8 in the same commit.
 - **Google is offered as a source only**: there is no Google target to choose (privacy §6).
@@ -356,14 +422,20 @@ commit.
   T2). [`alpha.nl.md`](./alpha.nl.md), the text testers read first, and [`alpha.md`](./alpha.md)
   were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
   the lawyer's pass. The owner reviewed them the same day and set their *Version* line to 1.0,
-  with no draft marker. They are not rendered by the site build and not linked from the app
+  with no draft marker. The owner's answers of the same day changed §2, §4, §5, §6, §9, §10 and
+  §11, and the text stays 1.0 until the first tester accepts it (alpha-version-number (a)). They
+  are not rendered by the site build and not linked from the app
   (`NOT_BUILT_YET` in `apps/web/src/services/legal-links.ts`). 0139 T10 renders them, and a
   `--public` build refuses them while their *Version* line says draft.
 - **The DPA and the sub-processor list, as published pages** (0086 T5, 0139 T10). Drafts exist —
   [`dpa.md`](./dpa.md) and [`subprocessors.md`](./subprocessors.md), first written 2026-08-30
   and revised 2026-09-28, both at 0.2 — but they are not rendered by the site build, not linked
   from any published document, and not yet offered to anyone; until the DPA is published,
-  privacy §3 and terms §4 say it is "available on request". Once the build renders
+  privacy §3 and terms §4 say it is "available on request". Both stay unpublished until the
+  first business customer (the owner, 2026-09-28: dpa-unpublished-until-business (a) and
+  rec-subprocessors-url (a)). Before then, one pass fixes the DPA's known errors, answers the
+  lawyer's questions, gives it a *Version* line, and publishes it with the list. During the Alpha,
+  privacy §7's table is the complete list of sub-processors. Once the build renders
   `subprocessors.md`, it needs a Dutch text with the same version, because
   `scripts/legal-docs.unit.test.ts` holds every rendered document to one. A business customer
   cannot lawfully be onboarded without the DPA; the Alpha admits none.

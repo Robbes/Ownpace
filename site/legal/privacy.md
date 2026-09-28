@@ -13,7 +13,8 @@
   2026-09-24 to 2026-09-28, and with the Alpha conditions (alpha.md, v1.0, the
   owner's), which prevail during the Alpha where they differ. A review of the
   first draft the same day checked it against that code and corrected it; the
-  list below is the result. What changed:
+  list below is the result. Later rounds of answers changed some of it (below).
+  What changed from v1.1:
 
   - Header: the policy covers this website too; a box says the Alpha
     conditions apply as well and prevail.
@@ -64,62 +65,23 @@
     audit log; browser storage and cookies; no automated decisions; what a
     tester must provide.
   - §6: the test-user list; the transfer bullet names the people a tester asks
-    us to tell, the ingress (a placeholder, §7) and the mail provider; Google
-    is offered as a source only.
+    us to tell, NetBird GmbH (§7) and the mail provider; Google is offered as
+    a source only.
   - §7, §8: Proton AG, Switzerland, as mail relay and support mailbox (0133,
-    2026-09-28); during the Alpha the service runs on a machine we administer
-    ourselves (0139 D5, T0 fact 6); a row for the service in front of it that
-    ends TLS, «INGRESS_PROVIDER» in «INGRESS_REGION», until the owner answers
-    0139 T0 fact 1 (see the README); a later host is named before any data
-    goes there (0131 T4 (b)); who inside an organisation sees what; §8's
-    negative carves out a target outside the EU the tester chose.
+    2026-09-28); during the Alpha the service runs on a machine we keep and
+    run ourselves (0139 D5, T0 fact 6); a row for NetBird GmbH, the service in
+    front of it that ends TLS; a later host is named before any data goes
+    there (0131 T4 (b)); who inside an organisation sees what; §8's negative
+    carves out a target outside the EU the tester chose.
   - §9: rewritten to the owner's decisions and alpha §6 and §10: credentials
     (0139 open question 3 (a)); requests for access (open question 2 (a),
     built); closing and the erasure windows (alpha §10); the sign-in account
-    and the Google test-user entry removed by hand on erasure day; the sign-in
-    service's own history, which removing the account does not remove (below);
-    the copy before an update (0134 open question 1 (b), 7 days), which also
-    covers dump-idp.sh's dump; the task runner's daily drill copies; no
-    backups otherwise (0139 D3); the log periods of 0129 D2 as built; what of
-    the read log stays after erasure. «LOG_RETENTION» now covers server logs
-    only. The heading and the row "Credentials" keep their words, because
-    alpha §2 cites them.
-
-  The owner's answers of 2026-09-28 (0139 Status quotes each in full),
-  applied the same day. The Version line keeps its draft marker: the owner
-  reviews these texts in the pull request ("park them in PR that i will
-  review."), and the lawyer's pass stays deferred.
-
-  - §7 and subprocessors.md: the machine is in the Netherlands ("app/site
-    hosting is in The Netherlands"). The ingress row, and §6's transfer
-    bullet, name NetBird GmbH, in Germany ("through NetBird (Germany)
-    delivers the forward proxy"; read as the reverse proxy in front of the
-    machine that ends TLS, which is what managed.yml says of it). Germany is
-    in the EU, so §8 needs nothing for it. The entity name is from NetBird's
-    published terms as search results quote them (Amtsgericht Berlin
-    (Charlottenburg), HRB 237529 B); netbird.io could not be read from here,
-    so the README marks it to confirm.
-  - §4.5, §4.6, §7 and §9: Proton keeps the service's sent mail in the
-    support mailbox (the owner's "yes"). §4.5 says so, §7's Proton row says
-    the mailbox keeps a copy of each mail the service sends, and §4.6 says a
-    copy of the mail to people items were shared with stays there, so that
-    §3's "§4.6 lists it" stays a complete list. The service mails nobody a
-    customer invites (apps/api/src/routes/tenants/members.ts sends nothing;
-    the app's tenants.invite.hint: "No email yet; tell them yourself"), so
-    §4.6's invitees bullet needs no such sentence. §9's support-mail row
-    covers those copies: 6 months after sending, which reads the owner's
-    "Until resolved + 6 months" for mail that answers no question (the
-    owner confirms). Nothing prunes the Sent folder yet; a comment beside §9
-    says so (README).
-  - §9: a sign-in account nobody let in goes 30 days after it was created,
-    unless a request for access with that address is still open (the owner:
-    "30 days is ok"; 0135 T8's rule). The row says such an account opens
-    nothing. Nothing removes one yet; a comment beside §9 says so.
-  - §9: server logs are kept until the part of the service that wrote them
-    is replaced. That is what Docker's default log driver does; whether the
-    machine uses it is not checked (README: docker info --format
-    '{{.LoggingDriver}}'). There is no fixed period, and the row says so.
-    The README lists what would make a number true.
+    and the Google test-user entries removed by hand on erasure day; the
+    sign-in service's own history, which removing the account does not
+    remove; the copy before an update; no backups otherwise (0139 D3); the log
+    periods of 0129 D2 as built; what of the read log stays after erasure.
+    The heading and the row "Credentials" keep their words, because alpha §2
+    cites them.
   - §10: the right to object on its own; a check that a request is yours; a
     complaint where you live or work.
   - §11: TLS as the code does it: the one switch a customer has is the
@@ -128,261 +90,255 @@
     are not built. Row security as SECURITY.md and docs/rls-guide.md state it
     at 683525c8: every route of the app, the support views passing it by
     design with an operator check, the background tasks not yet. A breach
-    paragraph that tells the person, as the owner answered (question 18); the
-    vulnerability channel as SECURITY.md (0139 open question 5).
+    paragraph that tells the person, as the owner answered; the vulnerability
+    channel as SECURITY.md (0139 open question 5).
   - §13: during the Alpha, alpha §11 sets the notice before what follows.
   - Words: "tenant" and "workspace" became "organisation"; the Dutch
     "beheerders" for our operators no longer collides with the admin role.
 
-  The questions from v1.1, and where they stand:
+  The owner's first answers of 2026-09-28 (0139 Status quotes each in full),
+  applied the same day:
 
-  1. The household controller role and basis (§3): open. During the Alpha it
-     is the only case.
-  2. Correspondents and Art. 14(5)(b): open, and wider: §4.6 adds a family
-     member and the people items were shared with, who get a mail from us.
-     The announcement mail (renderShareAnnouncement in
-     packages/shared/src/share-announcement.ts) carries no privacy notice or
-     link. As we read Art. 14(3)(b), where data are used to communicate with
-     the person, the information is due at the first communication at the
-     latest; please confirm. If so, the mail needs a line and a link to this
-     policy, which is a code change.
-  3. Mollie as independent controller: does not arise during the Alpha
-     (nothing is charged); open for later.
-  4. The DPA "on request": answered for the Alpha, households only (0139
-     open question 6); open for businesses later.
-  5. The preflight's basis: open. v1.1's premise "counts kept 30 days" was
-     wrong: the counts go with their migration (§4.3).
-  6. Children under 16: open. A grant link can reach a family member under
-     16, whose Google address then goes on the test-user list. Terms 1.3 §3
-     now asks 16 or older, and a parent's or guardian's permission under 18,
-     so the two texts agree (terms question 20).
-  7. Invoices kept 7 years: does not arise during the Alpha; open.
-  8. The portability note: open.
-  9. «LOG_RETENTION»: the other log periods are rows of their own now (0129
-     D2, as built). What is left is the output of the app's, the sign-in
-     service's and this website's containers, which Docker keeps until a
-     container is recreated; the owner declined journald (0134 open
-     question 6 (a)). NOW: filled with that criterion, not a number (the
-     owner: "Server logs: check ownpace repo on this."). The app's and the
-     website's output goes at each update; the sign-in service's lasts until
-     its version or settings change, which can be months. As we read Art.
-     13(2)(a), stating the criteria is allowed; is this one enough, and does
-     it meet Art. 5(1)(e) for the sign-in service's output?
-  10. Entity facts: «REGISTERED_ADDRESS» and «VAT_NUMBER» are still the
-      owner's. On the address the owner asked: "My address, is it needed? I
-      also live there, and rather have correspondance by email." Our
-      reading, in the terms briefing (question 22), is that the terms need
-      the geographic address and that email can come first beside it. For
-      this policy alone, Art. 13(1)(a) asks for the controller's identity and
-      contact details; an email address may be enough there, though WP260
-      rev.01 prefers more than one channel. Please confirm. The btw-id: the
-      owner says it "was already mentioned" in site/legal/README.md; it is
-      not there, nor anywhere in this repository or its history, so it stays
-      a token until the owner or the accountant supplies it.
+  - §7: the machine is in the Netherlands ("app/site hosting is in The
+    Netherlands"). The NetBird row, and §6's transfer bullet, name NetBird
+    GmbH, in Germany ("through NetBird (Germany) delivers the forward proxy";
+    read as the reverse proxy in front of the machine that ends TLS, which is
+    what managed.yml says of it). Germany is in the EU, so §8 needs nothing
+    for it.
+  - §4.5, §4.6, §7 and §9: Proton keeps the service's sent mail in the
+    support mailbox (the owner's "yes"). The service mails nobody a customer
+    invites (apps/api/src/routes/tenants/members.ts sends nothing; the app's
+    tenants.invite.hint: "No email yet; tell them yourself"), so §4.6's
+    invitees bullet needs no such sentence.
+  - §9: a sign-in account nobody let in goes 30 days after it was created,
+    unless a request for access with that address is still open (the owner:
+    "30 days is ok"; 0135 T8's rule, which now also spares an address with an
+    open invitation). The row says such an account opens nothing.
+  - §9: server logs are kept until the part of the service that wrote them
+    is replaced, which is what Docker's default log driver does. There is no
+    fixed period, and the row says so.
 
-  New questions:
+  The owner's answers to the 71 questions, 2026-09-28 (the answer page; each
+  answer is named by its question id and the option chosen). Applied the
+  same day. The Version line keeps its draft marker: the owner reviews these
+  texts in the pull request, and the lawyer's pass stays deferred. What
+  changed in this policy:
 
-  11. §7, §8: is the wording on Switzerland's adequacy decision right and
-      enough, and should an article be cited? The README's "Must be EU" rule
-      reads against Proton. Is Proton's data-processing agreement in place
-      for the account behind support@ownpace.eu, and where does it say Proton
-      processes the data? The "Where" column should say that. NOW: the owner
-      answered "yes" (2026-09-28): keep Proton AG, Switzerland; the agreement
-      is accepted for that account; the account is Archico B.V.'s; and
-      Proton keeps the service's sent mail in it (§4.5, §4.6, §7, §9).
-      Where the agreement says Proton processes, and the adequacy wording,
-      stay open.
-  12. §6, §8: is entering a Google address in the test-user list of our app
-      at Google a transfer by us, and is Google a processor or a controller
-      for that list? If it is a transfer, on what basis, which §8 would then
-      have to name (Art. 13(1)(f), as we read it; please confirm)? The text
-      states no basis. When does a family member's address come off it?
-  13. §5: the basis for other people's data (drafted as legitimate
-      interests), and in particular for a family member, who is not a party
-      to our contract, whose access, address and test-user entry we hold;
-      for invitees; and for the audit log (both added as rows, drafted as
-      legitimate interests). And which exception covers special-category data
-      passing through, now that subject lines are kept.
-  14. §8: in the household case we are controller. Is writing to a target
-      outside the EEA then a transfer by us? The text now carves it out of
-      the negative rather than asserting it. Two more paths, not asserted
-      either way: a vulnerability report through the advisory form sits at
-      GitHub, in the US, where we read it (§11); and the service's mail to a
-      tester's own address, or to a grantee, whose mailbox is at a US
-      provider. Are either of these transfers by us?
-  15. §6: do the mail to people items were shared with, mail carried by
-      Proton, and NetBird GmbH, which sees the app's pages readable, fit
-      Limited Use's allowed transfers? Does reading a log line
-      that names a Gmail label, to answer a report, fit its exceptions?
-  16. §13: may 7 days' notice with explicit acceptance (alpha §11) stand
-      beside §13's 30 days for the step after the Alpha?
+  - §1: the address is left out during the Alpha, and we correspond by email
+    (rec-address (c); a comment beside §1 says when it returns). "Trading as
+    Ownpace" (fact-trademark (b)). The VAT number, NL8597.110.06.B01, as the
+    owner wrote it (fact-vat (a)).
+  - §4.1: the file connectors cannot write to the source either
+    (privacy-file-connectors (a)).
+  - §4.2, §4.6, §9: the list of what was shared belongs to its migration and
+    goes when that migration is deleted (privacy-sharing-list (b); the code
+    change is not built, see beside §9).
+  - §4.4: no sign-in with a Google, Microsoft, Apple or GitHub account during
+    the Alpha (ops-social-signin (a): email and password only on live). The
+    account also records which versions of the three texts a person accepted,
+    and when (terms-acceptance-route (b): the in-app screen, 0139 T3, not
+    built).
+  - §4.5: our server logs record the visitor's IP address, which NetBird
+    passes on, and NetBird keeps its own log (ops-trust-proxy (b); needs
+    TRUST_PROXY and both nginx logs, see beside §4.5). Searches by address and
+    downloads of the log are deleted after 12 months
+    (privacy-search-records (a)).
+  - §4.6: the copy of the share mail stays as long as §9 says for support mail
+    (privacy-sent-mail-copies (b)).
+  - §6, §9: a family member's Google address comes off Google's test list
+    with the tester's, at erasure, or sooner if the tester or the family
+    member asks (alpha-s9-family-google (a)).
+  - §7: NetBird's agreement is accepted (dpa-netbird-agreement (a)); the row
+    adds the WireGuard tunnel to our machine and NetBird's own request log
+    (ops-trust-proxy, every option). The table is the complete list of
+    sub-processors (rec-subprocessors-url (a)), so the SUBPROCESSORS_URL token left
+    this text. No hosting row: the owner keeps and runs the machine for
+    Archico B.V. (subprocessors-machine-housed (a)).
+  - §8: the citation for Switzerland (privacy-switzerland-wording (b)); two
+    routes to the US that the reader chooses, not called transfers
+    (privacy-other-transfers (b)). A comment says the negative holds once
+    usage reports are off (ops-telemetry (a)).
+  - §9: the copy before an update is one copy per update, deleted once the
+    update is shown to work, never past 7 days, and it includes the task
+    runner's database before its upgrade (rec-copies (a)); the daily drill
+    copies are gone from live's text (rec-drill (a)); the background tasks'
+    records last until the end of the Alpha at the latest
+    (privacy-task-records (a)); the sign-in history is kept as long as we run
+    that sign-in service (privacy-signin-history (a), NOT YET CHECKED); support
+    mail and the service's own mail follow "until resolved, then 6 months"
+    (privacy-sent-mail-copies (b)).
+  - §10: what we hold ourselves, sent in a common file format on request
+    (privacy-portability-note (a)).
+  - §12: a grant link for a child under 16 is completed by the parent with the
+    child, and the child's Google address goes on the list at the parent's
+    request (privacy-children-grant-link (a)).
+  - §13: earlier versions stay in the policy's history on GitHub, one link per
+    language (rec-privacy-history-url (a)), so the PRIVACY_HISTORY_URL token left this
+    text.
+
+  Answered with no change to this text: privacy-db-access-sentence (a), §4.5's
+  sentence on direct database access confirmed (DPA §5 is corrected in the DPA
+  pass); privacy-read-log-copy (a), the promise stays and is answered by hand;
+  privacy-tls-wording (a), §11 as drafted, a line follows once ADR-0037's
+  floors are built; ops-billing-form (b), the form and both sentences stay;
+  ops-notify-addresses (a), all three settings point at support@ownpace.eu;
+  ops-log-driver (a), Docker's default; privacy-tester-list (a), the Proton
+  mailbox is the list of testers; dpa-netbird (a), no change now;
+  rec-alpha-10 (a), Alpha §10 now follows the code, as §9 here already did;
+  alpha-version-number (a), the Alpha conditions stay 1.0.
+
+  Questions for the lawyer. The numbers are kept from the first draft, because
+  other texts cite them. Where the owner answered on 2026-09-28, the answer is
+  named; what follows it is what the lawyer still checks.
+
+  1. The household controller role and basis (§3).
+     privacy-household-controller (a): left for the lawyer. During the Alpha
+     it is the only case.
+  2. Correspondents and Art. 14(5)(b), and the people items were shared with.
+     privacy-share-mail-notice (a): the share mail gets a privacy line and a
+     link to this policy (packages/shared/src/share-announcement.ts, a code
+     change before the first tester uses the feature). Please confirm our
+     reading of Art. 14(3)(b): the information is due at the first
+     communication at the latest. Correspondents in a mailbox stay open.
+  3. Mollie as independent controller; 5. the preflight's basis for someone
+     with no contract yet; 7. invoices kept 7 years.
+     privacy-after-alpha-questions (a): for the lawyer's pass before the first
+     paid tier, or before a preflight is offered to someone who is not a
+     tester. None arises during the Alpha.
+  4. The DPA "on request": settled for the Alpha (households only), and the
+     DPA stays unpublished until the first business customer
+     (dpa-unpublished-until-business (a)).
+  6. Children under 16. privacy-children-grant-link (a): §12 gains the
+     parent-with-child line. Terms §3 now asks 18 or older
+     (terms-s3-minimum-age (b)); privacy §12 otherwise stays, as that answer
+     said. Please confirm §12's "under 16" beside the terms' 18.
+  8. The portability note. privacy-portability-note (a): the sentence is
+     added. Please confirm it is enough for Art. 20.
+  9. Server logs, kept until the part that wrote them is replaced (the owner:
+     Docker's default, ops-log-driver (a)). The app's and the website's
+     output goes at each update; the sign-in service's lasts until its version
+     or settings change, which can be months. As we read Art. 13(2)(a),
+     stating the criteria is allowed; is this one enough, and does it meet
+     Art. 5(1)(e) for the sign-in service's output?
+  10. Entity facts. The address is left out during the Alpha (rec-address
+      (c)); the owner accepts the BW 3:15d risk for an invite-only Alpha, and
+      the address returns before the first paid tier. For this policy alone,
+      Art. 13(1)(a) asks for the controller's identity and contact details;
+      is an email address enough during the Alpha? The VAT number and the
+      trade name are filled.
+  11. Switzerland. privacy-switzerland-wording (b): §8 cites Art. 45 GDPR and
+      Decision 2000/518/EC. Please confirm the citation. Proton's agreement
+      is accepted for Archico B.V.'s account; where it says Proton processes,
+      which the "Where" column should say, is still to check.
+  12. Google's test list. privacy-google-testlist-basis (a): left for the
+      lawyer. Is entering a Google address in our app's test-user list at
+      Google a transfer by us, and is Google a processor or a controller for
+      that list? If a transfer, on what basis, which §8 would then name
+      (Art. 13(1)(f), as we read it)? When a family member's address comes
+      off is answered (alpha-s9-family-google (a); §6).
+  13. The basis for other people's data (drafted as legitimate interests), a
+      family member's in particular, invitees', and the audit log; and which
+      exception covers special-category data passing through, now that
+      subject lines are kept. privacy-bases-special-category (a): left for
+      the lawyer; subject lines stay stored.
+  14. §8. privacy-other-transfers (b): §8 names the GitHub report form and our
+      mail to a US mailbox as routes the reader chooses, without calling them
+      transfers. Please confirm that wording. Open: in the household case we
+      are controller; is writing to a target outside the EEA then a transfer
+      by us? The text carves it out of the negative rather than asserting it.
+  15. Limited Use (§6). privacy-limited-use (a), with the owner's note: "do
+      describe each flow so that we can use it in the verification
+      application. The lawyer will only review." The four flows, for the
+      verification application (docs/google-oauth-verification.md), as we
+      read them; the lawyer reviews:
+      (i) The mail to people a tester shared items with. Google data in it:
+          the names of shared Drive files, folders and calendars, and the
+          recipients' addresses from the sharing list. Sent only when the
+          tester asks, from support@ownpace.eu through Proton; a copy stays in
+          the Sent folder under §9's support-mail rule. It serves a feature the
+          tester starts in the app.
+      (ii) Mail carried by Proton. Beyond (i): progress mails to the tester
+          (packages/shared/src/notifications.ts: a migration's name, often the
+          account's address; counts; and, verbatim, a provider's reason or last
+          error, which can name a folder or a Gmail label), problem reports (the
+          page, an error's reference and kind, and a screenshot the tester adds,
+          which can show subjects, names or labels), and link reports. Proton
+          is a sub-processor under a data-processing agreement, carrying that
+          mail and keeping it in the support mailbox (§9's support-mail rule).
+      (iii) NetBird GmbH. It ends TLS in front of our machine, so the app's
+          pages, which show item names, subjects and labels from Google, pass
+          through it readable. It keeps a log of each request: IP address and
+          path. It is a sub-processor under a data-processing agreement,
+          carrying the connection only. Its terms §3.1, as search results
+          quote them, say it does not monitor the content it carries; to
+          confirm from the terms themselves.
+      (iv) A person reading. When a tester reports a problem, the operator can
+          read a log line or a ledger row that names a Gmail label, a subject
+          or a file name, to answer that report. We read this as the user's
+          affirmative request about specific items, which §4.5 and §6 name as
+          an exception; please confirm, or say which exception fits.
+  16. The notice after the Alpha. alpha-s11-notice (a): Alpha §2 now says that
+      for the new conditions after the Alpha, the 7 days in Alpha §11 replace
+      the terms' 30 days. §13 here already points to Alpha §11. Please confirm
+      that 7 days with explicit acceptance may stand beside §13's 30 days.
   17. Language: the site prints a note above the Dutch privacy and terms
       pages that the English governs (translationNote in site/copy.mjs), and
-      terms 1.3 §13 keeps that rule, as v1.2 had it. Can it stand for a
-      Dutch-first Alpha (alpha briefing q. 2, terms question 15)?
-  18. §11: the breach paragraph now says "and we tell you", following the
-      owner's answer "We do tell the tester." (0139 Status, the nine answers,
-      6). The Alpha conditions §4 say "where that is required", and prevail
-      where they differ; a 1.1 of the conditions can drop the qualifier, or
-      the owner keeps it here too.
-  19. §9: the sign-in service's history. Zitadel stores every change as an
-      event, and a removal appends an event; its maintainers write "Delete in
-      ZITADEL means a new events org.deleted, all events still exist in the
-      eventstore" (zitadel/zitadel#2758), and de-identifying the events of
-      deleted users after a retention period is a feature request that is
-      still open (zitadel/zitadel#7811). So we expect the name and address in
-      a removed user's earlier events to stay. Not yet checked on the pinned
-      v4.19.2: remove a test user on the OTA stack and query its events.
-      With no period, does the row meet Art. 17 and Art. 5(1)(e)? The owner
-      decides whether those events are purged by hand at erasure (Zitadel does
-      not support it), or given a period.
-  20. §9: two more rows keep personal data after erasure with no period: an
-      operator's search by address and a download of the audit log (the read
-      log records both without an organisation), and the background tasks'
-      records, which carry organisation and migration identifiers that a
-      problem-report mail (organisation identifier plus the reporter's
-      address) can link back to a person, and the reason an operator types
-      when a switch-over is undone. Storage limitation and the duty to state a
-      period or its criteria (Art. 5(1)(e) and 13(2)(a), as we read them;
-      please confirm) make both a risk. The owner decides: purge the searches
-      at erasure, or give a period; and set a period for the task records
-      (0139, For the owner, items 4 and 8).
+      terms 1.3 §13 keeps that rule. Can it stand for a Dutch-first Alpha
+      (alpha briefing q. 2, terms question 15)? Not on the answer page; open.
+  18. The breach paragraph: settled. The Alpha conditions stay 1.0 and their
+      §4 drops "where that is required" (alpha-version-number (a)), so both
+      texts say "we tell you".
+  19. The sign-in service's history. privacy-signin-history (a): check, then
+      state the rule; the owner: "still needs to be checked". Zitadel stores
+      every change as an event, and a removal appends one; its maintainers
+      write "Delete in ZITADEL means a new events org.deleted, all events
+      still exist in the eventstore" (zitadel/zitadel#2758), and
+      de-identifying the events of deleted users is an open feature request
+      (zitadel/zitadel#7811). §9 now states the rule for that expected result:
+      kept as long as we run this sign-in service. Is that a period that meets
+      Art. 5(1)(e) and Art. 17?
+  20. Periods. Searches by address and downloads of the log: 12 months
+      (privacy-search-records (a)). The background tasks' records: until the
+      end of the Alpha at the latest (privacy-task-records (a)). Both settled.
+      New: support mail and the copies of the service's own mail follow
+      "until resolved, then 6 months" (privacy-sent-mail-copies (b), the
+      owner's own rule, as it stands). A sign-in code or a progress summary
+      answers no question, so the rule gives it no clear end. Is it precise
+      enough for Art. 5(1)(e) and 13(2)(a)?
 
-  For the owner before publication (facts, and code that must match):
+  Still to do before the draft marker comes off (facts, checks and code; the
+  comments beside §1, §4.4, §4.5, §7, §8 and §9 say the same where they apply):
 
-  - «HOSTING_REGION», filled 2026-09-28: the Netherlands. Still open: does
-    any company house the machine or reach it (then it is a §7 row)? Is it
-    run by Archico B.V.?
-  - «INGRESS_PROVIDER», «INGRESS_REGION», filled 2026-09-28: NetBird GmbH,
-    Germany. To confirm: the entity name, from NetBird's terms or
-    data-processing agreement; that agreement accepted for the account, with
-    its date recorded in 0139 T0, as for Proton; which proxy cluster the
-    names point to, and where it runs (the NetBird dashboard); and that the
-    services use NetBird's HTTP mode, which ends TLS at NetBird, as
-    managed.yml says, rather than TLS passthrough. Two findings from
-    NetBird's documentation, not yet in the text: its reverse proxy keeps an
-    access log per request, with the visitor's IP address, a location
-    derived from it, and the full path, which for a grant or progress link
-    includes its secret; so §4.5's "without the secret part of a link" holds
-    for our own logs only, and the §7 row could add "It keeps a log of the
-    requests it carries, with the IP address and the page asked for." And
-    with TLS ending at NetBird, our two nginx logs are not the same. The
-    app's (apps/web/nginx.conf.template, format ownpace_combined) records
-    only the address that connects to it ($remote_addr, no real-IP
-    setting), which is then NetBird's proxy rather than the visitor, and
-    the API's log does the same unless live sets TRUST_PROXY. The website's
-    (deploy/compose/www-nginx.conf) sets no access_log or log_format, so the
-    image's own default applies (nginx:1.31-alpine, www.yml); in official
-    nginx images that is the "main" format, which also logs the
-    X-Forwarded-For header. The image's nginx.conf was not read here. If
-    NetBird sets that header, the website's log holds the visitor's IP
-    address. Check each on live (0132 T3 (d)); §4.5 then says, per log,
-    whose IP address it records.
-  - «UNADMITTED_SIGNIN_RETENTION» and «LOG_RETENTION», filled 2026-09-28
-    (above). «SUBPROCESSORS_URL» and «PRIVACY_HISTORY_URL»: the owner asked
-    "recommend me what to do." Recommended: make §7's table the complete
-    list for now, replacing "The current list is maintained at
-    «SUBPROCESSORS_URL»." with "This table is the complete list of our
-    sub-processors." / "Deze tabel is de volledige lijst van onze
-    subverwerkers.", and publish subprocessors.md, with a Dutch text, when
-    the first business customer and the DPA arrive (0086 T5); for the
-    Alpha, §7's table already names everyone subprocessors.md names as
-    current. And the history of this file in the public repository, per
-    language: https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.md
-    and .../privacy.nl.md. The history also shows unpublished drafts, each
-    marked by its own Version line; keeping each published version on
-    www.ownpace.eu itself is a later build change (0139 T10). Not applied:
-    the owner decides.
-  - §4.5 describes reports by mail: true once the report-by-mail branch is
-    merged and live sets no Zammad (0139 Status item 5 still names one).
-  - §9 says nothing uses credentials after closing: true once a closed
-    organisation gets no new passes, which is not so on main (the
-    closed-organisation task, uncommitted).
-  - §9's "never longer than 7 days": deploy/compose/dump-idp.sh keeps its
-    dumps, with the sign-in service's accounts and password hashes, with no
-    limit, and the copy before an update is taken and deleted by hand. Prune
-    or delete the dumps within 7 days, and automate the copy, or change §9.
-    The owner, 2026-09-28: "deletes only after procen successfull upgrade,
-    so we already have one backup copy of what actually works." That is §9's
-    "until the next update succeeds", for dump-idp.sh's dumps too. What
-    stays to settle is the 7-day cap, which §9, the Alpha conditions §6 (1.0)
-    and the erasure date a closing organisation is told all rest on. Read as
-    "delete the copy once the update it was made for is proven", it fits:
-    proven when deploy-live.sh has logged the deploy as taken and one pass
-    has completed, and never later than day 7. Read as "keep the last good
-    copy until the next upgrade is proven", the copy becomes a standing
-    backup that can last weeks, which needs an Alpha conditions 1.1 and a
-    longer period in §9. Recommended: the first reading, built as one
-    script and one directory for the whole copy (the app's database, the
-    sign-in service's database and the roles, as the runbook's recipe
-    already dumps), with a daily duty deleting anything older than 6 days as
-    a backstop; dump-idp.sh on live then has nothing left to do.
-  - §9's daily copies of the task runner's database: live's daily drill
-    (box-duties.sh, trigger-version.sh drill, the newest 7 kept) dumps it,
-    with the run records and the encrypted task settings, the key among them.
-    Keep the drill on live and the row as it is, or stop it for the Alpha and
-    drop the sentence. The Alpha conditions §6 say no backups "of the
-    service's own records"; a run's history may be one of them. The owner
-    asked: "What about the drill?" Recommended: take the drill off live's
-    duties for the Alpha, and keep the OTA stack's nightly drill, which
-    proves the same dump and restore at main's Trigger.dev version. Before a
-    Trigger.dev upgrade on live, take trigger-version.sh backup
-    before-<version> as part of the copy before an update, under the same
-    rule. Then this row loses its drill sentence and the paragraph under the
-    table its "daily copies", in both languages, and the Alpha conditions §6
-    hold as written. Live loses a restorable copy of the task runner's
-    database between upgrades, kept on the same machine, and nothing these
-    texts promise. Not applied: the owner decides.
-  - §9's sign-in history (question 19), and removing the sign-in account by
-    hand (idp-strays.sh --subject, 0135 T8).
-  - §4.4's sessions: that the sign-in service keeps the browser and IP
-    address of a sign-in is from Zitadel's design (login v1's auth requests
-    carry the browser's information); check it on v4.19.2, as question 19.
-  - Social sign-in on live (0139 T0 fact 4). §4.4's "not at another company"
-    and its list of what the sign-in account holds assume email and password
-    only; if any IDP_* key is set, §4.4, §7 and §8 name the links and the
-    provider. And where NOTIFY_TO, ALERT_TO and REPORT_MAIL_TO point.
-  - Telemetry from the parts we run ourselves: managed.yml sets no opt-out.
-    Trigger.dev's self-hosting documentation says its webapp sends telemetry
-    unless TRIGGER_TELEMETRY_DISABLED is set; whether Zitadel, ClickHouse or
-    MinIO send anything by default is not checked. Set the opt-outs, or name
-    what is sent, before §8's negative is published.
-  - Proton: answered "yes" (2026-09-28). Proton AG and Switzerland stay; the
-    agreement is accepted for support@ownpace.eu, which is Archico B.V.'s
-    account; the service's sent mail is kept there, so §4.5, §4.6 and §7's
-    Proton row say so, and §9's support-mail row covers it (6 months after
-    sending: confirm). Nothing prunes the Sent folder yet: by hand at 6
-    months, or a Proton setting if Proton has one, until something does.
-    Where the agreement says Proton processes stays to check (question 11).
-  - §4.4 and §7 say we do not ask for or keep a card number; remove or
-    refuse the billing route that accepts a card's brand, last four digits
-    and expiry, or keep the weaker sentence.
-  - §4.5's sentence on access outside the support screens is ours, not
-    yours yet: confirm it, or add a record of database access.
-  - The Alpha conditions §10 say access is kept "until you delete the
-    connection or the migration"; the code, and §9 here, keep a connection's
-    access until the connection is deleted (0139 Status offers a 1.1 wording).
-    The owner asked: "what do you recommend?" Recommended: that 1.1 wording,
-    so the conditions follow the code: "We keep that access until you
-    delete the connection; access a family member gave through a grant
-    link, until you delete the migration." / "Wij bewaren die toegang tot u
-    de koppeling verwijdert; toegang die een gezinslid via een toegangslink
-    gaf, tot u de verhuizing verwijdert." It costs no notice: no tester has
-    accepted 1.0. Not applied: the conditions are the owner's.
-  - §9's sign-in account nobody let in, 30 days: built by 0135 T8
-    (idp-strays.sh), not yet. Until it is, either the owner removes these by
-    hand in the sign-in service's console, or the row waits; the owner
-    chooses (the owner accepted the 30 days, not a duty by hand). T8's rule
-    did not spare an address with an open invitation: a person who
-    registered, asked, and was granted has an invitation to their address,
-    and no open request, until they first sign in to the app. 0135 T8's rule
-    now has that condition (2026-09-28).
-  - The app says things this policy contradicts: the grant mail's "Your
-    password lives with the sign-in service, never with us"
-    (packages/shared/src/notifications.ts), the Alpha note's "nothing is
-    backed up" (apps/web/src/i18n/strings.ts, alpha.note.terms, and the grant
-    mail), and the request form's "We keep what you type only to answer you"
-    (access.privacy). Change them with the texts (README).
+  - NetBird: record the date its agreement was accepted, and where it or the
+    dashboard says the proxy runs (0139 T0). Check its sub-processors at
+    https://trust.netbird.io, and its terms §3.1; neither could be read from
+    here. If the proxy or its log runs outside the EU, §7's "Where" and §8
+    name it.
+  - Live: TRUST_PROXY set, and both nginx logs recording the address NetBird
+    passes on (ops-trust-proxy (b), 0132 T3 (d)); no ZAMMAD_URL, so reports
+    go by mail; no IDP_* keys (ops-social-signin (a)); NOTIFY_TO, ALERT_TO and
+    REPORT_MAIL_TO at support@ownpace.eu (ops-notify-addresses (a)); usage
+    reports off in the task runner, and Zitadel, ClickHouse and MinIO checked
+    (ops-telemetry (a)); the log driver checked (ops-log-driver (a)).
+  - Build: the copy before an update and its deletion (rec-copies (a)); the
+    drill off live's duties, with trigger-version.sh backup in the copy
+    before a Trigger.dev upgrade (rec-drill (a)); the end-of-Alpha step for
+    the task records (privacy-task-records (a)); the sharing list deleted
+    with its migration (privacy-sharing-list (b)); the 12-month clean-up of
+    searches and downloads (privacy-search-records (a)); 0135 T8's daily
+    script for sign-in accounts nobody let in, before the first tester
+    (ops-unadmitted-signin-cleanup (a)); the acceptance screen, 0139 T3
+    (terms-acceptance-route (b)); the share mail's privacy line
+    (privacy-share-mail-notice (a)); the app's three sentences
+    (ops-app-sentences (a)); the read-log query in the operator runbook
+    (privacy-read-log-copy (a)).
+  - Check: the sign-in history on Zitadel v4.19.2, and what a sign-in session
+    keeps (browser and IP address, §4.4) (privacy-signin-history (a)).
+  - By hand until something does it: pruning the support mailbox and its Sent
+    folder at Proton under §9's rule.
+  - Proton: where its agreement says it processes (question 11).
+  - The card code and §4.4's and §7's card sentence stay until before the
+    first paid tier (ops-billing-form (b)).
 -->
 
 # Privacy policy
@@ -403,11 +359,20 @@
 
 ## 1. Who we are
 
-Archico B.V., «REGISTERED_ADDRESS», KvK 73922706, VAT «VAT_NUMBER».
+Archico B.V., trading as Ownpace, KvK 73922706, VAT NL8597.110.06.B01.
+
+<!-- The owner, 2026-09-28: the address is left out during the Alpha, and we correspond by email
+     (rec-address (c)). BW 3:15d asks a provider of an online service to show its geographic
+     address; the owner accepts that risk for an invite-only Alpha, and the KvK register shows
+     the address anyway. The address returns here, and in terms §1 and §15, before the first
+     paid tier, after the lawyer's pass. The trade name is added now (fact-trademark (b)); that
+     option says the KvK extract already lists Ownpace, which was not checked here. The VAT
+     number is written as the owner gave it (fact-vat (a)). -->
 
 **Contact for anything in this policy, including your rights under the GDPR:
-support@ownpace.eu.** A person reads what arrives there. We aim to answer within five working
-days and are bound by the GDPR's one-month limit for rights requests.
+support@ownpace.eu.** We correspond by email. A person reads what arrives there. We aim to
+answer within five working days and are bound by the GDPR's one-month limit for rights
+requests.
 
 ## 2. What Ownpace does, because it decides everything below
 
@@ -464,8 +429,8 @@ settings of the background tasks that run migrations, both on the same machine.
 
 We ask for the narrowest access each provider offers. Where a provider offers nothing narrow —
 Google's IMAP endpoint accepts only a permission that amounts to full access to your mail — we
-say so rather than implying otherwise. The connectors that read your mail, contacts and
-calendars **cannot write to the source** at all.
+say so rather than implying otherwise. The connectors that read your mail, contacts, calendars
+and files **cannot write to the source** at all.
 
 You can revoke our access at your provider at any time, without asking us, and the migration
 stops.
@@ -488,9 +453,8 @@ text, and hashes derived from content — and we would rather say that plainly t
 as "technical data".
 
 With each migration we also keep the folders it maps, how far each pass got, the decisions you
-made about items, and the results of its checks. With your organisation we keep the
-distribution lists a migration found, with their members' addresses, and the list of what was
-shared (§4.6).
+made about items, the results of its checks, and the list of what was shared (§4.6). With your
+organisation we keep the distribution lists a migration found, with their members' addresses.
 
 ### 4.3 What a preflight keeps
 
@@ -512,17 +476,24 @@ account.
 
 **Your sign-in account.** Signing in runs on a sign-in service we operate ourselves, on the same
 machine as the service. Your sign-in account is kept there, not at another company; §7 says what
-your connection to it passes through. It holds your first and last name, your email address, a
-user name, a hash of your password (never the password itself), and your sessions: when you
-signed in, and the browser and the IP address you signed in from. That service also keeps a
-history of every change to your sign-in account (§9). Anyone can create a sign-in account at our
-sign-in page, but it opens nothing until we let that person in. The sign-in service's mail to
-you, such as a sign-in code or a link to reset your password, goes through our mail provider
-(§7).
+your connection to it passes through. During the Alpha you cannot sign in with a Google,
+Microsoft, Apple or GitHub account. Your sign-in account holds your first and last name, your
+email address, a user name, a hash of your password (never the password itself), and your
+sessions: when you signed in, and the browser and the IP address you signed in from. That
+service also keeps a history of every change to your sign-in account (§9). Anyone can create a
+sign-in account at our sign-in page, but it opens nothing until we let that person in. The
+sign-in service's mail to you, such as a sign-in code or a link to reset your password, goes
+through our mail provider (§7).
+
+<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
+     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
+     fits in there and should record what time/version the accepted of what document"). The
+     first invitation waits for it. -->
 
 **Your account with us.** Your email address, the identifier our sign-in service gives you, the
 organisation you belong to (in the app, your household's space is called an organisation), your
-role in it (during the Alpha, owner or admin), and when you were invited and when you joined.
+role in it (during the Alpha, owner or admin), when you were invited and when you joined, and
+which versions of the Alpha conditions, the terms and this policy you accepted, and when.
 
 **During the Alpha, your Google address.** If you want to connect a Google account, you give us
 its address, and we enter it in the list of test users that Google keeps for our app (§6).
@@ -540,9 +511,9 @@ app to check a VAT number, it is checked with the European Commission's VIES ser
 provider holds for us (§7). The same mailbox keeps a copy of the mail the service sends, such as
 sign-in codes, progress summaries and the notices you ask us to send.
 
-<!-- NOT YET TRUE ON main: the report by mail is 0130 T5, committed on its branch and not merged;
-     on main the form is offered only with ZAMMAD_URL and a token. True once T5 is merged and
-     live runs without ZAMMAD_URL (README, "Before the draft markers come off"). -->
+<!-- The report by mail, 0130 T5, is merged (#1318; apps/api/src/services/report-channel.ts).
+     True on live once live runs without ZAMMAD_URL (README, "Before the draft markers come
+     off"). -->
 
 **Reporting a problem.** During the Alpha, *Report a problem* in the app's menu sends your
 report as an email to support@ownpace.eu, through our mail provider (§7). The mail holds what
@@ -554,9 +525,19 @@ send it. *Report this link*, on a page reached through a grant link or a progres
 what the person wrote and the facts of that link the same way, such as who made it and for
 which accounts, and an address only if they give one.
 
-**Server logs** record that requests happened, for the app and for this website: the time, the
-IP address the request came from, the page asked for (without the secret part of a link), the
-page you came from, what your browser says it is, and error codes. Logs are written so that
+<!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
+     in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
+     NetBird as the caller. The visitor's address reaches our logs only once: live sets
+     TRUST_PROXY (the number of proxies in front of the API: NetBird and the web container's
+     nginx), so the API reads the address NetBird passes on; the app's nginx
+     (apps/web/nginx.conf.template, format ownpace_combined, $remote_addr) takes the real client
+     address from NetBird's header; and the website's nginx (deploy/compose/www-nginx.conf, no
+     log_format of its own) does the same. Check a log line of each on live (0132 T3 (d)). -->
+
+**Server logs** record that requests happened, for the app and for this website: the time, your
+IP address, which NetBird passes on to us (§7), the page asked for (without the secret part of a
+link), the page you came from, what your browser says it is, and error codes. NetBird also keeps
+its own log of each request; §7 says what it holds. Logs are written so that
 **credentials and message content do not appear in them.** They are not free of names, though.
 When a step of a migration fails, the provider's own error text is written to the log of the
 process that met it, beside a reference, so that we can help you with it; that text can name a
@@ -578,9 +559,10 @@ shown on any support screen — the screens are built without access to them, wh
 verify in the source code rather than take on trust. **Every such view is itself recorded** —
 who looked, at whose account, at which screen, and when, and for a search, what was searched for
 — in a log the app cannot change. What it records about your account goes when your data is
-erased; a search by address and a download of the log are recorded without an organisation, and
-stay after that (§9). Ask us, and we send you what that log records about your account. Our
-data-processing agreement (§5 there) makes the same commitment to organisations.
+erased. A search by address and a download of the log are recorded without an organisation;
+they stay after that, and are deleted 12 months after they were recorded (§9). Ask us, and we
+send you what that log records about your account. Our data-processing agreement (§5 there)
+makes the same commitment to organisations.
 
 **Outside those screens.** The person who runs the machine can technically reach the database,
 and the key that protects your credentials. That access is there to keep the service running
@@ -611,8 +593,8 @@ A migration touches people who never signed up with us. This is what we hold abo
   their shared items went, each of them gets an email from support@ownpace.eu for each kind of
   item shared with them, such as calendars or files, once that kind has been switched over, with
   your note and the names of the items; and again only if you choose to send it again. A copy of
-  each such email stays in our support mailbox until 6 months after it was sent (§4.5, §9). The
-  list stays until your data is erased, also after you delete the migration.
+  each such email stays in our support mailbox for as long as §9 says (§4.5). The list goes when
+  you delete the migration it belongs to, or when your data is erased.
 - **People you invite** into your organisation: their address, their role, and whether they
   joined.
 - **People who report a link** they were sent: see §4.5.
@@ -671,7 +653,8 @@ including the **Limited Use** requirements. Concretely, and in our own words:
 test phase, Google lets an account connect only if its address is on that app's list of test
 users. So before you connect a Google account, you give us its address, and we enter it in that
 list at Google. The same goes for the Google account of a family member you send a grant link
-to. We take your address off the list when your data is erased (Alpha conditions §10). In the
+to. We take your address off the list when your data is erased. A family member's address comes
+off at the same time, or sooner if you or they ask (Alpha conditions §10). In the
 test phase, Google also ends a connection after about seven days; you then connect again
 (Alpha conditions §9).
 
@@ -684,21 +667,29 @@ the app password you issued.
 During the Alpha, the service, its databases, our sign-in service and this website run on a
 machine we administer ourselves, in the Netherlands.
 
-<!-- The owner, 2026-09-28 (0139 T0 fact 1): "app/site hosting is in The Netherlands, through
-     NetBird (Germany) delivers the forward proxy". Read as the service in front of the machine
-     that ends TLS for app., id., status. and www.ownpace.eu (managed.yml, "netbird terminating
-     TLS on 443"). TO CONFIRM before publication (README): the entity name, NetBird GmbH, from
-     NetBird's terms or data-processing agreement (it was read from search results of NetBird's
-     terms, not from netbird.io itself); that agreement in place for the account; where the
-     proxy cluster the names point to runs; and whether its access log, which records the
-     visitor's IP address and the full page asked for, is on (privacy briefing). -->
+<!-- The machine (subprocessors-machine-housed (a), the owner, 2026-09-28): no company houses it
+     or can reach it; the owner keeps and runs it for Archico B.V., in the Netherlands. So there
+     is no hosting row.
+     NetBird (dpa-netbird-agreement (a), the owner, 2026-09-28): its data-processing agreement is
+     accepted. The owner's note: "NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard
+     tunnel with the backend towards the hosting provider." Read as: to our machine, which no
+     hosting company holds (above). The owner points to
+     https://trust.netbird.io for its sub-processors and to https://netbird.io/terms §3.1, which
+     lists the reverse proxy. Neither could be read from here: the trust portal loads its content
+     from a host the egress proxy refuses, and netbird.io is refused. Search results quote §3.1
+     as offering "TLS termination" and as not guaranteeing "specific geographic routing". TO
+     RECORD before publication (0139 T0): the date the agreement was accepted, and where it or
+     the dashboard says the proxy runs. The "Where" column keeps Germany (EU), from the owner's
+     first answer, until then; if the proxy or its log runs outside the EU, §8 names it. The
+     row's last sentence, on NetBird's own log, is from NetBird's documentation
+     (ops-trust-proxy: the row gains it in every option). -->
 
 | Sub-processor | What for | Where |
 |---|---|---|
-| NetBird GmbH | Carrying your connections to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, such as what you type when you sign in and what the app shows you, passes through it readable | Germany (EU) |
+| NetBird GmbH | Carrying your connections to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, such as what you type when you sign in and what the app shows you, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request, with the IP address and the page asked for, including the secret part of a link | Germany (EU) |
 | Proton AG | Sending the service's mail, such as sign-in codes, our answer to your request for access, progress summaries, and the notices you ask us to send. Holding our support mailbox, support@ownpace.eu, where your mail to us and, during the Alpha, problem reports arrive, and where a copy of each mail the service sends is kept (§4.5) | Switzerland, outside the EU (§8) |
 
-The current list is maintained at «SUBPROCESSORS_URL». If the service moves to a hosting
+This table is the complete list of our sub-processors. If the service moves to a hosting
 provider after the Alpha, we name that provider here, and tell you, before any of your data
 goes there (Alpha conditions §11). Business customers are notified before a sub-processor is
 added, with the right to object as set out in the DPA; everyone else gets the same change
@@ -720,13 +711,23 @@ Beyond what this policy names, we give your data to others only where the law ob
 
 ## 8. Where it is, and where it is not
 
+<!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-telemetry (a): switch it off everywhere).
+     The negative below holds once the task runner's usage reports are off
+     (TRIGGER_TELEMETRY_DISABLED on live and the test stack) and Zitadel, ClickHouse and MinIO
+     are checked and switched off too. -->
+
 The service runs in the **European Union**. One party in the table above is outside it: our
 mail provider, Proton AG, is in **Switzerland**. The European Commission has decided that
-Switzerland protects personal data adequately, so the GDPR asks for no further safeguard for
-that transfer. During the Alpha there is one more step, which you ask for yourself: to let you
-connect a Google account, we enter its address in the list of test users that Google keeps for
-our app (§6). **Apart from these, and a target you choose outside the EU (below), there is no
-transfer of your data to the United States or any other third country by us.**
+Switzerland protects personal data adequately (Art. 45 GDPR; Commission Decision 2000/518/EC),
+so the GDPR asks for no further safeguard for that transfer. During the Alpha there is one more
+step, which you ask for yourself: to let you connect a Google account, we enter its address in
+the list of test users that Google keeps for our app (§6). **Apart from these, and a target you
+choose outside the EU (below), there is no transfer of your data to the United States or any
+other third country by us.**
+
+Two things you choose yourself can reach the United States. If you report a vulnerability
+through our form on GitHub (§11), GitHub keeps your report, in the US. And if your mailbox, or
+that of someone you ask us to write to, is at a US provider, our mail to it is delivered there.
 
 That is not a formality but the core of the product: moving off a US-hosted provider makes
 little sense through a migration tool that is itself hosted in the US, so ours is not.
@@ -736,60 +737,73 @@ target. We show you the target before anything is written.
 
 ## 9. How long we keep it
 
-<!-- NOT YET TRUE ON main, so the draft marker stays until each holds (README, "Before the draft
-     markers come off"):
-     - Credentials, "nothing uses any of it from then on": the sync tick (ACTIVE_MAPPINGS_SQL in
-       apps/worker/src/jobs/managed-sync-tick.ts) never reads the organisation's status, so a
-       closed organisation still gets new passes until the purge. The fix is the
-       closed-organisation task, not merged.
-     - The copy made right before an update, "never longer than 7 days": the copy of the
-       service's databases is taken and deleted by hand (stand-up-live.sh: "no script takes it or
-       deletes it yet"), and deploy/compose/dump-idp.sh keeps every dump of the sign-in
-       service's database ("none is ever overwritten"). The owner, 2026-09-28: "deletes only
-       after procen successfull upgrade" (README).
+<!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
+     markers come off"). The owner's choices of 2026-09-28 are named by their question id.
+     - Credentials, "nothing uses any of it from then on": true on main since #1320 (d7868276,
+       a closed organisation gets no pass), which this branch has not merged yet.
+     - The copy made right before an update (rec-copies (a)): one copy per update, deleted once
+       the update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
+       lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
+       built: one script and one directory for the copy, a delete step, a daily 6-day backstop,
+       and dump-idp.sh writing into that directory or refusing on live. Until then the copy is
+       taken and deleted by hand, and dump-idp.sh keeps every dump ("none is ever
+       overwritten").
+     - Records of the background tasks: the drill sentence is gone (rec-drill (a)), but
+       box-duties.sh still runs `trigger-version.sh drill` on live, keeping 7 dumps, until that
+       duty is taken off live. "Until the end of the Alpha" (privacy-task-records (a)) is one
+       step in the end-of-Alpha routine, not written yet.
+     - The list of what was shared, "goes when you delete the migration" (§4.2, §4.6; the
+       owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
+       share_grant rows. A small code change; until it lands, the list stays until erasure.
+     - A search by address and a download of the log, "deleted 12 months after"
+       (privacy-search-records (a)): nothing deletes them yet. A small job with the machine's
+       daily duties; the app still cannot change the log.
+     - The sign-in service's history, "as long as we run this sign-in service"
+       (privacy-signin-history (a), the owner: "still needs to be checked"): NOT CHECKED. Remove
+       a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
+       entries go, the row says instead: "Removed with your sign-in account." / "Verwijderd met
+       uw inlogaccount."
      - A sign-in account nobody let in, "30 days after it was created": nothing removes one yet.
-       0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built. Until T8 is built, either
-       the owner removes these by hand in the sign-in service's console, or the row waits; the
-       owner chooses (README).
-     - A copy of the service's own mail, "6 months after it was sent": nothing prunes the Sent
-       folder of support@ownpace.eu at Proton; no script or setting here does it. Until something
-       does, it is pruned by hand at 6 months, or by a Proton setting if Proton has one (not
-       checked). The 6 months is our reading of the owner's "Until resolved + 6 months" for mail
-       that answers no question; the owner confirms it (README).
-     - Server logs: the row holds with Docker's default log driver, which keeps a container's
-       output until the container is removed (0134 open question 6 (a)). If the machine logs to
-       journald instead, as docs/managed-bring-up.md's steps for live still ask, the row is a
-       period, not this criterion (README). -->
+       The owner chose a daily script, built before the first tester
+       (ops-unadmitted-signin-cleanup (a)): 0135 T8, deploy/compose/idp-strays.sh, with the
+       machine's daily duties. The row waits for it.
+     - Support mail, and the copies of the service's own mail (privacy-sent-mail-copies (b):
+       "until resolved, then 6 months", as it stands): nothing prunes the mailbox or its Sent
+       folder at Proton; it is done by hand. A mail that answers no question has no clear end
+       date under this rule (a question for the lawyer, briefing question 20).
+     - Server logs: the row holds with Docker's default log driver (ops-log-driver (a), the
+       owner: "needs checking"). Check the machine (docker info --format
+       '{{.LoggingDriver}}'), undo a journald setting if it is there, and take the journald step
+       out of docs/managed-bring-up.md. -->
 
 | What | Kept for |
 |---|---|
 | Credentials | Until you delete them. The access on a connection goes when you delete that connection; the app lets you once no migration uses it. Access a family member gave through a grant link goes when you delete that migration, or when they withdraw it on their progress page. A finished migration keeps the access you gave us, so that you can resume it. If you close your account, nothing uses any of it from then on, and all of it is destroyed when your data is erased. Each time, we also revoke the access at the provider, where the provider allows that. |
-| The migration ledger (§4.2), and what each migration keeps beside it | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
+| The migration ledger (§4.2), and what each migration keeps beside it, such as the list of what was shared (§4.6) | Until you delete the migration; then deleted with it. Otherwise until your data is erased. |
 | Preflight counts | With the migration they were counted for: until you delete it, or your data is erased. |
-| What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, the list of what was shared (§4.6), and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
+| What belongs to your organisation rather than to one migration: its members and invitations, the distribution lists a migration found, and the audit log of who did what, and when | Until your data is erased, also after you delete the migration that found them. |
 | The record of each pass: when it ran, and what it counted | During the Alpha: until your data is erased. |
 | A pass's log lines | 60 days. |
 | The app's own errors and warnings (a category and a reference, no text) | 30 days. |
-| Your account, your organisation and your sign-in account | While your account exists. When you close it, you choose when your data is erased: at once, or after 7, 30 or 90 days. On that day we also remove your sign-in account from our sign-in service, and take your Google address off Google's list of test users (§6); these are steps we take by hand. |
-| The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were, and your sign-ins | No period is set yet. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
+| Your account, your organisation and your sign-in account | While your account exists. When you close it, you choose when your data is erased: at once, or after 7, 30 or 90 days. On that day we also remove your sign-in account from our sign-in service, and take your Google address, and any family member's, off Google's list of test users (§6); these are steps we take by hand. |
+| The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were, and your sign-ins | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
 | Your request for access (§4.4) | While it is open. Declined: deleted 30 days after our decision. Granted: kept with your account, and erased with it. |
 | A sign-in account that someone created at our sign-in page but that we never let in, and that therefore opens nothing (§4.4) | 30 days after it was created, unless a request for access with that address is still open. |
-| Support mail and problem reports, and the copies of the service's own mail in the same mailbox (§4.5) | Until the question or problem is resolved, and then 6 months more; a copy of the service's own mail, 6 months after it was sent. Then deleted from the mailbox. |
-| The record of what we viewed on your account (§4.5) | Until your data is erased. What is recorded without an organisation stays after that: a search by address, and a download of the log of who did what. |
-| The copy made right before an update | Until the next update succeeds, and never longer than 7 days. The same holds for the copy of our sign-in service's database, made before that service is upgraded. Such a copy is made only to undo a failed update, and it does not leave the hosting environment. Data erased from the service can remain in it for at most 7 days. |
-| Records of the background tasks that run your migrations (identifiers, counts, and a category and a reference for an error; no names, addresses or content, apart from the reason one of us types when a switch-over is undone) | No period is set yet. They are not deleted when your data is erased. A copy of them is made every day, to check that such a copy can be restored, and the newest seven copies are kept. |
+| Support mail and problem reports, and the copies of the service's own mail in the same mailbox (§4.5) | Until the question or problem is resolved, and then 6 months more. The same holds for the copies of the service's own mail. Then deleted from the mailbox. |
+| The record of what we viewed on your account (§4.5) | Until your data is erased. What is recorded without an organisation stays after that: a search by address, and a download of the log of who did what. These are deleted 12 months after they were recorded. |
+| The copy made right before an update | Until the update it was made for is shown to work, and never longer than 7 days. It holds the service's database and our sign-in service's database; before the system that runs the background tasks is upgraded, also its database. Such a copy is made only to undo a failed update, and it does not leave the hosting environment. Data erased from the service can remain in it for at most 7 days. |
+| Records of the background tasks that run your migrations (identifiers, counts, and a category and a reference for an error; no names, addresses or content, apart from the reason one of us types when a switch-over is undone) | Until the end of the Alpha at the latest: then the background tasks start with an empty history. They are not deleted when your data is erased. |
 | Server logs (§4.5) | Until the part of the service that wrote them is replaced: for the app and this website, at each update of the service; for our sign-in service, when its version or its settings change; for a background task, when its run ends. There is no fixed period. |
 | Invoices and the usage figures behind them | **7 years**, because Dutch tax law requires it. During the Alpha nothing is charged: there are no invoices, and the usage figures go when your data is erased. |
 
-**During the Alpha we make no backups**, apart from the copies made right before an update and
-the daily copies of the background tasks' records, both in the table above (Alpha conditions
-§6). During the Alpha we close your account within 7 days of your request, and tell you the date
-on which your data will be erased (Alpha conditions §10). The erasure removes from the service's
-database everything this table keeps until your data is erased; your sign-in account and your
-Google address follow on the same day, by hand. What the table says stays after erasure stays as
-it says. Apart from that, what remains is a record that an erasure took place, with dates and
-counts and no name or address. If we ever discontinue the service, §11 of the terms says what
-you get.
+**During the Alpha we make no backups**, apart from the copy made right before an update, in the
+table above (Alpha conditions §6). During the Alpha we close your account within 7 days of your
+request, and tell you the date on which your data will be erased (Alpha conditions §10). The
+erasure removes from the service's database everything this table keeps until your data is
+erased; your sign-in account and the Google addresses on Google's list follow on the same day,
+by hand. What the table says stays after erasure stays as it says. Apart from that, what remains
+is a record that an erasure took place, with dates and counts and no name or address. If we ever
+discontinue the service, §11 of the terms says what you get.
 
 ## 10. Your rights
 
@@ -808,7 +822,8 @@ and freedoms, or need the data for a legal claim.
 
 **Portability deserves a note.** This whole product exists because moving your own data between
 providers is harder than it should be. If you want your data out of Ownpace, you already have
-it — it is in the target account we wrote it to.
+it — it is in the target account we wrote it to. What we hold about you ourselves (§4), we send
+you in a common file format if you ask.
 
 You may complain to a supervisory authority, in particular in the country where you live or
 work. In the Netherlands that is the **Autoriteit Persoonsgegevens**
@@ -841,13 +856,17 @@ access to their accounts. We will not threaten you for telling us.
 
 The service is not directed at children under 16 and we do not knowingly create accounts for
 them. A household migration a parent sets up may of course move a child's account — that is the
-household case §3 describes, and the parent stays the one who sets it up.
+household case §3 describes, and the parent stays the one who sets it up. A grant link for a
+child under 16 is completed by the parent together with the child. The child's Google address
+goes on Google's list of test users (§6) at the parent's request.
 
 ## 13. Changes
 
 Material changes are notified by email to account holders at least **30 days** before they take
-effect, and every version of this policy stays available at «PRIVACY_HISTORY_URL» so you can
-see what changed. The version number and date at the top of this page show which version
+effect, and every version of this policy stays available in
+[its history on GitHub](https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.md), so
+you can see what changed. That history also shows drafts that were never published; their
+version line says so. The version number and date at the top of this page show which version
 applies.
 
 During the Alpha, the Alpha conditions (§11 there) set how you hear about what follows it,

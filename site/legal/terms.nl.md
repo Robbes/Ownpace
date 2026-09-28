@@ -1,15 +1,16 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!-- Dutch translation of terms.md. Keep the SECTION NUMBERING identical, so the
      two can be diffed against each other when either changes. The alpha
-     conditions (alpha.nl.md) cite §6 to §11 and §15 by number, and "§11, tweede
-     alinea", so no section or paragraph moves. §13's language rule is v1.2's,
-     unchanged in v1.3: the English governs, except where mandatory consumer law
-     provides otherwise, as the note the site prints above this page says
-     (translationNote in site/copy.mjs). Whether both texts should count
-     instead is the briefing's question 15. The briefing for the reviewing
-     lawyer (open questions, what changed in each version, and what must be
-     true before the draft marker comes off) is the comment at the top of
-     terms.md — it applies to both files. -->
+     conditions (alpha.nl.md) cite §6 to §12 and §15 by number, and "§11, tweede
+     alinea", so no section or paragraph moves. The owner's answers of
+     2026-09-28 are applied here as in terms.md; its briefing names each one.
+     §13's language rule is v1.2's, unchanged in v1.3: the English governs,
+     except where mandatory consumer law provides otherwise, as the note the
+     site prints above this page says (translationNote in site/copy.mjs).
+     Whether both texts should count instead is the briefing's question 15.
+     The briefing for the reviewing lawyer (open questions, what changed in
+     each version, and what must be true before the draft marker comes off) is
+     the comment at the top of terms.md — it applies to both files. -->
 
 # Servicevoorwaarden
 
@@ -27,16 +28,21 @@
 
 ## 1. Met wie u een overeenkomst sluit
 
-Archico B.V., «REGISTERED_ADDRESS», ingeschreven onder KvK-nummer 73922706, btw «VAT_NUMBER».
-Contact: **support@ownpace.eu**.
+<!-- No address during the Alpha: the owner, 2026-09-28 (rec-address (c)). The address of
+     establishment returns here, and in the §15 form, before the first paid tier, or sooner if
+     the lawyer's pass asks for it (terms.md briefing, question 22). -->
 
-Deze voorwaarden vormen, samen met de privacyverklaring en eventuele aanvullende voorwaarden die
-we u erbij tonen, de overeenkomst tussen u en ons over de dienst. Tijdens de Alpha gelden ook de
-Voorwaarden voor de Alpha; waar die afwijken van deze voorwaarden, gaan die voor.
+Archico B.V., handelend onder de naam Ownpace, ingeschreven onder KvK-nummer 73922706,
+btw-nummer NL8597.110.06.B01. Wij corresponderen per e-mail: **support@ownpace.eu**.
 
-Voordat u uw eerste account koppelt, geven we u deze teksten, elk met zijn versienummer, en
-vragen we u ze te aanvaarden. We leggen vast welke versies u aanvaardde, en wanneer. U kunt ze op
-deze site altijd opslaan of afdrukken.
+Deze voorwaarden vormen, samen met de toezeggingen die de privacyverklaring u doet en eventuele
+aanvullende voorwaarden die we u erbij tonen, de overeenkomst tussen u en ons over de dienst.
+Tijdens de Alpha gelden ook de Voorwaarden voor de Alpha; waar die afwijken van deze
+voorwaarden, gaan die voor.
+
+Als u uw account aanmaakt, toont de app u deze teksten, elk met zijn versienummer, en vraagt u ze
+te aanvaarden. De app legt vast welke versie van elke tekst u aanvaardde, en wanneer. U kunt ze
+op deze site altijd opslaan of afdrukken.
 
 Wie alleen een voortgangslink volgt, of toegang geeft via een link die een klant stuurde, wordt
 daardoor geen partij bij deze voorwaarden. Aanvaardt u namens een organisatie, dan bevestigt u dat
@@ -77,15 +83,15 @@ dat u niet gemachtigd bent te verhuizen.** Voor accounts van een organisatie bet
 toestemming van die organisatie. Voor het privéaccount van iemand anders — van een gezinslid,
 bijvoorbeeld — betekent het diens toestemming.
 
-U moet 16 jaar of ouder zijn om een account te openen, en bent u jonger dan 18, dan hebt u
-toestemming nodig van een ouder of voogd.
+U moet 18 jaar of ouder zijn om een account te openen.
 
 ## 4. Uw gegevens, en wat wij ermee mogen
 
 Uw gegevens blijven van u. We verwerken ze uitsluitend om de verhuizingen uit te voeren die u
-instelt, zoals beschreven in de [privacyverklaring](./privacy.html), die deel uitmaakt van deze
-voorwaarden. Zakelijke klanten vallen daarnaast onder onze verwerkersovereenkomst — tot die
-hier gepubliceerd is, is die **op aanvraag beschikbaar** via support@ownpace.eu.
+instelt. De [privacyverklaring](./privacy.html) legt uit hoe; de toezeggingen die ze u doet,
+maken deel uit van deze overeenkomst. Zakelijke klanten vallen daarnaast onder onze
+verwerkersovereenkomst — tot die hier gepubliceerd is, is die **op aanvraag beschikbaar** via
+support@ownpace.eu.
 
 **Wij lezen uw e-mail, bestanden, contacten of agenda's niet**, anders dan in de nauwe gevallen
 die §4.5 en §6 van de privacyverklaring beschrijven: uw eigen verzoek om bepaalde items
@@ -211,13 +217,15 @@ vergoeding van schade die wij hebben veroorzaakt. Wij zijn niet aansprakelijk vo
 gegevens bij uw bron of doel dat wij niet hebben veroorzaakt.
 
 **Bent u zakelijke klant**, dan is onze totale aansprakelijkheid jegens u voor enige aanspraak
-beperkt tot **het bedrag dat u ons in de twaalf maanden vóór die aanspraak hebt betaald**. We
-zijn dan niet aansprakelijk voor indirecte of gevolgschade, of voor verlies van gegevens bij uw
-bron of doel dat wij niet hebben veroorzaakt.
+beperkt tot **het bedrag dat u ons in de twaalf maanden vóór die aanspraak hebt betaald**. Die
+grens geldt ook voor aanspraken over gegevensbescherming tussen u en ons. We zijn dan niet
+aansprakelijk voor indirecte of gevolgschade, of voor verlies van gegevens bij uw bron of doel
+dat wij niet hebben veroorzaakt.
 
 **Geen enkele beperking in dit hoofdstuk geldt** voor schade door opzet of bewuste roekeloosheid
-van ons of onze leiding, voor overlijden of letsel, voor uw recht op schadevergoeding onder de
-AVG, of voor andere aansprakelijkheid die de wet ons niet laat beperken.
+van ons of onze leiding, voor overlijden of letsel, voor de rechten die de AVG geeft aan de
+mensen van wie de persoonsgegevens zijn, of voor andere aansprakelijkheid die de wet ons niet
+laat beperken.
 
 **Houd uw bronaccount aan tot u uw doel hebt gecontroleerd.** Het product is er zo op gebouwd
 dat dat kan — dat is wat overstappen op uw eigen moment betekent — en het is de beste manier om
@@ -225,11 +233,11 @@ ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
 
 ## 11. Beëindigen
 
-<!-- NOT YET TRUE ON main: "Vanaf het moment dat uw account gesloten is, gebruikt niets de
-     toegang die u ons gaf nog." The sync tick (ACTIVE_MAPPINGS_SQL in
-     apps/worker/src/jobs/managed-sync-tick.ts) never reads the organisation's status, so a
-     closed organisation still gets new passes until the purge. The draft marker stays until the
-     closed-organisation fix is merged (terms.md briefing, precondition B). -->
+<!-- "Vanaf het moment dat uw account gesloten is, gebruikt niets de toegang die u ons gaf nog."
+     True on main since #1320 (d7868276, 0085 T2, 2026-09-28): the sync tick (ACTIVE_MAPPINGS_SQL
+     in apps/worker/src/jobs/managed-sync-tick.ts) skips a closed organisation, and a pass
+     already queued halts before it builds any credentials. This branch has not merged main
+     since that commit; merging it brings the fix (terms.md briefing, precondition B). -->
 
 **U** kunt uw account op elk moment sluiten: mail naar support@ownpace.eu. U kiest wanneer uw
 gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Wij bevestigen de sluiting, en de datum
@@ -242,14 +250,14 @@ vereist.
 **Wij** kunnen deze voorwaarden beëindigen met 30 dagen opzegtermijn, of onmiddellijk bij een
 ernstige schending van §5, nadat we u hebben gezegd waarom, zoals §5 beschrijft. Beëindigen wij
 ze tijdens een periode die u al hebt betaald, dan betalen we het deel terug dat u niet meer
-krijgt. Stoppen we met de dienst, dan krijgt u **minstens 90 dagen vooraf bericht en een export
-van alles wat de dienst over uw verhuizingen bewaart** — en de software is Apache-2.0, dus u kunt
-hem zelf blijven draaien.
+krijgt. Stoppen we met de dienst, dan krijgt u **minstens 90 dagen vooraf bericht en, als u erom
+vraagt, een export van wat er over uw verhuizingen is vastgelegd**: wat er is gekopieerd, wat
+niet, en waarom. De software is Apache-2.0, dus u kunt hem zelf blijven draaien.
 
 ## 12. Wijzigingen in deze voorwaarden
 
 We wijzigen deze voorwaarden alleen met een goede reden: een wijziging in de wet of in wat een
-aanbieder van ons vraagt, een wijziging van de dienst of de prijzen, beveiliging, of om ze
+aanbieder van ons vraagt, een nieuwe functie, een wijziging in onze kosten, beveiliging, of om ze
 duidelijker te maken. Een wezenlijke wijziging melden we per e-mail, minstens **30 dagen**
 voordat ze ingaat. We zeggen wat er verandert en waarom, en linken de nieuwe tekst.
 
@@ -293,7 +301,11 @@ kosteloos beëindigen voordat ze ingaat.
 
 Dit formulier alleen invullen en terugzenden als u de overeenkomst wilt herroepen.
 
-- Aan: Archico B.V., «REGISTERED_ADDRESS», e-mail: support@ownpace.eu
+<!-- No address during the Alpha (rec-address (c); §1's comment). The model form asks for the
+     trader's geographic address, and it returns here before the first paid tier. During the
+     Alpha this section does not apply (Alpha conditions §2). -->
+
+- Aan: Archico B.V., e-mail: support@ownpace.eu
 - Ik/wij deel/delen u hierbij mede dat ik/wij onze overeenkomst betreffende de levering van de
   volgende dienst herroep/herroepen: de beheerde Ownpace-dienst, voor het account op dit
   e-mailadres: …

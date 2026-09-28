@@ -12,6 +12,13 @@
   this agreement is part of no Alpha contract, and nothing here blocks the
   first invitation.
 
+  UNPUBLISHED UNTIL THE FIRST BUSINESS CUSTOMER (the owner, 2026-09-28,
+  dpa-unpublished-until-business (a)). If a business asks during the Alpha,
+  the answer is that businesses cannot join yet. Before the first business
+  customer, one pass: fix the known errors below, settle the lawyer's
+  questions, add a Version line, and publish it with the sub-processor list
+  (subprocessors.md, rec-subprocessors-url (a)).
+
   What changed in v0.2 (2026-09-28), from decided facts only:
 
   - Annex A's retention. Credentials are kept until the connection or the
@@ -27,54 +34,108 @@
   - Annex B: deletion at the target names auto-applying relocations
     (ADR-0031), as terms §2 does since v1.3.
 
-  Still to do before a business customer is admitted:
+  The owner's answers of 2026-09-28, applied the same day. v0.2 is edited in
+  place, as the other drafts are; the owner reviews it in the pull request.
 
+  - The parties (rec-address (c), fact-vat (a), fact-trademark (b)): Archico
+    B.V., trading as Ownpace, KvK 73922706, VAT NL8597.110.06.B01 (written as
+    the owner gave it), and email as the way to correspond, as privacy §1 and
+    terms §1 now say. No address: it returns before the first paid tier,
+    after the lawyer's pass (the comment beside the parties). The trade name:
+    the owner's option says the KvK extract lists it; not checked here.
+  - §4 (dpa-q5 (b)): special categories can also appear in the item names the
+    ledger keeps. Those names are protected like the rest, used only to show
+    which item a record is about, and deleted with the migration (item.
+    display_name and natural_key sit under the item table's row security and
+    go with the migration: packages/ledger/migrations/0050, and privacy §4.2
+    and §9). Annex A's rows say the same.
+  - §10 (dpa-q3 (c)): a short return clause. On request before deletion, the
+    controller gets the migration records first. The app has no export, so
+    this is made by hand. The owner: "We need to add a workplan that builds
+    this feature". Workplan 0155 builds it (docs/workplans/0155-the-
+    migration-records-handed-over.md).
+  - §11 (dpa-q4 (b)): written answers are free; the controller pays Ownpace's
+    reasonable costs of an on-site audit.
+  - §12 (dpa-q1 (c)): names Proton AG and the adequacy decision (Art. 45;
+    Commission Decision 2000/518/EC, as privacy §8 now cites it,
+    privacy-switzerland-wording (b)), and adds a clause: any later transfer
+    outside the EU gets notice under §8 and the standard contractual clauses
+    first. A new mail provider now means a change to this DPA, not only to
+    the list.
+  - §13 (dpa-q6 (a)): data-protection claims between the parties fall under
+    the terms' cap for business customers, as terms §10 now says; the data
+    subjects keep their rights in full.
+  - Annex B (dpa-q7 (b)): four items drafted for the lawyer: the machine,
+    administrative access, incidents, and copies. Each says only what the
+    repository or the owner's facts prove; "Open" marks the rest.
+  - §8 unchanged: general written authorisation, as drafted (dpa-q2 (a)).
+  - NetBird (dpa-netbird (a), dpa-netbird-agreement (a)): no wording change.
+    Recorded: NetBird GmbH ends TLS in front of the machine, and its
+    data-processing agreement is accepted (the owner, 2026-09-28; the date
+    of acceptance not given). The owner: "NetBird GmbH ("NetBird")
+    terminates the TLS, and uses WireGuard tunnel with the backend towards
+    the hosting provider." There is no hosting provider: the owner keeps and
+    runs the machine for Archico B.V. (subprocessors-machine-housed (a)).
+    NetBird is in Germany (the owner), so §8's and §12's sentences hold;
+    subprocessors.md lists it.
+
+  Still to do, in the one pass before a business customer is admitted:
+
+  - Annex B, the NetBird line (dpa-netbird (a)): connections to the service
+    are encrypted up to NetBird, which ends TLS and carries them on to our
+    machine through an encrypted tunnel (WireGuard).
   - Annex B against privacy §11 as its own pass words it, and against the
     code: row security binds the application's requests, not yet the
     background tasks (workplan 0138 moves them); the encryption key is held
     apart from the database, but on the same machine; logs can hold folder
     and file names, addresses and provider error text; no code was found
     that reports the negotiated TLS version.
-  - Annex A's held data: each item's name has been stored since 2026-09-18
-    (mail subject, event or task title, contact name, file path), with the
-    provider's error text, the sharing inventory (other people's addresses),
-    and the audit log.
-  - "After the account closes nothing uses them" holds once closing stops
-    new sync passes; on origin/main at 2026-09-28 it does not, and a fix is
-    queued.
+  - Annex B's drafted items: settle each "Open", or take its sentence out.
+  - §5 against privacy §4.5: the owner's direct access to the database is
+    not recorded (the owner confirmed privacy §4.5's sentence, 2026-09-28,
+    privacy-db-access-sentence (a)). §5 must say which access is logged.
+  - Annex A's held data, beside the item names it now has: the provider's
+    error text, the list of what was shared (other people's addresses; it
+    goes with its migration once privacy-sharing-list (b) is built), and the
+    audit log.
+  - "After the account closes nothing uses them": true on main since #1320
+    (d7868276, 2026-09-28); this branch has not merged main since.
   - The Status line becomes a Version line the site build can read (0139
     T2), and «SUBPROCESSORS_URL» loses its backticks, before 0086 T5
     publishes this.
-  - §8 and Annex C against privacy §7: the service in front of the machine
-    that ends TLS is NetBird GmbH, in Germany (the owner, 2026-09-28; the
-    entity name to confirm, README), a sub-processor in the EU, so §8's and
-    §12's sentences on the EU hold; subprocessors.md lists it.
+  - NetBird, for §8, §12 and subprocessors.md: record the date its agreement
+    was accepted, and where the agreement or the dashboard says the proxy
+    and its access log run. On 2026-09-28 app., id. and status.ownpace.eu
+    resolved to NetBird's cluster eu1.netbird.services; that the cluster is
+    in the EU is not confirmed. NetBird's own sub-processors are listed at
+    https://trust.netbird.io, which loads its content from a host the egress
+    proxy refuses; search results name Apollo, Auth0, AWS, Azure, Datadog
+    and GCP, with no locations. If the proxy or its log reaches a third
+    country, §12 names it.
+  - The export the return clause in §10 needs: workplan 0155 (the owner's
+    note on dpa-q3), before the first business customer.
 
-  Questions for the reviewing lawyer:
+  Questions for the reviewing lawyer. The owner chose on 2026-09-28; what is
+  left is the lawyer's reading.
 
-  1. §12 — we claimed no third-country transfers by us, ever, so no SCCs and
-     no transfer annex. Is stating the negative enough, or does the DPA need
-     the conditional machinery anyway? v0.2: the mail provider is in
-     Switzerland, on an EU adequacy decision. Is naming that basis enough,
-     and must §12 name the provider itself?
-  2. §8 — general written authorisation for sub-processors with a published
-     list and prior notice. Right choice for a service this small, or should
-     specific authorisation be offered as an option?
-  3. §10 — "return of data" is answered structurally: content was never
-     warehoused, and the controller already holds the only copy that exists,
-     in their own target account. Does that satisfy Art. 28(3)(g) as worded,
-     or does the clause need a formal return-on-request limb regardless?
-  4. §11 — the audit clause leans on the source being public plus written
-     answers, with on-site audits at cost. Proportionate and valid?
-  5. §4 — special categories: not sought, but a mailbox contains what it
-     contains; we transfer without inspecting. Is the incidental-transit
-     sentence the right way to carry Art. 9 exposure in a processor DPA?
-  6. §13 — liability follows the terms' cap. Confirm that referencing the
-     commercial agreement's cap is sound beside Art. 82's own allocation.
-     (Terms v1.3 keep the cap for business customers only, and exclude GDPR
-     compensation from it.)
-  7. Annex B mirrors privacy §11 and the codebase's actual measures. Anything
-     a controller's DPO will expect that is missing?
+  1. §12 (dpa-q1: (c), Proton named, a clause for later transfers). Is the
+     adequacy decision enough for Proton, and is the clause right? It says
+     standard contractual clauses for any later transfer, also to a country
+     with an adequacy decision.
+  2. §8 (dpa-q2: (a), general written authorisation). Confirm it for a
+     service this small. Are NetBird's and Proton's agreements "no weaker
+     than this DPA's"?
+  3. §10 (dpa-q3: (c), a return clause). Does it meet Art. 28(3)(g)?
+  4. §11 (dpa-q4: (b), the controller pays for an on-site audit). Are the
+     costs limited enough that the right to audit stays real?
+  5. §4 (dpa-q5: (b), reworded). Is this the right way to carry Art. 9 in a
+     processor DPA, now that subjects and titles are stored? The household
+     side is privacy's question on legal bases (privacy-bases-special-
+     category (a), left for the lawyer).
+  6. §13 (dpa-q6: (a), one cap). Confirm the cap on data-protection claims
+     between the parties beside Art. 82.
+  7. Annex B (dpa-q7: (b), four items drafted). Review them. Anything else a
+     controller's DPO will expect?
 -->
 
 # Data-processing agreement
@@ -82,12 +143,17 @@
 **Status:** draft v0.2 (for legal review — not yet published or offered; see `site/legal/README.md`)
 **Last updated:** 2026-09-28
 
-This data-processing agreement ("DPA") forms part of the agreement between
-Archico B.V., «REGISTERED_ADDRESS» ("Ownpace", the **processor**) and the business customer
-accepting the [terms of service](./terms.md) (the **controller**), for the processing of
-personal data described in Annex A. It applies to business customers only: for a private
-individual's migration, the [privacy policy](./privacy.md) §3 states the roles and carries
-these commitments directly.
+<!-- No address during the Alpha (the owner, 2026-09-28, rec-address (c)). It returns here, as in
+     privacy §1 and terms §1, before the first paid tier, after the lawyer's pass. This DPA is
+     offered to no one before then. -->
+
+This data-processing agreement ("DPA") forms part of the agreement between Archico B.V.,
+trading as Ownpace, registered under KvK number 73922706, VAT number NL8597.110.06.B01
+("Ownpace", the **processor**), and the business customer accepting the
+[terms of service](./terms.md) (the **controller**), for the processing of personal data
+described in Annex A. Ownpace corresponds by email: support@ownpace.eu. This DPA applies to
+business customers only: for a private individual's migration, the
+[privacy policy](./privacy.md) §3 states the roles and carries these commitments directly.
 
 ## 1. Subject matter, duration, nature and purpose
 
@@ -116,13 +182,17 @@ profiling, sale, or the training of any model; and no human reads it except on t
 controller's own request for specific items, for security or legal necessity, or as
 aggregated figures identifying nobody.
 
-## 4. Categories of data — Annex A, and one honest sentence
+## 4. Categories of data, and special categories
 
 The categories of data subjects and personal data are in Annex A. Ownpace does not seek
-special categories of data (Art. 9), but a mailbox contains what it contains: such data may
+special categories of data (Art. 9). But a mailbox contains what it contains. Such data may
 pass through the migration **in transit, uninspected**, to the target the controller chose.
-Ownpace applies the same protections to all content and never processes it beyond the
-transfer itself.
+
+It can also appear in the **name of an item** that the migration ledger keeps: a message's
+subject, an event's or task's title, a contact's name, a file's name or path. Ownpace protects
+those names like all other personal data it holds (Annex B). It uses them only to show the
+controller which item a record is about, and deletes them with the migration (Annex A).
+Ownpace does not process content beyond the transfer itself.
 
 ## 5. Confidentiality
 
@@ -172,35 +242,57 @@ personal data. The structure of the product answers most of this already: **the 
 content exists in exactly one place Ownpace can point to — the controller's own target
 account** — so "return" is a state the controller is already in, and what remains with
 Ownpace (credentials, the ledger) is **deleted**: credentials destroyed and grants revoked
-where the provider supports it, the ledger deleted in full. Ownpace's offboarding produces an
-**erasure receipt** recording what was removed. Invoices and the usage figures under them are
-retained only as EU or member-state law requires (Annex A).
+where the provider supports it, the ledger deleted in full.
+
+<!-- dpa-q3 (c), the owner, 2026-09-28. The app has no export yet: Ownpace makes these records
+     by hand from the database. Workplan 0155 builds the export (the owner's note), before the
+     first business customer. Terms §11 promises the same records if the service is
+     discontinued. -->
+
+**If the controller asks before the deletion, Ownpace first sends the controller its
+migration records**: what was copied, what could not be, and why. Ownpace then deletes
+everything as above.
+
+Ownpace's offboarding produces an **erasure receipt** recording what was removed. Invoices and
+the usage figures under them are retained only as EU or member-state law requires (Annex A).
 
 ## 11. Audits
 
 Ownpace makes available the information necessary to demonstrate compliance with Art. 28:
 written answers to reasonable audit questionnaires, the erasure receipts, the published
-security posture — and the source code itself, which is public. The controller (or a mandated
-auditor who is not a competitor) may audit on at least 30 days' notice, during business
-hours, at most once per year absent a concrete indication of non-compliance, each party
-bearing its own costs.
+security posture — and the source code itself, which is public. **These cost the controller
+nothing.**
+
+The controller (or a mandated auditor who is not a competitor) may also audit on site, on at
+least 30 days' notice, during business hours, at most once per year absent a concrete
+indication of non-compliance. For an on-site audit, the controller bears its own costs and
+**pays Ownpace's reasonable costs**.
 
 ## 12. Transfers outside the European Union
 
 Ownpace processes and sub-processes the controller's personal data in the **European Union**,
-with one exception. The provider that sends the service's mail, and hosts its support mailbox,
-is in **Switzerland**, which has an EU adequacy decision. That decision is the basis for that
-transfer, and no other transfer mechanism is relied on. Ownpace transfers none of the
-controller's personal data to any other third country. Writing to a migration **target** outside the EU happens only where the controller
-designated that target; that is the controller's own instruction and the controller's own
-transfer, shown before anything is written.
+with one exception. **Proton AG**, which sends the service's mail and hosts its support
+mailbox, is in **Switzerland**. The European Commission has decided that Switzerland protects
+personal data adequately (Art. 45 GDPR; Commission Decision 2000/518/EC). That decision is the
+basis for that transfer, and no other transfer mechanism is relied on. Ownpace transfers none
+of the controller's personal data to any other third country.
+
+**Before any later transfer outside the European Union**, Ownpace gives the controller notice
+under §8, and puts the standard contractual clauses adopted by the European Commission in
+place with the recipient.
+
+Writing to a migration **target** outside the EU happens only where the controller designated
+that target. That is the controller's own instruction and the controller's own transfer, shown
+before anything is written.
 
 ## 13. Liability, precedence, duration
 
-Liability follows the agreement the terms establish, including its cap, to the extent the
-GDPR's own allocation (Art. 82) permits. Where this DPA and the terms conflict about the
-processing of personal data, **this DPA prevails**. This DPA lasts as long as the processing
-does and §10 survives its end.
+Liability between the parties follows the terms, including their cap for business customers:
+the amount the controller paid Ownpace in the twelve months before the claim (terms §10). That
+cap **also applies to claims about data protection** between the parties. It does not limit
+the rights the GDPR gives data subjects (Art. 82), or any liability the law does not allow to
+be limited. Where this DPA and the terms conflict about the processing of personal data,
+**this DPA prevails**. This DPA lasts as long as the processing does and §10 survives its end.
 
 ## Annex A — details of the processing
 
@@ -208,11 +300,11 @@ does and §10 survives its end.
 |---|---|
 | **Data subjects** | The controller's users whose accounts are migrated; their correspondents; any person appearing in migrated content |
 | **Personal data — content in transit** | Mail (bodies, attachments, headers), contacts, calendar entries, files — transferred source → target, never warehoused |
-| **Personal data — held** | Account credentials for source and target (encrypted, Annex B); the migration ledger: source-assigned identifiers, hashes of identifier and content, sizes, folder and collection names, timestamps, outcomes; preflight counts and per-folder aggregates |
-| **Special categories** | Not sought; may occur inside migrated content and pass through uninspected (§4) |
+| **Personal data — held** | Account credentials for source and target (encrypted, Annex B); the migration ledger: source-assigned identifiers, hashes of identifier and content, sizes, folder and collection names, each item's name (a message's subject, an event's or task's title, a contact's name, a file's name or path), timestamps, outcomes; preflight counts and per-folder aggregates |
+| **Special categories** | Not sought; may occur inside migrated content and pass through uninspected, and may appear in the item names the ledger keeps (§4) |
 | **Processing operations** | Read source, write target, keep the ledger, report progress |
-| **Duration & retention** | Credentials: until the controller deletes the connection or the migration that holds them; after the account is closed nothing uses them, and they are destroyed when its data is erased, at the end of the period the controller chose. Ledger: deleted with the migration. Preflight counts: with the migration they were counted for. Invoices and underlying usage figures: 7 years (Dutch tax law) |
-| **Location** | European Union; the service's mail through a provider in Switzerland, on an EU adequacy decision (§12) |
+| **Duration & retention** | Credentials: until the controller deletes the connection or the migration that holds them; after the account is closed nothing uses them, and they are destroyed when its data is erased, at the end of the period the controller chose. Ledger, item names included: deleted with the migration. Preflight counts: with the migration they were counted for. Invoices and underlying usage figures: 7 years (Dutch tax law) |
+| **Location** | European Union; the service's mail through Proton AG, in Switzerland, on an EU adequacy decision (§12) |
 
 ## Annex B — technical and organisational measures
 
@@ -234,6 +326,40 @@ does and §10 survives its end.
 - A **forget-me** path removes a tenant's data and produces an erasure receipt; an
   end-of-service procedure exists in the repository before it is needed.
 - The software is **open source (Apache-2.0)**: the measures above are inspectable in code.
+
+<!-- Drafted 2026-09-28 for the lawyer's review (dpa-q7 (b), the owner). Each item says only
+     what the repository or the owner's facts prove. "Open" marks what is not proven: settle it,
+     or take the sentence out, before this DPA is offered. Sources: the machine, the owner's
+     answers of 2026-09-28 (subprocessors-machine-housed (a); the Netherlands); ports,
+     docs/managed-bring-up.md ("Which address a port answers on") and
+     scripts/a-port-published-on-purpose.unit.test.ts; one administrator, docs/incident-runbook.md
+     (0142 D1: "Nobody else is on the machine or the mesh"); direct database access, privacy §4.5
+     (privacy-db-access-sentence (a)); incidents, docs/breach-procedure.md and
+     docs/incident-runbook.md; the copy, privacy §9 and rec-copies (a), not built yet. -->
+
+**Drafted for review: the machine, administrative access, incidents, copies.**
+
+- **The machine.** The service runs on one machine in the Netherlands. Ownpace keeps and runs
+  it itself; no hosting company houses it or can log in to it. The database, the API's
+  internal port and the task runner's API answer only on the machine itself. Other ports
+  answer only where a public name, or the administrator's own private network, needs them.
+  *Open:* whether the machine's disks are encrypted, and how the place it stands in is
+  secured; that the live machine's settings match the setup guide on the ports.
+- **Administrative access.** One person administers the machine, the sign-in service and the
+  private network the machine is on. The support screens record each look at a customer's
+  account (§5). Direct access to the database, to run and repair the service, is not
+  recorded. *Open:* how the administrator's own accounts are protected, such as a second
+  factor, and key-only access to the machine.
+- **Incidents.** A written procedure covers a suspected personal-data breach: contain it, keep
+  the evidence, assess it, notify, and register every breach. For a business customer, the
+  notice goes to the controller (§7). A status page watches each part of the service, and can
+  mail an alert when a part stays down for three minutes. *Open:* the procedure is written for
+  the Alpha's households and has no step yet for notifying a controller; that the alert is
+  switched on for the live service.
+- **Copies.** There are no backups. Right before an update, one copy of the databases is made,
+  to undo a failed update. It stays on the machine, and is deleted once the update works, and
+  never later than 7 days. *Open:* the script that makes and deletes this copy is not built;
+  until it is, this is done by hand.
 
 ## Annex C — sub-processors
 

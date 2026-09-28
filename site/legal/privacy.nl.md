@@ -7,8 +7,10 @@
      provides otherwise; this policy has no language clause of its own. Whether
      that may stand for a Dutch-first Alpha is the briefing's question 17 and
      the terms briefing's question 15. The briefing for the reviewing lawyer
-     (what changed in each version, and the open questions) is the comment at
-     the top of privacy.md — it applies to both files. -->
+     (what changed in each version, the owner's answers of 2026-09-28 by
+     question id, and the open questions) is the comment at the top of
+     privacy.md — it applies to both files. The comments beside §1, §4.4,
+     §4.5, §7, §8 and §9 below are the same as there. -->
 
 # Privacyverklaring
 
@@ -28,12 +30,20 @@
 
 ## 1. Wie wij zijn
 
-Archico B.V., «REGISTERED_ADDRESS», KvK 73922706, btw «VAT_NUMBER».
+Archico B.V., handelend onder de naam Ownpace, KvK 73922706, btw NL8597.110.06.B01.
+
+<!-- The owner, 2026-09-28: the address is left out during the Alpha, and we correspond by email
+     (rec-address (c)). BW 3:15d asks a provider of an online service to show its geographic
+     address; the owner accepts that risk for an invite-only Alpha, and the KvK register shows
+     the address anyway. The address returns here, and in terms §1 and §15, before the first
+     paid tier, after the lawyer's pass. The trade name is added now (fact-trademark (b)); that
+     option says the KvK extract already lists Ownpace, which was not checked here. The VAT
+     number is written as the owner gave it (fact-vat (a)). -->
 
 **Contact over alles in deze verklaring, inclusief uw rechten onder de AVG:
-support@ownpace.eu.** Een mens leest wat daar binnenkomt. We streven naar antwoord binnen vijf
-werkdagen en zijn gebonden aan de termijn van één maand die de AVG stelt voor verzoeken over uw
-rechten.
+support@ownpace.eu.** Wij corresponderen per e-mail. Een mens leest wat daar binnenkomt. We
+streven naar antwoord binnen vijf werkdagen en zijn gebonden aan de termijn van één maand die de
+AVG stelt voor verzoeken over uw rechten.
 
 ## 2. Wat Ownpace doet, want dat bepaalt al het onderstaande
 
@@ -95,7 +105,7 @@ verhuizingen uitvoeren, allebei op dezelfde machine.
 We vragen de smalste toegang die elke aanbieder biedt. Waar een aanbieder niets smals biedt —
 het IMAP-eindpunt van Google accepteert alleen een toestemming die neerkomt op volledige toegang
 tot uw mail — zeggen we dat, in plaats van iets anders te suggereren. De connectors die uw
-e-mail, contacten en agenda's lezen, **kunnen helemaal niet naar de bron schrijven**.
+e-mail, contacten, agenda's en bestanden lezen, **kunnen helemaal niet naar de bron schrijven**.
 
 U kunt onze toegang op elk moment bij uw aanbieder intrekken, zonder het ons te vragen, en dan
 stopt de verhuizing.
@@ -119,9 +129,9 @@ bestandsnamen, de fouttekst van de aanbieder, en hashes die van inhoud zijn afge
 zeggen we liever ronduit dan het te omschrijven als "technische gegevens".
 
 Bij elke verhuizing bewaren we daarnaast welke mappen ze koppelt, hoe ver elke ronde kwam, de
-beslissingen die u over items nam, en de uitkomsten van haar controles. Bij uw organisatie
-bewaren we de distributielijsten die een verhuizing vond, met de adressen van hun leden, en de
-lijst van wat er gedeeld was (§4.6).
+beslissingen die u over items nam, de uitkomsten van haar controles, en de lijst van wat er
+gedeeld was (§4.6). Bij uw organisatie bewaren we de distributielijsten die een verhuizing vond,
+met de adressen van hun leden.
 
 ### 4.3 Wat een preflight bewaart
 
@@ -143,18 +153,26 @@ antwoorden. Over elke nieuwe aanvraag krijgen we een e-mail met uw adres en de o
 pakket die u noemde, maar zonder uw toelichting. Een aanvraag maakt nog geen account aan.
 
 **Uw inlogaccount.** Inloggen loopt via een inlogdienst die we zelf draaien, op dezelfde machine
-als de dienst. Uw inlogaccount staat daar, niet bij een ander bedrijf; §7 zegt waar uw verbinding
-ermee doorheen gaat. Het bevat uw voor- en achternaam, uw e-mailadres, een gebruikersnaam, een
-hash van uw wachtwoord (nooit het wachtwoord zelf) en uw sessies: wanneer u inlogde, en de
-browser en het IP-adres waarmee u inlogde. Die dienst houdt ook een geschiedenis bij van elke
-wijziging aan uw inlogaccount (§9). Iedereen kan op onze inlogpagina een inlogaccount aanmaken,
-maar dat opent niets zolang we die persoon niet hebben toegelaten. Mail van de inlogdienst aan u,
-zoals een inlogcode of een link om uw wachtwoord opnieuw in te stellen, gaat via onze
-e-mailaanbieder (§7).
+als de dienst. Uw inlogaccount staat daar, niet bij een ander bedrijf; §7 zegt waar uw
+verbinding ermee doorheen gaat. Tijdens de Alpha kunt u niet inloggen met een account van
+Google, Microsoft, Apple of GitHub. Het inlogaccount bevat uw voor- en achternaam, uw
+e-mailadres, een gebruikersnaam, een hash van uw wachtwoord (nooit het wachtwoord zelf) en uw
+sessies: wanneer u inlogde, en de browser en het IP-adres waarmee u inlogde. Die dienst houdt
+ook een geschiedenis bij van elke wijziging aan uw inlogaccount (§9). Iedereen kan op onze
+inlogpagina een inlogaccount aanmaken, maar dat opent niets zolang we die persoon niet hebben
+toegelaten. Mail van de inlogdienst aan u, zoals een inlogcode of een link om uw wachtwoord
+opnieuw in te stellen, gaat via onze e-mailaanbieder (§7).
+
+<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
+     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
+     fits in there and should record what time/version the accepted of what document"). The
+     first invitation waits for it. -->
 
 **Uw account bij ons.** Uw e-mailadres, het kenmerk dat onze inlogdienst u geeft, de organisatie
 waartoe u behoort (in de app heet de omgeving van uw huishouden een organisatie), uw rol daarin
-(tijdens de Alpha eigenaar of beheerder), en wanneer u werd uitgenodigd en wanneer u lid werd.
+(tijdens de Alpha eigenaar of beheerder), wanneer u werd uitgenodigd en wanneer u lid werd, en
+welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring u hebt
+aanvaard, en wanneer.
 
 **Tijdens de Alpha, uw Google-adres.** Wilt u een Google-account koppelen, dan geeft u ons het
 adres daarvan, en zetten wij het op de lijst van testgebruikers die Google voor onze app
@@ -174,9 +192,9 @@ de VIES-dienst van de Europese Commissie.
 onze e-mailaanbieder voor ons bewaart (§7). Dezelfde mailbox bewaart een kopie van de mail die de
 dienst verstuurt, zoals inlogcodes, voortgangsoverzichten en de berichten die u ons laat sturen.
 
-<!-- NOT YET TRUE ON main: the report by mail is 0130 T5, committed on its branch and not merged;
-     on main the form is offered only with ZAMMAD_URL and a token. True once T5 is merged and
-     live runs without ZAMMAD_URL (README, "Before the draft markers come off"). -->
+<!-- The report by mail, 0130 T5, is merged (#1318; apps/api/src/services/report-channel.ts).
+     True on live once live runs without ZAMMAD_URL (README, "Before the draft markers come
+     off"). -->
 
 **Een probleem melden.** Tijdens de Alpha stuurt *Een probleem melden* in het menu van de app uw
 melding als e-mail naar support@ownpace.eu, via onze e-mailaanbieder (§7). De mail bevat wat u
@@ -189,10 +207,20 @@ toegangslink of een voortgangslink bereikte, stuurt op dezelfde manier wat die p
 de gegevens van die link, zoals wie hem maakte en voor welke accounts, en alleen een adres als
 die persoon er een opgeeft.
 
+<!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
+     in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
+     NetBird as the caller. The visitor's address reaches our logs only once: live sets
+     TRUST_PROXY (the number of proxies in front of the API: NetBird and the web container's
+     nginx), so the API reads the address NetBird passes on; the app's nginx
+     (apps/web/nginx.conf.template, format ownpace_combined, $remote_addr) takes the real client
+     address from NetBird's header; and the website's nginx (deploy/compose/www-nginx.conf, no
+     log_format of its own) does the same. Check a log line of each on live (0132 T3 (d)). -->
+
 **Serverlogs** leggen vast dát er verzoeken waren, voor de app en voor deze website: het
-tijdstip, het IP-adres waarvan het verzoek kwam, de gevraagde pagina (zonder het geheime deel van
-een link), de pagina waar u vandaan kwam, wat uw browser over zichzelf zegt, en foutcodes. Logs
-zijn zo geschreven dat **toegangsgegevens en berichtinhoud er niet in voorkomen**. Vrij van
+tijdstip, uw IP-adres, dat NetBird aan ons doorgeeft (§7), de gevraagde pagina (zonder het
+geheime deel van een link), de pagina waar u vandaan kwam, wat uw browser over zichzelf zegt, en
+foutcodes. NetBird houdt daarnaast een eigen log bij van elk verzoek; §7 zegt wat daarin staat.
+Logs zijn zo geschreven dat **toegangsgegevens en berichtinhoud er niet in voorkomen**. Vrij van
 namen zijn ze niet. Mislukt een stap van een verhuizing, dan komt de fouttekst van de aanbieder
 zelf in het log van het proces dat de fout tegenkwam, naast een referentie, zodat we u ermee
 kunnen helpen; die tekst kan een map, een bestand of een adres noemen. En een aanvraag voor
@@ -214,10 +242,10 @@ verschijnen op geen enkel supportscherm — de schermen zijn zonder toegang daar
 is in de broncode na te lezen in plaats van aan te nemen. **Elke inzage wordt zelf vastgelegd** —
 wie keek, bij welk account, naar welk scherm en wanneer, en bij een zoekopdracht waarop werd
 gezocht — in een log dat de app niet kan veranderen. Wat het over uw account vastlegt, verdwijnt
-wanneer uw gegevens worden gewist; een zoekopdracht op adres en een download van het logboek
-worden zonder organisatie vastgelegd, en blijven daarna staan (§9). Vraag het ons, en we sturen u
-wat dat log over uw account vastlegt. Onze verwerkersovereenkomst (§5 daar) doet organisaties
-dezelfde toezegging.
+wanneer uw gegevens worden gewist. Een zoekopdracht op adres en een download van het logboek
+worden zonder organisatie vastgelegd; die blijven daarna staan, en worden 12 maanden na het
+vastleggen verwijderd (§9). Vraag het ons, en we sturen u wat dat log over uw account vastlegt.
+Onze verwerkersovereenkomst (§5 daar) doet organisaties dezelfde toezegging.
 
 **Buiten die schermen.** Wie de machine beheert, kan technisch bij de database, en bij de sleutel
 die uw toegangsgegevens beschermt. Die toegang is er om de dienst draaiend te houden en te
@@ -251,8 +279,8 @@ Een verhuizing raakt mensen die zich nooit bij ons hebben aangemeld. Dit bewaren
   support@ownpace.eu per soort item dat met hen gedeeld was, zoals agenda's of bestanden, zodra u
   voor die soort bent overgestapt, met uw toelichting en de namen van de items; en nog eens
   alleen als u die opnieuw laat versturen. Van elk van die e-mails blijft een kopie in onze
-  supportmailbox staan tot 6 maanden nadat die is verstuurd (§4.5, §9). De lijst blijft bestaan
-  tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert.
+  supportmailbox staan, zo lang als §9 zegt (§4.5). De lijst verdwijnt wanneer u de verhuizing
+  verwijdert waar die bij hoort, of wanneer uw gegevens worden gewist.
 - **Mensen die u uitnodigt** in uw organisatie: hun adres, hun rol, en of ze lid werden.
 - **Mensen die een link melden** die ze kregen: zie §4.5.
 - **Correspondenten, en iedereen verder in uw e-mail, contacten en agenda's**: alleen wat §4.2
@@ -315,7 +343,8 @@ Google in de testfase van Google staat, laat Google een account alleen koppelen 
 de lijst van testgebruikers van die app staat. Voordat u een Google-account koppelt, geeft u ons
 daarom het adres, en zetten wij het op die lijst bij Google. Dat geldt ook voor het
 Google-account van een gezinslid aan wie u een toegangslink stuurt. Wij halen uw adres van de
-lijst wanneer uw gegevens worden gewist (§10 van de Voorwaarden voor de Alpha). In de testfase
+lijst wanneer uw gegevens worden gewist. Het adres van een gezinslid gaat er tegelijk af, of
+eerder als u of die persoon erom vraagt (§10 van de Voorwaarden voor de Alpha). In de testfase
 beëindigt Google een koppeling ook na ongeveer zeven dagen; u koppelt dan opnieuw (§9 daar).
 
 U kunt de toegang van Ownpace tot uw Google-account op elk moment intrekken op
@@ -327,21 +356,29 @@ app-wachtwoord te verwijderen dat u hebt aangemaakt.
 Tijdens de Alpha draaien de dienst, de databases, onze inlogdienst en deze website op een
 machine die we zelf beheren, in Nederland.
 
-<!-- The owner, 2026-09-28 (0139 T0 fact 1): "app/site hosting is in The Netherlands, through
-     NetBird (Germany) delivers the forward proxy". Read as the service in front of the machine
-     that ends TLS for app., id., status. and www.ownpace.eu (managed.yml, "netbird terminating
-     TLS on 443"). TO CONFIRM before publication (README): the entity name, NetBird GmbH, from
-     NetBird's terms or data-processing agreement (it was read from search results of NetBird's
-     terms, not from netbird.io itself); that agreement in place for the account; where the
-     proxy cluster the names point to runs; and whether its access log, which records the
-     visitor's IP address and the full page asked for, is on (privacy briefing). -->
+<!-- The machine (subprocessors-machine-housed (a), the owner, 2026-09-28): no company houses it
+     or can reach it; the owner keeps and runs it for Archico B.V., in the Netherlands. So there
+     is no hosting row.
+     NetBird (dpa-netbird-agreement (a), the owner, 2026-09-28): its data-processing agreement is
+     accepted. The owner's note: "NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard
+     tunnel with the backend towards the hosting provider." Read as: to our machine, which no
+     hosting company holds (above). The owner points to
+     https://trust.netbird.io for its sub-processors and to https://netbird.io/terms §3.1, which
+     lists the reverse proxy. Neither could be read from here: the trust portal loads its content
+     from a host the egress proxy refuses, and netbird.io is refused. Search results quote §3.1
+     as offering "TLS termination" and as not guaranteeing "specific geographic routing". TO
+     RECORD before publication (0139 T0): the date the agreement was accepted, and where it or
+     the dashboard says the proxy runs. The "Where" column keeps Germany (EU), from the owner's
+     first answer, until then; if the proxy or its log runs outside the EU, §8 names it. The
+     row's last sentence, on NetBird's own log, is from NetBird's documentation
+     (ops-trust-proxy: the row gains it in every option). -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
-| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen | Duitsland (EU) |
+| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt een eigen log bij van elk verzoek, met het IP-adres en de gevraagde pagina, ook het geheime deel van een link | Duitsland (EU) |
 | Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen, en waar een kopie van elke mail van de dienst wordt bewaard (§4.5) | Zwitserland, buiten de EU (§8) |
 
-De actuele lijst staat op «SUBPROCESSORS_URL». Verhuist de dienst na de Alpha naar een
+Deze tabel is de volledige lijst van onze subverwerkers. Verhuist de dienst na de Alpha naar een
 hostingaanbieder, dan noemen we die hier, en laten we het u weten, voordat er gegevens van u
 naartoe gaan (§11 van de Voorwaarden voor de Alpha). Zakelijke klanten worden geïnformeerd
 voordat een subverwerker wordt toegevoegd, met het recht van bezwaar zoals vastgelegd in de
@@ -365,14 +402,24 @@ daartoe verplicht.
 
 ## 8. Waar het staat, en waar niet
 
+<!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-telemetry (a): switch it off everywhere).
+     The negative below holds once the task runner's usage reports are off
+     (TRIGGER_TELEMETRY_DISABLED on live and the test stack) and Zitadel, ClickHouse and MinIO
+     are checked and switched off too. -->
+
 De dienst draait in de **Europese Unie**. Eén partij in de tabel hierboven zit daarbuiten: onze
 e-mailaanbieder, Proton AG, zit in **Zwitserland**. De Europese Commissie heeft besloten dat
-Zwitserland persoonsgegevens passend beschermt, dus de AVG vraagt voor die doorgifte geen extra
-waarborg. Tijdens de Alpha is er nog één stap, waar u zelf om vraagt: om u een Google-account te
-laten koppelen, zetten wij het adres daarvan op de lijst van testgebruikers die Google voor onze
-app bijhoudt (§6). **Verder, en afgezien van een doel buiten de EU dat u kiest (hieronder), vindt
-er door ons geen doorgifte van uw gegevens plaats naar de Verenigde Staten of enig ander derde
-land.**
+Zwitserland persoonsgegevens passend beschermt (art. 45 AVG; Beschikking 2000/518/EG van de
+Commissie), dus de AVG vraagt voor die doorgifte geen extra waarborg. Tijdens de Alpha is er nog
+één stap, waar u zelf om vraagt: om u een Google-account te laten koppelen, zetten wij het adres
+daarvan op de lijst van testgebruikers die Google voor onze app bijhoudt (§6). **Verder, en
+afgezien van een doel buiten de EU dat u kiest (hieronder), vindt er door ons geen doorgifte van
+uw gegevens plaats naar de Verenigde Staten of enig ander derde land.**
+
+Twee dingen die u zelf kiest, kunnen in de Verenigde Staten terechtkomen. Meldt u een
+kwetsbaarheid via ons formulier op GitHub (§11), dan bewaart GitHub uw melding, in de VS. En
+staat uw mailbox, of die van iemand aan wie u ons laat schrijven, bij een Amerikaanse aanbieder,
+dan wordt onze mail daar afgeleverd.
 
 Dat is geen formaliteit maar de kern van het product: wie weggaat bij een Amerikaanse aanbieder,
 heeft weinig aan een verhuistool die zelf in de VS draait. Daarom draait de onze daar niet.
@@ -382,60 +429,73 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 
 ## 9. Hoe lang we het bewaren
 
-<!-- NOT YET TRUE ON main, so the draft marker stays until each holds (README, "Before the draft
-     markers come off"):
-     - Toegangsgegevens, "gebruikt niets die toegang meer": the sync tick (ACTIVE_MAPPINGS_SQL
-       in apps/worker/src/jobs/managed-sync-tick.ts) never reads the organisation's status, so
-       a closed organisation still gets new passes until the purge. The fix is the
-       closed-organisation task, not merged.
-     - De kopie vlak voor een update, "nooit langer dan 7 dagen": the copy of the service's
-       databases is taken and deleted by hand (stand-up-live.sh: "no script takes it or deletes
-       it yet"), and deploy/compose/dump-idp.sh keeps every dump of the sign-in service's
-       database ("none is ever overwritten"). The owner, 2026-09-28: "deletes only after procen
-       successfull upgrade" (README).
+<!-- NOT YET TRUE, so the draft marker stays until each holds (README, "Before the draft
+     markers come off"). The owner's choices of 2026-09-28 are named by their question id.
+     - Toegangsgegevens, "gebruikt niets die toegang meer": true on main since #1320 (d7868276,
+       a closed organisation gets no pass), which this branch has not merged yet.
+     - De kopie vlak voor een update (rec-copies (a)): one copy per update, deleted once the
+       update is proven (deploy-live.sh logged it as "took", one pass completed, the hold is
+       lifted), and never past day 7; not proven by day 6 means rolling back from the copy. Not
+       built: one script and one directory for the copy, a delete step, a daily 6-day backstop,
+       and dump-idp.sh writing into that directory or refusing on live. Until then the copy is
+       taken and deleted by hand, and dump-idp.sh keeps every dump ("none is ever
+       overwritten").
+     - Vastleggingen van de achtergrondtaken: the drill sentence is gone (rec-drill (a)), but
+       box-duties.sh still runs `trigger-version.sh drill` on live, keeping 7 dumps, until that
+       duty is taken off live. "Uiterlijk tot het einde van de Alpha" (privacy-task-records (a))
+       is one step in the end-of-Alpha routine, not written yet.
+     - De lijst van wat er gedeeld was, "verdwijnt wanneer u de verhuizing verwijdert" (§4.2,
+       §4.6; the owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
+       share_grant rows. A small code change; until it lands, the list stays until erasure.
+     - Een zoekopdracht op adres en een download van het logboek, "12 maanden na het
+       vastleggen verwijderd" (privacy-search-records (a)): nothing deletes them yet. A small job
+       with the machine's daily duties; the app still cannot change the log.
+     - De geschiedenis van de inlogdienst, "zolang we deze inlogdienst draaien"
+       (privacy-signin-history (a), the owner: "still needs to be checked"): NOT CHECKED. Remove
+       a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
+       entries go, the row says instead: "Removed with your sign-in account." / "Verwijderd met
+       uw inlogaccount."
      - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt":
-       nothing removes one yet. 0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built.
-       Until T8 is built, either the owner removes these by hand in the sign-in service's
-       console, or the row waits; the owner chooses (README).
-     - Een kopie van de eigen mail van de dienst, "6 maanden nadat die is verstuurd": nothing
-       prunes the Sent folder of support@ownpace.eu at Proton; no script or setting here does
-       it. Until something does, it is pruned by hand at 6 months, or by a Proton setting if
-       Proton has one (not checked). The 6 months is our reading of the owner's "Until resolved
-       + 6 months" for mail that answers no question; the owner confirms it (README).
-     - Serverlogs: the row holds with Docker's default log driver, which keeps a container's
-       output until the container is removed (0134 open question 6 (a)). If the machine logs to
-       journald instead, as docs/managed-bring-up.md's steps for live still ask, the row is a
-       period, not this criterion (README). -->
+       nothing removes one yet. The owner chose a daily script, built before the first tester
+       (ops-unadmitted-signin-cleanup (a)): 0135 T8, deploy/compose/idp-strays.sh, with the
+       machine's daily duties. The row waits for it.
+     - Supportmail, and the copies of the service's own mail (privacy-sent-mail-copies (b):
+       "until resolved, then 6 months", as it stands): nothing prunes the mailbox or its Sent
+       folder at Proton; it is done by hand. A mail that answers no question has no clear end
+       date under this rule (a question for the lawyer, briefing question 20).
+     - Serverlogs: the row holds with Docker's default log driver (ops-log-driver (a), the
+       owner: "needs checking"). Check the machine (docker info --format
+       '{{.LoggingDriver}}'), undo a journald setting if it is there, and take the journald step
+       out of docs/managed-bring-up.md. -->
 
 | Wat | Bewaard |
 |---|---|
 | Toegangsgegevens | Tot u ze verwijdert. De toegang van een koppeling verdwijnt wanneer u die koppeling verwijdert; de app staat dat toe zodra geen verhuizing haar meer gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u die verhuizing verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Een afgeronde verhuizing houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Sluit u uw account, dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist. Telkens trekken we de toegang ook in bij de aanbieder, waar die dat toestaat. |
-| Het verhuisregister (§4.2), en wat elke verhuizing daarnaast bewaart | Tot u de verhuizing verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
+| Het verhuisregister (§4.2), en wat elke verhuizing daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de verhuizing verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
 | Preflight-tellingen | Bij de verhuizing waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
-| Wat bij uw organisatie hoort en niet bij één verhuizing: de leden en uitnodigingen, de distributielijsten die een verhuizing vond, de lijst van wat er gedeeld was (§4.6), en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert die ze vond. |
+| Wat bij uw organisatie hoort en niet bij één verhuizing: de leden en uitnodigingen, de distributielijsten die een verhuizing vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert die ze vond. |
 | Het overzicht van elke ronde: wanneer die liep, en wat die telde | Tijdens de Alpha: tot uw gegevens worden gewist. |
 | De logregels van een ronde | 60 dagen. |
 | De eigen fouten en waarschuwingen van de app (een categorie en een referentie, geen tekst) | 30 dagen. |
-| Uw account, uw organisatie en uw inlogaccount | Zolang uw account bestaat. Sluit u het, dan kiest u wanneer uw gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Op die dag halen we ook uw inlogaccount uit onze inlogdienst, en uw Google-adres van de lijst van testgebruikers bij Google (§6); dat zijn stappen die we met de hand doen. |
-| De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren, en uw inlogmomenten | Er is nog geen termijn vastgesteld. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
+| Uw account, uw organisatie en uw inlogaccount | Zolang uw account bestaat. Sluit u het, dan kiest u wanneer uw gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Op die dag halen we ook uw inlogaccount uit onze inlogdienst, en uw Google-adres en dat van een gezinslid van de lijst van testgebruikers bij Google (§6); dat zijn stappen die we met de hand doen. |
+| De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren, en uw inlogmomenten | Zolang we deze inlogdienst draaien, omdat die ze niet kan verwijderen. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
 | Uw aanvraag voor toegang (§4.4) | Zolang die openstaat. Afgewezen: verwijderd 30 dagen na ons besluit. Toegekend: bewaard bij uw account, en daarmee gewist. |
 | Een inlogaccount dat iemand op onze inlogpagina aanmaakte maar dat we nooit hebben toegelaten, en dat dus niets opent (§4.4) | 30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog openstaat. |
-| Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden; een kopie van de eigen mail van de dienst, 6 maanden nadat die is verstuurd. Dan verwijderd uit de mailbox. |
-| De vastlegging van wat wij bij uw account inzagen (§4.5) | Tot uw gegevens worden gewist. Wat zonder organisatie wordt vastgelegd, blijft daarna staan: een zoekopdracht op adres, en een download van het logboek van wie wat deed. |
-| De kopie vlak voor een update | Tot de volgende update gelukt is, en nooit langer dan 7 dagen. Hetzelfde geldt voor de kopie van de database van onze inlogdienst, gemaakt voordat die dienst wordt bijgewerkt. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |
-| Vastleggingen van de achtergrondtaken die uw verhuizingen uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Er is nog geen termijn vastgesteld. Ze worden niet verwijderd wanneer uw gegevens worden gewist. Elke dag wordt er een kopie van gemaakt, om te controleren dat zo'n kopie terug te zetten is, en de nieuwste zeven kopieën worden bewaard. |
+| Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden. Hetzelfde geldt voor de kopieën van de eigen mail van de dienst. Dan verwijderd uit de mailbox. |
+| De vastlegging van wat wij bij uw account inzagen (§4.5) | Tot uw gegevens worden gewist. Wat zonder organisatie wordt vastgelegd, blijft daarna staan: een zoekopdracht op adres, en een download van het logboek van wie wat deed. Die worden 12 maanden na het vastleggen verwijderd. |
+| De kopie vlak voor een update | Tot vaststaat dat de update waarvoor ze is gemaakt werkt, en nooit langer dan 7 dagen. Ze bevat de database van de dienst en die van onze inlogdienst; vóór een upgrade van het systeem dat de achtergrondtaken uitvoert, ook de database daarvan. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |
+| Vastleggingen van de achtergrondtaken die uw verhuizingen uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Uiterlijk tot het einde van de Alpha: dan beginnen de achtergrondtaken met een lege geschiedenis. Ze worden niet verwijderd wanneer uw gegevens worden gewist. |
 | Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen; voor een achtergrondtaak wanneer die klaar is. Er is geen vaste termijn. |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
 
-**Tijdens de Alpha maken we geen back-ups**, op de kopieën vlak voor een update en de dagelijkse
-kopieën van de vastleggingen van de achtergrondtaken na, allebei in de tabel hierboven (§6 van de
-Voorwaarden voor de Alpha). Tijdens de Alpha sluiten we uw account binnen 7 dagen na uw verzoek,
-en laten we u weten op welke datum uw gegevens worden gewist (§10 daar). Het wissen verwijdert
-uit de database van de dienst alles wat deze tabel bewaart tot uw gegevens worden gewist; uw
-inlogaccount en uw Google-adres volgen dezelfde dag, met de hand. Wat volgens de tabel na het
-wissen blijft, blijft zoals die zegt. Verder blijft er alleen een vastlegging dat er gewist is,
-met datums en aantallen en zonder naam of adres. Stoppen we ooit met de dienst, dan staat in §11
-van de servicevoorwaarden wat u krijgt.
+**Tijdens de Alpha maken we geen back-ups**, op de kopie vlak voor een update na, in de tabel
+hierboven (§6 van de Voorwaarden voor de Alpha). Tijdens de Alpha sluiten we uw account binnen 7
+dagen na uw verzoek, en laten we u weten op welke datum uw gegevens worden gewist (§10 daar).
+Het wissen verwijdert uit de database van de dienst alles wat deze tabel bewaart tot uw gegevens
+worden gewist; uw inlogaccount en de Google-adressen op de lijst bij Google volgen dezelfde dag,
+met de hand. Wat volgens de tabel na het wissen blijft, blijft zoals die zegt. Verder blijft er
+alleen een vastlegging dat er gewist is, met datums en aantallen en zonder naam of adres.
+Stoppen we ooit met de dienst, dan staat in §11 van de servicevoorwaarden wat u krijgt.
 
 ## 10. Uw rechten
 
@@ -456,7 +516,8 @@ hebben voor een rechtsvordering.
 
 **Overdraagbaarheid verdient een opmerking.** Dit product bestaat juist omdat uw eigen gegevens
 tussen aanbieders verplaatsen moeilijker is dan het zou moeten zijn. Wilt u uw gegevens uit
-Ownpace, dan hebt u ze al — ze staan in het doelaccount waar we ze naartoe hebben geschreven.
+Ownpace, dan hebt u ze al — ze staan in het doelaccount waar we ze naartoe hebben geschreven. Wat
+wij zelf over u bewaren (§4), sturen we u op verzoek in een gangbaar bestandsformaat.
 
 U kunt een klacht indienen bij een toezichthouder, in het bijzonder in het land waar u woont of
 werkt. In Nederland is dat de **Autoriteit Persoonsgegevens** (autoriteitpersoonsgegevens.nl).
@@ -490,14 +551,18 @@ anderen tot hun accounts. We zullen u niet bedreigen omdat u het meldt.
 De dienst richt zich niet op kinderen onder de 16 en we maken niet bewust accounts voor hen
 aan. Een gezinsverhuizing die een ouder instelt kan uiteraard het account van een kind
 verhuizen — dat is het huishoudelijke geval dat §3 beschrijft, en de ouder blijft degene die
-de verhuizing instelt.
+de verhuizing instelt. Een toegangslink voor een kind onder de 16 rondt de ouder samen met het
+kind af. Het Google-adres van het kind komt op verzoek van de ouder op de lijst van
+testgebruikers bij Google (§6).
 
 ## 13. Wijzigingen
 
 Wezenlijke wijzigingen melden we per e-mail aan accounthouders, minstens **30 dagen** voordat
-ze ingaan, en elke versie van deze verklaring blijft beschikbaar op «PRIVACY_HISTORY_URL», zodat
-u kunt zien wat er is veranderd. Het versienummer en de datum bovenaan deze pagina laten zien
-welke versie geldt.
+ze ingaan, en elke versie van deze verklaring blijft beschikbaar in
+[haar geschiedenis op GitHub](https://github.com/Robbes/Ownpace/commits/main/site/legal/privacy.nl.md),
+zodat u kunt zien wat er is veranderd. Die geschiedenis toont ook concepten die nooit zijn
+gepubliceerd; hun versieregel zegt dat. Het versienummer en de datum bovenaan deze pagina laten
+zien welke versie geldt.
 
 Tijdens de Alpha bepalen de Voorwaarden voor de Alpha (§11 daar) hoe u hoort wat erna komt, ook
 een verhuizing naar een andere hostingaanbieder: minstens 7 dagen van tevoren, per e-mail. Er

@@ -9,74 +9,77 @@
 
   - The lawyer's pass (workplan 0139 T1) is deferred by the owner: "legal:
     keep as is for now" (2026-09-27). The owner took the Alpha conditions
-    (alpha.md) as version 1.0 without it.
+    (alpha.md) as version 1.0 without it. They stay 1.0 while they are edited,
+    until the first tester accepts them (alpha-version-number (a)).
   - The Alpha conditions are an addendum to these terms. Their §2 sets aside
     §6, §7, §8, §15, and the notice periods in §11's second paragraph, during
-    the Alpha, and says the conditions prevail where they differ. They cite
-    §6 to §11 and §15 by number, and "§11, second paragraph"; their briefing
-    also discusses §12 and §13. So no section
-    and no paragraph of §11 moves.
+    the Alpha, and says the conditions prevail where they differ. It keeps
+    §11's export. For the new conditions after the Alpha, their 7 days
+    replace §12's 30 days, and their §2 says so (alpha-s11-notice (a)). Their
+    §4 says that §10 still applies (alpha-s4-liability (a)). They cite §6 to
+    §12 and §15 by number, and "§11, second paragraph". So no section and no
+    paragraph of §11 moves.
   - The Alpha is free, invite-only, and for households only: "tester:
     households only for now." (0139 open question 6, 2026-09-28). Every tester
     takes part as a consumer, and the Alpha is in Dutch (0139 D2); where
     testers live is not recorded, and questions 14 and 15 turn on it. The
     data-processing agreement is part of no Alpha contract.
-  - The owner answered the questions put to them the same day (0139 Status
-    quotes each answer in full). Final or the lawyer: "park them in PR that
-    i will review." So these terms stay a draft, in the pull request, for
-    the owner's own review; the lawyer's pass stays deferred, and the Version
-    line changes only when the owner approves the text. The terms' answers
-    are under questions 12, 13, 15 and 22 and old question 9.
+  - On 2026-09-28 the owner answered all 71 questions on the answer page. This
+    revision applies every answer that names the terms. Each question below
+    says which answer settled it: its id on the answer page and the option
+    chosen, for example rec-address (c). Final or the lawyer: "park them in
+    PR that i will review." So these terms stay a draft, in the pull request,
+    for the owner's own review; the lawyer's pass stays deferred, and the
+    Version line changes only when the owner approves the text. Nothing was
+    published, so the version stays 1.3, edited in place.
 
   Before the draft marker comes off the Version line, these must be true, or
   the sentence that relies on them must change:
 
-  A. §1: before the first connection we give the tester these texts with
-     their version numbers and ask them to accept, we keep a record of which
-     versions and when, and they can be saved or printed from this site. The
-     wording names no screen, so it holds for 0139 T3 (a screen and a table;
-     proposed, not built) and for a route the owner runs by hand, such as the
-     texts sent by mail and accepted in a reply the owner keeps. One of the
-     two must exist before the first invitation (question 12), and the texts
-     must be served: live's WWW_LIVE is false, and T10 does not yet render the
-     Alpha conditions. Today neither exists.
+  A. §1: when a tester creates their account, the app shows these texts with
+     their version numbers and asks them to accept. It records which version
+     of each text they accepted, and when. The texts can be saved or printed
+     from this site. The owner chose this route (terms-acceptance-route (b)):
+     "People that are accepted in the Alpha do need to create a login for the
+     app, accepting fits in there and should record what time/version the
+     accepted of what document." The screen is 0139 T3: proposed, not built.
+     Connecting an account is refused until the tester has accepted. The
+     first invitation waits for that code and its tests. The texts must also
+     be served: live's WWW_LIVE is false, and the site build does not yet
+     render the Alpha conditions (T10). Today neither exists.
   B. §11: "From the moment your account is closed, nothing uses the access you
-     gave us." The Alpha conditions §10 promise the same. On main at 683525c8,
-     closing an organisation does not stop new sync passes: ACTIVE_MAPPINGS_SQL
-     (apps/worker/src/jobs/managed-sync-tick.ts) never reads the
-     organisation's status, and closeAccount cancels only the runs in flight.
-     The fix is the closed-organisation task, not yet merged. A comment beside
-     §11 says so in both languages; the sentence stays, because it is the
-     owner's decision (0139 open question 3 (a)) and the fix makes it true.
-  C. §6 and §7 name product steps that do not exist yet: the button to a paid
-     tier that says the order carries an obligation to pay; the confirmation
-     before the first migration, the confirming email, and "Withdraw from
-     contract" in the app. Both sections are set aside during the Alpha, but
-     they are rendered during it, so a tester can read of an order button, a
-     confirmation and a withdrawal function that are not there. OWNER: build
-     them before any tier is paid, or keep these sentences out of the
-     published text until then.
-  D. Resolved in this revision: §13's language rule is v1.2's again ("the
-     English version governs, except where mandatory consumer law provides
-     otherwise"), which is what the note above the Dutch privacy and terms
-     pages says (translationNote in site/copy.mjs). The first draft of 1.3
-     made both texts count and applied the reading more favourable to the
-     customer, which contradicted that note on the rendered Dutch page. That
-     rule is now a proposal, in question 15.
-  E. Done: privacy 1.2 §4.5's last paragraph states the three reading
-     exceptions for every provider, not only Google's.
-  F. Done: the README's "What must stay true" bullet names both switches.
+     gave us." The Alpha conditions §10 promise the same. True on main since
+     #1320 (d7868276, 0085 T2, 2026-09-28): the sync tick skips a closed
+     organisation, and a pass already queued halts before it builds any
+     credentials. This branch has not merged main since that commit; the
+     comment beside §11 says so in both languages.
+  C. Settled (terms-unbuilt-paid-steps (a)): §6 and §7 keep the order button,
+     the confirmation before the first migration, the confirming email and
+     "Withdraw from contract" in the app, though none of them is built. They
+     are built before the first paid tier. Both sections are set aside during
+     the Alpha, but they are rendered, so a tester can read of steps that are
+     not there. This is a condition for the first paid tier, no longer for
+     the draft marker.
+  D, E, F. Done: §13's language rule is v1.2's again (question 15 keeps the
+     alternatives); privacy 1.2 §4.5 states the three reading exceptions for
+     every provider; the README's "What must stay true" names both switches.
 
-  What changed in v1.3 (2026-09-28), in both languages:
+  What changed in v1.3 (2026-09-28), in both languages. The owner's answers
+  of 2026-09-28 are folded in, each named by its id:
 
-  1. §1: the second paragraph was "By creating an account or using the
-     service you accept these terms". It now says the contract is these
-     terms, the privacy policy and any additional conditions shown with them;
-     that during the Alpha the Alpha conditions also apply and prevail; that
-     we give the texts, with their versions, before the first connection, ask
-     for acceptance and keep a record of it, by whatever route (precondition
-     A); and that a person who
-     only follows a progress link, or grants access through a link a customer
+  1. §1: the first paragraph names Archico B.V., trading as Ownpace
+     (fact-trademark (b)), its KvK number and its VAT number (fact-vat (a)).
+     It gives no address during the Alpha (rec-address (c)), and says we
+     correspond by email; a comment beside it says the address returns. The
+     second paragraph was "By creating an account or using the service you
+     accept these terms". It now says the contract is these terms, the
+     commitments the privacy policy makes (terms-s4-privacy-part-of-contract
+     (b)) and any additional conditions shown with them; that during the
+     Alpha the Alpha conditions also apply and prevail; that the app shows
+     the texts, with their versions, when the account is created, asks for
+     acceptance, and records the version of each text and the time
+     (terms-acceptance-route (b); precondition A); and that a person who only
+     follows a progress link, or grants access through a link a customer
      sent, does not become a party. Why: our reviewer reads standard terms as
      binding a consumer only if they could read them before or when the
      contract was made; "using the service" also reached people who never
@@ -92,12 +95,14 @@
   3. §3: the customer answers for what they do under the account, and for
      sign-in details they shared or did not protect with reasonable care;
      what goes wrong on our side, including the sign-in service we run
-     ourselves, is ours. It said the customer is responsible "for what
-     happens under your account". New: 16 or older, and a parent's or
-     guardian's permission under 18, which matches privacy §12's 16 (question
-     20).
-  4. §4: the reading exceptions point at privacy §4.5 and §6, and name a
-     screenshot or text sent with a problem report (precondition E).
+     ourselves, is ours (kept: terms-s3-responsibility (a)). It said the
+     customer is responsible "for what happens under your account". New: 18
+     or older (terms-s3-minimum-age (b)).
+  4. §4: the privacy policy "explains how; the commitments it makes to you
+     are part of this contract" (terms-s4-privacy-part-of-contract (b)). It
+     said the policy "forms part of these terms". The reading exceptions
+     point at privacy §4.5 and §6, and name a screenshot or text sent with a
+     problem report.
   5. §6: a price change for an existing subscription is a §12 change, with
      the right to cancel before it applies; a paid tier only after a button
      that says the order carries an obligation to pay (precondition C). "No
@@ -114,10 +119,15 @@
      rights when the service does not conform.
   9. §10: split into consumers and business customers. Consumers: liable as
      the law provides, no cap. Business customers: the twelve-month cap and
-     no indirect loss, as before. No limit covers intent or deliberate
-     recklessness by us or our management, death or personal injury, GDPR
-     compensation, or anything else the law does not let us limit. The last
-     sentence now says the source account is the way never to need §10.
+     no indirect loss, as before; the cap also covers claims about data
+     protection between us and the business customer (dpa-q6-liability-cap
+     (a)). No limit covers intent or deliberate recklessness by us or our
+     management, death or personal injury, the rights the GDPR gives the
+     people whose personal data it is, or anything else the law does not let
+     us limit. That clause said "your right to compensation under the GDPR",
+     which left a business customer's data-protection claims without a cap.
+     The last sentence now says the source account is the way never to need
+     §10.
   10. §11, first paragraph: was "On closure we delete your credentials and
       your migration ledger". That contradicted the owner's decision, "stored
       access after finished migration: keep until deleted or closes." (0139
@@ -130,68 +140,70 @@
       allows it, ledger deleted, as privacy §9 describes. Second paragraph:
       its notice periods and export stay where the Alpha conditions §2 cite
       them; added that we say why before ending for a serious breach, as §5
-      does, and refund a prepaid part if we end the terms.
-  11. §12: changes only for a stated kind of reason; the customer may end the
-      contract at no cost before a change takes effect; a consumer may also
-      end it within 30 days after a change that makes the service clearly
-      worse; where we ask for explicit acceptance, carrying on is not
-      acceptance (as the Alpha conditions §11 ask for the new conditions).
+      does, and refund a prepaid part if we end the terms (kept:
+      terms-s11-ending-reasons-refund (a)). The export is of the migration
+      records (what was copied, what could not be, and why), made on request
+      (terms-s11-export (a)). It was "everything the service holds about your
+      migrations".
+  11. §12: changes only for a stated kind of reason, and "a change to the
+      service or its prices" is now "a new feature, a change in our costs"
+      (terms-s12-reasons (b)); the customer may end the contract at no cost
+      before a change takes effect; a consumer may also end it within 30 days
+      after a change that makes the service clearly worse; where we ask for
+      explicit acceptance, carrying on is not acceptance, as the Alpha
+      conditions §11 ask for the new conditions (kept: terms-s12-consumer-exit
+      (a)).
   12. §13: consumers go to the court the law makes competent; only business
-      customers go to the court in Overijssel. Complaints: if we cannot solve
-      it together, we say by email which dispute body could deal with it and
-      whether we take part; ConsuWijzer is named for Dutch consumers. Language:
-      unchanged from v1.2 (precondition D; question 15).
+      customers go to the court in Overijssel (kept: terms-s13-forum (a)).
+      Complaints: if we cannot solve it together, we say by email which
+      dispute body could deal with it and whether we take part (kept:
+      terms-s13-dispute-body (a)); ConsuWijzer is named for Dutch consumers.
+      Language: unchanged from v1.2 (question 15).
   13. §14: a transfer to a successor does not reduce the customer's rights,
       is told in advance, and a consumer may end the contract at no cost
-      before it takes effect.
+      before it takes effect (kept: terms-s14-transfer (a)).
   14. Dutch only: the header box ("niet onder deze voorwaarden"), §6's word
       choices ("afgeleid van", "voor het hoogste pakket"), "via" in §3 and
       §10, and §15 "onze overeenkomst", as the statutory Dutch model form
       reads (please confirm).
   15. The Version line keeps its draft marker and drops the repository path
       public readers could see.
+  16. §15: the model form is addressed to Archico B.V. by email only during
+      the Alpha (rec-address (c)); a comment says the address returns there.
 
-  Decisions for the owner, not corrections. These v1.3 changes rest on our
-  reviewer's reading of consumer law, which nobody has verified here. Each
-  widens the owner's exposure, and each is kept in the draft only for the
-  owner to accept or send back; the old wording is beside it:
+  The v1.3 changes that widen the owner's exposure rest on our reviewer's
+  reading of consumer law, which nobody has verified here. On 2026-09-28 the
+  owner kept each of them; the lawyer confirms. The old wording is beside
+  each:
 
-  - §3: the customer answers for what they do, and for sign-in details they
-    shared or did not protect; what goes wrong on our side, the sign-in
-    service included, is ours. Was: "You are responsible for your
+  - §3 (terms-s3-responsibility (a)). Was: "You are responsible for your
     credentials and for what happens under your account."
-  - §10: consumers, liable as the law provides, with no cap; the twelve-month
-    cap and no indirect loss for business customers only; no limit for
-    intent, deliberate recklessness, death or injury, or GDPR compensation.
-    Was: one cap for everyone, "the amount you paid us in the twelve months
-    before the claim", with the consumer carve-out of v1.1 (question 13).
-    The owner's "yes" (2026-09-28) is read as keeping it as drafted
-    (question 13).
-  - §11, second paragraph: we say why before ending for a serious breach, and
-    refund a prepaid part if we end the terms. Was: neither.
-  - §12: a consumer may also end the contract within 30 days after a change
-    that makes the service clearly worse; where we ask for explicit
-    acceptance, carrying on is not acceptance. Was: notice, and carrying on
-    is acceptance (question 16).
-  - §13: consumers go to the court the law makes competent, not to
-    Overijssel; we name a dispute body when a complaint is not solved. Was:
-    Overijssel for everyone, with the consumer's own courts kept (questions
-    14 and 24).
-  - §14: a transfer to a successor is told in advance and a consumer may end
-    the contract first. Was: "We may transfer them to a successor of the
-    business." (question 21).
+  - §10. Consumers: no cap (the owner's "yes", question 13). Business
+    customers: one cap, data-protection claims between us included
+    (dpa-q6-liability-cap (a)). Was: one cap for everyone, "the amount you
+    paid us in the twelve months before the claim", with the consumer
+    carve-out of v1.1.
+  - §11, second paragraph (terms-s11-ending-reasons-refund (a)). Was: no
+    reasons before ending for a serious breach, and no refund.
+  - §12 (terms-s12-consumer-exit (a)). Was: notice, and carrying on is
+    acceptance (question 16).
+  - §13 (terms-s13-forum (a); terms-s13-dispute-body (a)). Was: Overijssel
+    for everyone, with the consumer's own courts kept (questions 14 and 24).
+  - §14 (terms-s14-transfer (a)). Was: "We may transfer them to a successor
+    of the business." (question 21).
 
   Questions for the lawyer (and the owner where marked), new in v1.3. Where
-  our reviewer cited a rule, it is given as their reading, not verified here:
+  our reviewer cited a rule, it is given as their reading, not verified here.
+  ANSWERED marks the owner's answer of 2026-09-28. What follows "Left for the
+  lawyer" is still open:
 
-  12. OWNER: how is acceptance recorded for the Alpha? Build 0139 T3 before
-      the first invitation, or pick another route and rewrite §1 to it
-      (precondition A)? And will you take these terms as final for the Alpha
-      without the lawyer's pass, as you did the Alpha conditions? Until one
-      of the two, the first invitation waits. NOW (2026-09-28), the second
-      half: "park them in PR that i will review." The owner reviews these
-      terms in the pull request; the lawyer's pass stays deferred. How
-      acceptance is recorded stays open.
+  12. OWNER: how is acceptance recorded for the Alpha? ANSWERED:
+      terms-acceptance-route (b), a screen in the app when the account is
+      created (precondition A). Whether these terms are final without the
+      lawyer's pass: "park them in PR that i will review." Left for the
+      lawyer: is a screen in the app that shows each text, with the texts
+      saved or printed from this site, the reasonable opportunity to read
+      them that standard terms need (art. 6:233(b) and 6:234 BW)?
   13. §10: is the consumer clause right with no cap at all? The reviewer's
       alternative is a consumer cap with a floor (the greater of what was paid
       in twelve months and a fixed sum, which would be a new placeholder; not
@@ -199,16 +211,22 @@
       Does a free trial of a few weeks justify any cap for ordinary negligence
       towards a consumer? The reviewer reads a zero cap as a total exclusion,
       on the grey list, and a rescue clause ("to the extent the law allows")
-      as not saving it. And does the Alpha conditions' "No obligations, on
-      either side" (their §4) hold beside this §10? NOW (2026-09-28): asked
-      whether §10 keeps no cap towards consumers, as drafted, and whether
-      the English governs or both languages count, the owner answered
-      "yes". We read that as keeping §10 as drafted: towards
-      consumers no cap, liable as the law provides. This is our reading of a
-      one-word answer to a two-part question, recorded so the owner can
-      correct it in the pull request. The lawyer's questions above stand.
-  14. §13: the forum. The reviewer reads the old clause as void against
-      consumers (black list, forum clauses). Confirm the wording for business
+      as not saving it. ANSWERED: asked whether §10 keeps no cap towards
+      consumers, as drafted, and whether the English governs or both
+      languages count, the owner answered "yes". We read that as keeping §10
+      as drafted: towards consumers no cap, liable as the law provides. This
+      is our reading of a one-word answer to a two-part question; the owner
+      may correct it in the pull request. The Alpha conditions §4 now say
+      that §10 still applies (alpha-s4-liability (a)). A business customer's
+      data-protection claims fall under their cap (dpa-q6-liability-cap (a)).
+      Left for the lawyer: the questions above; and whether "the rights the
+      GDPR gives the people whose personal data it is" keeps a data subject's
+      own claim (GDPR art. 82(1)) free of any cap, while the cap covers a
+      business customer's claims against us, a recourse claim under art.
+      82(5) included.
+  14. §13: the forum. ANSWERED: v1.3 kept (terms-s13-forum (a)). Left for the
+      lawyer: the reviewer reads the old clause as void against consumers
+      (black list, forum clauses); confirm that, and the wording for business
       customers (was question 9).
   15. §13: language. The text keeps v1.2's rule: the English governs, except
       where mandatory consumer law provides otherwise, which is also what the
@@ -224,27 +242,29 @@
       translationNote in site/copy.mjs in the same change: the note is shared
       by the privacy and terms pages, so it becomes a note per page, or
       neutral words. The Alpha conditions have no language clause of their
-      own. NOW (2026-09-28): asked whether the English governs or both
-      languages count, beside question 13's cap, the owner answered "yes".
-      We read that as keeping §13 as drafted: the English governs, except where mandatory consumer law
-      provides otherwise. It is our reading, which the owner may correct in
-      the pull request; whether the rule can stand for a Dutch-first Alpha is
-      still this question. One mismatch to fix whichever way it goes: the
-      note above the Dutch privacy and terms pages says only "Bij verschillen
-      is de Engelse versie de tekst die geldt." It does not carry §13's
+      own. The owner's "yes" (question 13) is read as keeping §13 as drafted:
+      the English governs, except where mandatory consumer law provides
+      otherwise. It is our reading, which the owner may correct in the pull
+      request; whether the rule can stand for a Dutch-first Alpha is still
+      this question. One mismatch to fix whichever way it goes: the note
+      above the Dutch privacy and terms pages says only "Bij verschillen is
+      de Engelse versie de tekst die geldt." It does not carry §13's
       exception; adding ", behalve waar dwingend consumentenrecht anders
       bepaalt" to translationNote in site/copy.mjs would make the two agree.
-  16. §12: are the reasons and the right to end enough? One of the listed
-      "good reasons", "a change to the service or its prices", is the change
-      itself rather than a reason for it. As we read the unfair-terms rules
-      (Directive 93/13/EEC, annex point 1(j)), a unilateral change needs a
-      valid reason specified in the contract; please confirm. A narrower list
-      could be "a change in what a provider we connect to allows or requires,
-      a new feature, or a change in our costs". Deemed acceptance by carrying
-      on rests on this. Is the Alpha conditions' 7 days' notice valid for the
-      step to the new conditions, given that it needs explicit acceptance and
-      non-acceptance ends in closure, not in a paid continuation (the Alpha
-      briefing asks the same)?
+  16. §12: are the reasons and the right to end enough? ANSWERED: the list is
+      narrower (terms-s12-reasons (b)). "A change to the service or its
+      prices", the change itself rather than a reason for it, is now "a new
+      feature, a change in our costs". The consumer's extra right to end, and
+      "carrying on is not acceptance" where we ask for acceptance, stay
+      (terms-s12-consumer-exit (a)). For the new conditions after the Alpha,
+      the Alpha conditions §2 now say that their 7 days replace §12's 30
+      (alpha-s11-notice (a)). Left for the lawyer: as we read the
+      unfair-terms rules (Directive 93/13/EEC, annex point 1(j)), a
+      unilateral change needs a valid reason specified in the contract. Is
+      the list now specific enough, and can deemed acceptance by carrying on
+      rest on it? Is 7 days' notice valid for the step to the new conditions,
+      given that it needs explicit acceptance and non-acceptance ends in
+      closure, not in a paid continuation (the Alpha briefing asks the same)?
   17. §7, before any paid tier: is the confirmation step strong enough as the
       express request? The reviewer reports that since 19 June 2026 a distance
       contract made online needs a withdrawal function on the interface
@@ -252,109 +272,107 @@
       inside "proportionate" (the reviewer cites CJEU C-641/19)? When a Tiny
       customer moves to a paid tier, do the 14 days start when they agree to
       pay? The consumer-safe sentence would be "If you move from Tiny to a
-      paid tier, the 14 days start when you agree to it"; not added.
+      paid tier, the 14 days start when you agree to it"; not added. ANSWERED:
+      left for the lawyer's pass before the first paid tier
+      (terms-paid-tier-lawyer-checks (a)).
   18. §6, before any paid tier: the route for a price change, and the order
-      button. Right as written?
+      button. Right as written? ANSWERED: left for the lawyer's pass before
+      the first paid tier (terms-paid-tier-lawyer-checks (a)).
   19. §9: is "does not limit your statutory rights" enough? After the Alpha,
       must connecting an Experimental source (Alpha conditions §7) carry a
-      separate confirmation, if the service is paid?
-  20. §3: 16 or older, and a parent's or guardian's permission under 18. The
-      first draft of 1.3 allowed any age with permission, which privacy §12
-      ("not directed at children under 16 and we do not knowingly create
-      accounts for them") refused. Is this the right line, for a contract with
-      a minor (art. 1:234 BW) and beside privacy §12?
+      separate confirmation, if the service is paid? ANSWERED: left for the
+      lawyer's pass before the first paid tier (terms-paid-tier-lawyer-checks
+      (a)).
+  20. §3: the minimum age. ANSWERED: 18 or older (terms-s3-minimum-age (b)).
+      The permission route for 16 and 17 is gone, and with it the question of
+      a contract with a minor (art. 1:234 BW). A younger family member takes
+      part through a parent's account and a grant link; privacy §12 stays as
+      it is. Left for the lawyer: confirm.
   21. §14: may a consumer contract say in advance that we may transfer it to
-      a successor?
-  22. §1: must a telephone number be given before paid tiers? Must
-      "Ownpace" be registered as a handelsnaam of Archico B.V. first (was
-      question 9)? A telephone number would need a new placeholder and a
-      README row; neither is added. NOW (2026-09-28), the owner's answers
-      and what they settle:
-      - The name. The owner: "Ownpace is registered, check Ownpace-repo for
-        the info: TRADEMARK.md". TRADEMARK.md records a trademark
-        application, not a registration and not a handelsnaam: "a
-        trademark of Archico B.V. (Benelux trademark application 1556706,
-        filed 2026-08-30, registration pending; an EU application
-        follows)", and "until the registration completes, "Ownpace"™ is
-        used as an unregistered mark". So the texts may say "Ownpace is a
-        trademark of Archico B.V." with ™, and not "registered trademark"
-        or ® until the Benelux office registers it. A handelsnaam is a
-        separate entry in the KvK register, which TRADEMARK.md does not
-        cover; the owner's own records have it filed at the KvK on
-        2026-08-30 and awaiting registration. Once a current KvK uittreksel
-        shows it, §1 in both texts, and privacy §1, can say "Archico B.V.,
-        trading as Ownpace" / "Archico B.V., handelend onder de naam
-        Ownpace". Nothing is added until then.
-      - The address. The owner: "My address, is it needed? I also live
-        there, and rather have correspondance by email." Our reading, not
-        verified here: probably yes. BW 3:15d (the e-Commerce Directive's
-        art. 5) asks a provider of an information society service for its
-        geographic address of establishment, and a free service offered as
-        part of an economic activity is one (CJEU C-291/13 Papasavvas,
-        C-484/14 Mc Fadden). §15's model withdrawal form asks for the
-        trader's geographic address. For paid consumer tiers, BW 6:230m
-        asks for the geographic address, a telephone number and an email
-        address before the contract (since the Omnibus Directive); the free
-        Alpha is probably outside it if testers' data serve only the
-        service. A postbus alone is probably not a geographic address; it
-        can be printed beside one as a correspondence address. A B.V.'s
-        vestigingsadres is public in the KvK register already, and a B.V. can
-        shield it only on a concrete threat. The owner's wish fits beside
-        the address, for example "We answer by email: support@ownpace.eu.
-        Post reaches us at Archico B.V., «REGISTERED_ADDRESS», but more
-        slowly; please use email where you can." / "Wij antwoorden per
-        e-mail: support@ownpace.eu. Post kan naar Archico B.V.,
-        «REGISTERED_ADDRESS», maar is trager; gebruik waar u kunt e-mail."
-        A letter that does arrive still counts, and making email the only
-        valid channel for a consumer's notices may be an unreasonably
-        onerous term (BW 6:233, 6:236-237). The alternative, if the owner
-        does not want the home address on the site, is a business address
-        registered at the KvK as the vestigingsadres, which changes the
-        register, not only the texts. Please confirm each point. The
-        address stays «REGISTERED_ADDRESS» until the owner chooses.
-      - The btw-id. The owner: "VAT number was already mentioned, check
-        Ownpace-repo for the info: site/legal/README.md". It is not there:
-        the README's row is the placeholder, and neither this repository
-        nor its history records Archico B.V.'s btw-id (the KvK number,
-        73922706, is printed beside the token and may be what was meant).
-        «VAT_NUMBER» stays until the owner or the accountant supplies it.
-  23. §4: keep the privacy policy "part of these terms", or incorporate only
-      the commitments it makes? The reviewer's alternative: "The privacy
-      policy explains how; the commitments it makes to you are part of this
-      contract."
-  24. §13: when a complaint is not solved, which dispute body do we name,
-      and does that duty reach a free contract?
-  25. OWNER: are updates of the service during the Alpha announced in
-      advance? §9 promises notice of planned maintenance that interrupts
-      migrations, and the Alpha conditions §2 do not set §9 aside; their §5
-      allows a pause "without warning" but says nothing about updates. If
-      not, the Alpha conditions need a sentence, or §9 does.
-  26. OWNER: §11's second paragraph promises "an export of everything the
-      service holds about your migrations" if we discontinue the service, and
-      the Alpha conditions §2 keep it. No export route exists in apps/api; the
-      only export is the operator's pseudonymised audit download. Does the
-      export stay for the Alpha (0139 T1 point 1), made by hand, or is it
-      defined as what the owner can produce? Not new in v1.3.
+      a successor? The owner kept v1.3's protections (terms-s14-transfer
+      (a)); the question stands.
+  22. §1: the entity line.
+      - The name. ANSWERED: fact-trademark (b), "Add it now; the KvK already
+        shows it". §1 says "Archico B.V., trading as Ownpace" / "Archico
+        B.V., handelend onder de naam Ownpace". No KvK extract was seen here.
+        TRADEMARK.md records a Benelux trademark application (1556706, filed
+        2026-08-30, registration pending), so the texts may use ™ but not ®
+        or "registered trademark" until the Benelux office registers it.
+      - The VAT number. ANSWERED: fact-vat (a). §1 prints it as the owner
+        wrote it. The owner: "VIES might validate it only without dots/spaces,
+        but in legal document that doesnt mater."
+      - The address. ANSWERED: rec-address (c), "Leave the address out during
+        the Alpha". §1 names Archico B.V., its KvK number, its VAT number and
+        support@ownpace.eu, and says we correspond by email; §15's form names
+        Archico B.V. and the email address. The address returns in §1 and in
+        the §15 form before the first paid tier, or sooner if the lawyer's
+        pass asks for it. Left for the lawyer (our reading, not verified
+        here): BW 3:15d (the e-Commerce Directive's art. 5) asks a provider of
+        an information society service for its geographic address of
+        establishment, and a free service offered as part of an economic
+        activity is one (CJEU C-291/13 Papasavvas, C-484/14 Mc Fadden). So
+        leaving it out probably breaks 3:15d, even for an invite-only Alpha,
+        and it hides nothing: the KvK register publishes a B.V.'s
+        vestigingsadres. For paid consumer tiers, BW 6:230m asks for the
+        geographic address, a telephone number and an email address before
+        the contract, and §15's model form asks for the trader's geographic
+        address. A postbus alone is probably not a geographic address. Does
+        "We correspond by email" read as making email the only valid channel
+        for a consumer's notices, which may be an unreasonably onerous term
+        (BW 6:233, 6:236-237)? A letter that arrives still counts.
+      - The telephone number. ANSWERED: terms-s1-telephone (a), email only
+        for now. Left for the lawyer, before the first paid tier: must a
+        number be given (BW 6:230m)? A number would need a new placeholder
+        and a README row.
+  23. §4: the privacy policy in the contract. ANSWERED: only its commitments
+      (terms-s4-privacy-part-of-contract (b)). §4 takes the reviewer's
+      sentence, and §1 names "the commitments the privacy policy makes to
+      you". Left for the lawyer: confirm. The policy does not mark which of
+      its sentences are commitments, so an update under privacy §13 alone
+      may still change one.
+  24. §13: complaints. ANSWERED: a dispute body is named case by case, and
+      the owner joins none now (terms-s13-dispute-body (a)). Left for the
+      lawyer: does the duty to name one reach a free contract? And old
+      question 5.
+  25. ANSWERED: updates during the Alpha are not announced one by one, and
+      the Alpha conditions §5 say so (alpha-s5-updates (a)). §9 is unchanged.
+  26. ANSWERED: §11's export is of the migration records (what was copied,
+      what could not be, and why), made on request (terms-s11-export (a)).
+      The Alpha conditions §2 keep it. The owner: "draft the export function
+      in a workplan". Workplan 0155 builds it; until then the export is
+      made by hand.
 
   The questions of v1.1 and v1.2, with where each stands now:
 
   1. §6: prices VAT-inclusive; invoices to business customers state their own
      VAT treatment (Dutch VAT, intra-EU reverse charge on a validated VAT
-     number, or supply outside the EU). QUESTION: does one sentence cover
-     both audiences, and for reverse-charge customers should the charged
-     amount be the inclusive headline figure or that figure net of Dutch VAT?
-     NOW: set aside during the Alpha (Alpha conditions §2); open for later.
+     number, or supply outside the EU). ANSWERED: terms-s6-reverse-charge
+     (a), a reverse-charge customer pays the published price minus the Dutch
+     VAT in it, so every customer pays the same price before tax. §6 says so
+     in one sentence when business customers are admitted, not before; the
+     Alpha admits none. A sentence for then: "A business in another EU
+     country with a validated VAT number pays the price without the Dutch VAT
+     in it, and accounts for the VAT itself." / "Een bedrijf in een ander
+     EU-land met een gevalideerd btw-nummer betaalt de prijs zonder de
+     Nederlandse btw erin, en draagt de btw zelf af." §6's "What you see is
+     what you pay" then needs the same care. Left for the lawyer: does one
+     sentence cover both audiences?
   2. §7: the consumer right of withdrawal (Directive 2011/83/EU; art. 6:230o
      BW ff.), with the proportionate amount on withdrawal (art. 6:230s lid 4
      BW). QUESTIONS: is the express request strong enough; how does the setup
      fee sit inside "proportionate"; and §15 adapts Annex I(B)'s (*)-markers
      into I/we-slashes for rendering reasons — acceptable? NOW: set aside
-     during the Alpha; v1.3 rewrote the express request (question 17).
+     during the Alpha; v1.3 rewrote the express request (question 17). Left
+     for the lawyer's pass before the first paid tier
+     (terms-paid-tier-lawyer-checks (a)). Whether the Alpha may set §7 and
+     §15 aside for a service that costs nothing is also left for the lawyer
+     (alpha-withdrawal-right (a)).
   3. §8: renewal for the Wet Van Dam: after an initial term, month to month,
      cancellable at any time, effective at the end of the month, for every
      customer. QUESTION: confirm the wording, and whether a discounted prepaid
      term fits it, §7 and art. 6:236/6:237 BW. NOW: set aside during the
-     Alpha; open for later.
+     Alpha; left for the lawyer's pass before the first paid tier
+     (terms-paid-tier-lawyer-checks (a)).
   4. §10: the twelve-month cap with a consumer carve-out. NOW: replaced by
      v1.3's split; see question 13.
   5. §13: the EU ODR platform. The text does not name it. Our reviewer
@@ -365,16 +383,16 @@
   6. §13: English prevailing over the Dutch. NOW: kept, as v1.2 worded it;
      the alternatives are question 15.
   7. §4: the data-processing agreement "available on request" until
-     published. NOW: answered for the Alpha, which admits households only;
-     open for business customers later.
+     published. NOW: answered for the Alpha, which admits households only.
+     The agreement stays an unpublished draft until the first business
+     customer (dpa-unpublished-until-business (a)); §4's sentence speaks for
+     that time.
   8. §8: a prepaid term counts as the twelve-month reconfirmation for the
-     period it covers. NOW: set aside during the Alpha; open for later.
+     period it covers. NOW: set aside during the Alpha; left for the lawyer's
+     pass before the first paid tier (terms-paid-tier-lawyer-checks (a)).
   9. Entity facts: Archico B.V. (KvK 73922706, seat Wijhe), court in
-     Overijssel. Still tokens: «REGISTERED_ADDRESS» (the owner decides the
-     printed form) and «VAT_NUMBER» (the btw-id, from the accountant). NOW:
-     the forum wording is question 14, the handelsnaam question 22, and the
-     owner's answers on the address, the btw-id and the name of 2026-09-28
-     are under question 22 too.
+     Overijssel. NOW: the name, the VAT number and the address are question
+     22; the forum wording is question 14.
   10. The privacy policy's own revision into processor and controller roles.
       NOW: done, in privacy v1.1 (2026-08-30).
   11. v1.2 (2026-09-24): Tiny is free, with no billing at all (ADR-0014).
@@ -400,16 +418,20 @@
 
 ## 1. Who you are contracting with
 
-Archico B.V., «REGISTERED_ADDRESS», registered under KvK number 73922706, VAT «VAT_NUMBER».
-Contact: **support@ownpace.eu**.
+<!-- No address during the Alpha: the owner, 2026-09-28 (rec-address (c)). The address of
+     establishment returns here, and in the §15 form, before the first paid tier, or sooner if
+     the lawyer's pass asks for it (briefing, question 22). -->
 
-These terms, together with the privacy policy and any additional conditions we show you with
-them, are the contract between you and us for the service. During the Alpha, the Alpha
-conditions also apply; where they differ from these terms, they prevail.
+Archico B.V., trading as Ownpace, registered under KvK number 73922706, VAT number
+NL8597.110.06.B01. We correspond by email: **support@ownpace.eu**.
 
-Before you connect your first account, we give you these texts, each with its version number,
-and ask you to accept them. We keep a record of which versions you accepted, and when. You can
-save or print them from this site at any time.
+These terms, together with the commitments the privacy policy makes to you and any additional
+conditions we show you with them, are the contract between you and us for the service. During
+the Alpha, the Alpha conditions also apply; where they differ from these terms, they prevail.
+
+When you create your account, the app shows you these texts, each with its version number, and
+asks you to accept them. The app records which version of each text you accepted, and when. You
+can save or print them from this site at any time.
 
 Someone who only follows a progress link, or who grants access through a link a customer sent
 them, does not become a party to these terms. If you accept on behalf of an organisation, you
@@ -450,15 +472,14 @@ is not yours or that you are not authorised to migrate.** For an organisation's 
 means authorisation from the organisation. For another person's private account — a family
 member's, say — it means that person's permission.
 
-You must be 16 or older to open an account, and if you are under 18, you need the permission of a
-parent or guardian.
+You must be 18 or older to open an account.
 
 ## 4. Your data, and what we may do with it
 
-Your data stays yours. We process it only to run the migrations you configure, as set out in
-the [privacy policy](./privacy.html), which forms part of these terms. Business customers are
-additionally covered by our data-processing agreement — until it is published here, it is
-**available on request** at support@ownpace.eu.
+Your data stays yours. We process it only to run the migrations you configure. The
+[privacy policy](./privacy.html) explains how; the commitments it makes to you are part of this
+contract. Business customers are additionally covered by our data-processing agreement — until
+it is published here, it is **available on request** at support@ownpace.eu.
 
 **We do not read your mail, files, contacts or calendars**, other than in the narrow cases §4.5
 and §6 of the privacy policy describe: your own request for specific items (for example a
@@ -578,13 +599,13 @@ loss we caused. We are not liable for loss of data at your source or target that
 cause.
 
 **If you are a business customer**, our total liability to you for any claim is limited to
-**the amount you paid us in the twelve months before the claim**. We are then not liable for
-indirect or consequential loss, or for loss of data at your source or target that we did not
-cause.
+**the amount you paid us in the twelve months before the claim**. This limit also applies to
+claims about data protection between you and us. We are then not liable for indirect or
+consequential loss, or for loss of data at your source or target that we did not cause.
 
 **No limit in this section applies** to loss caused by intent or deliberate recklessness on our
-part or our management's, to death or personal injury, to your right to compensation under the
-GDPR, or to any other liability the law does not allow us to limit.
+part or our management's, to death or personal injury, to the rights the GDPR gives the people
+whose personal data it is, or to any other liability the law does not allow us to limit.
 
 **Keep your source account until you have checked your target.** The product is built so you
 can — that is what switching over on your own schedule means — and it is the best way to make
@@ -592,11 +613,11 @@ sure you never need this section.
 
 ## 11. Ending it
 
-<!-- NOT YET TRUE ON main: "From the moment your account is closed, nothing uses the access you
-     gave us." The sync tick (ACTIVE_MAPPINGS_SQL in apps/worker/src/jobs/managed-sync-tick.ts)
-     never reads the organisation's status, so a closed organisation still gets new passes until
-     the purge. The draft marker stays until the closed-organisation fix is merged (briefing,
-     precondition B). -->
+<!-- "From the moment your account is closed, nothing uses the access you gave us." True on main
+     since #1320 (d7868276, 0085 T2, 2026-09-28): the sync tick (ACTIVE_MAPPINGS_SQL in
+     apps/worker/src/jobs/managed-sync-tick.ts) skips a closed organisation, and a pass already
+     queued halts before it builds any credentials. This branch has not merged main since that
+     commit; merging it brings the fix (briefing, precondition B). -->
 
 **You** may close your account at any time: write to support@ownpace.eu. You choose when its
 data is erased: at once, or after 7, 30 or 90 days. We confirm the closing, and the date on
@@ -608,13 +629,13 @@ Invoices are kept as long as tax law requires.
 **We** may end these terms with 30 days' notice, or immediately for a serious breach of §5,
 after telling you why as §5 describes. If we end them during a period you have already paid
 for, we refund the part you have not had. If we discontinue the service, **you get at least 90
-days' notice and an export of everything the service holds about your migrations** — and the
-software is Apache-2.0, so you can keep running it yourself.
+days' notice and, if you ask for it, an export of your migration records**: what was copied,
+what could not be, and why. The software is Apache-2.0, so you can keep running it yourself.
 
 ## 12. Changes to these terms
 
 We change these terms only for a good reason: a change in the law or in what a provider
-requires of us, a change to the service or its prices, security, or to make them clearer. We
+requires of us, a new feature, a change in our costs, security, or to make them clearer. We
 tell you by email at least **30 days** before a material change takes effect. We say what
 changes and why, and link the new text.
 
@@ -658,7 +679,11 @@ effect.
 
 Complete and return this form only if you wish to withdraw from the contract.
 
-- To: Archico B.V., «REGISTERED_ADDRESS», email: support@ownpace.eu
+<!-- No address during the Alpha (rec-address (c); §1's comment). The model form asks for the
+     trader's geographic address, and it returns here before the first paid tier. During the
+     Alpha this section does not apply (Alpha conditions §2). -->
+
+- To: Archico B.V., email: support@ownpace.eu
 - I/we hereby give notice that I/we withdraw from my/our contract for the provision of the
   following service: the Ownpace managed service, for the account on this email address: …
 - Ordered on: …

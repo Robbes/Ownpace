@@ -1,84 +1,163 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
-  VERSION 1.0, 2026-09-28: the owner's text for the Alpha; the lawyer's pass
-  (0139 T1) is deferred. This comment never renders (the
-  site generator strips HTML comments); it is the briefing for the reviewing
-  lawyer, beside the ones at the top of privacy.md and terms.md.
-  alpha.nl.md mirrors this file section for section, and the Dutch is the text
-  testers read first (workplan 0139 D2). Drafted on 2026-09-28 at the owner's
-  request, from the sentences workplans 0131, 0134, 0137 and 0139 drafted and
-  the owner's answers of that day; the owner reads it before you do. Not
-  rendered by the site build and not linked from anywhere yet (0139 T10).
+  VERSION 1.0, 2026-09-28: the owner's text for the Alpha. It stays 1.0 while
+  it is edited, until the first tester accepts it; every change after that
+  gets a new number (alpha-version-number (a), 2026-09-28). The lawyer's pass
+  (0139 T1) is deferred. This comment never renders (the site generator
+  strips HTML comments); it is the briefing for the reviewing lawyer, beside
+  the ones at the top of privacy.md and terms.md. alpha.nl.md mirrors this
+  file section for section, and the Dutch is the text testers read first
+  (workplan 0139 D2). Drafted on 2026-09-28 at the owner's request, from the
+  sentences workplans 0131, 0134, 0137 and 0139 drafted and the owner's
+  answers of that day; the owner reads it before you do. Not rendered by the
+  site build and not linked from anywhere yet (0139 T10).
+
+  These conditions sit beside the terms 1.3 and the privacy policy 1.2, both
+  drafts in the same pull request. On 2026-09-28 the owner answered all 71
+  questions on the answer page. This revision applies every answer that
+  names the Alpha conditions, in both languages. Each is named by its id and
+  the option chosen, for example rec-alpha-10 (a). ANSWERED marks the owner's
+  answer; what follows "Left for the lawyer" is still open.
+
+  What the answers changed in the text, in both languages:
+
+  - §2: when the account is created, the app shows these conditions, the
+    terms and the privacy policy, each with its version number, asks for
+    acceptance, and records the version of each and the time
+    (terms-acceptance-route (b)). The list of what does not apply gains
+    terms §12's 30 days, for the new conditions after the Alpha; the 7 days
+    in §11 apply instead (alpha-s11-notice (a)).
+  - §4: the heading stays. A sentence says terms §10 (If we get it wrong)
+    still applies (alpha-s4-liability (a)). The breach sentence drops "where
+    that is required": we tell the tester about a breach that affects their
+    data, as privacy §11 says (alpha-version-number (a)).
+  - §5: we update the service often; an update can pause migrations for a
+    short while, and we do not announce each one (alpha-s5-updates (a)).
+  - §6: the copy before an update is kept until that update is shown to
+    work, and never longer than 7 days (rec-copies (a)). It said "until the
+    next update succeeds".
+  - §9: a family member sent a grant link also needs their Google address on
+    Google's list first (alpha-s9-family-google (a)).
+  - §10: the stored access follows the code (rec-alpha-10 (a)). At erasure a
+    family member's Google address comes off too, or sooner if the tester or
+    the family member asks (alpha-s9-family-google (a)).
+  - §11: the new conditions are accepted in the app, as in §2. A tester who
+    has not accepted them by the day they take effect is closed that day and
+    erased 7 days later; in that week they can still accept and carry on
+    (alpha-s11-erasure-window (b)).
 
   The questions we want answered (workplan 0139 T1, questions 1 and 2):
 
-  1. An addendum, or stand-alone conditions? As drafted, an addendum to the
-     terms (v1.2) and the privacy policy (v1.1). §2 says it prevails where
-     they differ, and lists what does not apply during the Alpha: terms §6
-     (prices), §7 (right of withdrawal), §8 (billing), §15 (the model
-     withdrawal form), and the notice periods in §11's second paragraph (30
-     days before we end the terms; 90 days if the service is discontinued),
-     which §5 and §11 here replace with 7 days. The export
-     that paragraph promises on discontinuation is kept: no owner's answer
-     drops it, so the draft says it still applies. §2 also prevails over
-     two points of privacy §9: the copy before an update (§6 here), and the
-     Credentials row (§10 here). Terms §12 (30 days' notice of material
-     changes, and continuing is acceptance) is left applying, but §11 here
-     asks for the new conditions after the Alpha to be accepted before
-     migrations carry on under them (0131 open question 1 (b)), so
-     continuing is not what carries a tester into them. QUESTIONS: is an
-     addendum the right instrument, and may it set aside two rows of the
-     privacy policy this way? May §7 be switched off for a service that
-     costs nothing? Is 7 days' notice, shorter than §12's 30 days, valid for
-     the step to the new conditions? Should the export stay, or should the
-     Alpha have none (the owner decides)? And does "no obligations either
-     side" (§4 here) hold against Dutch consumer law, given terms §10's cap
-     of what was paid in the twelve months before a claim, which in the
-     Alpha is nothing (the terms briefing's question 11 asks the same of the
-     free tier)?
+  1. An addendum, or stand-alone conditions? ANSWERED: alpha-addendum-form
+     (a), left for your pass. The text stays an addendum to the terms and
+     the privacy policy. §2 says it prevails where they differ, and lists
+     what does not apply during the Alpha: terms §6 (prices), §7 (right of
+     withdrawal), §8 (billing), §15 (the model withdrawal form); the notice
+     periods in §11's second paragraph (30 days before we end the terms, 90
+     days if the service is discontinued), which §5 and §11 here replace
+     with 7 days; and §12's 30 days for the new conditions after the Alpha,
+     which §11 here replaces with 7 days. §11's export on discontinuation
+     still applies: terms 1.3 makes it an export of the migration records,
+     made on request (terms-s11-export (a); the owner: "draft the export
+     function in a workplan"). §2 also names two points of privacy §9: the
+     copy before an update (§6 here), and the Credentials row (§10 here).
+     After rec-copies (a) and rec-alpha-10 (a), both texts say the same on
+     those two rows, so nothing is set aside there today.
+     Left for the lawyer:
+     - Is an addendum the right instrument? May it set aside a row of the
+       privacy policy this way, should the two ever differ? If not, §2's
+       sentence on privacy §9 can go.
+     - May §7 and §15 be switched off for a service that costs nothing?
+       ANSWERED: alpha-withdrawal-right (a), left for your pass; §2 keeps
+       them in its list. The withdrawal button terms §7 describes is not
+       built.
+     - Is 7 days' notice valid for the step to the new conditions, beside
+       terms §12's 30 days? §2 now says so in words (alpha-s11-notice (a)).
+       The step needs acceptance in the app, and not accepting ends in
+       closing and erasure, not in a paid continuation. Terms question 16
+       asks the same.
+     - §4, "No obligations, on either side": the owner kept the heading, and
+       §4 now says terms §10 still applies (alpha-s4-liability (a)). Terms
+       1.3 §10 makes us liable towards a consumer as the law provides, with
+       no cap (terms question 13). Do the heading and that sentence together
+       hold against Dutch consumer law?
+     - §5: terms §9 promises advance notice of planned maintenance that
+       interrupts migrations. §5 here says updates are not announced one by
+       one (alpha-s5-updates (a)). It relies on §2's general rule; §2's list
+       does not name terms §9. Is that enough, or should §2 name it?
   2. Which language governs. The Alpha is Dutch, and testers read
      alpha.nl.md first. This draft says nothing about language, so as an
-     addendum it falls under terms §13: the English governs, except where
-     mandatory consumer law provides otherwise. QUESTION: is that tenable
-     here (the terms briefing's question 6 is now the live case), or should
-     the Dutch text govern the Alpha conditions, or all three documents
-     during the Alpha?
+     addendum it falls under terms §13, which keeps v1.2's rule: the English
+     governs, except where mandatory consumer law provides otherwise. Not on
+     the answer page; open. QUESTION: is that tenable here (terms question
+     15, privacy question 17), or should the Dutch text govern the Alpha
+     conditions, or all three documents during the Alpha?
 
   What else this draft rests on, for the same pass:
 
   - Households only (0139 open question 6, answered 2026-09-28). No
     organisation or business is admitted during the Alpha, so the
     data-processing agreement is part of no Alpha contract, and privacy §3's
-    household case is the only one that applies.
-  - Credentials after a finished migration (0139 open question 3 (a),
-    answered 2026-09-28): kept until the tester deletes the connection or
-    the migration (§10 here). The owner's words were "keep until deleted or
-    closes", and terms §11 says "On closure we delete your credentials".
-    The service destroys them when the account's data is erased, at the end
-    of the window the tester chose, not at closing, and nothing uses them
-    after closing. §10 says what the service does; the owner confirms it,
-    or closing is made to revoke them at once (a code change). Privacy §9's
-    row still says "until the migration ends"; §2 here prevails, and that
-    row changes in the same pass.
-  - The end of the Alpha (§11 here): the new conditions are accepted before
-    migrations carry on under them, as 0131 open question 1 (b) reads. The
-    data of a tester who has not accepted them by the day they take effect
-    does not move along to the new service, and is erased as §10 and the
-    privacy policy describe. That is the owner's wording of 2026-09-28; it
-    replaced the drafter's rule that such an account is closed as in §10,
-    before any data goes to another hosting provider. Whether the account
-    is still closed, and after which of §10's periods the data is erased,
-    is the owner's to confirm; deemed acceptance under terms §12 is the
-    alternative.
-  - One copy of the databases before each update (0134 open question 1 (b),
-    answered 2026-09-28, and the number of days the same day: "7 days is
-    ok"), kept only to undo a failed update and at most 7 days (§6 here).
-    Privacy §9 and the erasure sentence (0134 T1) name the same number.
+    household case is the only one that applies. Terms §3 now asks for 18 or
+    older (terms-s3-minimum-age (b)); a younger family member takes part
+    through a grant link.
+  - How a tester accepts (§2, §11). ANSWERED: terms-acceptance-route (b),
+    2026-09-28. The owner: "People that are accepted in the Alpha do need to
+    create a login for the app, accepting fits in there and should record
+    what time/version the accepted of what document." NOT YET BUILT: the
+    screen is 0139 T3, proposed. It must show these conditions with the
+    terms and the privacy policy, record the version of each and the time,
+    and ask again when new conditions follow the Alpha (§11). The first
+    invitation waits for it. The texts must also be on the site, and the
+    site build does not render these conditions yet (0139 T10). Left for the
+    lawyer: terms question 12.
+  - Credentials after a finished migration (§10). ANSWERED: 0139 open
+    question 3 (a), "keep until deleted or closes", and rec-alpha-10 (a),
+    2026-09-28, which makes §10 say what the code does. A connection's
+    access goes when the connection is deleted, which the app allows only
+    once no migration uses it. Deleting a migration removes only access a
+    family member gave through a grant link, which they can also withdraw on
+    their progress page. Privacy §9's Credentials row says the same. Nothing
+    uses the access after closing: true on main since #1320 (0085 T2); this
+    branch has not merged main since that commit (terms briefing,
+    precondition B). The access is destroyed at erasure, at the end of the
+    window the tester chose, as terms §11 now says.
+  - The end of the Alpha (§11). ANSWERED: alpha-s11-erasure-window (b),
+    2026-09-28. A tester who has not accepted the new conditions by the day
+    they take effect is closed that day, and their data does not move along.
+    It is erased 7 days later; until then they can still accept and carry
+    on. If the service moves, the old hosting environment keeps those
+    accounts for that week. Deemed acceptance under terms §12 is not used:
+    §12 says carrying on is not acceptance where we ask for it explicitly.
+  - One copy of the databases before each update (§6). ANSWERED: rec-copies
+    (a), 2026-09-28: one copy per update, deleted once the update is proven
+    (deploy-live.sh logged it as "took", one pass completed, and the hold
+    was lifted). If the update is not proven by day 6, it is rolled back
+    from the copy; the copy is never kept past day 7. rec-drill (a),
+    2026-09-28: the daily restore drill of the task runner's database runs
+    on the test stack only, and on live a copy is taken before each upgrade
+    of the task runner, under the same rule. So §6 keeps one exception. NOT
+    YET BUILT: the script and directory for the copy, its delete step, the
+    daily backstop, dump-idp.sh writing there, and the drill off live's
+    daily duties. Until then live keeps 7 daily dumps of the task runner's
+    database, and §6 is not yet true. Privacy §9 names the same rule.
+  - Reaching testers if the environment is lost (§6). ANSWERED:
+    privacy-tester-list (a), 2026-09-28: the request notices and our answers
+    in the support mailbox are the list of testers. No separate list.
+  - Google's list of test users (§9, §10). ANSWERED: alpha-s9-family-google
+    (a), 2026-09-28. A family member's address comes off with the tester's
+    at erasure, or sooner if either asks. The owner takes both steps by
+    hand; privacy §6 and §9 say the same. Whether an address on that list is
+    a transfer to the US is privacy question 12 (left for the lawyer,
+    privacy-google-testlist-basis (a)).
   - Decided by the owner on 2026-09-28, where the draft had placeholders:
     at least 7 days' notice before a reset or the end of the Alpha, and
     before the new conditions after it (§5 and §11 here; 0139 open
     question 7), and an account closed within 7 days of the request (§10
     here; 0139 T7).
+  - Not in these conditions: the company's name, KvK number, VAT number and
+    the address (fact-trademark (b), fact-vat (a), rec-address (c)). Terms
+    §1 and privacy §1 carry them; §12 here gives only support@ownpace.eu.
 -->
 
 # Alpha conditions
@@ -113,8 +192,14 @@ During the Alpha, these parts of the terms do not apply:
 - **The notice periods in §11, second paragraph:** 30 days before we end the terms, and 90 days
   if we discontinue the service. The period in §5 and §11 below applies instead. The export that
   paragraph promises if we discontinue the service still applies.
+- **The 30 days' notice in §12, for the new conditions after the Alpha.** For those, the 7 days
+  in §11 below apply instead.
 
 The rest of the terms applies as usual, and so does the rest of the privacy policy.
+
+When you create your account, the app shows you these conditions, the terms and the privacy
+policy, each with its version number, and asks you to accept them. The app records which version
+of each text you accepted, and when.
 
 ## 3. Free
 
@@ -126,8 +211,10 @@ There is no service level. We promise no speed, no completion date and no time t
 may stop at any time (§10), and we may stop the Alpha (§5).
 
 Our duties for your data remain. We keep it secure, and keep it no longer than the privacy
-policy and §6 and §10 here say. We tell you about a data breach where that is required, and
+policy and §6 and §10 here say. We tell you about a data breach that affects your data, and
 answer your requests about your rights.
+
+§10 of the terms (*If we get it wrong*) still applies.
 
 ## 5. No promise of availability
 
@@ -136,6 +223,9 @@ says, there is no uptime guarantee.
 
 We may pause the service, for example during an outage or a security problem. No new pass
 starts then, and the app shows it. This can happen without warning.
+
+We update the service often during the Alpha. An update can pause your migrations for a short
+while; we do not announce each one.
 
 We may also start the Alpha over (a reset) or end it. A reset erases the service's records, and
 you start again as §6 describes for a lost hosting environment. We tell you about a reset or the
@@ -147,9 +237,9 @@ During the Alpha we make no backups of the service's own records: your organisat
 accounts you connected, your migrations and their history, and your Ownpace sign-in.
 
 One exception. Right before each update of the service, we make one copy of the databases. That
-copy exists only to undo a failed update. We keep it until the next update succeeds, and never
-longer than 7 days. That copy does not leave the hosting environment. If your account is erased,
-your data can stay in that copy for at most 7 days.
+copy exists only to undo a failed update. We keep it until that update is shown to work, and
+never longer than 7 days. That copy does not leave the hosting environment. If your account is
+erased, your data can stay in that copy for at most 7 days.
 
 If the Alpha environment is lost, those records, and that copy, are lost with it. Your data is
 not: Ownpace removes nothing from your old account, and what was copied to your new provider
@@ -182,7 +272,8 @@ only be an owner or an admin. You are responsible for whom you invite.
 ## 9. Google asks again
 
 If you want to connect a Google account, give us its Google address first. We add it to the
-list of test users at Google. Without that step, Google does not allow the connection.
+list of test users at Google. Without that step, Google does not allow the connection. The same
+goes for a family member you send a grant link to: give us their Google address first.
 
 While Ownpace's app at Google is still in Google's test phase, a Google connection stops working
 after about seven days. You then connect again, with *Reconnect* on the account.
@@ -198,11 +289,14 @@ nothing. Access you created yourself at a provider, such as an app password or t
 Microsoft or Dropbox, you withdraw there yourself. We tell you which.
 
 A finished migration keeps the access you gave us, so that you can resume it. We keep that
-access until you delete the connection or the migration. If you close your account, nothing uses
-it from then on, and it is destroyed when your data is erased, at the end of the period you chose.
+access until you delete the connection, which the app allows once no migration uses it. Access a
+family member gave through a grant link goes when you delete the migration, or when they
+withdraw it on their progress page. If you close your account, nothing uses any of it from then
+on, and all of it is destroyed when your data is erased, at the end of the period you chose.
 
 When your data is erased, we also delete your Ownpace sign-in account, take your Google address
-off the list of test users (§9), and erase your request for access.
+and any family member's off the list of test users (§9), and erase your request for access. We
+take a family member's address off sooner if you or they ask.
 
 ## 11. The end of the Alpha
 
@@ -211,9 +305,10 @@ hosting environment to another hosting provider.
 
 We tell you by email at least 7 days in advance. You get the new conditions, and we say where your
 data would then go. Your migrations carry on under the new conditions only once you have
-accepted them. If you would rather stop, close your account as in §10. If you have not accepted
-them by the day they take effect, we close your account, and your data does not move along to the
-new service. Your data is then erased as §10 and the privacy policy describe.
+accepted them in the app, as in §2. If you would rather stop, close your account as in §10. If
+you have not accepted them by the day they take effect, we close your account, and your data
+does not move along to the new service. Your data is erased 7 days later; until then you can
+still accept them and carry on.
 
 What you have already copied to your new provider with your migrations stays there in any case.
 

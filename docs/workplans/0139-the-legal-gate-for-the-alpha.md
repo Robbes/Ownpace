@@ -4,7 +4,190 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, last: the owner's answers to *For the owner*, applied where they are clear**, on
+**2026-09-28, latest: the owner answered all 71 questions on the answer page, and the texts
+follow**, on branch `claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited`
+(draft PR #1317). The questions still open below (*For the owner*, the briefings' questions for
+the lawyer and the owner, and the recommendations on the address, the two addresses, the copies,
+the drill and Alpha §10) went to the owner on one answer page, each with its context, options and
+a recommendation. The owner: *"all Ownpace Legal Choices where answered (71). Can you processess
+the answers?"* Each text follows the option the owner chose, also where it is not the one
+recommended, and the owner's notes are part of the answer. Nothing is published: privacy 1.2 and
+terms 1.3 keep their draft markers, `dpa.md` and `subprocessors.md` stay 0.2 drafts, and the Alpha
+conditions stay 1.0, edited in place because nobody has accepted them yet.
+
+- **The answers, by group** (id → the option chosen; the owner's notes verbatim, except that a
+  value is left to the legal files, as T0 requires; `site/legal/README.md` quotes those two
+  notes whole). The 11 marked † differ from the recommendation.
+  - **Alpha (10).** alpha-addendum-form → (a) *Leave it for the lawyer's pass*;
+    alpha-briefing-comment → (a) *Update it now*; alpha-s11-erasure-window → (b) *After 7 days*;
+    alpha-s11-notice → (a) *Name it in §2*; alpha-s4-liability → (a) *Keep the heading, add one
+    sentence*; alpha-s5-updates → (a) *No, and Alpha §5 says so*; alpha-s9-family-google → (a)
+    *Off together with the tester's, at erasure, or sooner if asked*; alpha-version-number → (a)
+    *Stay 1.0*; alpha-withdrawal-right → (a) *Leave it for the lawyer's pass*;
+    terms-acceptance-route → (b)† *Build the in-app screen first*, the owner: *"People that are
+    accepted in the Alpha do need to create a login for the app, accepting fits in there and
+    should record what time/version the accepted of what document."*
+  - **DPA (10).** dpa-netbird → (a) *No change now. Add one line in the pass before the first
+    business customer*; dpa-netbird-agreement → (a)† *Yes, it is already accepted*, the owner:
+    *"NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with the backend
+    towards the hosting provider. Check https://trust.netbird.io (whitelisted for you) for
+    overview, subprocessors and other info. https://netbird.io/terms lists the reverse proxy in
+    3.1"*; dpa-q1-transfers → (c)† *Name Proton in §12, and add a clause for any later transfer*;
+    dpa-q2-subprocessor-permission → (a) *General permission, as drafted*; dpa-q3-return-of-data
+    → (c)† *Add a short return clause*, the owner: *"We need to add a workplan that builds this
+    feature, because someone might ask it and when we need to deliver the dump/export."*;
+    dpa-q4-audits → (b) *Written answers are free; the customer pays our reasonable costs of an
+    on-site audit*; dpa-q5-special-categories → (b)† *Reword §4 now*; dpa-q6-liability-cap → (a)
+    *One cap for business customers, data protection included*; dpa-q7-annex-b-complete → (b)†
+    *Draft the usual missing items now, for the lawyer to review*;
+    dpa-unpublished-until-business → (a) *Keep it unpublished, and fix it in one pass before the
+    first business customer*.
+  - **Recommendations (8).** fact-trademark → (b)† *Add it now; the KvK already shows it*;
+    fact-vat → (a) *I'll give it now*, the owner: *"[the VAT number] (VIES might validate it only
+    without dots/spaces, but in legal document that doesnt mater.)"*; rec-address → (c)† *Leave
+    the address out during the Alpha*, the owner: *"KVK number: [the KvK number]"*; rec-alpha-10
+    → (a) *Change the text (Alpha 1.1) to match the app* (applied to 1.0, per
+    alpha-version-number); rec-copies → (a) *One copy per update, deleted once the update is
+    proven, never past day 7*; rec-drill → (a) *On the test stack only; on live, a copy before
+    each Trigger.dev upgrade*; rec-privacy-history-url → (a) *Link to the file's history in the
+    public repository*; rec-subprocessors-url → (a) *§7's table is the complete list*.
+  - **Operations (8).** ops-app-sentences → (a) *Reword them*; ops-billing-form → (b)† *Keep the
+    form and both sentences as drafted*; ops-log-driver → (a) *Docker's default, as the text
+    says*, the owner: *"needs checking"*; ops-notify-addresses → (a) *All to
+    support@ownpace.eu*; ops-social-signin → (a) *Email and password only*; ops-telemetry → (a)
+    *Switch it off everywhere*; ops-trust-proxy → (b)† *Keep visitors' addresses in all our
+    logs*; ops-unadmitted-signin-cleanup → (a) *A daily script, built before the first tester*.
+  - **Privacy (21).** privacy-after-alpha-questions → (a) *Leave them for the lawyer's pass,
+    before the first paid tier*; privacy-bases-special-category → (a) *Leave it for the lawyer's
+    pass*; privacy-children-grant-link → (a) *One line in §12: the parent completes it with the
+    child*; privacy-db-access-sentence → (a) *Confirm it as drafted*; privacy-file-connectors →
+    (a) *Add files*; privacy-google-testlist-basis → (a) *Leave it for the lawyer's pass*;
+    privacy-household-controller → (a) *Leave it for the lawyer's pass*; privacy-limited-use →
+    (a) *Leave it for the lawyer's pass, before applying to Google*, the owner: *"but do describe
+    each flow so that we can use it in the verification application. The layyer will only
+    review."*; privacy-other-transfers → (b) *Add one plain sentence naming both*;
+    privacy-portability-note → (a) *Keep the note and add one sentence*; privacy-read-log-copy →
+    (a) *Keep it, answered by hand*; privacy-search-records → (a) *12 months*;
+    privacy-sent-mail-copies → (b)† *The support-mail rule: until resolved, then 6 months*;
+    privacy-share-mail-notice → (a) *Add a line and a link*; privacy-sharing-list → (b) *It goes
+    with its migration*; privacy-signin-history → (a) *Check first, then state the rule*, the
+    owner: *"still needs to be checked."*; privacy-switzerland-wording → (b) *Add a reference in
+    brackets*; privacy-task-records → (a) *Until the end of the Alpha at the latest*;
+    privacy-tester-list → (a) *Use the Proton mailbox as the list*; privacy-tls-wording → (a)
+    *Publish as drafted*; subprocessors-machine-housed → (a) *No. I keep it and run it myself,
+    for Archico B.V.*
+  - **Terms (14).** terms-paid-tier-lawyer-checks → (a) *Leave them for the lawyer's pass*;
+    terms-s1-telephone → (a) *Email only for now*; terms-s11-ending-reasons-refund → (a) *Keep
+    both*; terms-s11-export → (a) *Promise the migration records, made on request*, the owner:
+    *"as mentioned above: draft the export function in a workplan"*; terms-s12-consumer-exit →
+    (a) *Keep both*; terms-s12-reasons → (b) *Narrow it*; terms-s13-dispute-body → (a) *Name one
+    case by case (as drafted)*; terms-s13-forum → (a) *Keep v1.3*; terms-s14-transfer → (a)
+    *Keep v1.3*; terms-s3-minimum-age → (b) *18 or older*; terms-s3-responsibility → (a) *Keep
+    the v1.3 wording*; terms-s4-privacy-part-of-contract → (b) *Only its commitments*;
+    terms-s6-reverse-charge → (a) *The published price minus the VAT in it*;
+    terms-unbuilt-paid-steps → (a) *Keep them, and build them before paid tiers*.
+- **What changed in each text** (the same change in both languages, the Dutch with *u*; both have
+  the same sections, table rows, list items, links and section references, checked by a script):
+  - **Privacy 1.2.** §1: Archico B.V., trading as Ownpace, its KvK and VAT numbers, no address,
+    and *"We correspond by email."*, with a hidden comment that the address returns before the
+    first paid tier. §4.1: *"… calendars and files cannot write to the source"*. §4.2 and §4.6:
+    the sharing list belongs to its migration. §4.4: no sign-in with Google, Microsoft, Apple or
+    GitHub during the Alpha; the account records which versions of the three texts were
+    accepted, and when. §4.5: server logs record the IP address NetBird passes on; NetBird keeps
+    its own log; searches and downloads on the support screens go after 12 months. §6: a family
+    member's Google address comes off the test list with the tester's, or sooner if asked. §7:
+    NetBird's row adds the WireGuard tunnel and NetBird's own log; *"This table is the complete
+    list of our sub-processors."* replaces `«SUBPROCESSORS_URL»`. §8: *(Art. 45 GDPR; Commission
+    Decision 2000/518/EC)*, and a paragraph on two routes to the US the reader chooses (the
+    GitHub report form, a US mailbox). §9: the rows follow rec-copies, rec-drill (the drill
+    sentence is gone), privacy-search-records, privacy-sent-mail-copies, privacy-sharing-list,
+    privacy-signin-history and privacy-task-records; *"no backups"* has one exception. §10:
+    *"What we hold about you ourselves (§4), we send you in a common file format if you ask."*
+    §12: a grant link for a child under 16 is completed by the parent with the child. §13: a
+    link to the policy's history on GitHub, per language, which also shows unpublished drafts.
+    The briefing lists every answer by id, keeps the lawyer's questions 1 to 20 with what is left
+    for the lawyer, describes the four data flows for Google's verification (question 15, as the
+    owner's note asks), and ends with *Still to do before the draft marker comes off*.
+  - **Terms 1.3.** §1: the company as in privacy §1, no address, *"We correspond by email"*;
+    *"the commitments the privacy policy makes to you"*; acceptance happens in the app, which
+    records each text's version and the time. §3: 18 or older, and the route for under-18s is
+    gone. §4: *"The privacy policy explains how; the commitments it makes to you are part of this
+    contract."* §10: the business cap also covers data-protection claims between the parties, and
+    the no-limit clause keeps *"the rights the GDPR gives the people whose personal data it
+    is"*. §11: the export is of the migration records, *"what was copied, what could not be, and
+    why"*, on request. §12: *"a new feature, a change in our costs"* replaces *"a change to the
+    service or its prices"*. §15: *"To: Archico B.V., email: support@ownpace.eu"*. §6 is not
+    changed: terms-s6-reverse-charge (a) itself says §6 gets its sentence when business customers
+    are admitted; the sentence, in both languages, is in the briefing (old question 1). The
+    briefing marks each question ANSWERED, with *Left for the lawyer* after it.
+  - **The Alpha conditions 1.0.** §2: terms §12's 30 days give way to §11's 7 days for the new
+    conditions after the Alpha; a tester accepts the three texts in the app, which records the
+    versions and the time. §4: *"We tell you about a data breach that affects your data"*, and
+    *"§10 of the terms (If we get it wrong) still applies."* §5: *"We update the service often
+    during the Alpha. An update can pause your migrations for a short while; we do not announce
+    each one."* §6: the copy stays *"until that update is shown to work, and never longer than 7
+    days"*. §9: a family member's Google address too. §10: access follows the app (rec-alpha-10),
+    and a family member's Google address comes off at erasure. §11: acceptance in the app, and
+    *"Your data is erased 7 days later; until then you can still accept them and carry on."* The
+    briefing is rewritten for terms 1.3 and privacy 1.2.
+  - **`dpa.md` 0.2.** The parties as in privacy §1; §4 covers special categories in item names,
+    which are protected and deleted with the migration; §10 a return clause (the migration
+    records first, on request, then deletion); §11 written answers free, the controller pays our
+    reasonable costs of an on-site audit; §12 names Proton AG and puts notice and the standard
+    contractual clauses before any later transfer; §13 one cap, data protection included, with
+    data subjects' rights untouched; Annex A the item names; Annex B a new block of items for the
+    lawyer, each with visible *Open:* marks (the machine, administrative access, incidents,
+    copies). The briefing records the answers and the to-dos, NetBird's Annex B line among them.
+  - **`subprocessors.md` 0.2.** Unpublished until the first business customer; the opening cites
+    Art. 45 GDPR and Decision 2000/518/EC; NetBird's row as in privacy §7.
+  - **`site/legal/README.md`.** The placeholder table lists the one token still used,
+    `«SUBPROCESSORS_URL»`, in `dpa.md` and `subprocessors.md` only;
+    `«REGISTERED_ADDRESS»`, `«VAT_NUMBER»` and `«PRIVACY_HISTORY_URL»` moved to the filled list
+    with the owner's words; *Before the draft markers come off* is rewritten from the answers.
+- **Recorded, with no change to a text.** The answers that leave a question for the lawyer's pass
+  (alpha-addendum-form, alpha-withdrawal-right, privacy-after-alpha-questions,
+  privacy-bases-special-category, privacy-google-testlist-basis, privacy-household-controller,
+  privacy-limited-use, terms-paid-tier-lawyer-checks) are marked in the briefings. The answers
+  that keep a text as drafted (dpa-q2-subprocessor-permission, ops-billing-form, privacy-db-access-sentence,
+  privacy-tls-wording, the terms' *Keep* answers, terms-s1-telephone, terms-s13-dispute-body,
+  terms-unbuilt-paid-steps) change nothing. Privacy §12 keeps its 16 beside the terms' 18, as
+  terms-s3-minimum-age (b) says, and the lawyer is asked to confirm the pair.
+- **Not checked from here.** NetBird's sources: `trust.netbird.io` returns only an empty page
+  shell, whose content comes from a host the egress proxy refuses, and `netbird.io` is refused,
+  so NetBird's sub-processors, its terms' §3.1 and its agreement were not read; the §7 *Where*
+  column keeps *Germany (EU)*, marked to confirm. The date NetBird's agreement was accepted was
+  not given. That the KvK extract lists *Ownpace* as a trade name rests on the chosen option
+  (fact-trademark (b)); no extract was seen. The VAT number was written as given and checked
+  only for its form. The sign-in history rule waits for the check on the test stack. What only
+  live can show: the log driver, `TRUST_PROXY` and the two nginx log formats, the telemetry
+  opt-outs, no `IDP_*` keys.
+- **The export the owner asked for** (dpa-q3-return-of-data, terms-s11-export) is a plan of its
+  own: [0155](0155-the-migration-records-handed-over.md). Until it is built, the records are made
+  by hand.
+- **What needs code or machine work** is the list in `site/legal/README.md`, *Before the draft
+  markers come off*: T3's screen (terms-acceptance-route (b)); T6's copy before an update, the
+  drill off live, the 12-month clean-up of support-screen searches, the sharing list deleted with
+  its migration, and 0135 T8's daily script; T4's reworded app sentences and the share mail's
+  privacy line; live's `.env` (`TRUST_PROXY`, no `IDP_*`, the three mail addresses, the VIES
+  requester) and both nginx log formats; the telemetry opt-outs; the log driver and the
+  sign-in history checked; and, by hand, Proton's Sent folder, a family member's Google address
+  and the read-log query.
+- **Files**: `site/legal/privacy.md`, `privacy.nl.md`, `terms.md`, `terms.nl.md`, `alpha.md`,
+  `alpha.nl.md`, `dpa.md`, `subprocessors.md`, `site/legal/README.md`, this plan, and the new
+  0155.
+- **Proved.** `npx vitest run --project unit scripts/legal-docs.unit.test.ts site/site.unit.test.ts
+  scripts/a-policy-link-that-answers.unit.test.ts scripts/one-way-to-report-a-vulnerability.unit.test.ts
+  scripts/workplan-index.unit.test.ts`: 5 files, 91 tests pass. `OWNPACE_APP_URL=https://app.ota.ownpace.eu
+  node site/build.mjs --check`: *"4 legal page(s) marked draft"* and *"14 pages across 2 locales,
+  0 unfilled placeholder(s)"* (14 before); `--public --check` still refuses, for the draft
+  markers alone. A script found the same headings, table rows (privacy 32), list items, links and
+  section references in each English text and its Dutch one, and no *je*, *jij* or *jouw* in the
+  Dutch outside comments. `node scripts/workplan-index.mjs --write` and `node scripts/lessons.mjs
+  --write`, then all three `--check`s (with `adr-operative.mjs`), pass. The index lists 0152 to
+  0154 as missing on this branch: they are on `main` (#1321), and the next merge of `main`
+  regenerates it.
+
+**2026-09-28, earlier: the owner's answers to *For the owner*, applied where they are clear**, on
 branch `claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited` (draft PR
 #1317). Items 1 to 11 of *For the owner* (in the entry *the privacy policy (1.2) and the terms
 (1.3) revisited*, below) were put to the owner as eight points. The answers, verbatim, each after
@@ -1202,18 +1385,18 @@ longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1); facts 2 (2026-09-27, 0133 open question 3), 5 and 6 supplied, fact 3 answered for the Alpha by 0130 T5's *"b"*, reports by mail (on its branch, not merged), and fact 1 supplied 2026-09-28 (the entity name to confirm); in the drafts for the owner's review, on draft PR #1317, not merged: 2026-09-28, `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` filled with the relay the owner chose (0133), `«HOSTING_PROVIDER»` dropped, `«SUPPORT_RETENTION»` filled; 2026-09-28, from the owner's answers, five filled: `«HOSTING_REGION»`, `«INGRESS_PROVIDER»`, `«INGRESS_REGION»`, `«UNADMITTED_SIGNIN_RETENTION»` and `«LOG_RETENTION»` — *was:* eight placeholders open, and facts 1 and 4 without one | §3. Four placeholders are open in the privacy policy and the terms (`site/legal/README.md`): `«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»` and `«PRIVACY_HISTORY_URL»`; fact 4 has none. Values never go in this plan, only dates. |
-| T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **revised 2026-09-28 for the owner's review**, not committed: privacy 1.2 and terms 1.3, still drafts, and `subprocessors.md` and `dpa.md` 0.2. They now carry points 3, 6, 7, 9 and 11 of §3 T1's list, and 4 and 8 in part; 1, 2, 5 and 10 wait on the owner or the lawyer, and the briefings hold the lawyer's questions; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
-| T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, not rendered; **reviewed by the owner 2026-09-28**, version 1.0, the lawyer's pass deferred (T1) — *was:* version 0.1 concept, ⏳ **Owner** reads it, then the lawyer (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
-| T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
-| T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | ⏳ **Owner** for the names; the text 🔨 **drafted 2026-09-28**, on draft PR #1317, not merged: privacy §7 and `subprocessors.md` 0.2 name Proton AG, in Switzerland, for the relay and the support mailbox, which also keeps a copy of the mail the service sends (the owner confirmed Proton on 2026-09-28), and no hosting provider during the Alpha; the machine's country supplied 2026-09-28; no Zammad during the Alpha (0130 T5). The ingress (T0 fact 1) has a row of its own in privacy §7 and `subprocessors.md`, naming the entity the owner gave on 2026-09-28; the entity name is to confirm, with its data-processing agreement, the proxy cluster's location and HTTP mode (`site/legal/README.md`); whether any company houses or reaches the machine is still the owner's — *was:* the machine's country `«HOSTING_REGION»`, and the ingress row with `«INGRESS_PROVIDER»` and `«INGRESS_REGION»` for the owner to fill, or the row gone if TLS ends on the machine (review fixes, 2026-09-28); 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the wording 🔨 **drafted 2026-09-28** in privacy §9 for every row §3 T6 names, not committed; the rest's code 📋 **Proposed**: a closed organisation's passes, the copy's 7 days and `dump-idp.sh`'s dumps, accounts nobody let in (0135 T8) | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
-| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; terms §11 and privacy §9 describe that close in the drafts of 2026-09-28, beside the Alpha conditions' 7 days; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
+| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out for the Alpha (rec-address (c); it returns before the first paid tier), `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's data-processing agreement accepted (dpa-netbird-agreement (a)), the date and where the proxy runs still to record; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«SUBPROCESSORS_URL»` stays in `dpa.md` and `subprocessors.md` until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
+| T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **follow the owner's 71 answers of 2026-09-28**, on draft PR #1317, not merged: privacy 1.2 and terms 1.3 still drafts, the Alpha conditions 1.0 edited in place, `dpa.md` and `subprocessors.md` 0.2. The briefings mark each answered question and keep what is left for the lawyer (among them BW 3:15d without the address, the forum and language clauses, the paid-tier checks, Google's role for the test list, the legal bases); 📋 **Decided 2026-09-24** (D1) — *was:* revised 2026-09-28 for the owner's review, points 1, 2, 5 and 10 of §3 T1's list waiting on the owner or the lawyer | §3. The briefings at the top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md` are the brief. |
+| T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
+| T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
+| T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
+| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its agreement accepted (dpa-netbird-agreement (a)), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; ⏳ **Owner**: NetBird's acceptance date, where its proxy and log run, and its own sub-processors — *was:* the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8), server logs with Docker's default (ops-log-driver (a)); the code for each 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
+| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *nothing uses your access after closing* is true on `main` since #1320 (`d7868276`, merged 2026-09-28), not yet merged into this branch; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`; (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
-| T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
+| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions, and `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
+| T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1. Privacy §12 now says a grant link for a child under 16 is completed by the parent together with the child (privacy-children-grant-link (a), 2026-09-28) | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
 
