@@ -111,6 +111,7 @@ interface QueueBody {
     readonly acknowledged?: unknown[];
     readonly needsDecision?: { lastError: string }[];
     readonly retrying?: unknown[];
+    readonly sourceKind?: string;
   };
 }
 
@@ -317,6 +318,14 @@ describe('the queue endpoints see the real rows', () => {
     expect(queue?.retrying).toHaveLength(1);
     // The server's own words, carried through rather than summarised.
     expect(queue?.needsDecision?.[0]?.lastError).toBe('the server said: 552 message too large');
+  });
+
+  it("names the mapping's source, which the page chooses a remedy by (workplan 0150 D9)", async () => {
+    // The mapping's own `source.type`. A Dropbox migration's Paper docs are
+    // `policy_refused`, and without its source the page would give them
+    // Drive's sentence, which names a setting Dropbox does not have.
+    const queue = (await getQueue('/failures'))[MAPPING_ID];
+    expect(queue?.sourceKind).toBe('imap-oauth2');
   });
 });
 

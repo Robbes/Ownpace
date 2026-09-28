@@ -1795,6 +1795,16 @@ prints `0`:
 docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
 ```
 
+`0` is true only while no copy of live's databases exists. The copy you may
+take before a deploy (step 3 under *`ownpace-live`: a release tag, with
+`deploy-live.sh`*, below) is kept at most N days (workplan 0134 open question
+1 (b); N is 7, the owner's number of 2026-09-28). So before the first one, set
+7 here instead, then rebuild and recreate as above and read it back again. With `0`
+and a copy on the machine, a tester who closes is told the erasure is complete
+while the copy still holds their data (workplan 0134 T0). Make that change
+before the first invitation, or later only while no organisation closed under
+`0` still waits for its purge: its erasure record keeps the `0` it was given.
+
 ### 8h. A person to write to *(only on the stack testers use)*
 
 A tester who is stuck before signing in cannot reach the report form (8f): it
@@ -1933,7 +1943,12 @@ the mount (for a second copy, with its own `-p`).
 not: a public build must point at the production app, and a test build must
 not. A `--public` build with unfilled legal placeholders is refused too — the
 output used to claim "every placeholder must be filled" and then publish
-anyway.
+anyway. So is one while a legal page it renders says on its *Version* line
+that it is a draft or not yet published, naming the file (workplan 0139 T2).
+Today every one of them does, until the owner's final text replaces it.
+`--public --check` refuses it as well: it prints how many legal pages are
+marked draft and exits 1, so a check run before a deploy stops what the build
+would stop. Its last line is still the placeholder count.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain
@@ -2149,6 +2164,13 @@ Decided 2026-09-24 (workplan 0133 D2): until the stack testers use sends
 through a real relay, you read each tester's mail in that stack's Mailpit and
 pass on what they need. This is a procedure, not a setting.
 
+**Not used on `ownpace-live`.** On 2026-09-28 the owner chose a relay from
+day one (workplan 0133 open question 5: *"mail at the start: real mail relay
+day one."*). Nobody is invited to live until its `.env` names the relay (0133 T3)
+and one outside mailbox has been walked end to end (0133 T4), so no tester's
+mail is caught there and nothing below is passed on. The procedure is kept in
+case that changes.
+
 **Where it applies.** Only on `ownpace-live`, the stack testers use (0132 D7),
 and only until its `.env` names a relay (0133 T3). If the relay is ready before
 live's first bring-up, the tag live is brought up from carries 0133 T2 (TLS for
@@ -2161,7 +2183,8 @@ a relay that takes a login only over TLS refuses it, and the identity provider's
 codes reach neither an inbox nor a catcher while the API's mail arrives.
 Otherwise start on the catcher and switch at 0133 T3: live starts with the
 example's `SMTP_HOST=mailpit`, and a Mailpit in live's own project catches its
-mail. That is the recommendation in 0133's open question 5, which the owner has
+mail. Until the switch it catches only your own checks (the note above), and a
+tester's request waits in the access queue,
 not answered yet. The OTA stack's Mailpit never holds a tester's mail: it is the
 nightly gate's, and the smoke reads it every night. On `main`, `managed.yml`
 still pins `name: ownpace-managed` and gives 17 services a fixed
@@ -2678,6 +2701,10 @@ thing. One script moves it:
    logged. **If it says one-way** and you want a way back that is not a fix
    and a new tag, dump live's database now, with the hold still on (the
    operator runbook's *Backup & restore*). Nothing takes a dump for you.
+   First check that live's `BACKUP_RETENTION_DAYS` is N and not `0` (§8g).
+   Keep the dump until the next deploy succeeds and never longer than N days,
+   and nothing deletes it for you either: delete it by its N-th day, whether
+   or not a deploy followed (workplan 0134 T0 step 4).
 4. From `~/ownpace-live`:
 
    ```bash

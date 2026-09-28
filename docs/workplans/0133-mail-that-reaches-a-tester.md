@@ -1,8 +1,42 @@
 # Workplan 0133 — Mail that reaches a tester
 
-> **In one line:** Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, by-hand forwarding meanwhile, relay as sub-processor.
+> **In one line:** Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, no tester before the relay (the by-hand procedure kept, unused), relay as sub-processor.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28, later: T0's relay chosen and proved by hand, to Proton and to Microsoft 365.** The
+owner: *"I was hoping to reuse my proton SMTP"*. The relay is Proton Mail's SMTP submission, the
+host of `support@ownpace.eu` already, so one sub-processor serves the mailbox and the relay:
+`smtp.protonmail.ch`, port 587 with STARTTLS, the login `support@ownpace.eu` and an SMTP token made
+in Proton's settings for that address, never the account's password. The domain's records were
+already Proton's: SPF `include:_spf.protonmail.ch`, DKIM under the selector `protonmail` (three
+CNAMEs), and DMARC `p=quarantine; sp=quarantine; aspf=r`.
+
+- **Proved by hand, from the reference machine, with `curl` and no stack involved.** One mail from
+  `support@ownpace.eu` through `smtp.protonmail.ch:587`, delivered with `spf=pass`, `dkim=pass`
+  (2048-bit key, `header.d=ownpace.eu`, `s=protonmail`) and `dmarc=pass (p=quarantine)`, spam score
+  0. The recipient was Proton-hosted too, so this is Proton's internal path. The same send to a
+  Microsoft 365 mailbox, minutes later: `spf=pass`, `dkim=pass` (`header.d=ownpace.eu`),
+  `dmarc=pass`, `compauth=pass`, spam confidence 1 and not spam, delivered to the inbox. That is the
+  path most testers' mail takes. T4's walk, with the stack sending, is still to come on live.
+- **Live's `.env` then carries** `SMTP_HOST=smtp.protonmail.ch`, `SMTP_PORT=587`, `SMTP_SECURE`
+  empty, `SMTP_USER=support@ownpace.eu`, `SMTP_PASSWORD` the token, `NOTIFY_FROM=support@ownpace.eu`
+  (set at live's first bring-up, 0132 T1b; never in the OTA stack's). `SMTP_PORT` must be set:
+  `setup-zitadel.sh` falls back to 1025, the catcher's port, when it is empty.
+- **For the legal texts (T5, the owner's final-text pass):** Proton AG is the mail provider, in
+  Switzerland, which has an EU adequacy decision; `site/legal/README.md` says the provider *"Must
+  be EU"*, which the lawyer's pass reads against that. `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` stay
+  placeholders until then.
+
+**2026-09-28: the owner answered open questions 5 and 1: no interim on live.** *"mail at the
+start: real mail relay day one."* That is open question 5's alternative: nobody is invited to
+`ownpace-live` until T3 is done, so no tester's mail is caught on live and T1's passing by hand is
+not used. Open question 1 follows: the first invitations do not go out on T1 alone, and T4's walk
+comes before the first invitation, as 0131 T5's row for this plan already asks. T1's and T4's rows,
+§3 T1, §5, open question 4's aside and the one line above say so. The guide's subsection from T1
+(#1217), *Before a relay: passing mail on by hand* in `docs/managed-bring-up.md`, is kept. It now
+opens with a note that it is not used on live, and its sentence that called open question 5
+unanswered now says that a tester's request waits in the queue until the switch.
 
 **2026-09-27, late: T3's gating and its note built (0131 §6, group M5, step 2)** on branch
 `claude/mailbox-sync-errors-c2xsw2-the-catcher-only-where-it-catches`, not merged. T3's switch on
@@ -204,11 +238,11 @@ recipe that lists one tester's mail by recipient, and with when the interim ends
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The mail-sending account, the sending address and its DNS | ⏳ **Owner** (D1) for the relay, its login and the DNS; the sending address 📋 **Decided 2026-09-27**: `support@ownpace.eu` (open question 2 (a)) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
-| T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself stays ⏳ the owner's. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
+| T0 The mail-sending account, the sending address and its DNS | ✅ **Relay chosen and proved by hand 2026-09-28**: Proton Mail's SMTP submission; SPF, DKIM and DMARC passing, to a Proton-hosted mailbox and to a Microsoft 365 inbox (not junk); the values go in live's `.env` at its first bring-up — *was:* ⏳ **Owner** (D1) for the relay, its login and the DNS; the sending address 📋 **Decided 2026-09-27**: `support@ownpace.eu` (open question 2 (a)) | §3. An EU relay with a login, SPF, DKIM and DMARC, a `NOTIFY_TO` a person reads, and a `NOTIFY_FROM` whose replies reach a person. The values go in `ownpace-live`'s `.env` only. |
+| T1 Until then: the owner passes each mail on by hand | ✅ **done** in #1217, merged 2026-09-27: the guide's subsection. The passing itself is not used: nobody is invited to live before T3 (open question 5, answered 2026-09-28), which makes T1 unnecessary. *Was:* 📋 **Decided 2026-09-24** (D2, D3); on `ownpace-live` only (D5) | §3. Only if testers are on live before the relay exists, and then from live's own catcher, never the OTA stack's (open question 5). Which mails matter, which of them carry a code, how long a code lives, and the one rule for passing a code on. Procedure only, no code. |
 | T2 The identity provider sends with the relay's login, over TLS, and follows `.env` | 📋 **Decided 2026-09-24** (D1); item 1 ✅ **done** in #1137, merged 2026-09-24; item 5 ✅ **done** in #1245, merged 2026-09-27 (`requireTLS` with a login); items 2 to 4 ✅ **done** in #1249, merged 2026-09-27 (TLS for any relay but the catcher, one provider updated in place, the guide) — *was:* items 2 to 4 🔨 built 2026-09-27, not merged | §3. The provider is created with `SMTP_USER` and `SMTP_PASSWORD` since #1137. Left: TLS for any relay that is not the catcher, and the existing provider updated rather than reported as "already configured". |
 | T3 Both senders point at the relay, and Mailpit runs only where something needs it | 📋 **Decided 2026-09-24** (D1, D5) for the switch on `ownpace-live`, and for no Mailpit there once the relay is set; (b) and (c) ✅ **done** in #1260, merged 2026-09-28: the gating and the `.invalid` note — *was:* 🔨 **(b) and (c) built 2026-09-27, not merged**; before that **Proposed** for how the bring-up gates Mailpit | §3. Live's `.env` only; the OTA stack keeps `SMTP_HOST=mailpit`. Waits on T0, T2, 0132 T1 and T1b to T1d, and 0135 T0. |
-| T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3 | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
+| T4 One outside mailbox, walked end to end | 📋 **Proposed**; the owner walks it after T3, and before the first invitation (open question 1, answered 2026-09-28) | §3. On `ownpace-live`, at `app.ownpace.eu` and `id.ownpace.eu`. Request, knock notice, grant mail, identity-provider verification, first sign-in, Join. Headers checked at two mail providers. |
 | T5 The relay named as a sub-processor | 📋 **Proposed**; carried by 0139 | §3. Fills `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` in three legal pages. |
 | T6 A password on Mailpit's web page | 🅿️ **Parked (trigger: a second person on the mesh, or Mailpit's page on a name or port a tester can reach)** | §3. `MP_UI_AUTH_FILE` is named in two docs and not passed to the container. |
 
@@ -443,6 +477,11 @@ means:
 
 ### T1 — until then: the owner passes each mail on by hand (decided, D2, D3; on live only, D5)
 
+*Not used: open question 5, answered 2026-09-28.* Nobody is invited to `ownpace-live` before T3,
+so no tester's mail is caught on live and nothing below is passed on. The procedure, and the
+guide's subsection that #1217 wrote, are kept, and the subsection says at its top that it is not
+used.
+
 **Where it applies.** On `ownpace-live` only, and only until the relay exists. If T0 is ready
 before live's first bring-up, and the tag live is first brought up from carries T2 (TLS for the
 identity provider) and 0135 T1 and T2 (public organisation registration off, and the project
@@ -450,8 +489,9 @@ admitting its own organisation only), the relay goes in live's `.env` from the s
 never used. Without T2 the identity provider
 takes `tls` from an empty `SMTP_SECURE` and speaks plain text to a 587 relay (§1), so its codes
 would not arrive. If any of these is missing, live starts with `SMTP_HOST=mailpit` (§1) and its
-mail is caught by a Mailpit in live's own project, which T3 later empties and stops (open
-question 5). The OTA stack's Mailpit never holds a tester's mail: it is the gate's, and the gate's
+mail is caught by a Mailpit in live's own project, which T3 later empties and stops. That catcher
+holds only the owner's own checks: nobody is invited before T3 (open question 5, answered
+2026-09-28). The OTA stack's Mailpit never holds a tester's mail: it is the gate's, and the gate's
 smoke reads it every night.
 
 This is a procedure, not a build. It lives in this plan and in one short subsection of
@@ -718,15 +758,15 @@ is done and live's Mailpit is emptied and stopped.
 
 ## 5. Order
 
-1. T0 now. T1 only if testers are on `ownpace-live` before the relay exists. Both are the owner's,
-   and neither waits on code.
+1. T0 now. T1 only if testers are on `ownpace-live` before the relay exists, which the owner ruled
+   out on 2026-09-28 (open question 5). Both are the owner's, and neither waits on code.
 2. T2 next. It does not wait on T0: the guards are text guards, and the login part merged with
    #1137 on 2026-09-24.
 3. T3 once T0 and T2 are done, 0132 T1 and T1b to T1d have brought up `ownpace-live` with its own
    `.env`, task plane and identity provider, and 0135 T0 has closed public organisation
    registration at live's identity provider.
-4. T4 straight after T3 and 0132 T1e, and before any tester the owner does not know personally
-   (open question 1).
+4. T4 straight after T3 and 0132 T1e, and before the first invitation (open question 1, answered
+   2026-09-28).
 5. T5 with 0139's legal pass, before the first invitation.
 6. T6 stays parked.
 
@@ -739,7 +779,9 @@ trigger a verification mail.
 1. **May the first invitations to `ownpace-live` go out on T1 alone?** The owner's *"I will
    practically forward / help"* allows it, but 0131 T5 lists T4 as this plan's minimum.
    *Recommended:* yes, for the first few testers who know the owner and expect a code from the
-   owner's address, and T4 before anyone else. 0131 T5 is then adjusted to say so.
+   owner's address, and T4 before anyone else. 0131 T5 is then adjusted to say so. **Answered
+   2026-09-28: no**, with open question 5: *"mail at the start: real mail relay day one."* Nobody
+   is invited before T3, and T4 comes before the first invitation. 0131 T5 stays as it is.
 2. **Which address the mail is sent from, and where replies go.** No Reply-To is set, and the
    decline mail promises that a reply reaches a person.
    - **(a)** Send as an address on `ownpace.eu` that a person reads, and add the relay to the
@@ -754,8 +796,11 @@ trigger a verification mail.
    `support@ownpace.eu` and reads it, and it is now the address the platform sends from.
 4. **Mailpit's gating (T3).** On `--with-demo` only, or also whenever `SMTP_HOST` is
    `mailpit`? *Recommended:* both, for the reason in T3. The second condition is also what starts
-   live's own catcher during T1's interim.
+   live's own catcher if live is brought up before its relay, for the owner's own checks only
+   (open question 5).
 5. **Live's interim catcher.** If testers arrive on `ownpace-live` before the relay exists, is
    their mail caught by a Mailpit in live's own project, which T3 later empties and stops?
    *Recommended:* yes, and never by the OTA stack's Mailpit, which live cannot reach anyway (§1).
    The alternative is to invite nobody to live until T3 is done, which makes T1 unnecessary.
+   **Answered 2026-09-28: the alternative**, *"mail at the start: real mail relay day one."* No
+   interim catcher on live: nobody is invited to live until T3 is done, so T1 is not used.

@@ -39,6 +39,31 @@ export const FAILURE_KEY: Record<FailureCategory, StringKey> = {
 };
 
 /**
+ * THE REMEDY FOR ONE ITEM'S CATEGORY, ON THE MIGRATION IT BELONGS TO (workplan
+ * 0150 D9, the owner's choice of 2026-09-26).
+ *
+ * The category alone chose it until a second source could state
+ * `policy_refused`. Drive's sentence for it names Drive's own setting, *Export
+ * format for Google files*, and a Dropbox migration has no such setting: its
+ * Paper docs are refused because this service does not export them yet
+ * (0150 T5). So a Dropbox migration reads its own sentence, which names no
+ * setting until 0150 T3 adds one, and every other migration reads the one
+ * above, word for word as the owner worded Drive's.
+ *
+ * `sourceKind` is the failures queue's (`FailuresQueue.sourceKind`), absent
+ * from a server that predates it. Every screen that shows an ITEM's remedy
+ * asks here; the three that show a data type's category index the map above
+ * directly, because that category never holds `policy_refused`
+ * (`a-remedy-chosen-by-source` holds both halves).
+ */
+export function remedyKey(category: FailureCategory, sourceKind?: string): StringKey {
+  if (category === 'policy_refused' && sourceKind === 'dropbox') {
+    return 'failure.policyRefused.dropbox';
+  }
+  return FAILURE_KEY[category];
+}
+
+/**
  * And which SIDE it happened on, when the pass could tell (workplan 0094 T5,
  * second slice) — one map for the same two screens, for the same reason.
  * Absent means "the pass could not tell", and the screens then say nothing

@@ -4,6 +4,50 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later: the first drill across a real gap stopped on defects in the drill, three of
+them, fixed on branch `claude/ownpace-public-readiness-y7orc6-a-drill-that-keeps-its-mapping`, not
+merged.** The owner ran `./scripts/upgrade-drill.sh v0.1.0-rc.1` on `main` at `a0897c0b`, in a
+clone of its own, after the release name was accepted. It pulled rc.1, started it healthy, and
+stopped at step 1: *"DRILL FAILED: the released appliance configured NO mappings"*, with `rm:
+cannot remove '/tmp/tmp.…': Operation not permitted` on the way out. The guard that refuses an
+empty comparison did its job. The drill had not run since its fix of 2026-08-04 (`7cb1af4e`):
+
+- **Step 1 removed the mapping it had just written.** It called `cleanup`, whose last line removes
+  the config directory. Docker then created the missing mount source itself, empty and owned by
+  root, which is also why the run's own `rm` could not remove it. Step 1 now calls
+  `down_project`, the project half of `cleanup`, and refuses to start the appliance unless the
+  mapping is there.
+- **The upgraded appliance could not have started** (found by the review, before the owner's next
+  run). `compose.drill.yml` mounted the directory read-only at `/data/config`, and the launcher of
+  every build since 2026-08-06 (`start.mjs`, from `scripts/package-appliance.mjs`, the image's
+  `CMD`) writes and removes a probe file in `CONFIG_DIR` before it starts, and exits when it
+  cannot. rc.1 has no probe, so step 1 would have passed and step 3 failed. The drill now mounts
+  the one file, `mapping.json`, read-only, and `/data/config` stays the image's own directory,
+  owned by appuser and writable. Since the rest of that directory is what step 2 builds from the
+  checkout, the drill refuses, before anything starts, a checkout holding any other `*.json` in
+  `deploy/selfhost/config/` (a second mapping, or the files the selfhost e2e gate writes): the
+  upgraded appliance would load it and the released one would not (the second review round).
+- **The file's mode was the umask's.** The appliance runs as appuser, uid 10001
+  (`apps/selfhost/Dockerfile`), neither the file's owner nor in its group. The drill sets 644. The
+  file holds the example's values and the names of environment variables, no credential.
+- **The mapping is the one the tag shipped.** `git show <tag>:deploy/selfhost/config/mapping.json.example`,
+  the file an operator of that release copied, so "same mappings before and after" also says the
+  new build reads an old release's config. rc.1's example parses with `main`'s parser (checked with
+  `parseMappingConfigJson`, and by the review with `loadConfigDir`), including its `baseUrl` with a
+  path.
+
+Guard: `scripts/a-drill-that-keeps-its-mapping.unit.test.ts` runs the drill under umask 077 against
+a throwaway repository holding the real `compose.drill.yml`, with `docker`, `curl` and `sleep` as
+stubs and nothing of the machine's git. The docker stub reads the config mount from that file and
+plays each appliance: both need the mapping readable by a process that is neither its owner nor in
+its group, and the upgraded one needs `/data/config` writable; without the override it has no
+mapping at all. Six cases. It fails on `main`'s drill (the released appliance) and on this branch's
+first commit (the upgraded one); the old step 1, the file without its mode, the directory mounted
+read-only, a stray config in the checkout and a drill without its override each fail as they would
+for real, and the passing run's every `up` is the drill's own project with the override.
+**Open:** the owner's run on `main` once this merges, and the required run on the commit to be
+tagged (T2).
+
 **2026-09-28: T5 (a) built with 0132 T6 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** The rule is in
 `deploy/compose/deploy-live.sh`; 0132's Status entry of the same date has the script as a whole.

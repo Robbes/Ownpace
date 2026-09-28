@@ -23,7 +23,11 @@ De test vraagt Dropbox alleen naar het bovenste niveau van de hoofdmap, en antwo
 
 ## Wat er meegaat {#what-moves}
 
-De inhoud van de bestanden en de mappenboom. De deelinstellingen (met wie iets gedeeld is), bestandsverzoeken, Paper-documenten en de versiegeschiedenis blijven achter. Verwijderingen worden herkend door te tellen wat ontbreekt (twee schone rondes); het "terugzetten" van Dropbox en het lezen van verwijderde items worden nog niet ondersteund.
+De inhoud van de bestanden en de mappenboom. De deelinstellingen (met wie iets gedeeld is), bestandsverzoeken en de versiegeschiedenis blijven achter.
+
+Een Paper-document wordt niet gekopieerd, en ook geen ander document dat Dropbox in een eigen formaat bewaart: Dropbox geeft zo'n document alleen als export af, en die maakt deze dienst nog niet. Elk ervan staat met zijn naam op de pagina Mislukkingen, wachtend op u: exporteer het zelf vanuit Dropbox, of laat het achter. Alle andere bestanden gaan gewoon door. Paper-documenten die buiten uw Dropbox-bestanden staan, bij een ouder Paper-account, worden helemaal niet gezien.
+
+Verwijderingen worden gelezen uit wat Dropbox zelf over verwijderde bestanden bijhoudt, en verder herkend door te tellen wat ontbreekt (twee schone rondes); het "terugzetten" van Dropbox wordt niet gelezen.
 
 ## Als de test iets meldt {#when-test-says}
 
