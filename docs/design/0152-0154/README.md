@@ -132,7 +132,9 @@ request.
   1. who it is for;
   2. which accounts are left, with nothing preselected;
   3. what moves, chosen before any consent;
-  4. connecting;
+  4. connecting, with one sign-in per provider for exactly what was ticked. On a deployment
+     that declares Google's restricted scopes, Google's one sign-in covers mail and files
+     too (0153 T4);
   5. where each data type goes;
   6. one screen that checks, then starts.
 - **`wf-person-page.svg`** draws:

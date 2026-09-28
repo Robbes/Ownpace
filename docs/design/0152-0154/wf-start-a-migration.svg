@@ -132,19 +132,23 @@
 <text x="52" y="696" font-size="18" font-weight="800" fill="#111827" text-anchor="start">Connect your accounts</text>
 <rect x="52" y="720" width="28" height="28" rx="6.16" fill="#0E4F4A"/>
 <text x="66.0" y="738.48" font-size="12.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">G</text>
-<text x="90" y="740" font-size="14" font-weight="600" fill="#111827" text-anchor="start">Google asks 3 times: mail, files,</text>
-<text x="90" y="758" font-size="14" font-weight="600" fill="#111827" text-anchor="start">calendar with contacts</text>
-<text x="52" y="790" font-size="13" font-weight="600" fill="#047857" text-anchor="start">✓ Mail — connected as anna@example.com</text>
-<rect x="52" y="804" width="350" height="48" rx="8" fill="#2563EB"/>
-<text x="227.0" y="832.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Connect with Google (2 of 3)</text>
-<text x="52" y="872" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">The button says why when it is greyed out,</text>
-<text x="52" y="888" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">in text under it (0145 T7 a).</text>
-<rect x="52" y="916" width="28" height="28" rx="6.16" fill="#0E4F4A"/>
-<text x="66.0" y="934.48" font-size="12.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">D</text>
-<text x="90" y="936" font-size="14" font-weight="600" fill="#111827" text-anchor="start">Dropbox</text>
-<rect x="52" y="952" width="350" height="48" rx="8" fill="#2563EB"/>
-<text x="227.0" y="980.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Connect with Dropbox</text>
-<text x="52" y="1028" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">A saved account is offered first (0064).</text>
+<text x="90" y="740" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Google</text>
+<text x="90" y="758" font-size="13" font-weight="500" fill="#374151" text-anchor="start">One sign-in: mail, calendar, contacts, files</text>
+<rect x="52" y="772" width="350" height="40" rx="8" fill="#D1FAE5"/>
+<text x="66" y="797" font-size="13" font-weight="700" fill="#047857" text-anchor="start">✓ Connected as anna@example.com</text>
+<rect x="52" y="836" width="28" height="28" rx="6.16" fill="#0E4F4A"/>
+<text x="66.0" y="854.48" font-size="12.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">D</text>
+<text x="90" y="856" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Dropbox</text>
+<text x="90" y="874" font-size="13" font-weight="500" fill="#374151" text-anchor="start">One sign-in: files</text>
+<rect x="52" y="888" width="350" height="48" rx="8" fill="#2563EB"/>
+<text x="227.0" y="916.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Connect with Dropbox</text>
+<text x="52" y="954" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">Photos need no sign-in: they come from</text>
+<text x="52" y="970" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">your Takeout export.</text>
+<text x="52" y="994" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">A saved account is offered first (0064). A greyed</text>
+<text x="52" y="1010" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">button says why in text under it (0145 T7 a).</text>
+<text x="52" y="1038" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">One consent per provider, for what was ticked.</text>
+<text x="52" y="1054" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">Where Google’s restricted scopes are not declared,</text>
+<text x="52" y="1070" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">mail and files sign in apart; the screen says so first.</text>
 <rect x="282" y="1116" width="120" height="44" rx="8" fill="#2563EB"/>
 <text x="342.0" y="1142.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Next</text>
 <rect x="445" y="640" width="390" height="540" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>

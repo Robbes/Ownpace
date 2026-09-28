@@ -4,6 +4,14 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, late evening: one Google consent, as the app already asks.** Seeing the drawing's
+*"Connect with Google (2 of 3)"*, the owner asked: *"should we not ask for all the needed grants
+in one go, like how we do now?"* Yes. The *Google account* card already makes one connection with
+one consent for the ticked data types (0106 T3b, ADR-0041). Where the deployment declares
+`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, that consent covers mail and files too. T4's *Connect*
+step said up to three consents, and *Not in this plan* called one consent out of scope. Both were
+wrong and are corrected, and so is the drawing's step 4.
+
 **2026-09-28, evening: the owner's second answers, and two of T1's four faults in review.** Asked
 the questions this plan left open, the owner answered:
 
@@ -89,15 +97,16 @@ and *Quick Actions*. Nothing on it groups migrations by the person they move.
   Host, Port, *Use SSL/TLS*, Username and Password, and *"To continue, fill in: Host, Username,
   Password"*. The page is 2,300 pixels tall on a desktop and 3,284 on a phone.
 - **A card is a connector, not a provider.** Google alone is five cards: *Google account*
-  (calendars, contacts and tasks), *Gmail*, *Google Calendar*, *Google Contacts* and *Google
-  Drive*. Photos come through *Export archive*. The customer guide says mail and files *"come
+  (calendars, contacts and tasks; mail and files as well where the deployment declares Google's
+  restricted scopes), *Gmail*, *Google Calendar*, *Google Contacts* and *Google Drive*. Photos come through *Export archive*. The customer guide says mail and files *"come
   through the Gmail and Google Drive cards"* (`docs/guides/en/google.md`:19).
 - **One target per migration** (`CreateMapping.tsx`:111). So a person leaving Google for Soverin
   and Nextcloud builds three migrations or more, each through the four steps. Each has its own
   consent, its own progress and its own Finish checklist.
 
-  Measured for Gmail to Soverin plus Drive to Nextcloud: about 19 presses, 9 typed fields, two
-  Google consents and two migrations before any data moves.
+  Measured for Gmail to Soverin plus Drive to Nextcloud, through the *Gmail* and *Google Drive*
+  cards: about 19 presses, 9 typed fields, two Google consents and two migrations before any data
+  moves.
 - **The buttons that matter look like links.** *Connect with Google* and *Test and save
   connections* are `btn-secondary`, 20 pixels tall with no border (`:2507`, `:2156`). Why one is
   disabled is said only in a tooltip (`:2508-2519`).
@@ -411,9 +420,19 @@ on its heading, as 0145 T3 built for the wizard.
    - **This is asked before any consent.** So each consent asks for exactly what was ticked, which
      is T1 (c) by construction.
 4. **Connect.**
-   - Per provider, the consents and sign-ins the ticks need. For Google today that can be up to
-     three consents: mail, files, and calendar with contacts. The screen says how many before the
-     first. A combined consent is not in this plan (§*Not in this plan*).
+   - **One sign-in per provider, asking for exactly the ticked data types.** That is the
+     provider-account connection the *Google account* and *Microsoft 365 account* cards already
+     make (0106 T3b, 0114, ADR-0041): one account row, one consent, the faces ticked. The flow
+     reads what each provider serves on this deployment from `GET /api/provider-accounts`
+     (`providerAccountFacts`), as the wizard does, and builds nothing new for it.
+   - **For Google, that is one consent for mail, calendar, contacts, files and tasks** where the
+     deployment declares `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`. Live can, while its client
+     stays in Testing (0140 D1), because test users can grant Google's restricted scopes.
+   - **Only where a deployment has not declared it** (the default, and every appliance), Google's
+     one consent covers calendar, contacts and tasks, and mail and files each take a consent of
+     their own through the `gmail` and `google-drive` kinds, because Google classes those scopes
+     as restricted. The screen then says how many before the first, and why, in one sentence.
+     Photos take no consent: they come from a Takeout export.
    - A saved account is offered first (0064). The one existing account is the default (owner,
      2026-09-17).
    - Each sign-in is checked as it is saved, with the probe 0046 built.
@@ -591,9 +610,12 @@ pages. `a-class-tailwind-draws-nothing-for.unit.test.ts` catches a class that re
 
 ## Not in this plan
 
-- **One consent covering Gmail, Drive and the Google account together.** It would mean one token
-  with every scope, which is wider than each connector needs. That is a least-privilege question
-  for its own ADR, not a UX change.
+- **A consent wider than the ticks.** One consent per provider account is already the
+  product's (0106 T3b, 0114, ADR-0041), and T4 keeps it that way: each consent asks for the ticked
+  data types only (T1 (c)).
+- **Mail and files in Google's one consent on a deployment that has not declared the restricted
+  scopes.** That needs Google's restricted-scope assessment for the product's own client, which
+  is ADR-0041's and 0089 T5's question, not a UX change.
 - **Recreating a person's shared mailboxes and groups as part of a move.** That is 0027's.
 - **Billing per move.** A move is not billed. Paths are (ADR-0014).
 - **The site.** That is 0152.
