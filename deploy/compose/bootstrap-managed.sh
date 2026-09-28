@@ -111,6 +111,24 @@ known_phase() {
 [ -n "$FROM" ] && known_phase "$FROM"
 [ -n "$ONLY" ] && known_phase "$ONLY"
 
+# NO DEMO ON LIVE (workplan 0132 T5). --with-demo seeds two organisations whose
+# credentials are published in this repository, and provisions the demo's mail
+# and DAV servers. The help above always said a real deployment must not have
+# it; this makes that a refusal. It keys on live's marker (stack-kind.sh), not
+# on WEB_URL being a real address: the nightly gate brings the OTA stack up
+# with the demo every night at a real address, and its .env carries no marker.
+# stack_may_be_live errs towards live: a slip of the marker is refused too.
+# Before anything runs, and naming the key, never its value.
+# shellcheck source=deploy/compose/stack-kind.sh
+. "${SCRIPT_DIR}/stack-kind.sh"
+if [ "$WITH_DEMO" -eq 1 ] && stack_may_be_live "$ENV_FILE"; then
+  echo "!!! refused: --with-demo, and ${ENV_FILE} has a ${STACK_KIND_KEY} line: live's marker (${STACK_KIND_KEY}=${STACK_KIND_LIVE}), or something that could be a slip of it. Its value is not printed." >&2
+  echo "!!! ownpace-live never has the demo: it creates organisations with fixed, published credentials (workplan 0132 T5)." >&2
+  echo "!!! Nothing has run. On live, run the same command without --with-demo. If this is not live's .env, look at that line:" >&2
+  echo "!!! only a .env without the key, or with a kind stack-kind.sh lists as not live, takes the demo." >&2
+  exit 1
+fi
+
 say() { echo; echo "=== [$1] $2"; }
 note() { echo "    $*"; }
 die() { echo "!!! $*" >&2; exit 1; }

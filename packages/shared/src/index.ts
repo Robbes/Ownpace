@@ -76,6 +76,7 @@ export * from './dropbox-deployment-client.ts';
 export * from './microsoft-deployment-client.ts';
 export * from './microsoft-scopes.ts';
 export * from './provider-clients.ts';
+export * from './consent-state.ts';
 export * from './redirect-uris.ts';
 export * from './standing-grants.ts';
 export * from './erasure-timeline.ts';

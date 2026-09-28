@@ -78,6 +78,17 @@ beforeEach(() => {
   globalThis.sessionStorage.clear();
 });
 
+/**
+ * Why a Connect button is greyed out: the status line straight under it
+ * (workplan 0145 T7 (a)), where a finger can read it. It used to be the
+ * button's `title`.
+ */
+const reasonUnder = (button: HTMLElement): HTMLElement => {
+  const line = button.nextElementSibling;
+  expect(line?.getAttribute('role'), 'no reason under the greyed-out button').toBe('status');
+  return line as HTMLElement;
+};
+
 const renderWizard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -1158,7 +1169,10 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
     // substitute anything for an empty tick set since T1b and said callers
     // must refuse rather than default; this is the caller reaching it, and a
     // `sourceType` here would silently ask for one fixed scope instead.
-    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    // The window opens blank in the press and is sent to the provider once
+    // the server answers (0145 T5), so the address lands on its location.
+    const popup = { location: { href: 'about:blank' }, closed: false, close: vi.fn() };
+    const open = vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
     try {
       renderWizard();
       pickAccount();
@@ -1179,8 +1193,10 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
       expect(sent).not.toHaveProperty('sourceType');
       expect(sent.clientId).toBe('cid.apps.googleusercontent.com');
       // The secret goes in the BODY and never into a URL — the popup is
-      // opened with the server's answer, which carries no secret.
-      expect(String(open.mock.calls[0]?.[0] ?? '')).not.toContain('client-secret');
+      // sent to the server's answer, which carries no secret.
+      expect(open.mock.calls[0]?.[0], 'the window opens blank, in the press').toBe('');
+      await waitFor(() => expect(popup.location.href).not.toBe('about:blank'));
+      expect(popup.location.href).not.toContain('client-secret');
     } finally {
       open.mockRestore();
     }
@@ -1217,10 +1233,7 @@ describe('CreateMapping — one Google ACCOUNT, several faces (workplan 0106 T3b
 
     const connect = screen.getByRole('button', { name: /Connect with Google/i });
     expect(connect).toBeDisabled();
-    expect(connect).toHaveAttribute(
-      'title',
-      expect.stringContaining('Tick what to migrate first'),
-    );
+    expect(reasonUnder(connect)).toHaveTextContent('Tick what to migrate first');
     expect(authorizeMock).not.toHaveBeenCalled();
   });
 });
@@ -1528,7 +1541,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
       target: { value: 'cid.apps.googleusercontent.com' },
     });
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute('title', expect.stringContaining('or neither'));
+    expect(reasonUnder(connectButton())).toHaveTextContent('or neither');
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@gmail.com' },
     });
@@ -1554,10 +1567,7 @@ describe('CreateMapping — the deployment carries its own Google client (ADR-00
     await act(async () => {});
 
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute(
-      'title',
-      expect.stringContaining('Enter the Client ID and client secret first'),
-    );
+    expect(reasonUnder(connectButton())).toHaveTextContent('Enter the Client ID and client secret first');
     expect(screen.queryByText(/has its own Google client/)).not.toBeInTheDocument();
     // And no fold: the pair is required here, so it is in plain view.
     expect(screen.queryByText('Use your own Google client')).not.toBeInTheDocument();
@@ -1670,7 +1680,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
 
     fireEvent.change(screen.getByLabelText(/App key/), { target: { value: 'dbx-app-key' } });
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute('title', expect.stringContaining('or neither'));
+    expect(reasonUnder(connectButton())).toHaveTextContent('or neither');
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {
       target: { value: 'owner@example.invalid' },
     });
@@ -1700,10 +1710,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     await act(async () => {});
 
     expect(connectButton()).toBeDisabled();
-    expect(connectButton()).toHaveAttribute(
-      'title',
-      expect.stringContaining('Enter the App key and App secret first'),
-    );
+    expect(reasonUnder(connectButton())).toHaveTextContent('Enter the App key and App secret first');
     expect(screen.queryByText('Use your own Dropbox app')).not.toBeInTheDocument();
     expect(screen.getByLabelText(/App key/).closest('details')).toBeNull();
   });
@@ -1718,10 +1725,7 @@ describe('CreateMapping — the deployment carries its own Dropbox app (Connect 
     // the call itself, so the assertion waits for the sentence rather than
     // for the call (2026-09-03: one red in 5768 with nothing else changed).
     await waitFor(() =>
-      expect(connectButton()).toHaveAttribute(
-        'title',
-        expect.stringContaining('Enter the account address first'),
-      ),
+      expect(reasonUnder(connectButton())).toHaveTextContent('Enter the account address first'),
     );
     expect(connectButton()).toBeDisabled();
     fireEvent.change(screen.getByPlaceholderText('user@example.com'), {

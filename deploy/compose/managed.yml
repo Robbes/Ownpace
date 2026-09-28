@@ -153,7 +153,15 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: trigger
-      POSTGRES_PASSWORD: trigger_password
+      # From .env (workplan 0132 T2), and only at this volume's first
+      # initialisation: Postgres keeps the password a role was created with.
+      # The fallback is the literal every stack used before, and it has to
+      # stay: the OTA stack's trigger_db_data was initialised with it, and any
+      # other value would lock its trigger-api out at the next gate run. So
+      # ensure-env-secrets.sh never writes this key; stand-up-live.sh sets it
+      # on live, before live's volume exists. Hex, or another value safe in a
+      # URL: it is part of trigger-api's DATABASE_URL below.
+      POSTGRES_PASSWORD: ${TRIGGER_DB_PASSWORD:-trigger_password}
       POSTGRES_DB: triggerdb
     volumes:
       - trigger_db_data:/var/lib/postgresql
@@ -194,8 +202,9 @@ services:
     command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
     environment:
       # Database
-      DATABASE_URL: postgresql://trigger:trigger_password@trigger-db:5432/triggerdb
-      DIRECT_URL: postgresql://trigger:trigger_password@trigger-db:5432/triggerdb
+      # trigger-db's password, the same variable and fallback as there.
+      DATABASE_URL: postgresql://trigger:${TRIGGER_DB_PASSWORD:-trigger_password}@trigger-db:5432/triggerdb
+      DIRECT_URL: postgresql://trigger:${TRIGGER_DB_PASSWORD:-trigger_password}@trigger-db:5432/triggerdb
       # Auth secrets — fail-closed (0020 T2): these gate the trigger dashboard,
       # its magic-link login and its stored env vars. The old hardcoded
       # fallbacks were committed to a public repository, i.e. not secrets.
@@ -1009,9 +1018,12 @@ services:
       # the close endpoint TELLS a customer about when their erasure actually
       # completes (0085 T5). Unset means the 7-day default in @openmig/shared,
       # and that default assumes backups exist: nothing in this repository
-      # backs this database up yet. `ownpace-live` sets 0 during the alpha
-      # (workplan 0134). The api warns about a blank value in production, and
-      # with OWNPACE_STAGE=alpha refuses to start (`config-guards.ts`).
+      # backs this database up yet. `ownpace-live` takes no backups during the
+      # alpha and sets 7: its databases are dumped before each deploy and each
+      # dump is deleted after at most 7 days, both by the owner for now (0132
+      # T6 step 4; workplan 0134 open question 1 (b)). The api warns about a
+      # blank value in production, and with OWNPACE_STAGE=alpha refuses to
+      # start (`config-guards.ts`).
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
       # How many migrations one organisation may have that are not finished
       # (workplan 0143 T2a). Unset means the default in the api's
