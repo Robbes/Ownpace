@@ -27,7 +27,8 @@ import {
   passCounts,
 } from '@openmig/core';
 import { budgetPauseToReason } from '@openmig/shared';
-import { passStepBefore, taskErrorFor, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
+import { passStepBefore, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
+import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
 import type { TenantId, MappingId, BudgetPause, DeadlinePause } from '@openmig/shared';
 import type { DeltaSyncOutput, DomainOutcome } from './final-sync.ts';
 import { buildDepsFromMapping, buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
@@ -212,7 +213,7 @@ export const runDeltaSync = schemaTask({
   description: 'Delta Sync',
   schema: DeltaSyncJobSchema,
   queue: deltaSyncQueue,
-  run: async (payload: unknown, context) => {
+  run: leavesAReference('run-delta-sync', async (payload: unknown, context) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as DeltaSyncJobPayload;
     
@@ -785,8 +786,14 @@ export const runDeltaSync = schemaTask({
             log.error('Failed to mark domain status failed:', statusErr);
           }
           await recordAppEvent(failed);
-          // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking).
-          throw error;
+          // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking),
+          // under the event's reference and category, and without its words: the
+          // lines above keep those (0134, open question 3 (a); what-a-run-leaves.ts).
+          throw await planeErrorFor(
+            error,
+            { task: 'run-delta-sync', tenantId, mappingId },
+            { doing: `${domain} sync`, reference: failed.reference, category: failed.category ?? 'unknown' },
+          );
         }
       }
 
@@ -812,9 +819,10 @@ export const runDeltaSync = schemaTask({
       // Close the run row as failed so history shows the failure instead of a
       // row stuck in `running` forever.
       await closeRun('failed', 1);
-      // A deliberate stop fails ONCE; everything else still retries. The rule
-      // and the reason are on `taskErrorFor`.
-      throw taskErrorFor(error);
+      // A deliberate stop fails ONCE; everything else still retries. And
+      // neither carries the words. The rules and the reasons are on
+      // `planeErrorFor`, which hands a data type's error from above through.
+      throw await planeErrorFor(error, { task: 'run-delta-sync', tenantId, mappingId });
     } finally {
       // The net. A no-op on both paths above, and the only thing standing
       // between an unexpected exit and a mapping that never syncs again.
@@ -824,5 +832,5 @@ export const runDeltaSync = schemaTask({
       // wrongly called successful costs the truth.
       await closeRun('failed', 1);
     }
-  },
+  }),
 });
