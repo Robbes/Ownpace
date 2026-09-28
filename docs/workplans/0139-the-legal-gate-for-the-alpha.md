@@ -91,19 +91,23 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
   - **Privacy 1.2.** §1: Archico B.V., trading as Ownpace, its KvK and VAT numbers, no address,
     and *"We correspond by email."*, with a hidden comment that the address returns before the
     first paid tier. §4.1: *"… calendars and files cannot write to the source"*. §4.2 and §4.6:
-    the sharing list belongs to its migration. §4.4: no sign-in with Google, Microsoft, Apple or
-    GitHub during the Alpha; the account records which versions of the three texts were
-    accepted, and when. §4.5: server logs record the IP address NetBird passes on; NetBird keeps
-    its own log; searches and downloads on the support screens go after 12 months. §6: a family
-    member's Google address comes off the test list with the tester's, or sooner if asked. §7:
-    NetBird's row adds the WireGuard tunnel and NetBird's own log; *"This table is the complete
+    the sharing list belongs to its migration. §4.4: the account records which versions of the
+    three texts were accepted, and when (ops-social-signin (a) keeps the text as it is; only
+    live's `.env` has a to-do, no `IDP_*` keys). §4.5: server logs record the IP address NetBird
+    passes on; NetBird keeps its own log; searches and downloads on the support screens go after
+    12 months. §6: a family member's Google address comes off the test list with the tester's, or
+    sooner if asked. §7: NetBird's row adds the WireGuard tunnel and NetBird's own log, what it
+    holds and its 7 days (from NetBird's documentation, to confirm); *"This table is the complete
     list of our sub-processors."* replaces `«SUBPROCESSORS_URL»`. §8: *(Art. 45 GDPR; Commission
     Decision 2000/518/EC)*, and a paragraph on two routes to the US the reader chooses (the
     GitHub report form, a US mailbox). §9: the rows follow rec-copies, rec-drill (the drill
     sentence is gone), privacy-search-records, privacy-sent-mail-copies, privacy-sharing-list,
     privacy-signin-history and privacy-task-records; *"no backups"* has one exception. §10:
     *"What we hold about you ourselves (§4), we send you in a common file format if you ask."*
-    §12: a grant link for a child under 16 is completed by the parent with the child. §13: a
+    §11: row-level security covers the app's requests and the background tasks that run
+    migrations, and not yet the scheduled jobs that span organisations, as `SECURITY.md` says on
+    `main` since #1323 (d0138607), which this branch has not merged yet (a hidden comment says
+    so). §12: a grant link for a child under 16 is completed by the parent with the child. §13: a
     link to the policy's history on GitHub, per language, which also shows unpublished drafts.
     The briefing lists every answer by id, keeps the lawyer's questions 1 to 20 with what is left
     for the lawyer, describes the four data flows for Google's verification (question 15, as the
@@ -120,6 +124,12 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
     changed: terms-s6-reverse-charge (a) itself says §6 gets its sentence when business customers
     are admitted; the sentence, in both languages, is in the briefing (old question 1). The
     briefing marks each question ANSWERED, with *Left for the lawyer* after it.
+  - **The pricing page** (terms-s6-reverse-charge (a), which fixes it whichever option is
+    chosen). Its last paragraph said *"VAT is added where it applies"* / *"Btw komt erbij waar
+    die van toepassing is"*, against the price table's *"All prices include VAT"* and terms §6.
+    It now reads *"All prices include VAT. Self-hosting is free and always will be."* / *"Alle
+    prijzen zijn inclusief btw. Zelf draaien is gratis en blijft dat."*
+    (`site/pages/en/pricing.md`, `site/pages/nl/prijzen.md`).
   - **The Alpha conditions 1.0.** §2: terms §12's 30 days give way to §11's 7 days for the new
     conditions after the Alpha; a tester accepts the three texts in the app, which records the
     versions and the time. §4: *"We tell you about a data breach that affects your data"*, and
@@ -130,27 +140,36 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
     and a family member's Google address comes off at erasure. §11: acceptance in the app, and
     *"Your data is erased 7 days later; until then you can still accept them and carry on."* The
     briefing is rewritten for terms 1.3 and privacy 1.2.
-  - **`dpa.md` 0.2.** The parties as in privacy §1; §4 covers special categories in item names,
-    which are protected and deleted with the migration; §10 a return clause (the migration
+  - **`dpa.md` 0.2.** The parties as in privacy §1, except the address: it stays the token
+    `«REGISTERED_ADDRESS»`, not rendered, because rec-address (c) covers privacy §1 and terms §1
+    and §15 during the Alpha only, and the DPA is for business customers, who come after it;
+    §4 covers special categories in item names, which are protected, used to recognise each item
+    across passes and to show which item a record is about, and deleted with the migration;
+    §10 a return clause (the migration
     records first, on request, then deletion); §11 written answers free, the controller pays our
     reasonable costs of an on-site audit; §12 names Proton AG and puts notice and the standard
     contractual clauses before any later transfer; §13 one cap, data protection included, with
     data subjects' rights untouched; Annex A the item names; Annex B a new block of items for the
     lawyer, each with visible *Open:* marks (the machine, administrative access, incidents,
-    copies). The briefing records the answers and the to-dos, NetBird's Annex B line among them.
+    copies; the incidents item says the breach procedure tells the controller, as its §5 does,
+    and leaves open a timing and a template for that notice). The briefing records the answers
+    and the to-dos, NetBird's Annex B line among them.
   - **`subprocessors.md` 0.2.** Unpublished until the first business customer; the opening cites
     Art. 45 GDPR and Decision 2000/518/EC; NetBird's row as in privacy §7.
-  - **`site/legal/README.md`.** The placeholder table lists the one token still used,
-    `«SUBPROCESSORS_URL»`, in `dpa.md` and `subprocessors.md` only;
-    `«REGISTERED_ADDRESS»`, `«VAT_NUMBER»` and `«PRIVACY_HISTORY_URL»` moved to the filled list
+  - **`site/legal/README.md`.** The placeholder table lists the two tokens still used, in no
+    rendered text: `«REGISTERED_ADDRESS»` in `dpa.md` only, and `«SUBPROCESSORS_URL»` in
+    `dpa.md` and `subprocessors.md`; `«REGISTERED_ADDRESS»` (for the rendered texts),
+    `«VAT_NUMBER»` and `«PRIVACY_HISTORY_URL»` moved to the filled list
     with the owner's words; *Before the draft markers come off* is rewritten from the answers.
 - **Recorded, with no change to a text.** The answers that leave a question for the lawyer's pass
   (alpha-addendum-form, alpha-withdrawal-right, privacy-after-alpha-questions,
   privacy-bases-special-category, privacy-google-testlist-basis, privacy-household-controller,
   privacy-limited-use, terms-paid-tier-lawyer-checks) are marked in the briefings. The answers
-  that keep a text as drafted (dpa-q2-subprocessor-permission, ops-billing-form, privacy-db-access-sentence,
-  privacy-tls-wording, the terms' *Keep* answers, terms-s1-telephone, terms-s13-dispute-body,
-  terms-unbuilt-paid-steps) change nothing. Privacy §12 keeps its 16 beside the terms' 18, as
+  that keep a text as drafted (dpa-q2-subprocessor-permission, ops-billing-form,
+  ops-social-signin, privacy-db-access-sentence, privacy-tls-wording, the terms' *Keep*
+  answers, terms-s1-telephone, terms-s13-dispute-body, terms-unbuilt-paid-steps) change
+  nothing. ops-billing-form (b) leaves nothing to do: the Billing form, the card code and
+  §4.4's and §7's sentences stay as drafted. Privacy §12 keeps its 16 beside the terms' 18, as
   terms-s3-minimum-age (b) says, and the lawyer is asked to confirm the pair.
 - **Not checked from here.** NetBird's sources: `trust.netbird.io` returns only an empty page
   shell, whose content comes from a host the egress proxy refuses, and `netbird.io` is refused,
@@ -173,8 +192,21 @@ conditions stay 1.0, edited in place because nobody has accepted them yet.
   sign-in history checked; and, by hand, Proton's Sent folder, a family member's Google address
   and the read-log query.
 - **Files**: `site/legal/privacy.md`, `privacy.nl.md`, `terms.md`, `terms.nl.md`, `alpha.md`,
-  `alpha.nl.md`, `dpa.md`, `subprocessors.md`, `site/legal/README.md`, this plan, and the new
-  0155.
+  `alpha.nl.md`, `dpa.md`, `subprocessors.md`, `site/legal/README.md`, `site/pages/en/pricing.md`,
+  `site/pages/nl/prijzen.md`, this plan, and the new 0155.
+- **The review of these changes, fixed the same day** (11 findings, none rejected): the pricing
+  page's last paragraph (terms-s6-reverse-charge (a), above); §4.4's sentence on social sign-in
+  taken out again (ops-social-signin (a) keeps the text as it is); ops-billing-form (b) off the
+  to-do list; `dpa.md`'s parties keep `«REGISTERED_ADDRESS»`, and its §4 and Annex B's incidents
+  item say only what is true; privacy §11 follows #1323 on `main`; NetBird's row names what its
+  log holds and its 7 days (NetBird's documentation on GitHub, to confirm in its agreement or
+  dashboard; `trust.netbird.io`'s content and `netbird.io` are still refused by the egress
+  proxy); 0155 T2 reads as `app_user`, and §1 and T5 take the closed-organisation answer from
+  #1320 on `main`. Proved again after the fixes: the same five test files, 91 tests pass; the
+  three index `--check`s pass; `site/build.mjs --check` reports 4 legal pages marked draft and 0
+  unfilled placeholders, and `--public --check` refuses for the draft markers alone; the parity
+  script finds the same structure in each English text and its Dutch one, the pricing pages
+  included.
 - **Proved.** `npx vitest run --project unit scripts/legal-docs.unit.test.ts site/site.unit.test.ts
   scripts/a-policy-link-that-answers.unit.test.ts scripts/one-way-to-report-a-vulnerability.unit.test.ts
   scripts/workplan-index.unit.test.ts`: 5 files, 91 tests pass. `OWNPACE_APP_URL=https://app.ota.ownpace.eu
@@ -1385,7 +1417,7 @@ longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out for the Alpha (rec-address (c); it returns before the first paid tier), `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's data-processing agreement accepted (dpa-netbird-agreement (a)), the date and where the proxy runs still to record; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«SUBPROCESSORS_URL»` stays in `dpa.md` and `subprocessors.md` until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
+| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out of the rendered texts for the Alpha (rec-address (c); it returns before the first paid tier) and kept in `dpa.md`'s parties, `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's data-processing agreement accepted (dpa-netbird-agreement (a)), the date and where the proxy runs still to record; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«REGISTERED_ADDRESS»` stays in `dpa.md`, and `«SUBPROCESSORS_URL»` in `dpa.md` and `subprocessors.md`, until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **follow the owner's 71 answers of 2026-09-28**, on draft PR #1317, not merged: privacy 1.2 and terms 1.3 still drafts, the Alpha conditions 1.0 edited in place, `dpa.md` and `subprocessors.md` 0.2. The briefings mark each answered question and keep what is left for the lawyer (among them BW 3:15d without the address, the forum and language clauses, the paid-tier checks, Google's role for the test list, the legal bases); 📋 **Decided 2026-09-24** (D1) — *was:* revised 2026-09-28 for the owner's review, points 1, 2, 5 and 10 of §3 T1's list waiting on the owner or the lawyer | §3. The briefings at the top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md` are the brief. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |

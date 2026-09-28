@@ -37,18 +37,21 @@
   The owner's answers of 2026-09-28, applied the same day. v0.2 is edited in
   place, as the other drafts are; the owner reviews it in the pull request.
 
-  - The parties (rec-address (c), fact-vat (a), fact-trademark (b)): Archico
-    B.V., trading as Ownpace, KvK 73922706, VAT NL8597.110.06.B01 (written as
-    the owner gave it), and email as the way to correspond, as privacy §1 and
-    terms §1 now say. No address: it returns before the first paid tier,
-    after the lawyer's pass (the comment beside the parties). The trade name:
-    the owner's option says the KvK extract lists it; not checked here.
+  - The parties (fact-vat (a), fact-trademark (b)): Archico B.V., trading as
+    Ownpace, KvK 73922706, VAT NL8597.110.06.B01 (written as the owner gave
+    it). The address stays the token «REGISTERED_ADDRESS», not rendered:
+    rec-address (c) leaves it out of privacy §1 and terms §1 and §15 during
+    the Alpha only, and this DPA is for business customers, who come after
+    it (the comment beside the parties). The trade name: the owner's option
+    says the KvK extract lists it; not checked here.
   - §4 (dpa-q5 (b)): special categories can also appear in the item names the
-    ledger keeps. Those names are protected like the rest, used only to show
-    which item a record is about, and deleted with the migration (item.
-    display_name and natural_key sit under the item table's row security and
-    go with the migration: packages/ledger/migrations/0050, and privacy §4.2
-    and §9). Annex A's rows say the same.
+    ledger keeps. Those names are protected like the rest, used to recognise
+    each item across passes and to show which item a record is about, and
+    deleted with the migration (item.display_name and natural_key sit under
+    the item table's row security and go with the migration:
+    packages/ledger/migrations/0050, and privacy §4.2 and §9). A file has no
+    display_name: its path is its key, and the hash derived from it is the
+    handle for every lookup (0050). Annex A's rows say the same.
   - §10 (dpa-q3 (c)): a short return clause. On request before deletion, the
     controller gets the migration records first. The app has no export, so
     this is made by hand. The owner: "We need to add a workplan that builds
@@ -85,8 +88,10 @@
     are encrypted up to NetBird, which ends TLS and carries them on to our
     machine through an encrypted tunnel (WireGuard).
   - Annex B against privacy §11 as its own pass words it, and against the
-    code: row security binds the application's requests, not yet the
-    background tasks (workplan 0138 moves them); the encryption key is held
+    code: row security binds the application's requests and, on main since
+    #1323 (d0138607, not merged into this branch yet), the per-tenant
+    background tasks, not yet the scheduled jobs that span organisations
+    (workplan 0138 T2 and T3 step 2 move them); the encryption key is held
     apart from the database, but on the same machine; logs can hold folder
     and file names, addresses and provider error text; no code was found
     that reports the negotiated TLS version.
@@ -101,8 +106,9 @@
   - "After the account closes nothing uses them": true on main since #1320
     (d7868276, 2026-09-28); this branch has not merged main since.
   - The Status line becomes a Version line the site build can read (0139
-    T2), and «SUBPROCESSORS_URL» loses its backticks, before 0086 T5
-    publishes this.
+    T2), «REGISTERED_ADDRESS» is filled with the address privacy §1 and
+    terms §1 print by then, and «SUBPROCESSORS_URL» loses its backticks,
+    before 0086 T5 publishes this.
   - NetBird, for §8, §12 and subprocessors.md: record the date its agreement
     was accepted, and where the agreement or the dashboard says the proxy
     and its access log run. On 2026-09-28 app., id. and status.ownpace.eu
@@ -143,17 +149,19 @@
 **Status:** draft v0.2 (for legal review — not yet published or offered; see `site/legal/README.md`)
 **Last updated:** 2026-09-28
 
-<!-- No address during the Alpha (the owner, 2026-09-28, rec-address (c)). It returns here, as in
-     privacy §1 and terms §1, before the first paid tier, after the lawyer's pass. This DPA is
-     offered to no one before then. -->
+<!-- «REGISTERED_ADDRESS» stays here, not rendered, like «SUBPROCESSORS_URL». rec-address (c)
+     (the owner, 2026-09-28) leaves the address out of privacy §1 and terms §1 and §15 during the
+     Alpha only. This DPA is for business customers, who come after the Alpha, when the address
+     returns (before the first paid tier, after the lawyer's pass). The token is filled before
+     0086 T5 publishes this. -->
 
 This data-processing agreement ("DPA") forms part of the agreement between Archico B.V.,
-trading as Ownpace, registered under KvK number 73922706, VAT number NL8597.110.06.B01
-("Ownpace", the **processor**), and the business customer accepting the
+trading as Ownpace, «REGISTERED_ADDRESS», registered under KvK number 73922706, VAT number
+NL8597.110.06.B01 ("Ownpace", the **processor**), and the business customer accepting the
 [terms of service](./terms.md) (the **controller**), for the processing of personal data
-described in Annex A. Ownpace corresponds by email: support@ownpace.eu. This DPA applies to
-business customers only: for a private individual's migration, the
-[privacy policy](./privacy.md) §3 states the roles and carries these commitments directly.
+described in Annex A. This DPA applies to business customers only: for a private individual's
+migration, the [privacy policy](./privacy.md) §3 states the roles and carries these commitments
+directly.
 
 ## 1. Subject matter, duration, nature and purpose
 
@@ -190,8 +198,9 @@ pass through the migration **in transit, uninspected**, to the target the contro
 
 It can also appear in the **name of an item** that the migration ledger keeps: a message's
 subject, an event's or task's title, a contact's name, a file's name or path. Ownpace protects
-those names like all other personal data it holds (Annex B). It uses them only to show the
-controller which item a record is about, and deletes them with the migration (Annex A).
+those names like all other personal data it holds (Annex B). It uses them to recognise each
+item across passes and to show the controller which item a record is about, and deletes them
+with the migration (Annex A).
 Ownpace does not process content beyond the transfer itself.
 
 ## 5. Confidentiality
@@ -334,7 +343,9 @@ be limited. Where this DPA and the terms conflict about the processing of person
      docs/managed-bring-up.md ("Which address a port answers on") and
      scripts/a-port-published-on-purpose.unit.test.ts; one administrator, docs/incident-runbook.md
      (0142 D1: "Nobody else is on the machine or the mesh"); direct database access, privacy §4.5
-     (privacy-db-access-sentence (a)); incidents, docs/breach-procedure.md and
+     (privacy-db-access-sentence (a)); incidents, docs/breach-procedure.md (§5: "A business
+     tester under the data-processing agreement is the controller of its own people's data:
+     tell it, and it decides about its people (the agreement's §7).") and
      docs/incident-runbook.md; the copy, privacy §9 and rec-copies (a), not built yet. -->
 
 **Drafted for review: the machine, administrative access, incidents, copies.**
@@ -352,10 +363,12 @@ be limited. Where this DPA and the terms conflict about the processing of person
   factor, and key-only access to the machine.
 - **Incidents.** A written procedure covers a suspected personal-data breach: contain it, keep
   the evidence, assess it, notify, and register every breach. For a business customer, the
-  notice goes to the controller (§7). A status page watches each part of the service, and can
-  mail an alert when a part stays down for three minutes. *Open:* the procedure is written for
-  the Alpha's households and has no step yet for notifying a controller; that the alert is
-  switched on for the live service.
+  procedure tells the controller, which decides about its own people (§7). A status page
+  watches each part of the service, and can mail an alert when a part stays down for three
+  minutes. *Open:* a timing and a template for the notice to a controller: the procedure's
+  template is for a tester, and the step that tells a controller is the one for a high risk,
+  while §7 covers every breach that affects the controller's data; that the alert is switched
+  on for the live service.
 - **Copies.** There are no backups. Right before an update, one copy of the databases is made,
   to undo a failed update. It stays on the machine, and is deleted once the update works, and
   never later than 7 days. *Open:* the script that makes and deletes this copy is not built;

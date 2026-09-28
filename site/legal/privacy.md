@@ -88,10 +88,12 @@
     wizard's "Use SSL/TLS" (useSsl), which turns TLS off altogether, not
     certificate checking (tlsVerify is in no API schema); ADR-0037 §5's floors
     are not built. Row security as SECURITY.md and docs/rls-guide.md state it
-    at 683525c8: every route of the app, the support views passing it by
-    design with an operator check, the background tasks not yet. A breach
-    paragraph that tells the person, as the owner answered; the vulnerability
-    channel as SECURITY.md (0139 open question 5).
+    on main since #1323 (d0138607, not merged into this branch yet): every
+    route of the app and the per-tenant background tasks, the support views
+    passing it by design with an operator check, the scheduled jobs that span
+    organisations not yet. A breach paragraph that tells the person, as the
+    owner answered; the vulnerability channel as SECURITY.md (0139 open
+    question 5).
   - §13: during the Alpha, alpha §11 sets the notice before what follows.
   - Words: "tenant" and "workspace" became "organisation"; the Dutch
     "beheerders" for our operators no longer collides with the admin role.
@@ -133,11 +135,9 @@
   - §4.2, §4.6, §9: the list of what was shared belongs to its migration and
     goes when that migration is deleted (privacy-sharing-list (b); the code
     change is not built, see beside §9).
-  - §4.4: no sign-in with a Google, Microsoft, Apple or GitHub account during
-    the Alpha (ops-social-signin (a): email and password only on live). The
-    account also records which versions of the three texts a person accepted,
-    and when (terms-acceptance-route (b): the in-app screen, 0139 T3, not
-    built).
+  - §4.4: the account also records which versions of the three texts a
+    person accepted, and when (terms-acceptance-route (b): the in-app screen,
+    0139 T3, not built).
   - §4.5: our server logs record the visitor's IP address, which NetBird
     passes on, and NetBird keeps its own log (ops-trust-proxy (b); needs
     TRUST_PROXY and both nginx logs, see beside §4.5). Searches by address and
@@ -149,10 +149,11 @@
     with the tester's, at erasure, or sooner if the tester or the family
     member asks (alpha-s9-family-google (a)).
   - §7: NetBird's agreement is accepted (dpa-netbird-agreement (a)); the row
-    adds the WireGuard tunnel to our machine and NetBird's own request log
-    (ops-trust-proxy, every option). The table is the complete list of
-    sub-processors (rec-subprocessors-url (a)), so the SUBPROCESSORS_URL token left
-    this text. No hosting row: the owner keeps and runs the machine for
+    adds the WireGuard tunnel to our machine and NetBird's own request log:
+    what it holds, and that NetBird's cloud keeps it 7 days (ops-trust-proxy,
+    every option; from NetBird's documentation, to confirm). The table is
+    the complete list of sub-processors (rec-subprocessors-url (a)), so the
+    SUBPROCESSORS_URL token left this text. No hosting row: the owner keeps and runs the machine for
     Archico B.V. (subprocessors-machine-housed (a)).
   - §8: the citation for Switzerland (privacy-switzerland-wording (b)); two
     routes to the US that the reader chooses, not called transfers
@@ -180,10 +181,13 @@
   sentence on direct database access confirmed (DPA §5 is corrected in the DPA
   pass); privacy-read-log-copy (a), the promise stays and is answered by hand;
   privacy-tls-wording (a), §11 as drafted, a line follows once ADR-0037's
-  floors are built; ops-billing-form (b), the form and both sentences stay;
-  ops-notify-addresses (a), all three settings point at support@ownpace.eu;
-  ops-log-driver (a), Docker's default; privacy-tester-list (a), the Proton
-  mailbox is the list of testers; dpa-netbird (a), no change now;
+  floors are built; ops-billing-form (b), the Billing form, the card code and
+  §4.4's and §7's sentences stay as drafted; ops-social-signin (a), email and
+  password only, so the text stays as it is (live's .env holds no IDP_* keys,
+  below); ops-notify-addresses (a), all three settings point at
+  support@ownpace.eu; ops-log-driver (a), Docker's default;
+  privacy-tester-list (a), the Proton mailbox is the list of testers;
+  dpa-netbird (a), no change now;
   rec-alpha-10 (a), Alpha §10 now follows the code, as §9 here already did;
   alpha-version-number (a), the Alpha conditions stay 1.0.
 
@@ -313,7 +317,8 @@
     dashboard says the proxy runs (0139 T0). Check its sub-processors at
     https://trust.netbird.io, and its terms §3.1; neither could be read from
     here. If the proxy or its log runs outside the EU, §7's "Where" and §8
-    name it.
+    name it. Confirm the 7 days NetBird keeps its request log (§7's row,
+    from NetBird's documentation) in NetBird's agreement or dashboard.
   - Live: TRUST_PROXY set, and both nginx logs recording the address NetBird
     passes on (ops-trust-proxy (b), 0132 T3 (d)); no ZAMMAD_URL, so reports
     go by mail; no IDP_* keys (ops-social-signin (a)); NOTIFY_TO, ALERT_TO and
@@ -337,8 +342,6 @@
   - By hand until something does it: pruning the support mailbox and its Sent
     folder at Proton under §9's rule.
   - Proton: where its agreement says it processes (question 11).
-  - The card code and §4.4's and §7's card sentence stay until before the
-    first paid tier (ops-billing-form (b)).
 -->
 
 # Privacy policy
@@ -476,14 +479,13 @@ account.
 
 **Your sign-in account.** Signing in runs on a sign-in service we operate ourselves, on the same
 machine as the service. Your sign-in account is kept there, not at another company; §7 says what
-your connection to it passes through. During the Alpha you cannot sign in with a Google,
-Microsoft, Apple or GitHub account. Your sign-in account holds your first and last name, your
-email address, a user name, a hash of your password (never the password itself), and your
-sessions: when you signed in, and the browser and the IP address you signed in from. That
-service also keeps a history of every change to your sign-in account (§9). Anyone can create a
-sign-in account at our sign-in page, but it opens nothing until we let that person in. The
-sign-in service's mail to you, such as a sign-in code or a link to reset your password, goes
-through our mail provider (§7).
+your connection to it passes through. It holds your first and last name, your email address, a
+user name, a hash of your password (never the password itself), and your sessions: when you
+signed in, and the browser and the IP address you signed in from. That service also keeps a
+history of every change to your sign-in account (§9). Anyone can create a sign-in account at our
+sign-in page, but it opens nothing until we let that person in. The sign-in service's mail to
+you, such as a sign-in code or a link to reset your password, goes through our mail provider
+(§7).
 
 <!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
      acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
@@ -682,11 +684,15 @@ machine we administer ourselves, in the Netherlands.
      the dashboard says the proxy runs. The "Where" column keeps Germany (EU), from the owner's
      first answer, until then; if the proxy or its log runs outside the EU, §8 names it. The
      row's last sentence, on NetBird's own log, is from NetBird's documentation
-     (ops-trust-proxy: the row gains it in every option). -->
+     (ops-trust-proxy: the row gains it in every option): github.com/netbirdio/docs,
+     manage/reverse-proxy/access-logs, read 2026-09-28, lists the source IP address, a
+     location (country, city, region) derived from it, the host and path, the status, the bytes
+     each way and the duration, and says "For the cloud version of NetBird, access logs are
+     retained for 7 days." TO RECORD: confirm the 7 days in NetBird's agreement or dashboard. -->
 
 | Sub-processor | What for | Where |
 |---|---|---|
-| NetBird GmbH | Carrying your connections to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, such as what you type when you sign in and what the app shows you, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request, with the IP address and the page asked for, including the secret part of a link | Germany (EU) |
+| NetBird GmbH | Carrying your connections to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, such as what you type when you sign in and what the app shows you, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request for 7 days: the IP address and a location derived from it, the page asked for, including the secret part of a link, and the answer's status, size and duration | Germany (EU) |
 | Proton AG | Sending the service's mail, such as sign-in codes, our answer to your request for access, progress summaries, and the notices you ask us to send. Holding our support mailbox, support@ownpace.eu, where your mail to us and, during the Alpha, problem reports arrive, and where a copy of each mail the service sends is kept (§4.5) | Switzerland, outside the EU (§8) |
 
 This table is the complete list of our sub-processors. If the service moves to a hosting
@@ -836,12 +842,17 @@ them: in the service's own configuration, and in the settings of the background 
 the same machine. Connections to your providers are encrypted with TLS, and the provider's
 certificate is checked, unless you switch off SSL/TLS yourself for an account you connect by
 server name; that connection may then not be encrypted. Organisations are kept apart in the
-database itself through row-level security, for the app's requests. Our support screens read
-through views that pass it by design, and each of those views checks that the reader is one of
-the people who run the service (§4.5). The background tasks that run migrations do not work
-under it yet; there, each query's own filter on your organisation keeps them apart, and they are
-being brought under row-level security. Logs written to keep credentials and message content
-out (§4.5 says what they can still name).
+database itself through row-level security, for the app's requests and for the background tasks
+that run migrations. Our support screens read through views that pass it by design, and each of
+those views checks that the reader is one of the people who run the service (§4.5). The
+scheduled jobs that span organisations do not work under it yet; there, each query's own filter
+on your organisation keeps them apart. Logs written to keep credentials and message content out
+(§4.5 says what they can still name).
+
+<!-- The background tasks under row-level security: true on main since #1323 (d0138607, 0138 T1
+     step 2: the eight per-tenant tasks connect as app_user), which this branch has not merged
+     yet. The scheduled jobs that span organisations still connect as the database owner
+     (SECURITY.md, docs/rls-guide.md on main); 0138 T2 and T3 step 2 move them. -->
 
 **If a breach happens.** If a breach of security affects your personal data, we report it to
 the Autoriteit Persoonsgegevens where the law requires that, and we tell you.

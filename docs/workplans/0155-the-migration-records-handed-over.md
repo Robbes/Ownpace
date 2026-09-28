@@ -33,7 +33,7 @@ whichever comes first.
 |---|---|---|
 | T0 The export by hand, written down | 📋 **Proposed** | §3. A recipe in `docs/operator-runbook.md`, *Tenant offboarding*: which reads make the records, how the file is sent, and when it is deleted. It answers a request during the Alpha. |
 | T1 One builder for the migration records | 📋 **Proposed** | §3. Per migration: every item, its outcome in words, and the reason when it was not copied. One CSV per migration beside the completion report, which already exists. A pure builder in `packages/shared`, a reader beside `confirmed-list-read.ts`. |
-| T2 The operator's command | 📋 **Proposed** | §3. `operator.sh export <tenant-id> --by <subject> --reference <request>`: the whole organisation, into one file in a directory of its own on the machine, recorded in the audit log. Works on a closed organisation until its purge. |
+| T2 The operator's command | 📋 **Proposed** | §3. `operator.sh export <tenant-id> --by <subject> --reference <request>`: the whole organisation, into one file in a directory of its own on the machine, recorded in the audit log. Reads as `app_user`, through T1's reader. Works on a closed organisation until its purge. |
 | T3 Delivery, and deletion after delivery | 📋 **Proposed** | §3. Sent to the account holder's address on record, then deleted from the machine. A daily backstop deletes any export older than 7 days, and the purge deletes any that is left. |
 | T4 What we hold about a person | 📋 **Proposed** | §3. Privacy §10 and §4.5: the request for access, the membership, the audit log's lines about them, and what the support log records about their organisation, as a second part of T2's file. |
 | T5 The owner downloads it in the app | 📋 **Proposed** | §3. One button for the organisation's owner, on the same builder. After T2, and not before the first invitation. |
@@ -42,7 +42,8 @@ whichever comes first.
 ## 1. What there is today
 
 Every file and line below was read on branch
-`claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited` on 2026-09-28.
+`claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited` on 2026-09-28,
+except where `main` is named.
 
 ### What the texts promise
 
@@ -95,9 +96,12 @@ Every file and line below was read on branch
   (`apps/api/src/scripts/operator-close.ts`, 0139 T7): closes an organisation with the window the
   tester chose (0, 7, 30 or 90 days, `CLOSE_WINDOWS_DAYS`), and records it in the audit log. The
   offboarding module says closing *"makes the account read-only"*, and the purge comes when the
-  window runs out (`packages/managed/src/offboarding.ts`). Whether a member of a closed
-  organisation can still sign in and download the completion report during the window was not
-  checked for this plan.
+  window runs out (`packages/managed/src/offboarding.ts`). On `main` since #1320 (d7868276), a
+  member of a closed organisation can still sign in, read and export until the purge:
+  `apps/api/src/closed-organisation.ts` says *"Reading, export, the close itself and the reopen
+  are never refused"* and *"`authenticate` never asks, because the owner reopens through it"*.
+  So the completion report and the confirmed list's CSV can be downloaded during the window.
+  This holds on this branch only once it merges `main`.
 - **The purge** deletes the tables in `PURGED_TABLES`, `item` among them, and leaves an erasure
   record with dates and counts. After the purge nothing is left to export: the records must be
   made before it.
@@ -132,8 +136,10 @@ request*:
 - **The reads.** For each migration of the organisation: the completion report and the confirmed
   list's CSV, which the routes above already make, and the failures with their reasons. Until T2
   exists, the operator either signs in as a member of the organisation (the support screens
-  cannot show items, by design), or runs read-only queries over the owner connection. The runbook
-  gives the queries, with the columns T1 names, so two exports made by hand look the same.
+  cannot show items, by design), or runs read-only queries over the owner connection. Row
+  security is not in force there (the owner is a superuser, `docs/rls-guide.md`), so each query
+  names the organisation, and that filter is what keeps others out. The runbook gives the
+  queries, with the columns T1 names, so two exports made by hand look the same.
 - **Privacy §4.5's query**: what `support_read` records about one organisation, for the
   request privacy-read-log-copy (a) keeps.
 - **Sending and deleting**, as T3.
@@ -196,8 +202,14 @@ connection, not a line typed from `.env`.
   with mode 0700, each file 0600. The name holds the organisation's id and the date, never a
   person's name or address. The path is built from the Compose project, as every name on the box
   is (`two-stacks-on-one-box.unit.test.ts`).
-- **Who may run it**: an appointed operator, checked as `close` checks it. It reads over the
-  owner connection, because the organisation may be closed and the operator is not a member.
+- **Who may run it**: an appointed operator, checked over the owner connection as `close`
+  checks it.
+- **How it reads**: the organisation's rows go through T1's reader, inside `withTenant` on
+  `APP_DATABASE_URL` (`app_user`), so row security holds on this path as it does on the API's,
+  in workplan 0138's direction, and T1's guard covers it. `operator.sh` supplies that URL beside
+  the owner's, from `.env`'s `APP_DB_USER` and `APP_DB_PASSWORD`; `docs/rls-guide.md` names the
+  connection. The command never falls back to `DATABASE_URL` for these reads. `withTenant`
+  needs no membership, and a closed organisation stays readable until its purge (§1).
 - **Recorded**: one audit row in the organisation's log, with the operator's subject, the
   reference, the number of migrations and items, and the file's size. No content.
 - **A closed organisation** can be exported until its purge. A purged one answers that nothing
@@ -211,7 +223,9 @@ the shape of `an-account-a-tester-can-end.unit.test.ts`. It fails today:
 
 - the file holds one CSV and one report per migration, with the counts the ledger has;
 - refusals: no `--by`, no `--reference`, a subject that is not an operator (nothing written), an
-  id that is not an organisation, a purged organisation (says so, writes nothing);
+  id that is not an organisation, a purged organisation (says so, writes nothing), no
+  `APP_DATABASE_URL` (says so, writes nothing, and does not read the items on the owner
+  connection instead);
 - a closed organisation within its window is exported;
 - the directory is 0700 and the file 0600, under the project's directory;
 - the audit row names the operator and the reference, and holds no item name.
@@ -260,8 +274,9 @@ member's rows never appear.
   migration records*: T2's file, for the organisation, made on request and streamed, never
   stored. Both languages.
 - **Owner only**: a member who is not the owner sees no button, and the route answers 403.
-- **It works while the organisation is closed and not yet purged**, if a closed organisation can
-  still sign in (§1, to check).
+- **It works while the organisation is closed and not yet purged**: a member of a closed
+  organisation can still sign in and read (§1; on `main` since #1320, on this branch once it
+  merges `main`).
 - Before the first invitation it is not needed: the operator's command covers every promise.
 
 **Guard.** An integration test beside `me.integration.test.ts`: the owner gets the file with the

@@ -355,8 +355,12 @@
      in it, and accounts for the VAT itself." / "Een bedrijf in een ander
      EU-land met een gevalideerd btw-nummer betaalt de prijs zonder de
      Nederlandse btw erin, en draagt de btw zelf af." §6's "What you see is
-     what you pay" then needs the same care. Left for the lawyer: does one
-     sentence cover both audiences?
+     what you pay" then needs the same care. The pricing page's last
+     paragraph, which said VAT is added where it applies, now matches §6
+     and the price table in both languages: "All prices include VAT." /
+     "Alle prijzen zijn inclusief btw." (site/pages/en/pricing.md,
+     site/pages/nl/prijzen.md). Left for the lawyer: does one sentence cover
+     both audiences?
   2. §7: the consumer right of withdrawal (Directive 2011/83/EU; art. 6:230o
      BW ff.), with the proportionate amount on withdrawal (art. 6:230s lid 4
      BW). QUESTIONS: is the express request strong enough; how does the setup

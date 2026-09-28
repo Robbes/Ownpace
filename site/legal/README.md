@@ -71,22 +71,23 @@ leaves the table, and the list under it says what became of it.
 
 | Placeholder | Used in | What fills it | Who |
 |---|---|---|---|
+| `«REGISTERED_ADDRESS»` | `dpa.md` (the parties, briefing). No rendered text | Archico B.V.'s registered address: its vestigingsadres as the KvK register shows it. **The owner, 2026-09-28** (rec-address (c), *"Leave the address out during the Alpha"*): it is out of privacy §1 and terms §1 and §15 during the Alpha (below). The DPA is for business customers, who come after the Alpha, so its parties keep the token. It is filled before 0086 T5 publishes `dpa.md`, with the address privacy §1 and terms §1 print by then | The owner (0139 T0), before the first business customer |
 | `«SUBPROCESSORS_URL»` | `dpa.md` (§8, Annex C, briefing); `subprocessors.md` (briefing). No rendered text | The address at which `subprocessors.md` is published. **The owner, 2026-09-28** (rec-subprocessors-url (a), *"§7's table is the complete list"*): during the Alpha, privacy §7's table is the complete list of sub-processors, and says so (*"This table is the complete list of our sub-processors."* / *"Deze tabel is de volledige lijst van onze subverwerkers."*). `subprocessors.md` is published with the DPA, when the first business customer arrives (0086 T5; dpa-unpublished-until-business (a)), with a Dutch text and the same version, and the token is filled then. It left privacy §7 on 2026-09-28 | The owner decides when; 0139 T10 renders it |
 
 **Filled, or no longer used.** None of these is in a rendered text any more. Some briefing
 comments still name them, to say what filled them.
 
-- `«REGISTERED_ADDRESS»`: left out of every text on 2026-09-28, for the Alpha. The owner first
-  asked *"My address, is it needed? I also live there, and rather have correspondance by
+- `«REGISTERED_ADDRESS»`: left out of the rendered texts on 2026-09-28, for the Alpha. The owner
+  first asked *"My address, is it needed? I also live there, and rather have correspondance by
   email."*, and then chose rec-address (c), *"Leave the address out during the Alpha"*, with the
-  note *"KVK number: 73922706"*. Privacy §1, terms §1 and the §15 model form, and `dpa.md`'s
-  parties, now name Archico B.V., trading as Ownpace, its KvK number, its VAT number and
-  `support@ownpace.eu`, and say we correspond by email. A hidden comment beside each says the
-  address returns before the first paid tier, after the lawyer's pass, or sooner if the lawyer
-  asks for it. The option said what it costs: BW 3:15d asks a company that offers an online
-  service to show the address where it is established, probably also for a free service, so
-  leaving it out probably breaks that rule. The risk is small for an Alpha by invitation, and the
-  KvK register shows the address anyway. The lawyer confirms (terms briefing, question 22). No
+  note *"KVK number: 73922706"*. Privacy §1, terms §1 and the §15 model form now name Archico
+  B.V., trading as Ownpace, its KvK number, its VAT number and `support@ownpace.eu`, and say we
+  correspond by email. A hidden comment beside each says the address returns before the first
+  paid tier, after the lawyer's pass, or sooner if the lawyer asks for it. `dpa.md`'s parties
+  keep the token, not rendered (the table above). The option said what it costs: BW 3:15d asks
+  a company that offers an online service to show the address where it is established, probably
+  also for a free service, so leaving it out probably breaks that rule. The risk is small for an
+  Alpha by invitation, and the KvK register shows the address anyway. The lawyer confirms (terms briefing, question 22). No
   address is written in this repository.
 - `«VAT_NUMBER»`: filled 2026-09-28 in privacy §1, terms §1 and `dpa.md`'s parties (fact-vat
   (a)), written exactly as the owner gave it: *"NL8597.110.06.B01 (VIES might validate it only
@@ -126,7 +127,8 @@ comments still name them, to say what filled them.
   3.1"*. So the entity name is the owner's, the agreement is accepted, and TLS ends at NetBird in
   HTTP mode, not passthrough. Privacy §7's row and `subprocessors.md` now say that NetBird carries
   connections on to our machine through a WireGuard tunnel, and that it keeps its own log of each
-  request, with the IP address and the page asked for, including the secret part of a link
+  request for 7 days: the IP address and a location derived from it, the page asked for,
+  including the secret part of a link, and the answer's status, size and duration
   (ops-trust-proxy: that line comes in every option). **Not checked from here:**
   `trust.netbird.io` returns only an empty page shell whose content comes from a host the egress
   proxy refuses, and `netbird.io` is refused, so NetBird's sub-processors, its terms' §3.1 and its
@@ -135,8 +137,9 @@ comments still name them, to say what filled them.
   before the draft markers come off (0139 T0): the date the agreement was accepted; where the
   agreement or the dashboard says the proxy and its log run (`app.`, `id.` and
   `status.ownpace.eu` resolved to the cluster `eu1.netbird.services` on 2026-09-28; the country
-  is not confirmed); and that none of NetBird's own sub-processors takes the proxy's traffic or
-  its log outside the EU. If one does, privacy §8 and DPA §12 name it. **Our own logs**
+  is not confirmed); the 7 days NetBird keeps its request log, confirmed in NetBird's agreement
+  or dashboard; and that none of NetBird's own sub-processors takes the proxy's traffic or its
+  log outside the EU. If one does, privacy §8 and DPA §12 name it. **Our own logs**
   (ops-trust-proxy (b), *"Keep visitors' addresses in all our logs"*): live sets `TRUST_PROXY`,
   so the API reads the visitor's address from what NetBird passes on, and both nginx logs record
   that address: the app's (`apps/web/nginx.conf.template`, format `ownpace_combined`, which

@@ -38,8 +38,9 @@
        documentation (manage/reverse-proxy/access-logs) lists what it logs for each request:
        the source IP address, a location derived from it, the host and path, the status, sizes
        and timing. The path holds a grant or progress link's secret. It says NetBird's cloud
-       keeps these logs for 7 days. The row names the log, as privacy §7's does; the period is
-       not in either text yet.
+       keeps these logs for 7 days. The row names the log, what it holds and the 7 days, as
+       privacy §7's does; the 7 days are confirmed in NetBird's agreement or dashboard before
+       publication.
      - Proton: "yes"; the agreement is accepted for the account behind support@ownpace.eu,
        which is Archico B.V.'s, and Proton keeps the service's sent mail in it, which the row
        says. How long those copies stay is privacy §9's: the support-mail rule, until resolved
@@ -88,7 +89,7 @@ data goes there.
 
 | Sub-processor | What they process, and why | Where |
 |---|---|---|
-| NetBird GmbH | Every request to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu, which it carries through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, sign-ins included, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request, with the IP address and the page asked for, including the secret part of a link | Germany (EU) |
+| NetBird GmbH | Every request to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu, which it carries through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, sign-ins included, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request for 7 days: the IP address and a location derived from it, the page asked for, including the secret part of a link, and the answer's status, size and duration | Germany (EU) |
 | Proton AG | Recipient addresses and the contents of the mail the service sends — sign-in codes, answers to requests for access, progress summaries, and notices a customer asks us to send, such as those to people files were shared with — and the support mailbox support@ownpace.eu, with everything sent to it, including problem reports and link reports during the Alpha, and a copy of each mail the service sends | Switzerland (EU adequacy decision) |
 
 ## Planned — listed before they are live, live before the first byte

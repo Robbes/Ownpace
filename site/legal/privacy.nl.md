@@ -153,15 +153,14 @@ antwoorden. Over elke nieuwe aanvraag krijgen we een e-mail met uw adres en de o
 pakket die u noemde, maar zonder uw toelichting. Een aanvraag maakt nog geen account aan.
 
 **Uw inlogaccount.** Inloggen loopt via een inlogdienst die we zelf draaien, op dezelfde machine
-als de dienst. Uw inlogaccount staat daar, niet bij een ander bedrijf; §7 zegt waar uw
-verbinding ermee doorheen gaat. Tijdens de Alpha kunt u niet inloggen met een account van
-Google, Microsoft, Apple of GitHub. Het inlogaccount bevat uw voor- en achternaam, uw
-e-mailadres, een gebruikersnaam, een hash van uw wachtwoord (nooit het wachtwoord zelf) en uw
-sessies: wanneer u inlogde, en de browser en het IP-adres waarmee u inlogde. Die dienst houdt
-ook een geschiedenis bij van elke wijziging aan uw inlogaccount (§9). Iedereen kan op onze
-inlogpagina een inlogaccount aanmaken, maar dat opent niets zolang we die persoon niet hebben
-toegelaten. Mail van de inlogdienst aan u, zoals een inlogcode of een link om uw wachtwoord
-opnieuw in te stellen, gaat via onze e-mailaanbieder (§7).
+als de dienst. Uw inlogaccount staat daar, niet bij een ander bedrijf; §7 zegt waar uw verbinding
+ermee doorheen gaat. Het bevat uw voor- en achternaam, uw e-mailadres, een gebruikersnaam, een
+hash van uw wachtwoord (nooit het wachtwoord zelf) en uw sessies: wanneer u inlogde, en de
+browser en het IP-adres waarmee u inlogde. Die dienst houdt ook een geschiedenis bij van elke
+wijziging aan uw inlogaccount (§9). Iedereen kan op onze inlogpagina een inlogaccount aanmaken,
+maar dat opent niets zolang we die persoon niet hebben toegelaten. Mail van de inlogdienst aan u,
+zoals een inlogcode of een link om uw wachtwoord opnieuw in te stellen, gaat via onze
+e-mailaanbieder (§7).
 
 <!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
      acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
@@ -371,11 +370,15 @@ machine die we zelf beheren, in Nederland.
      the dashboard says the proxy runs. The "Where" column keeps Germany (EU), from the owner's
      first answer, until then; if the proxy or its log runs outside the EU, §8 names it. The
      row's last sentence, on NetBird's own log, is from NetBird's documentation
-     (ops-trust-proxy: the row gains it in every option). -->
+     (ops-trust-proxy: the row gains it in every option): github.com/netbirdio/docs,
+     manage/reverse-proxy/access-logs, read 2026-09-28, lists the source IP address, a
+     location (country, city, region) derived from it, the host and path, the status, the bytes
+     each way and the duration, and says "For the cloud version of NetBird, access logs are
+     retained for 7 days." TO RECORD: confirm the 7 days in NetBird's agreement or dashboard. -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
-| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt een eigen log bij van elk verzoek, met het IP-adres en de gevraagde pagina, ook het geheime deel van een link | Duitsland (EU) |
+| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt 7 dagen een eigen log bij van elk verzoek: het IP-adres en een locatie die daaruit is afgeleid, de gevraagde pagina, ook het geheime deel van een link, en de status, de grootte en de duur van het antwoord | Duitsland (EU) |
 | Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen, en waar een kopie van elke mail van de dienst wordt bewaard (§4.5) | Zwitserland, buiten de EU (§8) |
 
 Deze tabel is de volledige lijst van onze subverwerkers. Verhuist de dienst na de Alpha naar een
@@ -530,12 +533,17 @@ achtergrondtaken, allebei op dezelfde machine. Verbindingen met uw aanbieders zi
 met TLS, en het certificaat van de aanbieder wordt gecontroleerd, tenzij u zelf SSL/TLS uitzet
 voor een account dat u koppelt met een servernaam; die verbinding is dan misschien niet
 versleuteld. Organisaties worden in de database zelf van elkaar gescheiden via row-level
-security (beveiliging per rij), voor de verzoeken van de app. Onze supportschermen lezen via
-views die daar bewust buiten vallen, en elk van die views controleert dat de lezer een van de
-mensen is die de dienst draaien (§4.5). De achtergrondtaken die de verhuizingen uitvoeren,
-werken er nog niet onder; daar houdt het eigen filter van elke query op uw organisatie ze
-gescheiden, en ze worden er nu onder gebracht. Logs zijn zo geschreven dat toegangsgegevens en
-berichtinhoud er niet in staan (§4.5 zegt wat ze nog wel kunnen noemen).
+security (beveiliging per rij), voor de verzoeken van de app en voor de achtergrondtaken die de
+verhuizingen uitvoeren. Onze supportschermen lezen via views die daar bewust buiten vallen, en
+elk van die views controleert dat de lezer een van de mensen is die de dienst draaien (§4.5).
+De geplande taken die over organisaties heen lopen, werken er nog niet onder; daar houdt het
+eigen filter van elke query op uw organisatie ze gescheiden. Logs zijn zo geschreven dat
+toegangsgegevens en berichtinhoud er niet in staan (§4.5 zegt wat ze nog wel kunnen noemen).
+
+<!-- De achtergrondtaken onder row-level security: true on main since #1323 (d0138607, 0138 T1
+     step 2: the eight per-tenant tasks connect as app_user), which this branch has not merged
+     yet. The scheduled jobs that span organisations still connect as the database owner
+     (SECURITY.md, docs/rls-guide.md on main); 0138 T2 and T3 step 2 move them. -->
 
 **Als er een datalek is.** Raakt een beveiligingsincident uw persoonsgegevens, dan melden we
 dat aan de Autoriteit Persoonsgegevens waar de wet dat vereist, en melden we het u.
