@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 174 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 175 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -588,6 +588,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/gatus.yaml`
 
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+- [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [status-page](../scripts/status-page.unit.test.ts) — The status page's configuration says what we think it says (workplan 0094).
@@ -637,6 +638,7 @@ reading a file drops off its entry by itself.
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
+- [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
@@ -930,6 +932,7 @@ reading a file drops off its entry by itself.
 ### `docs/incident-runbook.md`
 
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+- [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 
 ### `docs/managed-bring-up.md`
 
@@ -3036,6 +3039,16 @@ Reads:
 
 - `.github/workflows/security-scan.yml`
 - `pnpm-workspace.yaml`
+
+### [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts)
+
+AN ALERT SOMEONE READS (workplan 0142 T1).
+
+Reads:
+
+- `deploy/compose/gatus.yaml`
+- `deploy/compose/managed.yml`
+- `docs/incident-runbook.md`
 
 ### [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts)
 

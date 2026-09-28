@@ -66,6 +66,51 @@ ui:
 client:
   timeout: 10s
 
+# ------------------------------------------------------------- who is told --
+#
+# THE OWNER, BY E-MAIL, WHEN AN OWNPACE ROW GOES RED (workplan 0142 T1). The
+# channel is the owner's choice of 2026-09-27: mail through the relay the
+# product itself sends with (0133), to the address its notices go to. Nothing
+# here wakes anybody (0142 D2), and Sources and Targets are never alerted on: a
+# Google outage is not the owner's to fix, and the page already shows it.
+#
+# OFF UNLESS THE STACK SAYS ON. Every alert below reads the one switch,
+# ALERT_ENABLED, which managed.yml defaults to false. Live's .env turns it on;
+# the OTA stack leaves it off, because the nightly gate recreates its web app
+# and API on schedule and the one person an alert would reach already knows.
+#
+# THREE THINGS GATUS DOES, read in its source at v5.36.0 rather than assumed:
+#
+#   - an alert with no enabled value counts as ON (alert.go, IsEnabled), which
+#     is why the switch has a default and every alert names it;
+#   - a provider whose settings do not validate is set aside with a warning and
+#     the page carries on without it (config.go, ValidateAlertingConfig), so an
+#     unset relay can never take the page down;
+#   - a description holding a double quote or a backslash DOES take it down:
+#     the endpoint is refused, and with it the whole file (alert.go,
+#     ValidateAndSetDefaults). `an-alert-someone-reads.unit.test.ts` holds the
+#     descriptions to that.
+#
+# EVERY VALUE IS A SETTING, so the public repository holds no address and no
+# login. And the ones that could hold any character at all, the addresses and
+# the login, are literal blocks: gatus expands the environment over this whole
+# text BEFORE it parses it, so a password or a sender written with a double
+# quote in it would otherwise end the string early and stop the page loading.
+# The port is a number, and managed.yml hands it one.
+alerting:
+  email:
+    host: |-
+      ${ALERT_SMTP_HOST}
+    port: ${ALERT_SMTP_PORT}
+    username: |-
+      ${ALERT_SMTP_USER}
+    password: |-
+      ${ALERT_SMTP_PASSWORD}
+    from: |-
+      ${ALERT_FROM}
+    to: |-
+      ${ALERT_TO}
+
 endpoints:
   # ------------------------------------------------------------- Ownpace --
   # `/api/health` is a liveness answer — the process is running. `/api/ready`
@@ -78,6 +123,13 @@ endpoints:
     interval: 60s
     conditions:
       - "[STATUS] == 200"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the Web app row of docs/incident-runbook.md"
 
   - name: API
     group: Ownpace
@@ -86,6 +138,13 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
       - "[BODY].status == ok"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the API row of docs/incident-runbook.md"
 
   - name: Database
     group: Ownpace
@@ -95,6 +154,13 @@ endpoints:
       # Not `[STATUS] == 200`: readiness answers 200 while DEGRADED, on purpose,
       # so this reads the field rather than the code.
       - "[BODY].database == up"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the Database row of docs/incident-runbook.md"
 
   - name: Sign-in
     group: Ownpace
@@ -102,6 +168,13 @@ endpoints:
     interval: 60s
     conditions:
       - "[BODY].signIn == up"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the Sign-in row of docs/incident-runbook.md"
 
   # THE SYNC TICK, which readiness cannot see (workplan 0142 T2). A tick that
   # stopped leaves the API ready to serve while no scheduled pass starts, and
@@ -116,6 +189,13 @@ endpoints:
     interval: 60s
     conditions:
       - "[BODY].scheduler == up"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the Scheduled syncs row of docs/incident-runbook.md"
 
   # THE PROVIDER ITSELF, asked directly — because "Sign-in" above is a field the
   # API computed, not a probe of the identity provider. Reading four rows off
@@ -150,6 +230,13 @@ endpoints:
     interval: 60s
     conditions:
       - "[STATUS] == 200"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the Identity provider row of docs/incident-runbook.md"
 
   # THE PUBLIC SITE, OFF BY DEFAULT AND THAT IS DELIBERATE. `www.yml` is a
   # separate deploy on its own network (workplan 0091 T2) — bringing the app
@@ -180,6 +267,13 @@ endpoints:
     interval: 60s
     conditions:
       - "[STATUS] == 200"
+    alerts:
+      - type: email
+        enabled: ${ALERT_ENABLED}
+        failure-threshold: 3
+        success-threshold: 2
+        send-on-resolved: true
+        description: "What to do first: the Website row of docs/incident-runbook.md"
 
   # ------------------------------------------------------ Sources (from) --
   # Where mail and files are migrated FROM. These are other people's services:
