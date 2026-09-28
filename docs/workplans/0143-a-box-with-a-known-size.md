@@ -4,8 +4,28 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, late: T1 step 2 built, every task names its machine (0131 §6, group M4, step 6)** on
-branch `claude/mailbox-sync-errors-c2xsw2-every-task-names-its-machine`, not merged.
+**2026-09-29, night: T2b built, no schedule faster than 15 minutes (0131 §6, group M4, after its
+step 3)** on branch `claude/mailbox-sync-errors-c2xsw2-a-pass-a-minute`, not merged.
+
+- **Why now.** Since 0125 T8 (#1333) the schedule can also be changed after creation, so both doors
+  write one. The screens offer four cadences, the fastest every 15 minutes, but the API stored any
+  expression the tick could read: `* * * * *` asked for a pass a minute.
+- **Built.** `shortestGapMinutes` and `SCHEDULE_FLOOR_MINUTES` (15) in
+  `packages/orchestration/src/sync-due.ts`, beside the tick's own reading (T2b's text says why not
+  `packages/shared`). `refuseUnreadableSchedule`, which create and update share, refuses a faster
+  schedule with a sentence that names the floor and what the schedule asked for. `isSyncDue` runs
+  a stored faster schedule at the floor: the next pass waits 15 minutes after the last one
+  started. Every other schedule is read exactly as before, the default included. The appliance is
+  untouched.
+- **Proved** by `a-pass-a-minute` in orchestration (the gaps croner gives, and a stored
+  `* * * * *` starting four passes an hour instead of sixty) and in the API's migration routes
+  (both doors refuse `* * * * *`, `*/5` and `0,10` in the same words, and pass the four cadences
+  the screens offer and slower ones). One case of 0022 T1's `sync-due` test asked that an
+  every-minute schedule be due each minute. It now asks the same boundary of a 15-minute schedule,
+  and says why.
+
+**2026-09-28, late: T1 step 2 built, every task names its machine (0131 §6, group M4, step 6)**,
+merged as #1338.
 
 - **What the kill left of the question.** The owner's first Dropbox pass on the fixed build (0150,
   Status) peaked at 307 MiB of 512 on `small-1x`, copying a 409 MB file, and sat at 120 to 160 MiB
@@ -568,7 +588,7 @@ unproved until then:
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ✅ **the overall cap decided 2026-09-28**: `small-1x`, live 6, the OTA stack 3 (open question 7), and 20 GB for the stacks beside a GPU process held to 100 GB (open question 8); ⏳ **Owner**: that GPU process held to 100 GB before live — *was:* ⏳ **Owner** for the overall cap on the machine, the machine reads taken 2026-09-28 (open question 7) | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
 | T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB; step 3's tick half ✅ **done** in #1296, merged 2026-09-28 (`67b3e9e`): 3 passes at once on a stack unless its `.env` says otherwise, and 2 per organisation, longest-waiting first; live's `.env` sets 6 since 2026-09-28 (the owner); step 2 🔨 **built 2026-09-28** on its branch: every task names `small-1x`; the plane's limit ⏳ **Owner** (open question 9) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
-| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
+| T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; **T2b built 2026-09-29** on its branch, not merged: no schedule faster than 15 minutes, on either door, and a stored one runs at that floor; T2c and T2d's built hold 📋 **Proposed** — *was:* T2b 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
 | T5 Every data type of a migration gets a turn in a pass | ✅ **done** in #1262, merged 2026-09-27: (c), small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
@@ -1061,8 +1081,10 @@ line. It gives the formula above, and T9's measured figure for both stacks' resi
 
 **T2b, a minimum schedule interval.**
 
-- A shared helper, `shortestGapMinutes(expression)` in `packages/shared/src/cron-schedule.ts`,
-  computes the shortest gap between runs over a week with croner, which the tick already uses.
+- A shared helper, `shortestGapMinutes(expression)`, computes the shortest gap between runs over a
+  week with croner, which the tick already uses. Built in `packages/orchestration/src/sync-due.ts`,
+  beside the tick's own reading of a schedule, rather than in `packages/shared`, which has no
+  croner: the doors and the tick then read one floor from one module.
 - The managed create route refuses a schedule whose gap is under the floor. The floor is 15
   minutes, the wizard's fastest cadence. The sentence names the floor. Since 0125 T8 the update
   route writes a schedule too, and both doors refuse through one function,
