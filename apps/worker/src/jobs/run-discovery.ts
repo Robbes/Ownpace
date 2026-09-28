@@ -264,6 +264,10 @@ export const runDiscovery = schemaTask({
   description: 'Pre-sync discovery (read-only counts)',
   schema: DiscoveryJobSchema,
   queue: discoveryQueue,
+  // THE MACHINE A COUNT RUNS ON (workplan 0143 T1 step 2): it lists
+  // everything a migration holds, so it names its own, as a pass does. Its
+  // peak is not measured yet; that is 0143 T9.
+  machine: 'small-1x',
   run: leavesAReference('run-discovery', async (payload: unknown, _context) => {
     const typed = payload as DiscoveryJobPayload;
     if (!typed.tenantId) {

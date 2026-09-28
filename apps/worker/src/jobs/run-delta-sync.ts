@@ -203,6 +203,14 @@ export const runDeltaSync = schemaTask({
   description: 'Delta Sync',
   schema: DeltaSyncJobSchema,
   queue: deltaSyncQueue,
+  // THE MACHINE A COPY PASS RUNS ON (workplan 0143 T1 step 2): half a CPU and
+  // 512 MB, of which V8 gets 410. Named here because this task copies, for
+  // the tick, *Sync now*, `/start` and a cutover's final sync alike.
+  // Measured 2026-09-28 on the owner's Dropbox pass, the first after #1328:
+  // 307 MiB at its peak, copying a 409 MB file, and 120 to 160 MiB while it
+  // was not copying (0150, Status). Mail's worst case (0143 §3: four bodies
+  // held whole) is not measured yet; that is 0143 T9.
+  machine: 'small-1x',
   run: leavesAReference('run-delta-sync', async (payload: unknown, context) => {
     // Type assertion since schemaTask validates the payload
     const typedPayload = payload as DeltaSyncJobPayload;
