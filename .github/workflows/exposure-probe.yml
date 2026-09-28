@@ -8,13 +8,19 @@
 # It passes when 443 on each production name answers over TLS, the discovery
 # document at id.ownpace.eu names https://id.ownpace.eu as its issuer (so the
 # production names reach live, not the OTA stack), and nothing else answers.
+# www.ownpace.eu, the site live serves from its tag once its .env switches it
+# on (workplan 0139 T10), is tried only on live's front: an address of its
+# that no production name and not the secret below resolves to is never
+# tried, since until the site is routed the name points at another host. The
+# input site_name says whether it must answer yet.
 # scripts/exposure-probe.mjs says how, and scripts/exposure-probe-ports.mjs
 # derives the port list from managed.yml, www.yml and setup-managed-demo.sh:
 # no port is written in this file.
 #
 # WHAT THE OWNER SETS (Settings, Secrets and variables, Actions):
 #   variable EXPOSURE_PROBE_LIVE_PORTS  live's own *_PORT values from its .env
-#                                       (0132 T1b), separated by spaces or
+#                                       (0132 T1b), WWW_PORT among them once
+#                                       live serves the site, separated by spaces or
 #                                       commas. Port numbers, not secrets. The
 #                                       probe will not run without them.
 #   secret   EXPOSURE_PROBE_HOST        optional: the machine's own public
@@ -52,6 +58,17 @@ on:
           - internet
           - mesh-only
         default: report
+      site_name:
+        description: >-
+          What www.ownpace.eu should do (workplan 0139 T10): report records what it found and fails
+          on none of it; required, once live's .env says WWW_LIVE=true and the name is routed,
+          requires it to resolve to live's front alone and 443 to answer over TLS. Either way no
+          port is tried on an address of it that is not live's front.
+        type: choice
+        options:
+          - report
+          - required
+        default: report
 
 permissions:
   contents: read
@@ -73,6 +90,7 @@ jobs:
           EXPOSURE_PROBE_LIVE_PORTS: ${{ vars.EXPOSURE_PROBE_LIVE_PORTS }}
           EXPOSURE_PROBE_HOST: ${{ secrets.EXPOSURE_PROBE_HOST }}
           EXPOSURE_PROBE_OTA_NAMES: ${{ inputs.ota_names }}
+          EXPOSURE_PROBE_SITE_NAME: ${{ inputs.site_name }}
         # No `set -x` here or in the probe: the masks are printed first, and a
         # traced command would print what it is about to mask.
         run: node scripts/exposure-probe.mjs

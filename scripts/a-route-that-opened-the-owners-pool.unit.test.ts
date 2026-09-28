@@ -38,8 +38,8 @@
  * file under `apps/api/src/routes` may ever be on it. A route that calls a
  * module of `apps/api/src` which opens the owner's pool is caught at that
  * module, because it is scanned too. A package function is caught only by its
- * name, which is why OWNER_URL_HELPERS lists the ones in `packages/` that fall
- * back to `DATABASE_URL` when they are handed no connection.
+ * name, which is why OWNER_URL_HELPERS lists the ones in `packages/` that read
+ * the owner's URL or open a pool of their own on the URL they are handed.
  *
  * TWO OF THE FOUR ENTRIES HOLD REQUEST-PATH CODE, so they are pinned, not
  * exempt. `middleware/auth.ts` is `authenticate` as well as `getDbPool()`, and
@@ -77,9 +77,11 @@
  *   event commits. Neither reader names a URL or builds a pool, so neither is
  *   flagged. Both read `deployment_key` only, which holds no organisation's
  *   rows (`docs/rls-guide.md` §2).
- * - A package function that falls back to the owner and is not on
- *   OWNER_URL_HELPERS. The list is the ones found on 2026-09-28; T1 part 2
- *   removes their fallbacks, and each leaves the list in the same change.
+ * - A package function that reaches the owner for its caller and is not on
+ *   OWNER_URL_HELPERS. The list is the ones found on 2026-09-28. The
+ *   orchestration builders were on it until T1 part 2 (0138 T1 step 1, the
+ *   same day) removed their fallback to `DATABASE_URL`: each is handed its
+ *   ledger or its pool now and opens none, so each left the list.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -147,26 +149,22 @@ const IS_DB_URL = (name: string) => DB_URL_NAME.test(name) && name !== 'APP_DATA
 /**
  * Functions, each with the file that defines it, that read the owner's URL or
  * open a pool for their caller. `direct-url.ts` returns or compares the URL.
- * The rest are in `packages/` and fall back to `DATABASE_URL` (or, for the
- * last, open a pool on the string they are handed) when they are given no
- * connection: `openLedger` in `build-deps.ts`, which is not exported, through
- * the builders that call it, and `verifyMapping`'s own check. T1 part 2 (0138
- * §3) removes those fallbacks; a function that no longer has one leaves this
- * list in the same change. None is called in `apps/api/src` on 2026-09-28.
+ * `createLedgerVerificationReader` opens a pool of its own on the connection
+ * string it is handed, when it is handed one and not a handle; it is not
+ * called in `apps/api/src` on 2026-09-28.
+ *
+ * The orchestration builders were here too (`buildDeps`, `buildDomainDeps`,
+ * `buildDepsFromMapping`, `buildDomainDepsFromMapping`, and `runAllDomains`,
+ * `discoverAllDomains`, `verifyMapping`, `applianceOpener`,
+ * `applyMappingDeletion`, `applyMappingRelocation`, which call them): each fell
+ * back to `DATABASE_URL` when handed no connection. T1 part 2 (0138 T1 step 1,
+ * 2026-09-28) removed those fallbacks: each is handed its ledger or its pool
+ * and opens none of its own, so a route that hands one what `getDbPool()`
+ * gave it stays on `app_user`, and they left this list.
  */
 const OWNER_URL_HELPERS: Record<string, string> = {
   migrationConnectionString: 'packages/ledger/src/direct-url.ts',
   poolerInFront: 'packages/ledger/src/direct-url.ts',
-  buildDeps: 'packages/orchestration/src/build-deps.ts',
-  buildDomainDeps: 'packages/orchestration/src/build-deps.ts',
-  runAllDomains: 'packages/orchestration/src/orchestration.ts',
-  discoverAllDomains: 'packages/orchestration/src/orchestration.ts',
-  verifyMapping: 'packages/orchestration/src/orchestration.ts',
-  applianceOpener: 'packages/orchestration/src/orchestration.ts',
-  applyMappingDeletion: 'packages/orchestration/src/orchestration.ts',
-  applyMappingRelocation: 'packages/orchestration/src/orchestration.ts',
-  buildDepsFromMapping: 'packages/orchestration/src/build-deps-from-mapping.ts',
-  buildDomainDepsFromMapping: 'packages/orchestration/src/build-deps-from-mapping.ts',
   createLedgerVerificationReader: 'packages/ledger/src/verification-queries.ts',
 };
 const HELPER_NAMES = Object.keys(OWNER_URL_HELPERS);
@@ -403,9 +401,11 @@ describe('no route opens the owner pool', () => {
       ["import { drizzle } from 'drizzle-orm/node-postgres'; drizzle(process.env.APP_DATABASE_URL!);", 'builds a pool (drizzle given no pool)'],
       ["import { drizzle } from 'drizzle-orm/node-postgres'; drizzle({ connection: 'x' });", 'builds a pool (drizzle given no pool)'],
       ['const url = migrationConnectionString(process.env);', 'names migrationConnectionString'],
-      // A package function that falls back to the owner when handed no connection.
-      ["import { verifyMapping } from '@openmig/orchestration'; await verifyMapping(config);", 'names verifyMapping'],
-      ["import { buildDeps } from '@openmig/orchestration'; await buildDeps(config);", 'names buildDeps'],
+      // A package function that opens a pool of its own on the URL it is handed.
+      [
+        "import { createLedgerVerificationReader } from '@openmig/ledger'; createLedgerVerificationReader({ connectionString: url });",
+        'names createLedgerVerificationReader',
+      ],
     ] as const) {
       expect(reaches('shape.ts', shape), shape).toContain(what);
     }
@@ -437,6 +437,8 @@ describe('no route opens the owner pool', () => {
     // call that hands it one, and a comment that names the variable.
     for (const fine of [
       "import { drizzle } from 'drizzle-orm/node-postgres'; drizzle(pool());",
+      // A builder handed its pool opens none since T1 part 2 (0138 T1 step 1).
+      "import { buildDepsFromMapping } from '@openmig/orchestration'; await buildDepsFromMapping(getDbPool(), tenantId, mappingId);",
       "import { drizzle } from 'drizzle-orm/node-postgres'; drizzle(getSharedPool());",
       'const url = process.env.APP_DATABASE_URL;',
       '// getDbPool() throws when DATABASE_URL is unset\nconst p = getDbPool();',

@@ -378,9 +378,11 @@ export async function recordSwitchedOff(
  * Run all enabled domains for one mapping config, with status tracking.
  *
  * `phaseOf` is each data type's phase (`readPathPhases`, ledger), read by the
- * caller immediately before the pass. It is REQUIRED and comes before the
- * optional `ledger` on purpose: this is the appliance's half of 0117 D4, and
- * a pass that does not know which phase it is running in must not compile.
+ * caller immediately before the pass. It is REQUIRED and comes before
+ * `ledger` on purpose: this is the appliance's half of 0117 D4, and a pass
+ * that does not know which phase it is running in must not compile. `ledger`
+ * is required too since workplan 0138 T1 part 2: a pass is handed its ledger
+ * and opens none from `DATABASE_URL`.
  * From it, `sourceAuthorityFor` decides, per data type, whether that data
  * type carries deletion detectors at all — see `runDomainSync`'s
  * `sourceIsAuthorityOnExistence` (workplan 0128 T5). Until a data type can have
@@ -399,7 +401,7 @@ export async function runAllDomains(
   config: MappingConfig,
   statusStore: MigrationStatusStore,
   phaseOf: PathPhaseOf,
-  ledger?: LedgerOptions,
+  ledger: LedgerOptions,
   runsNow: (domain: DiscoveryDomain) => boolean = () => true,
 ): Promise<DomainSyncResult[]> {
   const results: DomainSyncResult[] = [];
@@ -829,7 +831,7 @@ export async function discoverAllDomains(
   store: DiscoveryStore,
   tenantId: TenantId,
   mappingId: MappingId,
-  ledger?: LedgerOptions,
+  ledger: LedgerOptions,
 ): Promise<DomainDiscoveryOutcome[]> {
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
   const runMailOnly = !hasDomainConfig && isTopLevelMailSource(config.source.type);
@@ -997,13 +999,18 @@ function firstUid(text?: string): string | undefined {
  */
 export async function verifyMapping(
   config: MappingConfig,
-  ledger?: LedgerOptions,
+  ledger: LedgerOptions,
   /** The data types its owner stopped (0128 T4): skipped, *stopped by you* (D6). */
   stopped: ReadonlySet<DiscoveryDomain> = new Set(),
 ): Promise<VerificationResult> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!ledger?.ledgerDb && !databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is required to run verification');
+  // Handed its ledger, like every pass: no fallback to DATABASE_URL any more
+  // (workplan 0138 T1 part 2). Checked as well as typed, for the reason
+  // `openLedger` gives.
+  if (!ledger?.ledgerDb) {
+    throw new Error(
+      'verifyMapping is handed its ledger (`ledgerDb`) and opens none of its own: this caller ' +
+        'passed none. This is a wiring bug, not a configuration one (workplan 0138 T1).',
+    );
   }
 
   const tenantId = config.tenantId as TenantId;
@@ -1044,10 +1051,8 @@ export async function verifyMapping(
   for (const domain of fanned.domains) reindexers[GATE_NAME[domain]] = fanned.byDomain[domain];
   const closers: Array<() => Promise<void>> = [() => fanned.close()];
 
-  // Owns its own pool (see createLedgerVerificationReader) — closed below.
-  const verificationReader = createLedgerVerificationReader(
-    ledger?.ledgerDb ? { db: ledger.ledgerDb } : { connectionString: databaseUrl! },
-  );
+  // On the caller's handle, which its close() below leaves open.
+  const verificationReader = createLedgerVerificationReader({ db: ledger.ledgerDb });
 
   try {
     return await runVerification(
@@ -1128,7 +1133,7 @@ function enabledSyncDomains(config: MappingConfig): DiscoveryDomain[] {
  * there is no pool to open (`ledger-injection.unit.test.ts` exists because it
  * once did not).
  */
-export function applianceOpener(config: MappingConfig, ledger?: LedgerOptions): OpenTarget {
+export function applianceOpener(config: MappingConfig, ledger: LedgerOptions): OpenTarget {
   return async (domain) => {
     const deps = await openSyncDomainDeps(config, domain, ledger);
     return { target: deps.target, close: () => deps.close() };
@@ -1139,7 +1144,7 @@ export function applianceOpener(config: MappingConfig, ledger?: LedgerOptions): 
 async function openSyncDomainDeps(
   config: MappingConfig,
   domain: DiscoveryDomain,
-  ledgerOptions?: LedgerOptions,
+  ledgerOptions: LedgerOptions,
 ): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
   // Branched explicitly rather than passing `domain` straight through: each
   // overload of `buildDomainDeps` accepts exactly one literal, and the union
@@ -1190,7 +1195,7 @@ async function openSyncDomainDeps(
 export async function applyMappingDeletion(
   config: MappingConfig,
   naturalKeyHash: string,
-  ledger?: LedgerOptions,
+  ledger: LedgerOptions,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;
@@ -1254,7 +1259,7 @@ export async function applyMappingDeletion(
 export async function applyMappingRelocation(
   config: MappingConfig,
   naturalKeyHash: string,
-  ledger?: LedgerOptions,
+  ledger: LedgerOptions,
 ): Promise<ApplyDeletionOutcome> {
   const tenantId = config.tenantId as TenantId;
   const mappingId = config.mappingId as MappingId;

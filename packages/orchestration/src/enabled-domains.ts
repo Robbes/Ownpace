@@ -13,24 +13,37 @@
  * owner selected — which is also what keeps a disabled domain reading as
  * SKIPPED ("your call, nobody checked") rather than as an error.
  *
- * Uses the owner pool without a tenant context on purpose: this is the same
- * trusted, system-level enumeration the sync tick performs (see
- * jobs/managed-sync-tick.ts for that trust boundary), filtered by tenant
- * explicitly.
+ * One mapping's answer runs inside `withTenant` for its tenant, and still
+ * filters by tenant itself (workplan 0138 T1 part 4). It used to run on the
+ * bare pool, with no tenant set, as the tick's enumeration does; on
+ * `app_user` that reads nothing, and a pass whose selection came back empty
+ * would copy nothing and could still end as if it had succeeded. The many-
+ * mapping form below is the tick's, which spans tenants by nature (0138 T2),
+ * and stays on the bare pool (see jobs/managed-sync-tick.ts for that trust
+ * boundary).
  */
 
 import type { Pool } from 'pg';
+import { sql } from 'drizzle-orm';
+import { withTenant, type LedgerDriver } from '@openmig/ledger';
 import { DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
 
+/** The rows a raw read answers, on either driver: both carry them under `rows`. */
+function rowsOf<R>(result: unknown): R[] {
+  return (result as { rows: R[] }).rows;
+}
 
 export async function enabledDomains(
-  pool: Pool,
+  source: LedgerDriver | Pool,
   tenantId: string,
   mappingId: string,
 ): Promise<Set<DiscoveryDomain>> {
-  const { rows } = await pool.query<{ domain: DiscoveryDomain }>(
-    `SELECT domain FROM scope_selection WHERE tenant_id = $1 AND mapping_id = $2 AND included = true`,
-    [tenantId, mappingId],
+  const rows = await withTenant(source, tenantId, async (db) =>
+    rowsOf<{ domain: DiscoveryDomain }>(
+      await db.execute(
+        sql`SELECT domain FROM scope_selection WHERE tenant_id = ${tenantId} AND mapping_id = ${mappingId} AND included = true`,
+      ),
+    ),
   );
   return new Set(rows.map((r) => r.domain));
 }
@@ -147,17 +160,22 @@ export function describeAbsentDomains(
  * The data types of one migration its owner stopped (workplan 0128 T4): the
  * ones the migration carries whose path row has a stop. Verification skips
  * them and says *stopped by you* (D6).
+ *
+ * Inside `withTenant`, as `enabledDomains` is (workplan 0138 T1 part 4). On
+ * `app_user` with no tenant set, `path_lifecycle` answers nothing, and a data
+ * type its owner stopped would be verified as if it still followed the source.
  */
 export async function stoppedDomains(
-  pool: Pool,
+  source: LedgerDriver | Pool,
   tenantId: string,
   mappingId: string,
 ): Promise<Set<DiscoveryDomain>> {
-  const { rows } = await pool.query<{ domain: DiscoveryDomain }>(
-    `SELECT p.domain FROM path_lifecycle p
-       JOIN scope_selection s ON s.mapping_id = p.mapping_id AND s.domain = p.domain AND s.included
-      WHERE p.tenant_id = $1 AND p.mapping_id = $2 AND p.stopped_at IS NOT NULL`,
-    [tenantId, mappingId],
+  const rows = await withTenant(source, tenantId, async (db) =>
+    rowsOf<{ domain: DiscoveryDomain }>(
+      await db.execute(sql`SELECT p.domain FROM path_lifecycle p
+         JOIN scope_selection s ON s.mapping_id = p.mapping_id AND s.domain = p.domain AND s.included
+        WHERE p.tenant_id = ${tenantId} AND p.mapping_id = ${mappingId} AND p.stopped_at IS NOT NULL`),
+    ),
   );
   return new Set(rows.map((r) => r.domain));
 }

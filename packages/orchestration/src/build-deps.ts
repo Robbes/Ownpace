@@ -36,7 +36,8 @@ import {
 } from '@openmig/connectors';
 import { PgLedger } from '@openmig/ledger';
 import { PgCursorStore } from '@openmig/ledger';
-import { createPgDb, type PgDatabase } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
+import { HANDED_BY_THE_CALLER } from './deps-lifecycle.ts';
 import {
   type DavEndpoint,
   buildCalendarSource,
@@ -97,88 +98,62 @@ import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-facto
 export { DEFAULT_CONCURRENCY };
 
 /**
- * Ledger connections per domain pass.
+ * The ledger the CALLER owns, which every pass is handed (workplan 0138 T1
+ * part 2).
  *
- * Domain lanes run in parallel now, so a mapping can hold one of these pools
- * per lane rather than one at a time. The sync loop only ever has `concurrency`
- * items in flight and each does one ledger operation at a time, so a handful of
- * connections is all a pass can use — and capping it keeps several lanes across
- * several mappings well clear of Postgres's connection limit.
- */
-const LEDGER_POOL_MAX = DEFAULT_CONCURRENCY + 2;
-
-/**
- * A ledger the CALLER already owns, for a process that has one.
+ * The builders below used to open their own `pg.Pool` from `DATABASE_URL` when
+ * handed nothing. That was wrong for the self-host appliance on PGlite, and
+ * wrong in a way that looked like it worked. PGlite is Postgres compiled to
+ * WASM running **in-process**: there is no address to connect to and no second
+ * connection to open, so a builder that reached for `DATABASE_URL` was not
+ * talking to the appliance's database at all. On the container path it
+ * silently opened a SECOND pool to the same server and behaved; with the
+ * Postgres service gone it failed on the first ledger query of every domain
+ * with `getaddrinfo ENOTFOUND postgres`, which is how this was found.
  *
- * The builders below default to opening their own `pg.Pool` from
- * `DATABASE_URL`, which is right for the managed worker: it is stateless, a
- * pass is a job, and the pool dies with it.
- *
- * It is wrong for the self-host appliance on PGlite, and wrong in a way that
- * looked like it worked. PGlite is Postgres compiled to WASM running
- * **in-process** — there is no address to connect to and no second connection
- * to open — so a builder that reaches for `DATABASE_URL` is not talking to the
- * appliance's database at all. On the container path it silently opened a
- * SECOND pool to the same server and behaved; with the Postgres service gone it
- * failed on the first ledger query of every domain with
- * `getaddrinfo ENOTFOUND postgres`, which is how this was found.
- *
- * Pass this and the builder uses the handle instead of opening one — and its
- * `close()` becomes a no-op, because the caller owns the lifetime. Closing an
- * injected handle after a pass would take the appliance's whole database down
- * with it.
+ * And it was wrong for the managed edition too: a pass that opens its own pool
+ * from the owner's URL is outside whatever connection its caller chose, which
+ * is the gap 0138 closes. So there is no fallback any more. The appliance
+ * passes its handle, and so does the standalone worker (`apps/worker/src/index.ts`);
+ * a caller with none does not compile, and one that passes nothing anyway is
+ * refused before anything is built. `close()` on the deps is a no-op for the
+ * ledger, because the caller owns its lifetime: closing it after a pass would
+ * take the appliance's whole database down with it.
  */
 export interface LedgerOptions {
   /** A drizzle handle bound to the caller's database. Not closed by the builder. */
-  readonly ledgerDb?: PgDatabase;
+  readonly ledgerDb: PgDatabase;
 }
 
 /**
- * The ledger + cursor store a pass runs against, plus whatever needs closing.
+ * The ledger + cursor store a pass runs against, on the handle it was given.
  *
  * One place, so the two builders cannot drift on the part that decides which
  * database the work lands in.
  */
-function openLedger(options: LedgerOptions | undefined): {
+function openLedger(options: LedgerOptions): {
   db: PgDatabase;
   ledger: PgLedger;
   cursors: PgCursorStore;
   closable: { close: () => Promise<void> };
 } {
+  // Typed as required; checked anyway, because a caller outside TypeScript's
+  // sight (a cast, a test) that passed nothing used to get the owner's pool
+  // from DATABASE_URL, and must now get a refusal instead.
   const provided = options?.ledgerDb;
-  if (provided) {
-    return {
-      db: provided,
-      ledger: new PgLedger(provided),
-      cursors: new PgCursorStore(provided),
-      // The caller's, not ours. See LedgerOptions.
-      closable: { close: async () => {} },
-    };
-  }
-
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
+  if (!provided) {
     throw new Error(
-      'DATABASE_URL environment variable is required. ' +
-      'Example: postgres://user:password@localhost:5432/ownpace'
+      'A pass is handed its ledger (`ledgerDb`) and opens none of its own: this caller passed ' +
+        'none. This is a wiring bug, not a configuration one (workplan 0138 T1).',
     );
   }
-  // Fail rather than connect to whatever DATABASE_URL happens to name. On the
-  // PGlite appliance that variable is still set — compose merges maps key by
-  // key, so an override cannot remove what the base file declares — and reading
-  // it means a pass writes its ledger somewhere other than the database the
-  // appliance migrated and serves. Silent divergence beats a crash only until
-  // somebody looks at the data.
-  if (process.env.SELFHOST_PERSISTENCE === 'pglite') {
-    throw new Error(
-      'The appliance is running on PGlite, so a pass cannot open its own ' +
-      'Postgres pool — it must be given the appliance\'s ledger handle ' +
-      '(`ledgerDb`). This is a wiring bug, not a configuration one.',
-    );
-  }
-
-  const db = createPgDb(databaseUrl, LEDGER_POOL_MAX);
-  return { db, ledger: new PgLedger(db), cursors: new PgCursorStore(db), closable: db };
+  return {
+    db: provided,
+    ledger: new PgLedger(provided),
+    cursors: new PgCursorStore(provided),
+    // The caller's, not ours. See LedgerOptions.
+    closable: HANDED_BY_THE_CALLER,
+  };
 }
 
 /**
@@ -203,7 +178,7 @@ export type MailPassDepsWithoutPhase = Omit<ReconcileDeps, keyof SourceAuthority
 
 export async function buildDeps(
   config: MappingConfig,
-  options?: LedgerOptions,
+  options: LedgerOptions,
 ): Promise<WithClose<MailPassDepsWithoutPhase>> {
   const { ledger, cursors, closable } = openLedger(options);
 
@@ -552,7 +527,7 @@ function buildTargetWriter(targetConfig: MappingConfig['target']): TargetWriter 
 export function buildDomainDeps(
   config: MappingConfig,
   domain: 'calendar',
-  options?: LedgerOptions,
+  options: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -565,7 +540,7 @@ export function buildDomainDeps(
 export function buildDomainDeps(
   config: MappingConfig,
   domain: 'contact',
-  options?: LedgerOptions,
+  options: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -578,7 +553,7 @@ export function buildDomainDeps(
 export function buildDomainDeps(
   config: MappingConfig,
   domain: 'file',
-  options?: LedgerOptions,
+  options: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -596,7 +571,7 @@ export function buildDomainDeps(
 export function buildDomainDeps(
   config: MappingConfig,
   domain: 'task',
-  options?: LedgerOptions,
+  options: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -609,7 +584,7 @@ export function buildDomainDeps(
 export function buildDomainDeps(
   config: MappingConfig,
   domain: 'calendar' | 'contact' | 'file' | 'task',
-  options?: LedgerOptions,
+  options: LedgerOptions,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -619,20 +594,12 @@ export function buildDomainDeps(
   cursors?: CursorStore;
   concurrency?: number;
 }> {
-  const { ledger, cursors, closable } = openLedger(options);
-  // Every refusal below happens AFTER the ledger is open — a domain that is not
+  // Every refusal below happens after the ledger is taken: a domain that is not
   // enabled, an endpoint missing credentials, and since 0042 T5 a Drive source
-  // with no OAuth values. Each one used to leak the pool it had just opened;
-  // an appliance retrying a misconfigured mapping on its schedule leaks one per
-  // attempt until Postgres refuses connections and the FAILURE looks like the
-  // database is down. The managed builder has had this guard since it was
-  // written (`build-deps-from-mapping.ts`); this is the same one.
-  try {
-    return buildDomainDepsWithLedger(config, domain, { ledger, cursors, closable });
-  } catch (err) {
-    void closable.close();
-    throw err;
-  }
+  // with no OAuth values. Each one used to leak the pool the fallback had just
+  // opened. There is no fallback now (workplan 0138 T1 part 2), so there is
+  // nothing of the builder's to release on the way out.
+  return buildDomainDepsWithLedger(config, domain, openLedger(options));
 }
 
 function buildDomainDepsWithLedger(

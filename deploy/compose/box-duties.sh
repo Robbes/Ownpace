@@ -10,7 +10,7 @@
 # `trigger-version.sh drill` dumps the Trigger.dev database and proves the
 # dump loads. Live never meets CI (T1g), so nothing did either for it.
 #
-# This runs four duties, from live's checkout (`~/ownpace-live`), once a day on
+# This runs five duties, from live's checkout (`~/ownpace-live`), once a day on
 # a systemd timer (the units are in deploy/compose/systemd/, the install steps
 # in docs/managed-bring-up.md, "Live's daily duties"):
 #
@@ -32,12 +32,19 @@
 #                  every interface while it runs; the timer's time says how.
 #   organisations  setup-zitadel.sh --count-organisations (0135 T3): read-only,
 #                  and a count that is not one fails the duty.
+#   site           www-live.sh check (0139 T10): read-only. Fails when a
+#                  container of live's project has the compose service `www`,
+#                  where a bare `docker compose -f www.yml` in live's checkout
+#                  puts the site and one --remove-orphans removes live or the
+#                  site; and, when live's .env says WWW_LIVE=true, when
+#                  live's copy of www.ownpace.eu (the project <project>-www)
+#                  is not running and healthy.
 #
 # EACH DUTY RUNS WHATEVER THE ONE BEFORE IT DID. The token goes first, so the
 # count asks with a token that is alive. A duty that fails, is missing from the
 # checkout, or runs past BOX_DUTY_TIMEOUT seconds (default 1200) is recorded,
 # and the next one starts. At the end the script names every duty that failed
-# and exits 1; all four passing is exit 0. Nobody is told when it fails
+# and exits 1; all five passing is exit 0. Nobody is told when it fails
 # (0142 is where that changes); the journal has it.
 #
 # STOPPED IS STOPPED. `timeout` puts the duty in a process group of its own,
@@ -219,7 +226,7 @@ run_duty() {
   return 0
 }
 
-say "${COMPOSE_PROJECT}: four duties, each one run whatever the one before it did"
+say "${COMPOSE_PROJECT}: five duties, each one run whatever the one before it did"
 
 run_duty token "live's provisioning token, its clock only" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --token-only
@@ -229,10 +236,12 @@ run_duty exposure "every port this machine publishes, both stacks" \
   "${SCRIPT_DIR}/exposure-check.sh"
 run_duty organisations "the organisations on live's identity provider, read-only; more than one fails" \
   "${SCRIPT_DIR}/setup-zitadel.sh" --count-organisations
+run_duty site "live's copy of the public site, read-only: no www service in live's project, and the site's own project healthy when WWW_LIVE is true" \
+  "${SCRIPT_DIR}/www-live.sh" check
 
 if [ "${#FAILED[@]}" -gt 0 ]; then
   names="${FAILED[*]}"
-  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 4 duties). Each one's own words are above."
+  fail_line "FAILED: ${names// /, } (${#FAILED[@]} of 5 duties). Each one's own words are above."
   exit 1
 fi
-say "all 4 duties passed"
+say "all 5 duties passed"

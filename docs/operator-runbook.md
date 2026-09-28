@@ -88,7 +88,9 @@ Migration `0001_baseline` creates a **non-owner `app_user`** role. RLS is enforc
   the pull that stopped uploading `DIRECT_DATABASE_URL`".
 
 Change `APP_DB_PASSWORD` from the migration default (`app_password`) before any real deployment, and
-rotate it in the DB (`ALTER ROLE app_user PASSWORD …`) to match.
+rotate it in the DB to match: `./deploy/compose/rotate-db-passwords.sh --sync` sets `app_user` and
+the owner to `.env`'s values, and `--rotate` makes new ones for both and changes `.env` and the roles
+together (`docs/managed-bring-up.md`, "Changing the database passwords").
 
 ## Start / stop
 

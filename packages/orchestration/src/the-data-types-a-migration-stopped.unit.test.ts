@@ -3,12 +3,11 @@
 /**
  * THE DATA TYPES A MIGRATION'S OWNER STOPPED (workplan 0128 T4, D6), as the
  * managed verification and the cutover gate read them: only data types the
- * migration carries, and only those with a stop. On PGlite, as the worker's
- * pool reads them.
+ * migration carries, and only those with a stop. On PGlite, through the
+ * same `withTenant` scope the worker's pool reads them in (0138 T1 part 4).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { Pool } from 'pg';
 import { pgliteDriver, runMigrations, type LedgerDriver } from '@openmig/ledger';
 import { stoppedDomains } from './enabled-domains.ts';
 
@@ -28,9 +27,6 @@ async function query(text: string, params: unknown[] = []) {
     conn.release();
   }
 }
-
-/** The worker's pool, as far as `stoppedDomains` uses one. */
-const pool = { query: (text: string, params: unknown[]) => query(text, params) } as unknown as Pool;
 
 beforeAll(async () => {
   driver = pgliteDriver({});
@@ -76,12 +72,12 @@ afterAll(async () => {
 
 describe('stoppedDomains', () => {
   it('answers the carried data types with a stop, and no others', async () => {
-    expect([...(await stoppedDomains(pool, TENANT, MAPPING))]).toEqual(['email']);
+    expect([...(await stoppedDomains(driver, TENANT, MAPPING))]).toEqual(['email']);
   });
 
   it('answers nothing for a migration with no stop, or another organisation', async () => {
     await query(`UPDATE path_lifecycle SET stopped_at = NULL WHERE mapping_id = $1 AND domain = 'email'`, [MAPPING]);
-    expect([...(await stoppedDomains(pool, TENANT, MAPPING))]).toEqual([]);
-    expect([...(await stoppedDomains(pool, '0128f300-e29b-41d4-a716-446655440099', MAPPING))]).toEqual([]);
+    expect([...(await stoppedDomains(driver, TENANT, MAPPING))]).toEqual([]);
+    expect([...(await stoppedDomains(driver, '0128f300-e29b-41d4-a716-446655440099', MAPPING))]).toEqual([]);
   });
 });

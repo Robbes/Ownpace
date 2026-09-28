@@ -46,7 +46,7 @@ export { GATE_NAME, LEDGER_DOMAIN, type VerificationDomain } from './target-fan-
 
 export interface TargetReindexers {
   readonly reindexers: Partial<Record<VerificationDomain, TargetReindexer>>;
-  /** Release every connection opened to build them. */
+  /** Close every domain's deps. They are built on the caller's pool, which this leaves open. */
   close(): Promise<void>;
 }
 
@@ -94,9 +94,10 @@ export function managedOpener(pool: Pool, tenantId: string, mappingId: string): 
 /**
  * Build reindexers for every domain whose target can enumerate itself.
  *
- * Each domain's deps carry their own pool; `close()` releases all of them. A
- * domain that fails to build (no DAV connection configured for this mapping,
- * say) is omitted rather than throwing — verification then reports it
+ * Each domain's deps are built on `pool`, the caller's (0138 T1 part 2);
+ * `close()` closes all of them and leaves `pool` open. A domain that fails to
+ * build (no DAV connection configured for this mapping, say) is omitted
+ * rather than throwing — verification then reports it
  * NOT_VERIFIABLE with the reason, which is more useful than failing the whole
  * gate before it measures the domains that DO work.
  *
