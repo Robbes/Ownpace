@@ -61,6 +61,8 @@ import {
   earlierExportsQueue,
   setupStepsFor,
   summariseSetup,
+  implicitPeople,
+  ONE_PERSON_HERE,
 } from '@openmig/shared';
 import type {
   ApplyDeletionsFlag,
@@ -80,6 +82,8 @@ import type {
   ConfirmedListQueue,
   FinishAccepted,
   VerificationResult,
+  PeopleResponse,
+  PersonMigration,
 } from '@openmig/shared';
 import { claimLegacyMappingRows, loadConfigDir, uuidFromString, type LoadedMapping } from './config-dir.ts';
 import { buildStatusReport, type MappingStatusInput } from './status.ts';
@@ -1623,6 +1627,34 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
             ...(notifierConfig.enabled ? {} : { reason: notifierConfig.reason }),
           }),
         );
+      }
+      // The people being moved (ADR-0050, amended 2026-09-28; workplan 0153
+      // T2). The appliance moves one person and keeps no table for them: it
+      // answers the managed API's shapes with one implicit person, whose
+      // migrations are every one its config directory holds, in the order it
+      // lists them. `/people` and not `/moves`: `/moves` below is the queue of
+      // items a source put somewhere else.
+      if (req.method === 'GET' && req.url === '/people') {
+        const migrations: PersonMigration[] = [];
+        for (const m of mappings) {
+          migrations.push({ id: m.config.mappingId, status: await mappingStatus(m) });
+        }
+        return sendJson(res, 200, implicitPeople(migrations) satisfies PeopleResponse);
+      }
+      // Its writes, refused with the reason rather than a 404 (hard rule 9):
+      // there is nobody else to add, and the one person's migrations are the
+      // config directory's files, which a request does not write.
+      if (
+        (req.method === 'POST' && (req.url === '/people' || /^\/people\/[^/]+\/migrations$/.test(req.url ?? ''))) ||
+        (req.method === 'DELETE' && /^\/people\/[^/]+$/.test(req.url ?? ''))
+      ) {
+        await drain(req);
+        return sendJson(res, 409, {
+          error: ONE_PERSON_HERE,
+          message:
+            'This appliance moves one person: every migration in its config directory is theirs. ' +
+            'There is nobody to add or delete. A migration is added by adding its file.',
+        });
       }
       // The §20 verification gate, in its two forms (workplan 0017 T2).
       //

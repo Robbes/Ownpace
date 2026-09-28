@@ -31,6 +31,7 @@ import type { AuthenticatedRequest, JwtPayload } from './types/api.ts';
 // verification_run/apply_receipt rows by the jobs themselves.
 import tenantRoutes from './routes/tenants/index.ts';
 import mappingRoutes from './routes/migrations/index.ts';
+import peopleRoutes from './routes/people.ts';
 import grantRoutes from './routes/grant.ts';
 import viewRoutes from './routes/view.ts';
 import decisionRoutes from './routes/decisions.ts';
@@ -236,6 +237,14 @@ app.use('/api/redirect-uris', redirectUriRoutes);
 app.use('/api/setup', setupRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/migrations', mappingRoutes);
+/**
+ * The people being moved (ADR-0050, amended 2026-09-28; workplan 0153 T2).
+ *
+ * Its own prefix and not `/api/moves`: the moves queue under each migration
+ * is a different thing, and the appliance's `/moves` is that queue. The
+ * appliance answers `GET /people` in the same shapes, with one implicit person.
+ */
+app.use('/api/people', peopleRoutes);
 /**
  * The migrator's own surface (workplan 0108 T4, ADR-0035).
  *

@@ -41,7 +41,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
-import { tenant } from '@openmig/ledger/schema-pg';
+import { mailboxMapping, tenant } from '@openmig/ledger/schema-pg';
 
 // ========================= Usage Metrics (for billing) =========================
 
@@ -505,3 +505,49 @@ export const syncTickBeat = pgTable('sync_tick_beat', {
     task: text('task').primaryKey(),
     beatAt: timestamp('beat_at', { withTimezone: true }).notNull(),
 });
+
+// ========================= The person a migration is for =========================
+
+/**
+ * A person being moved (ADR-0050, amended by the owner on 2026-09-28; managed
+ * migration 0031). A name, and optionally an address for grant links. It has
+ * no state of its own: `people.ts` reads what the page says about one from
+ * their migrations. Purged on erasure (`PURGED_TABLES`).
+ *
+ * The appliance has no such table: it moves one person, and answers the same
+ * shapes with an implicit one (`implicitPeople`, `@openmig/shared`).
+ */
+export const person = pgTable(
+  'person',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    displayName: text('display_name').notNull(),
+    email: text('email'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('person_tenant_idx').on(t.tenantId, t.createdAt)],
+);
+
+/**
+ * Which person a migration is for: at most one, because the migration is the
+ * key. Deleting either side deletes only this row. The migration's key names
+ * `mailbox_mapping`, which gains no column (hard rule 5); the policy in 0031
+ * holds the migration to the organisation the row is written in.
+ */
+export const personMigration = pgTable(
+  'person_migration',
+  {
+    mappingId: uuid('mapping_id')
+      .primaryKey()
+      .references(() => mailboxMapping.id, { onDelete: 'cascade' }),
+    personId: uuid('person_id').notNull(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('person_migration_person_idx').on(t.personId)],
+);

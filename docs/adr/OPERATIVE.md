@@ -917,19 +917,30 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0050: A move is a person's migrations](./0050-a-move-is-a-persons-migrations.md)
 
-- **ACCEPTED, NOT YET BUILT (2026-09-28).** The tables, the API and the pages are 0153 T2, T3
-  and T5. Until they land, nothing groups migrations, and the Migrations page lists them.
-- **A move is a person being moved:** a display name, and optionally an email address for grant
-  links, in one tenant. On screen it has no noun; the person's name titles it (0153 D6).
-- **A migration belongs to at most one move.** One without shows under *Not in a move yet*.
-- **A move changes nothing about a migration.** The engine runs migrations, the ledger keys
-  items per migration, ADR-0014 counts paths, and a move is never billed.
-- **Rows, never a column on `mapping`** (hard rule 5): `move` and `move_member (move_id,
-  mapping_id)` in `packages/managed/migrations`, with row security. The appliance answers the
-  same API with one implicit move and no table, and `no-managed-leakage.unit.test.ts` names the
-  new module.
-- **Deleting a move deletes no migration.** Its members return to *Not in a move yet*.
-- **The API is `GET /moves`, `POST /moves`, `POST /moves/:id/members` and `DELETE /moves/:id`,**
-  with the migration routes' tenant checks, and in the OpenAPI spec.
-- **A move has no state of its own.** What a person reads is their migrations' stages
-  (`leastAdvancedStage`, 0154 T1).
+- **ACCEPTED; THE TABLES AND THE API BUILT, THE PAGES NOT YET (2026-09-28).** `person`,
+  `person_migration` and `/api/people` are 0153 T2's, built. The pages are 0153 T3 and T5: until
+  they land, the Migrations page lists migrations, and nothing on screen groups them.
+- **The name in code is *person*** (the amendment): the tables `person` and `person_migration`,
+  the API's `/people`, and the shapes in `packages/shared/src/people.ts`. Never *move*: `/moves`
+  and `MovesQueue` are the queue of items a source put somewhere else. On screen the grouping has
+  no noun; the person's name titles it (0153 D6).
+- **A person is someone being moved:** a display name, and optionally an email address for grant
+  links, in one tenant.
+- **A migration belongs to at most one person.** `person_migration`'s key is the migration. One
+  that belongs to nobody is `unassigned`, and the page shows it without a person.
+- **A person changes nothing about a migration.** The engine runs migrations, the ledger keys
+  items per migration, ADR-0014 counts paths, and a person is never billed.
+- **Rows, never a column on `mailbox_mapping`** (hard rule 5): `person` and `person_migration
+  (mapping_id, person_id, tenant_id)` in `packages/managed/migrations` (0031), with forced row
+  security. A key holds a row to a person of its own tenant, and the policy to a migration of
+  it. Erasure purges both (`PURGED_TABLES`). The appliance keeps no table: it answers `GET
+  /people` with one implicit person holding every configured migration, and refuses the writes
+  (`one_person_here`). `no-managed-leakage.unit.test.ts` names both tables.
+- **Deleting a person deletes no migration.** Their migrations belong to nobody again. Deleting a
+  migration deletes only its row in `person_migration`.
+- **The API is `GET /api/people`, `POST /api/people`, `POST /api/people/{personId}/migrations`
+  and `DELETE /api/people/{personId}`,** with the migration routes' tenant checks, and in the
+  OpenAPI spec. Adding a migration again changes nothing; one that is somebody else's stays
+  theirs (409 `with_another_person`).
+- **A person has no state of its own.** What a person reads is their migrations' states, counted
+  in the answer, and their stages (`leastAdvancedStage`, 0154 T1).
