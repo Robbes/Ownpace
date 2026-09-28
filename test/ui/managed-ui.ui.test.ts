@@ -112,9 +112,10 @@ const FIXTURES: Record<string, unknown> = {
   /**
    * WHETHER TO OFFER "REPORT A PROBLEM" (workplan 0130), asked by the layout on
    * every signed-in page, like the hold above: the link beside Sign out is
-   * shown only when the deployment has a helpdesk to send a report to.
+   * shown only when the deployment has somewhere to send a report to.
    *
-   * `available: true` is the answer of a deployment with its Zammad set up, so
+   * `available: true` is the answer of a deployment with its Zammad or its
+   * mail set up (the mail alone is enough since 0130 T5), so
    * the link renders on every page this suite opens, and the form it leads to
    * is opened below. Without this fixture every page logs a 404, which is how
    * this entry came to be written.

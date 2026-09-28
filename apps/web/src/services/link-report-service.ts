@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { linkClient as client } from './link-client.ts';
+import type { SentReport } from './problem-report-service.ts';
 
 /** Which page the link opens: the grant page, or the progress page. */
 export type ReportedLink = 'grant' | 'view';
@@ -33,9 +34,15 @@ export const linkReportApi = {
     }
   },
 
-  /** Send the report; answers the ticket's number. */
-  send: async (kind: ReportedLink, link: string, body: LinkReportBody): Promise<string> => {
+  /**
+   * Send the report; answers its ticket's number, or, when it went to the
+   * support mailbox by mail (the owner, for the alpha, 2026-09-28), its
+   * reference.
+   */
+  send: async (kind: ReportedLink, link: string, body: LinkReportBody): Promise<SentReport> => {
     const res = await client.post(path(kind, link), body);
-    return z.object({ ticket: z.string() }).parse(res.data).ticket;
+    return z
+      .union([z.object({ ticket: z.string() }), z.object({ reference: z.string() })])
+      .parse(res.data);
   },
 };

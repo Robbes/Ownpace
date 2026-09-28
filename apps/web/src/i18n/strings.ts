@@ -56,6 +56,12 @@ const en = {
   'report.send': 'Send the report',
   'report.sending': 'Sending…',
   'report.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
+  // Where the service has no helpdesk, a report goes to the support mailbox by
+  // mail (the owner, for the alpha, 2026-09-28): no ticket, so no number, and
+  // the report's own reference instead, which the mail carries too as `Report
+  // reference:`. Named apart from the error's reference the form listed above
+  // (`report.reference`), which the Log page finds and this one it does not.
+  'report.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
   'report.unavailable': 'Reporting a problem is not set up on this service.',
   'language.label': 'Language',
   'common.requestFailed': 'The request did not complete.',
@@ -1168,6 +1174,9 @@ const en = {
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
   'linkReport.sent.anonymous': 'Sent. Your report is number {ticket}. Without an address, we cannot answer you.',
+  'linkReport.sent.mail': 'Sent to our support team, with report reference {reference}. We will reply by email to {email}.',
+  'linkReport.sent.mail.anonymous':
+    'Sent to our support team, with report reference {reference}. Without an address, we cannot answer you.',
   'linkReport.next.grant': 'You need not continue: nothing is read unless you allow it at Google.',
   'linkReport.next.withdraw': 'To stop the copying now, withdraw the access above.',
   'state.lifecycle.active': 'Active',
@@ -2574,6 +2583,7 @@ const nl: Record<keyof typeof en, string> = {
   'report.send': 'Melding versturen',
   'report.sending': 'Versturen…',
   'report.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
+  'report.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
   'report.unavailable': 'Een probleem melden is op deze dienst niet ingesteld.',
   'language.label': 'Taal',
   'common.requestFailed': 'Het verzoek is niet voltooid.',
@@ -3597,6 +3607,9 @@ const nl: Record<keyof typeof en, string> = {
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',
   'linkReport.sent.anonymous': 'Verstuurd. Uw melding heeft nummer {ticket}. Zonder adres kunnen we u niet antwoorden.',
+  'linkReport.sent.mail': 'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}.',
+  'linkReport.sent.mail.anonymous':
+    'Verstuurd naar ons supportteam, met meldingskenmerk {reference}. Zonder adres kunnen we u niet antwoorden.',
   'linkReport.next.grant': 'U hoeft niet door te gaan: er wordt niets gelezen zonder uw toestemming bij Google.',
   'linkReport.next.withdraw': 'Wilt u het kopiëren nu stoppen? Trek dan hierboven de toegang in.',
   'state.lifecycle.active': 'Actief',

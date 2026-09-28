@@ -90,6 +90,11 @@ and found eleven things. All are fixed:
 - **Step 7, *Report a problem*.** The menu offers the entry only where the service takes reports
   (`Layout.tsx`). Without a helpdesk the missing entry is the result, and `/report` opened by hand
   shows the sentence that says so. Both answers are quoted in Dutch and English.
+  *(2026-09-28: no longer so on live. With no helpdesk, a report goes by mail to the support
+  mailbox when the API's mail is set up (0130 T5), and the owner wants the form on for the whole
+  alpha. Step 7 now expects the form on live, quotes the mail's answer in Dutch and English, and
+  checks the mail and the reply. The missing entry is the result only on a stack with neither a
+  Zammad nor the mail, and on live it is a failure.)*
 - **B's Microsoft prerequisite.** Microsoft must know live's callback first (0140 T11), or step 2
   fails at Microsoft for a reason that is not the product's.
 - **A live proof.** The eight steps have no Verify and no second pass, which points 5 and 6 of
@@ -995,8 +1000,11 @@ browser and B an English one. It follows on from 0133 T4's step 4 (joined as own
      stored (`grant.ts`:29-34).
    - Opened as A, it is accepted.
    - Opened again, it cannot be used a second time.
-7. *Report a problem* reaches the owner (0130), if the stack has a Zammad; otherwise the address
-   in the alpha conditions (0131 T5).
+7. *Report a problem* reaches the owner (0130): by mail to `support@ownpace.eu` on live, which
+   has no Zammad (0130 T5), with its screenshot and the report reference the page gave, and a
+   Reply from Proton's client reaches the tester (0131, the row for 0130); as a ticket on a stack
+   with a Zammad. Only a stack with neither leaves a tester the address in the alpha conditions
+   (0131 T5).
 8. The Finish step's permission handover says only true things (T11).
 
 For each step, record pass or fail, the date, live's tag and the language seen. Never an
