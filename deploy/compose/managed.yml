@@ -1084,6 +1084,9 @@ services:
         # to the paste box there.
         VITE_OIDC_ISSUER: ${VITE_OIDC_ISSUER:-}
         VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
+        # Where the legal pages live (workplan 0139 T10). Empty is the production
+        # site, the default in `apps/web/src/services/legal-links.ts`.
+        VITE_LEGAL_SITE_URL: ${VITE_LEGAL_SITE_URL:-}
         # The support screen's way through to an account at the provider.
         # setup-zitadel.sh writes it; empty means the screen shows the address
         # without a link, which is right for a stack that has no console to
@@ -1094,6 +1097,8 @@ services:
         # have no session to ask with. Vite exposes only VITE_ names, hence the
         # prefix. Empty is off; changing it means rebuilding this image.
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
+        # The address a tester writes to (workplan 0144 T6 (a)). Empty shows nothing new.
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     ports:

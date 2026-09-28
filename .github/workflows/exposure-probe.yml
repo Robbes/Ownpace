@@ -1,0 +1,78 @@
+# The probe from outside (workplan 0132 T3 (c)): does anything on the reference
+# machine answer the internet that should not?
+#
+# It resolves the production names (app., id., status.ownpace.eu) and the OTA
+# names (app.ota., id.ota., www.ota.ownpace.eu), and tries every port either
+# stack publishes, the site's and the demo's two, on every address those names
+# resolve to, and on the machine's own address if the secret below holds it.
+# It passes when 443 on each production name answers over TLS, the discovery
+# document at id.ownpace.eu names https://id.ownpace.eu as its issuer (so the
+# production names reach live, not the OTA stack), and nothing else answers.
+# scripts/exposure-probe.mjs says how, and scripts/exposure-probe-ports.mjs
+# derives the port list from managed.yml, www.yml and setup-managed-demo.sh:
+# no port is written in this file.
+#
+# WHAT THE OWNER SETS (Settings, Secrets and variables, Actions):
+#   variable EXPOSURE_PROBE_LIVE_PORTS  live's own *_PORT values from its .env
+#                                       (0132 T1b), separated by spaces or
+#                                       commas. Port numbers, not secrets. The
+#                                       probe will not run without them.
+#   secret   EXPOSURE_PROBE_HOST        optional: the machine's own public
+#                                       address (or a name for it). Masked, and
+#                                       never printed.
+#
+# DISPATCH ONLY, never scheduled (0132 open question 6's proposed answer). A
+# public repository's job logs are public, and a failing run names the open
+# port. So it runs when the owner is there to act on the result. The log names
+# names and ports, never an address: every address is masked before anything
+# else is printed, and nothing printed carries one.
+#
+# ON A GITHUB-HOSTED RUNNER, NEVER THE SELF-HOSTED ONE. The point is to ask from
+# where a stranger stands. The self-hosted runner is the machine itself, where
+# every port answers on loopback, and the probe would learn nothing there. A
+# GitHub-hosted runner has no IPv6 route; the probe says which addresses it
+# could not try rather than calling them closed.
+#
+# scripts/a-probe-that-knows-every-port.unit.test.ts holds the trigger, the
+# runner and the derived list; scripts/exposure-probe.unit.test.ts what the
+# probe prints and when it passes.
+name: Exposure probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      ota_names:
+        description: >-
+          What the OTA names (app.ota., id.ota., www.ota.ownpace.eu) should do on 443, open
+          question 7: report records what answered and fails on none of it; internet requires
+          each to answer over TLS; mesh-only requires none to answer.
+        type: choice
+        options:
+          - report
+          - internet
+          - mesh-only
+        default: report
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe from outside
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Try every port from outside
+        env:
+          EXPOSURE_PROBE_LIVE_PORTS: ${{ vars.EXPOSURE_PROBE_LIVE_PORTS }}
+          EXPOSURE_PROBE_HOST: ${{ secrets.EXPOSURE_PROBE_HOST }}
+          EXPOSURE_PROBE_OTA_NAMES: ${{ inputs.ota_names }}
+        # No `set -x` here or in the probe: the masks are printed first, and a
+        # traced command would print what it is about to mask.
+        run: node scripts/exposure-probe.mjs

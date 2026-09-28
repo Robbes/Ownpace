@@ -2,7 +2,69 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T6 (a) built on `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not
+merged.** This is 0131 §6's group R1, step 4, without its (c). T6 (a) is the address on the pages
+before sign-in and in the sidebar; (c) is the GitHub chooser.
+
+T0's address is in. The owner answered 0133's open questions 2 and 3 on 2026-09-27: the
+platform's mail is sent as `support@ownpace.eu` (*"ok, support@ownpace.eu"*), which the owner
+already has and reads (0133's Status and its open question 3). This plan reads that as T0's
+address, the one testers write to: its open question 1 asked the same two things, which address
+and whether a person reads it. That is a reading, not the owner's words about this plan. It goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`. It is not in the code, and the
+example's default stays empty. §3's T0 said the address would never be written in this plan. It
+is quoted here from 0133's record, and the site's footer already shows it (`SUPPORT_EMAIL` in
+`site/prices.mjs`).
+
+- **The address, as a build setting.** `VITE_SUPPORT_EMAIL` is a web build argument, as
+  `VITE_OIDC_ISSUER` is. `managed.yml` passes it to the web build from `.env`, empty by default.
+  `apps/web/Dockerfile` declares it as `ARG` and `ENV` before the build. `SupportLine.tsx` reads
+  `import.meta.env.VITE_SUPPORT_EMAIL`. `managed.env.example` names it, empty, beside the other
+  `VITE_` settings, and says to rebuild the web image. Step 8h of `docs/managed-bring-up.md` says
+  the same. Unset, empty or blank, nothing new is shown anywhere. On the appliance nothing is
+  shown either, whatever its bundle was built with.
+- **Before sign-in.** One line, in §3's words: EN *"Stuck? Mail {address} and name the page you
+  are on. Never send a password."*, NL *"Komt u er niet uit? Mail naar {address} en noem de
+  pagina waarop u bent. Stuur nooit een wachtwoord."* The address is a `mailto:` link.
+  - `/login`: above the status link, outside the auth-mode branches. So it is there while the
+    page asks the API, and when the API cannot be asked.
+  - `/request-access`: under the form, and after the request was sent.
+  - `/auth/callback`: in the no-organisation state and in the failed state, not while it works.
+  - `/invitations`: above the build stamp.
+- **After sign-in.** When the report form is off and the address is set, the sidebar shows
+  *"Help: {address}"* / *"Hulp: {address}"* where *Report a problem* would be, as a `mailto:`
+  link. It appears only once the API has answered whether the form is on, so the one never swaps
+  for the other. With the form on, the sidebar shows the form's link and no address.
+- **Keys.** `help.line` and `help.sidebar`, in both languages. `support.*` is the operator's
+  support screen, so they are not under it.
+
+Guards: `apps/web/src/pages/a-person-before-sign-in.unit.test.tsx` (38 cases) and a new block in
+`scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts` (3 cases). On `main`, 17 of the 38
+failed, each with *"one mailto: link, not none and not two: expected [] to have a length of
+1"*: the four pages in each state above and the sidebar, each in both languages, and a padded
+address. The other 21 passed, as they should. They hold that nothing is shown without the
+setting, with it empty or blank, with the form on, before the form's answer, and on the
+appliance. All 3 script cases failed on `main`: `SupportLine.tsx` did not exist, `managed.yml`
+did not pass the argument, and the example did not name it. The Dockerfile's `ARG` is held by
+`the-issuer-the-bundle-never-learned`, which derives it from what the app reads. Mutations, each
+restored: the sidebar's address whatever the form says (2 cases fail), before the form's answer
+(1), the setting not trimmed (2), empty taken as an address (2), the appliance not excluded (1),
+no line under a failed sign-in (2), the address as text without a link (15), and the Dockerfile
+without the `ARG` (1, in `the-issuer-the-bundle-never-learned`).
+
+Departures from §3: the line is also on `/request-access` after the request was sent, and on
+`/login` when the API cannot be asked. §3 gives the sidebar's words in Dutch only, and its English
+is *"Help: {address}"*. The appliance never shows either, which §3 does not name.
+
+Deferred: T6 (c), the GitHub chooser. Its contact link's URL is T1's *Hulp* section, on the site
+that publishes the alpha's texts (0139 T10), and that section does not exist yet. So the link in
+`.github/ISSUE_TEMPLATE/config.yml`, the sentence in `bug_report.yml` and
+`scripts/an-issue-route-for-the-hosted-service.unit.test.ts` wait for T1. None of them was built.
+
+Waits for the owner: `VITE_SUPPORT_EMAIL` set in `ownpace-live`'s `.env`, and its web image
+rebuilt, once this branch merges and live exists (0132). T0's other two items stay open: the site
+copy (T3 (b)) and the read of T1's Dutch.
 
 **2026-09-27: T7 built on `claude/ownpace-public-readiness-y7orc6-a-door-from-the-sign-in-page`,
 not merged.** This is 0131 §6's group R1, step 3. Under the sign-in button in `Login.tsx` there
@@ -273,13 +335,13 @@ Everything a tester reads is written in Dutch first and translated into English 
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner** | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
+| T0 The owner's words: the address, the site copy, the guide read in Dutch | ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
 | T1 A Dutch tester guide | 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
 | T3 "Read-only" replaced by what is true | ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. (b), the site copy, ⏳ **Owner** (T0). The setup title and the password hint 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
 | T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
-| T6 A person to write to, before and after sign-in | 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
+| T6 A person to write to, before and after sign-in | 🔨 **(a) Built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged** (2026-09-28). (c), the GitHub chooser, 📋 **Deferred** until T1's *Hulp* section exists; *was:* 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | ✅ **done** in #1213, merged 2026-09-27; *was:* 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
 | T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |
 
@@ -1046,7 +1108,9 @@ approves.
 
 1. **The address (T0, T6).** `support@ownpace.eu`, which the site already shows, or another
    address? And does a person read it during the alpha (0133 open question 3)? The chooser in a
-   public repository will show it as well.
+   public repository will show it as well. **Answered 2026-09-27, in 0133 (open questions 2 and
+   3):** `support@ownpace.eu`, *"ok, support@ownpace.eu"*, which the owner has and reads, read
+   here as this question's answer. It goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL` once live exists (T6 (a)).
 2. **The site copy (T3).** Approve the drafts, rewrite them, or keep today's text? The one
    sentence that must go in any case is how-it-works' *"The connection is **read-only**"*.
 3. **Apply deletions during the alpha.** (a) Testers leave it off until T4 lands, and the guide

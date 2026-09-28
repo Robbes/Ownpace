@@ -28,16 +28,23 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LEGAL = join(REPO_ROOT, 'site', 'legal');
 const BRAND = join(REPO_ROOT, 'site', 'brand');
 
 const SUPPORT_EMAIL = 'support@ownpace.eu';
-const DOCS = ['privacy.md', 'terms.md'] as const;
+/**
+ * Every document the site build renders, in both languages. The last case
+ * below holds this list to the build's own `SOURCE`, so a document the build
+ * starts rendering (0139 T2's conditions, T5's sub-processor list) is added
+ * here before it can carry a placeholder the README does not list.
+ */
+const DOCS = ['privacy.md', 'privacy.nl.md', 'terms.md', 'terms.nl.md'] as const;
 
 const read = (p: string) => readFileSync(p, 'utf8');
 const placeholdersIn = (text: string) => new Set(text.match(/«[A-Z_]+»/g) ?? []);
@@ -59,7 +66,7 @@ describe('the published legal surface', () => {
     }
   });
 
-  it('names the support address in both documents', () => {
+  it('names the support address in every document', () => {
     // Google's verification requires a support contact, and a policy that
     // names no way to exercise the rights it grants is not a policy.
     for (const doc of DOCS) {
@@ -116,5 +123,39 @@ describe('the published legal surface', () => {
     expect(svg, 'hand-edited? regenerate with python3 scripts/make-logo.py').toContain(
       'aria-label="Ownpace"',
     );
+  });
+
+  it('lists every legal document the site build renders', () => {
+    // Read from the build (`SOURCE` in site/build.mjs), in a child process
+    // because it refuses to load without OWNPACE_APP_URL.
+    const build = pathToFileURL(join(REPO_ROOT, 'site', 'build.mjs')).href;
+    const out = execFileSync(
+      'node',
+      [
+        '-e',
+        `import(${JSON.stringify(build)})
+           .then((m) => process.stdout.write(JSON.stringify(m.SOURCE ?? null)))
+           .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
+      ],
+      {
+        env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' },
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'] as const,
+      },
+    );
+    const sources = JSON.parse(out) as Record<string, Record<string, string>> | null;
+    expect(sources, 'site/build.mjs no longer exports SOURCE').not.toBeNull();
+    const rendered = Object.values(sources ?? {})
+      .flatMap((pages) => Object.values(pages))
+      .filter((src) => src.startsWith('legal/'))
+      .map((src) => src.slice('legal/'.length));
+    expect(rendered.length, 'the build renders no legal document at all').toBeGreaterThan(0);
+    for (const doc of rendered) {
+      expect(
+        DOCS as readonly string[],
+        `The site build renders site/legal/${doc}, and DOCS does not list it, so a\n` +
+          'placeholder in it could go unlisted in the README.',
+      ).toContain(doc);
+    }
   });
 });

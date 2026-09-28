@@ -12,6 +12,7 @@ import { serverMessage } from '../services/api.ts';
 import StatusLink from '../components/StatusLink.tsx';
 import BuildStamp from '../components/BuildStamp.tsx';
 import AlphaNote from '../components/AlphaNote.tsx';
+import SupportLine from '../components/SupportLine.tsx';
 
 interface TokenClaims {
   sub: string;
@@ -380,7 +381,12 @@ const Login: React.FC = () => {
             components/BuildStamp.tsx. */}
         {/* The status link belongs HERE above all: somebody who cannot sign
             in is the person asking "is it me or is it them". */}
+        {/* And a person to write to (workplan 0144 T6 (a)), when the
+            deployment names one. Outside the auth-mode branches above, so it
+            is there while the page asks the API and when the API cannot be
+            asked, which is when nobody can sign in. */}
         <div className="text-center space-y-2">
+          <SupportLine />
           <div>
             <StatusLink />
           </div>

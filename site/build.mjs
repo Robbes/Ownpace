@@ -870,8 +870,15 @@ function calculatorPage(locale) {
 
 // -------------------------------------------------------------------- main --
 
-/** Source file for each locale/page. Legal documents keep their own names. */
-const SOURCE = {
+/**
+ * Source file for each locale/page. Legal documents keep their own names.
+ *
+ * Exported so the guards can tell which pages are the legal ones (the entries
+ * under `legal/`) from the build itself: `scripts/a-policy-link-that-answers`
+ * holds the web app's links to them, and `scripts/legal-docs` its list of
+ * documents (workplan 0139 T10).
+ */
+export const SOURCE = {
   en: { how: 'pages/en/how-it-works.md', pricing: 'pages/en/pricing.md', privacy: 'legal/privacy.md', terms: 'legal/terms.md' },
   nl: { how: 'pages/nl/hoe-het-werkt.md', pricing: 'pages/nl/prijzen.md', privacy: 'legal/privacy.nl.md', terms: 'legal/terms.nl.md' },
 };

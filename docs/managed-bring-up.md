@@ -282,6 +282,25 @@ Then recreate the services whose binds you set, for example
 page's service is `gatus`, the dashboard's `trigger-tls`). `docker ps --format
 '{{.Names}} {{.Ports}}'` names every address each container answers on.
 
+**Checking every publish on the machine at once.** From a stack's checkout,
+`./deploy/compose/exposure-check.sh` reads `docker ps` for every running
+container, both stacks, the site and the demo's Stalwart included. It fails for
+each port published on every interface, or on an address that is not loopback
+and not listed in `EXPOSURE_ALLOW` in that checkout's `.env`. Because it reads
+the whole machine, that list is every address any container on it is published
+on on purpose, not only the checkout's own: both stacks' `*_BIND` values, the
+site's `WWW_BIND` and the demo's `STALWART_BIND`, separated by commas with no
+space (`EXPOSURE_ALLOW=192.0.2.10,100.64.0.1`; a bare space is a line bash
+cannot source, and the bring-up refuses it). Each stack's `.env` carries the
+same list. It names the container and the port, never the address, so what it
+prints can go into a public log. Workplan 0132 T6
+will run it after each deploy of live and T7 daily; until then it is run by
+hand (T0 step 5). The same question from outside is the dispatch-only workflow
+*Exposure probe* (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted
+runner. It needs the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's
+`*_PORT` values, and takes the machine's own public address from the optional
+secret `EXPOSURE_PROBE_HOST`.
+
 **The site is recreated by hand, and only by hand.** No workflow and no script
 runs `www.yml`; the bring-up does not start the site (*The public site*,
 below). So a change to its publish, or to `WWW_BIND`, reaches the machine at the
@@ -1754,6 +1773,29 @@ prints `0`:
 ```bash
 docker compose -f deploy/compose/managed.yml exec api printenv BACKUP_RETENTION_DAYS
 ```
+
+### 8h. A person to write to *(only on the stack testers use)*
+
+A tester who is stuck before signing in cannot reach the report form (8f): it
+needs a session. So the stack testers use names an address a person reads
+(workplan 0144 T6 (a)). With it set, the sign-in, request, callback and
+invitation pages carry one line, *"Stuck? Mail … and name the page you are on.
+Never send a password."*, in English and Dutch, with the address as a mail
+link. Signed in, the sidebar shows *Help: …* where *Report a problem* would be,
+for as long as the form is off. Empty shows nothing new.
+
+```
+VITE_SUPPORT_EMAIL=support@example.eu
+```
+
+The web bundle bakes it in at build time, so rebuild the web image:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) \
+  docker compose -f deploy/compose/managed.yml up -d --build --wait web
+```
+
+Open the sign-in page: the line is above the status link.
 
 ### 9. `tasks` — the task environment, then the deploy
 
