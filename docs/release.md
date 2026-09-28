@@ -26,11 +26,17 @@ stay `0.0.0` deliberately — they are never published individually). The
         release image, real volumes, swap to HEAD in place, healthy after a
         further restart. The drill says when it is vacuous (tag == HEAD) —
         a vacuous pass does not count.
-- [ ] **Before the first non-demo tenant** (not per release, but check it
-      here because this list is what gets read): CI and the live managed stack
-      are not on the same machine — see the operator runbook, "This box also
-      runs CI". Demo data makes it tolerable; a customer's mailbox
-      credentials do not.
+- [ ] **Before the first non-demo tenant beyond the alpha** (not per release,
+      but check it here because this list is what gets read): CI and the live
+      managed stack are not on the same machine — see the operator runbook,
+      "This box also runs CI". The alpha is the one exception, by the owner's
+      decision of 2026-09-24: `ownpace-live` runs on the reference machine
+      beside the OTA stack and CI, under
+      [workplan 0132](./workplans/0132-the-alpha-and-the-nightly-gate-on-one-box.md)'s
+      conditions (names per project on one Docker daemon; the gate refuses
+      live's `.env`; live moves only by hand, from a tag). Demo data and a
+      hand-picked alpha make it tolerable; a customer's mailbox credentials do
+      not.
 - [ ] Managed stack smoke if the release touches it:
       `deploy/compose/smoke-managed.sh` (includes the web `/api` proxy
       assertion).

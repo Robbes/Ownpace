@@ -207,10 +207,12 @@ describe('operator.sh composes what the host cannot inherit', () => {
     made.push(dir);
     copyFileSync(join(COMPOSE_DIR, 'operator.sh'), join(dir, 'operator.sh'));
     // The wrapper asks which stack this checkout is before it asks Compose
-    // anything (workplan 0132 T1): the reader, and the file it reads the
-    // default from. The stub docker never reads it.
+    // anything (workplan 0132 T1): the reader, the file it reads the default
+    // from, and the one naming live's marker, which the reader refuses on that
+    // default (0132 T1b). The stub docker never reads them.
     copyFileSync(join(COMPOSE_DIR, 'env-read.sh'), join(dir, 'env-read.sh'));
     copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(dir, 'managed.yml'));
+    copyFileSync(join(COMPOSE_DIR, 'stack-kind.sh'), join(dir, 'stack-kind.sh'));
     writeFileSync(
       join(dir, '.env'),
       'POSTGRES_USER=owneruser\nPOSTGRES_PASSWORD=ownerpw\nPOSTGRES_DB=ownerdb\n',
