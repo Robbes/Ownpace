@@ -39,12 +39,51 @@ const BRAND = join(REPO_ROOT, 'site', 'brand');
 
 const SUPPORT_EMAIL = 'support@ownpace.eu';
 /**
- * Every document the site build renders, in both languages. The last case
- * below holds this list to the build's own `SOURCE`, so a document the build
- * starts rendering (0139 T2's conditions, T5's sub-processor list) is added
- * here before it can carry a placeholder the README does not list.
+ * Every document the site build renders, in both languages, and the alpha
+ * conditions (0139 T2), which are drafted before the build renders them
+ * (0139 T10), so their placeholders are listed from the first draft. The last
+ * case below holds this list to the build's own `SOURCE`, so a document the
+ * build starts rendering (T5's sub-processor list) is added here before it can
+ * carry a placeholder the README does not list.
  */
-const DOCS = ['privacy.md', 'privacy.nl.md', 'terms.md', 'terms.nl.md'] as const;
+const DOCS = [
+  'privacy.md',
+  'privacy.nl.md',
+  'terms.md',
+  'terms.nl.md',
+  'alpha.md',
+  'alpha.nl.md',
+] as const;
+
+/**
+ * Each document's *Version* line, as `site/build.mjs` reads it for its
+ * `--public` refusal: its exported `versionLineOf`, so this test and the build
+ * cannot read the line two ways. In a child process, because the build refuses
+ * to load without OWNPACE_APP_URL. `null` for a document with no such line, and
+ * `null` for the whole result if the build no longer exports the function.
+ */
+function versionLines(): Record<string, string | null> | null {
+  const build = pathToFileURL(join(REPO_ROOT, 'site', 'build.mjs')).href;
+  const out = execFileSync(
+    'node',
+    [
+      '-e',
+      `Promise.all([import(${JSON.stringify(build)}), import('node:fs'), import('node:path')])
+         .then(([m, fs, path]) => process.stdout.write(JSON.stringify(
+           typeof m.versionLineOf !== 'function' ? null : Object.fromEntries(
+             ${JSON.stringify(DOCS)}.map((d) => [d,
+               m.versionLineOf(fs.readFileSync(path.join(${JSON.stringify(LEGAL)}, d), 'utf8')) ?? null]),
+           ))))
+         .catch((e) => { process.stderr.write(String(e && e.message)); process.exit(1); });`,
+    ],
+    {
+      env: { ...process.env, OWNPACE_APP_URL: 'https://app.ota.ownpace.eu' },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'] as const,
+    },
+  );
+  return JSON.parse(out) as Record<string, string | null> | null;
+}
 
 const read = (p: string) => readFileSync(p, 'utf8');
 const placeholdersIn = (text: string) => new Set(text.match(/«[A-Z_]+»/g) ?? []);
@@ -73,6 +112,23 @@ describe('the published legal surface', () => {
       expect(read(join(LEGAL, doc)), `${doc} must name ${SUPPORT_EMAIL}`).toContain(
         SUPPORT_EMAIL,
       );
+    }
+  });
+
+  it('gives every document a version line, the same version in both languages (0139 T2)', () => {
+    // The alpha conditions are the case this was added for: Dutch first, in
+    // both languages, each with a version the tester accepts (0139 T3).
+    const lines = versionLines();
+    expect(lines, 'site/build.mjs no longer exports versionLineOf').not.toBeNull();
+    const number = (l: string | null | undefined) => /^\*\*[^*]+:\*\*\s*(\S+)/.exec(l ?? '')?.[1];
+    for (const doc of DOCS) {
+      const line = lines?.[doc];
+      expect(line, `${doc} has no **Version:** / **Versie:** line`).toBeTruthy();
+      if (!doc.endsWith('.nl.md')) {
+        const nl = doc.replace(/\.md$/, '.nl.md');
+        expect(DOCS as readonly string[], `${doc} has no Dutch text in DOCS`).toContain(nl);
+        expect(number(lines?.[nl]), `${nl} carries another version than ${doc}`).toBe(number(line));
+      }
     }
   });
 
