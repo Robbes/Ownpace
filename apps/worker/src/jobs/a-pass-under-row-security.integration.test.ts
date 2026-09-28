@@ -7,11 +7,13 @@
  * query it makes. Until T1's second step the Trigger.dev tasks connected as the
  * database owner, a superuser on the managed stack, whom Postgres never binds,
  * so in the task plane the boundary between organisations rested on each
- * query's own `WHERE` (0138 §1); the six scheduled jobs still do, until T2 and
- * T3 step 2. T1 moved the per-tenant tasks onto `app_user`. Changing the URL
- * alone would not have done it: under row security a read with no tenant set
- * is not refused, it answers nothing, and a pass whose handles were not scoped
- * would copy nothing and could still end as if it had succeeded.
+ * query's own `WHERE` (0138 §1); the three scheduled jobs that span
+ * organisations whole still do, until T3 step 2 (T2 split the other three:
+ * `a-job-that-reads-each-organisation-as-itself`). T1 moved the per-tenant
+ * tasks onto `app_user`. Changing the URL alone would not have done it:
+ * under row security a read with no tenant set is not refused, it answers
+ * nothing, and a pass whose handles were not scoped would copy nothing and
+ * could still end as if it had succeeded.
  *
  * So this seeds two organisations as the owner, builds a pass's handles for
  * organisation A the way the jobs build them, on a pool that connects as

@@ -46,6 +46,23 @@
  *      every guard green (0138 T1 step 2's re-review). An end in another
  *      file's function that the pool is handed to is out of sight; none has
  *      one.
+ *   6. Three jobs are SPLIT (0138 T2, open question 3 answered 2026-09-28):
+ *      the digest, the drift detector and group discovery ask ONE question
+ *      across organisations, which organisations are active, and everything
+ *      else they read or write is one organisation's. A SPLIT file reads no
+ *      database URL and builds no pool: it takes the list from
+ *      `activeOrganisations` (task-pools.ts), which hands back ids and nothing
+ *      else, and its pools from `openTaskPools`, under rules 3 and 5, opened in
+ *      its run and ended in `afterwards`. So it has no owner's pool to do a
+ *      per-organisation read on: it would have to read the URL (rule 1) or
+ *      build a pool (rule 2). And on the pool it does have, the tenant pool,
+ *      a read outside a scope finds nothing, fail closed, so it names that
+ *      pool, under whatever name and in whatever function, only as the first
+ *      argument of `withTenant` or `tenantScopedDb`, or hands it to a function
+ *      of its own file whose parameter is a `Pool` and which this rule reads
+ *      in turn. `activeOrganisations` is named by the three and by the module
+ *      alone, and the module's one statement across organisations is the
+ *      list: `id` from `tenant`, no other column and no other table.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -114,20 +131,15 @@ const CROSS_TENANT: Record<string, string> = {
   'apps/worker/src/jobs/managed-purge-closed.ts':
     'finds closed organisations whose window has run out, revokes their stored ' +
     'credentials and removes their data (0138 T2)',
-  'apps/worker/src/jobs/managed-digest.ts':
-    'the list of organisations to write to; its per-organisation reads move under ' +
-    'withTenant if 0138 open question 3 says split (0138 T2)',
-  'apps/worker/src/jobs/managed-drift-detect.ts':
-    'the list of organisations to look at; the same open question 3 (0138 T2)',
-  'apps/worker/src/jobs/managed-group-discovery.ts':
-    'the list of source connections across organisations; the same open question 3 (0138 T2)',
   'apps/worker/src/cli/index.ts':
     "the operator's cutover CLI, run at the machine by whoever runs the deployment, never as a task",
   'apps/worker/src/jobs/task-pools.ts':
-    "the owner's URL for the audit key's pool alone: one connection, reading deployment_key, " +
-    "which holds no organisation's rows and which ledger migration 0062 closes to app_user " +
-    '(0138 T1 part 5). Every tenant read and write goes to APP_DATABASE_URL; T3 step 2 moves ' +
-    "the key's pool to the system role",
+    "the owner's URL for two things that hold no organisation's rows. The audit key's pool: one " +
+    'connection, reading deployment_key, which ledger migration 0062 closes to app_user (0138 T1 ' +
+    "part 5). And the list of organisations the SPLIT jobs visit (activeOrganisations): one " +
+    "connection, one statement, the ids of the active organisations and nothing else, closed " +
+    'before it returns (0138 T2). Every tenant read and write goes to APP_DATABASE_URL; T3 step 2 ' +
+    'moves both to the system role',
   'packages/ledger/src/direct-url.ts':
     'migrationConnectionString reads the variables from an environment its caller ' +
     'passes; its callers are the API and the seed, and no task calls it',
@@ -149,6 +161,35 @@ const PER_TENANT: readonly string[] = Object.freeze([
   'apps/worker/src/jobs/run-cutover.ts',
   'apps/worker/src/jobs/run-rollback.ts',
 ]);
+
+/**
+ * The jobs split in two (0138 T2, open question 3 answered 2026-09-28, "split
+ * them"): one question across organisations, which ones are active, asked
+ * through `activeOrganisations`, and everything else read or written for one
+ * organisation, in that organisation's scope on the tenant pool. Each entry
+ * says why it crosses organisations and what it reads per organisation. The
+ * list is closed: a job goes here only with both halves said, and the rules
+ * below hold it to them.
+ */
+const SPLIT: Record<string, string> = {
+  'apps/worker/src/jobs/managed-digest.ts':
+    'which organisations are active, to write each its digest. Per organisation, in its own ' +
+    'scope: its own row (name and notification settings), its active owners and admins, its ' +
+    'migrations and their queues, its pending decisions, when its last digest went out, and ' +
+    'the audit row that records this one (0138 T2)',
+  'apps/worker/src/jobs/managed-drift-detect.ts':
+    "which organisations are active, to compare each one's directory with what it migrates. Per " +
+    'organisation, in its own scope: the addresses its migrations cover, its Microsoft sources, ' +
+    'its dismissed decisions and standing preset, and the decisions it raises and closes (0138 T2)',
+  'apps/worker/src/jobs/managed-group-discovery.ts':
+    "which organisations are active, to list each one's shared addresses. Per organisation, in " +
+    'its own scope: its source connections, the groups it records and the decisions it raises. ' +
+    'Until 0138 T2 the list was every source connection across organisations, with its config ' +
+    '(0138 T2)',
+};
+
+/** What a SPLIT job reads across organisations, and all it reads there: the ids of the active ones. */
+const THE_LIST = /^\s*SELECT\s+id\s+FROM\s+tenant\s+WHERE\s+status\s*=\s*'active'(?:\s+ORDER\s+BY\s+id)?\s*$/i;
 
 /**
  * The standalone worker (`src/index.ts`, the dev entrypoint the worker README
@@ -488,6 +529,172 @@ function poolWiring(file: string, text: string): { opensTaskPools: boolean; sets
   return { opensTaskPools, setsSinks: [...setsSinks].sort() };
 }
 
+/** The two calls a tenant pool may be handed to: the ones that open its organisation's scope. */
+const SCOPES = new Set(['withTenant', 'tenantScopedDb']);
+
+/**
+ * Where a SPLIT file names its tenant pool other than to open a scope on it.
+ *
+ * The tenant pool is every name bound to what `openTaskPools` hands back as
+ * `tenant` (off the call, off a name the whole was bound to, or out of a
+ * destructuring), `<whole>.tenant` itself, and every parameter the file types
+ * `Pool`. Each place one is read must be the first argument of `withTenant` or
+ * `tenantScopedDb`, which counts as scoped, or an argument to a function this
+ * file declares whose parameter in that place is typed `Pool`, which this
+ * reads in turn. Anything else (`pool.query(…)`, `pgDriver(pool)`,
+ * `plainDb(pool)`, `drizzle(pool)`, `const other = pool`, `{ pool }` handed on,
+ * another file's function) is a place a statement can run on `app_user` with no
+ * organisation set, where it finds nothing: it is listed, with its line. Names
+ * are matched in the whole file, not per scope, as `takenFromTaskPools` does.
+ */
+function tenantPoolOutsideAScope(file: string, text: string): { scoped: number; outside: string[] } {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const local = openTaskPoolsNames(sf);
+  const isOpen = (e: ts.Expression): boolean => {
+    const b = bare(e);
+    return ts.isCallExpression(b) && ts.isIdentifier(b.expression) && local.has(b.expression.text);
+  };
+  const isPoolType = (t: ts.TypeNode | undefined): boolean =>
+    t !== undefined && ts.isTypeReferenceNode(t) && t.typeName.getText(sf) === 'Pool';
+
+  // The names the whole of what openTaskPools hands back is bound to.
+  const wholes = new Set<string>();
+  const findWholes = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name) && isOpen(node.initializer)) {
+      wholes.add(node.name.text);
+    }
+    ts.forEachChild(node, findWholes);
+  };
+  findWholes(sf);
+  const isTenantOf = (e: ts.Node): boolean =>
+    ts.isPropertyAccessExpression(e) &&
+    e.name.text === 'tenant' &&
+    ((ts.isIdentifier(e.expression) && wholes.has(e.expression.text)) || isOpen(e.expression));
+
+  // The names the tenant pool is bound to, and the functions of the file's own that take a Pool.
+  const pools = new Set<string>();
+  const takesAPool = new Map<string, boolean[]>();
+  const findPools = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      const init = bare(node.initializer);
+      if (ts.isIdentifier(node.name) && isTenantOf(init)) pools.add(node.name.text);
+      if (ts.isObjectBindingPattern(node.name) && ((ts.isIdentifier(init) && wholes.has(init.text)) || isOpen(init))) {
+        for (const el of node.name.elements) {
+          const key = el.propertyName ?? el.name;
+          if (ts.isIdentifier(key) && key.text === 'tenant' && ts.isIdentifier(el.name)) pools.add(el.name.text);
+        }
+      }
+      if (ts.isIdentifier(node.name) && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
+        takesAPool.set(node.name.text, init.parameters.map((p) => isPoolType(p.type)));
+      }
+    }
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      takesAPool.set(node.name.text, node.parameters.map((p) => isPoolType(p.type)));
+    }
+    if (ts.isParameter(node) && ts.isIdentifier(node.name) && isPoolType(node.type)) pools.add(node.name.text);
+    ts.forEachChild(node, findPools);
+  };
+  findPools(sf);
+
+  let scoped = 0;
+  const outside: string[] = [];
+  const at = (node: ts.Node) =>
+    `line ${sf.getLineAndCharacterOfPosition(node.getStart()).line + 1}: ${node.parent.getText(sf).split('\n')[0]!.slice(0, 90)}`;
+  const judge = (node: ts.Expression) => {
+    let up: ts.Node = node;
+    while (ts.isParenthesizedExpression(up.parent) || ts.isNonNullExpression(up.parent) || ts.isAsExpression(up.parent)) {
+      up = up.parent;
+    }
+    const call = up.parent;
+    if (ts.isCallExpression(call) && ts.isIdentifier(call.expression) && call.arguments.includes(up as ts.Expression)) {
+      const callee = call.expression.text;
+      const index = call.arguments.indexOf(up as ts.Expression);
+      if (SCOPES.has(callee) && index === 0) {
+        scoped++;
+        return;
+      }
+      if (takesAPool.get(callee)?.[index] === true) return;
+    }
+    outside.push(at(node));
+  };
+  const visit = (node: ts.Node) => {
+    if (isTenantOf(node)) {
+      // `const pool = pools.tenant` binds a name, read in its turn.
+      const decl = node.parent;
+      if (!(ts.isVariableDeclaration(decl) && decl.initializer === node && ts.isIdentifier(decl.name))) {
+        judge(node as ts.Expression);
+      }
+      return;
+    }
+    if (ts.isIdentifier(node) && pools.has(node.text)) {
+      const p = node.parent;
+      const aBinding =
+        ((ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isBindingElement(p)) && p.name === node) ||
+        (ts.isBindingElement(p) && p.propertyName === node) ||
+        (ts.isPropertyAccessExpression(p) && p.name === node) ||
+        (ts.isPropertyAssignment(p) && p.name === node) ||
+        ts.isTypeReferenceNode(p);
+      if (!aBinding) {
+        if (ts.isShorthandPropertyAssignment(p)) outside.push(at(node));
+        else judge(node);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return { scoped, outside };
+}
+
+/** Every string in a file whose text is a statement: a literal or a template, not a comment. */
+function sqlStatements(file: string, text: string): string[] {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if ((ts.isStringLiteralLike(node) || ts.isTemplateHead(node)) && /^\s*(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b/i.test(node.text)) {
+      found.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/**
+ * The one other statement the module may send on the list's connection: whether
+ * the role it connects as sees every organisation (a superuser, or
+ * `BYPASSRLS`, T3 step 2's system role). On `app_user` the list would find no
+ * organisation and every SPLIT job would visit nobody, reporting it as nothing
+ * to do; asked first, it refuses instead.
+ */
+const THE_ROLE_QUESTION =
+  /^\s*SELECT\s+rolsuper\s+OR\s+rolbypassrls\b[\s\S]*\bFROM\s+pg_roles\s+WHERE\s+rolname\s*=\s*current_user\s*$/i;
+
+/** Whether a file names `activeOrganisations` as code, and whether it calls it imported from task-pools.ts. */
+function activeOrganisationsUse(file: string, text: string): { names: boolean; calls: boolean } {
+  if (!text.includes('activeOrganisations')) return { names: false, calls: false };
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const imported = new Set<string>();
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue;
+    if (!/(?:^|\/)task-pools\.ts$/.test(st.moduleSpecifier.text)) continue;
+    const named = st.importClause?.namedBindings;
+    if (named && ts.isNamedImports(named)) {
+      for (const el of named.elements) {
+        if ((el.propertyName ?? el.name).text === 'activeOrganisations') imported.add(el.name.text);
+      }
+    }
+  }
+  let names = false;
+  let calls = false;
+  const visit = (node: ts.Node) => {
+    if ((ts.isIdentifier(node) || ts.isStringLiteralLike(node)) && node.text === 'activeOrganisations') names = true;
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && imported.has(node.expression.text)) calls = true;
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return { names, calls };
+}
+
 /** An initialiser that runs nothing when the module is loaded. */
 function inert(e: ts.Expression): boolean {
   const x = bare(e);
@@ -651,18 +858,20 @@ describe('a per-tenant task takes its pools from the one module that builds them
     expect(definesATask('shape.ts', '// schemaTask({ id }) in a comment')).toBe(false);
   });
 
-  it.each(taskFiles.map((f) => [f]))('%s is one of the two kinds', (file) => {
-    // A new task is either one that asks about one organisation, and goes on
-    // PER_TENANT to take its pools from openTaskPools, or one that spans them,
-    // and goes on CROSS_TENANT with its reason.
+  it.each(taskFiles.map((f) => [f]))('%s is one of the three kinds', (file) => {
+    // A new task is one that asks about one organisation, and goes on
+    // PER_TENANT to take its pools from openTaskPools; one that asks which
+    // organisations there are and then about each alone, and goes on SPLIT
+    // with both halves said; or one that spans them, and goes on CROSS_TENANT
+    // with its reason.
+    const kinds = [PER_TENANT.includes(file), SPLIT[file] !== undefined, CROSS_TENANT[file] !== undefined];
     expect(
-      PER_TENANT.includes(file) || CROSS_TENANT[file] !== undefined,
-      `${file} registers a task and is on neither PER_TENANT nor CROSS_TENANT.`,
-    ).toBe(true);
-    expect(PER_TENANT.includes(file) && CROSS_TENANT[file] !== undefined, `${file} is on both lists`).toBe(false);
+      kinds.filter(Boolean).length,
+      `${file} registers a task and is on ${kinds.some(Boolean) ? 'more than one' : 'none'} of PER_TENANT, SPLIT and CROSS_TENANT.`,
+    ).toBe(1);
   });
 
-  it.each([...PER_TENANT, STANDALONE_WORKER].map((f) => [f]))('%s opens its pools with openTaskPools and points no sink itself', (file) => {
+  it.each([...PER_TENANT, ...Object.keys(SPLIT), STANDALONE_WORKER].map((f) => [f]))('%s opens its pools with openTaskPools and points no sink itself', (file) => {
     expect(texts.has(file), `${file} is not a source file here`).toBe(true);
     const wiring = poolWiring(file, texts.get(file)!);
     expect(
@@ -696,7 +905,7 @@ describe('a per-tenant task takes its pools from the one module that builds them
     ).toEqual(['setAuditExportSink']);
   });
 
-  it.each([...PER_TENANT, STANDALONE_WORKER].map((f) => [f]))(
+  it.each([...PER_TENANT, ...Object.keys(SPLIT), STANDALONE_WORKER].map((f) => [f]))(
     '%s takes the tenant pool from openTaskPools, and ends nothing, on any name, but in afterwards',
     (file) => {
       const taken = takenFromTaskPools(file, texts.get(file)!);
@@ -791,9 +1000,10 @@ describe('a per-tenant task takes its pools from the one module that builds them
     expect(namesTheKeyPool('shape.ts', 'const p = pools.auditKey;')).toBe(true);
   });
 
-  it('task-pools.ts is on CROSS_TENANT for the key alone, and does nothing when it is imported', () => {
+  it('task-pools.ts is on CROSS_TENANT for the key and the list alone, and does nothing when it is imported', () => {
     expect(texts.has(TASK_POOLS), `${TASK_POOLS} is not a source file here`).toBe(true);
     expect(CROSS_TENANT[TASK_POOLS]).toMatch(/audit key/);
+    expect(CROSS_TENANT[TASK_POOLS]).toMatch(/list of organisations the SPLIT jobs visit/);
     // A job imports it at its top, and a test imports the job's helpers from
     // the job: a pool built or a sink set here at import would be one nobody
     // asked for, on whatever URL the environment happened to hold.
@@ -809,5 +1019,143 @@ describe('a per-tenant task takes its pools from the one module that builds them
     expect(importTimeEffects('shape.ts', 'setAppEventSink(undefined);')).toHaveLength(1);
     expect(importTimeEffects('shape.ts', 'export const pools = openTaskPools();')).toHaveLength(1);
     expect(importTimeEffects('shape.ts', "if (!process.env.APP_DATABASE_URL) throw new Error('x');")).toHaveLength(1);
+  });
+});
+
+describe('a split job asks across organisations for the list alone, and reads each one in its own scope', () => {
+  const splitFiles = Object.keys(SPLIT);
+  const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
+
+  it('found the three, each a task file, and each entry says both halves', () => {
+    expect(splitFiles.sort()).toEqual([
+      'apps/worker/src/jobs/managed-digest.ts',
+      'apps/worker/src/jobs/managed-drift-detect.ts',
+      'apps/worker/src/jobs/managed-group-discovery.ts',
+    ]);
+    for (const file of splitFiles) {
+      expect(texts.has(file), `${file} is on SPLIT and is not a source file here`).toBe(true);
+      expect(taskFiles, `${file} is on SPLIT and registers no task`).toContain(file);
+    }
+  });
+
+  it.each(Object.entries(SPLIT))('%s states why it crosses organisations and what it reads per organisation', (_file, reason) => {
+    // Closed, and each entry says both halves: a job put here without them is
+    // one nobody decided the line for.
+    expect(reason).toMatch(/^which organisations are active, to /);
+    expect(reason).toMatch(/Per organisation, in its own scope: /);
+    expect(reason).toMatch(/\(0138 T2\)$/);
+  });
+
+  it.each(splitFiles.map((f) => [f]))('%s reads no database URL and builds no pool of its own', (file) => {
+    // Rules 1 and 2 say so too; said here in the category's own words. With no
+    // URL and no pool of its own, a split job has no owner's connection to do a
+    // per-organisation read on.
+    expect(
+      readers.get(file) ?? [],
+      `${file} reads ${readers.get(file)?.join(', ')} from the environment. A split job asks its one question\n` +
+        'across organisations through activeOrganisations (task-pools.ts), which hands back the ids and\n' +
+        'nothing else, and reads everything about one organisation on the tenant pool, in its scope (0138 T2).',
+    ).toEqual([]);
+    expect(buildsAPool(file, texts.get(file)!), `${file} builds a pool of its own`).toBe(false);
+  });
+
+  it.each(splitFiles.map((f) => [f]))('%s takes its list from activeOrganisations', (file) => {
+    expect(
+      activeOrganisationsUse(file, texts.get(file)!).calls,
+      `${file} does not call activeOrganisations from task-pools.ts: the one question a split job\n` +
+        'asks across organisations, on the one connection that may (0138 T2).',
+    ).toBe(true);
+  });
+
+  it.each(splitFiles.map((f) => [f]))('%s names its tenant pool only to open an organisation\'s scope on it', (file) => {
+    const { scoped, outside } = tenantPoolOutsideAScope(file, texts.get(file)!);
+    expect(
+      outside,
+      `${file} names its tenant pool outside withTenant and tenantScopedDb:\n  ${outside.join('\n  ')}\n\n` +
+        "The pool is app_user's. A statement on it with no organisation set finds nothing, and the job\n" +
+        'reports nothing to do; or, on a plain-form table after a scope, it fails (docs/rls-guide.md,\n' +
+        '"Policies"). Every read and write for one organisation runs in that organisation\'s scope (0138 T2).',
+    ).toEqual([]);
+    // And it does open scopes on it, so the rule is not passing over nothing.
+    expect(scoped, `${file} opens no scope on its tenant pool`).toBeGreaterThanOrEqual(2);
+  });
+
+  it('no file but the three and task-pools.ts names activeOrganisations', () => {
+    // A per-tenant job that could list every organisation would ask across
+    // them with nothing on SPLIT saying so.
+    expect(activeOrganisationsUse(TASK_POOLS, texts.get(TASK_POOLS)!).names, `${TASK_POOLS} no longer defines it`).toBe(true);
+    const naming = files.filter(
+      (f) => f !== TASK_POOLS && SPLIT[f] === undefined && activeOrganisationsUse(f, texts.get(f)!).names,
+    );
+    expect(naming, `${naming.join(', ')} names activeOrganisations and is not on SPLIT`).toEqual([]);
+  });
+
+  it("the module's one statement across organisations is the list: the active ones' ids, from tenant alone", () => {
+    const statements = sqlStatements(TASK_POOLS, texts.get(TASK_POOLS)!);
+    expect(
+      statements.filter((s) => THE_LIST.test(s)),
+      `${TASK_POOLS} has no list, or more than one:\n  ${statements.join('\n  ')}`,
+    ).toHaveLength(1);
+    expect(
+      statements.filter((s) => !THE_LIST.test(s) && !THE_ROLE_QUESTION.test(s)),
+      `${TASK_POOLS} sends a statement on the owner's connection that is neither the list nor the question\n` +
+        'whether that connection sees every organisation. Across organisations a split job learns which\n' +
+        "ones are active, and nothing else: each one's rows are read in its own scope, on app_user (0138 T2).",
+    ).toEqual([]);
+  });
+
+  it('sees a tenant pool used outside a scope, in each shape, and a list that reads more than ids', () => {
+    const imp =
+      "import { openTaskPools, activeOrganisations } from './task-pools.ts';\n" +
+      "import { withTenant, tenantScopedDb } from '@openmig/ledger';\n";
+    const judge = (code: string) => tenantPoolOutsideAScope('shape.ts', `${imp}${code}`);
+    // In a scope: none outside.
+    expect(judge('const pools = openTaskPools(); await withTenant(pools.tenant, id, f);')).toEqual({ scoped: 1, outside: [] });
+    expect(judge('const { tenant: pool } = openTaskPools(); new PgLedger(tenantScopedDb(pool, id));')).toEqual({
+      scoped: 1,
+      outside: [],
+    });
+    // Handed to a function of the file's own that takes a Pool, and read there.
+    expect(
+      judge(
+        'function reads(pool: Pool, id: string) { return withTenant(pool, id, f); }\n' +
+          'const pools = openTaskPools(); await reads(pools.tenant, id);',
+      ),
+    ).toEqual({ scoped: 1, outside: [] });
+    // Outside one, each a statement with no organisation set.
+    const outside = (code: string) => judge(code).outside.length;
+    expect(outside('const pools = openTaskPools(); const pool = pools.tenant; await pool.query(SQL, [id]);')).toBe(1);
+    expect(outside('const pools = openTaskPools(); await pools.tenant.query(SQL, [id]);')).toBe(1);
+    expect(outside('const pool = openTaskPools().tenant; new PgDecisionStore(drizzle(pool));')).toBe(1);
+    expect(outside('const { tenant } = openTaskPools(); new PgLedger(plainDb(tenant));')).toBe(1);
+    expect(outside('const { tenant: pool } = openTaskPools(); setSink(pgDriver(pool));')).toBe(1);
+    expect(outside('const { tenant: pool } = openTaskPools(); const other = pool; await other.query(SQL);')).toBe(1);
+    expect(outside('const { tenant: pool } = openTaskPools(); elsewhere({ pool });')).toBe(1);
+    expect(outside('const { tenant: pool } = openTaskPools(); await withTenant(owner, id, f); await elsewhere(pool);')).toBe(1);
+    // A Pool parameter is the tenant pool, whatever it is called.
+    expect(outside('export async function reads(p: Pool, id: string) { return (await p.query(SQL, [id])).rows; }')).toBe(1);
+    // Handed to a function of the file's own whose parameter is not a Pool.
+    expect(outside('function reads(p: unknown) { return p; }\nconst pools = openTaskPools(); reads(pools.tenant);')).toBe(1);
+    // And a scope opened on something else is not one opened on it.
+    expect(outside('const { tenant: pool } = openTaskPools(); await withTenant(id, pool, f);')).toBe(1);
+
+    // The list, and the statements that are not it.
+    expect(THE_LIST.test("SELECT id FROM tenant WHERE status = 'active' ORDER BY id")).toBe(true);
+    expect(THE_LIST.test("SELECT id, name, settings FROM tenant WHERE status = 'active'")).toBe(false);
+    expect(
+      THE_LIST.test(
+        "SELECT c.id, c.tenant_id, c.kind, c.config FROM connection c JOIN tenant t ON t.id = c.tenant_id WHERE t.status = 'active'",
+      ),
+    ).toBe(false);
+    expect(THE_ROLE_QUESTION.test('SELECT rolsuper OR rolbypassrls AS sees FROM pg_roles WHERE rolname = current_user')).toBe(
+      true,
+    );
+    expect(sqlStatements('shape.ts', "const A = `SELECT id FROM tenant`; // SELECT in a comment\nconst m = 'select nothing';")).toEqual([
+      'SELECT id FROM tenant',
+      'select nothing',
+    ]);
+    // And the list's caller, seen as one.
+    expect(activeOrganisationsUse('shape.ts', `${imp}const ids = await activeOrganisations();`)).toEqual({ names: true, calls: true });
+    expect(activeOrganisationsUse('shape.ts', '// activeOrganisations in a comment')).toEqual({ names: false, calls: false });
   });
 });

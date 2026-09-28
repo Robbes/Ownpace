@@ -4,6 +4,189 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later still (placed first, the latest): T2 built: the digest, the drift detector and
+group discovery read each organisation as itself,** on branch
+`claude/ownpace-public-readiness-y7orc6-three-jobs-read-each-organisation-as-itself`, stacked on
+T1 step 2's branch at b99d7607 (#1323), not merged. Built on the owner's answer to open question 3,
+*"0138 open question 3: a - split them"*. The sync tick, retention and the purge are unchanged, on
+the owner's connection until T3 step 2. What changed:
+
+- **Where the line fell, per job, read from the code.** For all three it is the same one question:
+  which organisations are active, as ids. `activeOrganisations` (`task-pools.ts`) asks it once per
+  run, `SELECT id FROM tenant WHERE status = 'active' ORDER BY id`, on `DATABASE_URL`, on a pool of
+  one it closes before it answers. Everything else is one organisation's, read and written in that
+  organisation's scope on the tenant pool `openTaskPools` builds, `app_user`:
+  - *The digest.* Its list carried each organisation's name and settings (`SELECT id, name,
+    settings FROM tenant WHERE status = 'active'`). Those are the organisation's own row, so they
+    are read in its scope, by id; an organisation on the list whose own row reads nothing there is
+    refused with its id, never skipped (hard rule 9). Recipients and migrations run in `withTenant`;
+    the queues, the auto-applied count, the sharing checklist, the last send, the send's own audit
+    row and the pending decisions on `tenantScopedDb`, one ledger and one decision store per
+    organisation; the grace periods in `withTenant`, as before.
+  - *The drift detector.* Its list carried id and name, and the name was not used. Coverage and the
+    Microsoft sources run in one `withTenant`; the decision and preset stores on `tenantScopedDb`,
+    so no transaction stays open while Graph is asked.
+  - *Group discovery.* Its list was every source connection of every active organisation, with its
+    `config`, on the owner's pool. A connection's config is its organisation's own (the Graph
+    tenant, for some kinds a stored account), so the list is now the organisations, and each one's
+    sources are read in its scope (`ORDER BY id`). The iteration is still per source connection, and
+    the summary is the same (`sources` summed over organisations).
+- **The list refuses on a connection row security binds.** Decided and proven. On `app_user`, with
+  no organisation set, `tenant` answers no row, so a list read there is empty, and each job would
+  visit nobody and report zeros: a quiet morning, indistinguishable from nothing to do. So
+  `activeOrganisations` first asks `SELECT rolsuper OR rolbypassrls … FROM pg_roles WHERE rolname =
+  current_user` and refuses when the answer is no; T3 step 2's system role, `BYPASSRLS`, will pass
+  it. It never reads `APP_DATABASE_URL`, and refuses without `DATABASE_URL`.
+- **T1's module, not a second mechanism.** The three call `openTaskPools()`, as the per-tenant jobs
+  do: the tenant pool on `APP_DATABASE_URL` with no fallback, the audit key's pool of one, and the
+  sinks it points. The operator's log page's events go to the tenant pool (`app_user` may insert
+  into `app_event`); the audit lines, the digest's `digest_sent_*` rows among them, read their key
+  on the key's pool (`deployment_key` is closed to `app_user`). They open the pools in their run
+  and end them in `afterwards(() => pools.end())`, as run-cutover and run-rollback do: a daily job
+  holds no pool between runs, and a failure, the list's refusal included, is on the log page before
+  the pool closes. Nothing at import: the three modules build nothing when loaded, so the two unit
+  files that import them no longer set `DATABASE_URL`.
+- **Each job's per-organisation half is exported**, the run keeping the list, the pools and the
+  network: `digestLedgerOn`, `driftOfOrganisation` and `groupsOfOrganisation`, and their statements
+  (`digestOrganisationSql`, `digestRecipientsSql`, `digestMappingsSql`, `coverageSql`,
+  `microsoftSourcesSql`, `sourcesSql`). The statements are drizzle `sql` for one organisation, run
+  in its scope, as T1 step 1 moved the bare helpers, and each still filters by the organisation
+  itself. `microsoftSourcesSql` asks `kind IN (…)` over `microsoftSourceKinds()` where
+  `MICROSOFT_SOURCES_SQL` asked `kind = ANY($2::text[])`; the digest's text constants became these
+  builders, and `managed-digest-sql.unit.test.ts` reads them as the text and parameters they send.
+- **Headers.** Each job's says why it crosses organisations and what it reads of each;
+  `task-pools.ts`'s says what it builds for the split jobs.
+- **Grants, asked of the catalog** (Postgres 16 with both chains, `scripts/local-pg.sh`): `app_user`
+  may select, insert, update and delete on `tenant`, `tenant_member`, `mailbox_mapping`, `mailbox`,
+  `connection`, `item`, `audit_log`, `share_grant`, `decision`, `policy_preset`, `group_def`,
+  `path_lifecycle`, `scope_selection` and `cutover_state`, every one of them row-secured and
+  `FORCE`d; may insert into `app_event` and read none; has nothing on `deployment_key`; and may read
+  `pg_roles`. Every per-organisation statement of the three needs no more. **None was missing, so
+  there is no migration.** The integration guard below writes through each.
+- **PgBouncer: `app_user`'s 25 now also serve these three, and 25 holds.** Each job visits one
+  organisation and one scope at a time and awaits each, so its tenant pool never opens a second
+  connection: the integration guard asserts `totalCount` at most 1 after each job's half for two
+  organisations. They run once a day, at 06:30, 07:00 and 08:00 UTC, for seconds, so they do not
+  meet one another. At worst one lands on a full tick's burst, 24 by T1 step 2's measurement, as the
+  25th, still inside the pool. The owner's side gains one connection per split run for the list, two
+  statements, closed before the first organisation is read. Written beside `default_pool_size` in
+  `pgbouncer.ini`. Not measured through a real PgBouncer.
+- **Documents**: `docs/rls-guide.md` (update note, the opening, the table: the split jobs'
+  per-organisation half in force, their list on the owner, the three whole jobs not in force; the
+  guard paragraph; §2's `APP_DATABASE_URL` and `DATABASE_URL` bullets, which now say who holds the
+  cross-tenant connection in the tasks; the `set-task-env.sh` row; the pitfall; the test list),
+  `SECURITY.md`, `README.md`, the SAD v1.10 (§16, §17.1), `docs/operator-runbook.md` (the two
+  roles, the digest, the troubleshooting line), `docs/managed-bring-up.md` (phase 9),
+  `managed.env.example`, `.env.example`, `pgbouncer.ini`, the worker README, the headers of
+  `deploy-tasks.sh` and `set-task-env.sh`, T3's guard's reason and header, and
+  `a-pass-under-row-security`'s header. Every sentence that said *the six scheduled jobs* connect
+  as the owner.
+
+**The guards, and how they failed first.** Each written before the build and run against this
+branch's base, b99d7607:
+
+- `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts`: the three leave `CROSS_TENANT` for a
+  third kind, `SPLIT`, closed, each entry saying why the job crosses organisations and what it
+  reads per organisation. A `SPLIT` file reads no database URL and builds no pool, so it has no
+  owner's connection to do a per-organisation read on; takes its pools from `openTaskPools`, points
+  no sink, takes the tenant pool and its end only and ends nothing outside `afterwards`; calls
+  `activeOrganisations`; and names its tenant pool, under any name and as any parameter typed
+  `Pool`, only as the first argument of `withTenant` or `tenantScopedDb`, or hands it to a
+  function of its own file that takes a `Pool`. No file but the three and the module names
+  `activeOrganisations`, and the module's statements are the list (ids from `tenant`) and the role
+  question, nothing else. Found-at-least checks: the three files and their task registrations, at
+  least two scopes opened on each one's tenant pool, the list and the role question in the module,
+  and eleven shapes of a tenant pool used outside a scope, each seen. **23 of 99 failed**: seven
+  per job (on `CROSS_TENANT` while reading `DATABASE_URL`; builds a pool; no `openTaskPools` and
+  both sinks pointed itself; takes nothing from it; reads a URL and builds a pool; no
+  `activeOrganisations`; opens no scope on a tenant pool) and two for the module (no
+  `activeOrganisations`, no list). The shape cases passed.
+- `apps/worker/src/jobs/a-run-that-kept-a-testers-words.unit.test.ts`: a task that opens its pools
+  in its run is now one of five, the three beside run-cutover and run-rollback, and opens them
+  before anything it throws or awaits. **1 of 60 failed**.
+- `apps/worker/src/jobs/a-task-pool-that-fell-back-to-the-owner.unit.test.ts`, three cases on the
+  list, without a database: refuses without `DATABASE_URL` and never reads `APP_DATABASE_URL`;
+  asks one connection on the owner's URL, the role question first, and ends it; refuses on a
+  connection row security binds. **3 of 11 failed** (*"activeOrganisations is not a function"*).
+- `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts`, new, 7
+  cases, on a throwaway Postgres, handed its database: A and B active, C closed; each with its
+  owners and a viewer, a named migration, failed items past their retries, pending decisions, and
+  A with a dismissed mailbox and a standing answer. The list names A and B and not C, and refuses
+  on `app_user`, where the bare statement answers no row. The digest, on the pools the job opens,
+  sends A's owner A's migration by name, A's two failures and A's one decision, and B's owner B's,
+  with no queue unread; records each send in its own organisation and prints both audit lines. The
+  drift detector closes A's new mailbox by A's standing answer, does not ask again about the one A
+  dismissed, and raises B's in B, each handed its own organisation's source. Group discovery
+  records A's two groups, asks A's one question, states A's IMAP blind spot, records B's in B, and
+  converges on a second run. Each of the three runs as `app_user`, asks no pool but the tenant pool
+  and the audit key's for a connection (the key's found first, as the sink finds it), and holds one
+  connection at a time. And each of the six per-organisation statements answers in its
+  organisation's scope, answers nothing for A in B's scope, and finds nothing outside a scope.
+  **Against the base it failed at import, no case run**: `managed-digest.ts` threw *"DATABASE_URL
+  environment variable is required"*, its owner's pool built when the module loaded. **Against a
+  stand-in with the per-organisation half on the owner's pool** (the tenant pool's URL set to the
+  owner's), **4 of 7 failed**, each *"expected { Object (role, superuser) } to deeply equal { role:
+  'app_user', superuser: 'off' }"*, after every content assertion before it had passed: the queries
+  carry their filters, and what the split adds is the net. On this branch all 7 pass.
+
+**Mutations, each red in at least one guard** (the four unit files above, `every-audit-field-is-classified`,
+`managed-digest-sql` and `a-detector-that-knows-the-microsoft-account`, and the integration guard;
+restored from a copy after each, and the files compared with it):
+
+| # | Mutation | Red |
+|---|---|---|
+| M1 | A per-organisation read on the owner's pool: the drift detector's coverage on `new Pool({ connectionString: process.env.DATABASE_URL, max: 1, idleTimeoutMillis: 1_000 })`, the key's own options, with its own filter | 4 unit; integration 1 (*ECONNREFUSED*: the guard hands no `DATABASE_URL`); with the owner's URL in the environment, as a run has it, integration 1: *"a pool other than the tenant pool and the audit key's was asked"* |
+| M2 | A per-organisation read outside `withTenant`: the digest's recipients as `pool.query(…)` on the tenant pool | 1 unit; integration 1, both organisations *"due … but has no active owner or admin"*, nothing sent |
+| M3 | The list on `app_user`: `activeOrganisations` reads `APP_DATABASE_URL` | 2 unit; integration 2, the list refuses (*"asked on a connection that row security binds"*) |
+| M3b | The same, with the role question gone | 3 unit; integration 3: the list is `[]`, and the digest reports `tenants: 0, sent: 0` |
+| M4 | A fallback: `openTaskPools` takes `APP_DATABASE_URL ?? DATABASE_URL` | 1 unit; integration green (both set) |
+| M4b | A fallback the other way: the list takes `DATABASE_URL ?? APP_DATABASE_URL` | 1 unit; integration green (both set) |
+| M5 | The pool ended before the failure's event: group discovery ends its pools in its run's own `finally` | 2 unit |
+| M6 | A fourth job put on `SPLIT` without a reason: `managed-retention` moved there with `''` | 9 unit |
+| M7 | The list reads more than ids: `SELECT id, name, settings FROM tenant …` | 1 unit; integration green (it still hands back ids) |
+| M7b | The cross-tenant half reading a per-organisation table: group discovery's old list (`connection` joined to `tenant`, with `config`) added to the module | 1 unit |
+| M8 | Every organisation's digest stores scoped to the first organisation asked | unit green (every read is in a scope); integration 1, B's digest reads nothing of B's and stays quiet, `sent: 1` |
+| M9 | The digest's organisation row read outside its scope | 1 unit; integration 1, *"is on the list of active organisations, and its own row reads nothing in its own scope"* |
+| M10 | Group discovery's sources read outside the scope | 1 unit; integration 2, `sources: 0` for both organisations |
+| M11 | The drift detector opens its pools at its module's top again | 1 unit, and `a-detector-that-knows-the-microsoft-account` fails at import (7 skipped); integration fails at import |
+
+M4 and M4b are red in the module's unit test alone, as T1 step 2's own fallback mutation was: the
+integration guard hands both URLs, so a fallback changes nothing it can see. M8 is the reverse:
+every statement is in a scope, the wrong one, which no static rule can tell and the integration
+guard does.
+
+**Where the build departs from §3:**
+
+- **Group discovery's list is the organisations, not the source connections.** §3 had *"for group
+  discovery, the list of source connections across them"*. That list carried each connection's
+  config, which is the organisation's own, so it moved into the scope; the list is the same for all
+  three jobs.
+- **The digest's list lost the names and settings.** §3 did not say; the settings decide whether
+  and in which language an organisation is written to, and are its own row.
+- **The jobs read no owner's URL at all.** §3 T4 has T2's jobs on its list *"for their list of
+  organisations"*. The list is `task-pools.ts`'s, which T4 already names for the audit key, so a
+  split job file names no database URL and holds no owner's connection: stricter than a job that
+  may read the URL for its list only, and checkable by the rules T1 already enforces.
+- **The pools are opened per run**, as run-cutover's and run-rollback's are, not at the module's
+  top, where the three built their one owner pool.
+- **The list refuses on a connection that cannot see every organisation.** §3 did not ask; it is
+  the one way the split could fail quietly.
+- **Not here:** T5 step 2's guide check that the guide names every entry of T4's lists, and the
+  move of those lists to a plain module both guards import (§3 T4).
+
+Gates: `pnpm -s typecheck` green; `eslint` on the 12 changed TypeScript files clean. Unit, `apps/worker`
+and `scripts`, 232 files and 4129 tests passed (`packages/ledger` and `packages/orchestration` are
+untouched). Integration on a throwaway Postgres 16 with both chains (`scripts/local-pg.sh`, its own
+directory and port), as its owner, each guard deriving `app_user` from it: the two row-security
+guards, 2 files and 21 tests; every `apps/worker` integration file, 7 files and 64 tests, the two
+that need Stalwart skipped. The three indexes regenerated with `--write` and current under
+`--check`; `adr-operative.mjs --check` current; the commit convention checked.
+
+Still open: T3 step 2 (PR E), which moves the three whole jobs, the list and the audit key to the
+system role, with the owner's one-off deletion (2026-09-27); T5 step 2 (PR F); the wall-time
+comparison (T1 step 2's entry). Nothing was exercised against a running stack; the nightly deploys
+`main`'s tasks to the OTA plane, where this runs once merged.
+
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that the
 Trigger.dev tasks read and write tenant data as the database owner, and that the owner is a
 superuser on this stack. Postgres never applies row security to a superuser. In the task plane,
@@ -1082,7 +1265,7 @@ step 2's entry still listed, is T6, done in #1303.
 |---|---|---|
 | T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
 | T1 Per-tenant tasks read and write as the application role | Step 1 ✅ **done** in #1302, merged 2026-09-28 (c33b441c; parts 2 to 4). Step 2 🔨 **built 2026-09-28**, not merged (parts 1 and 5, the switch). Both before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that opened their own ledger from `DATABASE_URL` (step 1 hands them the job's pool), the stores that filtered by their own `WHERE` (step 1 scopes them), and the audit sink's key (step 2 reads it on a pool of one of its own). Step 2: the eight jobs and the standalone worker take their pools from `openTaskPools` (`task-pools.ts`), `app_user` on `APP_DATABASE_URL`, with no fallback. Wall time before and after: the owner compares three E2E (managed) runs, #209, #211 and the first with step 2 (Status, 2026-09-28, later still). |
-| T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only: split, open question 3 answered 2026-09-28. |
+| T2 The owner's reach kept to the jobs that span tenants | 🔨 **built 2026-09-28**, not merged; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge keep the owner's connection. The digest, the drift detector and group discovery are split (open question 3, answered 2026-09-28): the list of active organisations, ids only, on `DATABASE_URL` through `activeOrganisations` (`task-pools.ts`), and each organisation read and written in its own scope on `openTaskPools`'s tenant pool, `app_user`. Guards: `a-pass-that-opened-the-owners-pool` (its `SPLIT` kind) and `a-job-that-reads-each-organisation-as-itself` (integration). No grant was missing. |
 | T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27; deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed**, before the first invitation (T0 (a), 2026-09-28) | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
 | T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet; the ratchet emptied and deleted by T1 step 2 (2026-09-28, not merged) | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it landed first as a ratchet: T1 step 1 took the three orchestration files off `KNOWN_REMOVED_BY_T1` (11 to 8), step 2 took the eight jobs and deleted the list, and added `task-pools.ts` to `CROSS_TENANT` for the audit key alone, with rules that every task file is per-tenant or cross-tenant and every per-tenant one takes its pools from `openTaskPools`. |
 | T5 The documents say which connection the tasks use | ✅ **Step 1 done** in #1218, merged 2026-09-27. Step 2 📋 **Proposed**, after T1 to T3 | §3. Step 1: what is true today, and an owner pool in the API that §1 missed (Status, 2026-09-27). Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
@@ -1105,7 +1288,9 @@ step 2's entry still listed, is T6, done in #1303.
   `run-apply-relocation`, `run-cutover` and `run-rollback`. There are six scheduled jobs:
   `managed-sync-tick`, `managed-retention`, `managed-purge-closed`, `managed-digest`,
   `managed-drift-detect` and `managed-group-discovery`. *Since T1 step 2 (Status, 2026-09-28) the
-  eight per-tenant jobs take their pools from `openTaskPools`, on `APP_DATABASE_URL`; the six
+  eight per-tenant jobs take their pools from `openTaskPools`, on `APP_DATABASE_URL`. Since T2
+  (Status, 2026-09-28, the entry at the top) so do the digest, the drift detector and group
+  discovery, which read only their list of organisations on `DATABASE_URL`; the other three
   scheduled ones are unchanged.*
 - **What they do not read.** *(T1 step 2, Status 2026-09-28, changed the first half: the eight
   per-tenant jobs read `APP_DATABASE_URL` through `openTaskPools`, and `DATABASE_URL` for the
@@ -1381,6 +1566,12 @@ of these jobs under the policies as well (open question 3).
 
 Each job's header already says why it crosses organisations. T5 puts the same list in
 `docs/rls-guide.md` §2, and T4 checks that the code and the guide agree.
+
+*Built 2026-09-28 (Status, the entry at the top), not merged.* The line fell at the list alone for
+all three: the ids of the active organisations, read once per run by `activeOrganisations`
+(`task-pools.ts`). The digest's organisation row (its name and settings) and group discovery's
+source connections, which the list carried before, are each organisation's own and are read in
+its scope.
 
 ### T3 — no superuser in a run's environment
 
