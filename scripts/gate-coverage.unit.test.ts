@@ -94,9 +94,15 @@ const NOT_ASKED: Record<string, string> = {
     'routes/grant.unit.test.ts, which runs the whole flow against a real ' +
     'database with only Google\'s token endpoint replaced.',
   '/api/problem-reports':
-    'sending one opens a real ticket on the owner\'s helpdesk, and a stack this ' +
-    'gate talks to has none set up. Covered by a-report-that-reaches-a-person.' +
-    'unit.test.ts, which drives the route with the helpdesk faked at fetch.',
+    'sending one opens a real ticket on the owner\'s helpdesk, or, without one, ' +
+    'mails the support mailbox. A stack this gate talks to has no helpdesk, and ' +
+    'its mail goes to Mailpit, so there the mail path is ON and a report sent ' +
+    'would be caught. Not sent yet: one report read back from Mailpit would ' +
+    'prove the Reply-To and the attachment over a real SMTP hop, which no unit ' +
+    'guard reaches. Covered meanwhile by a-report-that-reaches-a-person.unit.' +
+    'test.ts, which drives the route with the helpdesk faked at fetch, and by ' +
+    'a-report-that-reaches-support-by-mail.unit.test.ts, with the relay faked ' +
+    'at its transport and nodemailer rendering the message.',
 };
 
 describe('every route family is either asked for or accounted for', () => {

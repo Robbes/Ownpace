@@ -4,6 +4,22 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later still: problem reports share T0's relay (0130 T5, built, not merged).** The
+owner chose mail for the report form during the alpha (*"b"*). Each report is a mail from
+`NOTIFY_FROM` to `REPORT_MAIL_TO`, both `support@ownpace.eu` on live, through the same Proton
+login the identity provider sends its sign-in codes with. So reports draw on the one sending quota
+those codes need, and the link door needs no account. The API caps report mails at 50 a day for
+the whole service (`REPORT_MAIL_PER_DAY` in `apps/api/src/services/report-channel.ts`) and gives
+up on a send within about 20 seconds. Proton's own sending limit for the account was not looked
+up, so the 50 is a guess below it, not a measured margin. Live's `.env` also needs
+`REPORT_MAIL_TO=support@ownpace.eu`.
+
+The owner confirmed the recipients the same day: *"Mail recipients: yes, support@ownpace.eu"*.
+So on live `NOTIFY_TO`, `REPORT_MAIL_TO` and the DMARC report address are all
+`support@ownpace.eu`. The DMARC record the owner has (`v=DMARC1; p=quarantine; sp=quarantine;
+aspf=r`) names no report address yet; adding `rua=mailto:support@ownpace.eu` to it is the owner's
+DNS step.
+
 **2026-09-28, later: T0's relay chosen and proved by hand, to Proton and to Microsoft 365.** The
 owner: *"I was hoping to reuse my proton SMTP"*. The relay is Proton Mail's SMTP submission, the
 host of `support@ownpace.eu` already, so one sub-processor serves the mailbox and the relay:

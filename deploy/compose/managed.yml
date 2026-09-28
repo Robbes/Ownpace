@@ -1052,13 +1052,17 @@ services:
       # set them. `scripts/a-limit-the-api-was-never-handed.unit.test.ts`.
       TRUST_PROXY: ${TRUST_PROXY:-}
       ACCESS_REQUEST_MAX_PER_HOUR: ${ACCESS_REQUEST_MAX_PER_HOUR:-}
-      # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts.
-      # Empty is no form at all; setting URL and TOKEN offers "Report a problem".
-      # managed.env.example and managed-bring-up.md step 8f carry the note.
-      # `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`.
+      # PROBLEM REPORTS (workplan 0130), read by apps/api/src/services/zammad.ts
+      # and report-channel.ts. Setting URL and TOKEN files each report as a
+      # Zammad ticket. Without them, a report goes by mail through the SMTP_*
+      # relay above, from NOTIFY_FROM to REPORT_MAIL_TO, or to NOTIFY_TO when
+      # that is empty (the owner, for the alpha, 2026-09-28). Neither is no form
+      # at all. managed.env.example and managed-bring-up.md step 8f carry the
+      # note. `scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts`.
       ZAMMAD_URL: ${ZAMMAD_URL:-}
       ZAMMAD_TOKEN: ${ZAMMAD_TOKEN:-}
       ZAMMAD_GROUP: ${ZAMMAD_GROUP:-}
+      REPORT_MAIL_TO: ${REPORT_MAIL_TO:-}
       # THE ALPHA (workplan 0131 T1): `alpha` makes the access-granted mail say
       # so, read by `accessGrantedEvent` in apps/api/src/access-notify.ts. The
       # web build below takes the same setting as VITE_OWNPACE_STAGE. Empty is

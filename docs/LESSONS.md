@@ -293,6 +293,10 @@ reading a file drops off its entry by itself.
 - [a-rate-that-must-not-spread](../scripts/a-rate-that-must-not-spread.unit.test.ts) — VAT_RATE may not gain a single new caller (ADR-0044; workplan 0111 T3).
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
 
+### `apps/api/src/services/report-channel.ts`
+
+- [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
+
 ### `apps/api/src/services/usage-history.ts`
 
 - [a-screen-that-quoted-a-retired-price](../scripts/a-screen-that-quoted-a-retired-price.unit.test.ts) — The customer's usage screen quoted a price list nothing would bill them at, in a unit its own file already knew was wrong (workplan 0121 T4).
@@ -2600,6 +2604,7 @@ A HELPDESK THE API WAS NEVER HANDED.
 
 Reads:
 
+- `apps/api/src/services/report-channel.ts`
 - `apps/api/src/services/zammad.ts`
 - `apps/web/src/components/SupportLine.tsx`
 - `deploy/compose/managed.env.example`
