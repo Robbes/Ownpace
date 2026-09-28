@@ -1072,6 +1072,82 @@ all taken.
   pressed in that minute can still go ahead with no rows counted. A count refused for any reason
   other than a hold still needs a reload.
 
+**2026-09-28: T2's rotation script built on branch
+`claude/ownpace-public-readiness-y7orc6-passwords-the-repository-no-longer-knows`, not merged.**
+The owner asked for T0 step 2 as a script. Nothing has run on the machine; the script has run only
+against the stubs in its guard. T0 step 2 is still the owner's.
+
+- **What it does.** `deploy/compose/rotate-db-passwords.sh` has three modes. `--check`, the
+  default, changes nothing. It lists the login roles over the socket, names and flags only. It asks
+  the controls, `.env`'s own values, over the stack's network and through PgBouncer. It tries the
+  three shipped Postgres values against every login role among the owner, by its real name (D2),
+  `app_user`, `openmigrate` and `APP_DB_USER`, and does not ask a name that is not a login role.
+  It tries ClickHouse's two shipped values with `clickhouse-client` and MinIO's two with `mc`, in
+  their own containers, after a control each. It reports `trigger-db`'s value as waiting for T2's
+  code, uncounted. Exit 0, 1 when a shipped value opens, 2 when nothing is established. `--sync`
+  sets `app_user` and the owner to `.env`'s values in one transaction over the socket, then proves
+  both over the network and through the pooler. `--rotate [--with-trigger-stores]` keeps a copy of
+  `.env` (mode 0600), makes new values with `openssl rand -hex 24`, writes them with
+  `env-upsert.sh --from-env`, sets the roles, proves them and checks that no shipped value opens.
+  On a failure after the write, or an interrupt, it copies the kept content back through the link,
+  sets the roles back, proves that, and names the step. On success it deletes the copy, says the
+  OTA app cannot open new database connections until the containers are recreated, dispatches
+  E2E (managed) on `main` when `gh` is signed in (or says to), and prints the line for T0's record.
+- **What it refuses.** `--rotate` refuses xtrace, live's marker or a slip of it
+  (`stack_may_be_live`), `CI` or `GITHUB_ACTIONS`, a `.env` that is not
+  `${MANAGED_ENV_PERSIST_DIR:-~/.persistent/<project>}/.env` (naming both paths and the keys that
+  differ), a running `Runner.Worker`, an E2E (managed) run queued or in progress when `gh` is signed
+  in, no `env-upsert.sh` or `openssl`, an unhealthy postgres, a control that does not open (it
+  points to `--sync`), an owner that is not a login superuser, an `APP_DB_USER` other than
+  `app_user`, a login role it does not change that a shipped value still opens (the owner's old
+  name after a rename: its own last check would fail every time, so it names the role and step 5
+  below, `ALTER ROLE <name> NOLOGIN`, never `DROP`; `--check` gives the same advice for it, not
+  `--rotate`), and anything but the project name typed back. `--sync` refuses live too; `--check`
+  may run there, for T0 step 5. While it puts things back it ignores INT, TERM and HUP, so a second
+  Ctrl-C cannot leave both roles on values stored nowhere; if the putting back cannot complete, it
+  keeps the old `.env` (mode 0600) and prints the three steps.
+- **How a value travels.** Never as an argument. `docker`, `psql` and `env-upsert.sh` get each
+  value in their environment, by name (`-e PGPASSWORD`, `-e DB_ROLES_NEW_…`), and the `ALTER`
+  reads it in the container with psql's `\set` and `printf`, with `log_statement` off and
+  `log_min_error_statement` at panic. Nothing prints a value or an address.
+- **The helper.** `deploy/compose/db-roles.sh`: `db_roles_init`, `_list`, `_ask`, `_set` and
+  `_prove`. T2 (b)'s `data` phase is to call the same functions. `bootstrap-managed.sh` is not
+  changed here: its `setup-auth.sql` call still puts `PGOPTIONS`' value on argv, and its
+  shipped-value note still misses empty values; both are T2 (b)'s.
+- **The small fixes.** `zitadel-db-password.sh` passes both passwords by name, not
+  `-e PGPASSWORD="$2"`. `seed-managed.sh`'s remedy for a refused owner was a recipe with
+  `-U openmigrate` and `ALTER ROLE openmigrate` whatever the owner was called; it now names
+  `rotate-db-passwords.sh --sync` and the owner's real name. `env-upsert.sh` takes
+  `--from-env <file> KEY …`. `docs/managed-bring-up.md`: *Rotating a secret* says a database
+  password needs the role told too, and a new section, *Changing the database passwords*, has the
+  owner's procedure. `docs/rls-guide.md` §2 has a row for the script, which acts as the owner
+  without composing a URL. `docs/operator-runbook.md` points to it.
+- **The guard, and that it failed first.** `scripts/rotate-db-passwords.unit.test.ts`, 37 cases,
+  with stubbed `docker`, `pgrep`, `openssl`, `gh` and `pnpm` that record argv and environment, and
+  a `docker` stub that keeps each role's password and can stop at a step so a case can signal the
+  script there. `pgrep` answers from a process table with the runner's listener in it, and `gh`
+  answers only the exact filter for runs that are not completed. On `main` 29 of the first 30
+  failed; the one that passed is a text rule with no script to read. Twelve mutations each turned it
+  red: the network ask on the loopback (also red in `the-check-postgres-never-made`), the pooler's
+  password on argv, no live refusal, a restore that leaves the roles, the shipped values tried
+  against `openmigrate` only, no xtrace refusal, the new values to `env-upsert.sh` as `KEY=VALUE`,
+  no runner check, no persisted file check, no CI refusal, `zitadel-db-password.sh` back to a value
+  on argv, and an `ALTER` without `log_min_error_statement`. The seven cases added after review
+  were red first where the script was wrong (the leftover role in `--check` and `--rotate`, a second
+  interrupt while putting back). Each of these mutations then turned the guard red: no health
+  refusal, the kept copy made mode 644, no INT/TERM/HUP trap, the `gh` filter inverted or narrowed
+  to `in_progress`, a `pgrep` pattern that matches the listener or nothing, the restore's traps set
+  back to the default, no leftover-role refusal, `--check` sending the leftover role to `--rotate`,
+  and the owner counted as a role `--rotate` does not change. `seed-managed.unit.test.ts` now
+  expects the new remedy.
+- **Not done here.** `trigger-db` is not touched: another change makes it `TRIGGER_DB_PASSWORD`,
+  and until then it waits for T2's code. T2 (b), the refusals of shipped values and
+  `ensure-env-secrets.sh`'s five stay 📋. Whether the MinIO image carries `mc` was not checked
+  (no Docker here); without it, `--check` says so and exits 2.
+- **For the owner (T0 step 2).** From `~/ownpace-managed`, once this is merged: `--check`; at a
+  quiet time, `--rotate --with-trigger-stores`; dispatch E2E (managed) if the script did not;
+  `--check` again after that run; the date and "refused" into T0.
+
 
 | Task | Status | Notes |
 |---|---|---|
@@ -1083,7 +1159,7 @@ all taken.
 | T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
-| T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
+| T2 Database passwords the repository does not contain | The rotation script 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-passwords-the-repository-no-longer-knows`, not merged (2026-09-28): `rotate-db-passwords.sh` (`--check`, `--sync`, `--rotate [--with-trigger-stores]`) with `db-roles.sh`. On the OTA stack the change itself (T0 step 2) is still the owner's to run. The bring-up's code, (b), the refusals of shipped values and `TRIGGER_DB_PASSWORD` 📋 **Proposed** — *was:* 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
 | T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
@@ -1828,6 +1904,14 @@ The commands reach Postgres through `docker compose exec`. Compose scopes that t
 **On the OTA stack**, from `~/ownpace-managed`, at a time the gate is not running (§1: it is
 scheduled for 03:30 UTC, and GitHub has started it hours late). The stack has no testers, so no
 hold is needed.
+
+**As a script (built 2026-09-28, not merged; the Status block says how).**
+`./deploy/compose/rotate-db-passwords.sh --check` is steps 1 and 2, with the owner tried by its
+real name. `--rotate --with-trigger-stores` is steps 3 and 4 and the ClickHouse and MinIO values
+below, refused in CI, on live, under `set -x`, while a CI job runs, and when `.env` is not the
+persisted file, and put back on any failure. Step 6 is one dispatched E2E (managed) run; step 7 is
+`--check` again. `docs/managed-bring-up.md`, *Changing the database passwords*, is the procedure.
+The steps below stay as the way by hand.
 
 1. Look at the database, not at `.env`:
 
