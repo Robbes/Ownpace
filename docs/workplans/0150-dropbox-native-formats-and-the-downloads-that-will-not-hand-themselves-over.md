@@ -2,7 +2,16 @@
 
 > **In one line:** Dropbox entries marked `is_downloadable: false` (Paper docs as `.paper` files, and any other kind T2 finds) refuse `files/download` with 409 `unsupported_file`; export each kind in the user's chosen format via `files/export`, or state a refusal and park it on first sight, as Drive does.
 
-## Status — 2026-09-26 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: open question 1, a first reading.** From the owner's managed migration, on the OTA
+stack, with the migration paused:
+
+- **One `.paper` row:** `last_error_category` `source_refused`, `attempt_count` 5, `parked_at`
+  NULL, and none below 5. That is T1 (a)'s reading and T8's expectation.
+- **One Paper doc cannot stop a pass.** The 25-in-a-row stop needs 25 (T1 (b)), so it does not
+  explain "no other file moves" in this migration. That stays T1's open half.
+- **Still owed:** the pass summaries, and the row's error text in full.
 
 **2026-09-26, later still: the owner answered open question 4, and D9 was checked against the
 code.** The owner, word for word: *"open question 4: (a), policy_refused as recommended"*. So a
@@ -322,7 +331,8 @@ listed `content_hash` is the `.paper`'s block hash, never the export's (T3 (b)).
    (`last_error_category`, `attempt_count`, `parked_at`, and the error text each stores, in full),
    with the number of rows whose `attempt_count` is below 5; and the stack the migration runs on.
    *Recommended:* read them before anything is built. They decide T1's open half, and whether T8
-   counts for 0141 T3.
+   counts for 0141 T3. *Partly answered 2026-09-28:* one row, `source_refused`, 5 attempts, not
+   parked; the pass summaries and the error text are still owed.
 2. **The owner's words (*The owner's words*).** The request for a format picker, and the report
    that one file stops everything, were never recorded word for word, with a date and a place. If
    the owner still has them, in a message or a screenshot, they go into that section as given. If

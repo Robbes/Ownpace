@@ -998,6 +998,80 @@ and (c), the entry above) merged, with a review's five findings taken (the last 
   backup by its file name and to copy it aside before the upgrade, and T6's step 4 says the same.
   `trigger-version.sh` is unchanged: the OTA stack's gate drills nightly already.
 
+**2026-09-28: the web after T6 (b), built on branch
+`claude/ownpace-public-readiness-y7orc6-a-hold-that-says-what-it-did`, not merged.** The T6 (b)
+entry left three gaps on the screens "for whoever next works on those screens" (*Open, and
+whose*, the web). The owner asked for them to be built.
+
+- **The count the confirm screen starts.** `ConfirmMigration.tsx` started discovery on mount and
+  dropped the answer. While a hold is open that answer is the 409 with the operator's sentence,
+  and nothing is counting, but the screen went on saying *Scanning your source*. It now keeps a
+  refusal and shows it through `serverMessage`, as its refused *Start* does, after *Counting did
+  not start:* (`confirm.countError`, EN and NL). Any other refusal of the count shows its own words
+  the same way. Under a refusal, with no rows landed, the scanning line is not shown. A count begun
+  before the hold still lands, and its rows show above the refusal.
+- **The banner's fold.** `pause.hold.why` said new copying starts again by itself once the update
+  is done. That is true of the scheduled passes, not of a press the hold refused, which is not
+  remembered. It now says scheduled copying starts again by itself, and that anything started
+  while copying was paused did not start and must be started again after the update. EN and NL.
+- **The operator's hint.** `support.hold.hint` now says the buttons are held too. Its fold,
+  `support.hold.hint.why`, says the message is also the answer, word for word, to every button a
+  customer presses while the hold is on, and that nothing started that way is remembered. So it
+  asks for when copying resumes and to try again after, with step 2's example: the Dutch one in
+  NL, the same in English in EN.
+- **Comments.** `enqueue-unless-held.ts` said the confirm screen ignores the refusal. It now says
+  the screen shows it. `PausedBecause.tsx` says why the hold's fold names a second press.
+- **Guards**, in the existing web tests. `ConfirmMigration.unit.test.tsx`, three cases: the
+  sentence shows when `discover` answers 409, the scanning line is gone when nothing landed, a
+  count that lands still shows. `PausedBecause.unit.test.tsx`, two per language: *by itself* is
+  said only of scheduled copying, and the fold says a press made during the hold did not start and
+  must be made again. `Support.unit.test.tsx`, three per language: the visible hint names the
+  buttons, the fold says the sentence answers them word for word, and it asks for when copying
+  resumes and to try again. All 13 were red before the change. Mutations, each red: the count's
+  refusal shown as axios's text (1), the refusal swallowed again (3), the scanning line kept over
+  a refusal (1), rows hidden behind a refusal (1), the EN fold back to *new copying* (1), the NL
+  fold without its second press (1), the NL operator fold without *woord voor woord* (1), the EN
+  visible hint back to what it was (1).
+- **Not changed.** The box's placeholder, *Back in about an hour.*, still names no retry. The
+  bring-up's *Draining first* already asks for the sentence the fold now asks for.
+
+**2026-09-28, later: review fixes to the web after T6 (b), on the same branch.** Four findings,
+all taken.
+- *The count, once the hold lifts.* The refused count's line stayed after the hold was lifted, and
+  nothing on the screen could count again: the count has no button, and *Start* with no rows
+  landed skips the refused-files tick (`needsAcknowledgement([])` is false). Only a reload counted
+  again. While a count stands refused the screen now reads the hold the banner reads (the same
+  `['platform-pause']` query and cache). When a hold it saw open is lifted, it clears the line,
+  counts again and starts the polling's five minutes afresh. While the hold is still on, the line
+  adds *This screen counts again by itself once copying resumes.* (`confirm.countAgain`, EN and
+  NL). A refusal with no hold open (a server fault, a migration not found) is not asked again and
+  makes no such promise.
+- *Every button, which it was not.* The operator's fold said the message answers every button a
+  customer presses while the hold is on. Pausing a migration (`PUT /:mappingId`) and adding a data
+  type (`POST /:mappingId/domains`, which enqueues nothing) are not refused, and the count is
+  started by the screen, not by a button. The fold now says every button that would start work,
+  as step 2 does, and names *Trigger sync*, *Start migration* and a check (NL *Synchroniseer nu*,
+  *Start migratie*, een controle), without the count. The banner's second sentence is narrowed the
+  same way: *Any copying you tried to start during the pause did not start: start it again after
+  the update.* (NL *Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start
+  het na de update opnieuw.*).
+- *Guards that passed the opposite.* The banner's guard checked fragments, so a line saying a
+  refused press starts again by itself passed it. The operator hint's guard checked keywords, so a
+  fold denying both claims passed it. Both now pin the sentences word for word in EN and NL: the
+  banner's two sentences, and the hint, the sentence about the buttons and the example (in NL,
+  step 2's verbatim). A third banner case keeps *by itself* to the scheduled sentence, and a
+  third hint case checks the named buttons are the labels the hold refuses. Both opposite-meaning
+  lines from the review are now red, as are *every button a customer presses* and the count back
+  in the list. `ConfirmMigration.unit.test.tsx` gains two cases: the screen counts again when the
+  hold it saw lifts and says so while it is on, and with no hold open it neither promises nor asks
+  again. Mutations, each red: no count on the lift, the promise shown without a hold, the promise
+  never shown, a count again on any *not held*.
+- *Step 2* below said the count the confirm screen starts is refused without a word. It now says
+  the screen shows the sentence and counts again when the hold lifts.
+- **Still open.** The screen learns of the lift from the banner's read, once a minute, so a *Start*
+  pressed in that minute can still go ahead with no rows counted. A count refused for any reason
+  other than a hold still needs a reload.
+
 
 | Task | Status | Notes |
 |---|---|---|
@@ -1013,7 +1087,7 @@ and (c), the entry above) merged, with a review's five findings taken (the last 
 | T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`), not yet run on the machine or dispatched; (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes 📋 **Proposed**, waits for live to stand (T1b to T1e) — *was:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | 📋 **Proposed** | §3. `managed.yml`'s `development` default becomes a required value. Live sets `production` at T1b. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. The refusal of `--with-demo` on live stays 📋 **Proposed**. Routes (a) and (b) are kept for the OTA stack. |
-| T6 One way to deploy live, from a tag | (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence. The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
+| T6 One way to deploy live, from a tag | (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), not yet run on live; (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-hold-that-says-what-it-did`, not merged (2026-09-28). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
 | T7 What the gate does for the OTA stack, done for live | ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer — *was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill, T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
 
@@ -2105,10 +2179,11 @@ document is changed to mark staged rollout and a backup before migrating as not 
    0131 T5 asks for N green scheduled runs of the deployed commit. Record the tag and its hash.
 2. Start the hold on live, with a sentence in Dutch (D6). Testers read it word for word on the
    banner, and as the answer to every button that would start work, which the hold now refuses
-   (T6 (b)). The count the wizard's confirm screen starts by itself is refused without a word (see
-   the Status block). A refused press is not remembered, so the sentence says when copying resumes,
-   that nothing starts until then, and to try again after, for example *"We werken het platform
-   bij en kopiëren rond 15:00 weer. Tot die tijd start er niets. Probeer het daarna opnieuw."*
+   (T6 (b)). The count the wizard's confirm screen starts by itself shows the sentence too, and
+   counts again when the hold lifts (the Status block, 2026-09-28). A refused press is not
+   remembered, so the sentence says when copying resumes, that nothing starts until then, and to
+   try again after, for example *"We werken het platform bij en kopiëren rond 15:00 weer. Tot die
+   tijd start er niets. Probeer het daarna opnieuw."*
 3. Wait for the drain. The tick's log says `N pass(es) still in flight`; wait until N is 0.
 4. If the owner wants a way back, dump live's application database now, and keep the dump until
    the next deploy (open question 4). The runbook's *Backup & restore* recipe dumps it, and since
