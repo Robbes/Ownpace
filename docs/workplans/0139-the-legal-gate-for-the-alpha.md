@@ -4,6 +4,82 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, later: the owner's review of T2.** The owner edited both files on GitHub, on PR
+#1293 (`bc210146`, the Dutch; `983f487d`, the English), and wrote: *"I did review on the Alpha in
+PR 1293. I see some differences: the english offers some more info then the dutch version, like
+on usages of the process link. Please check for differences and correct if needed."*
+
+- **What the owner changed, kept as decisions.** *Alpha* capitalised in running text, in both
+  languages. The *Version* line is 1.0 in both, with no draft or concept wording: the owner takes
+  the text as final for the Alpha without the lawyer's pass for now (T1, deferred on 2026-09-27:
+  *"legal: keep as is for now"*). 7 days' notice before a reset, the end, or the new conditions
+  after it (§5, §11; open question 7, answered below). An account closed within 7 days of the
+  request (§10; T7). *Hosting environment* / *hostingomgeving* in place of *the machine*, since
+  the service may move to another host. §11 rewritten. §12 is *Reaching us* / *Ons bereiken*,
+  without *"a person reads it"*, with *Report a problem* no longer conditional.
+- **Carried across, or fixed, so both say the same, sentence for sentence.**
+  - §1: the owner's Dutch passive carried into English, *"everyone in it was invited personally"*.
+  - §2: Dutch cites privacy §9 as *Hoe lang we het bewaren* again, its heading in
+    `privacy.nl.md`.
+  - §4: English joins its two sentences as the Dutch does, and says *"report a data breach"*, as
+    the owner's Dutch *"melden een datalek"* does (was *"tell you about"*). The colon the edit put
+    inside the Dutch list of duties is a full stop now, in both: two sentences.
+  - §5: Dutch 7 days (was the placeholder). Both refer to §6's *lost hosting environment*.
+  - §6: Dutch *"Ze verlaat de hostingomgeving niet"* and *"de hostingomgeving van de Alpha"*, as
+    the owner's English. **English: the erasure sentence restored**, *"If your account is erased,
+    your data can stay in the backup for at most 7 days"*, in the owner's word *backup*: 0134 T2
+    requires it, and the Dutch kept it. Both: the last sentence's *machine* is the hosting
+    environment.
+  - §8, the progress link (the owner's *"process link"*): the Dutch did not say whom to send it
+    to, and said *status* where the English and the app (`viewLink.why`) have the plural. Now
+    *"stuur die persoon dan de voortgangslink …: die toont aantallen en statussen"*. The rest of
+    §8 matched.
+  - §10: Dutch 7 days (was the placeholder); English *"within 7 days of your request"*.
+  - §11: the owner's Dutch rewrite carried into English: *"your data does not move along to the
+    new service"* (was *"we close it for you, before any of your data goes to another hosting
+    provider"*), *"Your migration"* in the singular, and *"What you have already copied … with
+    your migration"*. The Dutch *(migratie)* is *met uw verhuizing*, the conditions' own word.
+    The first paragraph joins both edits: *"from its current hosting environment to another
+    hosting provider"* / *"van de huidige hostingomgeving naar een andere hostingaanbieder"*.
+  - §12: *"You can also use *Report a problem*"* (was *"Or use"*); Dutch *"… gebruiken"*. The
+    warning never to send a password, a token or other sensitive data stays in both.
+  - *gegevns*, *least7*, *hosting omgeving* and *"since your request"* fixed; trailing spaces
+    gone and long lines rewrapped.
+  - The lawyer's briefing, English only: *alpha.nl.md* in lower case again (twice). The edit
+    turned the placeholder into «Alpha_NOTICE_PERIOD», which the placeholder guard does not
+    match; question 1 now says 7 days. The *"still placeholders"* bullet says what the owner
+    decided, and the end-of-Alpha bullet that the owner's §11 replaced the drafter's rule.
+  - `site/legal/README.md`: the rows for `«ALPHA_NOTICE_PERIOD»` and `«ACCOUNT_CLOSE_PERIOD»`
+    are gone; no placeholder is left in the conditions. Its note on them says the owner set 1.0.
+- **Proved.** `site/site.unit.test.ts` and `scripts/legal-docs.unit.test.ts`: 36 pass, with no
+  test changed. Both files have 12 numbered sections and the same version number; nothing pinned
+  the old version line or the two placeholders. The other two guards that read `site/legal`
+  (`a-policy-link-that-answers`, `one-way-to-report-a-vulnerability`): 28 pass.
+- **For the owner:**
+  1. §11: your Dutch no longer says the account of a tester who does not accept is closed. §10's
+     erasure follows a closing, at the period the tester chose. Is the account still closed, and
+     after which period is the data erased? And *"de nieuwe dienst"* is the service under the
+     new conditions?
+  2. §11: *"Uw verhuizing"*, singular, where §6 and the English had the plural. The English now
+     follows. If you meant every migration, both go back to the plural.
+  3. §11: your English said another hosting *provider*, your Dutch another hosting
+     *environment*. Both now say from the current environment to another provider, as in your
+     answer *"move off the spark to other hoster"*. If you meant any other environment, possibly
+     at the same provider, both say *"another hosting environment"*.
+  4. §6: *"The backup doesn't leave the hosting environment"* sits under *No backups*, and is the
+     text's only contraction; the Dutch says *"Ze"* (that copy). *"That copy does not leave the
+     hosting environment"*?
+  5. §12: the app shows *Report a problem* only while the report form is on; otherwise the
+     sidebar shows *Help: address* (`help.sidebar`). Is the form on in live for the whole Alpha?
+  6. §4: *"melden een datalek"*, and now *"report a data breach"*, no longer say the tester is
+     told. Intended?
+  7. §2: *Hoe lang we het bewaren* is restored to match `privacy.nl.md` §9. If you want the
+     shorter heading, that file changes with it.
+  8. §4's heading, *"beide kanten uit"*, can read as "either way"; kept as you wrote it.
+     *"over en weer"* is the alternative.
+  9. The briefing's first line still says *"DRAFT FOR LEGAL REVIEW — v0.1"*. Keep it for the
+     lawyer's pass later, or change it?
+
 **2026-09-28, last: the owner set the copy's days and the admin clause follows the code.** The
 owner: *"7 days is ok"*. `«UPDATE_COPY_DAYS»` is 7 in §6 of both files, and its row in the legal
 README is gone; two placeholders are left, `«ALPHA_NOTICE_PERIOD»` (open question 7) and
@@ -459,7 +535,7 @@ longer starts by pausing the nightly gate, which never touches live.
 |---|---|---|
 | T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1) | §3. Nine placeholder names are still open, and six facts have no placeholder yet. Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
-| T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, version 0.1 concept, not rendered; ⏳ **Owner** reads it, then the lawyer (T1) — *was:* 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
+| T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, not rendered; **reviewed by the owner 2026-09-28**, version 1.0, the lawyer's pass deferred (T1) — *was:* version 0.1 concept, ⏳ **Owner** reads it, then the lawyer (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
@@ -824,7 +900,8 @@ read Dutch (D2). Which language governs is T1's question 2.
 it, as version 0.1; see the Status block.)* Each point has its source:
 
 - **What the alpha is.** A trial of the managed service by a small group the owner invited, for a
-  few weeks (D2, D4). The end date or the notice of the end is open question 7.
+  few weeks (D2, D4). The end date or the notice of the end is open question 7 *(answered
+  2026-09-28: 7 days' notice)*.
 - **Free.** Nothing is charged, and the sections of the terms about money do not apply (T1 point
   1). 0131 T3 says the same on the Billing page.
 - **No obligations either side.** No service level. The tester may leave at any time, and T7 says
@@ -1246,6 +1323,9 @@ the lawyer's pass.
 7. **The end of the alpha.** How much notice do testers get before it ends or is reset? Terms §11
    says 30 days' notice before the terms end, and 90 days' notice and an export if the service is
    discontinued. The conditions state the alpha's own notice period.
+   **Answered 2026-09-28: 7 days**, by the owner's own edit of the alpha conditions (PR #1293).
+   Testers are told by email at least 7 days before a reset or the end, and before the new
+   conditions after it (the alpha conditions' §5 and §11).
 8. **What waits for the first invitation (§4).** 0131 T5's row asks for T0 to T3, T10, and T4's
    request and grant rows. This plan recommends the rest of T4, and T5 to T9, as well: notices on
    the Connect buttons and the report form, the sub-processors named, retention made true, a way

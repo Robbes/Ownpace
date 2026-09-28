@@ -47,8 +47,6 @@ until a customer reads it.
 | `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA. Draft exists: [`subprocessors.md`](./subprocessors.md) — the token fills with its published URL (0086 T5) |
 | `«PRICING_URL»` | The published price list | **No longer used** since 2026-08-30 — terms links [the pricing page](../../site/pages/en/pricing.md) directly; row kept so the token's history stays findable |
 | `«PRIVACY_HISTORY_URL»` | Previous versions of the privacy policy | Privacy §13 promises they stay available |
-| `«ALPHA_NOTICE_PERIOD»` | How much notice testers get before the alpha is reset or ends, and before the new conditions after it | The alpha conditions §5 and §11. **Owner** — [workplan 0139](../../docs/workplans/0139-the-legal-gate-for-the-alpha.md) open question 7. Written with its unit, in each file's language; it replaces terms §11's 30 and 90 days during the alpha |
-| `«ACCOUNT_CLOSE_PERIOD»` | How soon after a tester asks the owner closes their account | The alpha conditions §10. **Owner** — workplan 0139 T7. Written with its unit, in each file's language |
 
 **What a final *Version* line looks like.** A `--public` build reads each rendered document's own
 `**Version:**` / `**Versie:**` line, outside the briefing comment, and refuses while it says
@@ -103,7 +101,8 @@ commit.
 - **The alpha conditions, as a published page** ([workplan 0139](../../docs/workplans/0139-the-legal-gate-for-the-alpha.md)
   T2). [`alpha.nl.md`](./alpha.nl.md), the text testers read first, and [`alpha.md`](./alpha.md)
   were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
-  the lawyer's pass. They are not rendered by the site build and not linked from the app
+  the lawyer's pass. The owner reviewed them the same day and set their *Version* line to 1.0,
+  with no draft marker. They are not rendered by the site build and not linked from the app
   (`NOT_BUILT_YET` in `apps/web/src/services/legal-links.ts`). 0139 T10 renders them, and a
   `--public` build refuses them while their *Version* line says draft.
 - **The DPA and the sub-processor list, as published pages** (0086 T5). Drafts now exist —
