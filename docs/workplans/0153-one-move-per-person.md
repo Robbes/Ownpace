@@ -4,6 +4,22 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: the tiles and the six icons are components, built beside R (0131 §6, R8's
+split)** on branch `claude/ownpace-ux-improvements-v1vjsj-tiles-and-icons`, not merged. They are
+§5's first two rows, and T3, T4 and T5 take them as they are.
+
+- **`ProviderTile`** (`apps/web/src/components/ProviderTile.tsx`) draws `tiles.svg`: the
+  initial on the site's teal for an account a person leaves, and on its mint for where the data
+  goes. The letter comes from a table of wizard types, and a connection kind is read as its type
+  first, so `gmail` and `google_drive` both draw G. The tile is `aria-hidden`, and the name is
+  always written beside it.
+- **`DataTypeIcon` and `DataTypeLabel`** (`apps/web/src/components/icons/data-type-icons.tsx`)
+  draw `icons.svg`'s six, element for element. The label writes the data type's name with
+  `DOMAIN_STRING_KEY`, so no new word was needed.
+- **Proved by** `an-icon-drawn-twice` (12 cases) and `ProviderTile.unit.test.tsx` (15 cases).
+  Four mutations were each caught: a redrawn mail path, a teal that differs from the site's, a
+  type with no letter, and a letter a screen reader would read.
+
 **2026-09-28, night: T1 (a) and (d), each proved by its guard, in #1315 and #1316.** The plan
 merged in #1321, so the two pull requests record themselves here. Both carry these same lines,
 so they merge in either order.
@@ -635,6 +651,10 @@ references, not specifications to the pixel.
 | `wf-migrations-page.svg`, `wf-migrations-phone.svg` | T3 | Layout, order and wording of the list and its top line. Cards stack at 390 pixels. |
 | `wf-start-a-migration.svg` | T4, T7 | The six screens in order, with the folds T7 asks for. Each step's gate checks only what it shows (0067). |
 | `wf-person-page.svg` | T5, and 0154 T1, T2 and T4 | The stage line, the rows per data type with totals and ranges, and the cutover steps as one list with counts. |
+
+**The first two rows are built** as `ProviderTile` and `DataTypeIcon` / `DataTypeLabel`
+(Status, 2026-09-28, night). A redraw changes the drawing and the component in the same pull
+request, or `an-icon-drawn-twice` and the tile's colour test fail.
 
 **Colours and type are the app's existing Tailwind tokens.** The one new pair is the site's
 `TEAL #0E4F4A` and `MINT #7FD4C1` for the tiles, which 0152 T9 already brings to the sign-in

@@ -1145,6 +1145,18 @@ files overlap R's:
 R8 starts after R2 and R4 have merged, or stacks on them. Two of its steps are already open
 from the writing session, #1315 and #1316, and R reviews rather than rebuilds them.
 
+**Split, 2026-09-28 (the owner's word).** Asked whether the writing session or R should build
+R8, the owner agreed to split it by file: *"i agree, but do check if not too much overlapping
+with the other 2 sessions."* The writing session builds, beside R, the parts that touch no file
+R's or M's groups are changing:
+
+- the tiles and the six icons (0153 §5);
+- 0154 T1 (a), the stage table in `packages/shared`;
+- ADR-0050's draft (0153 T2), for the owner to accept.
+
+R builds the rest in the order above. 0154 T2's totals stay with R, because they change
+`apps/api`'s migration routes, which are R2's.
+
 **Rules for both sessions.**
 
 - **A task's pull request** carries its guard, updates its plan's Status block, and names its

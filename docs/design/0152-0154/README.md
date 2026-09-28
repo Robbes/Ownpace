@@ -76,6 +76,8 @@ request.
 - **The tile is `aria-hidden`.** The name is always written beside it, so a screen reader reads
   the name once, never the letter.
 - **No third-party logos** (0152 D4).
+- **In the app,** `ProviderTile` (`apps/web/src/components/ProviderTile.tsx`) draws the tile and
+  its name. Its test holds the two colours equal to `site/build.mjs` and to this drawing.
 
 ## `icons.svg`
 
@@ -88,7 +90,10 @@ request.
   is `aria-hidden`.
 - **On the site,** `build.mjs` writes one inline sprite and uses `<use href="#i-mail">`. Nothing is
   fetched, so the CSP needs nothing new.
-- **In the app,** there is one component per icon, from the same paths.
+- **In the app,** `DataTypeIcon` and `DataTypeLabel`
+  (`apps/web/src/components/icons/data-type-icons.tsx`) draw them from the same elements.
+  `an-icon-drawn-twice` reads this drawing and fails when the two differ, so a redraw changes
+  both in one pull request.
 
 ## `hero-move.svg`
 
