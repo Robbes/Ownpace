@@ -2,7 +2,12 @@
 
 > **In one line:** Dutch and English customer guides per source and target card, operator text kept in `docs/*-setup.md`, no own-app hints where the deployment carries one, the export archive labelled experimental and readable from the tester's Nextcloud or WebDAV files, `Docs.tsx` extended.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28, the parked follow-up:** a help center beyond these guides (the same `docs/guides`
+text as a help section on `www.ownpace.eu`, later Zammad's Knowledge Base) is planned in
+[0151](./0151-a-help-center.md) and parked whole; the owner: *"yes, write the help center
+workplan. But we do park that for later."*
 
 **2026-09-27, T5 (a) review fixed.** On branch
 `claude/ownpace-public-readiness-y7orc6-a-checklist-that-says-what-comes-first`, one more commit;
