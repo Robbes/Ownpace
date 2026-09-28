@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 185 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 186 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -534,6 +534,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/bootstrap-managed.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -569,6 +570,10 @@ reading a file drops off its entry by itself.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
 
+### `deploy/compose/deploy-live.sh`
+
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+
 ### `deploy/compose/deploy-tasks.sh`
 
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
@@ -601,6 +606,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-read.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-fallback-that-could-never-fire](../scripts/a-fallback-that-could-never-fire.unit.test.ts) — A FALLBACK THAT COULD NEVER FIRE.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
@@ -639,6 +645,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/exposure-check.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
@@ -685,6 +692,7 @@ reading a file drops off its entry by itself.
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
@@ -863,6 +871,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/stack-kind.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
@@ -2157,6 +2166,19 @@ Reads:
 - `packages/connectors/src/google-drive-source.ts`
 - `packages/core/src/a-deck-copied-once-not-nightly.unit.test.ts`
 - `packages/core/src/dav-sync.ts`
+
+### [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts)
+
+A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/env-read.sh`
+- `deploy/compose/exposure-check.sh`
+- `deploy/compose/managed.yml`
+- `deploy/compose/stack-kind.sh`
 
 ### [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts)
 

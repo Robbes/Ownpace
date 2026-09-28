@@ -293,13 +293,14 @@ site's `WWW_BIND` and the demo's `STALWART_BIND`, separated by commas with no
 space (`EXPOSURE_ALLOW=192.0.2.10,100.64.0.1`; a bare space is a line bash
 cannot source, and the bring-up refuses it). Each stack's `.env` carries the
 same list. It names the container and the port, never the address, so what it
-prints can go into a public log. Workplan 0132 T6
-will run it after each deploy of live and T7 daily; until then it is run by
-hand (T0 step 5). The same question from outside is the dispatch-only workflow
-*Exposure probe* (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted
-runner. It needs the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's
-`*_PORT` values, and takes the machine's own public address from the optional
-secret `EXPOSURE_PROBE_HOST`.
+prints can go into a public log. `deploy-live.sh` (workplan 0132 T6) runs it
+after each deploy of live, and a deploy it fails did not take; T7 will run it
+daily. Until live stands it is run by hand (T0 step 5). The same question from
+outside is the dispatch-only workflow *Exposure probe*
+(`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
+the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
+takes the machine's own public address from the optional secret
+`EXPOSURE_PROBE_HOST`.
 
 **The site is recreated by hand, and only by hand.** No workflow and no script
 runs `www.yml`; the bring-up does not start the site (*The public site*,
@@ -2616,8 +2617,115 @@ journalctl --user -u ownpace-box-duties -n 200 --no-pager
 > up -d` from the updated checkout. See *Which address a port answers on*, under
 > the ports table in *Before you start*.
 
-A stack that is already up takes a pull, a rebuild of the two images that carry
-code, and — **sometimes** — a re-deploy of the tasks:
+### `ownpace-live`: a release tag, with `deploy-live.sh`
+
+**On `ownpace-live`, the stack testers use, the pull under *The OTA stack*
+below is never run, and `git pull` never is.** Live runs a release tag and nothing
+else (workplan 0132 T6, 0146 T5), so the build a tester sees, a problem
+report's build line, the deploy log and the GitHub release all name the same
+thing. One script moves it:
+
+1. **Name the tag.** An annotated `v*` tag on origin, cut as
+   [release.md](./release.md) §2 says, whose commit the nightly gate ran green
+   on the OTA stack. Record the tag and its commit.
+2. **Start the hold**, with a sentence in Dutch, and **wait for the drain**:
+   *Draining first, and telling customers why*, below. The tick's log says
+   `0 pass(es) still in flight` when it is done.
+3. **Ask first whether it can be undone.** From `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/deploy-live.sh --dry-run <tag>
+   ```
+
+   It runs every refusal the deploy runs and prints *one-way* or *reversible*,
+   then stops: nothing is checked out, built or deployed, and nothing is
+   logged. **If it says one-way** and you want a way back that is not a fix
+   and a new tag, dump live's database now, with the hold still on (the
+   operator runbook's *Backup & restore*). Nothing takes a dump for you.
+4. From `~/ownpace-live`:
+
+   ```bash
+   ./deploy/compose/deploy-live.sh <tag>
+   ```
+
+5. **Read what it printed, then lift the hold yourself.** The tick's next
+   summary shows passes started, and one of your own migrations should complete
+   a pass on the new tasks.
+
+What `deploy-live.sh` does, in order. It refuses, before the checkout or the
+stack changes, each with its own message: `--with-demo`; a `.env` without live's
+marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`;
+`COMPOSE_ENV_FILES` or `COMPOSE_FILE` in the shell, or a project
+`docker compose config` reports that is not the one the checkout chooses; a
+working tree that is not clean; a ref that is not a tag, a tag not on origin, a
+lightweight tag, a tag not named `v…`, and a tag whose commit's root
+`package.json` version is not the tag without its `v` (it names both, and says
+*"live runs releases: name a release tag"*); a database it cannot read; no open
+hold; a pass still in flight; a hold less than five minutes old, since a pass
+queued just before it is in no count until it starts; and a deploy log it cannot
+append to. Then it runs `git fetch --tags origin` and
+`git checkout --detach <tag>`, `pnpm install --frozen-lockfile`, and
+`bootstrap-managed.sh --from data`, never with `--with-demo`; the bring-up
+builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
+origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
+`/api/ready` answers 200, `/api/auth/mode` answers `managed`, and
+`exposure-check.sh` passes. `NODE_ENV` is not checked yet: workplan 0132 T4's
+check is not built, and the script says so.
+
+**The exposure check needs two things before live's first deploy.** The check is
+on `main` since #1271, and it reads the whole machine: set `EXPOSURE_ALLOW` in
+live's `.env` to every address any container on it is published on on purpose
+(*Checking every publish on the machine at once*, under *Which address a port
+answers on*), or it fails for each of them. And the tag must be cut from a
+commit that has `deploy/compose/exposure-check.sh`; the script runs the tag's
+own copy, and a tag without one cannot pass.
+
+**`--dry-run`** runs everything up to the checkout (every refusal above, the tag
+fetch, and one-way or reversible, by the same comparison) and then stops, exit
+0: no checkout, no install, no bring-up, no checks, and no line in the deploy
+log, which it does not even create. A refusal exits 1, as in the deploy. Step 3
+above is what it is for.
+
+**If a check fails, the deploy did not take.** The script says which check, the
+hold stays on, and it exits 3. The checkout is at the new tag: fix the cause and
+run it again with the same tag, or name another.
+
+**One-way or reversible.** Before the checkout moves, and again at the end, the
+script says whether the deploy can be undone by deploying a tag this stack has
+run again. It compares the new tag with the running tag, the one the last deploy
+that took put there (read from the deploy log); with every deploy since that did
+not take, since its bring-up may have run and its API migrates when it starts;
+and with the checkout's `HEAD` when no line names it. It is **one-way** when,
+against any of them, a file in either migration chain
+(`packages/ledger/migrations`, `packages/managed/migrations`) was added, changed
+or removed, or the Trigger.dev or identity-provider image pin in `managed.yml`
+moved: the API refuses an older build on a migrated schema, and both planes
+migrate their own schemas one way. Otherwise it is **reversible**. So going back
+to the running tag after a deploy with a migration that did not take is one-way:
+that migration may already have run.
+During the alpha a bad deploy is fixed forward: a fix, a new `alpha.N` tag, this
+script. A reversible one can also be undone by deploying the previous tag.
+
+**The deploy log.** Every deploy that got as far as the checkout appends one
+line, tab-separated, to `~/.persistent/ownpace-live/deploys.log`: the UTC date,
+the tag, the commit, `took` or `did-not-take`, and `one-way` or `reversible`. A
+refusal is not a deploy and is not logged. The script checks that it can append
+to the file before the checkout moves; should the line still fail at the end, it
+prints the line for you to add by hand, and its exit still says how the deploy
+went. Anything else worth keeping, such as
+the owner accepting fewer green gate runs than the rule asks (workplan 0141),
+is added to that file by hand.
+
+**Not yet run on live.** Live is not stood up (workplan 0132 T1b), so the
+script has run only against the stubs in its guard,
+`scripts/a-deploy-from-a-named-tag.unit.test.ts`.
+
+### The OTA stack: the nightly gate, or a pull
+
+On the OTA stack (`~/ownpace-managed`) the nightly gate is the deploy: it
+brings `main` up every night. By hand, a stack that is already up takes a pull,
+a rebuild of the two images that carry code, and — **sometimes** — a re-deploy
+of the tasks:
 
 ```bash
 cd ~/ownpace-managed
@@ -2744,7 +2852,10 @@ The sequence:
    `[sync-tick] holding: … N pass(es) still in flight; the drain is done when
    that reaches 0.` A pass ends on its own clock well inside an hour, so this
    normally clears in minutes.
-3. Pull, rebuild, re-deploy the tasks.
+3. Pull, rebuild, re-deploy the tasks. **On `ownpace-live`, never a pull:**
+   this step is `./deploy/compose/deploy-live.sh <tag>` with a release tag,
+   after its `--dry-run` (*`ownpace-live`: a release tag, with
+   `deploy-live.sh`*, above). The pull is the OTA stack's.
 4. Lift the hold. The next tick starts passes again.
 
 While the hold is on, every signed-in customer sees a note at the top of every

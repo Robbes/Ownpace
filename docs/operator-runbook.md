@@ -508,12 +508,29 @@ updated checkout. A bind on a mesh address also ties the container's start to th
 reboot. `docs/managed-bring-up.md`, *Which address a port answers on*, has the detail and the
 remedy.
 
-1. Back up the DB (above).
-2. Pull the new images / new code.
-3. Apply migrations as a **gated step** — run and verify before/with the deploy (§22.1). Migrations
-   are linear and idempotent; a runner applies only unapplied versions.
-4. Start the new app tier; watch health checks and per-tenant run success.
-5. Roll-forward preferred; if a release misbehaves, restore from backup rather than reversing schema.
+**Which stack decides how** (workplan 0132 T6):
+
+- **`ownpace-live`** moves only to a release tag, by hand, with
+  `./deploy/compose/deploy-live.sh <tag>` from `~/ownpace-live`: the hold, the drain, the tag, the
+  bring-up without the demo, the checks, and then you lift the hold. The steps are in
+  `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
+  `git pull` there.
+- **The OTA stack** (`~/ownpace-managed`) is deployed by the nightly gate, from `main`. By hand, the
+  pull sequence in the same section of the bring-up.
+
+On either, this is what an upgrade does and does not do:
+
+1. Nothing backs the database up for you. Dump it first (above) if you want a way back. On live,
+   `./deploy/compose/deploy-live.sh --dry-run <tag>`, with the hold on, says first whether the
+   deploy is one-way, moving nothing; the dump matters when it is.
+2. Migrations are not a separate, gated step. The API applies them when it starts
+   (`runMigrations`, behind an advisory lock). They are linear and idempotent, and a runner applies
+   only unapplied versions. An older build refuses to start on a schema newer than it knows, so a
+   deploy that added a migration only goes forward. On live, `deploy-live.sh` says so before you
+   lift the hold: *one-way* or *reversible*.
+3. Watch health checks and per-tenant run success after it.
+4. Roll forward: a fix and a new tag. If a release misbehaves and cannot be fixed forward, restore
+   from a backup rather than reversing schema.
 
 ## Grant links: who granted what
 
