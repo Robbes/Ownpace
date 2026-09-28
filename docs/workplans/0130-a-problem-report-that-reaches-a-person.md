@@ -1,6 +1,6 @@
 # Workplan 0130 — A problem report that reaches a person
 
-> **In one line:** Report a problem on managed: a form that files a ticket on the owner's Zammad via `POST /api/problem-reports`, linked from the `unknown` failure remedy with its `last_error_reference`, the same helpdesk for a grant or progress link's *Report this link*, plus privacy-policy wording.
+> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a ticket on the owner's Zammad, or mails the support mailbox without one (the alpha); linked from the `unknown` failure remedy with its reference; the same for *Report this link*; plus privacy wording.
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
@@ -19,9 +19,12 @@ smaller one, in English and Dutch (`report.tooLarge`).
 
 With 8 MB let through, the route no longer parses before it knows who is sending. Its parser was
 mounted on the whole router, so it read and parsed up to 8 MB before sign-in, and a body that was
-not JSON became a 500 *"fault on our side"* recorded as `api.unhandled`. Now sign-in, the
-helpdesk, the reply address and the hour's five come first, and a body too large is answered 413
-(`report_too_large`) in JSON. Every other refusal the parser makes of what was sent is answered
+not JSON became a 500 *"fault on our side"* recorded as `api.unhandled`. Now sign-in, where a
+report can go (`reportChannel`: a Zammad or, since T5 below, the support mailbox; neither answers
+503 as before), the reply address and the hour's five come first, and a body too large is answered
+413 (`report_too_large`) in JSON. Only T5's day's cap on report mails is taken after the body, as
+T5 built it: a report that is refused sends no mail, so it uses none of the fifty, and reading its
+body first is bounded by the hour's five. Every other refusal the parser makes of what was sent is answered
 with its own status as `invalid_report`: not JSON 400, a charset or a `Content-Encoding` it does
 not read 415 (the review found `charset=latin1` still answered 500 and recorded as
 `api.unhandled`), a body cut short 400. A 5xx the parser raises still goes to the API's handler.
@@ -40,7 +43,8 @@ check. The form waits two minutes for a report (`REPORT_TIMEOUT_MS`), not the AP
 seconds, which needed about 1.9 Mbit/s of upstream for a report that large. When the time runs out,
 the form says in English or Dutch that it cannot tell whether the report arrived
 (`report.timedOut`), since the front may already have handed it on and sending it again can make
-a second ticket. **Two gaps, not handled:** below about 0.6 Mbit/s of upstream a report near
+a second ticket or mail. T5's 20 s deadline on a report mail sits inside those two minutes as the
+Zammad call's does; a link's page still waits the API client's 30 seconds. **Two gaps, not handled:** below about 0.6 Mbit/s of upstream a report near
 7 MB still runs out of time. And a front that drops the connection instead of answering 413
 leaves the form saying *Network Error*, with no hint that the screenshot was the cause. Showing
 the too-large hint then would be wrong whenever the network itself was down, so it is not.
@@ -71,6 +75,108 @@ screenshot at 10 MB and its `maxLength` at 10000, the page cap at 4000, the 4xx 
 English. The two that survived were conditions no test could tell apart (a 400 floor no
 body-parser error goes under, and a "not JSON" branch the 4xx one now covers), and both were
 removed.
+
+Stacked on T5's branch (merged in, 2026-09-28), so both hold: the checks before the body ask
+`reportChannel`, a report by mail gets the same 413 and 400 as one to a Zammad, and
+`a-report-that-reaches-support-by-mail` gains a case (34) that a body too large or not JSON sends
+nothing and uses none of the day's mails. Seen red with the day's cap moved before the body.
+
+**2026-09-28: a report reaches support by mail (T5), built on branch
+`claude/ownpace-public-readiness-y7orc6-a-report-that-reaches-support-by-mail`, not merged;
+brought up to `main` at `683525c8` (merged in) and corrected after two reviews the same day.**
+The owner had never seen the form work: no deployment the repository defines runs a Zammad, so
+`/available` answered false and the link never showed. Two answers the same day:
+
+- the form is on at `ownpace-live` for the whole alpha: *"yes, we need that. I haven't seen it
+  funcitonal yet."*;
+- for the alpha a report goes by mail, not to a Zammad: *"b"*, the option *"The report form sends
+  its report as an email to support@ownpace.eu, with the screenshot attached, through the Proton
+  relay that already works"*. Zammad stays the long-term plan (D1 is not withdrawn).
+
+What was built:
+
+- **A second way for a report to travel** (`apps/api/src/services/report-channel.ts`). When
+  `ZAMMAD_URL` and `ZAMMAD_TOKEN` are not both set and the API's mail is (`SMTP_*` and
+  `NOTIFY_FROM`, read by the notifier's own `readNotifierConfig`), a report is one plain-text mail
+  through the same `smtpTransport` and its TLS rules (no login over cleartext, 0133 T2 item 5):
+  from `NOTIFY_FROM`, to the new `REPORT_MAIL_TO` (one address or several; `NOTIFY_TO` when
+  empty), Reply-To the reporter's sign-in address when it is one valid address, Subject the
+  ticket's title (*Ownpace: <first line>*), the ticket's article as the body (description, `Page`,
+  `Reference`, `Category`, `Organisation`, `Build`), and the screenshot attached after the same
+  first-bytes check. Two lines more than the ticket. `Reply to: <address> (sign-in address)`: on
+  live the mail goes from `support@ownpace.eu` to itself, where a client may answer to its own To
+  or the provider may drop the header, so the body names who to write to as well. And `Report
+  reference: <reference>`: with no ticket number, the person is answered with the report's own
+  reference, named apart from the error's `Reference` above it, which the log page finds and this
+  one it does not. Zammad, when set, still wins; a Zammad set wrongly leaves the form off, as
+  before, rather than falling back to mail.
+- **The relay is shared, so report mail is capped and quick.** On live the relay's login also
+  sends the identity provider's sign-in codes (0133 T0), and the link door needs no account. At
+  most 50 report mails a day go out for both doors together (`REPORT_MAIL_PER_DAY`), refused past
+  that with 429 and a log line. A send is given up on at `REPORT_MAIL_DEADLINE_MS`, 20 s, as a
+  Zammad call is, because the web client stopped waiting at 30 s (a link's page still does; the
+  form, since *a screenshot the front door lets through* above, waits two minutes); the route then answers 502 with a
+  reference. nodemailer's own waits (`REPORT_MAIL_TIMEOUTS`: 5 s to connect, 5 s for the
+  greeting, 20 s of silence; its defaults are 2 min, 30 s and 10 min) bound each wait, not the
+  send: when a connection times out it tries the relay's next address with a fresh wait, and
+  `smtp.protonmail.ch` resolves to three. The second review measured the first round's 10 s to
+  connect against three addresses that let the connection hang: given up on after 30 s, when the
+  web client already had. With 5 s, three addresses and the greeting fit inside the deadline.
+  nodemailer cannot be stopped mid-send, so a mail given up on that goes out after all, or fails
+  after all, is said in the log (`went out after all`, `failed after all`).
+  `REPORT_MAIL_TO` set with the mail still off is said in the log once, with what is missing.
+- **`GET /available`** answers true when either way is set up. A mail the relay refuses is
+  answered exactly as a Zammad refusal: 502 with a reference, `report.not-delivered` recorded. The
+  five-an-hour limit per person applies to both.
+- **The web form's answer.** With mail there is no ticket number: *"Sent to our support team, with
+  report reference {reference}. We will reply by email to {email}."* / *"Verstuurd naar ons
+  supportteam, met meldingskenmerk {reference}. We antwoorden per e-mail naar {email}."* Zammad's
+  sentence stays when Zammad answered.
+- **Link reports** (*Report this link*, 0108 T8 (d)) go the same way: one mail with the note's
+  facts and the reporter's words, and the same answer with a reference (EN and NL, with and
+  without an address). The mail has **no Reply-To**, even when the reporter typed an address. In
+  Zammad the note is internal; in a mailbox, Reply would quote it (who issued the link, the
+  accounts, the ids) to an unverified address. The address is on the note's `Reply to:` line, and
+  the mail's first line tells the owner to answer with a new mail and leave the facts out. This
+  part turned out small, so it was built rather than left on Zammad only.
+- **One change on the Zammad path too.** The ticket's title is now kept to one line: a control
+  character in the first line (a tab, a stray carriage return) becomes a space, since the mail's
+  Subject is the same title. The article and the link note are unchanged.
+- **Deploy and docs.** `managed.yml` passes `REPORT_MAIL_TO` to the API, empty by default;
+  `managed.env.example` documents it and says the form works with mail alone; step 8f of
+  `docs/managed-bring-up.md` puts the mail first and Zammad second, and now recreates the API with
+  `docker compose -f deploy/compose/managed.yml up -d --wait api`, since `restart` does not read
+  `.env` again. On a stack still pointed at Mailpit (`managed.env.example`'s defaults, the nightly
+  gate's stack) the form is now on, and Mailpit catches the reports. Stage 8 step 7 of
+  `docs/owner-test-runbook.md` now expects the form on live and checks the mail, its screenshot
+  and reference, and the reply; 0141 T12, 0151 §1, 0108 T8 (d) and 0144 T6 say the form shows
+  with the mail alone (dated notes where the old sentence was a record).
+- **Guards.** `a-report-that-reaches-support-by-mail` in the API (33: where a report goes, the mail
+  it becomes with its `Reply to:` line and a Reply-To only for one valid address, the form's route
+  and the link doors with the relay faked at its transport, the timeouts handed to it, a link
+  report with no Reply-To, Zammad still winning, the 502, the limits and the day's cap shared by
+  both doors, the log line said once; from the second review, the 502 at the deadline, the late
+  outcome said in the log, nodemailer itself over a relay of three and of six addresses that let
+  every connection hang, and the day's cap as the routes are wired, with no `mailCap` of the
+  test's own, driven to fifty through all three doors), in `packages/connectors` (5: the Reply-To
+  header and the attachment as nodemailer renders them, `requireTLS` with a login, and the three timeouts reaching
+  nodemailer only when given), and in the web app (8: the answer in English and Dutch for both
+  forms, naming a report reference and no ticket, and Zammad's sentence kept). Each new case was
+  seen red with its line of the change undone; the second review's eight mutations (no deadline,
+  a 30 s deadline, 10 s to connect, no late log line, the late success not said, a new day's
+  count on every call, a count of the link doors' own, and no fresh day between tests) each
+  turned a guard red. `a-helpdesk-the-api-was-never-handed` now also reads
+  `reportMailConfigFrom`, so
+  `REPORT_MAIL_TO` must reach the API (12, was 10). Existing guards green:
+  `a-report-that-reaches-a-person` (API 25, web 7), `a-link-that-can-be-reported` (API 18, web
+  11; the web one's mocked service now answers `{ ticket }`).
+
+**The privacy consequence, for T4.** By mail, a report (what the person wrote, the page, the
+organisation's id, the build, the screenshot) and a link report (its facts and, if given, a typed
+address) pass the Proton relay, already the mail sub-processor (0133), and are kept in the support
+mailbox, not on a Zammad the owner runs. T4's paragraph, not written yet, must say so: where
+reports go during the alpha, that the relay carries them, and how long the mailbox keeps them. It
+is recorded here only; `site/legal` is not edited by this change.
 
 **2026-09-24: a link holder can report too (workplan 0108 T8 (d)).** The owner decided that
 *"report this link"* goes to this form's helpdesk. The grant and progress pages offer it when
@@ -127,7 +233,8 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 | T1 A report form in the app | ✅ **Built 2026-09-23** (D2) | §3. What the person writes, the page they are on, the error they see, and a screenshot if they add one. |
 | T2 The report becomes a Zammad ticket | ✅ **Built 2026-09-23** (D1) | §3. Created by the API on the owner's own Zammad, so a reply reaches the person by email. |
 | T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
-| T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. |
+| T4 The privacy policy names support requests | 📋 **Proposed** | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. |
+| T5 Without a Zammad, a report goes to the support mailbox by mail | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"b"*) | Status entry of the day. `REPORT_MAIL_TO` (else `NOTIFY_TO`) through the API's own relay, the signed-in reporter as Reply-To and on a `Reply to:` line, the screenshot attached; the form's answer names a report reference, not a ticket. Link reports too, with no Reply-To. At most 50 report mails a day, since the relay is the identity provider's too (0133). A Zammad, when set, still wins. |
 
 ## 1. What there is today
 

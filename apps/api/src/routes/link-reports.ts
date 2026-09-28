@@ -2,7 +2,9 @@
 
 /**
  * "Report this link" (workplan 0108 T8 (d)): a link holder's report, delivered
- * as a ticket on the owner's own Zammad, like every other report (0130).
+ * as a ticket on the owner's own Zammad, like every other report (0130), or,
+ * on a service with no Zammad, as one mail to its support mailbox (the owner,
+ * for the alpha, 2026-09-28; `services/report-channel.ts`).
  *
  * One router per kind of link, mounted beside that link's own routes:
  * `/api/grant/:link/report` for the grant page, `/api/view/:link/report` for
@@ -20,7 +22,10 @@
  *   perhaps adds something later;
  * - **thirty an hour across the service**, for grant and progress links
  *   together, so that minting links to report from cannot fill the owner's
- *   helpdesk faster than somebody reads it. Both routers share the one count.
+ *   helpdesk faster than somebody reads it. Both routers share the one count;
+ * - **and, by mail, fifty a day** for every report mail together, this door's
+ *   and the signed-in form's (`REPORT_MAIL_PER_DAY`), since the relay's login
+ *   also sends the identity provider's sign-in codes (0133).
  *
  * Only a report that parses counts against either. A refusal costs nothing
  * and makes no ticket.
@@ -38,19 +43,26 @@ import type { Pool } from 'pg';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
-import { log, newAppEvent, recordAppEvent, viewGrantFor } from '@openmig/shared';
+import { log, newAppEvent, newReference, recordAppEvent, viewGrantFor } from '@openmig/shared';
 import { authenticateMappingLink, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import type { MappingLinkRequest } from '../types/api.ts';
 import { serverFault } from '../server-fault.ts';
 import { createKnockLimiter, type KnockLimiter } from '../knock-limit.ts';
 import { isRefusal } from '../problem-report.ts';
 import {
+  linkReportMailFor,
   linkReportTicketFor,
   parseLinkReport,
   type LinkReportFacts,
   type ReportedLink,
 } from '../link-report.ts';
-import { createZammadTicket, reportingConfig, ZammadRefused, zammadOwnUserId } from '../services/zammad.ts';
+import { createZammadTicket, ZammadRefused, zammadOwnUserId } from '../services/zammad.ts';
+import {
+  reportChannel,
+  sendReportMail,
+  takeReportMail,
+  type ReportMailTransport,
+} from '../services/report-channel.ts';
 import { namedAccount, readAskedBy, readGrantRows, whereFromAndTo } from './migrations/grant-subject.ts';
 
 /** Three reports a day, per link. */
@@ -68,8 +80,12 @@ const OVERALL = createKnockLimiter(LINK_REPORT_OVERALL);
 export interface LinkReportDeps {
   readonly env?: NodeJS.ProcessEnv;
   readonly fetchImpl?: typeof fetch;
+  /** How a report mail reaches the relay; `smtpTransport` unless a test fakes it. */
+  readonly mailTransport?: ReportMailTransport;
   readonly perLink?: KnockLimiter;
   readonly overall?: KnockLimiter;
+  /** The day's report mails, shared with the signed-in form unless a test gives its own. */
+  readonly mailCap?: KnockLimiter;
   /** The database, resolved on the first request, as `grant.ts` resolves it. */
   readonly source?: () => Pool | LedgerDriver;
 }
@@ -124,12 +140,12 @@ export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}):
 
   /** Whether to offer the report at all: a report that can reach nobody is not offered. */
   router.get('/:link/report', linkAuth, (_req, res: Response) => {
-    res.json({ available: reportingConfig(deps.env) !== undefined });
+    res.json({ available: reportChannel(deps.env) !== undefined });
   });
 
   router.post('/:link/report', linkAuth, async (req: MappingLinkRequest, res: Response) => {
-    const config = reportingConfig(deps.env);
-    if (!config) {
+    const channel = reportChannel(deps.env);
+    if (!channel) {
       res.status(503).json({
         error: 'reporting_unavailable',
         reason: 'Reporting a link is not set up on this service.',
@@ -177,7 +193,29 @@ export function linkReportRoutes(link: ReportedLink, deps: LinkReportDeps = {}):
       return;
     }
 
+    if (channel.kind === 'mail') {
+      const today = takeReportMail(deps.mailCap);
+      if (!today.ok) {
+        res.set('Retry-After', String(today.retryAfter));
+        res.status(429).json({
+          error: 'too_many_reports',
+          reason: 'Many reports reached us today. Please try again tomorrow.',
+        });
+        return;
+      }
+    }
+
     try {
+      if (channel.kind === 'mail') {
+        // No ticket number to give, so the report's own reference, which its
+        // mail carries too: what the person quotes is what the mailbox finds.
+        const reference = newReference();
+        await sendReportMail(channel.mail, linkReportMailFor(parsed, facts, reference), deps.mailTransport);
+        log.info(`[api] a link report was sent to the support mailbox [report ${reference}]`);
+        res.status(201).json({ reference });
+        return;
+      }
+      const config = channel.zammad;
       // A report without a reply address is filed under the helpdesk's own
       // user (the owner, 2026-09-24): asked only then, since an addressed
       // report's customer is the reporter.

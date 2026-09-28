@@ -11,8 +11,11 @@
  * (no link secret, no query), a reference only in its own shape, and a category
  * only if it is one this product has. The server checks each again.
  *
- * The report becomes a ticket on the owner's helpdesk, and the reply comes by
- * email, so the page says which address before it is sent.
+ * The report becomes a ticket on the owner's helpdesk, or, on a service with no
+ * helpdesk, a mail to its support mailbox (the owner, for the alpha,
+ * 2026-09-28). The reply comes by email either way, so the page says which
+ * address before it is sent, and afterwards names the ticket's number, or the
+ * report's reference when there is no ticket.
  */
 
 import React, { useState } from 'react';
@@ -108,7 +111,9 @@ const ReportProblem: React.FC = () => {
       <div className="max-w-2xl">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">{t('report.title')}</h1>
         <p role="status" className="text-gray-900">
-          {t('report.sent', { ticket: send.data, email: email ?? '' })}
+          {'ticket' in send.data
+            ? t('report.sent', { ticket: send.data.ticket, email: email ?? '' })
+            : t('report.sent.mail', { reference: send.data.reference, email: email ?? '' })}
         </p>
       </div>
     );
