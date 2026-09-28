@@ -676,10 +676,21 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-upsert.sh`
 
+- [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
+- [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [pasteable-hints](../scripts/pasteable-hints.unit.test.ts) — A command a script prints for a human to paste is part of its interface, and it is expanded by the OPERATOR'S shell before it ever reaches a container.
+- [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
+- [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 - [two-readings-of-one-env-file](../scripts/two-readings-of-one-env-file.unit.test.ts) — ONE .env, READ THREE DIFFERENT WAYS, AND THE THIRD WAS NOBODY'S JOB.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/exposure-check.sh`
 
@@ -938,8 +949,16 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/stack-kind.sh`
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
+- [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
+- [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+- [seed-managed](../scripts/seed-managed.unit.test.ts) — The seed, and the password the volume never heard of.
+- [two-stacks-on-one-box](../scripts/two-stacks-on-one-box.unit.test.ts) — TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7, D9).
 
 ### `deploy/compose/stand-up-live.sh`
 
@@ -2339,6 +2358,7 @@ Reads:
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
+- `deploy/compose/stack-kind.sh`
 - `deploy/compose/www-live.sh`
 - `deploy/compose/www.yml`
 - `docs/incident-runbook.md`
@@ -2353,6 +2373,7 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `apps/web/src/pages/end-user-docs.unit.test.tsx`
+- `deploy/compose/env-upsert.sh`
 - `docs/LESSONS.md`
 - `docs/adr/0041-who-owns-the-oauth-client.md`
 - `docs/adr/OPERATIVE.md`
@@ -2458,6 +2479,7 @@ Reads:
 - `deploy/compose/box-duties.sh`
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
@@ -2465,6 +2487,7 @@ Reads:
 - `deploy/compose/refuse-live-env.sh`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/smoke-managed.sh`
+- `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-version.sh`
 - `deploy/compose/www-live.sh`
 - `docs/managed-bring-up.md`
@@ -2523,10 +2546,12 @@ Reads:
 - `deploy/compose/box-duties.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/release-tag.sh`
+- `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/trigger-cli-lib.sh`
 - `deploy/compose/www-live.sh`
@@ -2764,6 +2789,7 @@ Reads:
 
 - `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/trigger-remember-token.sh`
 - `packages/testing/fixtures/stalwart/config.json`
 
@@ -2908,6 +2934,7 @@ Reads:
 
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stand-up-live.sh`
@@ -3110,6 +3137,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/operator.sh`
 - `deploy/compose/seed-managed.sh`
+- `deploy/compose/stack-kind.sh`
 - `docs/managed-bring-up.md`
 
 ### [a-red-verdict-the-table-calls-stable](../scripts/a-red-verdict-the-table-calls-stable.unit.test.ts)
@@ -3218,6 +3246,7 @@ Reads:
 - `apps/api/src/scripts/seed-managed.ts`
 - `apps/worker/src/jobs/refuse-internal-addresses.ts`
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/set-task-env.sh`
@@ -3432,6 +3461,7 @@ Reads:
 
 - `deploy/compose/check-env-agreement.sh`
 - `deploy/compose/ensure-env-secrets.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/set-task-env.sh`
 
@@ -3484,6 +3514,7 @@ Reads:
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.yml`
+- `deploy/compose/stack-kind.sh`
 - `docs/operator-runbook.md`
 - `scripts/idp-pin-watch.mjs`
 
@@ -3895,6 +3926,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
 - `deploy/compose/release-tag.sh`
+- `deploy/compose/stack-kind.sh`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www-live.sh`
 
@@ -3954,6 +3986,7 @@ Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/setup-zitadel.sh`
@@ -3976,6 +4009,7 @@ Reads:
 
 - `.github/workflows/e2e-managed.yml`
 - `deploy/compose/db-roles.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/rotate-db-passwords.sh`
@@ -4017,6 +4051,7 @@ Reads:
 - `deploy/compose/rotate-db-passwords.sh`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/seed-managed.sh`
+- `deploy/compose/stack-kind.sh`
 
 ### [setup-nextcloud-users](../scripts/setup-nextcloud-users.unit.test.ts)
 
@@ -4067,6 +4102,7 @@ Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
 - `deploy/compose/zitadel-network-alias.sh`
@@ -4275,12 +4311,14 @@ TWO STACKS ON ONE BOX, AND EVERY NAME FOLLOWS ITS PROJECT (workplan 0132 T1, D7,
 Reads:
 
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/exposure-check.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/operator.sh`
 - `deploy/compose/reset-trigger.sh`
 - `deploy/compose/seed-managed.sh`
 - `deploy/compose/smoke-managed.sh`
+- `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-credentials.sh`
 - `deploy/compose/trigger-magic-link.sh`
 - `deploy/compose/www.yml`
