@@ -7,70 +7,70 @@
      the top of alpha.md — it applies to both files. Not rendered by the site
      build and not linked from anywhere yet (0139 T10). -->
 
-# Voorwaarden voor de alfa
+# Voorwaarden voor de Alpha
 
-**Gelden voor:** de alfa van de **beheerde Ownpace-dienst** op `ownpace.eu`.
-**Versie:** 0.1 (concept voor juridische toetsing — nog niet gepubliceerd; zie `site/legal/README.md`)
+**Gelden voor:** de Alpha van de **beheerde Ownpace-dienst** op `ownpace.eu`.
+**Versie:** 1.0
 **Laatst bijgewerkt:** 2026-09-28
 
 ---
 
-## 1. Wat de alfa is
+## 1. Wat de Alpha is
 
-De alfa is een proef met de beheerde Ownpace-dienst. Een kleine groep doet mee, en iedereen in
-die groep hebben wij zelf uitgenodigd. De alfa duurt enkele weken.
+De Alpha is een proef met de beheerde Ownpace-dienst. Een kleine groep doet mee, en iedereen in
+die groep is zelf uitgenodigd. De Alpha duurt enkele weken.
 
 **Alleen huishoudens.** U doet mee als particulier, met uw eigen accounts of die van uw gezin.
-Een bedrijf of een andere organisatie kan tijdens de alfa niet meedoen. Dat de app uw omgeving
+Een bedrijf of een andere organisatie kan tijdens de Alpha niet meedoen. Dat de app uw omgeving
 een "organisatie" noemt, verandert daar niets aan.
 
 ## 2. Hoe deze voorwaarden bij de andere horen
 
 Deze voorwaarden horen bij de [servicevoorwaarden](./voorwaarden.html) en de
-[privacyverklaring](./privacy.html). Ze gelden zolang de alfa duurt. Zeggen ze iets anders dan
+[privacyverklaring](./privacy.html). Ze gelden zolang de Alpha duurt. Zeggen ze iets anders dan
 de servicevoorwaarden of de privacyverklaring, dan gaan deze voorwaarden voor. In de
-privacyverklaring gaat het om twee punten van §9 (*Hoe lang we het bewaren*): de kopie vlak voor
+privacyverklaring gaat het om twee punten van §9 (*Hoe lang we bewaren*): de kopie vlak voor
 een update (§6 hieronder), en de toegang die u ons gaf, de rij *Toegangsgegevens* (§10 hieronder).
 
-Tijdens de alfa gelden deze delen van de servicevoorwaarden niet:
+Tijdens de Alpha gelden deze delen van de servicevoorwaarden niet:
 
 - **§6 (prijzen), §7 (herroepingsrecht), §8 (facturatie) en §15 (modelformulier voor
   herroeping).** Er wordt niets in rekening gebracht (§3 hieronder).
 - **De opzegtermijnen in §11, tweede alinea:** 30 dagen voordat wij de voorwaarden beëindigen,
   en 90 dagen als wij met de dienst stoppen. In plaats daarvan geldt de termijn in §5 en §11
-  hieronder. De export die die alinea belooft als wij met de dienst stoppen, geldt wel.
+  hieronder. De export die deze alinea belooft als wij met de dienst stoppen, geldt wel.
 
 De rest van de servicevoorwaarden geldt gewoon, en de rest van de privacyverklaring ook.
 
 ## 3. Gratis
 
-Tijdens de alfa wordt niets in rekening gebracht. U legt geen betaalwijze vast, en u krijgt geen
+Tijdens de Alpha wordt niets in rekening gebracht. U legt geen betaalwijze vast, en u krijgt geen
 factuur.
 
-## 4. Geen verplichtingen, aan beide kanten
+## 4. Geen verplichtingen, beide kanten uit
 
 Er is geen serviceniveau. Wij beloven geen snelheid, geen opleverdatum en geen hersteltijd. U mag
-op elk moment stoppen (§10). Wij mogen de alfa stoppen (§5).
+op elk moment stoppen (§10) en wij mogen de Alpha stoppen (§5).
 
 Onze plichten voor uw gegevens blijven wel. Wij beveiligen ze, bewaren ze niet langer dan de
-privacyverklaring en §6 en §10 hier zeggen, melden u een datalek als dat nodig is, en beantwoorden uw verzoeken over
+privacyverklaring en §6 en §10 hier zeggen: wij melden een datalek als dat nodig is, en beantwoorden uw verzoeken over
 uw rechten.
 
 ## 5. Geen belofte over beschikbaarheid
 
-De dienst kan tijdens de alfa haperen of een tijd niet werken. Zoals §9 van de
+De dienst kan tijdens de Alpha haperen of een tijd niet werken. Zoals §9 van de
 servicevoorwaarden al zegt, is er geen beschikbaarheidsgarantie.
 
 Wij kunnen de dienst stilzetten, bijvoorbeeld bij een storing of een beveiligingsprobleem. Er
 start dan geen nieuwe ronde, en u ziet dat in de app. Dat kan zonder waarschuwing vooraf.
 
-Wij kunnen de alfa ook opnieuw laten beginnen (een reset) of beëindigen. Bij een reset wissen wij
+Wij kunnen de Alpha ook opnieuw laten beginnen (een reset) of beëindigen. Bij een reset wissen wij
 de gegevens van de dienst, en begint u opnieuw zoals §6 beschrijft voor een verloren machine. Een
 reset of het einde melden wij u per e-mail, minstens «ALPHA_NOTICE_PERIOD» van tevoren.
 
 ## 6. Geen back-ups
 
-Tijdens de alfa maken wij geen back-ups van de eigen gegevens van de dienst: uw organisatie, de
+Tijdens de Alpha maken wij geen back-ups van de eigen gegevens van de dienst: uw organisatie, de
 accounts die u hebt gekoppeld, uw verhuizingen en hun geschiedenis, en uw Ownpace-inlogaccount.
 
 Eén uitzondering. Vlak voor elke update van de dienst maken wij één kopie van de databases. Die
@@ -79,7 +79,7 @@ update gelukt is, en nooit langer dan 7 dagen. Ze staat op dezelfde machine als
 de dienst. Wordt uw account gewist, dan kunnen uw gegevens nog hoogstens 7 dagen
 in die kopie staan.
 
-Gaat de machine waarop de alfa draait verloren, dan gaan de gegevens van de dienst en die kopie
+Gaat de machine waarop de Alpha draait verloren, dan gaan de gegevens van de dienst en die kopie
 mee verloren. Uw eigen gegevens niet: Ownpace verwijdert niets uit uw oude account, en wat naar uw nieuwe aanbieder is
 gekopieerd, blijft daar staan. Wij laten u dan opnieuw toe, net als de eerste keer. U logt
 opnieuw in, koppelt uw accounts opnieuw en zet uw verhuizingen opnieuw op. De eerste ronde
@@ -101,11 +101,11 @@ bij een experimentele bron telt het extra.
 
 Uw account is alleen voor u. Deel uw inloggegevens met niemand.
 
-Nodig tijdens de alfa niemand anders uit in uw organisatie. Wil iemand een verhuizing volgen,
+Nodig tijdens de Alpha niemand anders uit in uw organisatie. Wil iemand een verhuizing volgen,
 stuur dan de voortgangslink van die verhuizing: die toont aantallen en status, nooit de inhoud.
 Nodigt u toch iemand uit, geef die persoon dan de rol beheerder, en weet dat een beheerder alles
 kan wat u kunt, behalve de organisatie sluiten of heropenen, het toepassen van verwijderingen of het
-automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand eigenaar maken. Tijdens de alfa kan iemand alleen eigenaar of beheerder zijn. U bent zelf verantwoordelijk
+automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand eigenaar maken. Tijdens de Alpha kan iemand alleen eigenaar of beheerder zijn. U bent zelf verantwoordelijk
 voor wie u uitnodigt.
 
 ## 9. Google vraagt opnieuw
@@ -135,25 +135,24 @@ termijn die u koos.
 Worden uw gegevens gewist, dan verwijderen wij ook uw Ownpace-inlogaccount, halen wij uw
 Google-adres van de lijst van testgebruikers (§9), en wissen wij uw aanvraag voor toegang.
 
-## 11. Het einde van de alfa
+## 11. Het einde van de Alpha
 
-Na de alfa gaat de dienst door, onder nieuwe voorwaarden. Misschien verhuist hij dan van de
-machine waarop hij nu draait naar een andere hostingaanbieder.
+Na de Alpha gaat de dienst door, onder nieuwe voorwaarden. Misschien verhuist de dienst naar een 
+andere hosting omgeving dan nu.
 
-Wij laten het u minstens «ALPHA_NOTICE_PERIOD» van tevoren per e-mail weten. U krijgt dan de
-nieuwe voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizingen gaan pas
+Wij laten het u minstens 7 dagen van tevoren per e-mail weten. U krijgt dan de
+nieuwe voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizing gaat pas
 onder de nieuwe voorwaarden door als u die hebt aanvaard. Wilt u liever stoppen, sluit dan uw
-account zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan sluiten wij het voor u,
-voordat er iets van uw gegevens naar een andere hostingaanbieder gaat. Uw gegevens worden dan
-gewist zoals §10 en de privacyverklaring beschrijven.
+account zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan verhuizen uw gegevns 
+niet mee naar de nieuwe dienst. Uw gegevens worden dan gewist zoals §10 en de privacyverklaring
+beschrijven.
 
-Wat al naar uw nieuwe aanbieder is gekopieerd, blijft daar in elk geval staan.
+Wat u al naar uw nieuwe aanbieder hebt gekopieerd (migratie), blijft daar in elk geval staan.
 
-## 12. Een mens bereiken
+## 12. Ons bereiken
 
-Mail naar **support@ownpace.eu**. Daar leest een mens mee. Staat *Een probleem melden* in het
-menu van de app, dan kan het ook daar. Stuur nooit een wachtwoord, een token of de inhoud van een
-mailbox.
+Mail naar **support@ownpace.eu**. U kunt ook *Een probleem melden* in het menu van de app. 
+Stuur nooit een wachtwoord, een token of andere gevoelige gegevens.
 
 Mail van de dienst, zoals uw inlogcodes en ons antwoord op uw aanvraag, komt van
 support@ownpace.eu. Antwoordt u op zo'n mail, dan komt uw antwoord bij ons aan.
