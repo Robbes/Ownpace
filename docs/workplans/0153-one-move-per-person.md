@@ -8,9 +8,14 @@
 *"Connect with Google (2 of 3)"*, the owner asked: *"should we not ask for all the needed grants
 in one go, like how we do now?"* Yes. The *Google account* card already makes one connection with
 one consent for the ticked data types (0106 T3b, ADR-0041). Where the deployment declares
-`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, that consent covers mail and files too. T4's *Connect*
-step said up to three consents, and *Not in this plan* called one consent out of scope. Both were
-wrong and are corrected, and so is the drawing's step 4.
+`GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`, that consent covers mail and files too. The OTA stack
+declares it; live is not stood up yet, and declares it if 0140 T1 keeps its client in Testing
+(the owner, the same evening). T4's *Connect* step said up to three consents, and *Not in this
+plan* called one consent out of scope. Both were wrong and are corrected, and so is the drawing's
+step 4.
+
+The drawings' plan numbers were also asked about: they are notes for the builder, never text on
+a screen. Where one sat inside a screen's text, it moved into a note (`docs/design/0152-0154/`).
 
 **2026-09-28, evening: the owner's second answers, and two of T1's four faults in review.** Asked
 the questions this plan left open, the owner answered:
@@ -426,8 +431,12 @@ on its heading, as 0145 T3 built for the wizard.
      reads what each provider serves on this deployment from `GET /api/provider-accounts`
      (`providerAccountFacts`), as the wizard does, and builds nothing new for it.
    - **For Google, that is one consent for mail, calendar, contacts, files and tasks** where the
-     deployment declares `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`. Live can, while its client
-     stays in Testing (0140 D1), because test users can grant Google's restricted scopes.
+     deployment declares `GOOGLE_ACCOUNT_SCOPE_CLASS=restricted`.
+     - **The OTA stack (`ownpace-managed`) declares it** (the owner, 2026-09-28).
+     - **Live is not stood up yet** (0132 T1b). Its `.env` takes the same line if 0140 T1 keeps
+       its client in Testing (D1), where test users can grant Google's restricted scopes.
+     - **If T1 publishes live's client to Production with the sensitive scopes only**, live gets
+       the case below.
    - **Only where a deployment has not declared it** (the default, and every appliance), Google's
      one consent covers calendar, contacts and tasks, and mail and files each take a consent of
      their own through the `gmail` and `google-drive` kinds, because Google classes those scopes

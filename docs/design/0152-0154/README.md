@@ -25,8 +25,14 @@ request.
 
 ## Reading a wireframe
 
-- **Bold dark-orange text is a note to the builder.** It names the task it comes from. It is not
-  part of the screen.
+- **Bold dark-orange text is a note to the builder, and never reaches a screen.** It names the
+  task a detail comes from, such as *0145 T7 (a)*.
+- **A plan number appears only in dark orange.** Every other text inside a screen's frame is what
+  a person reads there. A plan number in a string the product shows is a bug.
+- **On the two specification sheets** (`tiles.svg`, `icons.svg`), every explanation is a note in
+  the same orange. What is not orange is the tile, the icon and its name.
+- **«…» marks a placeholder** that the build fills in, the way the site already marks unfilled
+  passages. An example is the company's details in the footer.
 - **Names, counts and addresses are invented.** Addresses use reserved domains (`example.org`,
   `example.com`), as the app's own tests do.
 - **The words are proposals.** 0152 T0 and 0153 T0 and T6 decide them with the owner. The stage

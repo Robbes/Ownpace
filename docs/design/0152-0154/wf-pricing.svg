@@ -130,12 +130,12 @@
 <text x="300" y="774" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (c): the calculator’s button under the cards</text>
 <text x="40" y="812" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T6 (e) guardrails: nothing struck through; no &quot;was&quot; price; the discount compares two prices on sale now;</text>
 <text x="40" y="832" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">the year’s total bold on the line under the per-month figure, never in small print; VAT included; no countdown</text>
-<text x="40" y="876" font-size="15" font-weight="700" fill="#111827" text-anchor="start">The same card on Monthly</text>
+<text x="40" y="876" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">The same card when Monthly is chosen:</text>
 <rect x="40" y="890" width="228" height="150" rx="14" fill="#FFFFFF" stroke="#0E4F4A" stroke-width="2"/>
 <text x="60" y="926" font-size="20" font-weight="800" fill="#111827" text-anchor="start">Small</text>
 <text x="60" y="976" text-anchor="start"><tspan font-size="34" font-weight="800" fill="#111827">€5</tspan><tspan font-size="14" font-weight="500" fill="#374151"> a month</tspan></text>
 <text x="60" y="1004" font-size="13" font-weight="400" fill="#374151" text-anchor="start">Stop at the end of any month</text>
-<text x="300" y="916" font-size="15" font-weight="700" fill="#111827" text-anchor="start">The renewal line, under the cards on Yearly (T6 f, wording for T0 and the lawyer):</text>
+<text x="300" y="916" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">T6 (f): the renewal line, under the cards on Yearly; its words wait for T0 and the lawyer</text>
 <text x="300" y="944" font-size="14" font-weight="400" fill="#374151" text-anchor="start">A year renews by itself. You can stop at any time, and the whole months you have not used are refunded.</text>
 <text x="300" y="968" font-size="14" font-weight="400" fill="#374151" text-anchor="start">We remind you 30 days before each renewal.</text>
 <text x="40" y="1094" font-size="22" font-weight="700" fill="#111827" text-anchor="start">Questions</text>

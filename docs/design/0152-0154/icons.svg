@@ -27,8 +27,8 @@
 </symbol>
 </defs>
 <rect width="1100" height="400" fill="#FFFFFF"/>
-<text x="32" y="44" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Data-type icons (0152 T3, 0153 §5): 24 px, 2 px stroke, round ends, currentColor</text>
-<text x="32" y="70" font-size="14" font-weight="400" fill="#6B7280" text-anchor="start">Always shown with the data type’s name beside them; the icon itself is aria-hidden.</text>
+<text x="32" y="44" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Data-type icons</text>
+<text x="32" y="70" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">0152 T3, 0153 §5: 24 px, a 2 px stroke, round ends, currentColor; always with its name beside it, and aria-hidden.</text>
 <rect x="32" y="96" width="150" height="120" rx="12" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
 <use href="#i-mail" x="83" y="112" width="48" height="48" color="#0E4F4A"/>
 <text x="107" y="196" font-size="14" font-weight="600" fill="#111827" text-anchor="middle">Mail</text>
@@ -47,7 +47,7 @@
 <rect x="882" y="96" width="150" height="120" rx="12" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
 <use href="#i-tasks" x="933" y="112" width="48" height="48" color="#0E4F4A"/>
 <text x="957" y="196" font-size="14" font-weight="600" fill="#111827" text-anchor="middle">Tasks</text>
-<text x="32" y="252" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">In a row (20 px) and in dark mode the same symbol takes its colour from the text around it.</text>
+<text x="32" y="252" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">In a row (20 px) and in dark mode the same symbol takes its colour from the text around it.</text>
 <use href="#i-mail" x="40" y="272" width="20" height="20" color="#374151"/>
 <text x="68" y="287" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Mail</text>
 <use href="#i-calendar" x="210" y="272" width="20" height="20" color="#374151"/>

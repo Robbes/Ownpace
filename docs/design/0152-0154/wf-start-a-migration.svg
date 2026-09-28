@@ -27,7 +27,8 @@
 </symbol>
 </defs>
 <rect width="1280" height="1250" fill="#FFFFFF"/>
-<text x="32" y="44" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Start a migration: six screens (0153 T4), each starts at the top with focus on its heading</text>
+<text x="32" y="34" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Start a migration: six screens</text>
+<text x="32" y="57" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">0153 T4: each screen starts at the top, with focus on its heading</text>
 <rect x="32" y="70" width="390" height="540" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
 <text x="52" y="98" font-size="12" font-weight="600" fill="#6B7280" text-anchor="start">Step 1 of 6</text>
 <text x="52" y="126" font-size="18" font-weight="800" fill="#111827" text-anchor="start">Who is it for?</text>
@@ -40,7 +41,8 @@
 <circle cx="66" cy="282" r="8" fill="none" stroke="#9CA3AF" stroke-width="2"/>
 <text x="84" y="287" font-size="14" font-weight="500" fill="#111827" text-anchor="start">Someone else</text>
 <text x="84" y="307" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">They connect their own accounts with a link;</text>
-<text x="84" y="323" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">you never hold their password (0108).</text>
+<text x="84" y="323" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">you never hold their password.</text>
+<text x="84" y="347" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0108: the grant link</text>
 <rect x="282" y="546" width="120" height="44" rx="8" fill="#2563EB"/>
 <text x="342.0" y="572.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Next</text>
 <rect x="445" y="70" width="390" height="540" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
@@ -144,8 +146,8 @@
 <text x="227.0" y="916.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Connect with Dropbox</text>
 <text x="52" y="954" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">Photos need no sign-in: they come from</text>
 <text x="52" y="970" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">your Takeout export.</text>
-<text x="52" y="994" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">A saved account is offered first (0064). A greyed</text>
-<text x="52" y="1010" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">button says why in text under it (0145 T7 a).</text>
+<text x="52" y="994" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0064: a saved account is offered first.</text>
+<text x="52" y="1010" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0145 T7 (a): a greyed button says why, under it.</text>
 <text x="52" y="1038" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">One consent per provider, for what was ticked.</text>
 <text x="52" y="1054" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">Where Google’s restricted scopes are not declared,</text>
 <text x="52" y="1070" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">mail and files sign in apart; the screen says so first.</text>
@@ -195,7 +197,7 @@
 <text x="465" y="1028" font-size="12" font-weight="600" fill="#374151" text-anchor="start">Password</text>
 <rect x="465" y="1034" width="350" height="32" rx="6" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
 <text x="465" y="1086" font-size="13" font-weight="500" fill="#2563EB" text-anchor="start">▸ Server settings (filled in for Soverin)</text>
-<text x="465" y="1108" font-size="12" font-weight="400" fill="#6B7280" text-anchor="start">Nextcloud: its address, e.g. cloud.example.org (T7 c)</text>
+<text x="465" y="1108" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T7 (c): Nextcloud by its address (cloud.example.org)</text>
 <rect x="695" y="1116" width="120" height="44" rx="8" fill="#2563EB"/>
 <text x="755.0" y="1142.9" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Next</text>
 <rect x="858" y="640" width="390" height="540" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
@@ -218,11 +220,13 @@
 <text x="998" y="852" font-size="13" font-weight="400" fill="#374151" text-anchor="start">after your Takeout export</text>
 <rect x="878" y="876" width="350" height="56" rx="8" fill="#E8F5F2"/>
 <text x="890" y="898" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="start">About 4 to 5 days, because Google lets a</text>
-<text x="890" y="918" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="start">mailbox download 2.5 GB a day (0154 T3 a)</text>
-<text x="878" y="958" font-size="13" font-weight="500" fill="#2563EB" text-anchor="start">▸ What migrates, partly, and not (Google’s rows only)</text>
-<rect x="878" y="976" width="18" height="18" rx="4" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
-<text x="904" y="990" font-size="12" font-weight="500" fill="#374151" text-anchor="start">I understand that 173 Google files will not</text>
-<text x="904" y="1006" font-size="12" font-weight="500" fill="#374151" text-anchor="start">be copied in their own format</text>
+<text x="890" y="918" font-size="13" font-weight="600" fill="#0E4F4A" text-anchor="start">mailbox download 2.5 GB a day.</text>
+<text x="878" y="948" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0154 T3 (a): the estimate, with its reason</text>
+<text x="878" y="972" font-size="13" font-weight="500" fill="#2563EB" text-anchor="start">▸ What migrates, partly, and not</text>
+<text x="878" y="990" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T1 (a): only the rows true of Google</text>
+<rect x="878" y="1006" width="18" height="18" rx="4" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1"/>
+<text x="904" y="1020" font-size="12" font-weight="500" fill="#374151" text-anchor="start">I understand that 173 Google files will not</text>
+<text x="904" y="1036" font-size="12" font-weight="500" fill="#374151" text-anchor="start">be copied in their own format</text>
 <rect x="878" y="1116" width="350" height="48" rx="8" fill="#2563EB"/>
 <text x="1053.0" y="1145.25" font-size="15" font-weight="600" fill="#FFFFFF" text-anchor="middle">Start</text>
 <text x="32" y="1224" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">One review screen holds the green light (0013, 0037): nothing copies before Start. After it, the person’s page (T5). Underneath: one migration per pair of accounts.</text>

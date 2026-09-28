@@ -27,8 +27,9 @@
 </symbol>
 </defs>
 <rect width="1100" height="500" fill="#FFFFFF"/>
-<text x="32" y="44" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Provider and destination tiles (0152 D4, 0153 §5): our own, neutral, no logos</text>
-<text x="32" y="70" font-size="14" font-weight="400" fill="#6B7280" text-anchor="start">The tile is aria-hidden; the name is always written beside it, so a screen reader reads the name once, never the letter.</text>
+<text x="32" y="44" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Provider and destination tiles</text>
+<text x="32" y="70" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">0152 D4, 0153 §5: our own, neutral, no logos. The tile is aria-hidden; the name is always written beside it,</text>
+<text x="32" y="88" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">so a screen reader reads the name once, never the letter.</text>
 <text x="32" y="116" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Where people are moving from (teal, white initial)</text>
 <rect x="32" y="134" width="48" height="48" rx="10.56" fill="#0E4F4A"/>
 <text x="56.0" y="165.68" font-size="21.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">G</text>
@@ -63,13 +64,15 @@
 <text x="356" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">A JMAP server</text>
 <rect x="482" y="280" width="48" height="48" rx="10.56" fill="#7FD4C1"/>
 <text x="506.0" y="311.68" font-size="21.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">+</text>
-<text x="506" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Any IMAP or DAV provider</text>
-<text x="32" y="404" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">Sizes: 48 px on the site and in the flow’s tiles, 28 px in rows, 20 px in text.</text>
-<text x="32" y="426" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">Corner radius is 22% of the size. Letter: 45% of the size, bold. Colours: TEAL #0E4F4A, MINT #7FD4C1 (build.mjs).</text>
+<text x="506" y="350" font-size="12" font-weight="500" fill="#374151" text-anchor="middle">Any other provider</text>
+<text x="32" y="404" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">Sizes: 48 px on the site and in the flow’s tiles, 28 px in rows, 20 px in text.</text>
+<text x="32" y="426" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">Corner radius is 22% of the size. Letter: 45% of the size, bold. Colours: TEAL #0E4F4A, MINT #7FD4C1 (build.mjs).</text>
 <rect x="32" y="446" width="28" height="28" rx="6.16" fill="#0E4F4A"/>
 <text x="46.0" y="464.48" font-size="12.6" font-weight="700" fill="#FFFFFF" text-anchor="middle">G</text>
-<text x="70" y="466" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Google (28 px, in a row)</text>
+<text x="70" y="466" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Google</text>
+<text x="130" y="466" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">28 px, in a row</text>
 <rect x="300" y="446" width="28" height="28" rx="6.16" fill="#7FD4C1"/>
 <text x="314.0" y="464.48" font-size="12.6" font-weight="700" fill="#0E4F4A" text-anchor="middle">S</text>
-<text x="338" y="466" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Soverin (28 px)</text>
+<text x="338" y="466" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Soverin</text>
+<text x="398" y="466" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">28 px</text>
 </svg>

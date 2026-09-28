@@ -191,7 +191,7 @@
 <text x="1014" y="1174" font-size="11" font-weight="400" fill="#6B7280" text-anchor="start">Mail, Calendar, Contacts, Files, Tasks</text>
 <text x="40" y="1210" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T4: a guarded copy of the app’s target list; data types only, never their prices, hosting or quality</text>
 <rect x="40" y="1236" width="1200" height="64" rx="12" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1" stroke-dasharray="6 6"/>
-<text x="64" y="1274" font-size="14" font-weight="500" fill="#6B7280" text-anchor="start">What makes this different · What it will not do — these sections stay, in their places, with their words</text>
+<text x="64" y="1274" font-size="13" font-weight="600" fill="#9A3412" text-anchor="start">What makes this different · What it will not do: these sections stay, in their places, with their words</text>
 <text x="40" y="1354" font-size="22" font-weight="700" fill="#111827" text-anchor="start">What it costs</text>
 <text x="40" y="1386" text-anchor="start"><tspan font-size="16" font-weight="700" fill="#111827">Small</tspan><tspan font-size="16" font-weight="400" fill="#374151">, for one person moving everything at once: </tspan><tspan font-size="16" font-weight="700" fill="#111827">€2.50 a month, paid as €30 a year</tspan><tspan font-size="16" font-weight="400" fill="#374151">. Or €5 a month.</tspan></text>
 <text x="40" y="1412" font-size="14" font-weight="400" fill="#374151" text-anchor="start">Four migrations at the same time and 750 GB of data moved. All prices include VAT.</text>
@@ -202,6 +202,6 @@
 <text x="40" y="1504" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T1 (b): a fact about the tier, not &quot;Most people&quot;; T6 (c): the calculator’s button; T6 (e): the year’s total beside the per-month figure</text>
 <path d="M0 1540H1280" stroke="#E5E7EB"/>
 <text x="40" y="1578" font-size="13" font-weight="500" fill="#374151" text-anchor="start">Ownpace — move your own data, at your own pace. Open source under the Apache License 2.0.</text>
-<text x="40" y="1602" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">Privacy · Terms · Status · the company’s name, KvK number and address</text>
+<text x="40" y="1602" font-size="13" font-weight="400" fill="#6B7280" text-anchor="start">Privacy · Terms · Status · «COMPANY NAME» · KvK «NUMBER» · «ADDRESS»</text>
 <text x="40" y="1626" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">T8 (c): the company’s details from 0139</text>
 </svg>
