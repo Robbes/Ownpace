@@ -2,10 +2,60 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T1 step 1, the half upstream's source answers (0131 §6, group M4, step 6's first
+read).** Step 1 asks the plane five things before a preset is chosen. Four are answered by
+Trigger.dev's source at the pinned v4.5.16, and by `@trigger.dev/platform` 1.3.0, the preset
+table that version's webapp pins. Nothing was run against a stack. What only the machine can
+say is at the end, with T0, which stays the owner's.
+
+- **A preset's limits are enforced, and have been all along.** The self-hosted supervisor starts
+  every task container with the run's preset as its limits: `NanoCpus` from its CPUs and
+  `Memory` from its gigabytes (`apps/supervisor/src/workloadManager/docker.ts`), while
+  `DOCKER_ENFORCE_MACHINE_PRESETS` is on. It is on by default (`env.ts`), and `managed.yml` does
+  not set it. That is the name upstream's self-hosting guide gives, now checked against v4.5.16.
+- **Every task runs on `small-1x` today: half a CPU and 512 MB.** No task names a machine, and
+  neither does `trigger.config.ts`, so the plane gives each run its default preset
+  (`machinePresetFromConfig`). The table, unless `MACHINE_PRESETS_OVERRIDE_PATH` replaces it, which
+  `managed.yml` does not set:
+
+  | Preset | CPUs | Memory |
+  |---|---|---|
+  | `micro` | 0.25 | 0.25 GB |
+  | `small-1x`, the default | 0.5 | 0.5 GB |
+  | `small-2x` | 1 | 1 GB |
+  | `medium-1x` | 1 | 2 GB |
+  | `medium-2x` | 2 | 4 GB |
+  | `large-1x` | 4 | 8 GB |
+  | `large-2x` | 8 | 16 GB |
+
+  The runner hands V8 80% of that: `--max-old-space-size=410` on `small-1x`
+  (`maxOldSpaceSizeForMachine`).
+- **So a pass that outgrows its memory already fails alone,** inside its own container, and takes
+  nothing from the database. That is what step 2 wanted from enforcement. The other side is that
+  the preset step 2 chooses is a real limit: one that is too small fails passes rather than
+  slowing them. The worst case §3 lists has to fit in it, and T9 measures what does.
+- **The cap's formula can divide by the preset's memory**, as step 3 hoped, rather than by T9's
+  observed peak, because the supervisor enforces it.
+- **A run that waits on another keeps its container while it waits.** The docker supervisor has no
+  checkpoints: its workload manager has none, and no `TRIGGER_CHECKPOINT_URL` is set. So a
+  cutover's final sync holds two containers, the cutover's and its pass's, each at its own preset.
+- **Nothing bounds how many run at once but the environment's limit.** A self-hosted plane gives
+  a new environment its organisation's limit (`getDefaultEnvironmentConcurrencyLimit` without a
+  billing client), and a new organisation `DEFAULT_ORG_EXECUTION_CONCURRENCY_LIMIT`, 300 by
+  default. `managed.yml` sets neither. The supervisor takes runs as they come: its resource
+  monitor is off by default (`RESOURCE_MONITOR_ENABLED`). The limit is a column,
+  `"RuntimeEnvironment"."maximumConcurrencyLimit"` in `triggerdb`, so it can be read back and set.
+- **What the machine answers, for T0:**
+  - on a running task container,
+    `docker inspect --format '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}'`, where
+    `536870912 500000000` confirms the two findings above;
+  - in `triggerdb`, `SELECT slug, "maximumConcurrencyLimit" FROM "RuntimeEnvironment";`;
+  - the host's memory, `free -g`, and what both stacks use, `docker stats --no-stream`.
 
 **2026-09-27, late: T5 (c) built (0131 §6, group M4, step 4)** on branch
-`claude/mailbox-sync-errors-c2xsw2-a-domain-that-waits-its-turn`, not merged. The owner chose (c)
+`claude/mailbox-sync-errors-c2xsw2-a-domain-that-waits-its-turn`, merged as #1262. The owner chose (c)
 the same evening (open question 3).
 
 - **Small first.** `passOrder` (`packages/shared/src/pass-deadline.ts`) takes contacts, calendars
@@ -410,11 +460,11 @@ unproved until then:
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's numbers | 📋 **Provisional numbers accepted 2026-09-27** (open question 1): 2 passes per organisation, 5 migrations, waves of about five, and the largest file 10 GB, which the owner raised from 2 GB the same evening (T4); ⏳ **Owner** for the overall cap on the machine — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Five provisional numbers before T9, and final ones after it. They are written in this block. |
-| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6) | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
+| T1 Every task names its machine, and the tick knows the box's size | 📋 **Proposed** (D1, D2, D6); step 1 read in upstream's source 2026-09-28: presets are enforced, and every task runs on `small-1x`, half a CPU and 512 MB | §3. **Alpha minimum.** An explicit preset for the tasks that copy or list, a check on whether its memory is enforced, a cap on passes in flight overall and per organisation, set for each stack, and the host's memory in the bring-up. |
 | T2 What one organisation can make the machine do | 🔨 **T2a built 2026-09-27**, merged as #1258: five unfinished migrations per organisation, the deployment's number; **T2d's runbook step written 2026-09-27**, merged as #1252, in 0142 T6's runbook; T2b, T2c and T2d's built hold 📋 **Proposed** — *was:* 📋 **Proposed** (D1, D3) | §3. **T2a** (a cap on migrations per organisation) and **T2d's runbook step** are **alpha minimum**. **T2b** (a minimum schedule interval) and **T2c** (`throttleConfig` is the operator's) come after, and are cheap enough to ride in T2a's PR. T2d's runbook step goes into 0142 T6's runbook. **T2d's built hold** comes after. |
 | T3 A streamed file reaches a JMAP target | 🔨 **T3a built 2026-09-27**, merged as #1243: the refusal names the file, its size and WebDAV; T3b 📋 **Proposed** — *was:* 📋 **Proposed** | §3. **T3a**, the refusal that tells the truth, is **alpha minimum**. **T3b**, the streamed upload, comes after. Until T3b lands, the owner points a tester who wants files on JMAP at WebDAV, as 0141 T8 already says. |
 | T4 A file no pass can carry is refused up front, with a sentence | 🔨 **(a) built 2026-09-27**, merged as #1259: 10 GB, the owner's number, and a category of its own, `too_large`; the attempts after the alpha 📋 **Proposed** — *was:* 📋 **Proposed** (D1) | §3. **Alpha minimum.** A stated largest file, refused before a byte moves, and parked for a person rather than retried. The kill loop for smaller files that are still too slow comes after. |
-| T5 Every data type of a migration gets a turn in a pass | 🔨 **(c) built 2026-09-27, not merged**: small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
+| T5 Every data type of a migration gets a turn in a pass | ✅ **done** in #1262, merged 2026-09-27: (c), small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
