@@ -74,6 +74,8 @@ const MANAGED_RLS_TABLES = [
   'invoice',
   'occupancy_peak',
   'payment_method',
+  'person',
+  'person_migration',
   'platform_operator',
   'support_read',
   'tenant_closure',

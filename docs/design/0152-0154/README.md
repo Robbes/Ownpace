@@ -21,7 +21,7 @@ request.
 | [`wf-migrations-page.svg`](wf-migrations-page.svg) | *Migrations*: one card per person | 0153 T3; 0154 T1–T3 | The landing page after sign-in. |
 | [`wf-migrations-phone.svg`](wf-migrations-phone.svg) | The same at 390 pixels | 0153 T3 | The same page. |
 | [`wf-start-a-migration.svg`](wf-start-a-migration.svg) | *Start a migration*: six screens | 0153 T4, T7; 0154 T3 (a) | The new flow. |
-| [`wf-person-page.svg`](wf-person-page.svg) | A person's page | 0153 T5; 0154 T1–T5 | `/moves/:id`. |
+| [`wf-person-page.svg`](wf-person-page.svg) | A person's page | 0153 T5; 0154 T1–T5 | `/people/:id`, from `GET /api/people`. |
 
 ## Reading a wireframe
 

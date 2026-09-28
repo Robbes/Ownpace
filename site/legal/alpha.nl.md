@@ -2,10 +2,12 @@
 <!-- Dutch text of the alpha conditions; alpha.md is the English. Keep the
      SECTION NUMBERING identical, so the two can be diffed against each other
      when either changes. Unlike the privacy policy and the terms, this is the
-     text testers read first (workplan 0139 D2). The briefing for the
-     reviewing lawyer, including which language governs, is the comment at
-     the top of alpha.md — it applies to both files. Not rendered by the site
-     build and not linked from anywhere yet (0139 T10). -->
+     text testers read first (workplan 0139 D2). Version 1.0, edited in place
+     with the owner's answers of 2026-09-28 until the first tester accepts it
+     (alpha-version-number (a)). The briefing for the reviewing lawyer,
+     including which language governs and which answer changed which section,
+     is the comment at the top of alpha.md — it applies to both files. Not
+     rendered by the site build and not linked from anywhere yet (0139 T10). -->
 
 # Voorwaarden voor de Alpha
 
@@ -18,7 +20,7 @@
 ## 1. Wat de Alpha is
 
 De Alpha is een proef met de beheerde Ownpace-dienst. Een kleine groep doet mee, en iedereen in
-die groep is zelf uitgenodigd. De Alpha duurt enkele weken.
+die groep is persoonlijk uitgenodigd. De Alpha duurt enkele weken.
 
 **Alleen huishoudens.** U doet mee als particulier, met uw eigen accounts of die van uw gezin.
 Een bedrijf of een andere organisatie kan tijdens de Alpha niet meedoen. Dat de app uw omgeving
@@ -39,8 +41,14 @@ Tijdens de Alpha gelden deze delen van de servicevoorwaarden niet:
 - **De opzegtermijnen in §11, tweede alinea:** 30 dagen voordat wij de voorwaarden beëindigen,
   en 90 dagen als wij met de dienst stoppen. In plaats daarvan geldt de termijn in §5 en §11
   hieronder. De export die deze alinea belooft als wij met de dienst stoppen, geldt wel.
+- **De 30 dagen vooraf in §12, voor de nieuwe voorwaarden na de Alpha.** Voor die voorwaarden
+  geldt in plaats daarvan de termijn van 7 dagen in §11 hieronder.
 
 De rest van de servicevoorwaarden geldt gewoon, en de rest van de privacyverklaring ook.
+
+Als u uw account aanmaakt, toont de app u deze voorwaarden, de servicevoorwaarden en de
+privacyverklaring, elk met zijn versienummer, en vraagt u ze te aanvaarden. De app legt vast
+welke versie van elke tekst u aanvaardde, en wanneer.
 
 ## 3. Gratis
 
@@ -53,8 +61,10 @@ Er is geen serviceniveau. Wij beloven geen snelheid, geen opleverdatum en geen h
 op elk moment stoppen (§10) en wij mogen de Alpha stoppen (§5).
 
 Onze plichten voor uw gegevens blijven wel. Wij beveiligen ze en bewaren ze niet langer dan de
-privacyverklaring en §6 en §10 hier zeggen. Wij melden u een datalek als dat nodig is, en
+privacyverklaring en §6 en §10 hier zeggen. Wij melden u een datalek dat uw gegevens raakt, en
 beantwoorden uw verzoeken over uw rechten.
+
+§10 van de servicevoorwaarden (*Als wij het fout doen*) blijft gelden.
 
 ## 5. Geen belofte over beschikbaarheid
 
@@ -63,6 +73,9 @@ servicevoorwaarden al zegt, is er geen beschikbaarheidsgarantie.
 
 Wij kunnen de dienst stilzetten, bijvoorbeeld bij een storing of een beveiligingsprobleem. Er
 start dan geen nieuwe ronde, en u ziet dat in de app. Dat kan zonder waarschuwing vooraf.
+
+Tijdens de Alpha werken wij de dienst vaak bij. Een update kan uw verhuizingen even stilzetten;
+wij kondigen niet elke update aan.
 
 Wij kunnen de Alpha ook opnieuw laten beginnen (een reset) of beëindigen. Bij een reset wissen wij
 de gegevens van de dienst, en begint u opnieuw zoals §6 beschrijft voor een verloren
@@ -74,9 +87,9 @@ Tijdens de Alpha maken wij geen back-ups van de eigen gegevens van de dienst: uw
 accounts die u hebt gekoppeld, uw verhuizingen en hun geschiedenis, en uw Ownpace-inlogaccount.
 
 Eén uitzondering. Vlak voor elke update van de dienst maken wij één kopie van de databases. Die
-kopie is er alleen om een mislukte update terug te draaien. Wij bewaren haar tot de volgende
-update gelukt is, en nooit langer dan 7 dagen. Ze verlaat de hostingomgeving niet. Wordt uw
-account gewist, dan kunnen uw gegevens nog hoogstens 7 dagen in die kopie staan.
+kopie is er alleen om een mislukte update terug te draaien. Wij bewaren haar tot blijkt dat die
+update werkt, en nooit langer dan 7 dagen. Ze verlaat de hostingomgeving niet. Wordt uw account
+gewist, dan kunnen uw gegevens nog hoogstens 7 dagen in die kopie staan.
 
 Gaat de hostingomgeving van de Alpha verloren, dan gaan de gegevens van de dienst en die kopie
 mee verloren. Uw eigen gegevens niet: Ownpace verwijdert niets uit uw oude account, en wat naar
@@ -112,6 +125,8 @@ verantwoordelijk voor wie u uitnodigt.
 
 Wilt u een Google-account koppelen, geef ons dan eerst het Google-adres door. Wij zetten het bij
 Google op de lijst van testgebruikers. Zonder die stap laat Google de koppeling niet toe.
+Hetzelfde geldt voor een gezinslid aan wie u een toegangslink stuurt: geef ons eerst diens
+Google-adres.
 
 Zolang de app van Ownpace bij Google nog in de testfase van Google staat, werkt een koppeling met
 Google na ongeveer zeven dagen niet meer. U koppelt dan opnieuw, met *Opnieuw verbinden* bij het
@@ -128,12 +143,16 @@ verwijdert. Toegang die u zelf bij een aanbieder hebt gemaakt, zoals een app-wac
 toestemming bij Microsoft of Dropbox, trekt u daar zelf in. Wij zeggen u welke.
 
 Een afgeronde verhuizing houdt de toegang die u ons gaf, zodat u hem kunt hervatten. Wij bewaren
-die toegang tot u de koppeling of de verhuizing verwijdert. Sluit u uw account, dan gebruikt niets
-die toegang meer, en wordt ze vernietigd wanneer uw gegevens worden gewist, aan het eind van de
-termijn die u koos.
+die toegang tot u de koppeling verwijdert; de app staat dat toe zodra geen verhuizing haar meer
+gebruikt. Toegang die een gezinslid via een toegangslink gaf, verdwijnt wanneer u de verhuizing
+verwijdert, of wanneer die persoon haar op de eigen voortgangspagina intrekt. Sluit u uw account,
+dan gebruikt niets die toegang meer, en wordt alles vernietigd wanneer uw gegevens worden gewist,
+aan het eind van de termijn die u koos.
 
 Worden uw gegevens gewist, dan verwijderen wij ook uw Ownpace-inlogaccount, halen wij uw
-Google-adres van de lijst van testgebruikers (§9), en wissen wij uw aanvraag voor toegang.
+Google-adres en dat van een gezinslid van de lijst van testgebruikers (§9), en wissen wij uw
+aanvraag voor toegang. Het adres van een gezinslid halen wij er eerder af als u of die persoon
+dat vraagt.
 
 ## 11. Het einde van de Alpha
 
@@ -141,14 +160,14 @@ Na de Alpha gaat de dienst door, onder nieuwe voorwaarden. Misschien verhuist de
 huidige hostingomgeving naar een andere hostingaanbieder.
 
 Wij laten het u minstens 7 dagen van tevoren per e-mail weten. U krijgt dan de nieuwe
-voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizing gaat pas onder de
-nieuwe voorwaarden door als u die hebt aanvaard. Wilt u liever stoppen, sluit dan uw account
-zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan sluiten wij uw account en
-verhuizen uw gegevens niet mee naar de nieuwe dienst. Uw gegevens worden dan gewist zoals §10 en
-de privacyverklaring beschrijven.
+voorwaarden, en wij zeggen waar uw gegevens dan naartoe gaan. Uw verhuizingen gaan pas onder de
+nieuwe voorwaarden door als u die in de app hebt aanvaard, zoals in §2. Wilt u liever stoppen,
+sluit dan uw account zoals in §10. Hebt u ze niet aanvaard op de dag dat ze ingaan, dan sluiten
+wij uw account en verhuizen uw gegevens niet mee naar de nieuwe dienst. Uw gegevens worden 7
+dagen later gewist; tot dan kunt u ze alsnog aanvaarden en doorgaan.
 
-Wat u met uw verhuizing al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk geval
-staan.
+Wat u met uw verhuizingen al naar uw nieuwe aanbieder hebt gekopieerd, blijft daar in elk
+geval staan.
 
 ## 12. Ons bereiken
 
