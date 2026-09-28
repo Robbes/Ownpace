@@ -12,9 +12,15 @@ export declare const OTA_NAMES: readonly string[];
 export declare const ISSUER: string;
 export declare const DISCOVERY: string;
 export declare const OTA_MODES: readonly string[];
+/** The production site's name (workplan 0139 T10), tried only on live's front. */
+export declare const SITE_NAME: string;
+export declare const SITE_MODES: readonly string[];
 export declare const TLS_PORT: number;
 
 export type OtaMode = 'report' | 'internet' | 'mesh-only';
+
+/** What www.ownpace.eu must do: `report` records it, `required` fails on it. */
+export type SiteMode = 'report' | 'required';
 
 export interface ProbeConfig {
   /** Every port tried on every address, sorted, once each. */
@@ -22,6 +28,8 @@ export interface ProbeConfig {
   /** EXPOSURE_PROBE_HOST: the machine's own address or name, or ''. */
   readonly host: string;
   readonly otaMode: OtaMode;
+  /** EXPOSURE_PROBE_SITE_NAME, the dispatch input `site_name`. */
+  readonly siteMode: SiteMode;
 }
 
 /** What a TCP connection attempt met. `untried`: this runner could not try (its code). */

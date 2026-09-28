@@ -998,6 +998,21 @@ and (c), the entry above) merged, with a review's five findings taken (the last 
   backup by its file name and to copy it aside before the upgrade, and T6's step 4 says the same.
   `trigger-version.sh` is unchanged: the OTA stack's gate drills nightly already.
 
+**2026-09-28: T6 (a) and T7 serve and watch the production site (0139 T10)**, built on branch
+`claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged. Nothing has run
+on the machine. With `WWW_LIVE=true` in live's `.env`, `deploy-live.sh` builds the tag's site and
+brings it up as `ownpace-live-www`, after the bring-up and before the exposure check. A site that
+does not come up healthy and indexable is a deploy that did not take. Before the checkout, and in a
+dry run, it refuses a `www` service in live's project, a missing `WWW_PORT` or `WWW_BIND`, a tag
+whose site still has placeholders, and a tag whose full `--public` build refuses for any other
+reason (it runs that build on the tag's `site/` in a directory of its own). Without the switch the
+deploy is what it was. `box-duties.sh` has a fifth duty, `site` (`www-live.sh check`), and the
+service's `TimeoutStartSec` is 110 minutes. T3 (c): `scripts/exposure-probe.mjs` tries
+`www.ownpace.eu` only on live's front (an address a production name or `EXPOSURE_PROBE_HOST`
+resolves to), never on the host it points at before it is routed, and the new dispatch input
+`site_name` (`report` by default, `required` once routed) says whether it must answer. So a
+dispatch during live's stand-up is not red for the site. 0139's Status block has the detail.
+
 
 | Task | Status | Notes |
 |---|---|---|

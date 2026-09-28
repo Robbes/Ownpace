@@ -4,6 +4,100 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: T10, the production site deployed with live (0131 §6, group R7; T0 fact 6)**,
+built on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged.
+Nothing has run on the machine. Live is not stood up (0132 T1b), and the scripts have run only
+against the stubs in their guards.
+
+- **What it builds on.** T0 fact 6, supplied 2026-09-28: *"site will first be hosted on this
+  machine during alpha"*. The production site is served from live's own checkout, at the release
+  tag, under the Compose project `ownpace-live-www`, live's project with `-www`. The scripts build
+  the name from the project, as `two-stacks-on-one-box.unit.test.ts` requires of every name in
+  them. That is PR #1275's option 1 with its option 4, run from `deploy-live.sh`. The texts a
+  tester accepts are then the release's (T3). A text fix rides a new tag and a deploy with the
+  hold. #1275 was merged separately (`4b93e061`) and is not on this branch's base; the tag must
+  hold it.
+- **The switch.** `WWW_LIVE=true` in live's `.env`, beside `WWW_PORT` and `WWW_BIND`. With
+  `false` or no line, nothing about the site runs and a deploy is what it was. Any other value is
+  refused, naming the key. `managed.env.example` lists `WWW_PORT=` and `WWW_LIVE=false` beside
+  `WWW_BIND`, and says live's copy needs a port of its own.
+- **Before the checkout, in a dry run too.** `deploy-live.sh` refuses: no `WWW_PORT` or
+  `WWW_BIND`; a `WWW_PORT` that is not a port; a container of live's project with the compose
+  service `www`; a tag whose `www.yml` gives the container a fixed name, or with no `www.yml` or
+  `site/build.mjs`; a tag whose site still has unfilled placeholders; and a tag whose `--public`
+  build refuses for any other reason. For the last two it extracts `site/` and `package.json` at
+  the tag with `git archive` into a directory of its own, runs `--public --check` there and names
+  the count, then, with a count of 0, the full `--public` build, the one the deploy runs after the
+  checkout, and refuses on its exit code with its last words. `--check` is not that build: a
+  refusal only the build makes would pass a dry run that ran `--check` alone, and fail the deploy
+  after the checkout, with live moved and the hold on (a review's finding). `main` today would be
+  refused with 22.
+- **After the bring-up, before the exposure check.** It builds the site in the checkout
+  (`OWNPACE_APP_URL=https://app.ownpace.eu GIT_SHA=<commit> node site/build.mjs --public`, without
+  a shell's `OWNPACE_STATUS_URL`). Then it runs `docker compose -p ownpace-live-www -f
+  deploy/compose/www.yml --env-file <live's .env> up -d --force-recreate`, with Compose's words
+  through the address filter. It waits up to `DEPLOY_LIVE_SITE_WAIT` seconds (120) for a healthy
+  container, and asks it on loopback: `/` answers 200 without `noindex`, every request-access link
+  leads to `https://app.ownpace.eu`, and `robots.txt` says `Allow: /`. Any failure is a deploy
+  that did not take: exit 3, the hold stays on, logged. The exposure check still runs, and covers
+  the site.
+- **`deploy/compose/www-live.sh`**, new. It names the project, the switch and the production app
+  once, and holds the Docker reads both scripts use. Its `check` is `box-duties.sh`'s fifth duty,
+  `site`. Read-only, it fails on a `www` service in live's project whatever the switch, and with
+  the switch on when `ownpace-live-www` is missing or not running healthy. A daemon that cannot be
+  asked fails it. The service unit's `TimeoutStartSec` goes from 90 to 110 minutes, for five duties.
+- **The probe (0132 T3 (c)).** `scripts/exposure-probe.mjs` knows `www.ownpace.eu` as the site's
+  name, apart from the production names. Until it is routed to live it points at another host (the
+  apex's, today), so the probe tries no port on an address of it that is not live's front (an
+  address a production name or `EXPOSURE_PROBE_HOST` resolves to), and asks 443 for it only when
+  every address of it is. The new dispatch input `site_name` says whether it must answer:
+  `report`, the default, records what it found; `required` fails unless it resolves to live's
+  front alone and answers over TLS. A dispatch during live's stand-up (0132 T1e, T3 (c)) is then
+  not red for a site that waits on the texts.
+- **Docs.** `deploy-live.sh`'s header. `docs/managed-bring-up.md`: a new section,
+  *`www.ownpace.eu`: live's copy*, under *The public site*; the daily duties' table; the deploy
+  section; and *The OTA site is recreated by hand*. `docs/incident-runbook.md`'s *Website* row, with
+  the exact `-p ownpace-live-www` commands. `www.yml`'s comment on who recreates the site.
+- **Proved, guard first.** `scripts/a-deploy-from-a-named-tag.unit.test.ts` gains 34 cases. On
+  `main`'s code 31 fail and 3 pass: the two with the switch off, and that `site/dist` is ignored.
+  One case builds the real `site/` from its tag and expects the count its own `--check` gives (22
+  today). The site's cases pass with #1275's `www.yml` in place too.
+  `scripts/a-duty-the-gate-used-to-do.unit.test.ts` gains 14 cases for the fifth duty; 23 of its
+  58 fail on `main`. `scripts/exposure-probe.unit.test.ts` gains 7 cases for the site's name and
+  its mode, and `a-probe-that-knows-every-port.unit.test.ts` 1 for the input. Two of the deploy
+  cases came with a review (deploy and dry run): a tag whose `--check` counts 0 and whose
+  `--public` build refuses is refused before the checkout; with the full test build skipped, those
+  two and the two cases that count the builds go red. Sweeping every address of the site's name turns
+  three of the probe's new cases red. Nineteen mutations each turned a guard red: no `-p`,
+  no `--env-file`, a failed build not counted, placeholders not refused, a `www` service in live's
+  project not refused, the site step after the exposure check, the switch ignored, the site checks
+  after the dry run's stop, Compose's words not filtered, `OWNPACE_STATUS_URL` passed on, an
+  unhealthy container taken for healthy, `robots.txt` not read, the site's state asked of live's
+  project, the test build run in the checkout, `box-duties.sh` without the duty, the duty ignoring
+  a `www` service, taking a Docker failure for nothing there, or passing a container that is only
+  running, and the probe without `www.ownpace.eu`.
+- **Not built: a check that `WWW_PORT` is free.** It needs a `docker ps` of the whole daemon, which
+  `two-stacks-on-one-box.unit.test.ts` allows only in `exposure-check.sh`. A port another container
+  publishes stops the site's `up`, and that deploy does not take; `managed.env.example` and the
+  bring-up say so.
+- **The first deploy with the step.** `deploy-live.sh` runs the copy its checkout had before it
+  moved. If live runs a tag from before this change, the site first comes up when
+  `deploy-live.sh <same tag>` runs again, with the hold still on. The bring-up says so.
+- **For the owner.** `WWW_LIVE=true` publishes an **indexable** site: the step builds with
+  `--public`, and a home page with `noindex` or a `robots.txt` without `Allow: /` is a deploy that
+  did not take. So the step takes open question 1's (a) as given, and switching it on acts on it.
+  On this branch's base the question has no answer line. Your answers of 2026-09-28 include
+  *"public site: yes, search engine index."*, which is (a); branch
+  `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept` (not merged) records it
+  under open question 1, and this branch leaves that line to it. Should the answer become (b),
+  noindex for the alpha, the step's `--public` build and its `noindex` and `robots.txt` checks
+  change with (c)'s `--no-drafts` before the site is switched on. Merge this. Fill
+  the texts (T0, T1), and T10's rendering of the conditions and `subprocessors.md` must be built.
+  Cut a tag from a `main` that holds all of it. In live's `.env` set `WWW_LIVE`, `WWW_PORT` and
+  `WWW_BIND`, and `STATUS_SITE_ENABLED` and `STATUS_SITE_URL`. Add live's `WWW_PORT` to the
+  repository variable `EXPOSURE_PROBE_LIVE_PORTS`. Deploy, then route `www.ownpace.eu` in NetBird
+  (0132 T1e), then dispatch the exposure probe with `site_name` set to `required`.
+
 **2026-09-28: T10 (a), one setting for every link the app makes to the texts (0131 §6, group R1,
 step 6)**, built on branch `claude/ownpace-public-readiness-y7orc6-a-policy-link-that-answers`,
 not merged.
@@ -266,7 +360,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form still goes with T1 — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` — *was:* (a) 🔨 built 2026-09-28, not merged; 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step takes open question 1's (a) as given (the owner's *"public site: yes, search engine index."* of 2026-09-28, recorded under the question on the conditions branch, not merged; no answer line on this base), and its answer (b) would change the step's build and its `noindex` and `robots.txt` checks, with (c); (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, and (c) `--no-drafts` — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
