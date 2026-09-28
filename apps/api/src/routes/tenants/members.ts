@@ -36,14 +36,57 @@ function getSharedPool() {
   return _dbPool;
 }
 
+/**
+ * OWNER OR ADMIN, AND NOTHING BELOW, until every write names its roles
+ * (workplan 0137 T7; the owner chose it on 2026-09-28, T0 option (b)).
+ *
+ * `member` and `viewer` still exist in the database, and rows that hold one
+ * still read and list. What stops is granting one: the Team page called a
+ * viewer read-only, and 36 write routes check only that the caller belongs to
+ * the organisation, so a viewer could delete a migration or repoint its target
+ * (0137 §1, §4). A role whose name promises less than it allows is not offered.
+ * T2's PR, which gates those routes, widens these two schemas again.
+ *
+ * The refusal is a code the Team page says in the reader's language, with the
+ * English beside it for everything else, as `too_many_tests` does.
+ */
+const ALPHA_ROLES = ['owner', 'admin'] as const;
+
+const OWNER_OR_ADMIN_ONLY = {
+  error: 'owner_or_admin_only',
+  message: 'During the alpha, a person can only be an owner or an admin.',
+} as const;
+
+/**
+ * True when the body named a role, as a string, and that role is the ONLY
+ * thing wrong with it, so the answer is the alpha's sentence.
+ *
+ * Anything else keeps the validation answer with every issue in `details`: a
+ * body with a bad address as well is told both at once rather than in two
+ * round trips, and a body with no role at all is told the role is missing,
+ * not about the alpha. (Zod 4 reports a missing or non-string enum as the same
+ * `invalid_value` at `role` as a wrong one, so the body is asked, not the
+ * issue.)
+ */
+function refusedOverRole(error: z.ZodError, body: unknown): boolean {
+  const role = (body as { role?: unknown } | null | undefined)?.role;
+  return (
+    typeof role === 'string' &&
+    error.issues.every(
+      (issue) =>
+        issue.path.length === 1 && issue.path[0] === 'role' && issue.code === 'invalid_value',
+    )
+  );
+}
+
 // Schema validation
 const InviteMemberSchema = z.object({
   email: z.string().email(),
-  role: z.enum(['owner', 'admin', 'member', 'viewer']),
+  role: z.enum(ALPHA_ROLES),
 });
 
 const UpdateMemberRoleSchema = z.object({
-  role: z.enum(['owner', 'admin', 'member', 'viewer']),
+  role: z.enum(ALPHA_ROLES),
 });
 
 /**
@@ -171,7 +214,9 @@ router.post(
 
       res.status(201).json(result.inserted);
     } catch (error) {
-      if (error instanceof z.ZodError) {
+      if (error instanceof z.ZodError && refusedOverRole(error, req.body)) {
+        res.status(400).json(OWNER_OR_ADMIN_ONLY);
+      } else if (error instanceof z.ZodError) {
         res.status(400).json({
           error: 'Validation error',
           details: error.issues,
@@ -334,7 +379,9 @@ router.patch(
         updatedAt: updatedMember.updatedAt,
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
+      if (error instanceof z.ZodError && refusedOverRole(error, req.body)) {
+        res.status(400).json(OWNER_OR_ADMIN_ONLY);
+      } else if (error instanceof z.ZodError) {
         res.status(400).json({
           error: 'Validation error',
           details: error.issues,

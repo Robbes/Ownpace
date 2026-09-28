@@ -98,6 +98,48 @@ against the stubs in their guards.
   repository variable `EXPOSURE_PROBE_LIVE_PORTS`. Deploy, then route `www.ownpace.eu` in NetBird
   (0132 T1e), then dispatch the exposure probe with `site_name` set to `required`.
 
+**2026-09-28: T10 (b), the site's second copy (0131 §6, group R7, step 9)**, built on branch
+`claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, not merged.
+
+- **The names.** `www.yml` keeps `name: ownpace-www` as the default. Its `container_name` is now
+  `${COMPOSE_PROJECT_NAME}`, so under the default the container is still `ownpace-www`. Compose
+  5.1.1 gives the service the same configuration hash as on `main`, so the next `up -d` does not
+  recreate the OTA site. A second copy names its own project with `-p` on every command, and its
+  container and network follow. It sets its own `WWW_PORT` and `WWW_BIND` in its checkout's
+  `.env`.
+- **Why `-p` and not the `.env`.** `www.yml` reads the same `.env` as `managed.yml`. Live's
+  `.env` will set `COMPOSE_PROJECT_NAME=ownpace-live` (0132 T1b, decided, not stood up yet), so in
+  live's checkout a bare `docker compose -f deploy/compose/www.yml` would put the site in live's
+  own project (checked with `docker compose config` against a stand-in `.env`). There each file sees the other's containers as orphans. Nothing in a
+  compose file can refuse the bare command. `www.yml`'s header, the bring-up's section on the
+  public site and `managed.env.example` say so.
+- **A refusal nobody meant is gone.** On `main`, that bare command fails on a machine where the OTA
+  site runs: the fixed `container_name` is the OTA site's own and is taken, the conflict 0132 T1
+  names. Now the container takes live's project's name, so the command succeeds as soon as live's
+  `.env` has a `WWW_PORT` of its own, which a copy from that checkout needs anyway (checked with
+  `docker compose config`, not on a machine). That is the price of a second copy that can start.
+  `www.yml`'s header and the bring-up say so.
+- **Proved.** `scripts/two-stacks-on-one-box.unit.test.ts` gains a block for `www.yml`, 6 cases, 4
+  of which fail on `main`: the fixed `container_name`, `ownpace-www` written in four places besides
+  `name:` (the container name and three comments), the two copies sharing a container name, and no
+  `-p` in the header. It renders the file under two projects and checks that they share no container
+  name, network, volume or host port, that the OTA site's container is still `ownpace-www`, and that
+  the header says the refusal above is gone. Four mutations fail it: no `container_name`, and a
+  fixed network name, host port or volume name.
+- **What addressed the container by name.** Nothing in `deploy/` or `scripts/` runs a command
+  against it. The healthcheck asks `127.0.0.1` inside the container, and the status page's
+  `Website` row asks `STATUS_SITE_URL`. The incident runbook's `Website` row now says that a copy
+  brought up with `-p` takes the same `-p`.
+- **T0's fact 6, supplied the same day:** the reference machine serves `www.ownpace.eu` during the
+  alpha, so the second copy this makes possible is the one the alpha needs. The change is harmless to the OTA site whichever way it is
+  answered: the site keeps its project and its container name.
+- **For the owner, if fact 6 puts `www.ownpace.eu` on the reference machine:** knowing that a
+  bare command in live's checkout is no longer refused, one of three: `-p` on every command for
+  live's copy, and the name it takes; a directory and a `.env` of the site's own, so that a bare
+  command is safe; or a check on live's side that refuses when live's project holds a `www`
+  service. Then that copy's `WWW_PORT` and `WWW_BIND`, and the route from `www.ownpace.eu` to that
+  port, as in 0132 T1e.
+
 **2026-09-28: T10 (a), one setting for every link the app makes to the texts (0131 §6, group R1,
 step 6)**, built on branch `claude/ownpace-public-readiness-y7orc6-a-policy-link-that-answers`,
 not merged.
@@ -660,7 +702,8 @@ is not rendered by the build, and 0086 T5 owns it.
    question 6)?
 6. **The production site.** Where `www.ownpace.eu` is served from during the alpha (T10). The
    grant page and the legal README point there, 0132 T1e does not route it, and the review found
-   it does not serve this repository's site.
+   it does not serve this repository's site. **Supplied 2026-09-28:** *"site will first be hosted
+   on this machine during alpha"*: the reference machine serves `www.ownpace.eu` for the alpha.
 
 The dates on which each fact was supplied go in the Status block.
 

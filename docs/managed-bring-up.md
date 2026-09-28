@@ -841,6 +841,11 @@ take; a fresh instance has the first from `managed.yml`. Self-registration
 stays on: it registers people in the project's own organisation, and they
 confirm their address by mail.
 
+**Its languages** (workplan 0135 T6). The sign-in page offers Dutch and English
+and no other. `ZITADEL_DEFAULT_LANGUAGE` in `.env`, `nl` or `en`, is its default:
+set `nl` on live, where the testers are. Empty keeps the instance's own. Every run
+sets both and reads them back, and prints them in its summary.
+
 **Then restart the API and REBUILD the web app, or nothing changes.** The API
 only needs the new environment; the web app bakes `VITE_*` in at build time, so
 a container built before the script ran has no issuer in its bundle and still
@@ -1164,6 +1169,24 @@ found by somebody eventually reading the right table by hand.
 ./deploy/compose/operator.sh clean <kind>                # what it WOULD do — writes nothing
 ./deploy/compose/operator.sh clean <kind> --confirm      # do it
 ```
+
+One check is a precondition rather than a tidy-up: `check role-below-admin`
+lists every membership whose role is `member` or `viewer` (organisation,
+address, role, status), prints `none` when there is none, and exits non-zero
+while there is one. A declined or removed row grants nothing and is not listed.
+Until every write route names its roles, those two roles promise less than they
+allow, and the product no longer grants them (workplan 0137 T7). Run it on
+`ownpace-live` before the first invitation, from live's own checkout, because
+`operator.sh` drives whichever stack the checkout's `.env` names (0132 D7):
+
+```bash
+cd ~/ownpace-live && ./deploy/compose/operator.sh check role-below-admin
+```
+
+Because it gates a step, the full `check` exits 1 too while `role-below-admin`
+finds anything, and `pnpm` then prints its own failure after the report
+(`ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL … Exit status 1` with the pinned pnpm 11).
+The report above that line is still the whole answer, and it wrote nothing.
 
 `check` writes nothing and each finding is printed with the statement or command
 that resolves it. Most kinds are **report-only**: choosing who owns a customer's
@@ -1886,6 +1909,17 @@ OWNPACE_APP_URL=https://app.ownpace.eu     node site/build.mjs   # production
 docker compose -f deploy/compose/www.yml up -d
 ```
 
+**A second copy beside it names its own project, with `-p`.** `ownpace-www`,
+`www.yml`'s project, is a default, and the container is named after the
+project. A copy from another checkout is brought up with
+`docker compose -p <name> -f deploy/compose/www.yml up -d`, takes the same `-p`
+on its `ps`, `logs` and `down`, and has a `WWW_PORT` and a `WWW_BIND` of its
+own in that checkout's `.env`. Not `COMPOSE_PROJECT_NAME`: `www.yml` reads the
+same `.env` as `managed.yml`, where that key names the stack, so a bare command
+in live's checkout would put the site in live's own project (workplan 0139
+T10). Nothing refuses that any more: it used to fail on the OTA site's fixed
+container name, and now succeeds once live's `.env` has its own `WWW_PORT`.
+
 `site/dist` is bind-mounted read-only, so a rebuild is live immediately and no
 restart is needed — because the build **empties** `dist` rather than replacing
 it. A bind mount resolves to an inode at container start, so a build that
@@ -1893,7 +1927,7 @@ removed and recreated the directory would leave nginx holding an unlinked one:
 `total 0` inside the container, every file present outside, and a 403 on every
 request that reads like a permissions problem. If that ever happens,
 `docker compose -f deploy/compose/www.yml up -d --force-recreate` re-resolves
-the mount.
+the mount (for a second copy, with its own `-p`).
 
 `--public` and `OWNPACE_APP_URL` must agree, and the build refuses if they do
 not: a public build must point at the production app, and a test build must

@@ -1,0 +1,57 @@
+# The identity provider's pin against its newest release (workplan 0135 T7 (b)).
+#
+# Dependabot ignores the identity provider by name, because an upgrade moves
+# its schema one way and is the owner's call (0119 §3 item 2). So nothing said
+# when upstream moved on: v4.18.0 fixed GHSA-4hgj-wm6c-q7p2 on 2026-09-21, and a
+# week later a person reading release notes is what found it.
+#
+# Once a week, and on demand, scripts/idp-pin-watch.mjs reads the pin from
+# deploy/compose/managed.yml, compares it with the newest release of the same
+# major on upstream's repository (`git ls-remote`, no token needed), and keeps
+# ONE issue open while the two differ. A newer release updates that issue and
+# says so in a comment, since an edit notifies nobody; the issue is closed when
+# the pin catches up. The owner decided the window on 2026-09-28: a security
+# release is applied within seven days.
+#
+# It opens no pull request and moves nothing. The issue spells out the route
+# an upgrade takes: a dump first, its own PR, the gate, live from a tag.
+#
+# TO TEST IT: Actions, "Identity provider pin watch", Run workflow. The job's
+# first line says pinned, newest and current/behind. The issue appears only
+# when the pin is behind.
+#
+# scripts/a-pin-that-knows-it-is-behind.unit.test.ts holds the comparison, the
+# one issue, and this file's trigger, permissions and command.
+name: Identity provider pin watch
+
+on:
+  schedule:
+    # Mondays, 06:23 UTC. Off the hour, and hours after the gates' nights.
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: idp-pin-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Compare the pin with the newest release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Compare, and keep one issue open while the pin is behind
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: node scripts/idp-pin-watch.mjs --issue
