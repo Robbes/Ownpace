@@ -5,6 +5,9 @@
  *
  * Both were learnt the same afternoon, on one migration: a pass that would not
  * stop when it should, and a pass that stopped and would not stay stopped.
+ * The second rule is `planeErrorFor`'s now (`what-a-run-leaves.ts`), because
+ * every task's error goes through it on its way out (workplan 0134, open
+ * question 3 (a)). The first is here.
  *
  * They live HERE, and not in `run-delta-sync.ts` where they are used, for a
  * reason the guard `an-integration-test-is-handed-its-database.unit.test.ts`
@@ -18,8 +21,6 @@
  */
 
 import type { Pool } from 'pg';
-import { AbortTaskRunError } from '@trigger.dev/sdk';
-import { PassAbortError } from '@openmig/core';
 import { pathRunsNow } from '@openmig/shared';
 import type { TenantId, MappingId } from '@openmig/shared';
 import { readPathPhases, withTenant, type MigrationPhases } from '@openmig/ledger';
@@ -134,28 +135,4 @@ export function stepFrom(phases: MigrationPhases | null, domain: string): PassSt
   if (path.stopped === true) return { skip: 'stopped_by_its_owner' };
   if (!pathRunsNow(path)) return { skip: 'data_type_no_longer_runs' };
   return { run: true };
-}
-
-/**
- * The error this task should fail with, given the one the pass threw.
- *
- * A DELIBERATE STOP IS NOT RETRIED. `PassAbortError` is the pass saying "25
- * items failed in a row, the world is broken, stop". Rethrown as an ordinary
- * error it went through `trigger.config.ts`'s default retry — three attempts,
- * 5s/10s/20s apart — so ONE tick produced three failed runs inside a minute
- * against a target that had already said no (live, 2026-09-11: four failed
- * passes inside 13:01, and the only way to halt them was `docker stop` on the
- * worker). Retrying was pointless by construction: the pass had just proven
- * the same thing 25 times.
- *
- * `AbortTaskRunError` fails the run ONCE. The sync tick's failing-backoff
- * ladder then spaces the next attempts out, which is the layer designed to.
- *
- * Everything else is returned UNCHANGED, and that half matters as much: a
- * thrown pool error, an OOM, a provider 500 are all worth another go, and a
- * blanket abort here would turn one bad minute into a migration that never
- * resumes on its own.
- */
-export function taskErrorFor(error: unknown): unknown {
-  return error instanceof PassAbortError ? new AbortTaskRunError(error.message) : error;
 }

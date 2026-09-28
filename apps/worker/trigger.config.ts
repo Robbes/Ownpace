@@ -39,6 +39,18 @@ export default defineConfig({
   // For node-24 the CLI builds on triggerdotdev/node:24-bookworm, and a task
   // deploy's build output names it. A change here takes a task re-deploy.
   runtime: 'node-24',
+  // What a run logs stays in its container's output, and out of Trigger.dev's
+  // own database (workplan 0134, open question 3 (a)). Upstream's interceptor
+  // copies every `console.*` line of a run into the plane's store, where it
+  // is kept with no limit and every dump of `triggerdb` carries it, and this
+  // repository's `log.*` writes to `console.*`: folder paths, file names and
+  // a provider's own sentences with them. Off, `console.*` writes to the
+  // container's output alone, which is where the smoke's runner-log capture
+  // reads it. The SDK's `logger` writes to the plane directly, so no task uses
+  // it, and a run's error and discovery's output carry a reference instead of
+  // the words (`src/jobs/what-a-run-leaves.ts`). A change here takes a task
+  // re-deploy.
+  disableConsoleInterceptor: true,
   dirs: ['./src/jobs'],
   // Verification counts and samples a real mailbox; an hour is generous
   // headroom, not an expectation.

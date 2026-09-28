@@ -22,13 +22,14 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask, logger } from '@trigger.dev/sdk';
+import { schemaTask } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import { applyRelocation, type ApplyDeletionOutcome } from '@openmig/core';
-import { withTenant, auditExportOn, pgDriver } from '@openmig/ledger';
+import { withTenant, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { DISCOVERY_DOMAINS, setAuditExportSink } from '@openmig/shared';
+import { DISCOVERY_DOMAINS, log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import type { MappingId, RemovalKind, TenantId } from '@openmig/shared';
 import { buildDomainDepsFromMapping } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
@@ -49,6 +50,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 type ReceiptOutcome =
   | { state: 'applied'; kind: RemovalKind }
@@ -107,9 +111,9 @@ async function openDeps(tenantId: string, mappingId: string, domain: (typeof DOM
 export const runApplyRelocationTask = schemaTask({
   id: 'run-apply-relocation',
   schema: ApplyJobSchema,
-  run: async (payload) => {
+  run: leavesAReference('run-apply-relocation', async (payload) => {
     const { tenantId, mappingId, naturalKeyHash, receiptId } = payload;
-    logger.info(
+    log.info(
       `[run-apply-relocation] ${mappingId}: item ${naturalKeyHash.slice(0, 12)} (receipt ${receiptId})`,
     );
 
@@ -179,7 +183,7 @@ export const runApplyRelocationTask = schemaTask({
 
       if (outcome.ok) {
         await landReceipt(tenantId, receiptId, { state: 'applied', kind: outcome.kind });
-        logger.info(
+        log.info(
           `[run-apply-relocation] ${mappingId}: removed the OLD copy of ` +
             `${naturalKeyHash.slice(0, 12)} (${outcome.kind}) — the same bytes remain under ` +
             'the key the source moved it to.',
@@ -192,15 +196,15 @@ export const runApplyRelocationTask = schemaTask({
         code: outcome.code,
         reason: outcome.reason,
       });
-      logger.info(
+      log.info(
         `[run-apply-relocation] ${mappingId}: refused ${naturalKeyHash.slice(0, 12)} (${outcome.code})`,
       );
       return { receiptId, applied: false, code: outcome.code };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`[run-apply-relocation] ${mappingId}: job failed: ${message}`);
+      log.error(`[run-apply-relocation] ${mappingId}: job failed: ${message}`);
       await landReceipt(tenantId, receiptId, { state: 'failed', error: message });
       throw err;
     }
-  },
+  }),
 });

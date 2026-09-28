@@ -56,7 +56,14 @@
  *   services or task runs join must start with that stack's own project name.
  *   The smoke's runner watcher must render to that stack's runner network. It
  *   then runs the one reader the scripts take the project from, and
- *   `reset-trigger.sh` itself, in each stack's checkout. Last, it runs each
+ *   `reset-trigger.sh` itself, in each stack's checkout. The reader refuses a
+ *   `.env` carrying live's exact marker (`stack-kind.sh`) whose project comes
+ *   out as managed.yml's own name: a live checkout that forgot
+ *   `COMPOSE_PROJECT_NAME` would otherwise drive the OTA stack with live's
+ *   `.env` (0132 T1b, T1g). It reads the marker from the `stack-kind.sh`
+ *   beside its own real file, so a directory that only links the reader in
+ *   still tells; one with no `stack-kind.sh` there cannot tell and is refused
+ *   as well. It names the keys, never a value. Last, it runs each
  *   script that reaches a stack through Compose in the OTA stack's checkout
  *   from a shell that exports live's name: each must refuse before its first
  *   `docker` call and leave the `.env` as it was.
@@ -75,6 +82,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -682,15 +690,20 @@ describe('the second half: the OTA stack and live, rendered side by side', () =>
  * variable that is SET BUT EMPTY in the environment still wins over the
  * `.env`, and then falls through to `name:`.
  */
-function projectOf(opts: { dotenv?: string; env?: string }): {
+function projectOf(opts: { dotenv?: string; env?: string; withoutMarker?: boolean; linked?: boolean }): {
   status: number | null;
   out: string;
   err: string;
 } {
   const dir = mkdtempSync(join(tmpdir(), 'two-stacks-'));
   try {
-    copyFileSync(join(COMPOSE_DIR, 'env-read.sh'), join(dir, 'env-read.sh'));
-    copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(dir, 'managed.yml'));
+    const files = ['env-read.sh', 'managed.yml', ...(opts.withoutMarker ? [] : ['stack-kind.sh'])];
+    for (const f of files) {
+      // `linked`: the reader and managed.yml linked to the repository's, as a
+      // fixture that runs a script's preamble lays them out.
+      if (opts.linked) symlinkSync(join(COMPOSE_DIR, f), join(dir, f));
+      else copyFileSync(join(COMPOSE_DIR, f), join(dir, f));
+    }
     if (opts.dotenv !== undefined) writeFileSync(join(dir, '.env'), opts.dotenv);
     const env: NodeJS.ProcessEnv = { PATH: process.env.PATH ?? '/usr/bin:/bin' };
     if (opts.env !== undefined) env.COMPOSE_PROJECT_NAME = opts.env;
@@ -752,6 +765,74 @@ describe("each stack's scripts find their own stack", () => {
     expect(r.out).toBe('');
     expect(r.err).toContain('COMPOSE_PROJECT_NAME');
   });
+
+  // Live's .env carries its marker, `STACK_KIND=production` (stack-kind.sh),
+  // and `COMPOSE_PROJECT_NAME=ownpace-live` (0132 T1b). Without the second
+  // line the reader fell back to managed.yml's `name:`, and every script in
+  // live's checkout drove the OTA stack with live's .env: live's secrets,
+  // ports and production names on the OTA stack's containers and volumes.
+  const MARKED = [
+    'STACK_KIND=production\n',
+    "STACK_KIND='Production'   # the alpha\n",
+    'export STACK_KIND=" production "\n',
+  ];
+
+  it("live's marker on the OTA stack's project is refused, naming the keys and never a value", () => {
+    const cases: Array<{ dotenv: string; env?: string }> = [
+      ...MARKED.map((m) => ({ dotenv: `POSTGRES_PORT=55432\n${m}` })),
+      { dotenv: `COMPOSE_PROJECT_NAME=${OTA}\n${MARKED[0]}` },
+      // A shell that agrees with the checkout is followed, into the same refusal.
+      { dotenv: MARKED[0]!, env: OTA },
+      { dotenv: MARKED[0]!, env: '' },
+    ];
+    for (const c of cases) {
+      const r = projectOf(c);
+      expect(r.status, `.env ${JSON.stringify(c.dotenv)}, shell ${JSON.stringify(c.env)}: ${r.out}`).not.toBe(0);
+      expect(r.out).toBe('');
+      expect(r.err).toContain('STACK_KIND');
+      expect(r.err).toContain(`COMPOSE_PROJECT_NAME=${LIVE}`);
+      expect(r.err.toLowerCase(), 'a value from the .env was printed').not.toContain('production');
+    }
+  });
+
+  it("live's marker with live's project is live", () => {
+    for (const m of MARKED) {
+      expect(projectOf({ dotenv: `COMPOSE_PROJECT_NAME=${LIVE}\n${m}` })).toMatchObject({ status: 0, out: LIVE });
+    }
+    expect(projectOf({ dotenv: `${MARKED[0]}COMPOSE_PROJECT_NAME='${LIVE}'\n`, env: LIVE })).toMatchObject({
+      status: 0,
+      out: LIVE,
+    });
+  });
+
+  it("only live's exact marker is refused here, as stack_is_live reads it", () => {
+    // The reader answers every script, so it takes the exact marker. The
+    // cautious reading, slips included, is the refusals' (stack_may_be_live).
+    for (const dotenv of ['STACK_KIND=\n', 'STACK_KIND=prod\n', '# STACK_KIND=production\n']) {
+      expect(projectOf({ dotenv }), dotenv).toMatchObject({ status: 0, out: OTA });
+    }
+  });
+
+  it('a checkout whose stack-kind.sh is missing cannot tell, and is refused rather than taken for the OTA stack', () => {
+    const r = projectOf({ dotenv: 'POSTGRES_PORT=55432\n', withoutMarker: true });
+    expect(r.status).not.toBe(0);
+    expect(r.out).toBe('');
+    expect(r.err).toContain('stack-kind.sh');
+  });
+
+  it('a reader linked into a directory without stack-kind.sh finds the marker beside its own real file', () => {
+    // PR #1264's guard runs the smoke's preamble in a directory that links
+    // env-read.sh and managed.yml and nothing else. The reader looked for
+    // stack-kind.sh beside the .env there, and refused every such run.
+    expect(projectOf({ dotenv: 'POSTGRES_PORT=55432\n', withoutMarker: true, linked: true })).toMatchObject({
+      status: 0,
+      out: OTA,
+    });
+    const r = projectOf({ dotenv: MARKED[0]!, withoutMarker: true, linked: true });
+    expect(r.status).not.toBe(0);
+    expect(r.err).toContain(`COMPOSE_PROJECT_NAME=${LIVE}`);
+    expect(r.err, 'refused for a missing stack-kind.sh, not for the marker').not.toContain('cannot read');
+  });
 });
 
 /**
@@ -765,7 +846,7 @@ function resetTrigger(dotenv: string): { status: number | null; calls: string; e
     const bin = join(dir, 'bin');
     mkdirSync(compose, { recursive: true });
     mkdirSync(bin);
-    for (const f of ['reset-trigger.sh', 'env-read.sh', 'env-upsert.sh', 'managed.yml']) {
+    for (const f of ['reset-trigger.sh', 'env-read.sh', 'stack-kind.sh', 'env-upsert.sh', 'managed.yml']) {
       copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
     }
     writeFileSync(join(compose, '.env'), dotenv);

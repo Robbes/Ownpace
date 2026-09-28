@@ -43,18 +43,19 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { schedules, runs } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import type { PgDatabase } from '@openmig/ledger';
-import { auditExportOn, pgDriver } from '@openmig/ledger';
+import { appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import { purgeTenant } from '@openmig/managed';
 import {
   log,
   summariseRevocations,
   quiescePlan,
-  setAuditExportSink,
+  setAppEventSink, setAuditExportSink,
   type QuiescingRun,
 } from '@openmig/shared';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -67,6 +68,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 const revoker = new HttpTokenRevoker();
 
 /**
@@ -142,7 +146,7 @@ export const managedPurgeClosed = schedules.task({
   // promises "as soon as the purge next runs" rather than "instantly" for
   // exactly this reason. Off the hour, away from the retention pass.
   cron: '23 * * * *',
-  run: async () => {
+  run: leavesAReference('managed-purge-closed', async () => {
     const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
     const now = new Date();
 
@@ -279,5 +283,5 @@ export const managedPurgeClosed = schedules.task({
     };
     log.info('[purge]', summary);
     return summary;
-  },
+  }),
 });
