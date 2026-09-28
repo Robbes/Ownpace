@@ -443,6 +443,19 @@ docker compose -f managed.yml exec -T postgres \
   pg_restore -U openmigrate -d openmigrate --clean --if-exists < backup-YYYY-MM-DD.dump
 ```
 
+**Before an identity provider upgrade**, in the stack's checkout:
+
+```bash
+./deploy/compose/dump-idp.sh
+```
+
+It dumps the provider's database and the server's roles into `~/ownpace-dumps/<project>/`,
+readable by you alone, and reads the dump back with the server's own `pg_restore --list`. Beside
+them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
+and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
+server, going back replaces the database only: its roles are still there, and restoring them would
+set the provider's database password back to the dumped one.
+
 Notes:
 - The ledger is a **rebuildable cache** (ADR-0020): even without a ledger backup, a reindex/adopt
   from the target rehydrates idempotency state. Back up the DB anyway — it also holds tenant,

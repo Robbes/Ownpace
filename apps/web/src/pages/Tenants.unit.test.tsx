@@ -9,6 +9,11 @@
  * being a two-step armed action, and the two client-side pre-emptions the
  * screen IS allowed to make (no owner option for an admin, no remove button
  * on your own row).
+ *
+ * Owner and admin are the only roles offered (workplan 0137 T7), so every role
+ * change below picks one of them; what the select offers, and what a row that
+ * already holds `member` shows, is held by
+ * `a-role-that-promises-less-than-it-allows.unit.test.tsx`.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -167,13 +172,13 @@ describe('changing a role', () => {
     renderScreen();
     await screen.findByText('collega@acme.nl');
 
-    await userEvent.selectOptions(screen.getByLabelText('Role owner@acme.nl'), 'member');
+    await userEvent.selectOptions(screen.getByLabelText('Role owner@acme.nl'), 'admin');
     // This is the owner's OWN row, so the change is armed first (0039 T5) —
     // the server's refusal arrives after the confirm.
     await userEvent.click(screen.getByRole('button', { name: 'Confirm role change' }));
 
     expect(await screen.findByText('Cannot demote the last owner')).toBeInTheDocument();
-    expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-1', 'member');
+    expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-1', 'admin');
   });
 
   it('offers an admin no owner option — the one grant the server would refuse anyway', async () => {
@@ -322,11 +327,11 @@ describe('the email summary preference', () => {
 
 describe('self-demotion is armed; other rows stay single-click (0039 T5)', () => {
   it('lowering your OWN role takes a confirm; the first selection changes nothing', async () => {
-    memberUpdateRole.mockResolvedValue({ id: 'm-1', tenantId: 'acme', role: 'member', updatedAt: 'x' });
+    memberUpdateRole.mockResolvedValue({ id: 'm-1', tenantId: 'acme', role: 'admin', updatedAt: 'x' });
     renderScreen();
 
     await screen.findByText('collega@acme.nl');
-    await userEvent.selectOptions(screen.getByLabelText('Role owner@acme.nl'), 'member');
+    await userEvent.selectOptions(screen.getByLabelText('Role owner@acme.nl'), 'admin');
 
     // Armed, not executed.
     expect(memberUpdateRole).not.toHaveBeenCalled();
@@ -336,21 +341,40 @@ describe('self-demotion is armed; other rows stay single-click (0039 T5)', () =>
 
     await userEvent.click(screen.getByRole('button', { name: 'Confirm role change' }));
     await waitFor(() =>
-      expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-1', 'member'),
+      expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-1', 'admin'),
     );
   });
 
-  it("changing someone ELSE's role stays single-click", async () => {
-    memberUpdateRole.mockResolvedValue({ id: 'm-2', tenantId: 'acme', role: 'viewer', updatedAt: 'x' });
+  it("demoting someone ELSE stays single-click", async () => {
+    // A DEMOTION, of a second owner's row: with owner and admin the only roles
+    // on offer (0137 T7), owner -> admin is the one demotion left, and only a
+    // demotion tells "arm your own demotion" apart from "arm every demotion".
+    // A promotion is never armed for anyone, so it would pass either way.
+    memberList.mockResolvedValue([
+      ...MEMBERS,
+      {
+        id: 'm-3',
+        tenantId: 'acme',
+        userId: 'user-c',
+        email: 'mede-eigenaar@acme.nl',
+        role: 'owner',
+        status: 'active',
+        invitedAt: null,
+        joinedAt: '2026-07-02T10:00:00.000Z',
+      },
+    ]);
+    memberUpdateRole.mockResolvedValue({ id: 'm-3', tenantId: 'acme', role: 'admin', updatedAt: 'x' });
     renderScreen();
 
-    await screen.findByText('collega@acme.nl');
-    await userEvent.selectOptions(screen.getByLabelText('Role collega@acme.nl'), 'viewer');
+    await screen.findByText('mede-eigenaar@acme.nl');
+    await userEvent.selectOptions(screen.getByLabelText('Role mede-eigenaar@acme.nl'), 'admin');
 
     await waitFor(() =>
-      expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-2', 'viewer'),
+      expect(memberUpdateRole).toHaveBeenCalledWith('acme', 'm-3', 'admin'),
     );
+    expect(memberUpdateRole).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/lowers your own role/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirm role change' })).not.toBeInTheDocument();
   });
 });
 
