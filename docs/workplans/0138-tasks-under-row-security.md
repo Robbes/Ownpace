@@ -792,6 +792,68 @@ files and 2654 tests; `scripts` and `apps/api/src/routes/migrations`, 241 files 
 both chains (`scripts/local-pg.sh`), the row-security guard as `app_user`: the same 23 files, 218
 tests. The three indexes are current. Nothing was exercised against a running stack.
 
+**2026-09-28, later still: re-review fixes for step 2, same branch, not merged.** Re-review found
+two minor things. Both are fixed here, in one more commit:
+
+- **The guard saw an end only on the name `openTaskPools`'s result was bound to.** Re-review added
+  `} finally { await pool.end(); }` to run-cutover's `try`, on `const pool = pools.tenant`, and
+  kept `afterwards(() => pools.end())`. `tsc` and `eslint` passed, and so did every job unit file
+  beside the jobs, `a-pass-that-opened-the-owners-pool`, `a-run-that-carries-no-superuser` and
+  `every-audit-field-is-classified` (24 files, 408 tests), while at run time the tenant pool was
+  ended before the failure's event, and the event was lost again: the last entry's second finding,
+  back in the shape `main` ended its one pool in. `a-pass-that-opened-the-owners-pool` now counts
+  every `end` a `PER_TENANT` file or the standalone worker names, called or not: off any name, by
+  its key (`pool['end']`) or out of a destructuring (`{ end: close }`). It lets one stand only
+  where it waits for `afterwards`: in a function handed to that call, or handed to it itself
+  (`afterwards(pools.end)`). An end in the call's own arguments (`afterwards(pools.end())`) runs at
+  once, and counts as outside now; the previous version let anything under the call pass. It does
+  not ask which object a name holds, so any other `end` in those nine files must wait for
+  `afterwards` too (none has one). It reads each file alone: an end in another file's function
+  that the pool is handed to it does not see (none has one). `docs/rls-guide.md` and
+  `task-pools.ts`'s header said the guard held the pool's end to `afterwards` under any name, and
+  now say what it reads and what it does not.
+- **The permission report's lines.** #1303 (0138 T6, merged on `main` after this branch's base)
+  moved the permission report and the sharing rescan onto `getDbPool()` inside `withTenant`, and
+  added `a-route-that-opened-the-owners-pool` for `apps/api`. This branch still said, in
+  `SECURITY.md`, `README.md`, `.env.example`, `managed.env.example` and the SAD's §17.1 row, that
+  two API routes read on the owner's connection, and `docs/rls-guide.md` still had the report's own
+  row, the two §2 bullets, the pitfall, and *"not in 0138's task table yet"*. Each of those lines
+  sits in a hunk `main` changed too, so a merge that kept this branch's side would have put the
+  claims back on `main`. They now carry #1303's wording, word for word where the text is #1303's
+  alone (the guide's T6 note, the request path's row, the audit key's row, the two §2 bullets, and
+  the paragraph on the `apps/api` guard). On this commit alone they are ahead of the code:
+  `permissions.ts` opens its own pool on `DATABASE_URL`, and 0138 T6 and its guard are not here,
+  until this branch merges `main`, the next step. Asked of a merge that was not made
+  (`git merge-tree` of this commit and `origin/main` at 979ef36f): every conflict left in those six
+  files is about the tasks, and this branch's side of each carries none of the old claims.
+  `docs/operator-runbook.md` and `managed.yml`, whose lines on the two routes this branch never
+  touched and still carries, take #1303's text without a conflict.
+
+**The guard, and how it failed first.** The shapes went into *"sees what a file takes"* before
+the change, eleven of them: the re-review's, the tenant pool destructured off the call or off the
+whole, `pools.tenant.end()`, under a second name by its key, taken out of a destructuring, in a
+helper of the file's own, in `afterwards`'s own arguments, and three that wait. Against the
+previous version the eight that end too early each failed (*"expected [ 'tenant' ] to deeply
+equal [ 'end, outside afterwards', 'tenant' ]"*, and for the re-review's own shape *"expected [
+'end', 'tenant' ] …"*); the three that wait passed. With the change all 80 cases pass.
+
+**Mutations**, each run against the previous version of the guard and against this one, beside
+`tsc`, `eslint` on the job, the 21 unit files beside the jobs, `a-run-that-carries-no-superuser`
+and `every-audit-field-is-classified`; restored from a copy after each:
+
+| # | Mutation | Previous guard | This guard |
+|---|---|---|---|
+| C1 | run-cutover also ends `pool` (`const pool = pools.tenant`) in its own `finally`, the end in `afterwards` kept (the re-review's change) | all green, `tsc` and `eslint` too | 1 unit (run-cutover takes *"end, outside afterwards"*) |
+| C2 | run-cutover takes `const { tenant: pool } = pools`, and ends `pool` in its own `finally` | all green | 1 unit |
+| C3 | run-rollback ends `pools.tenant.end()` in its own `finally` | all green | 1 unit |
+| C4 | run-rollback hands `afterwards` an end already called (`afterwards(await pools.end().then(…))`), which `tsc` accepts | 1 unit (`a-run-that-kept-a-testers-words`, the text it looks for) | 2 unit |
+
+Gates: `pnpm -s typecheck` green; `eslint` on the two changed TypeScript files clean. Unit:
+`scripts`, 198 files and 3495 tests, `a-connection-the-docs-did-not-know-about` among them;
+`apps/worker`, 26 files and 364 tests. The three indexes regenerated, unchanged, and current. No
+integration run: nothing a pass runs changed (the guard, a comment in `task-pools.ts`, and
+documents). Nothing was exercised against a running stack.
+
 | Task | Status | Notes |
 |---|---|---|
 | T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |

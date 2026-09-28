@@ -30,16 +30,22 @@
  *      top; a pool it built, or a sink it set, at import would be one the job
  *      did not ask for, in every file that imports a job to test it.
  *   5. What `openTaskPools` hands back, such a file takes the tenant pool of,
- *      and its `end` inside `afterwards(…)`, and nothing else; and no file but
- *      the module names the key's pool. The module handed the jobs the key's
- *      pool, the owner's, until review found that one token
- *      (`const { auditKey: pool } = openTaskPools()`) put a pass back on a
- *      superuser with all 486 tests of every guard here and beside the jobs
- *      green (0138 T1 step 2's review). And `end` goes through `afterwards`,
- *      which `leavesAReference` runs once a failure is recorded, because the
- *      operator's log page is on the tenant pool: ended in the run's own
- *      `finally`, it was gone before the wrapper recorded run-cutover's or
- *      run-rollback's failure there.
+ *      and its `end`, and nothing else; it names no `end`, on any name, but in
+ *      a function handed to `afterwards(…)`; and no file but the module names
+ *      the key's pool. The module handed the jobs the key's pool, the owner's,
+ *      until review found that one token (`const { auditKey: pool } =
+ *      openTaskPools()`) put a pass back on a superuser with all 486 tests of
+ *      every guard here and beside the jobs green (0138 T1 step 2's review).
+ *      And an end waits for `afterwards`, which `leavesAReference` runs once a
+ *      failure is recorded, because the operator's log page is on the tenant
+ *      pool: ended in the run's own `finally`, it was gone before the wrapper
+ *      recorded run-cutover's or run-rollback's failure there. Every end
+ *      counts, not only `pools.end`: the tenant pool goes under whatever name
+ *      the job gives it, and re-review ended it as `pool.end()` in
+ *      run-cutover's `finally`, with `afterwards(() => pools.end())` kept and
+ *      every guard green (0138 T1 step 2's re-review). An end in another
+ *      file's function that the pool is handed to is out of sight; none has
+ *      one.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -339,30 +345,54 @@ function openTaskPoolsNames(sf: ts.SourceFile): Set<string> {
   return local;
 }
 
-/** What a file may take from what `openTaskPools` hands back. `end` means: inside `afterwards(…)`. */
+/** What a file may take from what `openTaskPools` hands back. `end` means: one that waits for `afterwards(…)`. */
 const MAY_TAKE: readonly string[] = ['end', 'tenant'];
+
+/**
+ * Whether an `end` waits for `afterwards(…)`, the third argument
+ * `leavesAReference` hands a run: it sits in a function handed to that call,
+ * or is itself what is handed (`afterwards(pools.end)`). An end in the call's
+ * own arguments (`afterwards(pools.end())`) runs at once, not afterwards.
+ */
+function waitsForAfterwards(node: ts.Node): boolean {
+  const handedToAfterwards = (n: ts.Node): boolean =>
+    n.parent !== undefined &&
+    ts.isCallExpression(n.parent) &&
+    ts.isIdentifier(n.parent.expression) &&
+    n.parent.expression.text === 'afterwards' &&
+    n.parent.arguments.some((a) => a === n);
+  if (handedToAfterwards(node)) return true;
+  for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+    if ((ts.isArrowFunction(n) || ts.isFunctionExpression(n)) && handedToAfterwards(n)) return true;
+  }
+  return false;
+}
 
 /**
  * What a file takes from what `openTaskPools` hands back: each property it
  * reads, whether off the call, out of a destructuring, or off a name the whole
- * was bound to; `end` only where it sits inside a call of `afterwards`, the
- * third argument `leavesAReference` hands a run (`end, outside afterwards`
- * elsewhere); and `the whole` wherever the lot is handed on, spread or kept
+ * was bound to; and `the whole` wherever the lot is handed on, spread or kept
  * under another name, since what is done with it then is out of sight. Names
  * are matched in the whole file, not per scope: a job has one such binding.
+ *
+ * And every `end` the file names, on whatever it names it on: read off a name
+ * (`pool.end`), by its key (`pool['end']`) or out of a destructuring
+ * (`{ end: close }`). The tenant pool goes under whatever name the job gives
+ * it, and its own `end` ends the same pool as the one handed back: 0138 T1
+ * step 2's re-review added `finally { await pool.end(); }` to run-cutover, on
+ * `const pool = pools.tenant`, kept `afterwards(() => pools.end())`, and every
+ * guard stayed green while a failure's event was lost again. So this does not
+ * ask which object a name holds: each end counts as `end` where it waits for
+ * `afterwards` ({@link waitsForAfterwards}) and as `end, outside afterwards`
+ * anywhere else. It reads this one file: an end in a function of another file
+ * that the pool is handed to is out of its sight (none has one).
  */
 function takenFromTaskPools(file: string, text: string): string[] {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const local = openTaskPoolsNames(sf);
   const taken = new Set<string>();
-  const insideAfterwards = (node: ts.Node): boolean => {
-    for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
-      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'afterwards') return true;
-    }
-    return false;
-  };
   const take = (name: string, at: ts.Node) =>
-    taken.add(name === 'end' && !insideAfterwards(at) ? 'end, outside afterwards' : name);
+    taken.add(name === 'end' && !waitsForAfterwards(at) ? 'end, outside afterwards' : name);
   const above = (node: ts.Node): ts.Node => {
     let up = node.parent;
     while (ts.isParenthesizedExpression(up) || ts.isNonNullExpression(up) || ts.isAsExpression(up)) up = up.parent;
@@ -407,6 +437,19 @@ function takenFromTaskPools(file: string, text: string): string[] {
     ts.forEachChild(node, uses);
   };
   if (bound.size > 0) uses(sf);
+  const ends = (node: ts.Node) => {
+    const keyOf = (k: ts.Node) => (ts.isIdentifier(k) || ts.isStringLiteralLike(k) ? k.text : undefined);
+    const key = ts.isPropertyAccessExpression(node)
+      ? node.name.text
+      : ts.isElementAccessExpression(node)
+        ? keyOf(node.argumentExpression)
+        : ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)
+          ? keyOf(node.propertyName ?? node.name)
+          : undefined;
+    if (key === 'end') take('end', node);
+    ts.forEachChild(node, ends);
+  };
+  ends(sf);
   return [...taken].sort();
 }
 
@@ -654,7 +697,7 @@ describe('a per-tenant task takes its pools from the one module that builds them
   });
 
   it.each([...PER_TENANT, STANDALONE_WORKER].map((f) => [f]))(
-    '%s takes the tenant pool from openTaskPools, and its end only inside afterwards',
+    '%s takes the tenant pool from openTaskPools, and ends nothing, on any name, but in afterwards',
     (file) => {
       const taken = takenFromTaskPools(file, texts.get(file)!);
       expect(taken, `${file} takes nothing from openTaskPools: the case above should have said so`).not.toEqual([]);
@@ -662,7 +705,8 @@ describe('a per-tenant task takes its pools from the one module that builds them
         taken.filter((t) => !MAY_TAKE.includes(t)),
         `${file} takes ${taken.join(', ')} from what openTaskPools hands back. A per-tenant task reads and\n` +
           "writes on the tenant pool, app_user's, and nothing else: the key's pool is the owner, whom row\n" +
-          'security never binds (0138 T1 step 2). And it ends that pool inside afterwards(…), which\n' +
+          'security never binds (0138 T1 step 2). And whatever it ends, under whatever name (pools.end,\n' +
+          'or pool.end on const pool = pools.tenant), it ends in a function handed to afterwards(…), which\n' +
           "leavesAReference runs once the run's failure is on the operator's log page, on that same pool.",
       ).toEqual([]);
     },
@@ -695,6 +739,46 @@ describe('a per-tenant task takes its pools from the one module that builds them
       'end, outside afterwards',
       'tenant',
     ]);
+    // The same pool ended under the name the job gave it, with the end in
+    // afterwards kept: the re-review's change to run-cutover, green on every
+    // guard then, and the shape the jobs on main ended their one pool in.
+    expect(
+      takes(
+        'const pools = openTaskPools(); afterwards(() => pools.end()); const pool = pools.tenant;\n' +
+          'try { return await run(pool); } finally { await pool.end(); }',
+      ),
+    ).toEqual(['end', 'end, outside afterwards', 'tenant']);
+    expect(takes('const { tenant: pool } = openTaskPools(); try { run(pool); } finally { await pool.end(); }')).toEqual([
+      'end, outside afterwards',
+      'tenant',
+    ]);
+    expect(takes('const pools = openTaskPools(); const { tenant: pool } = pools; await pool.end();')).toEqual([
+      'end, outside afterwards',
+      'tenant',
+    ]);
+    expect(takes('const pools = openTaskPools(); await pools.tenant.end();')).toEqual(['end, outside afterwards', 'tenant']);
+    // Under a second name, by its key, taken out of it, or in a helper of the file's own.
+    expect(takes("const p = openTaskPools().tenant; const q = p; await q['end']();")).toEqual([
+      'end, outside afterwards',
+      'tenant',
+    ]);
+    expect(takes('const { tenant } = openTaskPools(); const { end: close } = tenant; await close();')).toEqual([
+      'end, outside afterwards',
+      'tenant',
+    ]);
+    expect(takes('const { tenant: pool } = openTaskPools(); const close = (p: Pool) => p.end(); await close(pool);')).toEqual([
+      'end, outside afterwards',
+      'tenant',
+    ]);
+    // An end in afterwards's own arguments runs at once, not afterwards.
+    expect(takes('const pools = openTaskPools(); afterwards(pools.end());')).toEqual(['end, outside afterwards']);
+    // And the ends that do wait: in a function handed to afterwards, or the end itself handed to it.
+    expect(takes('const pools = openTaskPools(); afterwards(pools.end);')).toEqual(['end']);
+    expect(takes('const { tenant: pool } = openTaskPools(); afterwards(async () => { await pool.end(); });')).toEqual([
+      'end',
+      'tenant',
+    ]);
+    expect(takes('const { tenant: pool } = openTaskPools(); // finally { await pool.end(); }')).toEqual(['tenant']);
     // The lot handed on, or taken apart later.
     expect(takes('const pools = openTaskPools(); helper(pools);')).toEqual(['the whole']);
     expect(takes('const { ...rest } = openTaskPools();')).toEqual(['the whole']);

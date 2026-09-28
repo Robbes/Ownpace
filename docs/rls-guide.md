@@ -14,12 +14,18 @@
 > `DIRECT_DATABASE_URL` (§2's `set-task-env.sh` row). And on 2026-09-28 for
 > 0138 T1 step 1: the builders build on the job's pool, the ledger, cursor and
 > verification stores a pass builds run each statement inside `withTenant`
-> (`tenantScopedDb`, §3), what is left outside a scope is named (§1's task
-> row), and no task changed the role it connects as. Later the same day, for
-> 0138 T1 step 2: the eight per-tenant tasks and the standalone worker connect
-> as `app_user` (`openTaskPools`, `apps/worker/src/jobs/task-pools.ts`), their
-> audit key is read on a pool of one of the owner's, and the task row is three
-> rows now.
+> (`tenantScopedDb`, §3), what is left outside a scope is named (the task row
+> under "Where row security holds today"), and no task changed the role it
+> connects as. Later the same day, for 0138 T1 step 2: the eight per-tenant
+> tasks and the standalone worker connect as `app_user` (`openTaskPools`,
+> `apps/worker/src/jobs/task-pools.ts`), their audit key is read on a pool of
+> one of the owner's, and the task row is three rows now.
+>
+> Updated 2026-09-28 (0138 T6): the permission report and the sharing rescan
+> read as `app_user` inside `withTenant`, like every other route, so no route
+> reads tenant data on the owner's connection. A request still reaches the
+> owner in two places, for the audit pseudonym key only, through `index.ts`'s
+> pool of one (its row under "Where row security holds today").
 
 ## What RLS buys here
 
@@ -48,10 +54,9 @@ organisations, and the same question as `app_user` counted one.
 
 | path | connects as | row security |
 | --- | --- | --- |
-| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb` | `app_user` | **in force** |
-| The API's permission report (`GET /api/permissions/report`) and sharing rescan (`POST /api/migrations/:id/sharing/rescan`): `apps/api/src/routes/permissions.ts` opens its own pool on `DATABASE_URL` and reads `connection`, `mailbox_mapping` and `mailbox` there | the owner, a superuser on managed | **not in force**: each query's own `tenant_id = $1` is the only filter |
+| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb`. Every route, the permission report and the sharing rescan (`apps/api/src/routes/permissions.ts`) included since 2026-09-28 (0138 T6); until then that file opened its own pool on `DATABASE_URL` | `app_user` | **in force** |
 | The API's operator screens: the `support_*` views (managed migrations `0009` onward) | `app_user`, but a view runs with its owner's rights, and its owner is the owner | **passed by design**: the operator check written into each view is the only net, and `packages/managed/src/support-views.unit.test.ts` checks every view has it |
-| The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
+| The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset. The key pool is reached from the request path in two places: the audit line printed after an audit event commits (the export sink, `auditExportOn`), and the operator's audit download (`GET /api/support/audit-export`, `routes/support.ts`, through `apps/api/src/audit-key.ts`). Each keeps the key once it has read it, and reads it again only after a read that failed | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
 | **The eight per-tenant Trigger.dev tasks** (`run-delta-sync`, `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`, `run-cutover`, `run-rollback`), and the standalone worker (`apps/worker/src/index.ts`): the tenant pool `openTaskPools` builds (`apps/worker/src/jobs/task-pools.ts`) on `APP_DATABASE_URL`, and the builders they hand it to (`buildDepsFromMapping`, `buildDomainDepsFromMapping`, `createLedgerVerificationReader`) | `app_user`, since 0138 T1 step 2 (2026-09-28). `openTaskPools` refuses to start without `APP_DATABASE_URL` and never falls back to `DATABASE_URL`. Every store and read a pass makes runs inside `withTenant` for its tenant: the ledger, cursor and verification stores on `tenantScopedDb`, the helper reads (`enabledDomains`, `stoppedDomains`, `targetProviderKey`, the rollback's mapping name, the step before each data type) and the run, status, receipt, cutover and confirmation writes in scopes of their own. Two things it touches need no scope and have none: the rate and byte budgets (`plainDb`: their tables have no row security, by design) and the operator's log page's events (`app_event`, which `app_user` may insert into and not read) | **in force** |
 | The same tasks' audit key: `openTaskPools`'s second pool, on `DATABASE_URL` | the owner; one connection, closed a second after its last use | not needed: it reads `deployment_key` only, which holds no tenant's rows and which ledger migration 0062 closes to `app_user`. It is the API's audit key pool, in a task. 0138 T3 step 2 moves it to the system role |
 | **The six scheduled Trigger.dev jobs** that span organisations (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`, `managed-digest`, `managed-drift-detect`, `managed-group-discovery`) | the owner, a superuser: each builds its pool from `DATABASE_URL`, and none gives `withTenant` a role | **not in force**: the separation between organisations rests on each query's own tenant filter. 0138 T2 splits the digest, the drift detector and group discovery (their per-organisation reads onto the tenant pool), and T3 step 2 gives all six a role that is not a superuser |
@@ -81,13 +86,26 @@ pool and its end, and keeps the key's pool for the sink.
 `apps/worker/src` or `packages/*/src` that is not on its closed list reads a
 database URL other than `APP_DATABASE_URL`, if a per-tenant task builds a pool
 or points a sink itself, takes anything from `openTaskPools` but the tenant
-pool and its end, or ends that pool anywhere but in `afterwards` (so a failed
-run's event reaches the log page, which is on that pool, before it closes), if
-any file but the module names the key's pool, or if the module does anything
-at import. A run still
-receives the owner's URL (§2's `set-task-env.sh` row) until T3 step 2. The
-permission report's pool is not in 0138's task table yet (its Status block,
-2026-09-27), and that guard does not read `apps/api`.
+pool and its end, or names an `end`, on any name, anywhere but in a function
+it hands to `afterwards` (so a failed run's event reaches the log page, which
+is on that pool, before it closes: `pool.end()` on `const pool = pools.tenant`
+counts as much as `pools.end()`; it reads the task's own file, and an end in
+another file's function that the pool is handed to it does not see), if any
+file but the module names the key's pool, or if the module does anything at
+import. A run still
+receives the owner's URL (§2's `set-task-env.sh` row) until T3 step 2. That
+guard does not read `apps/api`;
+`scripts/a-route-that-opened-the-owners-pool.unit.test.ts` does (0138 T6): a
+file in `apps/api/src` that reads a database URL other than `APP_DATABASE_URL`,
+builds a pool of its own, or names a function that reads the owner's URL or
+opens a pool on the URL it is handed (`migrationConnectionString`,
+`poolerInFront`, `createLedgerVerificationReader`; the orchestration builders
+left that list when T1's first step removed their fallback) must be on its
+closed list of four, and no route may be on it. The process entry and
+`getDbPool()`'s file hold request-path code too, so each is pinned to exactly
+what it reaches and where; the operator script and the seed are exempt whole,
+and nothing outside `apps/api/src/scripts` may import them. It does not see a
+connection handed in: the audit key's pool of one (§2).
 
 ## The enforcement model — three parts, all load-bearing
 
@@ -123,15 +141,15 @@ database roles"):
 
 - `APP_DATABASE_URL` → `app_user`. **The request path, always.** The API reads
   and writes tenant data through this, so row security is in force on its
-  queries, with the permission report's own pool, which two routes use, as the
-  one exception ("Where row security holds today"). **The eight per-tenant
+  queries ("Where row security holds today"). **The eight per-tenant
   Trigger.dev tasks use it too**, since 0138 T1 step 2: `openTaskPools` builds
   their tenant pool on it and on nothing else, and refuses to start without it.
   The six jobs that span organisations do not yet.
-- `DATABASE_URL` → the DB owner. **Meant never to be the request path.** Today
-  two API routes open a pool on it, the permission report and the sharing
-  rescan (`apps/api/src/routes/permissions.ts`; "Where row security holds
-  today"). It is for the acts performed AT THE MACHINE by whoever runs the
+- `DATABASE_URL` → the DB owner. **Not the request path.** No route opens a
+  pool on it (the permission report and the sharing rescan did until
+  2026-09-28, 0138 T6); in the API it serves the migrations and the audit key's
+  pool of one when `DIRECT_DATABASE_URL` is unset (the table above). It is for
+  the acts performed AT THE MACHINE by whoever runs the
   deployment — the ones that by their nature span tenants, or precede one
   existing — and, until workplan 0138 T2 and T3 step 2 land, for the six
   Trigger.dev jobs that span organisations and for the per-tenant tasks' audit
@@ -374,8 +392,9 @@ ROLLBACK;
   connection path, add the in-force proof for it.
 - **The owner URL in the request path.** Everything works, nothing is
   isolated. `APP_DATABASE_URL` exists so this is a configuration you can
-  grep for. The six managed jobs that span organisations and the permission
-  report's pool are in this state today ("Where row security holds today").
+  grep for. The six managed jobs that span organisations are in this state
+  today, and the permission report's pool was until 2026-09-28 ("Where row
+  security holds today").
 - **Session-level context.** `SET app.current_tenant` without `LOCAL`
   survives the transaction and rides the pooled connection into another
   request. `withTenant` uses transaction-local everything; keep it that way.

@@ -35,15 +35,23 @@
  * handed it could read and write tenant data on it in one token. Until 0138 T1
  * step 2's review it was handed back, as `auditKey`, and three such one-token
  * changes to three jobs left all 486 tests of every guard green. The
- * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` guard now holds a
- * job to `tenant` and `end`, and every file but this one to never naming
- * `auditKey`.
+ * `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` guard now holds
+ * each per-tenant job, and the standalone worker, to taking `tenant` and `end`
+ * from what this hands back and nothing else, and every file but this one to
+ * never naming `auditKey`.
  *
  * ENDED AFTER THE FAILURE IS RECORDED. A job that opens its pools per run
  * (run-cutover, run-rollback) ends them in `afterwards(() => pools.end())`,
  * which `leavesAReference` runs once a failure is on the operator's log page,
  * whose sink is on the tenant pool. Ended in the run's own `finally`, the pool
  * was gone before the failure's event was written, and the event was lost.
+ * The same guard fails when one of those files names an `end`, on any name,
+ * anywhere but in a function it hands to `afterwards`: `pool.end()` on
+ * `const pool = pools.tenant` ends this same pool, and when 0138 T1 step 2's
+ * re-review put that in run-cutover's `finally`, every guard stayed green
+ * until this one counted every end. It reads each job's own file; an end in
+ * another file's function that the pool is handed to it does not see, and
+ * none has one.
  *
  * NO FALLBACK. `APP_DATABASE_URL` unset or empty refuses; `DATABASE_URL` is
  * never used in its place. The API's `getDbPool` falls back to `DATABASE_URL`
