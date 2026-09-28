@@ -2,7 +2,7 @@
 
 > **In one line:** Trigger.dev tasks reading tenant data as `app_user` under row security instead of the superuser owner via `DATABASE_URL`, owner reach kept to cross-tenant jobs, `DIRECT_DATABASE_URL` dropped from `set-task-env.sh`, a pool guard, docs corrected.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-24: opened from the owner's answers.** The readiness review of 2026-09-23 found that the
 Trigger.dev tasks read and write tenant data as the database owner, and that the owner is a
@@ -306,12 +306,18 @@ result keeps T5 step 1's documentation and T3 step 1's fact, each checked agains
 Still open: T0 (the owner); T1 and T2; T3 step 2, and the owner's one-off deletion (above); T5
 step 2, after T1 to T3; the permission report's pool (T5 step 1's note).
 
+**2026-09-28: T0 answered, (a).** The owner: *"0138 T0: build the fix first."* So §4's (a): T1 to
+T4 are built before the first invitation, and nothing is accepted in writing. T3 step 1 and T4
+are merged (#1222). T1, T2 and T3 step 2 now come before the first invitation, proven on the OTA
+stack before live takes them from a tag. Their rows and 0131 T5's row for this plan say so. Open
+questions 2 and 3 are still the owner's.
+
 | Task | Status | Notes |
 |---|---|---|
-| T0 The alpha's answer: build first, or accept in writing | ⏳ **Owner** | §4 and open question 1. 0131 T5's row for this plan. Recommended: accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
-| T1 Per-tenant tasks read and write as the application role | 📋 **Proposed** | §3. Eight jobs, the builders that open their own ledger from `DATABASE_URL`, the stores that filter by their own `WHERE`, and (on `main`) the audit sink's key. Changing the URL is not enough on its own: under row security, a query with no tenant set reads nothing. |
-| T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1 | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only (open question 3). |
-| T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27; deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed** | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
+| T0 The alpha's answer: build first, or accept in writing | 📋 **Decided 2026-09-28** (open question 1): (a), T1 to T4 built before the first invitation | §4 and open question 1. 0131 T5's row for this plan. The recommendation was (b): accept in writing for the alpha, with T5's first step, T3's first step and T4 in place before the first invitation. |
+| T1 Per-tenant tasks read and write as the application role | 📋 **Proposed**; before the first invitation (T0 (a), 2026-09-28) | §3. Eight jobs, the builders that open their own ledger from `DATABASE_URL`, the stores that filter by their own `WHERE`, and (on `main`) the audit sink's key. Changing the URL is not enough on its own: under row security, a query with no tenant set reads nothing. |
+| T2 The owner's reach kept to the jobs that span tenants | 📋 **Proposed**, with T1; before the first invitation (T0 (a), 2026-09-28) | §3. The sync tick, retention and the purge. The digest, the drift detector and group discovery keep it for the list of tenants only (open question 3). |
+| T3 No superuser in a run's environment | Step 1 ✅ **done** in #1222, merged 2026-09-27; deleting the stored value once per plane ⏳ **Owner**. Step 2 📋 **Proposed**, before the first invitation (T0 (a), 2026-09-28) | §3. Step 1: stop uploading `DIRECT_DATABASE_URL`, which no task reads. Step 2: T2's jobs connect as a role that is not a superuser. Step 3: 🅿️ **Parked (trigger: the service admits people the owner has not let in personally)**. |
 | T4 A guard that fails when a per-tenant job opens the owner's pool | ✅ **done** in #1222, merged 2026-09-27, as a ratchet | §3. A closed list of the files that may read a database URL other than `APP_DATABASE_URL`. Under T0's option (b) it lands first as a ratchet. T1 empties `KNOWN_REMOVED_BY_T1` and deletes it. |
 | T5 The documents say which connection the tasks use | ✅ **Step 1 done** in #1218, merged 2026-09-27. Step 2 📋 **Proposed**, after T1 to T3 | §3. Step 1: what is true today, and an owner pool in the API that §1 missed (Status, 2026-09-27). Step 2: what T1 to T3 built. The legal texts' sentence goes to 0139. |
 
@@ -730,6 +736,8 @@ Then there are two ways to reach the first invitation:
   audited them all; and a T1 built in a hurry risks passes that silently copy nothing, which
   testers would feel more directly than a risk that has not been realised.
 
+**Decided 2026-09-28: (a)** (T0, open question 1).
+
 What (b) accepts, said plainly: for the alpha's weeks, a defect in a task's own tenant filter
 could read or write another tester's rows, including that tester's stored credentials, which the
 run holds the key to decrypt. The database would not stop it. And every run holds a superuser's
@@ -771,7 +779,8 @@ acceptance in their own words, with the date it ends.
 ## Open questions
 
 1. **T0: (a) or (b)?** If (b), the date or event that ends the acceptance, and the reason, for
-   0131 T5.
+   0131 T5. **Answered 2026-09-28: (a)**, *"0138 T0: build the fix first."* Nothing is accepted in
+   writing, so there is no end date to state.
 2. **T3's end state.** Is the system role of step 2 the end, or should step 3's functions follow
    at its trigger, so that no run holds a credential that reads past the policies? Recommended:
    step 2 for the alpha, step 3 before the service admits people the owner has not let in.
