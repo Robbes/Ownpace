@@ -120,26 +120,46 @@ comments still name them, to say what filled them.
   what the repository says of it (`managed.yml`: *"netbird terminating TLS on 443"*; 0091:
   *"Routing and TLS are netbird's"*), and NetBird's documentation says its hosted proxy, for an
   HTTP service, *"terminates TLS at the edge"*. Germany is in the EU, so privacy §8 needs nothing
-  for it. **The owner, 2026-09-28** (dpa-netbird-agreement (a), *"Yes, it is already
-  accepted"*): *"NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with the
-  backend towards the hosting provider. Check https://trust.netbird.io (whitelisted for you) for
+  for NetBird GmbH itself; where its proxy and its log run is still to record (below). **The
+  owner, 2026-09-28** (dpa-netbird-agreement (a), *"Yes, it is already accepted"*): *"NetBird
+  GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with the backend towards the
+  hosting provider. Check https://trust.netbird.io (whitelisted for you) for
   overview, subprocessors and other info. https://netbird.io/terms lists the reverse proxy in
   3.1"*. So the entity name is the owner's, the agreement is accepted, and TLS ends at NetBird in
   HTTP mode, not passthrough. Privacy §7's row and `subprocessors.md` now say that NetBird carries
   connections on to our machine through a WireGuard tunnel, and that it keeps its own log of each
-  request for 7 days: the IP address and a location derived from it, the page asked for,
-  including the secret part of a link, and the answer's status, size and duration
-  (ops-trust-proxy: that line comes in every option). **Not checked from here:**
-  `trust.netbird.io` returns only an empty page shell whose content comes from a host the egress
-  proxy refuses, and `netbird.io` is refused, so NetBird's sub-processors, its terms' §3.1 and its
-  agreement were not read. NetBird's documentation on GitHub (`netbirdio/docs`) says the proxy
-  forwards through WireGuard and that its cloud keeps the access log for 7 days. **To record**
-  before the draft markers come off (0139 T0): the date the agreement was accepted; where the
-  agreement or the dashboard says the proxy and its log run (`app.`, `id.` and
-  `status.ownpace.eu` resolved to the cluster `eu1.netbird.services` on 2026-09-28; the country
-  is not confirmed); the 7 days NetBird keeps its request log, confirmed in NetBird's agreement
-  or dashboard; and that none of NetBird's own sub-processors takes the proxy's traffic or its
-  log outside the EU. If one does, privacy §8 and DPA §12 name it. **Our own logs**
+  request for 7 days: the time, the IP address and a location derived from it, the page asked
+  for, including the secret part of a link, how much was sent each way, and the answer's status
+  and how long it took (ops-trust-proxy: that line comes in every option). **Read 2026-09-28:**
+  NetBird's terms (`https://netbird.io/terms`), privacy policy (`https://netbird.io/privacy`) and
+  imprint; the data behind its trust center, from the API `trust.netbird.io` loads
+  (`https://api.eu.scytale.ai/views/trust-center/public/page-data`), because the egress proxy
+  still refuses `trust.netbird.io` itself; and its documentation, from its source
+  (`github.com/netbirdio/docs` at `33d1b212`). They confirm the entity (NetBird GmbH, Berlin, HRB
+  237529 B, in the imprint and the privacy policy; the terms give no address), that the proxy
+  ends TLS for HTTP services and forwards through an encrypted NetBird (WireGuard) tunnel, what
+  its log holds and its 7 days on NetBird's cloud, and that terms §3.1 say NetBird *"does not
+  monitor or control the content of traffic transmitted via Reverse Proxy"*. Terms §13 say
+  NetBird's data-processing agreement applies to processing on the customer's behalf; the trust
+  center lists it as a PDF, not restricted, uploaded 2026-06-23, which could not be downloaded
+  here. The trust center lists 18 sub-processor entries, each with no location. **Not stated in
+  any source read:** where the proxy and its log run (the documentation calls the cluster
+  *"eu"*; terms §3.1 promise no *"specific geographic routing"* and let NetBird *"Modify,
+  suspend, or discontinue certain proxy endpoints or regions"*), at which provider, and whether
+  any of NetBird's own sub-processors receives the proxy's traffic or its log. **To record**
+  before the draft markers come off (0139 T0), privacy's to-do on NetBird, questions (a) to (e):
+  the date the agreement was accepted; the agreement, downloaded from `https://trust.netbird.io`
+  and read for the proxy, its sub-processors, how a new one is announced and the 7 days; the
+  country and provider of the proxy and its log (`app.`, `id.` and `status.ownpace.eu` resolved
+  to the cluster `eu1.netbird.services` on 2026-09-28); whether any of NetBird's own
+  sub-processors receives either; and that no NetBird sign-in is switched on for `app.`, `id.`,
+  `status.` or `www.ownpace.eu`. If the proxy, its log or such a sub-processor is outside the
+  EU, privacy §8 and DPA §12 name it. **Also for the owner:** terms §3.1 say the Reverse Proxy
+  cannot be used to *"Resell, sublicense, or commercially exploit Hosted Proxy Services unless
+  explicitly authorized in writing by NetBird"*. *Hosted Proxy Services* is not defined, and the
+  terms do not say whether running one's own paid service behind the proxy is commercial
+  exploitation; NetBird's answer in writing settles it. The proxy is *"currently in beta"* (the
+  documentation), and *"provided on a shared, best-effort basis"* (terms §3.1). **Our own logs**
   (ops-trust-proxy (b), *"Keep visitors' addresses in all our logs"*): live sets `TRUST_PROXY`,
   so the API reads the visitor's address from what NetBird passes on, and both nginx logs record
   that address: the app's (`apps/web/nginx.conf.template`, format `ownpace_combined`, which
@@ -339,8 +359,11 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   *"still needs to be checked."*): remove a test account on the test stack and look at what
   stays. §9 now says the entries are kept as long as we run this sign-in service, because it
   cannot remove them; if the check shows they go, the comment beside §9 has the other wording.
-- *NetBird* (privacy §7; dpa-netbird-agreement (a)): record the date its agreement was accepted,
-  where the proxy and its log run, and NetBird's own sub-processors (the filled list above).
+- *NetBird* (privacy §7; dpa-netbird-agreement (a)): privacy's to-do on NetBird, questions (a)
+  to (e): the date its agreement was accepted; its agreement read; where the proxy and its log
+  run, and at which provider; whether NetBird's own sub-processors receive either; no NetBird
+  sign-in on `app.`, `id.`, `status.` or `www.ownpace.eu`. And NetBird's answer in writing on
+  terms §3.1's *"commercially exploit"* (the filled list above).
 - *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
   live's `.env`.
 
@@ -406,7 +429,8 @@ commit.
 - **There is no reverse sync**, so the source stays the customer's fallback.
 - **Everything runs in the EU, with one named exception.** Privacy §8 says the service runs in
   the EU; the machine is in the Netherlands, and the service in front of it that ends TLS,
-  NetBird GmbH, in Germany (the owner, 2026-09-28). If either moves outside the EU, §8 names it
+  NetBird GmbH, in Germany (the owner, 2026-09-28). Where NetBird's proxy and its log run, no
+  NetBird source states; it is still to record (above). If either is outside the EU, §8 names it
   too. The exception is mail: Proton AG, in Switzerland, under an EU adequacy decision, sends the service's mail and
   holds `support@ownpace.eu` (the owner's choice, 0133, 2026-09-28). During the Alpha a tester
   also asks us to enter a Google address in Google's list of test users (privacy §6, §8). Since

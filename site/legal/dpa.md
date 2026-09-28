@@ -81,14 +81,26 @@
     terminates the TLS, and uses WireGuard tunnel with the backend towards
     the hosting provider." There is no hosting provider: the owner keeps and
     runs the machine for Archico B.V. (subprocessors-machine-housed (a)).
-    NetBird is in Germany (the owner), so §8's and §12's sentences hold;
-    subprocessors.md lists it.
+    NetBird GmbH is in Germany (the owner; its imprint: Berlin), and
+    subprocessors.md lists it. §8's and §12's sentences, that sub-processors
+    process in the EU, hold for NetBird only once where its proxy and its
+    access log run is recorded: no NetBird source read on 2026-09-28 states
+    it (the to-do on NetBird, below).
 
   Still to do, in the one pass before a business customer is admitted:
 
   - Annex B, the NetBird line (dpa-netbird (a)): connections to the service
     are encrypted up to NetBird, which ends TLS and carries them on to our
-    machine through an encrypted tunnel (WireGuard).
+    machine through an encrypted tunnel (WireGuard). NetBird's documentation
+    says so for HTTP services: "The proxy terminates TLS at the edge", then
+    "forwarded through an encrypted NetBird tunnel to the target peer"
+    (https://docs.netbird.io/manage/reverse-proxy). Its certificates:
+    "NetBird Cloud issues certificates through ZeroSSL on all shared proxy
+    clusters, and ZeroSSL certificates are signed by Sectigo"
+    (manage/reverse-proxy/custom-domains). Who holds the certificate's key,
+    and where, is not stated. Its trust center's "TLS 1.2 or newer" is a
+    company-wide control that does not name the proxy, so the line claims
+    no TLS version for NetBird's side.
   - Annex B against privacy §11 as its own pass words it, and against the
     code: row security binds the application's requests and, since #1323
     (d0138607, merged into this branch in c1413b53), the per-tenant background
@@ -124,15 +136,20 @@
     T2), «REGISTERED_ADDRESS» is filled with the address privacy §1 and
     terms §1 print by then, and «SUBPROCESSORS_URL» loses its backticks,
     before 0086 T5 publishes this.
-  - NetBird, for §8, §12 and subprocessors.md: record the date its agreement
-    was accepted, and where the agreement or the dashboard says the proxy
-    and its access log run. On 2026-09-28 app., id. and status.ownpace.eu
-    resolved to NetBird's cluster eu1.netbird.services; that the cluster is
-    in the EU is not confirmed. NetBird's own sub-processors are listed at
-    https://trust.netbird.io, which loads its content from a host the egress
-    proxy refuses; search results name Apollo, Auth0, AWS, Azure, Datadog
-    and GCP, with no locations. If the proxy or its log reaches a third
-    country, §12 names it.
+  - NetBird, for §8, §12 and subprocessors.md: privacy's to-do on NetBird,
+    questions (a) to (e): the date its agreement was accepted; its
+    data-processing agreement (a PDF on https://trust.netbird.io, not
+    restricted, not downloadable from here), read for the proxy, its
+    sub-processors and how a new one is announced; the country and provider
+    of the proxy and its access log; whether any of NetBird's own
+    sub-processors receives either; and no NetBird sign-in on app., id.,
+    status. and www.ownpace.eu. On 2026-09-28 app., id. and
+    status.ownpace.eu resolved to NetBird's cluster eu1.netbird.services;
+    NetBird's documentation calls the cluster "eu" and names no country,
+    and its terms §3.1 promise no "specific geographic routing". Its trust
+    center lists 18 sub-processor entries, each with no location. If the
+    proxy, its log or one of those sub-processors reaches a third country,
+    §12 names it.
   - The export the return clause in §10 needs: workplan 0155 (the owner's
     note on dpa-q3), before the first business customer.
 
@@ -145,7 +162,8 @@
      with an adequacy decision.
   2. §8 (dpa-q2: (a), general written authorisation). Confirm it for a
      service this small. Are NetBird's and Proton's agreements "no weaker
-     than this DPA's"?
+     than this DPA's"? NetBird's is a PDF on https://trust.netbird.io; the
+     owner downloads it for this review, because it could not be read here.
   3. §10 (dpa-q3: (c), a return clause). Does it meet Art. 28(3)(g)?
   4. §11 (dpa-q4: (b), the controller pays for an on-site audit). Are the
      costs limited enough that the right to audit stays real?

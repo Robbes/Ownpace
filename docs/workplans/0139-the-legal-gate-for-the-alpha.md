@@ -4,7 +4,46 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, latest: review fixes to the merge's notes**, same branch (draft PR #1317). A
+**2026-09-28, latest: NetBird's own sources read, and what they do not state left to the
+owner**, same branch (draft PR #1317). The owner pointed to `https://trust.netbird.io` and
+`https://netbird.io/terms` §3.1 (dpa-netbird-agreement (a)). Read on 2026-09-28: the terms, the
+privacy policy and the imprint on `netbird.io`; the trust center's data, from the API its page
+loads (`https://api.eu.scytale.ai/views/trust-center/public/page-data`), because the egress
+proxy still refuses `trust.netbird.io` itself and Scytale's file host; and NetBird's
+documentation, from its source (`github.com/netbirdio/docs` at `33d1b212`), because
+`docs.netbird.io` is refused too.
+
+- **Stated, and now in the texts.** The entity: NetBird GmbH, Berlin, HRB 237529 B, in the
+  imprint and the privacy policy (the terms give no address or register number). For HTTP
+  services *"The proxy terminates TLS at the edge"*, and traffic is *"forwarded through an
+  encrypted NetBird tunnel to the target peer"* (`manage/reverse-proxy`). The access log: the
+  time, the method, host and path, status, duration, bytes each way, the source IP address and a
+  location from it, and *"For the cloud version of NetBird, access logs are retained for 7
+  days."* (`manage/reverse-proxy/access-logs`). Terms §3.1: *"NetBird does not monitor or
+  control the content of traffic transmitted via Reverse Proxy"*. Terms §13: NetBird's
+  data-processing agreement applies to processing on the customer's behalf. Privacy §7's row,
+  both languages, and `subprocessors.md`'s gain the time and the size each way; the comment
+  beside §7 quotes each source with its address; privacy question 15 (iii) quotes the terms
+  instead of search results.
+- **Not stated anywhere read.** In which country, and at which provider, the proxy cluster and
+  its log run: the documentation says only *"`eu` is the proxy cluster region"*, and terms §3.1
+  promise no *"specific geographic routing"*. Whether any of the trust center's 18 sub-processor
+  entries, all without a location, receives the proxy's traffic or log; whether Cloudflare, in
+  NetBird's privacy policy but not its trust center, is in front of the proxy. NetBird's
+  data-processing agreement is on the trust center as a PDF, not restricted, uploaded
+  2026-06-23; it could not be downloaded here and was not read. The *Where* column keeps
+  *Germany (EU)*, where NetBird GmbH is. Privacy's to-do on NetBird asks questions (a) to (e);
+  the DPA briefing now says that §8's and §12's *EU* holds for NetBird only once they are
+  answered, and `subprocessors.md`'s briefing says the same of its opening.
+- **For the owner, beyond the texts.** Terms §3.1 forbid to *"Resell, sublicense, or
+  commercially exploit Hosted Proxy Services unless explicitly authorized in writing by
+  NetBird"*; the term is not defined. Whether Ownpace behind the proxy is that is NetBird's to
+  answer in writing (`site/legal/README.md`). The proxy is *"currently in beta"* and *"provided
+  on a shared, best-effort basis"*.
+- Only comments and plans change, and the NetBird row in privacy §7 (both languages) and
+  `subprocessors.md`; no other rendered sentence.
+
+**2026-09-28, later: review fixes to the merge's notes**, same branch (draft PR #1317). A
 review of `a3a2713e` found seven things. Six were right and are fixed here, in comments, this
 plan and one Dutch text; the seventh needed no change. Where this entry differs from the one
 below, it replaces it.
@@ -1528,12 +1567,12 @@ longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out of the rendered texts for the Alpha (rec-address (c); it returns before the first paid tier) and kept in `dpa.md`'s parties, `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's data-processing agreement accepted (dpa-netbird-agreement (a)), the date and where the proxy runs still to record; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«REGISTERED_ADDRESS»` stays in `dpa.md`, and `«SUBPROCESSORS_URL»` in `dpa.md` and `subprocessors.md`, until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
+| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out of the rendered texts for the Alpha (rec-address (c); it returns before the first paid tier) and kept in `dpa.md`'s parties, `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's data-processing agreement accepted (dpa-netbird-agreement (a)), and NetBird's own sources read 2026-09-28; the date, the agreement itself, and where the proxy and its log run still to record; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«REGISTERED_ADDRESS»` stays in `dpa.md`, and `«SUBPROCESSORS_URL»` in `dpa.md` and `subprocessors.md`, until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **follow the owner's 71 answers of 2026-09-28**, on draft PR #1317, not merged: privacy 1.2 and terms 1.3 still drafts, the Alpha conditions 1.0 edited in place, `dpa.md` and `subprocessors.md` 0.2. The briefings mark each answered question and keep what is left for the lawyer (among them BW 3:15d without the address, the forum and language clauses, the paid-tier checks, Google's role for the test list, the legal bases); 📋 **Decided 2026-09-24** (D1) — *was:* revised 2026-09-28 for the owner's review, points 1, 2, 5 and 10 of §3 T1's list waiting on the owner or the lawyer | §3. The briefings at the top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md` are the brief. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its agreement accepted (dpa-netbird-agreement (a)), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; ⏳ **Owner**: NetBird's acceptance date, where its proxy and log run, and its own sub-processors — *was:* the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its agreement accepted (dpa-netbird-agreement (a)), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); ⏳ **Owner**: NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either (privacy's to-do on NetBird, (a) to (e)) — *was:* the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8), server logs with Docker's default (ops-log-driver (a)); the code for each 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation, but work already running is not all stopped, and a verification or a confirmation reads to its end (terms briefing, precondition B); a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
@@ -1840,9 +1879,12 @@ is not rendered by the build, and 0086 T5 owns it.
    If the latter, which legal entity, and in which region? 0132 T3 records the path, and this
    answer decides whether the ingress is a sub-processor. **Supplied 2026-09-28:** *"app/site
    hosting is in The Netherlands, through NetBird (Germany) delivers the forward proxy"*: TLS
-   ends at NetBird's hosted proxy, in Germany, a sub-processor. Privacy 1.2 names NetBird GmbH;
-   the entity name, NetBird's data-processing agreement and the proxy cluster's location are to
-   confirm (`site/legal/README.md`).
+   ends at NetBird's hosted proxy, a sub-processor; NetBird GmbH is in Germany. Privacy 1.2
+   names NetBird GmbH. **Read 2026-09-28** in NetBird's own sources: the entity (its imprint),
+   TLS ending at the proxy for HTTP services, the WireGuard tunnel and the log's 7 days (its
+   documentation). Still to record: the date the agreement was accepted, the agreement itself
+   (not downloadable from here), and the country and provider of the proxy cluster and its log,
+   which no source states (`site/legal/README.md`).
 2. **The support mailbox.** Which provider hosts `support@ownpace.eu`, and does a person read it
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
    **Answered:** the owner reads it (0133 open question 3, 2026-09-27), and Proton hosts it (0133

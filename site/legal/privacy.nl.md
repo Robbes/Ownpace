@@ -361,24 +361,61 @@ machine die we zelf beheren, in Nederland.
      NetBird (dpa-netbird-agreement (a), the owner, 2026-09-28): its data-processing agreement is
      accepted. The owner's note: "NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard
      tunnel with the backend towards the hosting provider." Read as: to our machine, which no
-     hosting company holds (above). The owner points to
-     https://trust.netbird.io for its sub-processors and to https://netbird.io/terms §3.1, which
-     lists the reverse proxy. Neither could be read from here: the trust portal loads its content
-     from a host the egress proxy refuses, and netbird.io is refused. Search results quote §3.1
-     as offering "TLS termination" and as not guaranteeing "specific geographic routing". TO
-     RECORD before publication (0139 T0): the date the agreement was accepted, and where it or
-     the dashboard says the proxy runs. The "Where" column keeps Germany (EU), from the owner's
-     first answer, until then; if the proxy or its log runs outside the EU, §8 names it. The
-     row's last sentence, on NetBird's own log, is from NetBird's documentation
-     (ops-trust-proxy: the row gains it in every option): github.com/netbirdio/docs,
-     manage/reverse-proxy/access-logs, read 2026-09-28, lists the source IP address, a
-     location (country, city, region) derived from it, the host and path, the status, the bytes
-     each way and the duration, and says "For the cloud version of NetBird, access logs are
-     retained for 7 days." TO RECORD: confirm the 7 days in NetBird's agreement or dashboard. -->
+     hosting company holds (above). The owner pointed to https://trust.netbird.io and to
+     https://netbird.io/terms §3.1. Read 2026-09-28: the terms, https://netbird.io/privacy and
+     https://netbird.io/imprint; the trust center's data, from the API its page loads,
+     https://api.eu.scytale.ai/views/trust-center/public/page-data (the egress proxy here still
+     refuses trust.netbird.io itself); and NetBird's documentation, https://docs.netbird.io, from
+     its source, github.com/netbirdio/docs at 33d1b212. What they say:
+     - Who: NetBird GmbH, Rosenthaler Str. 36, 10178 Berlin, "Registered with the local court
+       of Amtsgericht Berlin (Charlottenburg) under HRB 237529 B" (imprint; privacy policy). The
+       terms give no address.
+     - TLS: terms §3.1, "Reverse Proxy may include traffic relaying, NAT traversal, TLS
+       termination, traffic forwarding, or similar functionality." For HTTP services, "The proxy
+       terminates TLS at the edge", and traffic is "forwarded through an encrypted NetBird tunnel
+       to the target peer" (docs, manage/reverse-proxy). "NetBird Cloud issues certificates
+       through ZeroSSL on all shared proxy clusters, and ZeroSSL certificates are signed by
+       Sectigo" (docs, manage/reverse-proxy/custom-domains).
+     - Content: terms §3.1, "NetBird does not monitor or control the content of traffic
+       transmitted via Reverse Proxy and disclaims responsibility for such content, except as
+       required by law."
+     - The agreement: terms §13, "For personal data processing by NetBird on behalf of the
+       Customer the NetBird data processing agreement applies." The terms do not link it. The
+       trust center lists a PDF, "Data Processing Agreement (DPA)", not restricted, uploaded
+       2026-06-23. It could not be downloaded here, so it was not read, and whether it covers
+       the proxy is not known.
+     - The log (the row's last sentence; ops-trust-proxy: the row gains it in every option):
+       "NetBird logs every request and connection that passes through your reverse proxy
+       services", with the time, the method, the host and path, the status, the duration, the
+       bytes each way, "The client's IP address", "Country, city, and subdivision based on
+       source IP geolocation", and, only where NetBird's own sign-in (SSO) is used, "The
+       authenticated user's ID". "For the cloud version of NetBird, access logs are retained for
+       7 days." (docs, manage/reverse-proxy/access-logs). The path holds a grant link's secret
+       (/grant/:link).
+     - Where: NOT STATED for the proxy or its log, in any source read. The docs: "`eu` is the
+       proxy cluster region", and "NetBird operates multiple proxy clusters in different regions"
+       (manage/reverse-proxy/custom-domains); NetBird's own clusters run "Wherever the platform
+       runs proxies" (manage/reverse-proxy/bring-your-own-proxy). Terms §3.1: NetBird may
+       "Modify, suspend, or discontinue certain proxy endpoints or regions", and "does not
+       guarantee uninterrupted availability, latency performance, or specific geographic
+       routing." Its privacy policy says "We process your personal data in the EU/EEA", but it
+       applies to "this website (netbird.io), netbird.ai, and all subdomains of the domain
+       netbird.io" and does not mention the proxy.
+     - Its sub-processors: the privacy policy, "A current list of our subprocessors is
+       maintained on our Trust Center". The trust center lists 18 entries: Apollo, Auth0, AWS,
+       Azure, Datadog, GCP, GitHub, Grafana Cloud, HubSpot, Matomo, Microsoft Clarity (twice),
+       New Relic, OpenAI, OVHcloud, Plain, Stripe and UpCloud. Each has an empty location, and
+       none is said to run or receive anything of the proxy. The privacy policy also names
+       Cloudflare, Inc. (USA), for "Bot management, CDN, Website security", which the trust
+       center does not list.
+     The "Where" column keeps Germany (EU), where NetBird GmbH is, from the owner's first answer.
+     TO RECORD before publication (0139 T0): the privacy briefing's to-do on NetBird, questions
+     (a) to (e). If the proxy, its log, or a sub-processor of NetBird's that receives either, is
+     outside the EU, "Where" and §8 name it. -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
-| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt 7 dagen een eigen log bij van elk verzoek: het IP-adres en een locatie die daaruit is afgeleid, de gevraagde pagina, ook het geheime deel van een link, en de status, de grootte en de duur van het antwoord | Duitsland (EU) |
+| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen. Het stuurt ze door naar onze machine via een versleutelde tunnel (WireGuard). Het houdt 7 dagen een eigen log bij van elk verzoek: het tijdstip, het IP-adres en een locatie die daaruit is afgeleid, de gevraagde pagina, ook het geheime deel van een link, hoeveel er elke kant op ging, en de status van het antwoord en hoe lang het duurde | Duitsland (EU) |
 | Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen, en waar een kopie van elke mail van de dienst wordt bewaard (§4.5) | Zwitserland, buiten de EU (§8) |
 
 Deze tabel is de volledige lijst van onze subverwerkers. Verhuist de dienst na de Alpha naar een

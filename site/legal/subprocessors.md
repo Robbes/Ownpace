@@ -39,8 +39,13 @@
        the source IP address, a location derived from it, the host and path, the status, sizes
        and timing. The path holds a grant or progress link's secret. It says NetBird's cloud
        keeps these logs for 7 days. The row names the log, what it holds and the 7 days, as
-       privacy §7's does; the 7 days are confirmed in NetBird's agreement or dashboard before
+       privacy §7's does; the 7 days are checked against NetBird's agreement before
        publication.
+     - NetBird's own sources, read 2026-09-28 (privacy's briefing lists them, and the comment
+       beside privacy §7 quotes them): the row's log gains the time and the size each way
+       (docs, manage/reverse-proxy/access-logs: "Timestamp", "Bytes Uploaded", "Bytes
+       Downloaded"). The Where column keeps Germany (EU), where NetBird GmbH is (Berlin, its
+       imprint); no source read says in which country the proxy or its log runs.
      - Proton: "yes"; the agreement is accepted for the account behind support@ownpace.eu,
        which is Archico B.V.'s, and Proton keeps the service's sent mail in it, which the row
        says. How long those copies stay is privacy §9's: the support-mail rule, until resolved
@@ -49,15 +54,25 @@
        Decision 2000/518/EC), as privacy §8 does (privacy-switzerland-wording (b)).
 
      Open for the owner, before this file is published:
-     - NetBird: the date its agreement was accepted, and where the agreement or the dashboard
-       says the proxy and its log run. On 2026-09-28 app., id. and status.ownpace.eu resolved
-       to NetBird's cluster eu1.netbird.services. The name suggests the EU; the country is not
-       confirmed. www.ownpace.eu did not resolve to NetBird that day, although the row names
-       it (0132 T1e routes it).
-     - NetBird's own sub-processors, at https://trust.netbird.io. That page loads its content
-       from a host the egress proxy refuses, and netbird.io is refused too. Search results
-       name Apollo, Auth0, AWS, Azure, Datadog and GCP, with no locations. Check that none of
-       them takes the proxy's traffic or its log outside the EU.
+     - NetBird: questions (a) to (e) of privacy's to-do on NetBird: the date its agreement was
+       accepted; its data-processing agreement, a PDF on https://trust.netbird.io that could
+       not be downloaded here, read for the proxy, its sub-processors and how a new one is
+       announced; the country and provider of the proxy and its log; whether any of NetBird's
+       own sub-processors receives either; and no NetBird sign-in on app., id., status. and
+       www.ownpace.eu. On 2026-09-28 app., id. and status.ownpace.eu resolved to NetBird's cluster
+       eu1.netbird.services. NetBird's documentation calls such a cluster "eu" and names no
+       country, and its terms §3.1 promise no "specific geographic routing". Until the country
+       is recorded, the opening's "Each entry processes in the region its row names" is not
+       shown to hold for NetBird, whose row names Germany, where NetBird GmbH is.
+       www.ownpace.eu did not resolve to NetBird that day, although the row names it (0132 T1e
+       routes it).
+     - NetBird's own sub-processors: its trust center lists 18 entries (Apollo, Auth0, AWS,
+       Azure, Datadog, GCP, GitHub, Grafana Cloud, HubSpot, Matomo, Microsoft Clarity twice,
+       New Relic, OpenAI, OVHcloud, Plain, Stripe, UpCloud), each with no location, read on
+       2026-09-28 from https://api.eu.scytale.ai/views/trust-center/public/page-data, the API
+       that https://trust.netbird.io loads. None is said to run or receive anything of the
+       proxy. NetBird's privacy policy also names Cloudflare, Inc. (USA), which the trust
+       center does not list.
      - Proton: where its agreement says it processes (the Where column says Switzerland).
 
      Open for the lawyer:
@@ -89,7 +104,7 @@ data goes there.
 
 | Sub-processor | What they process, and why | Where |
 |---|---|---|
-| NetBird GmbH | Every request to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu, which it carries through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, sign-ins included, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request for 7 days: the IP address and a location derived from it, the page asked for, including the secret part of a link, and the answer's status, size and duration | Germany (EU) |
+| NetBird GmbH | Every request to app.ownpace.eu, id.ownpace.eu, status.ownpace.eu and www.ownpace.eu, which it carries through to our machine. It ends the encryption (TLS) of those connections, so what passes through them, sign-ins included, passes through it readable. It carries them on to our machine through an encrypted tunnel (WireGuard). It keeps its own log of each request for 7 days: the time, the IP address and a location derived from it, the page asked for, including the secret part of a link, how much was sent each way, and the answer's status and how long it took | Germany (EU) |
 | Proton AG | Recipient addresses and the contents of the mail the service sends — sign-in codes, answers to requests for access, progress summaries, and notices a customer asks us to send, such as those to people files were shared with — and the support mailbox support@ownpace.eu, with everything sent to it, including problem reports and link reports during the Alpha, and a copy of each mail the service sends | Switzerland (EU adequacy decision) |
 
 ## Planned — listed before they are live, live before the first byte
