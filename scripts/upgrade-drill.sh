@@ -86,7 +86,7 @@ down_project() {
 # down_project and not this: until 2026-09-28 step 1 called cleanup, which
 # deleted the mapping the drill had just written. Docker then created the
 # missing mount source itself, empty and owned by root, the released appliance
-# configured nothing, and the guard in step 1 stopped the run (0146 T0's drill).
+# configured nothing, and the guard in step 1 stopped the run (0146's Status).
 cleanup() {
   say "Cleaning up the drill's own project (your appliances are untouched)"
   down_project
@@ -135,11 +135,11 @@ else
   cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
 fi
 # The appliance runs as appuser (uid 10001, apps/selfhost/Dockerfile), not as
-# whoever runs this script, and mktemp -d makes a directory only its owner can
-# enter. Without these two modes the mount is there and unreadable, and the
-# released appliance configures nothing. The file holds the example's values
-# and the NAMES of environment variables, no credential.
-chmod 755 "$DRILL_CONFIG_DIR"
+# whoever runs this script, and compose.drill.yml mounts this one file, so its
+# mode is what the container sees (the directory's does not reach it). Under a
+# strict umask the redirect above makes a file only its owner can read, and
+# the appliance then fails at boot reading its config. The file holds the
+# example's values and the NAMES of environment variables, no credential.
 chmod 644 "$DRILL_CONFIG_DIR/mapping.json"
 
 wait_healthy() {
@@ -161,9 +161,9 @@ wait_healthy() {
 # ---------------------------------------------------------------------------
 say "1/5  Starting the released appliance ($REGISTRY:$FROM_VERSION)"
 down_project                                # a stale drill project would poison the result
-# The mount source has to be the drill's directory, with the mapping in it, when
-# the container starts. A missing source is created by Docker, empty and owned by
-# root, and the run then fails below for a reason this line names first.
+# The mount source has to be the drill's mapping when the container starts. A
+# missing source is created by Docker, as an empty directory owned by root, and
+# the run then fails further on for a reason this line names first.
 [ -r "$DRILL_CONFIG_DIR/mapping.json" ] && grep -q '"mappingId"' "$DRILL_CONFIG_DIR/mapping.json" \
   || fail "the drill's own mapping is missing from $DRILL_CONFIG_DIR before the released appliance starts"
 export SELFHOST_IMAGE="${REGISTRY}:${FROM_VERSION}"

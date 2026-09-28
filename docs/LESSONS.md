@@ -943,6 +943,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/compose.drill.yml`
 
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -963,7 +964,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/config/mapping.json.example`
 
-- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's released appliance starts with the mapping the drill wrote for it (workplan 0146 T0, 0025 T5).
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 
 ### `deploy/selfhost/selfhost.env.example`
 
@@ -1830,7 +1831,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/upgrade-drill.sh`
 
-- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's released appliance starts with the mapping the drill wrote for it (workplan 0146 T0, 0025 T5).
+- [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 
 ### `scripts/workplan-index.mjs`
 
@@ -2317,10 +2318,11 @@ Reads:
 
 ### [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts)
 
-The upgrade drill's released appliance starts with the mapping the drill wrote for it (workplan 0146 T0, 0025 T5).
+The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
 
 Reads:
 
+- `deploy/selfhost/compose.drill.yml`
 - `deploy/selfhost/config/mapping.json.example`
 - `scripts/upgrade-drill.sh`
 

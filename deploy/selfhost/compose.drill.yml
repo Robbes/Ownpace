@@ -21,10 +21,19 @@
 # The mapping named here does not have to reach anything: the drill upgrades an
 # appliance, it does not migrate mail. What matters is that the appliance
 # CONFIGURED it, reports it in /status, and still reports it afterwards.
+#
+# THE FILE IS MOUNTED, NOT THE DIRECTORY (2026-09-28). The appliance's launcher
+# (`start.mjs`, from scripts/package-appliance.mjs) writes and removes a probe
+# file in CONFIG_DIR before it starts, and exits when it cannot: builds
+# since 2026-08-06 do, rc.1 did not. A read-only directory mount therefore let
+# the released appliance start and stopped the upgraded one. Mounting the one
+# file leaves /data/config the image's own directory, owned by appuser and
+# writable, with the mapping in it read-only. Only the file's mode matters to
+# the container then; the drill sets it.
 
 services:
   app:
     container_name: ownpace-upgrade-drill-app
     volumes:
       - appdata:/data/state
-      - ${DRILL_CONFIG_DIR:?the drill sets this}:/data/config:ro
+      - ${DRILL_CONFIG_DIR:?the drill sets this}/mapping.json:/data/config/mapping.json:ro

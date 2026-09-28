@@ -4,35 +4,44 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, later: the first drill across a real gap stopped on two defects in the drill, fixed
-on branch `claude/ownpace-public-readiness-y7orc6-a-drill-that-keeps-its-mapping`, not merged.**
-The owner ran `./scripts/upgrade-drill.sh v0.1.0-rc.1` on `main` at `a0897c0b`, in a clone of its
-own, after the release name was accepted. It pulled rc.1, started it healthy, and stopped at step
-1: *"DRILL FAILED: the released appliance configured NO mappings"*, with `rm: cannot remove
-'/tmp/tmp.…': Operation not permitted` on the way out. The guard that refuses an empty comparison
-did its job; the drill itself was wrong, twice, since the fix of 2026-08-04 (`7cb1af4e`), which
-was never run again:
+**2026-09-28, later: the first drill across a real gap stopped on defects in the drill, three of
+them, fixed on branch `claude/ownpace-public-readiness-y7orc6-a-drill-that-keeps-its-mapping`, not
+merged.** The owner ran `./scripts/upgrade-drill.sh v0.1.0-rc.1` on `main` at `a0897c0b`, in a
+clone of its own, after the release name was accepted. It pulled rc.1, started it healthy, and
+stopped at step 1: *"DRILL FAILED: the released appliance configured NO mappings"*, with `rm:
+cannot remove '/tmp/tmp.…': Operation not permitted` on the way out. The guard that refuses an
+empty comparison did its job. The drill had not run since its fix of 2026-08-04 (`7cb1af4e`):
 
 - **Step 1 removed the mapping it had just written.** It called `cleanup`, whose last line removes
   the config directory. Docker then created the missing mount source itself, empty and owned by
   root, which is also why the run's own `rm` could not remove it. Step 1 now calls
   `down_project`, the project half of `cleanup`, and refuses to start the appliance unless the
   mapping is there.
-- **The mapping could not have been read anyway.** `mktemp -d` makes a directory only its owner
-  can enter, and the appliance runs as appuser, uid 10001 (`apps/selfhost/Dockerfile`). The drill
-  now sets 755 on the directory and 644 on the file, which holds the example's values and the
-  names of environment variables, no credential.
+- **The upgraded appliance could not have started** (found by the review, before the owner's next
+  run). `compose.drill.yml` mounted the directory read-only at `/data/config`, and the launcher of
+  every build since 2026-08-06 (`start.mjs`, from `scripts/package-appliance.mjs`, the image's
+  `CMD`) writes and removes a probe file in `CONFIG_DIR` before it starts, and exits when it
+  cannot. rc.1 has no probe, so step 1 would have passed and step 3 failed. The drill now mounts
+  the one file, `mapping.json`, read-only, and `/data/config` stays the image's own directory,
+  owned by appuser and writable.
+- **The file's mode was the umask's.** The appliance runs as appuser, uid 10001
+  (`apps/selfhost/Dockerfile`), neither the file's owner nor in its group. The drill sets 644. The
+  file holds the example's values and the names of environment variables, no credential.
 - **The mapping is the one the tag shipped.** `git show <tag>:deploy/selfhost/config/mapping.json.example`,
   the file an operator of that release copied, so "same mappings before and after" also says the
   new build reads an old release's config. rc.1's example parses with `main`'s parser (checked with
-  `parseMappingConfigJson`), including its `baseUrl` with a path.
+  `parseMappingConfigJson`, and by the review with `loadConfigDir`), including its `baseUrl` with a
+  path.
 
-Guard: `scripts/a-drill-that-keeps-its-mapping.unit.test.ts` runs the drill against a throwaway
-repository with `docker` and `curl` as stubs; the docker stub configures the mapping only when
-neither its owner nor its group is needed to read it. Against `main`'s script it fails with the
-owner's message; two variants show the old step 1 stopped before the appliance starts, and the
-script without its modes failing on the empty comparison. **Open:** the owner's run on `main` once
-this merges, and the required run on the commit to be tagged (T2).
+Guard: `scripts/a-drill-that-keeps-its-mapping.unit.test.ts` runs the drill under umask 077 against
+a throwaway repository holding the real `compose.drill.yml`, with `docker`, `curl` and `sleep` as
+stubs and nothing of the machine's git. The docker stub reads the config mount from that file and
+plays each appliance: both need the mapping readable by a process that is neither its owner nor in
+its group, and the upgraded one needs `/data/config` writable. Four cases. It fails on `main`'s
+drill (the released appliance) and on this branch's first commit (the upgraded one); the old step
+1, the file without its mode and the directory mounted read-only each fail as they would for real.
+**Open:** the owner's run on `main` once this merges, and the required run on the commit to be
+tagged (T2).
 
 **2026-09-28: T5 (a) built with 0132 T6 (a), on branch
 `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged.** The rule is in
