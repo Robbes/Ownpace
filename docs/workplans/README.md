@@ -13,13 +13,6 @@ and stays put, preserving the evidence trail and inbound links.
 summary, its Status heading and the task table in its Status block, by
 `node scripts/workplan-index.mjs --write`. CI's docs-hygiene job runs `--check`, so a plan whose
 Status block changed without a regeneration, or a plan without a summary line, fails the build.
-The table has no totals. Until 2026-09-28 it opened with a line that summed plans and markers over
-every plan. Every merge changed that line, so every other open pull request needed a re-level, and
-the owner dropped it (0147 D6). A change to one plan now changes that plan's row only; two plans
-that sit on neighbouring rows can still conflict, and are resolved by regenerating. Two pull
-requests that change different task rows of the *same* plan can write the same Rows and Markers
-cells, so git merges them without a conflict and `--check` fails on the merge; that too is fixed
-by regenerating, and 0147 open question 6 asks whether those counts go as well.
 The table counts the markers a plan's own rows carry and never judges them: whether a plan is
 done, what depends on what and what comes next are in the plans. The plans mostly use ✅ for
 done, 🟡 for partly done, ⏳ for waiting on the owner, 📋 or ⬜ for decided, proposed or planned,
@@ -167,7 +160,7 @@ at the top of each alpha plan.
 | [0129](./0129-a-log-the-operator-can-read.md) | A log the operator can read | A searchable operator Log page on both editions over `audit_log` and an `app_event` table of errors and warnings, 30-day retention for `app_event` and container output, and pseudonymised OpenTelemetry audit lines with a resumable `audit-export` download. | 2026-09-24 | 4 | ✅ 4 |  |
 | [0130](./0130-a-problem-report-that-reaches-a-person.md) | A problem report that reaches a person | Report a problem on managed: a form that files a ticket on the owner's Zammad via `POST /api/problem-reports`, linked from the `unknown` failure remedy with its `last_error_reference`, the same helpdesk for a grant or progress link's *Report this link*, plus privacy-policy wording. | 2026-09-24 | 4 | ✅ 3 · 📋 1 |  |
 | [0131](./0131-the-alpha-and-who-is-let-in.md) | The alpha, and who is let in | Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0150. | 2026-09-28 | 5 | 📋 4 · 🔨 1 |  |
-| [0132](./0132-the-alpha-and-the-nightly-gate-on-one-box.md) | ownpace-live beside the nightly gate, on one box | `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys. | 2026-09-28 | 15 | ✅ 7 · 📋 4 · ⏳ 2 · 🔨 1 · ⛔ 1 |  |
+| [0132](./0132-the-alpha-and-the-nightly-gate-on-one-box.md) | ownpace-live beside the nightly gate, on one box | `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys. | 2026-09-28 | 15 | ✅ 8 · 📋 1 · ⏳ 2 · 🔨 3 · ⛔ 1 |  |
 | [0133](./0133-mail-that-reaches-a-tester.md) | Mail that reaches a tester | Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, no tester before the relay (the by-hand procedure kept, unused), relay as sub-processor. | 2026-09-28 | 7 | ✅ 2 · 📋 4 · 🅿️ 1 |  |
 | [0134](./0134-no-backups-during-the-alpha-said-truthfully.md) | No backups during the alpha, said truthfully | Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS` equal to the days a pre-deploy copy is kept, so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups. | 2026-09-28 | 6 | ✅ 2 · 📋 1 · ⏳ 2 · 🅿️ 1 |  |
 | [0135](./0135-the-sign-in-page-is-the-front-door.md) | The sign-in page is the front door | Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts. | 2026-09-28 | 9 | ✅ 3 · 📋 4 · ⏳ 2 |  |

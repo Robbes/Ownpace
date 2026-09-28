@@ -24,12 +24,20 @@
 # Usage:
 #   env-upsert.sh <env-file> KEY=VALUE [KEY=VALUE ...]
 #   env-upsert.sh --if-absent <env-file> KEY=VALUE ...   # never overwrite
+#   printf 'KEY=%s\n' "$v" | env-upsert.sh --stdin <env-file>
 #   env-upsert.sh --from-env <env-file> KEY [KEY ...]    # values by name
 #
 # --if-absent is for generated defaults (the host's DEPLOY_IMAGE_PLATFORM, say):
 # it fills a key that is missing or empty and leaves an operator's own value
 # alone. Without it, the given value wins — which is what you want when the
 # value was just minted by the thing that owns it.
+#
+# --stdin reads the pairs from standard input, one KEY=VALUE per line (blank
+# lines skipped), after any given as arguments. For a SECRET: an argument is
+# on this process's command line, which `ps` shows every account on the
+# machine while it runs, and a line on stdin is not. stand-up-live.sh writes
+# the database passwords it generates this way (workplan 0132 T1b). The pairs
+# are held to the same rules as arguments.
 #
 # --from-env takes each KEY's value from the environment variable of the same
 # name, so a password never has to be an argument (workplan 0132 T2,
@@ -43,10 +51,12 @@
 set -euo pipefail
 
 IF_ABSENT=0
+FROM_STDIN=0
 FROM_ENV=0
 while :; do
   case "${1:-}" in
     --if-absent) IF_ABSENT=1; shift ;;
+    --stdin) FROM_STDIN=1; shift ;;
     --from-env) FROM_ENV=1; shift ;;
     *) break ;;
   esac
@@ -55,8 +65,23 @@ done
 ENV_FILE="${1:-}"
 shift || true
 
+if [ "$FROM_STDIN" -eq 1 ] && [ "$FROM_ENV" -eq 1 ]; then
+  echo "[env-upsert] REFUSED: --stdin and --from-env do not go together: --stdin reads KEY=VALUE pairs, --from-env reads names." >&2
+  exit 1
+fi
+
+# The pairs from stdin join the arguments in this shell's own list, which is
+# not the process's command line: `set --` changes what "$@" holds, never what
+# `ps` reads.
+if [ "$FROM_STDIN" -eq 1 ]; then
+  while IFS= read -r stdin_pair || [ -n "$stdin_pair" ]; do
+    [ -n "$stdin_pair" ] && set -- "$@" "$stdin_pair"
+  done
+  unset stdin_pair
+fi
+
 if [ -z "$ENV_FILE" ] || [ "$#" -eq 0 ]; then
-  echo "usage: env-upsert.sh [--if-absent] <env-file> KEY=VALUE [KEY=VALUE ...]" >&2
+  echo "usage: env-upsert.sh [--if-absent] [--stdin] <env-file> KEY=VALUE [KEY=VALUE ...]" >&2
   echo "       env-upsert.sh [--if-absent] --from-env <env-file> KEY [KEY ...]" >&2
   exit 1
 fi
