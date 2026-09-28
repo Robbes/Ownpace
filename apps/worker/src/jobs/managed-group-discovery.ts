@@ -23,11 +23,12 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { schedules } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schemaPg from '@openmig/ledger/schema-pg';
-import { PgGroupDefStore, PgDecisionStore, auditExportOn, pgDriver } from '@openmig/ledger';
-import { log, renderEvent, asTenantId, setAuditExportSink, type GroupListing } from '@openmig/shared';
+import { PgGroupDefStore, PgDecisionStore, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
+import { log, renderEvent, asTenantId, setAppEventSink, setAuditExportSink, type GroupListing } from '@openmig/shared';
 import {
   createTokenProvider,
   listMailEnabledGroups,
@@ -48,6 +49,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 const db = drizzle(pool, { schema: schemaPg });
 
 /** The one HTTP client this task needs; Graph speaks plain JSON over fetch. */
@@ -103,7 +107,7 @@ export async function listGroupsOf(
 export const managedGroupDiscovery = schedules.task({
   id: 'managed-group-discovery',
   cron: '30 6 * * *',
-  run: async () => {
+  run: leavesAReference('managed-group-discovery', async () => {
     const channel = notifierFromEnv(process.env, (m) => log.warn(m));
     const groups = new PgGroupDefStore(db);
     const decisions = new PgDecisionStore(db);
@@ -178,5 +182,5 @@ export const managedGroupDiscovery = schedules.task({
     };
     log.info('[group-discovery]', result);
     return result;
-  },
+  }),
 });

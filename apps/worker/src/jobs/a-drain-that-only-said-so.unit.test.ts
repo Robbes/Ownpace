@@ -53,7 +53,7 @@ function code(text: string): string {
  */
 const TICK = (() => {
   const whole = code(readFileSync(join(HERE, 'managed-sync-tick.ts'), 'utf8'));
-  const body = whole.indexOf('run: async () => {');
+  const body = whole.indexOf("run: leavesAReference('managed-sync-tick', async () => {");
   expect(body, 'the scheduled task body is no longer recognisable').toBeGreaterThan(-1);
   return whole.slice(body);
 })();

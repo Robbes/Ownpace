@@ -30,7 +30,7 @@ function code(text: string): string {
 
 const RUN = (() => {
   const whole = code(readFileSync(join(HERE, 'managed-retention.ts'), 'utf8'));
-  const body = whole.indexOf('run: async () => {');
+  const body = whole.indexOf("run: leavesAReference('managed-retention', async () => {");
   expect(body, 'the scheduled task body is no longer recognisable').toBeGreaterThan(-1);
   return whole.slice(body);
 })();

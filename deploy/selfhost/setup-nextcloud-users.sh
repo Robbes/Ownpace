@@ -49,6 +49,19 @@ TARGET_PASSWORD="${NEXTCLOUD_TARGET_PASSWORD:?NEXTCLOUD_TARGET_PASSWORD is requi
 
 BASE_URL="${NEXTCLOUD_URL:-http://127.0.0.1:${HOST_PORT}}"
 
+# WHERE NEXTCLOUD ANSWERED, SAID WITHOUT THE HOST WHEN THE HOST IS A MACHINE'S.
+# The managed gate calls this with NEXTCLOUD_URL on NEXTCLOUD_BIND, which on the
+# reference machine is its mesh address, and the gate's log is public: "External
+# DAV ready at" printed it twice a run. Loopback and the compose network's name
+# tell nobody anything, and are what a person debugging here wants to see.
+shown_base() {
+  case "$BASE_URL" in
+    http://127.0.0.1:* | http://localhost:* | http://nextcloud | http://nextcloud/* | http://nextcloud:*)
+      printf '%s' "$BASE_URL" ;;
+    *) printf 'the address NEXTCLOUD_URL names, port %s (not printed)' "$HOST_PORT" ;;
+  esac
+}
+
 echo "[setup-nextcloud-users] Waiting for internal readiness (status.php via docker exec)..."
 internal_ready=false
 for _ in $(seq 1 60); do
@@ -217,14 +230,14 @@ if [ "$propfind_ready" != "true" ]; then
     ;;
   000)
     note "000 = curl never got an answer, which is about REACHABILITY and not"
-    note "about Nextcloud: ${BASE_URL} is not routable from this shell. From a"
+    note "about Nextcloud: $(shown_base) is not routable from this shell. From a"
     note "Docker-outside-of-Docker caller joined to the compose network, set"
     note "NEXTCLOUD_URL=http://nextcloud/ instead (see this file's header)."
     ;;
   esac
   exit 1
 fi
-echo "[setup-nextcloud-users] External DAV ready at ${BASE_URL}"
+echo "[setup-nextcloud-users] External DAV ready at $(shown_base)"
 
 create_user() {
   local userid="$1" password="$2"

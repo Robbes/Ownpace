@@ -12,12 +12,17 @@
 # `redact-evidence.unit.test.ts` feeds it a log full of real-shaped secrets and
 # asserts none survive.
 #
-# Two passes, and the second is the one that matters:
+# Three passes, and the last is the one that matters:
 #
 #   1. **By value**, for every secret we can name from .env. Value-based rather
 #      than key-based because the logs print `KEY=value` in some places and
 #      bare values in others, and only the value is secret.
-#   2. **By shape**, for connection strings and token-looking strings. This
+#   2. **This machine's own addresses**, by value and by the mesh's range
+#      (own-addresses.sh). They are not secrets, and they are not ours to
+#      publish: the gate runs on the owner's machine, and a curl that cannot reach Mailpit
+#      names the address it tried. A job-level mask hides them in the log and never in an
+#      artifact, which any signed-in account can download.
+#   3. **By shape**, for connection strings and token-looking strings. This
 #      catches the passwords we could NOT name — a value set directly in the
 #      Trigger.dev dashboard, or one that arrived through a container's own
 #      environment. Pass 1 alone would have missed exactly those, which are the
@@ -32,10 +37,15 @@ DIR="${1:?usage: redact-evidence.sh <dir>}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${REDACT_ENV_FILE:-${SCRIPT_DIR}/.env}"
+# shellcheck source=deploy/compose/env-read.sh
+. "${SCRIPT_DIR}/env-read.sh"
+# shellcheck source=deploy/compose/own-addresses.sh
+. "${SCRIPT_DIR}/own-addresses.sh"
 
 # --- pass 1: every value in .env that looks like a secret --------------------
 if [ -f "$ENV_FILE" ]; then
-  while IFS='=' read -r key value; do
+  while IFS='=' read -r key _; do
+    key="${key#export }"
     case "$key" in ''|\#*) continue ;; esac
     # Only values worth hiding, and long enough that replacing them cannot
     # mangle unrelated text. A three-character value would match everywhere.
@@ -43,14 +53,31 @@ if [ -f "$ENV_FILE" ]; then
       *SECRET*|*PASSWORD*|*KEY*|*TOKEN*|*_PW) : ;;
       *) continue ;;
     esac
+    # The value as Compose and bash read it: quotes and an inline comment
+    # removed. env-upsert.sh single-quotes a secret with a space or a `~`.
+    value="$(env_value "$ENV_FILE" "$key")"
     [ "${#value}" -ge 8 ] || continue
-    # Escape for sed: the value can contain slashes and ampersands.
-    escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
+    # Escape for sed. Unquoted, a value can hold any regex character, and one
+    # sed error here would end the script before passes 2 and 3.
+    escaped=$(printf '%s' "$value" | sed -e 's/[][\/&|.*^$]/\\&/g')
     find "$DIR" -type f -exec sed -i "s|${escaped}|[REDACTED]|g" {} +
   done < "$ENV_FILE"
 fi
 
-# --- pass 2: by shape, for the ones we could not name ------------------------
+# --- pass 2: this machine's own addresses, and any on the mesh ---------------
+# Each value becomes the key that holds it (`<MAILPIT_BIND>`), so the line still
+# says which publish a failure was about; the range catches the peers no key
+# names. Run even without a .env: the range needs none.
+# A program sed refuses would end the script here, before pass 3, over an
+# upload that runs anyway: it is tried first, and the range alone stands in.
+own_program="$(own_address_sed "$ENV_FILE")"
+if ! sed -E -e "$own_program" </dev/null >/dev/null 2>&1; then
+  echo "[redact] WARNING: the .env's addresses make a program sed refuses; redacting the mesh range only" >&2
+  own_program="$(own_address_sed /dev/null)"
+fi
+find "$DIR" -type f -exec sed -i -E -e "$own_program" {} +
+
+# --- pass 3: by shape, for the ones we could not name ------------------------
 find "$DIR" -type f -print0 | while IFS= read -r -d '' f; do
   sed -i -E \
     -e 's#(postgres(ql)?://[^:[:space:]]+):[^@[:space:]]+@#\1:[REDACTED]@#g' \

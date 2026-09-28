@@ -154,6 +154,40 @@ describe('redact-evidence.sh', () => {
     expect(readFileSync(join(dir, 'evidence', 'b.log'), 'utf8')).not.toContain(JWT_SECRET);
   });
 
+  it('reads a value the way bash does: quoted, or with a comment after it', () => {
+    // env-upsert.sh and check-env-agreement.sh --fix single-quote any value
+    // with a space or a `~` in it (a Microsoft client secret has one), and a
+    // bare value may carry a comment. Searched for as written, neither was.
+    const QUOTED = 's3cr3t-with space~x';
+    const COMMENTED = 'plainsecret123';
+    writeFileSync(envFile, [`SMTP_PASSWORD='${QUOTED}'`, `OTHER_SECRET=${COMMENTED}   # rotated`, ''].join('\n'));
+    const out = redact(`smtp: ${QUOTED}\nother: ${COMMENTED}\n`);
+    expect(out).not.toContain(QUOTED);
+    expect(out).not.toContain(COMMENTED);
+  });
+
+  it('takes a secret full of regex characters literally, and still runs every pass', () => {
+    // Unquoted, a value can hold any of them, and one sed error here ended the
+    // script before the address and shape passes, over an upload that runs anyway.
+    const WEIRD = 'a[b]c*d^e$f\\g/h|i&j.k';
+    writeFileSync(envFile, `WEIRD_SECRET='${WEIRD}'\n`);
+    const out = redact(`weird: ${WEIRD}\nnear: aXbXcXdXeXfXgXhXiXjXk\nusing tr_prod_ZZZZZZZZ9999aaaaBBBB\n`);
+    expect(out).not.toContain(WEIRD);
+    expect(out).toContain('aXbXcXdXeXfXgXhXiXjXk');
+    expect(out).toContain('tr_prod_[REDACTED]');
+  });
+
+  it('still redacts by shape when the .env\'s addresses make a program sed refuses', () => {
+    // A tab inside a bind splits own_address_sed's value from its label, and
+    // puts a `/` in the replacement. The address pass stands down to the range;
+    // the credential pass after it still runs.
+    writeFileSync(envFile, 'MAILPIT_BIND=\'192.0.2.7\t/x\'\nTRIGGER_TLS_HOST=100.64.0.1\n');
+    const out = redact('postgres://app:hunter2secretpw@db/x\nusing tr_prod_abcdefghijklmnop at 100.64.0.1\n');
+    expect(out).not.toContain('hunter2secretpw');
+    expect(out).toContain('tr_prod_[REDACTED]');
+    expect(out).toContain('<mesh-ip>');
+  });
+
   it('refuses a directory that is not there, rather than silently doing nothing', () => {
     // A redactor that no-ops on a bad path would report success over an
     // unredacted upload.
