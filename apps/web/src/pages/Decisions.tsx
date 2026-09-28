@@ -180,12 +180,12 @@ const Decisions: React.FC = () => {
             />
           )}
         </div>
-        <p className="text-gray-500 mt-1">{t('decisions.intro')}</p>
       </div>
 
-      {/* FIRST, above the drift queue. The tab is called "Attention" and this
-          is the answer to it; the queue below is one of the things it counts,
-          and was the only one this screen ever showed. */}
+      {/* FIRST, above the drift queue. The menu calls this page *Needs you*
+          (0153 T6 (b), where it said "Attention") and this is the answer to
+          it; the queue below is one of the things it counts, and was the
+          only one this screen ever showed. */}
       <AttentionSummary
         mappings={attentionQuery.data?.mappings ?? []}
         {...(attentionQuery.data?.tenant ? { tenant: attentionQuery.data.tenant } : {})}
@@ -238,10 +238,14 @@ const Decisions: React.FC = () => {
       ) : (
         <>
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              {t('queue.waitingOnYou')}{' '}
+            {/* The organisation's own decisions, under the name the page had
+                before it was *Needs you*: a heading that repeated the page's
+                would say nothing about what this list holds. */}
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              {t('decisions.waiting')}{' '}
               <span className="text-gray-400 font-normal">({pending.length})</span>
             </h2>
+            <p className="text-gray-500 mb-3">{t('decisions.intro')}</p>
             {pending.length === 0 ? (
               <div className="flex items-start gap-3 text-gray-500">
                 <ListTodo className="w-5 h-5 mt-0.5 flex-shrink-0" />

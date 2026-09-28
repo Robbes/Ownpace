@@ -540,6 +540,33 @@ describe('the migrations list', () => {
   });
 });
 
+describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
+  it('signs a member in to Migrations, with the menu the drawing shows', async () => {
+    // Through the front door, as `open` does, but without its second goto:
+    // where the sign-in itself lands is the thing under test.
+    const page = await browser.newPage({ locale: 'en-GB' });
+    await page.addInitScript(() => window.localStorage.setItem('openmig.locale', 'en'));
+    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.fill('#token', TOKEN);
+    await page.click('form button[type=submit]');
+    await page.waitForURL((u) => u.pathname === '/mappings', { timeout: 15_000 });
+    await page.waitForSelector('[data-migration]');
+
+    const links = await page.$$eval('nav a', (as) => as.map((a) => (a.textContent ?? '').trim()));
+    expect(links.slice(0, 5)).toEqual(['Migrations', 'Needs you', 'Accounts', 'Help', 'Team']);
+    expect(links, 'the Dashboard went (D7)').not.toContain('Dashboard');
+    await page.close();
+  });
+
+  it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
+    const l = await open('/dashboard');
+    await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });
+    await l.page.waitForSelector('[data-migration]');
+    expectClean(l, 'an old /dashboard link');
+    await l.page.close();
+  });
+});
+
 describe('the build stamp', () => {
   it('shows the version the server reports, in a real browser', async () => {
     // The one thing the unit tests structurally cannot check: that the element
@@ -659,14 +686,14 @@ describe('signed in as a platform operator', () => {
       }
       // And not one of the six that would refuse them. Exact strings: "Setup
       // checklist" and "Setup guides" differ by one word, and a substring
-      // match cannot tell them apart.
+      // match cannot tell them apart. The member's words since 0153 T3 (c).
       for (const hidden of [
-        'Dashboard',
         'Migrations',
-        'Connections',
+        'Needs you',
+        'Accounts',
+        'Help',
         'Setup checklist',
-        'Attention',
-        'Tenants',
+        'Team',
       ]) {
         expect(
           links,

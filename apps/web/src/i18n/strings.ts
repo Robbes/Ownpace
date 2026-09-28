@@ -22,8 +22,7 @@ const en = {
   'notFound.heading': 'Nothing here.',
   'notFound.lede':
     'No screen has that address; renamed or never there, your migrations are untouched.',
-  'notFound.back': 'Back to the dashboard',
-  'nav.dashboard': 'Dashboard',
+  'notFound.back': 'Back to the start',
   'nav.mappings': 'Migrations',
   'nav.back': 'Back',
   'nav.menu': 'Menu',
@@ -34,7 +33,7 @@ const en = {
   'nav.check': 'Check',
   'nav.finish': 'Finish',
   'nav.log': 'Log',
-  'nav.tenants': 'Tenants',
+  'nav.tenants': 'Team',
   'nav.billing': 'Billing',
   'nav.signOut': 'Sign out',
   // "Report a problem" (workplan 0130): what the person writes, and what goes
@@ -688,7 +687,7 @@ const en = {
   'wizard.connectionName.taken':
     'This name is already taken; it saves, but two alike are hard to tell apart.',
   'wizard.testConnections.kept':
-    'The details were kept: correct them and try again, or return later under Connections.',
+    'The details were kept: correct them and try again, or return later under Accounts.',
   'wizard.testConnections': 'Test and save connections',
   'wizard.testing': 'Testing…',
   'wizard.testConnections.hint': 'Signs in to both sides read-only and saves each side that works.',
@@ -839,8 +838,6 @@ const en = {
   'billing.invoice': 'Invoice',
   'billing.period': 'Period:',
   'billing.paymentMethods': 'Payment Methods',
-  'dashboard.total': 'Total Migrations',
-  'dashboard.errorLoading': 'Error loading dashboard',
   // The channel's state, shown only when it is OFF (0043 T3). "On" is not worth
   // a banner; "off" is the state somebody has to act on, and until now it was
   // visible only in a container log line written once at boot.
@@ -848,18 +845,6 @@ const en = {
   'notifications.offHint':
     'Nobody is emailed when this migration needs a decision; configure SMTP to turn that on.',
   'notifications.offReason': 'Reason given by the server:',
-  'dashboard.recentActivity': 'Recent Activity',
-  'dashboard.noActivity': 'No activity yet',
-  'dashboard.noActivityHint': 'Create your first migration to start syncing data',
-  'dashboard.createMigration': 'Create Migration',
-  'dashboard.view': 'View →',
-  'dashboard.quickActions': 'Quick Actions',
-  'dashboard.newMigration': 'New Migration',
-  'dashboard.newMigrationHint': 'Create a new data migration',
-  'dashboard.viewAll': 'View All Migrations',
-  'dashboard.viewAllHint': 'Manage your migrations',
-  'dashboard.team': 'Team',
-  'dashboard.teamHint': 'Manage who has access',
   'mappings.title': 'Migrations',
   'mappings.subtitle': 'Manage your data migration configurations',
   'mappings.new': 'Start a migration',
@@ -1356,10 +1341,6 @@ const en = {
   'people.new.failed': 'The person was not added.',
   'createMapping.createFailed':
     'Not created; your entries are still here, so fix what the message names and retry.',
-  'dashboard.runsReadFailed': 'Could not read the run history:',
-  'dashboard.noRunsYet': 'No passes yet',
-  'dashboard.runItems': 'items',
-  'dashboard.runErrors': 'errors',
   'billing.usageLoadFailed': 'Could not load the usage numbers.',
   'billing.pay': 'Pay',
   'billing.payFailed': 'The payment could not be started.',
@@ -1450,7 +1431,7 @@ const en = {
   // Reconnect), so the sentence leaves the choice to the row and says nothing
   // about passwords.
   'failure.authExpired':
-    'The connection to this account has expired. On the Connections page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
+    'The connection to this account has expired. On the Accounts page, press Reconnect or Replace credentials, whichever its row shows, and this will carry on from where it stopped \u2014 nothing is lost.',
   'failure.rateLimited':
     'The provider asked us to slow down. Nothing is wrong: this pauses and resumes on its own.',
   'failure.quotaExceeded':
@@ -2101,8 +2082,8 @@ const en = {
   'memberStatus.invited': 'Invited',
   'memberStatus.suspended': 'Suspended',
   'memberStatus.removed': 'Removed',
-  'nav.decisions': 'Attention',
-  'attention.title': 'What needs you',
+  'nav.decisions': 'Needs you',
+  'attention.title': 'Per migration',
   'attention.intro': 'One line per migration, and a link to each thing waiting.',
   'attention.empty': 'Nothing is waiting. Every migration is running by itself.',
   'attention.emptyNoneRunning': 'Nothing is waiting, and no migration is running.',
@@ -2162,7 +2143,8 @@ const en = {
     'Distribution lists are recreated on the target by hand; no target offers a way.',
   'sharedAddresses.runbook.download': 'Get the step-by-step list',
   'sharedAddresses.runbook.failed': 'The steps could not be fetched.',
-  'decisions.title': 'Needs a decision',
+  'decisions.title': 'Needs you',
+  'decisions.waiting': 'Needs a decision',
   'decisions.intro':
     'Changes the sync noticed that only you can decide about. Nothing happens until you answer.',
   'decisions.readError': 'Could not read the decision queue.',
@@ -2192,9 +2174,10 @@ const en = {
   'decisionStatus.resolved': 'Decided',
   'decisionStatus.auto_resolved': 'Decided by preset',
   'decisionStatus.dismissed': 'Dismissed',
-  'nav.connections': 'Connections',
+  'nav.connections': 'Accounts',
   'nav.setup': 'Setup checklist',
   'nav.docs': 'Setup guides',
+  'nav.help': 'Help',
   'wizard.reuseSource': 'Reuse a saved source connection',
   'wizard.reuseTarget': 'Reuse a saved target connection',
   'wizard.reuseNone': 'Enter new credentials',
@@ -2246,15 +2229,15 @@ const en = {
   'connections.rotate.why':
     'If the check fails, nothing changes and your migrations keep whatever was working.',
   'connections.rotate.save': 'Check and replace',
-  'connections.add': 'Add a connection',
+  'connections.add': 'Add an account',
   'connections.addAndTest': 'Add and test',
   'connections.added': 'Added',
   'connections.role': 'Source or target?',
   'connections.type': 'Provider',
-  'connections.name': 'Connection name',
-  'connections.title': 'Connections',
+  'connections.name': 'Name for this account',
+  'connections.title': 'Accounts',
   'connections.intro': 'The accounts your migrations sign in with. Test checks them read-only.',
-  'connections.none': 'No connections yet. Creating your first migration adds them.',
+  'connections.none': 'No accounts yet. Starting your first migration adds them.',
   'connections.sources': 'Sources',
   'connections.targets': 'Targets',
   'connections.test': 'Test',
@@ -2275,7 +2258,7 @@ const en = {
   'connections.standing.whichSide':
     'Signs in with this and one other connection; Test this one to find out which.',
   // And when the pass could tell (second slice): no guessing left to do.
-  'connections.standing.thisSide': 'It failed on this connection.',
+  'connections.standing.thisSide': 'It failed on this account.',
   // What a probe FOUND, rendered from its outcome code (workplan 0080).
   // Ours, so translated; the provider's own refusal is never in here — it
   // renders verbatim, because that string is what you paste into their
@@ -2406,7 +2389,7 @@ const en = {
   'setup.intro':
     'Steps to take in the provider’s console; ticks are saved for your whole organisation.',
   'setup.backToWizard': '← Back to the wizard',
-  'setup.backToConnections': '← Back to connections',
+  'setup.backToConnections': '← Back to accounts',
   'setup.fullGuide': 'Read the full setup guide',
   'setup.settled': 'settled',
   'setup.stillOpen': 'still to do',
@@ -2608,8 +2591,7 @@ const nl: Record<keyof typeof en, string> = {
   'notFound.heading': 'Hier staat niets.',
   'notFound.lede':
     'Geen scherm heeft dit adres; hernoemd of nooit bestaan, uw migraties zijn ongemoeid.',
-  'notFound.back': 'Terug naar het overzicht',
-  'nav.dashboard': 'Overzicht',
+  'notFound.back': 'Terug naar het begin',
   'nav.mappings': 'Migraties',
   'nav.back': 'Terug',
   'nav.menu': 'Menu',
@@ -2620,7 +2602,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.check': 'Verificatie',
   'nav.finish': 'Afronden',
   'nav.log': 'Logboek',
-  'nav.tenants': 'Organisaties',
+  'nav.tenants': 'Team',
   'nav.billing': 'Facturering',
   'nav.signOut': 'Uitloggen',
   'nav.reportProblem': 'Een probleem melden',
@@ -2651,7 +2633,7 @@ const nl: Record<keyof typeof en, string> = {
   'asof.updated': 'Bijgewerkt',
   'asof.refresh': 'Vernieuwen',
   'failure.authExpired':
-    'De verbinding met dit account is verlopen. Druk op de pagina Verbindingen op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
+    'De verbinding met dit account is verlopen. Druk op de pagina Accounts op Opnieuw verbinden of Inloggegevens vervangen, welke van de twee er bij dit account staat; daarna gaat dit verder waar het gestopt is \u2014 er gaat niets verloren.',
   'failure.rateLimited':
     'De provider vroeg ons om rustiger aan te doen. Er is niets mis: dit pauzeert en hervat vanzelf.',
   'failure.quotaExceeded':
@@ -3267,7 +3249,7 @@ const nl: Record<keyof typeof en, string> = {
   'wizard.connectionName.taken':
     'Deze naam bestaat al; hij wordt bewaard, maar twee gelijke namen zijn lastig te onderscheiden.',
   'wizard.testConnections.kept':
-    'De gegevens zijn bewaard: corrigeer ze en probeer opnieuw, of kom later terug via Verbindingen.',
+    'De gegevens zijn bewaard: corrigeer ze en probeer opnieuw, of kom later terug via Accounts.',
   'wizard.testConnections': 'Verbindingen testen en bewaren',
   'wizard.testing': 'Testen…',
   'wizard.testConnections.hint':
@@ -3387,24 +3369,10 @@ const nl: Record<keyof typeof en, string> = {
   'billing.invoice': 'Factuur',
   'billing.period': 'Periode:',
   'billing.paymentMethods': 'Betaalmethoden',
-  'dashboard.total': 'Totaal migraties',
-  'dashboard.errorLoading': 'Het dashboard kon niet worden geladen',
   'notifications.off': 'E-mailmeldingen staan uit',
   'notifications.offHint':
     'Niemand wordt gemaild als deze migratie een beslissing nodig heeft; stel SMTP in.',
   'notifications.offReason': 'Reden van de server:',
-  'dashboard.recentActivity': 'Recente activiteit',
-  'dashboard.noActivity': 'Nog geen activiteit',
-  'dashboard.noActivityHint': 'Maak uw eerste migratie aan om gegevens te synchroniseren',
-  'dashboard.createMigration': 'Migratie aanmaken',
-  'dashboard.view': 'Bekijken →',
-  'dashboard.quickActions': 'Snelle acties',
-  'dashboard.newMigration': 'Nieuwe migratie',
-  'dashboard.newMigrationHint': 'Maak een nieuwe datamigratie aan',
-  'dashboard.viewAll': 'Alle migraties bekijken',
-  'dashboard.viewAllHint': 'Beheer uw migraties',
-  'dashboard.team': 'Team',
-  'dashboard.teamHint': 'Beheer wie toegang heeft',
   'mappings.title': 'Migraties',
   'mappings.subtitle': 'Beheer uw datamigratieconfiguraties',
   'mappings.new': 'Migratie starten',
@@ -3824,10 +3792,6 @@ const nl: Record<keyof typeof en, string> = {
   'people.new.failed': 'De persoon is niet toegevoegd.',
   'createMapping.createFailed':
     'Niet aangemaakt; uw invoer staat er nog. Herstel wat de melding noemt en probeer opnieuw.',
-  'dashboard.runsReadFailed': 'De uitvoeringsgeschiedenis kon niet worden gelezen:',
-  'dashboard.noRunsYet': 'Nog geen rondes',
-  'dashboard.runItems': 'items',
-  'dashboard.runErrors': 'fouten',
   'billing.usageLoadFailed': 'De verbruikscijfers konden niet worden geladen.',
   'billing.pay': 'Betalen',
   'billing.payFailed': 'De betaling kon niet worden gestart.',
@@ -4220,8 +4184,8 @@ const nl: Record<keyof typeof en, string> = {
   'memberStatus.invited': 'Uitgenodigd',
   'memberStatus.suspended': 'Geschorst',
   'memberStatus.removed': 'Verwijderd',
-  'nav.decisions': 'Aandacht',
-  'attention.title': 'Wat uw aandacht vraagt',
+  'nav.decisions': 'Wacht op u',
+  'attention.title': 'Per migratie',
   'attention.intro': 'Eén regel per migratie, met een link naar alles wat wacht.',
   'attention.empty': 'Er wacht niets. Elke migratie loopt vanzelf door.',
   'attention.emptyNoneRunning': 'Er wacht niets en er loopt geen migratie.',
@@ -4275,7 +4239,8 @@ const nl: Record<keyof typeof en, string> = {
     'Distributielijsten maakt u met de hand opnieuw aan; geen bestemming doet dat voor u.',
   'sharedAddresses.runbook.download': 'Haal de stappenlijst op',
   'sharedAddresses.runbook.failed': 'De stappen konden niet worden opgehaald.',
-  'decisions.title': 'Vraagt om een beslissing',
+  'decisions.title': 'Wacht op u',
+  'decisions.waiting': 'Vraagt om een beslissing',
   'decisions.intro':
     'Veranderingen die de synchronisatie opmerkte en waarover alleen u beslist; niets gebeurt tot u antwoordt.',
   'decisions.readError': 'De beslissingswachtrij kon niet worden gelezen.',
@@ -4301,9 +4266,10 @@ const nl: Record<keyof typeof en, string> = {
   'decisionStatus.resolved': 'Beslist',
   'decisionStatus.auto_resolved': 'Beslist door vast antwoord',
   'decisionStatus.dismissed': 'Terzijde gelegd',
-  'nav.connections': 'Verbindingen',
+  'nav.connections': 'Accounts',
   'nav.setup': 'Instelchecklist',
   'nav.docs': 'Handleidingen',
+  'nav.help': 'Help',
   'wizard.reuseSource': 'Bewaarde bronverbinding hergebruiken',
   'wizard.reuseTarget': 'Bewaarde doelverbinding hergebruiken',
   'wizard.reuseNone': 'Nieuwe inloggegevens invoeren',
@@ -4352,16 +4318,16 @@ const nl: Record<keyof typeof en, string> = {
   'connections.rotate.why':
     'Mislukt de controle, dan verandert er niets en houden uw migraties wat werkte.',
   'connections.rotate.save': 'Controleren en vervangen',
-  'connections.add': 'Verbinding toevoegen',
+  'connections.add': 'Account toevoegen',
   'connections.addAndTest': 'Toevoegen en testen',
   'connections.added': 'Toegevoegd',
   'connections.role': 'Bron of doel?',
   'connections.type': 'Aanbieder',
-  'connections.name': 'Naam van de verbinding',
-  'connections.title': 'Verbindingen',
+  'connections.name': 'Naam voor dit account',
+  'connections.title': 'Accounts',
   'connections.intro':
     'De accounts waarmee uw migraties inloggen. Test controleert ze alleen-lezen.',
-  'connections.none': 'Nog geen verbindingen. Bij het aanmaken van uw eerste migratie worden ze toegevoegd.',
+  'connections.none': 'Nog geen accounts. Bij het starten van uw eerste migratie worden ze toegevoegd.',
   'connections.sources': 'Bronnen',
   'connections.targets': 'Doelen',
   'connections.test': 'Testen',
@@ -4373,7 +4339,7 @@ const nl: Record<keyof typeof en, string> = {
   'connections.standing.stopped': 'is {when} gestopt ({domains}):',
   'connections.standing.whichSide':
     'Logt in met deze en één andere verbinding; test deze om te weten welke.',
-  'connections.standing.thisSide': 'Het ging mis op deze verbinding.',
+  'connections.standing.thisSide': 'Het ging mis bij dit account.',
   'probe.connected': 'Verbonden.',
   'probe.connectedSession': 'Verbonden. Het JMAP-sessiedocument antwoordde.',
   'probe.targetStatus': 'De server op {url} antwoordde {status}.',
@@ -4454,7 +4420,7 @@ const nl: Record<keyof typeof en, string> = {
   'setup.intro':
     'Stappen in de console van de aanbieder; vinkjes worden voor uw hele organisatie bewaard.',
   'setup.backToWizard': '← Terug naar de wizard',
-  'setup.backToConnections': '← Terug naar verbindingen',
+  'setup.backToConnections': '← Terug naar accounts',
   'setup.fullGuide': 'Lees de volledige handleiding',
   'setup.settled': 'afgehandeld',
   'setup.stillOpen': 'nog te doen',

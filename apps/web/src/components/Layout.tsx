@@ -2,7 +2,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigationType } from 'react-router';
 import {
-  LayoutDashboard,
   FolderGit2,
   Building2,
   ListTodo,
@@ -16,6 +15,7 @@ import {
   ClipboardCheck,
   ListChecks,
   Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
@@ -250,30 +250,43 @@ const Layout: React.FC = () => {
    * this problem.
    */
   const inOrganisation = selfHost || tenantCount > 0;
+  const member = !selfHost && inOrganisation;
 
-  const navigation = [
-    ...(selfHost || !inOrganisation
-      ? []
-      : [
-          { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+  /**
+   * THE MENU A MEMBER READS (0153 T3 (c), T6 (b); the owner's D7, 2026-09-28):
+   * Migrations, Needs you, Accounts, Help, Team, Billing. The Dashboard went,
+   * and Migrations is the landing page. *Help* is the setup checklist and the
+   * setup guides, as two tabs of one entry (`HelpTabs`), so `also` lights it
+   * on the guides too. The appliance and an operator in no organisation keep
+   * the menus they had.
+   */
+  const navigation: { name: string; href: string; icon: LucideIcon; also?: readonly string[] }[] = [
+    ...(member
+      ? [
           { name: t('nav.mappings'), href: '/mappings', icon: FolderGit2 },
-          // Connections are managed per tenant, so they sit beside Mappings
+          // What waits on the person, across every queue: each migration's
+          // line, and the decisions that belong to no migration (T6 (b)'s
+          // *Needs you*, one word where there were three).
+          { name: t('nav.decisions'), href: '/decisions', icon: ListTodo },
+          // Accounts are managed per tenant, so they sit beside Migrations
           // rather than inside one (workplan 0062). MANAGED ONLY, deliberately:
           // an appliance's connections come from mapping files, which are the
           // operator's source of truth — a UI editing them would either lie
           // (the file wins on restart) or rewrite a file somebody owns.
           { name: t('nav.connections'), href: '/connections', icon: Plug },
-        ]),
+          { name: t('nav.help'), href: '/setup', icon: BookOpen, also: ['/docs'] },
+          { name: t('nav.tenants'), href: '/tenants', icon: Building2 },
+        ]
+      : []),
     // The setup checklist is EDITION-NEUTRAL (workplan 0066): creating a Box
     // app and getting an admin to authorise it is the same work either way,
-    // and the appliance answers the same routes over the same table.
-    // Setup reads a checklist that belongs to an organisation, so in managed it
-    // travels with the group above; the appliance answers it without one.
-    ...(inOrganisation ? [{ name: t('nav.setup'), href: '/setup', icon: ListChecks }] : []),
+    // and the appliance answers the same routes over the same table. A
+    // member reaches it through Help; the appliance keeps its own entry.
+    ...(selfHost ? [{ name: t('nav.setup'), href: '/setup', icon: ListChecks }] : []),
     // Docs calls no API at all, so it is the one entry that works for anybody
     // signed in — and it stays, because a person with nowhere to go still
-    // deserves somewhere to read.
-    { name: t('nav.docs'), href: '/docs', icon: BookOpen },
+    // deserves somewhere to read. A member reaches it through Help.
+    ...(member ? [] : [{ name: t('nav.docs'), href: '/docs', icon: BookOpen }]),
     // The §11.2 decision queues, and then the §20 gate and the end of the
     // migration — in the order the runbook's cutover sequence uses.
     //
@@ -297,11 +310,9 @@ const Layout: React.FC = () => {
         ]
       : []),
     // The §11.1 drift decision queue (0028 T1): tenant-level in BOTH editions
-    // — a new mailbox belongs to no mapping, so it cannot live under one.
-    ...(inOrganisation ? [{ name: t('nav.decisions'), href: '/decisions', icon: ListTodo }] : []),
-    ...(selfHost || !inOrganisation
-      ? []
-      : [{ name: t('nav.tenants'), href: '/tenants', icon: Building2 }]),
+    // — a new mailbox belongs to no mapping, so it cannot live under one. A
+    // member has it second, above; the appliance keeps it here.
+    ...(selfHost ? [{ name: t('nav.decisions'), href: '/decisions', icon: ListTodo }] : []),
     // The access queue (workplan 0093 T7). Managed only — the appliance has one
     // owner and nobody to let in — and shown only to a platform operator, who
     // is usually the single person running the deployment. Hiding it is
@@ -376,8 +387,11 @@ const Layout: React.FC = () => {
               lights up, and managed's Mappings entry stays lit. */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive =
-                activeNavHref(location.pathname, navigation.map((n) => n.href)) === item.href;
+              const lit = activeNavHref(
+                location.pathname,
+                navigation.flatMap((n) => [n.href, ...(n.also ?? [])]),
+              );
+              const isActive = lit === item.href || (lit !== null && (item.also ?? []).includes(lit));
               return (
                 <Link
                   key={item.href}
@@ -536,8 +550,9 @@ const Layout: React.FC = () => {
               }
               return (
                 <h1 className="text-xl font-semibold text-gray-900">
-                  {navigation.find((n) => location.pathname.startsWith(n.href))?.name ||
-                    'Ownpace'}
+                  {navigation.find((n) =>
+                    [n.href, ...(n.also ?? [])].some((href) => location.pathname.startsWith(href)),
+                  )?.name || 'Ownpace'}
                 </h1>
               );
             })()}

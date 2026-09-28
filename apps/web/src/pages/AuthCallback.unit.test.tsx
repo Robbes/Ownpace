@@ -72,7 +72,7 @@ describe('AuthCallback', () => {
 
     renderCallback();
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/dashboard', { replace: true }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/mappings', { replace: true }));
     // The tenant and role come from /api/me, NOT from the token — ADR-0042
     // narrowed the claims to sub and email precisely so they could not.
     const state = useAuthStore.getState();
@@ -115,7 +115,7 @@ describe('AuthCallback', () => {
     expect(useAuthStore.getState().user?.email).toBe('sub-1');
   });
 
-  it('takes a platform operator to the queue, not to a dashboard that would 403', async () => {
+  it('takes a platform operator to the queue, not to a landing page that would 403', async () => {
     // An operator belongs to no organisation by design (workplan 0093 T6), so
     // the dashboard's first request would be refused. The queue is what they
     // signed in for.
@@ -153,7 +153,7 @@ describe('AuthCallback', () => {
     return waitFor(() => expect(useAuthStore.getState().tenantCount).toBe(1));
   });
 
-  it('SAYS SO when somebody belongs to nothing, rather than dashboarding them', async () => {
+  it('SAYS SO when somebody belongs to nothing, rather than landing them on a page that cannot load', async () => {
     // Waiting on a grant, or holding an invitation that did not bind because
     // the issuer never verified their address. Either way a dashboard that
     // cannot load is the version of this that becomes a support ticket.
