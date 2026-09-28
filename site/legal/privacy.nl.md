@@ -358,10 +358,11 @@ machine die we zelf beheren, in Nederland.
 <!-- The machine (subprocessors-machine-housed (a), the owner, 2026-09-28): no company houses it
      or can reach it; the owner keeps and runs it for Archico B.V., in the Netherlands. So there
      is no hosting row.
-     NetBird (dpa-netbird-agreement (a), the owner, 2026-09-28): its data-processing agreement is
-     accepted. The owner's note: "NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard
-     tunnel with the backend towards the hosting provider." Read as: to our machine, which no
-     hosting company holds (above). The owner pointed to https://trust.netbird.io and to
+     NetBird (dpa-netbird-agreement (a), the owner, 2026-09-28): its terms and data-processing
+     agreement were accepted on 2026-08-01. The owner's note: "NetBird GmbH ("NetBird")
+     terminates the TLS, and uses WireGuard tunnel with the backend towards the hosting
+     provider." Read as: to our machine, which no hosting company holds (above). The owner
+     pointed to https://trust.netbird.io and to
      https://netbird.io/terms §3.1. Read 2026-09-28: the terms, https://netbird.io/privacy and
      https://netbird.io/imprint; the trust center's data, from the API its page loads,
      https://api.eu.scytale.ai/views/trust-center/public/page-data (the egress proxy here still
@@ -382,8 +383,10 @@ machine die we zelf beheren, in Nederland.
      - The agreement: terms §13, "For personal data processing by NetBird on behalf of the
        Customer the NetBird data processing agreement applies." The terms do not link it. The
        trust center lists a PDF, "Data Processing Agreement (DPA)", not restricted, uploaded
-       2026-06-23. It could not be downloaded here, so it was not read, and whether it covers
-       the proxy is not known.
+       2026-06-23. It could not be downloaded here, so it was not read. The owner confirms that
+       it covers the Reverse Proxy, the traffic it decrypts and its access log ("It's covered",
+       2026-09-28). What it says of sub-processors, of announcing a new one and the right to
+       object, and whether it states the 7 days, is for the lawyer's pass.
      - The log (the row's last sentence; ops-trust-proxy: the row gains it in every option):
        "NetBird logs every request and connection that passes through your reverse proxy
        services", with the time, the method, the host and path, the status, the duration, the
@@ -391,7 +394,10 @@ machine die we zelf beheren, in Nederland.
        source IP geolocation", and, only where NetBird's own sign-in (SSO) is used, "The
        authenticated user's ID". "For the cloud version of NetBird, access logs are retained for
        7 days." (docs, manage/reverse-proxy/access-logs). The path holds a grant link's secret
-       (/grant/:link).
+       (/grant/:link). SSO is on now for the ownpace.eu hosts, to keep them private until
+       launch ("No pin, but SSO on"), so for now the log also holds the signed-in user's ID. By
+       the owner's decision (2026-09-28) SSO is off on every one of them before the first
+       invitation, so the log keeps no user ID for testers, and the row names none.
      - Where: NOT STATED for the proxy or its log, in any source read. The docs: "`eu` is the
        proxy cluster region", and "NetBird operates multiple proxy clusters in different regions"
        (manage/reverse-proxy/custom-domains); NetBird's own clusters run "Wherever the platform
@@ -400,7 +406,8 @@ machine die we zelf beheren, in Nederland.
        guarantee uninterrupted availability, latency performance, or specific geographic
        routing." Its privacy policy says "We process your personal data in the EU/EEA", but it
        applies to "this website (netbird.io), netbird.ai, and all subdomains of the domain
-       netbird.io" and does not mention the proxy.
+       netbird.io" and does not mention the proxy. The owner keeps Germany (EU) ("Take Germany,
+       I'll ask later on", 2026-09-28) and asks NetBird.
      - Its sub-processors: the privacy policy, "A current list of our subprocessors is
        maintained on our Trust Center". The trust center lists 18 entries: Apollo, Auth0, AWS,
        Azure, Datadog, GCP, GitHub, Grafana Cloud, HubSpot, Matomo, Microsoft Clarity (twice),
@@ -408,10 +415,11 @@ machine die we zelf beheren, in Nederland.
        none is said to run or receive anything of the proxy. The privacy policy also names
        Cloudflare, Inc. (USA), for "Bot management, CDN, Website security", which the trust
        center does not list.
-     The "Where" column keeps Germany (EU), where NetBird GmbH is, from the owner's first answer.
-     TO RECORD before publication (0139 T0): the privacy briefing's to-do on NetBird, questions
-     (a) to (e). If the proxy, its log, or a sub-processor of NetBird's that receives either, is
-     outside the EU, "Where" and §8 name it. -->
+     The "Where" column keeps Germany (EU), where NetBird GmbH is: the owner's choice, pending
+     the owner's question to NetBird (the privacy briefing's to-do on NetBird, (c)). If NetBird's
+     answer puts the proxy, its log, or a sub-processor of NetBird's that receives either, outside
+     the EU, "Where" and §8 name it. Before the first invitation, NetBird's sign-in is off on
+     every ownpace.eu host ((d) there). -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|

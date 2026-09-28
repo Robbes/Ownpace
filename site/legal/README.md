@@ -120,10 +120,10 @@ comments still name them, to say what filled them.
   what the repository says of it (`managed.yml`: *"netbird terminating TLS on 443"*; 0091:
   *"Routing and TLS are netbird's"*), and NetBird's documentation says its hosted proxy, for an
   HTTP service, *"terminates TLS at the edge"*. Germany is in the EU, so privacy §8 needs nothing
-  for NetBird GmbH itself; where its proxy and its log run is still to record (below). **The
-  owner, 2026-09-28** (dpa-netbird-agreement (a), *"Yes, it is already accepted"*): *"NetBird
-  GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with the backend towards the
-  hosting provider. Check https://trust.netbird.io (whitelisted for you) for
+  for NetBird GmbH itself; where its proxy and its log run, the owner keeps Germany and asks
+  NetBird (below). **The owner, 2026-09-28** (dpa-netbird-agreement (a), *"Yes, it is already
+  accepted"*): *"NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with the
+  backend towards the hosting provider. Check https://trust.netbird.io (whitelisted for you) for
   overview, subprocessors and other info. https://netbird.io/terms lists the reverse proxy in
   3.1"*. So the entity name is the owner's, the agreement is accepted, and TLS ends at NetBird in
   HTTP mode, not passthrough. Privacy §7's row and `subprocessors.md` now say that NetBird carries
@@ -146,20 +146,30 @@ comments still name them, to say what filled them.
   any source read:** where the proxy and its log run (the documentation calls the cluster
   *"eu"*; terms §3.1 promise no *"specific geographic routing"* and let NetBird *"Modify,
   suspend, or discontinue certain proxy endpoints or regions"*), at which provider, and whether
-  any of NetBird's own sub-processors receives the proxy's traffic or its log. **To record**
-  before the draft markers come off (0139 T0), privacy's to-do on NetBird, questions (a) to (e):
-  the date the agreement was accepted; the agreement, downloaded from `https://trust.netbird.io`
-  and read for the proxy, its sub-processors, how a new one is announced and the 7 days; the
-  country and provider of the proxy and its log (`app.`, `id.` and `status.ownpace.eu` resolved
-  to the cluster `eu1.netbird.services` on 2026-09-28); whether any of NetBird's own
-  sub-processors receives either; and that no NetBird sign-in is switched on for `app.`, `id.`,
-  `status.` or `www.ownpace.eu`. If the proxy, its log or such a sub-processor is outside the
-  EU, privacy §8 and DPA §12 name it. **Also for the owner:** terms §3.1 say the Reverse Proxy
-  cannot be used to *"Resell, sublicense, or commercially exploit Hosted Proxy Services unless
-  explicitly authorized in writing by NetBird"*. *Hosted Proxy Services* is not defined, and the
-  terms do not say whether running one's own paid service behind the proxy is commercial
-  exploitation; NetBird's answer in writing settles it. The proxy is *"currently in beta"* (the
-  documentation), and *"provided on a shared, best-effort basis"* (terms §3.1). **Our own logs**
+  any of NetBird's own sub-processors receives the proxy's traffic or its log. **The owner's
+  answers, 2026-09-28** (privacy's to-do on NetBird, (a) to (e); 0139's Status quotes each):
+  (a) NetBird's terms and data-processing agreement were accepted on 2026-08-01 (the owner:
+  *"01-08-2026"*, in Dutch date order). (b) The agreement covers the Reverse Proxy, the traffic
+  it decrypts and its access log (*"It's covered"*), recorded as the owner's confirmation. What
+  it says of sub-processors, of announcing a new one and of objecting, and whether it states the
+  7 days, is for the lawyer's pass, and does not block the Alpha. (c) *"Take Germany, I'll ask
+  later on"*: privacy §7's and `subprocessors.md`'s *Where* stays *Germany (EU)*, the owner's
+  choice, while the owner asks NetBird where the proxy and its log run (`app.`, `id.` and
+  `status.ownpace.eu` resolved to the cluster `eu1.netbird.services` on 2026-09-28), at which
+  provider, and whether any of NetBird's own sub-processors receives either. If the answer puts
+  the proxy, its log or such a sub-processor outside the EU, privacy §7's *Where*, privacy §8 and
+  DPA §12 name it. An owner's to-do, not before the first invitation. (d) *"No pin, but SSO
+  on"*: NetBird's sign-in (SSO) keeps the `ownpace.eu` hosts private until launch, and by the
+  owner's decision it goes off on every one of them before the first invitation (*To build or to
+  do*, below), so no NetBird sign-in sits in front of the service and NetBird's log keeps no user
+  ID for testers. (e) Terms §3.1 say the Reverse Proxy cannot be used to *"Resell, sublicense, or
+  commercially exploit Hosted Proxy Services unless explicitly authorized in writing by
+  NetBird"*. *Hosted Proxy Services* is not defined, and the terms do not say whether running
+  one's own paid service behind the proxy is commercial exploitation. The owner: *"I need to ask
+  commercial usage."* The owner asks NetBird in writing, and whether the free Alpha itself counts
+  is part of the question; the answer is needed before the first paid tier at the latest. The
+  proxy is *"currently in beta"* (the documentation), and *"provided on a shared, best-effort
+  basis"* (terms §3.1). **Our own logs**
   (ops-trust-proxy (b), *"Keep visitors' addresses in all our logs"*): live sets `TRUST_PROXY`,
   so the API reads the visitor's address from what NetBird passes on, and both nginx logs record
   that address: the app's (`apps/web/nginx.conf.template`, format `ownpace_combined`, which
@@ -359,11 +369,14 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   *"still needs to be checked."*): remove a test account on the test stack and look at what
   stays. §9 now says the entries are kept as long as we run this sign-in service, because it
   cannot remove them; if the check shows they go, the comment beside §9 has the other wording.
-- *NetBird* (privacy §7; dpa-netbird-agreement (a)): privacy's to-do on NetBird, questions (a)
-  to (e): the date its agreement was accepted; its agreement read; where the proxy and its log
-  run, and at which provider; whether NetBird's own sub-processors receive either; no NetBird
-  sign-in on `app.`, `id.`, `status.` or `www.ownpace.eu`. And NetBird's answer in writing on
-  terms §3.1's *"commercially exploit"* (the filled list above).
+- *No NetBird sign-in in front of the service* (privacy §7's row and the comment beside it;
+  privacy's to-do on NetBird, (d); the owner, 2026-09-28): NetBird's sign-in (SSO) is on now for
+  the `ownpace.eu` hosts, to keep them private until launch. Before the first invitation it goes
+  off on every one of them, `app.`, `id.`, `status.` and `www.ownpace.eu`, and no other NetBird
+  sign-in (password or PIN) takes its place, so NetBird's log keeps no user ID for testers, as
+  §7's row says. To check: from outside the NetBird network, a request to each of the four hosts
+  is answered by the app, the sign-in service, the status page or the website itself, not by
+  NetBird's sign-in page.
 - *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
   live's `.env`.
 
@@ -373,7 +386,13 @@ and DPA §10 promise (terms-s11-export (a), dpa-q3-return-of-data (c)), made by 
 background tasks' records reset at the end of the Alpha (privacy §9; privacy-task-records (a)),
 one step in the end-of-Alpha routine; the order button, the confirmation step and the withdrawal
 function before the first paid tier (terms-unbuilt-paid-steps (a)); ADR-0037's minimum TLS
-versions, after which privacy §11 gains a line (privacy-tls-wording (a)).
+versions, after which privacy §11 gains a line (privacy-tls-wording (a)); and NetBird's two
+answers to the owner (privacy's to-do on NetBird; the filled list above): where its proxy and its
+log run, at which provider, and whether its own sub-processors receive either ((c); privacy §7's
+*Where* and §8 change only if the answer is outside the EU), and, in writing, whether the Alpha
+or a paid service behind the proxy is commercial use under its terms §3.1 ((e); before the first
+paid tier at the latest). The lawyer's pass reads NetBird's agreement for its sub-processors, how
+a new one is announced, the right to object and the 7 days ((b)).
 
 The full list is in the terms briefing (A to F), the privacy briefing (*Still to do before the
 draft marker comes off*), the Alpha conditions' briefing and 0139's Status block of 2026-09-28.
@@ -430,7 +449,8 @@ commit.
 - **Everything runs in the EU, with one named exception.** Privacy §8 says the service runs in
   the EU; the machine is in the Netherlands, and the service in front of it that ends TLS,
   NetBird GmbH, in Germany (the owner, 2026-09-28). Where NetBird's proxy and its log run, no
-  NetBird source states; it is still to record (above). If either is outside the EU, §8 names it
+  NetBird source states; the owner keeps Germany and asks NetBird (*"Take Germany, I'll ask later
+  on"*, above). If NetBird's answer puts either outside the EU, §7's *Where* and §8 name it
   too. The exception is mail: Proton AG, in Switzerland, under an EU adequacy decision, sends the service's mail and
   holds `support@ownpace.eu` (the owner's choice, 0133, 2026-09-28). During the Alpha a tester
   also asks us to enter a Google address in Google's list of test users (privacy §6, §8). Since

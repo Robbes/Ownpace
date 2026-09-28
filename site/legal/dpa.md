@@ -75,17 +75,19 @@
     repository or the owner's facts prove; "Open" marks the rest.
   - §8 unchanged: general written authorisation, as drafted (dpa-q2 (a)).
   - NetBird (dpa-netbird (a), dpa-netbird-agreement (a)): no wording change.
-    Recorded: NetBird GmbH ends TLS in front of the machine, and its
-    data-processing agreement is accepted (the owner, 2026-09-28; the date
-    of acceptance not given). The owner: "NetBird GmbH ("NetBird")
+    Recorded: NetBird GmbH ends TLS in front of the machine, and its terms
+    and data-processing agreement were accepted on 2026-08-01 (the owner,
+    2026-09-28); the agreement covers the proxy and its access log (the
+    owner: "It's covered"). The owner's note: "NetBird GmbH ("NetBird")
     terminates the TLS, and uses WireGuard tunnel with the backend towards
     the hosting provider." There is no hosting provider: the owner keeps and
     runs the machine for Archico B.V. (subprocessors-machine-housed (a)).
     NetBird GmbH is in Germany (the owner; its imprint: Berlin), and
     subprocessors.md lists it. §8's and §12's sentences, that sub-processors
-    process in the EU, hold for NetBird only once where its proxy and its
-    access log run is recorded: no NetBird source read on 2026-09-28 states
-    it (the to-do on NetBird, below).
+    process in the EU, rest for NetBird on the owner's choice of Germany
+    ("Take Germany, I'll ask later on"): no NetBird source read on
+    2026-09-28 states where its proxy and its access log run, and the owner
+    asks NetBird (the to-do on NetBird, below).
 
   Still to do, in the one pass before a business customer is admitted:
 
@@ -100,7 +102,9 @@
     (manage/reverse-proxy/custom-domains). Who holds the certificate's key,
     and where, is not stated. Its trust center's "TLS 1.2 or newer" is a
     company-wide control that does not name the proxy, so the line claims
-    no TLS version for NetBird's side.
+    no TLS version for NetBird's side. NetBird's own sign-in is off on every
+    ownpace.eu host from the first invitation (privacy's to-do on NetBird,
+    (d)), so the line describes none.
   - Annex B against privacy §11 as its own pass words it, and against the
     code: row security binds the application's requests and, since #1323
     (d0138607, merged into this branch in c1413b53), the per-tenant background
@@ -137,19 +141,20 @@
     terms §1 print by then, and «SUBPROCESSORS_URL» loses its backticks,
     before 0086 T5 publishes this.
   - NetBird, for §8, §12 and subprocessors.md: privacy's to-do on NetBird,
-    questions (a) to (e): the date its agreement was accepted; its
-    data-processing agreement (a PDF on https://trust.netbird.io, not
-    restricted, not downloadable from here), read for the proxy, its
-    sub-processors and how a new one is announced; the country and provider
-    of the proxy and its access log; whether any of NetBird's own
-    sub-processors receives either; and no NetBird sign-in on app., id.,
-    status. and www.ownpace.eu. On 2026-09-28 app., id. and
-    status.ownpace.eu resolved to NetBird's cluster eu1.netbird.services;
-    NetBird's documentation calls the cluster "eu" and names no country,
-    and its terms §3.1 promise no "specific geographic routing". Its trust
-    center lists 18 sub-processor entries, each with no location. If the
-    proxy, its log or one of those sub-processors reaches a third country,
-    §12 names it.
+    as the owner answered it on 2026-09-28. Recorded: accepted on
+    2026-08-01, and the agreement covers the proxy and its access log ((a),
+    (b)). Open: NetBird's answer to the owner's question ((c)), the country
+    and provider of the proxy and its access log, and whether any of
+    NetBird's own sub-processors receives either. On 2026-09-28 app., id.
+    and status.ownpace.eu resolved to NetBird's cluster
+    eu1.netbird.services; NetBird's documentation calls the cluster "eu"
+    and names no country, and its terms §3.1 promise no "specific
+    geographic routing". Its trust center lists 18 sub-processor entries,
+    each with no location. If the proxy, its log or one of those
+    sub-processors reaches a third country, §12 names it. For this pass:
+    the agreement (a PDF on https://trust.netbird.io, not restricted, not
+    downloadable from here) read for its sub-processors, how a new one is
+    announced, the right to object and the 7 days (question 2, below).
   - The export the return clause in §10 needs: workplan 0155 (the owner's
     note on dpa-q3), before the first business customer.
 
@@ -164,6 +169,11 @@
      service this small. Are NetBird's and Proton's agreements "no weaker
      than this DPA's"? NetBird's is a PDF on https://trust.netbird.io; the
      owner downloads it for this review, because it could not be read here.
+     The owner confirms that it covers the Reverse Proxy, the traffic it
+     decrypts and its access log (2026-09-28). What it says of its
+     sub-processors, of announcing a new one and of objecting, and whether
+     it states the 7 days NetBird's documentation gives for the proxy's
+     log, is this pass's to read.
   3. §10 (dpa-q3: (c), a return clause). Does it meet Art. 28(3)(g)?
   4. §11 (dpa-q4: (b), the controller pays for an on-site audit). Are the
      costs limited enough that the right to audit stays real?

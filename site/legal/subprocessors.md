@@ -28,24 +28,35 @@
        houses it or can reach it: the owner keeps and runs it for Archico B.V.
        (subprocessors-machine-housed (a)). No hosting row.
      - NetBird GmbH, in Germany ("through NetBird (Germany) delivers the forward proxy"). Its
-       data-processing agreement is accepted (dpa-netbird-agreement (a); the date not given).
-       The owner: "NetBird GmbH ("NetBird") terminates the TLS, and uses WireGuard tunnel with
-       the backend towards the hosting provider." The row says it carries connections on
-       through an encrypted tunnel (WireGuard), as privacy §7's row does. NetBird's own
-       documentation (github.com/netbirdio/docs, manage/reverse-proxy) says the same: an HTTP
-       service's TLS ends at the proxy, which forwards through a WireGuard tunnel.
+       terms and data-processing agreement were accepted on 2026-08-01 (dpa-netbird-agreement
+       (a); the owner gave the date on 2026-09-28). The owner: "NetBird GmbH ("NetBird")
+       terminates the TLS, and uses WireGuard tunnel with the backend towards the hosting
+       provider." The row says it carries connections on through an encrypted tunnel
+       (WireGuard), as privacy §7's row does. NetBird's own documentation
+       (github.com/netbirdio/docs, manage/reverse-proxy) says the same: an HTTP service's TLS
+       ends at the proxy, which forwards through a WireGuard tunnel.
      - NetBird's own log (ops-trust-proxy: the row gains it in every option). NetBird's
        documentation (manage/reverse-proxy/access-logs) lists what it logs for each request:
        the source IP address, a location derived from it, the host and path, the status, sizes
        and timing. The path holds a grant or progress link's secret. It says NetBird's cloud
        keeps these logs for 7 days. The row names the log, what it holds and the 7 days, as
-       privacy §7's does; the 7 days are checked against NetBird's agreement before
-       publication.
+       privacy §7's does; whether NetBird's agreement states the 7 days is for the lawyer's
+       pass. The documentation also lists the signed-in user's ID where NetBird's own sign-in
+       (SSO) is on. It is on now for the ownpace.eu hosts, to keep them private until launch,
+       and goes off on every one of them before the first invitation (the owner, 2026-09-28), so
+       the row names no user ID.
      - NetBird's own sources, read 2026-09-28 (privacy's briefing lists them, and the comment
        beside privacy §7 quotes them): the row's log gains the time and the size each way
        (docs, manage/reverse-proxy/access-logs: "Timestamp", "Bytes Uploaded", "Bytes
        Downloaded"). The Where column keeps Germany (EU), where NetBird GmbH is (Berlin, its
        imprint); no source read says in which country the proxy or its log runs.
+     - NetBird, the owner's answers to five questions, 2026-09-28 (privacy's to-do on NetBird,
+       (a) to (e), records each): accepted on 2026-08-01; its data-processing agreement covers
+       the proxy and its log ("It's covered"); the Where column keeps Germany (EU), the owner's
+       choice ("Take Germany, I'll ask later on"), while the owner asks NetBird; no NetBird
+       sign-in on any ownpace.eu host from the first invitation ("No pin, but SSO on", and SSO
+       off before the first invitation); and NetBird asked in writing about commercial use ("I
+       need to ask commercial usage."). The row does not change.
      - Proton: "yes"; the agreement is accepted for the account behind support@ownpace.eu,
        which is Archico B.V.'s, and Proton keeps the service's sent mail in it, which the row
        says. How long those copies stay is privacy §9's: the support-mail rule, until resolved
@@ -54,18 +65,16 @@
        Decision 2000/518/EC), as privacy §8 does (privacy-switzerland-wording (b)).
 
      Open for the owner, before this file is published:
-     - NetBird: questions (a) to (e) of privacy's to-do on NetBird: the date its agreement was
-       accepted; its data-processing agreement, a PDF on https://trust.netbird.io that could
-       not be downloaded here, read for the proxy, its sub-processors and how a new one is
-       announced; the country and provider of the proxy and its log; whether any of NetBird's
-       own sub-processors receives either; and no NetBird sign-in on app., id., status. and
-       www.ownpace.eu. On 2026-09-28 app., id. and status.ownpace.eu resolved to NetBird's cluster
-       eu1.netbird.services. NetBird's documentation calls such a cluster "eu" and names no
-       country, and its terms §3.1 promise no "specific geographic routing". Until the country
-       is recorded, the opening's "Each entry processes in the region its row names" is not
-       shown to hold for NetBird, whose row names Germany, where NetBird GmbH is.
-       www.ownpace.eu did not resolve to NetBird that day, although the row names it (0132 T1e
-       routes it).
+     - NetBird: its answer to the owner's question ((c) of privacy's to-do on NetBird):
+       the country and provider of the proxy and its log, and whether any of NetBird's own
+       sub-processors receives either. On 2026-09-28 app., id. and status.ownpace.eu resolved to
+       NetBird's cluster eu1.netbird.services. NetBird's documentation calls such a cluster "eu"
+       and names no country, and its terms §3.1 promise no "specific geographic routing". Until
+       NetBird answers, the opening's "Each entry processes in the region its row names" rests
+       for NetBird on the owner's choice of Germany, where NetBird GmbH is, not on anything
+       NetBird has stated. If the answer puts the proxy, its log or such a sub-processor outside
+       the EU, the row's Where and the opening name it. www.ownpace.eu did not resolve to
+       NetBird that day, although the row names it (0132 T1e routes it).
      - NetBird's own sub-processors: its trust center lists 18 entries (Apollo, Auth0, AWS,
        Azure, Datadog, GCP, GitHub, Grafana Cloud, HubSpot, Matomo, Microsoft Clarity twice,
        New Relic, OpenAI, OVHcloud, Plain, Stripe, UpCloud), each with no location, read on
@@ -76,6 +85,9 @@
      - Proton: where its agreement says it processes (the Where column says Switzerland).
 
      Open for the lawyer:
+     - NetBird's data-processing agreement, which the owner confirms covers the proxy and its
+       log: the sub-processors it names, how a new one is announced and whether we can object,
+       and whether it states the 7 days ((b) of privacy's to-do on NetBird).
      - Google's role for the Alpha's list of test users (privacy §6, §8), which decides whether
        Google belongs in the table, in the list at the bottom, or in neither. Left for the
        lawyer's pass (privacy-google-testlist-basis (a), 2026-09-28).

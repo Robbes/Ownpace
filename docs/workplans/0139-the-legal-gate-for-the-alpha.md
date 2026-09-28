@@ -4,7 +4,58 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28, latest: NetBird's own sources read, and what they do not state left to the
+**2026-09-28, latest: the owner's NetBird answers: accepted 2026-08-01, the agreement covers the
+proxy, and no NetBird sign-in at launch**, same branch (draft PR #1317). The five questions the
+entry below left to the owner were put to them, and they answered the same day, in their words:
+
+- **(a) When NetBird's terms and data-processing agreement were accepted:** 2026-08-01. T0 fact 1
+  quotes the answer, which gives the date in Dutch order.
+- **(b) Whether the agreement covers the Reverse Proxy**, the traffic it decrypts and its access
+  log: *"It's covered"*. Recorded as the owner's confirmation; the PDF was not read here. What it
+  says of sub-processors, of announcing a new one and the right to object, and whether it states
+  the documentation's 7 days, stays for the lawyer's pass; it does not block the Alpha.
+- **(c) Where the proxy cluster and its log run:** *"Take Germany, I'll ask later on"*. Privacy
+  §7's and `subprocessors.md`'s *Where* stays *Germany (EU)*, the owner's choice, pending the
+  owner's question to NetBird, which also asks whether any of NetBird's own sub-processors
+  receives the traffic or the log. If NetBird's answer puts the proxy or its log outside the EU,
+  §7's *Where* and §8 name it. An owner's to-do; it does not block the first invitation.
+- **(d) NetBird's sign-in:** *"No pin, but SSO on"*. SSO keeps the `ownpace.eu` hosts private
+  until launch; the owner then chose to have it off everywhere at launch. So it goes off on
+  `app.`, `id.`, `status.` and `www.ownpace.eu` before the first invitation: no NetBird sign-in
+  sits in front of the service, and NetBird's log keeps no user ID for testers (with SSO on, it
+  also holds the signed-in user's ID). A precondition for the first invitation, checked from
+  outside the NetBird network: a request to each host is answered by the app or the site itself,
+  not by NetBird's sign-in page.
+- **(e) Terms §3.1's ban on *"commercially exploit[ing] Hosted Proxy Services"*** without
+  NetBird's written permission: *"I need to ask commercial usage."* The owner asks NetBird in
+  writing. The answer is needed before the first paid tier at the latest, and whether the free
+  Alpha itself counts is part of the question.
+- **Where it is recorded.** The privacy briefing's to-do on NetBird now follows these five
+  questions: (a) and (b) recorded, (b)'s reading left for the lawyer; (c) and (e) the owner's
+  questions to NetBird, (c) taking in the former (d), NetBird's own sub-processors; (d) a step
+  under *Live* before the first invitation; and a paragraph on the answers. The comment beside
+  privacy §7, the same in both languages, records (a) to (d) and says the log holds a user ID
+  while SSO is on. `subprocessors.md`'s briefing (a bullet on the answers; *Open for the owner*
+  keeps (c), *Open for the lawyer* gains (b)'s reading); `dpa.md`'s briefing (the NetBird
+  record, the Annex B NetBird line, the to-do on NetBird and the lawyer's question 2);
+  `site/legal/README.md` (NetBird's record, *To build or to do*, where *No NetBird sign-in in front
+  of the service* replaces the NetBird bullet, the *Later* paragraph and *What must stay true*);
+  and in this plan T0's row and fact 1, T5's row, and item 8 of *Promised in the drafts, not yet
+  true on `main`* in the entry *the privacy policy (1.2) and the terms (1.3) revisited*, below.
+- Only comments and plans change. No rendered sentence implied a NetBird sign-in (privacy §7's
+  row names what is typed at our own sign-in, and its log holds no user ID), so none changes, and
+  every *Version* line stays a draft.
+- **Proved.** `npx vitest run --project unit scripts/legal-docs.unit.test.ts site/site.unit.test.ts
+  scripts/a-policy-link-that-answers.unit.test.ts scripts/one-way-to-report-a-vulnerability.unit.test.ts
+  scripts/workplan-index.unit.test.ts scripts/lessons.unit.test.ts`: 6 files, 295 tests pass.
+  `OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs --check`: *"4 legal page(s)
+  marked draft"* and *"14 pages across 2 locales, 0 unfilled placeholder(s)"*; `--public
+  --check` still refuses, for the draft markers alone. The workplan, lessons and ADR indexes'
+  `--check`s and `commit-convention.mjs origin/main HEAD` pass. With every HTML comment taken
+  out, `privacy.md`, `privacy.nl.md`, `subprocessors.md` and `dpa.md` read exactly as at
+  `1094aaae`, and the comment beside §7 is the same in both languages.
+
+**2026-09-28, later: NetBird's own sources read, and what they do not state left to the
 owner**, same branch (draft PR #1317). The owner pointed to `https://trust.netbird.io` and
 `https://netbird.io/terms` §3.1 (dpa-netbird-agreement (a)). Read on 2026-09-28: the terms, the
 privacy policy and the imprint on `netbird.io`; the trust center's data, from the API its page
@@ -792,6 +843,12 @@ the same with 1.3 for the terms. The Alpha conditions (1.0, the owner's) are not
      above the Dutch privacy and terms pages states.)*
   7. Terms §6 and §7's order button, confirmation and withdrawal function: set aside during the
      Alpha, needed before any tier is paid.
+  8. *(Added by the entry of the owner's NetBird answers, above.)* *No NetBird sign-in in front
+     of the service* (privacy §7's row, whose log names no user ID): NetBird's sign-in (SSO) is on
+     for the `ownpace.eu` hosts until launch, and by the owner's decision goes off on `app.`,
+     `id.`, `status.` and `www.ownpace.eu` before the first invitation. Checked from outside the
+     NetBird network: each host answers with the app or the site itself, not NetBird's sign-in
+     page.
 - **The Alpha conditions, read against the revision** (not edited; they are the owner's 1.0):
   - **One contradiction.** §10 says *"We keep that access until you delete the connection or the
     migration."* Privacy §9's *Credentials* row says what the code does: a connection's access
@@ -1567,12 +1624,12 @@ longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out of the rendered texts for the Alpha (rec-address (c); it returns before the first paid tier) and kept in `dpa.md`'s parties, `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's data-processing agreement accepted (dpa-netbird-agreement (a)), and NetBird's own sources read 2026-09-28; the date, the agreement itself, and where the proxy and its log run still to record; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«REGISTERED_ADDRESS»` stays in `dpa.md`, and `«SUBPROCESSORS_URL»` in `dpa.md` and `subprocessors.md`, until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
+| T0 The owner's facts: the placeholders and the names | ✅ **Placeholders done 2026-09-28** in the drafts, on draft PR #1317, not merged: from the owner's 71 answers, `«VAT_NUMBER»` filled (fact-vat (a)), `«REGISTERED_ADDRESS»` left out of the rendered texts for the Alpha (rec-address (c); it returns before the first paid tier) and kept in `dpa.md`'s parties, `«PRIVACY_HISTORY_URL»` filled (rec-privacy-history-url (a)), and `«SUBPROCESSORS_URL»` gone from privacy §7 (rec-subprocessors-url (a)); fact 1: NetBird GmbH's terms and data-processing agreement accepted on 2026-08-01, the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner's answers of 2026-09-28), NetBird's own sources read 2026-09-28, the proxy and its log kept at *Germany (EU)* by the owner's choice while the owner asks NetBird, and NetBird's sign-in to go off on every `ownpace.eu` host before the first invitation, a precondition; fact 4 answered: email and password only (ops-social-signin (a)); no company houses the machine (subprocessors-machine-housed (a)) — *was:* ⏳ **Owner**, four placeholders open (`«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`, `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`), and fact 4 without an answer | §3. No placeholder is left in a rendered text. `«REGISTERED_ADDRESS»` stays in `dpa.md`, and `«SUBPROCESSORS_URL»` in `dpa.md` and `subprocessors.md`, until the first business customer (`site/legal/README.md`). Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **follow the owner's 71 answers of 2026-09-28**, on draft PR #1317, not merged: privacy 1.2 and terms 1.3 still drafts, the Alpha conditions 1.0 edited in place, `dpa.md` and `subprocessors.md` 0.2. The briefings mark each answered question and keep what is left for the lawyer (among them BW 3:15d without the address, the forum and language clauses, the paid-tier checks, Google's role for the test list, the legal bases); 📋 **Decided 2026-09-24** (D1) — *was:* revised 2026-09-28 for the owner's review, points 1, 2, 5 and 10 of §3 T1's list waiting on the owner or the lawyer | §3. The briefings at the top of `privacy.md`, `terms.md`, `alpha.md` and `dpa.md` are the brief. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **1.0 edited in place 2026-09-28** with the owner's answers, on draft PR #1317, not merged: §2 (terms §12's 30 days give way to 7; acceptance in the app), §4 (a breach that affects your data; terms §10 still applies), §5 (updates not announced), §6 (the copy until the update is shown to work, never past 7 days), §9 and §10 (a family member's Google address; access as the app keeps it), §11 (erased 7 days after not accepting); alpha-version-number (a) keeps 1.0 until the first acceptance; the briefing rewritten (alpha-briefing-comment (a)); not rendered — *was:* drafted 2026-09-28, reviewed by the owner the same day, version 1.0, the lawyer's pass deferred (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Decided 2026-09-28** (terms-acceptance-route (b), *"Build the in-app screen first"*); not built. The first invitation waits for it and its tests. The owner: *"People that are accepted in the Alpha do need to create a login for the app, accepting fits in there and should record what time/version the accepted of what document."* Terms §1, the Alpha conditions §2 and §11 and privacy §4.4 now describe it — *was:* 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. The same screen asks again for the new conditions after the Alpha (Alpha §11). Open question 4 (the record after erasure) is still open. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed**; two pieces 📋 **Decided 2026-09-28**, not built: the app's own sentences reworded in both languages (ops-app-sentences (a): the grant mail, the Alpha note, the request form), and a privacy line and a link in the mail to people items were shared with (privacy-share-mail-notice (a)), both before the first tester | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form, the share mail (`packages/shared/src/share-announcement.ts`). The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its agreement accepted (dpa-netbird-agreement (a)), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); ⏳ **Owner**: NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either (privacy's to-do on NetBird, (a) to (e)) — *was:* the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T5 The sub-processors named | 🔨 **Text done 2026-09-28** in the drafts, on draft PR #1317, not merged: privacy §7's table is the complete list and says so (rec-subprocessors-url (a)); NetBird GmbH, its terms and agreement accepted on 2026-08-01 and the agreement covering the proxy and its log (dpa-netbird-agreement (a); the owner, 2026-09-28), carries connections on through a WireGuard tunnel and keeps its own log of each request; Proton AG in Switzerland, with Art. 45 GDPR and Decision 2000/518/EC cited (privacy-switzerland-wording (b)); no hosting row, because no company houses the machine (subprocessors-machine-housed (a)); `subprocessors.md` unpublished until the first business customer; NetBird's own sub-processors read from its trust center 2026-09-28 (18 entries, none with a location); NetBird's sign-in to go off on every `ownpace.eu` host before the first invitation, a precondition (privacy's to-do on NetBird, (d)); ⏳ **Owner**, not before the first invitation: NetBird asked where its proxy and log run, at which provider, and whether its own sub-processors receive either, the *Where* staying *Germany (EU)* by the owner's choice until it answers ((c)), and asked in writing whether the Alpha or a paid tier behind the proxy is commercial use under its terms §3.1, answered before the first paid tier at the latest ((e)); the agreement's sub-processors, their announcement, the right to object and the 7 days for the lawyer's pass ((b)) — *was:* NetBird's acceptance date, its agreement read, where its proxy and log run and at which provider, and whether its own sub-processors receive either still for the owner; before that, the text drafted 2026-09-28 with the entity name, the agreement, the proxy's location and whether a company houses the machine all to confirm | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
 | T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 🔨 **built 2026-09-27**, merged as #1255; every period 📋 **Decided 2026-09-28** from the owner's answers and in privacy §9's draft: the copy before an update (rec-copies (a)), the drill off live (rec-drill (a)), support-screen searches and downloads 12 months (privacy-search-records (a)), the sharing list with its migration (privacy-sharing-list (b)), sent mail until resolved and then 6 months (privacy-sent-mail-copies (b)), the background tasks' records until the end of the Alpha (privacy-task-records (a)), the sign-in history checked first (privacy-signin-history (a)), accounts nobody let in removed by a daily script (ops-unadmitted-signin-cleanup (a), 0135 T8), server logs with Docker's default (ops-log-driver (a)); the code for each 📋 **Proposed**, not built — *was:* the wording drafted 2026-09-28; the rest's code proposed | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. `site/legal/README.md`, *Before the draft markers come off*, lists what each needs. |
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation, but work already running is not all stopped, and a verification or a confirmation reads to its end (terms briefing, precondition B); a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
@@ -1882,9 +1939,19 @@ is not rendered by the build, and 0086 T5 owns it.
    ends at NetBird's hosted proxy, a sub-processor; NetBird GmbH is in Germany. Privacy 1.2
    names NetBird GmbH. **Read 2026-09-28** in NetBird's own sources: the entity (its imprint),
    TLS ending at the proxy for HTTP services, the WireGuard tunnel and the log's 7 days (its
-   documentation). Still to record: the date the agreement was accepted, the agreement itself
-   (not downloadable from here), and the country and provider of the proxy cluster and its log,
-   which no source states (`site/legal/README.md`).
+   documentation). **Answered 2026-09-28** (the owner's NetBird answers, Status): the terms and
+   the data-processing agreement were accepted on 2026-08-01 (the owner: *"01-08-2026"*, in Dutch
+   date order); the agreement covers the proxy, the traffic it decrypts and its log (*"It's
+   covered"*); the proxy and its log stay *Germany (EU)*, the owner's choice (*"Take Germany,
+   I'll ask later on"*); NetBird's sign-in (SSO) is on until launch (*"No pin, but SSO on"*) and
+   off on `app.`, `id.`, `status.` and `www.ownpace.eu` before the first invitation, by the
+   owner's decision, checked from outside the NetBird network. **Still open, none of it before
+   the first invitation:** the owner's question to NetBird on the country and provider of the
+   proxy cluster and its log, and whether NetBird's own sub-processors receive either; the owner's
+   question to NetBird in writing on terms §3.1's *"commercially exploit"* (*"I need to ask
+   commercial usage."*), whether the free Alpha counts included, answered before the first paid
+   tier at the latest; and the lawyer's reading of the agreement for its sub-processors, how a new
+   one is announced, the right to object and the 7 days (`site/legal/README.md`).
 2. **The support mailbox.** Which provider hosts `support@ownpace.eu`, and does a person read it
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
    **Answered:** the owner reads it (0133 open question 3, 2026-09-27), and Proton hosts it (0133
