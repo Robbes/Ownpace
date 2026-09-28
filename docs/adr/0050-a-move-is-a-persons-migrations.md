@@ -1,8 +1,10 @@
 # ADR-0050: A move is a person's migrations
 
-- **Status:** **Proposed 2026-09-28**, for the owner's acceptance (workplan 0153 T0 and T2).
-  Nothing here holds until then.
-- **Date:** 2026-09-28
+- **Status:** **Accepted 2026-09-28**, by the owner, as proposed. Asked what the pull request
+  needed, and told its eight rules and the choices inside them, the owner answered
+  *"accept"*, rule 8 included. **Not yet built:** the tables, the API and the pages are workplan
+  0153's T2, T3 and T5.
+- **Date:** 2026-09-28; accepted 2026-09-28
 - **Deciders:** owner
 - **Relates to:** [ADR-0014](./0014-cost-recovery-billing.md) (a path is billed, never a move),
   [ADR-0026](./0026-one-operating-ui-one-contract.md) (both editions answer the same shapes),
@@ -16,10 +18,22 @@
      the narrative below stays append-only. Assembled into OPERATIVE.md by
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
-- **Nothing is operative yet.** This ADR is proposed, and waits for the owner's acceptance (0153
-  T2). Until then a migration belongs to no grouping, and the Migrations page lists migrations.
-- On acceptance, the rules under *Decision* become this section, amended in place, and
-  `OPERATIVE.md` is regenerated.
+- **ACCEPTED, NOT YET BUILT (2026-09-28).** The tables, the API and the pages are 0153 T2, T3
+  and T5. Until they land, nothing groups migrations, and the Migrations page lists them.
+- **A move is a person being moved:** a display name, and optionally an email address for grant
+  links, in one tenant. On screen it has no noun; the person's name titles it (0153 D6).
+- **A migration belongs to at most one move.** One without shows under *Not in a move yet*.
+- **A move changes nothing about a migration.** The engine runs migrations, the ledger keys
+  items per migration, ADR-0014 counts paths, and a move is never billed.
+- **Rows, never a column on `mapping`** (hard rule 5): `move` and `move_member (move_id,
+  mapping_id)` in `packages/managed/migrations`, with row security. The appliance answers the
+  same API with one implicit move and no table, and `no-managed-leakage.unit.test.ts` names the
+  new module.
+- **Deleting a move deletes no migration.** Its members return to *Not in a move yet*.
+- **The API is `GET /moves`, `POST /moves`, `POST /moves/:id/members` and `DELETE /moves/:id`,**
+  with the migration routes' tenant checks, and in the OpenAPI spec.
+- **A move has no state of its own.** What a person reads is their migrations' stages
+  (`leastAdvancedStage`, 0154 T1).
 
 ## Context
 
@@ -43,7 +57,7 @@ work should be grouped (0153 D1):
 
 ## Decision
 
-These rules are proposed, and hold once accepted.
+Accepted 2026-09-28 by the owner, as proposed.
 
 1. **A move is a person being moved.** It has a display name, and optionally the person's email
    address, for grant links (0108). It belongs to a tenant.

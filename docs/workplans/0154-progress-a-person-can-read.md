@@ -21,7 +21,7 @@ T3, T5) are R's.
   9, never a guess.
 - **`leastAdvancedStage`** gives a person's stage, and a migration's from its data types. A data
   type that has not started does not pull the rest back to *Not started* unless nothing has
-  started. That is the drawing's reading (`wf-person-page.svg`): Anna is *Copying* while her
+  started. That is the drawing's reading (`wf-person-page.svg`): Anna is *Copying* while the
   photos wait for a Takeout export. *Paused* ranks below *Copying*, because a person's line says
   what holds them back. Open question 3 still asks whether a person's card shows a stage at all.
 - **The words** are in the glossary's States table first, then `strings.ts` in both languages,

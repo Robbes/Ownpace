@@ -917,7 +917,19 @@ Nothing in this amendment is built. It records the decision the three tasks in
 
 ## [ADR-0050: A move is a person's migrations](./0050-a-move-is-a-persons-migrations.md)
 
-- **Nothing is operative yet.** This ADR is proposed, and waits for the owner's acceptance (0153
-  T2). Until then a migration belongs to no grouping, and the Migrations page lists migrations.
-- On acceptance, the rules under *Decision* become this section, amended in place, and
-  `OPERATIVE.md` is regenerated.
+- **ACCEPTED, NOT YET BUILT (2026-09-28).** The tables, the API and the pages are 0153 T2, T3
+  and T5. Until they land, nothing groups migrations, and the Migrations page lists them.
+- **A move is a person being moved:** a display name, and optionally an email address for grant
+  links, in one tenant. On screen it has no noun; the person's name titles it (0153 D6).
+- **A migration belongs to at most one move.** One without shows under *Not in a move yet*.
+- **A move changes nothing about a migration.** The engine runs migrations, the ledger keys
+  items per migration, ADR-0014 counts paths, and a move is never billed.
+- **Rows, never a column on `mapping`** (hard rule 5): `move` and `move_member (move_id,
+  mapping_id)` in `packages/managed/migrations`, with row security. The appliance answers the
+  same API with one implicit move and no table, and `no-managed-leakage.unit.test.ts` names the
+  new module.
+- **Deleting a move deletes no migration.** Its members return to *Not in a move yet*.
+- **The API is `GET /moves`, `POST /moves`, `POST /moves/:id/members` and `DELETE /moves/:id`,**
+  with the migration routes' tenant checks, and in the OpenAPI spec.
+- **A move has no state of its own.** What a person reads is their migrations' stages
+  (`leastAdvancedStage`, 0154 T1).
