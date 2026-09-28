@@ -122,6 +122,35 @@ describe('the sidebar identity block (T2)', () => {
   });
 });
 
+describe('the build stamp is at the bottom of the sidebar in both editions', () => {
+  // The bug report form's Build field sends a managed tester here, and a
+  // self-host tester on the Docker image: its first log line says `unknown`
+  // where the commit goes (scripts/a-release-that-names-itself.unit.test.ts,
+  // (c)). The form says "the bottom of the sidebar", so the stamp is looked
+  // for in the <aside> and nowhere else, and nothing in it may come after.
+  // Only `/version` is answered; anything else fails as an unstubbed relative
+  // fetch does in this environment.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', (url: string) =>
+      String(url).endsWith('/version')
+        ? Promise.resolve({ ok: true, json: async () => ({ version: '0.2.0-alpha.1', commit: 'abc1234def567890' }) })
+        : Promise.reject(new TypeError(`not stubbed: ${String(url)}`)),
+    );
+    return () => vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['the appliance', true, '/confirm'],
+    ['managed', false, '/dashboard'],
+  ] as const)('%s', async (_, selfhost, path) => {
+    editionFlag.selfhost = selfhost;
+    const sidebar = renderLayout(path).container.querySelector('aside');
+    if (!sidebar) throw new Error('the layout rendered no <aside>');
+    expect(await within(sidebar).findByText('v0.2.0-alpha.1 · abc1234')).toBeInTheDocument();
+    expect(sidebar.textContent?.trimEnd(), 'something in the sidebar comes after the stamp').toMatch(/v0\.2\.0-alpha\.1 · abc1234$/);
+  });
+});
+
 describe('the phone menu has a name a screen reader can say', () => {
   // Below 1024px the menu button is the only way to the navigation, and it
   // and its close button held only a lucide icon, which lucide marks

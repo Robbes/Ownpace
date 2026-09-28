@@ -27,9 +27,13 @@ body:
     attributes:
       label: Build
       description: >
-        The appliance prints this as its first log line — `[appliance] build 0.1.0-rc.1 (abc123)`.
-        Otherwise the commit you are on.
-      placeholder: "0.1.0-rc.1 (fb6f757311bf)"
+        On the managed service and the self-host Docker image it is at the bottom of the
+        sidebar: `v0.2.0-alpha.1 · abc1234`. The managed service also shows it on the sign-in
+        page. The Windows appliance prints it as its first log line:
+        `[appliance] build 0.2.0-alpha.1 (abc1234def56)`. The Docker image prints that line with
+        `unknown` where the commit goes, so on Docker copy the sidebar's. Otherwise the commit
+        you are on.
+      placeholder: "v0.2.0-alpha.1 · abc1234"
     validations:
       required: true
 

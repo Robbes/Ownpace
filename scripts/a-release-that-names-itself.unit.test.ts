@@ -69,12 +69,70 @@
  * and publishes nothing, so it is not wired (0146 T2 says so), and the test
  * says that too.
  *
+ * (c) What the release asks of people matches what the code does (0146 T2,
+ * step 1, 2026-09-28). The bug report form's Build field
+ * (`.github/ISSUE_TEMPLATE/bug_report.yml`) asked for the build with the
+ * example `[appliance] build 0.1.0-rc.1 (abc123)`: the appliance's form only,
+ * with six characters of commit where `start.mjs` prints twelve, and nothing
+ * about the managed service, where testers are. It now has to show both
+ * forms as the code renders them. The managed one is what `describeBuild`
+ * (`apps/web/src/services/build-identity.ts`) renders, and the form must say
+ * where it is shown: the sidebar (`Layout.tsx`) and the sign-in page
+ * (`Login.tsx`), both of which render `BuildStamp`. The appliance's is the
+ * first line `scripts/package-appliance.mjs` writes into `start.mjs`, with the
+ * commit as long as its `git rev-parse --short=12`. And `docs/release.md`
+ * said the shared-chain upgrade gate has five `skipIf(!HAVE_REF)` tests,
+ * which a person is to confirm ran; the file has six, so a person counting to
+ * five would have missed one. The count it states must be the file's.
+ *
+ * Where the form sends a self-host tester depends on how the appliance was
+ * built (the two reviews of step 1, 2026-09-28). `Layout.tsx` renders the
+ * stamp at the bottom of the sidebar in both editions (`Layout.unit.test.tsx`
+ * renders it there in each), and the sign-in page is managed-only. But the
+ * stamp shows `v<version> · <commit>` only when the bundle and the server both
+ * carry the commit (`describeBuild`), and the log line names the commit only
+ * when the payload was staged in a checkout:
+ *
+ * - The Docker image stages its payload with `.git` kept out of the build
+ *   context (`.dockerignore`), so the packager's `git rev-parse` fails and the
+ *   log line says `unknown`. Its sidebar has the commit when the image is
+ *   built with `GIT_SHA`, as `images.yml` builds every published one: the
+ *   build stage hands it to the bundle (`vite.config.ts`), and the runtime
+ *   stage sets `OPENMIG_COMMIT`, which `start.mjs` does not overwrite. An
+ *   image built locally without it shows `v<version>` alone.
+ * - The Windows appliance's log line has the commit: `windows-payload.yml`
+ *   stages the payload in a checkout. Its bundle is built without `GIT_SHA`,
+ *   so its sidebar shows `UI v<version> · API v<version> · <commit>`, which
+ *   reads like a stale bundle. That is not held here: passing `GIT_SHA` there
+ *   is the fix, and would leave the form true.
+ *
+ * So the form sends a Docker tester to the sidebar and a Windows tester to the
+ * log line, and no sentence of it sends the Windows appliance, or both
+ * editions, to the sidebar. One case holds the form's words and why the Docker
+ * log line says `unknown`; the next holds why the Docker sidebar has the commit.
+ *
+ * (d) The API contract names the release too (the same review).
+ * `apps/api/docs/openapi.yaml`'s `info.version` still said `0.1.0-rc.1` after
+ * the root `package.json` moved to `0.2.0-alpha.1`: a fourth copy of the
+ * version, and nothing compared it. It must be the root `package.json`'s, so a
+ * later bump that forgets it fails here. The repository's other `0.1.0-rc.1`s
+ * are not copies of the current version. They name rc.1 as the release before
+ * (the READMEs' image tag, the upgrade gates' and the drill's default
+ * reference), or they are examples of a form (the same file's `Version`
+ * schema, the web tests' fixtures).
+ *
  * ## What this does not prove
  *
  * That the check has run on a real tag: none has been cut since
  * `v0.1.0-rc.1`. It cannot stop a tag being pushed; it stops what the tag
  * would publish. And it does not read what the changelog section says, which
- * is the owner's to read (0146 T1).
+ * is the owner's to read (0146 T1). For (c), the appliance's line is read from
+ * the packager's source text; that a staged payload prints it first is
+ * `package-appliance.unit.test.ts`'s. The example's version is not held to
+ * the root `package.json`'s: an example from an earlier alpha is still the
+ * right form. (d) is held here, on every pull request, and not by the check a
+ * tag runs: `release-names-agree.mjs` reads only `package.json` and
+ * `CHANGELOG.md`.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -84,6 +142,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { describeBuild } from '../apps/web/src/services/build-identity.ts';
 import { checkReleaseNames, compareSemVer, parseSemVer } from './release-names-agree.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -632,5 +691,187 @@ describe('every workflow that publishes on a tag runs the check first', () => {
       expect(checkoutAt, where).toBeGreaterThanOrEqual(0);
       expect(checkAt, where).toBe(checkoutAt + 1);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (c) What the release asks of people, against what the code does
+// ---------------------------------------------------------------------------
+
+const BUG_REPORT = join(ROOT, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml');
+const PACKAGER = join(HERE, 'package-appliance.mjs');
+const APPLIANCE_DOCKERFILE = join(ROOT, 'apps', 'selfhost', 'Dockerfile');
+const WEB_SRC = join(ROOT, 'apps', 'web', 'src');
+const UPGRADE_GATE = join(ROOT, 'packages', 'ledger', 'src', 'migrate-upgrade.unit.test.ts');
+const RELEASE_DOC = join(ROOT, 'docs', 'release.md');
+
+/** The bug report form's Build field: what it tells a tester to copy, and the grey text in the empty box. */
+function buildField(): { label: string; description: string; placeholder: string } {
+  const form = parseYaml(readFileSync(BUG_REPORT, 'utf8')) as {
+    body?: ReadonlyArray<{ id?: string; attributes?: Record<string, unknown> }>;
+  };
+  const attributes = (form.body ?? []).find((item) => item.id === 'version')?.attributes ?? {};
+  const text = (key: string) => (typeof attributes[key] === 'string' ? attributes[key] : '');
+  return { label: text('label'), description: text('description'), placeholder: text('placeholder') };
+}
+
+/** The managed example, `v<version> · <commit>`, as the field shows it in backticks. */
+const MANAGED_EXAMPLE = /`(v(\S+) · ([0-9a-f]+))`/;
+/** The appliance example, `[appliance] build <version> (<commit>)`, as the field shows it in backticks. */
+const APPLIANCE_EXAMPLE = /`(\[appliance\] build (\S+) \(([0-9a-f]+)\))`/;
+
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+
+describe('what the release asks of people is what the code does', () => {
+  it('the Build field shows the managed build as the pages render it, and says where it is', () => {
+    const { label, description } = buildField();
+    expect(label).toBe('Build');
+    const shown = MANAGED_EXAMPLE.exec(description);
+    expect(shown, 'the Build field shows no `v<version> · <commit>` example').not.toBeNull();
+    const [, text, version, commit] = shown!;
+    expect(parseSemVer(version!), `${version} is not a SemVer version`).not.toBeNull();
+    // What `BuildStamp` shows when the page and the API agree. A real commit
+    // is longer than the example's, so a commit of the wrong length in the
+    // example renders as something else.
+    const build = { version: version!, commit: `${commit}0f1e2d3c4b5a69788796a5b4c3d2e1f0` };
+    expect(describeBuild(build, build)).toBe(text);
+    // Where the form says it is, and that the build stamp is there.
+    for (const [words, page] of [
+      [/bottom of the sidebar/i, join(WEB_SRC, 'components', 'Layout.tsx')],
+      [/sign-in page/i, join(WEB_SRC, 'pages', 'Login.tsx')],
+    ] as const) {
+      expect(description).toMatch(words);
+      expect(readFileSync(page, 'utf8'), page).toMatch(/<BuildStamp \/>/);
+    }
+  });
+
+  it("the Build field shows the appliance's first log line as start.mjs prints it", () => {
+    const packager = readFileSync(PACKAGER, 'utf8');
+    // `start.mjs` is a template literal inside the packager, so its own
+    // backticks and `${` are escaped in this text.
+    const printed = /console\.log\(\\`(\[appliance\] build [^`\n]*)\\`\);/.exec(packager);
+    expect(printed, 'package-appliance.mjs prints no `[appliance] build` line').not.toBeNull();
+    const short = /'rev-parse', '--short=(\d+)', 'HEAD'/.exec(packager);
+    expect(short, "package-appliance.mjs's commit is not `git rev-parse --short=N HEAD`").not.toBeNull();
+
+    const shown = APPLIANCE_EXAMPLE.exec(buildField().description);
+    expect(shown, 'the Build field shows no `[appliance] build <version> (<commit>)` example').not.toBeNull();
+    const [, text, version, commit] = shown!;
+    expect(parseSemVer(version!), `${version} is not a SemVer version`).not.toBeNull();
+    expect(commit!.length, `start.mjs prints ${short![1]} characters of commit`).toBe(Number(short![1]));
+    const line = printed![1]!.replace('\\${BUILD.version}', version!).replace('\\${BUILD.commit}', commit!);
+    expect(line).toBe(text);
+  });
+
+  it('the Build field sends a Docker tester to the sidebar and a Windows tester to the log line, which a Docker image prints without its commit', () => {
+    const { description } = buildField();
+    // A sentence ends at a full stop and a space; a version's dots have none.
+    const aboutSidebar = description.split(/\.\s+/).filter((sentence) => /\bsidebar\b/.test(sentence));
+    expect(
+      aboutSidebar.some((sentence) => /\bDocker\b/.test(sentence)),
+      'the Build field does not send a Docker tester to the sidebar',
+    ).toBe(true);
+    for (const sentence of aboutSidebar) {
+      expect(sentence, 'the Build field sends a tester to the sidebar without naming managed or Docker').toMatch(
+        /\bmanaged\b|\bDocker\b/,
+      );
+      expect(sentence, "the Build field sends a Windows tester to the sidebar, whose bundle has no commit").not.toMatch(
+        /\bWindows\b|\bboth editions\b/i,
+      );
+    }
+    expect(description, 'the Build field does not send a Windows tester to the log line').toMatch(
+      /\bWindows appliance\b[^.]*\blog line\b/,
+    );
+    expect(description, 'the Build field does not say what a Docker image prints for the commit').toMatch(/Docker[^.]*`unknown`/);
+
+    // Why a Docker image prints `unknown`: it stages the payload with the
+    // packager, in a build context without `.git`, and the packager's commit
+    // is `unknown` unless git answers.
+    const ignored = readFileSync(join(ROOT, '.dockerignore'), 'utf8').split('\n').map((line) => line.trim());
+    expect(ignored, '.dockerignore no longer keeps .git out of the image build').toContain('.git');
+    expect(readFileSync(APPLIANCE_DOCKERFILE, 'utf8'), 'the appliance image no longer stages its payload with the packager').toMatch(
+      /^RUN node scripts\/package-appliance\.mjs\b/m,
+    );
+    expect(readFileSync(PACKAGER, 'utf8'), "the packager's commit comes from somewhere other than git").toMatch(
+      /let commit = 'unknown';\s*try \{\s*commit = execFileSync\('git'/,
+    );
+  });
+
+  it("a published Docker image's sidebar has the commit its log line lacks: images.yml passes GIT_SHA, and the bundle and GET /version both take it", () => {
+    // Every image images.yml builds, the appliance's among them, gets the commit.
+    const images = parseYaml(readFileSync(join(WORKFLOWS, 'images.yml'), 'utf8')) as {
+      jobs?: Record<string, Job & { strategy?: { matrix?: { image?: unknown } } }>;
+    };
+    const builders = Object.values(images.jobs ?? {}).filter((job) => {
+      const names = job.strategy?.matrix?.image;
+      return Array.isArray(names) && names.includes('selfhost');
+    });
+    const builds = builders.flatMap((job) =>
+      (job.steps ?? []).filter((step) => typeof step.uses === 'string' && step.uses.startsWith('docker/build-push-action@')),
+    );
+    expect(builds.length, 'images.yml has no docker/build-push-action step in a job that builds the selfhost image').toBeGreaterThan(0);
+    for (const step of builds) {
+      expect(String(step.with?.['build-args'] ?? ''), `images.yml › ${step.name ?? 'a build'} does not pass the commit as GIT_SHA`).toMatch(
+        /^\s*GIT_SHA=\$\{\{ github\.sha \}\}\s*$/m,
+      );
+    }
+
+    // The Dockerfile hands it to the bundle before the bundle is built, and to
+    // the server's GET /version in the stage that runs.
+    const stages = new Map(
+      readFileSync(APPLIANCE_DOCKERFILE, 'utf8')
+        .split(/^FROM /m)
+        .slice(1)
+        .map((stage) => [/\bAS (\S+)/i.exec(stage.split('\n')[0]!)?.[1] ?? '', stage] as const),
+    );
+    const build = stages.get('build') ?? '';
+    const at = (re: RegExp) => re.exec(build)?.index ?? -1;
+    const argAt = at(/^ARG GIT_SHA\b/m);
+    const envAt = at(/^ENV GIT_SHA=\$GIT_SHA$/m);
+    const bundleAt = at(/^RUN pnpm --filter @openmig\/web build:selfhost$/m);
+    expect(argAt, "the appliance image's build stage takes no GIT_SHA").toBeGreaterThanOrEqual(0);
+    expect(envAt, "the appliance image's build stage does not put GIT_SHA in the environment").toBeGreaterThan(argAt);
+    expect(bundleAt, 'the appliance image builds its bundle before GIT_SHA is in the environment').toBeGreaterThan(envAt);
+    expect(stages.get('runtime') ?? '', "the appliance image's runtime stage does not hand GIT_SHA to OPENMIG_COMMIT").toMatch(
+      /^ARG GIT_SHA\b[\s\S]*^ENV OPENMIG_COMMIT=\$GIT_SHA$/m,
+    );
+
+    // The bundle's commit is GIT_SHA, and start.mjs keeps the image's
+    // OPENMIG_COMMIT rather than its own `unknown`.
+    expect(readFileSync(join(ROOT, 'apps', 'web', 'vite.config.ts'), 'utf8'), "the bundle's commit is not read from GIT_SHA").toMatch(
+      /'import\.meta\.env\.VITE_COMMIT':\s*JSON\.stringify\(\s*process\.env\.GIT_SHA\b/,
+    );
+    expect(readFileSync(PACKAGER, 'utf8'), "start.mjs overwrites the image's OPENMIG_COMMIT with its own commit").toMatch(
+      /^process\.env\.OPENMIG_COMMIT \?\?= BUILD\.commit;$/m,
+    );
+  });
+
+  it("the Build field's placeholder is one of its two examples", () => {
+    const { description, placeholder } = buildField();
+    const examples = [MANAGED_EXAMPLE, APPLIANCE_EXAMPLE].map((re) => re.exec(description)?.[1]);
+    expect(examples).toContain(placeholder);
+  });
+
+  it("docs/release.md counts the shared-chain upgrade gate's skipIf(!HAVE_REF) tests as the file has them", () => {
+    const said = /\bthe\s+(\w+)\s+`skipIf\(!HAVE_REF\)`\s+tests\b/.exec(readFileSync(RELEASE_DOC, 'utf8'));
+    expect(said, 'docs/release.md no longer names a count of skipIf(!HAVE_REF) tests').not.toBeNull();
+    const inFile = readFileSync(UPGRADE_GATE, 'utf8').match(/\b(?:it|test)\.skipIf\(!HAVE_REF\)\(/g)?.length ?? 0;
+    expect(inFile, 'the gate has no skipIf(!HAVE_REF) tests: this case would compare nothing').toBeGreaterThan(0);
+    expect(COUNT_WORDS.indexOf(said![1]!), `docs/release.md says "${said![1]}", and the file has ${inFile}`).toBe(inFile);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (d) The API contract's copy of the version
+// ---------------------------------------------------------------------------
+
+const OPENAPI = join(ROOT, 'apps', 'api', 'docs', 'openapi.yaml');
+
+describe('the API contract names the release the root package.json names', () => {
+  it("apps/api/docs/openapi.yaml's info.version is the root package.json's version", () => {
+    const version = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version?: unknown }).version;
+    expect(typeof version, 'the root package.json names no version').toBe('string');
+    const spec = parseYaml(readFileSync(OPENAPI, 'utf8')) as { info?: { version?: unknown } };
+    expect(spec.info?.version, `openapi.yaml's info.version, against the root package.json's ${String(version)}`).toBe(version);
   });
 });
