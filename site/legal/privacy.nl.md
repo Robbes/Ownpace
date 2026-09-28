@@ -123,10 +123,14 @@ zodat we kunnen antwoorden, en deze feiten, die het formulier opsomt voordat u v
 pagina waarop u was, de referentie en het soort van een fout daarop, het id en de status van uw
 organisatie, uw rol, de versie van de dienst, de stand van de migratie op die pagina en van elk
 gegevenstype daarin, of er via een link toegang is gegeven, bij welke aanbieders de twee accounts
-ervan zijn en of hun laatste test slaagde, of de dienst is gepauzeerd of de planner stilstaat, en
-de naam die uw browser zichzelf geeft. Een melding via een link bevat wat u schrijft, het adres
-waarop u antwoord wilt als u dat geeft, en waar de link voor is: de organisatie en de migratie,
-wie de link heeft gemaakt, de twee accounts, en of er toegang is gegeven. **Een melding bevat de
+ervan zijn en of hun laatste test slaagde, of de dienst is gepauzeerd of de planner stilstaat, de
+naam die uw browser zichzelf geeft, en wat uw browser het formulier vertelt: de taal van het
+scherm, uw tijdzone, de breedte van het venster, de versie van de app in uw browser als die niet
+die van de dienst is, het gegevenstype, de kant en de migratie van de foutregel waar u vandaan
+kwam, en de referentie van een fout die de app tegenkwam in de vijf minuten voordat u het
+formulier opende. Een melding via een link bevat wat u schrijft, het adres waarop u antwoord wilt
+als u dat geeft, en waar de link voor is: de organisatie en de migratie, wie de link heeft
+gemaakt, de twee accounts, en of er toegang is gegeven. **Een melding bevat de
 inhoud van uw mail, bestanden of agenda's, een onderwerpregel, een mapnaam of een foutmelding van
 een aanbieder alleen als u die zelf in uw tekst of op de schermafbeelding zet.**
 

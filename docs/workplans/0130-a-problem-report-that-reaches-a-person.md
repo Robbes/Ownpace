@@ -1,8 +1,101 @@
 # Workplan 0130 — A problem report that reaches a person
 
-> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a Zammad ticket, or mails the support mailbox (the alpha), with facts from our records shown before sending; linked from the `unknown` failure remedy; the same for *Report this link*; plus privacy wording.
+> **In one line:** Report a problem on managed: `POST /api/problem-reports` files a Zammad ticket, or mails the support mailbox (the alpha), with facts from our records and the browser shown before sending; linked from the `unknown` failure remedy; the same for *Report this link*; plus privacy wording.
 
 ## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28: T6 Part B, what the browser knows.** The second of the owner's *"Both parts"*. On
+the same branch, on top of Part A, not merged:
+
+- **The facts only the browser has**, sent as one small object, `browser`, with the report and,
+  as JSON in the query, with the preview, so the fold shows what is sent: the screen's language
+  (`Screen language: Dutch`), the IANA time zone (`Time zone: Europe/Amsterdam`, which turns
+  "at 14:02" into the log's UTC), the window's width in CSS pixels (`Window width: 390 px`: the
+  proposal's *screen width*, taken as the width the page is laid out at, which is what a layout
+  bug follows), the web app's build (`App build in the browser: v… · …, not the server's`,
+  written only when its version, or both commits, differ from the API's own `/version`), the
+  failure line the form came from (`Failure line: email, target side, migration <id>`), and a
+  `Recent error: <reference>, <code>` line for each fault the page met in the five minutes
+  before the form was opened, at most three, newest first.
+- **Checked by the server, and never a reason to refuse** (`apps/api/src/report-browser-facts.ts`).
+  Zod, one schema per key of a fixed list (`BROWSER_FACT_KEYS`): the language `en` or `nl`; a
+  time zone of at most 64 characters, letters, digits, `_+-` and up to two `/`; a whole width
+  from 1 to 20 000; a version of at most 40 characters without spaces; a commit of 7 to 40 hex; a
+  data type of `DISCOVERY_DOMAINS`, a side of `FAILURE_SIDES`, a migration id in the UUID shape;
+  recent errors a list of one to three, each an 8-hex reference and a code in `serverFault`'s
+  shape. Anything else is dropped without a word: an unknown key (an entry's too), a value too
+  long or of the wrong shape, a longer list, a preview query longer than 2000 characters or not
+  a JSON object. `reportFactLines` writes the lines after `Browser:`, under six new labels of
+  `REPORT_FACT_LABELS`, so the fold, the mail and the Zammad article carry them alike.
+- **The recent faults, kept as two words** (`apps/web/src/services/recent-errors.ts`). A
+  *"Something went wrong"* answers with its reference inside a sentence, which the person had to
+  copy. Both of the app's session clients (`api.ts` and the operating screens' in
+  `operating-service.ts`) hand every error to `rememberFault`, which reads the answer's status and
+  body and nothing else: an answer from 500 up whose `reason` or `message` names `Reference
+  <8 hex>` is kept as that reference, its `error` code (`unknown` when it is not in the code's
+  shape) and when. Never the error: what axios rejects with holds the request, whose headers carry
+  the sign-in token and whose address can carry a query. In memory, the newest three, each once,
+  and forgotten on sign-out and on sign-in (`auth-store.ts`). The form reads them once, with the
+  time zone, width and build, when it opens, so the preview and the report say the same and the
+  five minutes count to when the person came to report.
+- **The failure line passes what it knows.** `SendItToUs` takes a data type, a side and a
+  migration, and puts them in the form's address as `dataType`, `side` and `migration`: the
+  progress strip its line's data type and side, Connections its standing failure's migration, its
+  side, and its data type when there is one, the failed item its data type, a failure group its
+  data type and migration. The form keeps each only in its own shape.
+- **The fold** lists them among the service's lines; when those cannot be had, in the reader's
+  own words under the form's own list: *the language of this screen: English* / *de taal van dit
+  scherm: Nederlands*, the time zone, *the width of this window* / *de breedte van dit venster*,
+  this page's version *if the service runs another* / *als de dienst een andere draait*, the
+  failure's data type (in the reader's word for it), its side, its migration, and *the reference
+  of an error from the last 5 minutes* / *de referentie van een fout uit de afgelopen 5 minuten*.
+- **Privacy §4.5**, EN and NL, same place in the same sentence, version lines untouched: after
+  the browser's name, *what your browser tells the form* / *wat uw browser het formulier vertelt*,
+  each of the above named. `openapi.yaml` (the `browser` query parameter and body field, a
+  `BrowserFacts` schema), step 8f of `docs/managed-bring-up.md` and Stage 8 step 7 of
+  `docs/owner-test-runbook.md` say so.
+
+Guards: `apps/api/src/a-report-that-carries-what-the-browser-knows.unit.test.ts` (33), through
+the real route: every fact as its line after `Browser:`, the same in the preview (asked with
+JSON), the mail and the Zammad article; English, a failure line with only what it had, the app's
+build only when it is not the server's, nothing when nothing was sent; every line under a label
+of the list; the fixed key list; a canary token planted as an unknown key, in a config's
+`Authorization` header, in an address's query and in a recent error's extra key reaching neither
+the mail nor the preview; eighteen values dropped one by one, each beside a fact that is kept (a
+language it does not have, a time zone too long, with a newline and a header after it, or with
+markup, a width that is text, too wide or not whole, a version too long or with a space, a commit
+that is not one, a data type, side or migration id that is not one, a recent error's reference,
+code or length, a list too long, a list that is an object); the whole object dropped when it is
+text, a list, a number or null, in the body and the query; a preview query over 2000 characters
+dropped while every fact at its longest fits; a report never refused for what the browser said.
+`apps/web/src/pages/a-report-that-carries-what-the-browser-knows.unit.test.tsx` (17), through the
+app's real axios clients and interceptors with a stand-in network: a failed request carrying the
+canary as its sign-in token, a header, its address's query, its parameters and body, and the
+answer's other field and header, leaves the reference and code and nothing else, in what the ring
+hands out and in what it holds; the operating client's faults too; nothing of a 400, a 500
+without a reference, an HTML 502 or a request with no answer; a code it cannot read kept as
+`unknown`; the newest three, each once; forgotten on sign-out and sign-in; offered to a form
+opened 4:59 after the fault and not to one opened 5:01 after, in the preview and the report; the
+canary in neither the preview, the report nor the fold, with the preview's lines and without;
+the facts the same in the preview and the report; a data type, side or migration in the address
+that is not one dropped; the fold's own list in English and Dutch; the strings' EN and NL pairs;
+and the failure line's links. Red on the branch head: neither file loads (no
+`report-browser-facts.ts`, no `recent-errors.ts`); with empty stand-ins, 27 of 33 and 15 of 17
+failed, the ones passing being those that hold something is dropped or forgotten, which a head
+that takes nothing does vacuously. Existing guards adapted to the new object in the body and the
+query, and the new `dataType` in the strip's link: the web `a-report-that-reaches-a-person`,
+`a-report-that-says-what-it-sends` and `a-failure-that-says-send-it-to-us`.
+`scripts/a-screenshot-the-front-door-lets-through.unit.test.ts` counts every browser fact at its
+longest in the largest report, and holds that none of them is dropped there. 22 mutations, all
+killed: the API client, or the operating client, not remembering a fault; the ring keeping the
+request (killed once the guard read what the ring holds, not only what it hands out) or handing
+out whole entries; ten minutes counted as recent; a 4xx counted as a fault; sign-out keeping
+them; a code kept as it came; no dedupe (killed once the sequence repeated the newest); the side
+taken from the address unchecked; the link without the migration; the preview asked without the
+facts; the fold's own list without the recent error; a Dutch string left in English; and in the
+API every key copied, a time zone of any characters, recent errors unbounded, the preview's JSON
+unbounded, the app's build always written, the lines without the browser's, a code of any text,
+and a width of any number.
 
 **2026-09-28: T6 Part A, the review's seven findings fixed.** On the same branch, not merged:
 
@@ -486,7 +579,7 @@ form is the second half. Guards: `a-failure-with-its-reference` in ledger (6), o
 | T3 The failure line that says "send it to us" opens the form | ✅ **Built 2026-09-23** (D2) | §3. With the failure's category and reference already filled in, wherever the `unknown` remedy is shown to a customer. |
 | T4 The privacy policy names support requests | 🔨 **Drafted 2026-09-28**, not merged; in the drafts for the lawyer's pass | §3. What is sent, where it is kept, for how long. Link reports too (0108 T8 (d)): what the person wrote and, if they want an answer, a reply address, from somebody who has no account. During the alpha, reports go by mail (T5): through the Proton relay (0133) into the support mailbox, and the paragraph must say so. Written with T6: privacy §4.5's paragraph on reports and §9's row, until resolved and then 6 months (the owner, 2026-09-28), EN and NL. §7, §8 and alpha §10 stay with the lawyer. |
 | T5 Without a Zammad, a report goes to the support mailbox by mail | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"b"*) | Status entry of the day. `REPORT_MAIL_TO` (else `NOTIFY_TO`) through the API's own relay, the signed-in reporter as Reply-To and on a `Reply to:` line, the screenshot attached; the form's answer names a report reference, not a ticket. Link reports too, with no Reply-To. At most 50 report mails a day, since the relay is the identity provider's too (0133). A Zammad, when set, still wins. |
-| T6 A report says what it sends: facts from our records (Part A) | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"Both parts"*, *"Send anyway"*) | Status entry of the day. The role, the organisation's status, the migration on the page, the reference's match, the hold, the scheduler, the two accounts' providers and the browser, read on the server under row security; `GET /api/problem-reports/preview` shows the same lines in the form's fold before sending, with the recipient above Send; the report goes without them, with a reference, when they cannot be read. Part B (the browser's facts and the recent error's reference, with its canary-token guard) is not built. |
+| T6 A report says what it sends: facts from our records (Part A) and the browser (Part B) | 🔨 **Built 2026-09-28**, not merged (the owner, 2026-09-28: *"Both parts"*, *"Send anyway"*) | Status entries of the day. Part A: the role, the organisation's status, the migration on the page, the reference's match, the hold, the scheduler, the two accounts' providers and the browser, read on the server under row security; `GET /api/problem-reports/preview` shows the same lines in the form's fold before sending, with the recipient above Send; the report goes without them, with a reference, when they cannot be read. Part B: the screen's language, the time zone, the window's width, the web app's build when it is not the server's, the failure line's data type, side and migration, and the references of the faults of the last five minutes (kept in the browser as reference and code only, never the request, which carries the sign-in token), sent as one object the API checks key by key and drops the rest of. |
 
 ## 1. What there is today
 

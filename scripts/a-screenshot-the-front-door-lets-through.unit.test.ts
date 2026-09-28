@@ -55,8 +55,11 @@
  *   been answered 413. So the largest report `parseProblemReport` takes (a
  *   screenshot of `MAX_SCREENSHOT_BYTES`, a description of `MAX_DESCRIPTION`
  *   characters and a page of 2000, each character one JSON writes as six
- *   bytes) must fit the route's limit, and one byte or character more in any
- *   of them must be refused, so those are the API's real maxima. The form
+ *   bytes, and every fact the browser may add at its longest, 0130 T6 Part B)
+ *   must fit the route's limit, and one byte or character more in any of the
+ *   first three must be refused, so those are the API's real maxima. A
+ *   browser fact longer than its own is dropped, not refused, so the largest
+ *   report's are held to be taken whole instead. The form
  *   keeps limits of its own in `apps/web/src/pages/ReportProblem.tsx`, a
  *   separate package that cannot import the API's: its `MAX_SCREENSHOT_BYTES`
  *   and its description's `maxLength` must be the API's. A form that let a
@@ -96,6 +99,7 @@ import {
   isRefusal,
   parseProblemReport,
 } from '../apps/api/src/problem-report.ts';
+import { BROWSER_FACT_KEYS, MAX_RECENT_ERRORS } from '../apps/api/src/report-browser-facts.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(REPO_ROOT, path), 'utf8');
@@ -465,8 +469,22 @@ function largestReport(grow?: 'screenshot' | 'description' | 'page'): Record<str
     reference: '0123abcd',
     category: longest,
     screenshot: { data: png.toString('base64') },
+    browser: LONGEST_BROWSER,
   };
 }
+
+/** Every fact the browser may add, each at the longest the API takes (`report-browser-facts.ts`). */
+const LONGEST_BROWSER = {
+  language: 'en',
+  timeZone: `A/${'b'.repeat(62)}`,
+  windowWidth: 20_000,
+  appVersion: '1'.repeat(40),
+  appCommit: 'f'.repeat(40),
+  dataType: 'calendar',
+  side: 'source',
+  migrationId: '0130b0b0-e29b-41d4-a716-446655440015',
+  recentErrors: Array.from({ length: MAX_RECENT_ERRORS }, () => ({ reference: 'ffffffff', code: `x${'_'.repeat(47)}` })),
+};
 
 /** A number the form declares as digits multiplied (`5 * 1024 * 1024`), or undefined. */
 function product(expression: string | undefined): number | undefined {
@@ -657,7 +675,10 @@ describe('a screenshot the front door lets through', () => {
 
 describe('the largest report there is', () => {
   it('is taken by the API, and one byte or character more in any field is refused', () => {
-    expect(isRefusal(parseProblemReport(largestReport()))).toBe(false);
+    const taken = parseProblemReport(largestReport());
+    expect(isRefusal(taken)).toBe(false);
+    // Every fact of the browser's, each taken at its longest: none was dropped.
+    expect(Object.keys(isRefusal(taken) ? {} : (taken.browser ?? {})).sort()).toEqual([...BROWSER_FACT_KEYS].sort());
     for (const field of ['screenshot', 'description', 'page'] as const) {
       expect(parseProblemReport(largestReport(field)), `${field} one past its maximum`).toMatchObject({ field });
     }

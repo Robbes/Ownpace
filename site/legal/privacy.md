@@ -163,10 +163,13 @@ which the form lists before you send: the page you were on, the reference and ki
 it, your organisation's id and status, your role, the version of the service, the state of the
 migration on that page and of each data type in it, whether access was given through a link, which
 providers its two accounts are with and whether their last test passed, whether the service is on
-hold or its scheduler has stopped, and the name your browser gives itself. A report from a link
-carries what you write, the address you want an answer at if you give one, and what the link is
-for: the organisation and the migration, who made the link, the two accounts, and whether access
-was given. **A report contains the content of your mail, files or calendars, a subject, a folder
+hold or its scheduler has stopped, the name your browser gives itself, and what your browser tells
+the form: the language of the screen, your time zone, the width of the window, the version of the
+app in your browser when it is not the service's, the data type, side and migration of the error
+line you came from, and the reference of an error the app met in the five minutes before you
+opened the form. A report from a link carries what you write, the address you want an answer at
+if you give one, and what the link is for: the organisation and the migration, who made the link,
+the two accounts, and whether access was given. **A report contains the content of your mail, files or calendars, a subject, a folder
 name or a provider's error text only if you put it in what you write or in the screenshot.**
 
 To run and support the service, a small number of named operators on our side can view

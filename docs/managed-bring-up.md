@@ -1771,9 +1771,17 @@ finds), `Organisation`, `Build`, then what the API reads from its own records
 in the customer's organisation (workplan 0130 T6): `Role`, `Organisation
 status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
 line for each data type and the two accounts' providers, `Reference match`,
-`Service hold`, `Scheduler` and `Browser`; then `Reply to` (the customer's
-sign-in address) and `Report reference`, the report's own. The form showed the
-customer the fact lines, `Page` to `Browser`, under *What we send with this*
+`Service hold`, `Scheduler` and `Browser`; then what the customer's browser
+said of itself (0130 T6, Part B), each line only when it was said in its own
+shape: `Screen language`, `Time zone` (to turn their "at 14:02" into the log's
+UTC), `Window width`, `App build in the browser` (only when it is not the
+server's build: an old page in front of a newer server), `Failure line` (the
+data type, side and migration of the failure line they came from) and a
+`Recent error` line, reference and code, for each "Something went wrong" the
+page met in the five minutes before they opened the form, which the log page
+finds by that reference; then `Reply to` (the customer's sign-in address) and
+`Report reference`, the report's own. The form showed the customer the fact
+lines, `Page` to the last of the browser's, under *What we send with this*
 before they sent it, unless that preview could not be read; `Reply to` and
 `Report reference` are added on sending. When the database could not be read,
 the report still arrives, with `Facts: could not be read [ref …]` in place of

@@ -401,7 +401,13 @@ const Row: React.FC<{
                 when: relativeToNow(f.asOf),
                 domains: f.domains.map((d) => t(DOMAIN_STRING_KEY[d])).join(', '),
               })}{' '}
-              {t(FAILURE_KEY[f.category])} <SendItToUs category={f.category} />
+              {t(FAILURE_KEY[f.category])}{' '}
+              <SendItToUs
+                category={f.category}
+                migrationId={f.mappingId}
+                {...(f.side ? { side: f.side } : {})}
+                {...(f.domains.length === 1 ? { dataType: f.domains[0] } : {})}
+              />
               {ASK_TEST.has(f.category) && (
                 <> {t(f.side ? 'connections.standing.thisSide' : 'connections.standing.whichSide')}</>
               )}

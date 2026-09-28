@@ -174,6 +174,10 @@ reading a file drops off its entry by itself.
 
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 
+### `apps/api/src/report-browser-facts.ts`
+
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+
 ### `apps/api/src/routes/access-request-grant-alpha.unit.test.ts`
 
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
@@ -3427,6 +3431,7 @@ A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 Reads:
 
 - `apps/api/src/problem-report.ts`
+- `apps/api/src/report-browser-facts.ts`
 - `apps/api/src/routes/problem-reports.ts`
 - `apps/web/Dockerfile`
 - `apps/web/nginx.conf.template`

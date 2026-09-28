@@ -39,6 +39,7 @@ import type {
 } from '@openmig/shared';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
+import { rememberFault } from './recent-errors.ts';
 import { EndingChoiceSchema, type EndingChoiceView } from './mapping-service.ts';
 
 const client: AxiosInstance = axios.create({
@@ -64,6 +65,8 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (response) => response,
   (error) => {
+    // The same as `api.ts`: a fault's reference and code, and nothing else of it.
+    rememberFault(error);
     if (!isSelfHost() && error.response?.status === 401) {
       onUnauthorized();
     }
