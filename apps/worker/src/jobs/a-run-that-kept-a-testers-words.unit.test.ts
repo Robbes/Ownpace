@@ -110,6 +110,17 @@ describe('a failed run’s error', () => {
     expect(events.map((e) => [e.level, e.event])).toEqual([['warn', 'task.run-cutover.failed']]);
   });
 
+  it('keeps a refusal from Trigger.dev’s own API unretried, as its executor would, and records it as an error', async () => {
+    const { events } = watch();
+    const refusal = Object.assign(new Error(`Task not found for ${ADDRESS}`), { name: 'TriggerApiError', status: 404 });
+    const error = await planeErrorFor(refusal, { task: 'run-cutover' });
+    expect(error).toBeInstanceOf(AbortTaskRunError);
+    expect(error.message).not.toContain(ADDRESS);
+    expect(events.map((e) => e.level)).toEqual(['error']);
+    const busy = Object.assign(new Error('Too many requests'), { name: 'TriggerApiError', status: 429 });
+    expect(await planeErrorFor(busy, { task: 'run-cutover' })).not.toBeInstanceOf(AbortTaskRunError);
+  });
+
   it('keeps a pass that stopped itself from being retried, and says so without the last item’s words', async () => {
     watch();
     const error = await planeErrorFor(new PassAbortError(`email: 25 items failed in a row. Last error: ${WORDS}`), {

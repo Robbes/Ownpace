@@ -79,7 +79,19 @@ function messageOf(error: unknown): string {
   }
 }
 
-const isAbort = (error: unknown): boolean => error instanceof Error && error.name === 'AbortTaskRunError';
+/** A task's own verdict: an `AbortTaskRunError` it threw on purpose. */
+const isVerdict = (error: unknown): boolean => error instanceof Error && error.name === 'AbortTaskRunError';
+
+/**
+ * A refusal from Trigger.dev's own API that its executor would not retry: a 4xx
+ * other than 408 and 429 (`TaskExecutor`'s `#handleError`, 4.5.16). Kept, so
+ * the error made here is not retried where the one it replaces would not be.
+ */
+function isPlaneRefusal(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name !== 'TriggerApiError') return false;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
 
 /**
  * The error a task fails with, given the one it threw: the same verdict for
@@ -93,7 +105,9 @@ const isAbort = (error: unknown): boolean => error instanceof Error && error.nam
  * passes inside 13:01, and the only way to halt them was `docker stop` on the
  * worker). `AbortTaskRunError` fails the run ONCE, and the sync tick's
  * failing-backoff ladder spaces the next attempts out. A task's own
- * `AbortTaskRunError`, a verdict such as a refused cutover, stays one too.
+ * `AbortTaskRunError`, a verdict such as a refused cutover, stays one too, and
+ * so does a refusal Trigger.dev's own API gave, which its executor would not
+ * have retried either.
  *
  * **Everything else is still retried**, and that half matters as much: a thrown
  * pool error, an OOM, a provider 500 are all worth another go, and a blanket
@@ -117,7 +131,8 @@ export async function planeErrorFor(
 ): Promise<Error> {
   if (typeof error === 'object' && error !== null && made.has(error)) return error as Error;
   const stopped = error instanceof PassAbortError;
-  const failsOnce = stopped || isAbort(error);
+  const verdict = isVerdict(error);
+  const failsOnce = stopped || verdict || isPlaneRefusal(error);
 
   let said: AlreadyRecorded;
   if (recorded) {
@@ -126,7 +141,7 @@ export async function planeErrorFor(
     const category = classifyFailure(messageOf(error), failureSideOf(error), statedFailureCategoryOf(error));
     said = { doing: where.task, reference: newReference(), category };
     // A task's own verdict is an answer; everything else went wrong.
-    const level = failsOnce && !stopped ? 'warn' : 'error';
+    const level = verdict ? 'warn' : 'error';
     // The words, where the operator can read them and the plane cannot keep
     // them: the container's output. With the error itself, for its stack.
     log[level](`[${where.task}] failed [ref ${said.reference}]:`, error);

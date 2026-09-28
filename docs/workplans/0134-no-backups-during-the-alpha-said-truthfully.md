@@ -14,9 +14,10 @@ words stay out of it: a failed run's error, discovery's output and the run's log
   on a line with the same reference, and the operator's log page gets `task.<id>.failed`. A pass's
   data type keeps the reference its own catch already records as `sync.<domain>.failed`:
   `email sync failed (source_refused). Reference ….`
-  - The class still decides the retry. A pass that stopped itself after items failed in a row, and
-    a task's own verdict (an `AbortTaskRunError`, such as a refused cutover), fail once. Everything
-    else is retried, as before.
+  - The class still decides the retry. A pass that stopped itself after items failed in a row, a
+    task's own verdict (an `AbortTaskRunError`, such as a refused cutover), and a refusal from
+    Trigger.dev's own API that its executor would not retry (a 4xx other than 408 and 429) fail
+    once. Everything else is retried, as before.
   - It is done inside `run`, because Trigger.dev's `run()` span records the exception it sees before
     any `catchError` hook could replace it. *[upstream]* `TriggerTracer.startActiveSpan` and
     `TaskExecutor`, 4.5.16.
@@ -30,19 +31,21 @@ words stay out of it: a failed run's error, discovery's output and the run's log
   plane directly, now use `log`.
 - **Every task points its errors at the log page.** Only `run-delta-sync` did before, so a
   `recordAppEvent` in any other task recorded nothing.
-- **Proved.** `apps/worker/src/jobs/a-run-that-kept-a-testers-words.unit.test.ts`, 54 cases.
+- **Proved.** `apps/worker/src/jobs/a-run-that-kept-a-testers-words.unit.test.ts`, 55 cases.
   - It runs the failure path with invented words (a folder and an address): the error that leaves
     holds neither, in its message, its stack or its JSON; the container's output holds them under
     the error's reference; the event has that reference and category; a data type's recorded
-    reference is kept and nothing is recorded twice; a verdict and a pass's stop still fail once.
+    reference is kept and nothing is recorded twice; a verdict, a pass's stop and an API refusal
+    still fail once, and a busy API is still retried.
   - It runs discovery's outcomes the same way, and reads every one of the fourteen task files: each
     runs inside `leavesAReference` under its own id, none uses the SDK's `logger`, each sets the
     event sink. It reads the config for the interceptor.
   - On `main` it cannot load, because the module does not exist. With only the module added, 36 of
-    the 54 fail: every case about the tasks and the config.
-  - **Mutations: 18, all killed:** the interceptor left on; one task outside the wrapper; an
+    the 55 fail: every case about the tasks and the config.
+  - **Mutations: 21, all killed:** the interceptor left on; one task outside the wrapper; an
     ordinary error kept as it was; the words in the sentence; a pass's stop retried; a task's
-    verdict retried; an error made twice; no event for a failed run; another reference for the
+    verdict retried; a verdict recorded as an error; an API refusal retried; a busy API not
+    retried; an error made twice; no event for a failed run; another reference for the
     words; no words in the output; a pass's recorded reference ignored; the payload's ids dropped;
     discovery keeping the words; discovery's event not recorded; `run-discovery` returning the
     words; a task logging through the SDK again; a task without the sink; `run-delta-sync`
