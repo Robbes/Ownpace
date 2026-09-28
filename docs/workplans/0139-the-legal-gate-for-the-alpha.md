@@ -4,6 +4,165 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, last: the owner set the copy's days and the admin clause follows the code.** The
+owner: *"7 days is ok"*. `«UPDATE_COPY_DAYS»` is 7 in §6 of both files, and its row in the legal
+README is gone; two placeholders are left, `«ALPHA_NOTICE_PERIOD»` (open question 7) and
+`«ACCOUNT_CLOSE_PERIOD»`. §8's last clause now says what an admin cannot do as 0137 T7 found it in
+the code, the Team page's line: *"behalve de organisatie sluiten of heropenen, het toepassen van
+verwijderingen of het automatisch toepassen van verplaatsingen aan- of uitzetten, en iemand
+eigenaar maken"* / *"except close or reopen the organisation, turn applying deletions or
+auto-applying relocations on or off, and make somebody an owner"*. 0137 §3 T0's source sentence
+is that plan's, and its branch carries the same words; this branch no longer edits 0137.
+
+**2026-09-28, later still: review fixes to T2, on the same branch.** Twelve findings, one of
+them blocking, all taken. On three, the draft now says one thing for the owner to confirm:
+§10's credentials after closing, §11's rule for a tester who does not accept the new conditions,
+and terms §11's export.
+
+- **`--public --check` refuses what `--public` refuses** (the blocking one). It never read the
+  version lines: on a copy of `site/` with every placeholder filled, it exited 0 with
+  `0 unfilled placeholder(s)`, and `--public` then threw. The entry below says nothing in
+  `deploy/` or `.github/` runs the build with `--public`. That is true on this branch, but the
+  site step built beside it (branch
+  `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged) does:
+  `deploy-live.sh`'s `site_ready` runs `--public --check` through `site_test_build` before
+  anything moves and reads that count, and `site_up` runs `--public` after live has moved. With
+  both merged, a deploy would have moved live and applied its migrations before the site refused.
+  Now `--check` prints `[site] N legal page(s) marked draft on their version line, or with none`,
+  and under `--public` exits 1 with the build's refusal, naming each file. The placeholder count
+  stays the last line, in its shape, so `site_test_build`'s pattern still reads it, and the exit
+  makes `site_ready` refuse with the refusal among the last lines it prints. That branch's
+  bring-up step 1 (*"its last line must say `0 unfilled placeholder(s)`"*) stays true. It should
+  also say the command exits 0, which is that branch's text to change.
+- **The refusal reads every `legal/` entry of `SOURCE`**, as its comment said, not only those in
+  `PAGE_KEYS`. T10 may render the conditions outside the nav, as the 404 page is.
+- **`DRAFT_WORDS` gains *ontwerp* and *voorlopig*.** `VERSION_LINE`, `DRAFT_WORDS` and
+  `versionLineOf` are exported. `scripts/legal-docs.unit.test.ts` reads each version line through
+  `versionLineOf`, in a child process, instead of keeping a copy of the pattern.
+- **Proved.** `site/site.unit.test.ts`'s block has 18 cases, 8 more: a version line inside a
+  comment above a final one is not read, and a final-looking one in a comment does not hide a
+  draft line; *ontwerp* and *voorlopig*; a legal `SOURCE` entry outside `PAGE_KEYS` (the copy's
+  `SOURCE` patched) is refused; `--public --check` refuses a draft line and passes a final one
+  with the placeholder count last; `--check` without `--public` counts and passes; today's real
+  texts fail `--public --check` too. Mutations, each killed: no comment stripping (1 case fails),
+  `PAGE_KEYS` instead of `SOURCE` (1), no exit code under `--check` (2), without the two Dutch
+  words (2). In `legal-docs`: the build not exporting `versionLineOf` (1), a Dutch version number
+  that differs (1).
+- **The texts.**
+  - §2: the conditions prevail over the privacy policy as well as the terms, and name privacy
+    §9's two points: the copy before an update (§6) and the *Credentials* row (§10). §4 keeps data
+    *"no longer than the privacy policy and §6 and §10 here say"*.
+  - §2: the export in terms §11 still applies if the service is discontinued, because no answer
+    of the owner's drops it. The briefing's question 1 asks whether it should stay.
+  - §6: the data can stay in the copy *"for up to 7 days"* (the number since set), and the Dutch says
+    what a lost machine takes: *"de gegevens van de dienst en die kopie"*.
+  - §8, Dutch: *verhuizing* throughout, and *"geef die persoon dan de rol beheerder"*. 0137 T0's
+    source sentence is reworded the same way.
+  - §9: Ownpace's app at Google is in Google's test phase, not the tester's connection (0140).
+  - §10: the access is kept until the tester deletes the connection or the migration. After
+    closing nothing uses it, and it is destroyed when the data is erased, at the end of the
+    chosen window. That is what the service does (`closeTenant` stops the service, and the purge
+    destroys it), and it departs from the owner's *"keep until deleted or closes"* and from terms
+    §11's *"On closure we delete your credentials"*. The briefing flags it for the owner. A new
+    paragraph: at erasure the owner also deletes the sign-in account (T7, by hand until 0135 T8)
+    and the Google test-user entry (0131 T4), and the access request is erased with the data
+    (0131 §1).
+  - §11 follows 0131 open question 1 (b) as it reads, *"new conditions are accepted first"*:
+    migrations carry on under them only once accepted. A tester who has not accepted them by the
+    day they take effect is closed as in §10, before any of their data goes to another hosting
+    provider. That last rule is the drafter's; deemed acceptance under terms §12 is the
+    alternative. The briefing says so.
+- **One wording for the copy.** The decisions branch
+  (`claude/ownpace-public-readiness-y7orc6-the-owners-answers-of-28-september`, not merged)
+  drafts its own sentence for the copy in 0134 T2. 0134 T2 now says §6 is the text, so when both
+  merge, that sentence gives way to §6.
+- **What `--public` needs, said where it is described:** T10 below, and its row, where (c),
+  `--no-drafts`, is marked not needed (open question 1 (a)); `docs/google-oauth-verification.md`
+  (the home-page row and step 3); `site/legal/README.md`, which now says what a final version
+  line looks like; and `docs/managed-bring-up.md`, for `--check`.
+- **Not in this change, and needed before the conditions go out:**
+  - §6's copy. The dump before a deploy is taken by hand today (`deploy-live.sh` only suggests it
+    under `--dry-run`), and nothing removes it, so *"never longer than 7 days"*
+    has nothing behind it yet. 0132 T6 step 4's dump, with its automatic removal after that many
+    days, comes first.
+  - §8's *"a person can only be an owner or an admin"* is true once 0137 T7 is merged (branch
+    `claude/ownpace-public-readiness-y7orc6-an-owner-or-an-admin-for-the-alpha`, not merged). That
+    branch also corrects the last clause of 0137 T0's sentence against the code, and §8 takes it
+    when both are merged.
+- **For the owner:** is *"i think that might be more safe to do make a backup?"* a yes to 0134's
+  (b)? Then §10 (credentials destroyed at erasure, not at closing), §11 (closing a tester who has
+  not accepted), and whether the alpha keeps terms §11's export.
+
+**2026-09-28, later: T2 drafted, at the owner's word, as version 0.1**, on branch
+`claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, not merged. This plan said
+the owner writes the text. The owner, the same day: *"5. The alpha conditions (0139 T2): i want to
+review it, where can i read it? and yes, also make the draft"*.
+
+- **Where to read it.** `site/legal/alpha.nl.md`, the Dutch that testers read first, and
+  `site/legal/alpha.md`. Both say *Versie: 0.1 (concept voor juridische toetsing — nog niet
+  gepubliceerd …)* / *Version: 0.1 (draft for legal review — not yet published …)*. The site build
+  does not render them (`SOURCE` is unchanged), and the app does not link them
+  (`legal-links.ts` still names `conditions` in `NOT_BUILT_YET`). Rendering them is T10's.
+- **What it says.** T2's ten points in twelve short sections, as an addendum to the terms. It
+  lists what does not apply during the alpha, checked in `terms.md` and `terms.nl.md` (both
+  v1.2): §6 (prices), §7 (withdrawal), §8 (billing), §15 (the withdrawal form) and §11's second
+  paragraph (30 days' notice, and 90 days with an export). It reuses the sentences already
+  drafted: 0134 T2's paragraph on backups, 0137 T0's on inviting others, 0131 T2's label and 0144
+  T1's help section. The Dutch follows the glossary (*alfa*, *in rekening gebracht*,
+  *Opnieuw verbinden*).
+- **The owner's answers of 2026-09-28 it rests on**, verbatim:
+  - the end of the alpha (0131 open question 1 (b)): *"End of aplha: we continue, perhapse move
+    off the spark to other hoster."* The service carries on under new conditions, perhaps at
+    another hosting provider. Testers are told in advance, with the new conditions and where the
+    data would go, and may close their account instead (§11);
+  - *"tester: households only for now."* (open question 6, below; §1);
+  - *"stored access after finished migration: keep until deleted or closes."* (open question 3
+    (a), below; §10);
+  - *"database copy before live deployment: i think that might be more safe to do make a
+    backup?"* (0134 open question 1 (b)): one copy of the databases right before each update,
+    kept only to undo a failed update, until the next update succeeds and at most
+    7 days (§6), the number the owner set the same day: *"7 days is ok"*;
+  - *"mail at the start: real mail relay day one."*: sign-in codes and access decisions come from
+    `support@ownpace.eu` through a real relay from the first day (§12);
+  - *"public site: yes, search engine index."* (open question 1 (a), below);
+  - 0137 T0 answered (b): the tester invites nobody, a progress link is for watchers, anyone
+    invited is an owner or an admin, and the tester answers for whom they invite (§8).
+- **Three new placeholders**, in the legal README's table: `«ALPHA_NOTICE_PERIOD»` (open
+  question 7, not answered), `«UPDATE_COPY_DAYS»` (0134's answer named no number) and
+  `«ACCOUNT_CLOSE_PERIOD»` (T7's stated number of days).
+- **For the lawyer.** The comment at the top of `alpha.md` holds T1's questions 1 and 2, in the
+  form of the briefings in `privacy.md` and `terms.md`, and what else the draft rests on:
+  households only, so no data-processing agreement; privacy §9's credentials row, which open
+  question 3 (a) changes; and the copy before an update.
+- **A draft cannot be published by accident.** `site/build.mjs` now refuses a `--public` build
+  while a legal page it renders says *draft*, *concept*, *not yet published* or *nog niet
+  gepubliceerd* on its *Version* line, in any case, or has no such line. The message names each
+  file and its line. A build without `--public` still works. Privacy and terms say those words
+  today, so `--public` refuses them until the owner's final text, as intended. Nothing in
+  `deploy/` or `.github/` runs the build with `--public` (the site step's branch does; see the
+  review fixes above). In `scripts/`, only
+  `the-test-site-sent-people-to-production` does: it imports the build with `--public` in a child
+  process to read `rendered`. The refusal sits where the build writes, beside the placeholder
+  refusal, so that test passes unchanged. `docs/managed-bring-up.md` says so.
+- **Proved.**
+  - `site/site.unit.test.ts`, 10 new cases, on a copy of `site/` with fixture legal files, in a
+    child process. Without the build change, 7 fail: a draft version line names its file and writes
+    nothing; each of the four words, in any case; no version line; today's real texts, their
+    placeholders filled, are refused by name. The 3 controls pass either way: final lines build
+    `--public`, the word elsewhere on the page is not a draft, and a test build from drafts still
+    builds. Mutations: 5, all killed (no `/i`; the whole file read; no refusal without a version
+    line; no refusal; `**Versie:**` not read).
+  - `scripts/legal-docs.unit.test.ts`: `DOCS` gains `alpha.md` and `alpha.nl.md`, so their
+    placeholders must be in the README and they name the support address. A new case checks a
+    *Version* line in every document, the same number in both languages. The Dutch-translation
+    case in `site.unit.test.ts` names `alpha`. With the two files absent, 4 cases fail.
+- **Not in this change:** rendering them and T2's guard half that the build renders them (T10);
+  T3. Three texts elsewhere now say less than the answers: privacy §9 (credentials, the copy), and
+  0131 T1's note and the grant mail, *"nothing is backed up"* / *"er worden geen back-ups
+  gemaakt"*, next to the copy before an update. 0134 T1's erasure sentence then quotes
+  `«UPDATE_COPY_DAYS»` instead of 0. Those are 0131's, 0134's and the lawyer's pass.
+- **For the owner:** read `alpha.nl.md` first. Then the three numbers, and open question 7.
+
 **2026-09-28: T10 (b), the site's second copy (0131 §6, group R7, step 9)**, built on branch
 `claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, not merged.
 
@@ -300,7 +459,7 @@ longer starts by pausing the nightly gate, which never touches live.
 |---|---|---|
 | T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1) | §3. Nine placeholder names are still open, and six facts have no placeholder yet. Values never go in this plan, only dates. |
 | T1 A lawyer's pass before the first invitation | ⏳ **Owner**; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
-| T2 The alpha conditions, in Dutch and English | 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner writes them. |
+| T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, version 0.1 concept, not rendered; ⏳ **Owner** reads it, then the lawyer (T1) — *was:* 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
 | T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
@@ -308,7 +467,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form still goes with T1 — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; (b) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, **not merged**: `www.yml`'s container is named after its project, and a second copy names its own with `-p`; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28), and (c) `--no-drafts` — *was:* (a) 🔨 built 2026-09-28, not merged; (b) 📋 **Proposed**; 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders, served where T0 says, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; (b) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-a-site-named-by-its-project`, **not merged**: `www.yml`'s container is named after its project, and a second copy names its own with `-p`; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, and publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28), which also waits for T1's final version lines (T2's refusal, 2026-09-28); (c) `--no-drafts` not needed, open question 1 answered (a) on 2026-09-28 — *was:* (a) 🔨 built 2026-09-28, not merged; (b) 📋 **Proposed**; 📋 **Proposed** | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
@@ -605,7 +764,7 @@ is not rendered by the build, and 0086 T5 owns it.
 3. **Zammad.** Is the report form (0130) configured on live, and where does that Zammad run?
 4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys will live's `.env` set?
 5. **Organisations in the alpha.** Is any tester a business rather than a household (open
-   question 6)?
+   question 6)? **Supplied 2026-09-28:** *"tester: households only for now."*
 6. **The production site.** Where `www.ownpace.eu` is served from during the alpha (T10). The
    grant page and the legal README point there, 0132 T1e does not route it, and the review found
    it does not serve this repository's site. **Supplied 2026-09-28:** *"site will first be hosted
@@ -661,7 +820,8 @@ The first invitation waits for it (0131 T5).
 the privacy policy and the terms, with a *Version* line like theirs. Dutch first, because testers
 read Dutch (D2). Which language governs is T1's question 2.
 
-**What they must say.** The owner writes the text. Each point has its source:
+**What they must say.** The owner writes the text. *(2026-09-28: the owner let an agent draft
+it, as version 0.1; see the Status block.)* Each point has its source:
 
 - **What the alpha is.** A trial of the managed service by a small group the owner invited, for a
   few weeks (D2, D4). The end date or the notice of the end is open question 7.
@@ -689,7 +849,9 @@ them once they exist.
 each carries a *Version* line, and the site build renders them in both locales. `alpha.md` joins
 that file's `DOCS` list, so its placeholders must be in the README's table. The case in
 `site.unit.test.ts` that *"ships a Dutch translation of each legal document"* names `privacy`
-and `terms` only; `alpha` joins its list.
+and `terms` only; `alpha` joins its list. *(2026-09-28: both done, and a case checks a version
+line in every document, the same number in both languages. The half that the build renders them
+waits for T10.)*
 
 ### T3 — acceptance recorded, with version and time, at first sign-in (proposed)
 
@@ -928,7 +1090,10 @@ It also checks that `security.txt`'s `Expires` is in the future and less than a 
   legal README already point (#1137). The `--public` build already does what the alpha needs: it
   throws while any placeholder is rendered, and it requires
   `OWNPACE_APP_URL=https://app.ownpace.eu`, which is now the alpha's address. So publishing needs
-  no new switch (open question 1 (a)). The site it writes is indexable.
+  no new switch (open question 1 (a)). The site it writes is indexable. *(2026-09-28: it also
+  refuses, as `--public --check` does, while a legal page it renders says on its version line
+  that it is a draft (T2). So T10 publishes once T1's lawyer pass has given every rendered legal
+  page a final version line, as well as once T0's facts are in.)*
 - **If the owner wants it unindexed during the alpha** (open question 1 (b)): a new switch, working
   name `--no-drafts`, that throws on a placeholder as `--public` does, stays noindex, and accepts
   the production app address. Today a build without `--public` refuses that address on purpose,
@@ -1049,6 +1214,9 @@ the lawyer's pass.
      address. The grant page's links and the legal README already name it (#1137).
    - **(b)** Kept noindex for the alpha, with a new `--no-drafts` switch. It costs a switch and an
      exception to the refusal that stops a noindex build pointing at production (T10).
+
+   **Answered 2026-09-28: (a)**, *"public site: yes, search engine index."* So T10 publishes with
+   `--public`, and its (c), the `--no-drafts` switch, is not needed.
 2. **Access requests (T6).**
    - **(a)** A declined request is deleted 30 days after the decision. *Recommended.*
    - **(b)** The texts say requests are kept until the alpha ends, and the owner deletes them by
@@ -1060,6 +1228,9 @@ the lawyer's pass.
      close your account. *Recommended*, because resuming a finished migration, and today's step
      into the continuous lane after finishing (0128 T3), need them.
    - **(b)** Destroy them at finish, and the tester reconnects to resume.
+
+   **Answered 2026-09-28: (a)**, *"stored access after finished migration: keep until deleted or
+   closes."* The alpha conditions' §10 say so; privacy §9's row follows in the lawyer's pass (T1).
 4. **The acceptance record after erasure (T3).** Purged with the organisation, which is
    recommended, or retained with a stated reason?
 5. **The vulnerability channel (T9).** The advisory form with support@ as fallback, as
@@ -1069,6 +1240,9 @@ the lawyer's pass.
 6. **Businesses in the alpha.** Households only, or may a tester be an organisation? If one is,
    privacy §3 makes the data-processing agreement part of its contract, and its draft is 0086
    T5's.
+   **Answered 2026-09-28: households only**, *"tester: households only for now."* No
+   organisation or business is admitted during the alpha, so the data-processing agreement is not
+   part of the alpha. The alpha conditions' §1 say so.
 7. **The end of the alpha.** How much notice do testers get before it ends or is reset? Terms §11
    says 30 days' notice before the terms end, and 90 days' notice and an export if the service is
    discontinued. The conditions state the alpha's own notice period.

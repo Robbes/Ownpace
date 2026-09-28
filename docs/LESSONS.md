@@ -1837,6 +1837,14 @@ reading a file drops off its entry by itself.
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
+### `site/legal/alpha.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
+### `site/legal/alpha.nl.md`
+
+- [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
+
 ### `site/legal/privacy.md`
 
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
@@ -3578,6 +3586,8 @@ Reads:
 
 - `site/build.mjs`
 - `site/legal/README.md`
+- `site/legal/alpha.md`
+- `site/legal/alpha.nl.md`
 - `site/legal/privacy.md`
 - `site/legal/privacy.nl.md`
 - `site/legal/terms.md`

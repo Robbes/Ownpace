@@ -1908,7 +1908,12 @@ the mount (for a second copy, with its own `-p`).
 not: a public build must point at the production app, and a test build must
 not. A `--public` build with unfilled legal placeholders is refused too — the
 output used to claim "every placeholder must be filled" and then publish
-anyway.
+anyway. So is one while a legal page it renders says on its *Version* line
+that it is a draft or not yet published, naming the file (workplan 0139 T2).
+Today every one of them does, until the owner's final text replaces it.
+`--public --check` refuses it as well: it prints how many legal pages are
+marked draft and exits 1, so a check run before a deploy stops what the build
+would stop. Its last line is still the placeholder count.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain

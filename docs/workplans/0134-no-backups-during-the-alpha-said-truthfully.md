@@ -550,6 +550,11 @@ alpha conditions (0139) need the full statement: what is not backed up, what sur
 a tester does. The draft below goes through the lawyer's pass (D3), and the lawyer decides the
 final words. The Dutch is what testers read first (D2).
 
+*(2026-09-28: the alpha conditions carry this paragraph as their §6, in `site/legal/alpha.nl.md`
+and `alpha.md` (0139 T2, version 0.1), with the copy made before each update (open question 1
+(b)) written into it. §6 is the text from then on: a sentence drafted here for that copy is §6's
+and is changed there, so the two cannot become two wordings.)*
+
 > **Geen back-ups.** Tijdens de alfa maken wij geen back-ups van de eigen gegevens van de dienst:
 > uw organisatie, de accounts die u hebt gekoppeld, uw verhuizingen en hun geschiedenis, en uw
 > Ownpace-inlogaccount. Gaat de machine waarop de alfa draait verloren, dan gaan die gegevens mee

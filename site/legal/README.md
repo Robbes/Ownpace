@@ -5,9 +5,10 @@
 Source of truth for the documents the managed service publishes. Markdown here, rendered in
 both languages into the public site by [`site/build.mjs`](../build.mjs)
 ([workplan 0091](../../docs/workplans/0091-the-names-on-one-box.md) T2), whose `--public` build
-refuses while any placeholder below is unfilled. They live outside every workspace package for
-the same reason `site/prices.mjs` does — nothing in `apps/` or `packages/` may import them, and
-nothing here may import anything.
+refuses while any placeholder below is unfilled, and while any legal page it renders says on its
+*Version* line that it is a draft or not yet published (workplan 0139 T2). They live outside every
+workspace package for the same reason `site/prices.mjs` does — nothing in `apps/` or `packages/`
+may import them, and nothing here may import anything.
 
 | File | Published at | Required by |
 |---|---|---|
@@ -27,7 +28,7 @@ they cannot become different drawings.
 
 ## These are DRAFTS. Do not publish them yet.
 
-Both documents carry `«PLACEHOLDER»` tokens for facts only the owner can supply. **Every
+The documents carry `«PLACEHOLDER»` tokens for facts only the owner can supply. **Every
 placeholder used in a document must be listed in the table below** — `scripts/legal-docs.unit.test.ts`
 fails if one is not, which is what stops a new placeholder being added and quietly forgotten
 until a customer reads it.
@@ -46,6 +47,18 @@ until a customer reads it.
 | `«SUBPROCESSORS_URL»` | The sub-processor list | Referenced by the DPA. Draft exists: [`subprocessors.md`](./subprocessors.md) — the token fills with its published URL (0086 T5) |
 | `«PRICING_URL»` | The published price list | **No longer used** since 2026-08-30 — terms links [the pricing page](../../site/pages/en/pricing.md) directly; row kept so the token's history stays findable |
 | `«PRIVACY_HISTORY_URL»` | Previous versions of the privacy policy | Privacy §13 promises they stay available |
+| `«ALPHA_NOTICE_PERIOD»` | How much notice testers get before the alpha is reset or ends, and before the new conditions after it | The alpha conditions §5 and §11. **Owner** — [workplan 0139](../../docs/workplans/0139-the-legal-gate-for-the-alpha.md) open question 7. Written with its unit, in each file's language; it replaces terms §11's 30 and 90 days during the alpha |
+| `«ACCOUNT_CLOSE_PERIOD»` | How soon after a tester asks the owner closes their account | The alpha conditions §10. **Owner** — workplan 0139 T7. Written with its unit, in each file's language |
+
+**What a final *Version* line looks like.** A `--public` build reads each rendered document's own
+`**Version:**` / `**Versie:**` line, outside the briefing comment, and refuses while it says
+*draft*, *concept*, *ontwerp*, *voorlopig*, *not yet published* or *nog niet gepubliceerd*, in any
+case and anywhere in the line, or when there is no such line (`DRAFT_WORDS` in `site/build.mjs`,
+[workplan 0139](../../docs/workplans/0139-the-legal-gate-for-the-alpha.md) T2). A final line is
+the version number and none of those words, the same number in both languages: `**Version:** 1.2`
+and `**Versie:** 1.2`. The owner's final-text pull request writes them, after the lawyer's pass
+(0139 T1); `node site/build.mjs --public --check` then prints `0 legal page(s) marked draft` and
+exits 0.
 
 **The Dutch translations want a lawyer too, not just a reader.** `privacy.nl.md` and
 `terms.nl.md` are faithful to the English and structurally identical, and terms §13 names the
@@ -87,6 +100,12 @@ commit.
 
 ## What is deliberately not here yet
 
+- **The alpha conditions, as a published page** ([workplan 0139](../../docs/workplans/0139-the-legal-gate-for-the-alpha.md)
+  T2). [`alpha.nl.md`](./alpha.nl.md), the text testers read first, and [`alpha.md`](./alpha.md)
+  were drafted on 2026-09-28 as version 0.1, at the owner's request, for the owner's reading and
+  the lawyer's pass. They are not rendered by the site build and not linked from the app
+  (`NOT_BUILT_YET` in `apps/web/src/services/legal-links.ts`). 0139 T10 renders them, and a
+  `--public` build refuses them while their *Version* line says draft.
 - **The DPA and the sub-processor list, as published pages** (0086 T5). Drafts now exist —
   [`dpa.md`](./dpa.md) and [`subprocessors.md`](./subprocessors.md), written 2026-08-30 for
   legal review — but they are not rendered by the site build, not linked from any published
