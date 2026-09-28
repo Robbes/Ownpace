@@ -1363,6 +1363,9 @@ const en = {
   // it does (`ConfirmMigration.tsx`); nothing else here is there to press.
   'confirm.countError': 'Counting did not start:',
   'confirm.countAgain': 'This screen counts again by itself once copying resumes.',
+  // The manifest that could not be read (0153 T1 (a)): the reason follows,
+  // verbatim, so this is the frame and not the finding.
+  'confirm.manifestError': 'The list of what migrates could not be read:',
   'confirm.openConsole': 'Open the migration console',
   'confirm.whatMigrates': 'What migrates',
   'confirm.note.active': 'Active. It syncs on its schedule and reports anything that needs you.',
@@ -3774,6 +3777,7 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.startErrorFallback': 'het verzoek is mislukt',
   'confirm.countError': 'Het tellen is niet gestart:',
   'confirm.countAgain': 'Dit scherm telt vanzelf opnieuw zodra het kopiëren weer begint.',
+  'confirm.manifestError': 'De lijst van wat er migreert kon niet worden gelezen:',
   'confirm.openConsole': 'Open de migratieconsole',
   'confirm.whatMigrates': 'Wat migreert er',
   'confirm.note.active': 'Actief. Het synchroniseert volgens schema en meldt alles wat uw aandacht nodig heeft.',
