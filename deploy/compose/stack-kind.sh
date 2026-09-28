@@ -15,10 +15,12 @@
 #   compose_project             refuses live's exact marker on the OTA stack's
 #                               project (0132 T1b; env-read.sh reads the two
 #                               values below as data, it cannot source this)
-#   bootstrap-managed.sh        refuses --with-demo on live (0132 T5, not
-#                               built yet)
+#   bootstrap-managed.sh        refuses --with-demo on live (0132 T5,
+#                               built: stack_may_be_live)
 #   deploy-live.sh              refuses a .env WITHOUT the marker (0132 T6,
 #                               built: stack_is_live)
+#   stand-up-live.sh            refuses a .env WITHOUT the marker, before
+#                               live's first bring-up (0132 T1b: stack_is_live)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line

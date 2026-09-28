@@ -216,6 +216,16 @@ ensure ZITADEL_DB_PASSWORD 24
 # The first human account, so a fresh stack has somebody who can sign in at all.
 ensure ZITADEL_ADMIN_PASSWORD 16
 
+# NOT TRIGGER_DB_PASSWORD, on purpose (workplan 0132 T2). It is trigger-db's
+# password, and Postgres takes it only when the trigger_db_data volume is first
+# initialised. The OTA stack's volume was initialised with the literal that is
+# managed.yml's fallback for an empty key, and the nightly gate runs this
+# script on every pass: a value generated here would be written into a .env
+# whose volume keeps the old one, and trigger-api, recreated with it, would be
+# refused by its own database. stand-up-live.sh sets it for live, before live's
+# volume exists; `scripts/a-password-the-repository-knows.unit.test.ts` fails
+# if this script ever writes it.
+
 # AND REPAIR ONE THE OLD GENERATOR ALREADY WROTE, which `ensure` above will not:
 # it fills a MISSING key and never touches a present one, which is right for a
 # secret and wrong for a value that provably cannot work.
