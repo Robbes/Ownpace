@@ -23,6 +23,22 @@
  *    purge's quiesce is the backstop, and it enforces the safety rule.
  * 3. It answers the dates and the sentences.
  *
+ * From the commit on, nothing new starts (0085 T2; the owner's report of
+ * 2026-09-28). The close does not touch the migrations; everything else reads
+ * the organisation's status. The sync tick starts no pass for it, a pass under
+ * way stops before its next data type, the credential builders refuse it, and
+ * every door that would start work or use the stored access answers 409
+ * `account_closed` (`closed-organisation.ts`). A reopen sets the status back,
+ * and all of it runs again.
+ *
+ * WHAT THE CANCEL SEES. Only runs whose rows say `running` or `queued`. A pass
+ * has a row only once a runner starts it (`startRun` writes `running`, and
+ * nothing writes `queued`), so a pass the tick queued in the minute before the
+ * close, or a retry waiting for its next attempt, is not among them. Those
+ * stop by themselves: the pass's own stop check reads the close before any
+ * credential is built (`organisation_closed`), and a task that builds readers
+ * is refused by the builders.
+ *
  * `closeTenant` MUST run in the organisation's context. `tenant` is under
  * FORCE ROW LEVEL SECURITY with an UPDATE policy on `app.current_tenant`, so
  * outside it the UPDATE matches nothing and the close reports an organisation

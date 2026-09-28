@@ -19,7 +19,9 @@
  *     function. A new door that calls `getTriggerClient().tasks.trigger(`
  *     itself fails here, by file, before anybody presses it during a deploy.
  *     The number of doors that call the function is counted too, so a ninth
- *     door gets a row in the table below rather than going untested.
+ *     door gets a row in the table (`enqueueDoors`, in
+ *     `__tests__/doors-that-start-work.ts`, which the closed organisation's
+ *     guard presses too) rather than going untested.
  *  2. **The doors.** Each of the eight, pressed over a real (in-process)
  *     ledger with both migration chains, with a hold open: 409, the
  *     operator's sentence word for word, no enqueue, and for the four doors
@@ -45,14 +47,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import express from 'express';
 import request from 'supertest';
-import { parse } from 'yaml';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
+import {
+  M,
+  code,
+  enqueueDoors,
+  sourceFiles as shippedFiles,
+  specChecker,
+  type Door,
+} from './__tests__/doors-that-start-work.ts';
 
 const SRC = import.meta.dirname;
 /** The one module allowed to enqueue, relative to `apps/api/src`. */
@@ -60,16 +68,8 @@ const THE_FUNCTION_FILE = 'enqueue-unless-held.ts';
 
 // ─── 1. The sweep ────────────────────────────────────────────────────────────
 
-/** Every shipped source file under apps/api/src: tests are not the product. */
-function sourceFiles(dir: string = SRC): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) {
-      return name === 'node_modules' || name === '__tests__' ? [] : sourceFiles(path);
-    }
-    return /\.ts$/.test(name) && !/\.test\.ts$/.test(name) ? [path] : [];
-  });
-}
+/** Every shipped source file under apps/api/src (`__tests__/doors-that-start-work.ts`). */
+const sourceFiles = (): string[] => shippedFiles(SRC);
 
 /**
  * Every way the SDK enqueues: `tasks.trigger`, `tasks.batchTrigger`,
@@ -77,17 +77,6 @@ function sourceFiles(dir: string = SRC): string[] {
  * call.
  */
 const ENQUEUE_CALL = /\.\s*(trigger|batchTrigger|triggerAndWait|batchTriggerAndWait|triggerByTask)\s*\(/g;
-
-/**
- * The code without its comments, so a comment that names the call is not
- * counted as one. Block comments, and lines that are only a comment; a
- * comment after code on the same line is kept, which can only count more.
- */
-function code(file: string): string {
-  return readFileSync(file, 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
-}
 
 /** The files that enqueue, and how many times each. */
 function enqueueCalls(): Map<string, number> {
@@ -102,7 +91,7 @@ function enqueueCalls(): Map<string, number> {
 /**
  * The doors that call the function, by file. Eight on 2026-09-27: four in
  * each of the two migration routers. A door added later is one more here and
- * one more row in DOORS below.
+ * one more row in `enqueueDoors` (`__tests__/doors-that-start-work.ts`).
  */
 const DOORS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/migrations/index.ts': 4,
@@ -238,20 +227,6 @@ const app = express();
 app.use(express.json());
 app.use('/api/migrations', migrationRoutes);
 
-interface Door {
-  /** What the person pressed. */
-  readonly name: string;
-  readonly path: string;
-  /** Its entry in `apps/api/docs/openapi.yaml`. */
-  readonly spec: string;
-  readonly body?: Record<string, unknown>;
-  /** The status the same press answers with no hold open. */
-  readonly accepted: number;
-  readonly task: string;
-  /** For a door that writes before it enqueues: the rows it would have written. */
-  readonly wrote?: () => Promise<number>;
-}
-
 async function count(sqlText: string, params: unknown[]): Promise<number> {
   const conn = await driver.acquire();
   try {
@@ -271,81 +246,8 @@ async function sql(text: string, params: unknown[] = []): Promise<void> {
   }
 }
 
-const auditRows = () => count('SELECT count(*) AS n FROM audit_log WHERE tenant_id = $1', [TENANT]);
-
-const M = '/api/migrations/{mappingId}';
-
-const DOORS: readonly Door[] = [
-  {
-    name: 'Sync now',
-    path: `/api/migrations/${ACTIVE}/sync`,
-    spec: `${M}/sync`,
-    body: {},
-    accepted: 202,
-    task: 'run-delta-sync',
-  },
-  {
-    name: 'a cutover’s preparation',
-    path: `/api/migrations/${ACTIVE}/cutover`,
-    spec: `${M}/cutover`,
-    body: {},
-    accepted: 202,
-    task: 'run-cutover',
-  },
-  {
-    name: 'a discovery count',
-    path: `/api/migrations/${ACTIVE}/discover`,
-    spec: `${M}/discover`,
-    body: {},
-    accepted: 202,
-    task: 'run-discovery',
-  },
-  {
-    name: 'Start, which activates the migration and runs its first pass',
-    path: `/api/migrations/${DRAFT}/start`,
-    spec: `${M}/start`,
-    accepted: 200,
-    task: 'run-delta-sync',
-    wrote: async () =>
-      (await count(`SELECT count(*) AS n FROM mailbox_mapping WHERE id = $1 AND status <> 'paused'`, [DRAFT])) +
-      (await auditRows()),
-  },
-  {
-    name: 'a verification',
-    path: `/api/migrations/${ACTIVE}/verify/start`,
-    spec: `${M}/verify/start`,
-    accepted: 202,
-    task: 'run-verification',
-    wrote: () => count('SELECT count(*) AS n FROM verification_run WHERE mapping_id = $1', [ACTIVE]),
-  },
-  {
-    name: 'a deletion followed through',
-    path: `/api/migrations/${ACTIVE}/deletions/${HASH}/apply`,
-    spec: `${M}/deletions/{hash}/apply`,
-    accepted: 202,
-    task: 'run-apply-deletion',
-    wrote: async () =>
-      (await count(`SELECT count(*) AS n FROM apply_receipt WHERE mapping_id = $1 AND action = 'deletion'`, [ACTIVE])) +
-      (await auditRows()),
-  },
-  {
-    name: 'a relocation followed through',
-    path: `/api/migrations/${ACTIVE}/moves/${HASH}/apply`,
-    spec: `${M}/moves/{hash}/apply`,
-    accepted: 202,
-    task: 'run-apply-relocation',
-    wrote: async () =>
-      (await count(`SELECT count(*) AS n FROM apply_receipt WHERE mapping_id = $1 AND action = 'relocation'`, [ACTIVE])) +
-      (await auditRows()),
-  },
-  {
-    name: 'a confirmation pass',
-    path: `/api/migrations/${ACTIVE}/confirm`,
-    spec: `${M}/confirm`,
-    accepted: 202,
-    task: 'run-confirmation',
-  },
-];
+/** The eight doors, over this file's rows (`__tests__/doors-that-start-work.ts`). */
+const DOORS: readonly Door[] = enqueueDoors({ active: ACTIVE, draft: DRAFT, hash: HASH, tenant: TENANT, count });
 
 async function openHold(message: string | null): Promise<void> {
   await sql(`INSERT INTO platform_pause (message, started_by) VALUES ($1, 'operator-sub')`, [message]);
@@ -439,81 +341,10 @@ describe('a hold that could not be read', () => {
 
 // ─── 3. The spec ─────────────────────────────────────────────────────────────
 
-type Schema = { readonly [key: string]: unknown };
-
-const SPEC = parse(readFileSync(join(SRC, '..', 'docs', 'openapi.yaml'), 'utf8')) as Schema & {
-  paths: Record<string, { post?: { responses?: Record<string, Schema> } }>;
-};
-
-/** Words that describe a value and do not constrain it. */
-const ANNOTATIONS = new Set(['description', 'examples', 'example', 'format', 'title']);
-/** Words this checker applies. Anything else fails loudly rather than passing unread. */
-const CONSTRAINTS = new Set([
-  '$ref', 'type', 'enum', 'required', 'properties', 'additionalProperties', 'oneOf', 'anyOf', 'allOf',
-]);
-
-/** A `#/…` pointer into the spec. */
-function resolve(ref: string): Schema {
-  let at: unknown = SPEC;
-  for (const part of ref.replace(/^#\//, '').split('/')) at = (at as Schema)[part];
-  if (!at || typeof at !== 'object') throw new Error(`${ref} points at nothing in openapi.yaml`);
-  return at as Schema;
-}
-
-function typeOf(value: unknown): string {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'number';
-  return typeof value;
-}
-
-/**
- * Does `value` satisfy `schema`, by JSON Schema's own rules for the words the
- * spec's 409s use? `oneOf` is exactly one branch, which is the rule the first
- * spec broke. A dependency-free checker: `ajv` is not a dependency of this
- * package, and these are the only words it has to know.
- */
-function satisfies(schema: Schema, value: unknown): boolean {
-  if (typeof schema.$ref === 'string') return satisfies(resolve(schema.$ref), value);
-  for (const word of Object.keys(schema)) {
-    if (!CONSTRAINTS.has(word) && !ANNOTATIONS.has(word)) {
-      throw new Error(`this checker does not apply "${word}"; teach it before trusting its answer`);
-    }
-  }
-  const branches = (word: string) => (schema[word] as Schema[] | undefined)?.filter((b) => satisfies(b, value));
-  if (schema.oneOf && branches('oneOf')!.length !== 1) return false;
-  if (schema.anyOf && branches('anyOf')!.length === 0) return false;
-  if (schema.allOf && branches('allOf')!.length !== (schema.allOf as Schema[]).length) return false;
-  if (typeof schema.type === 'string') {
-    const actual = typeOf(value);
-    if (actual !== schema.type && !(schema.type === 'number' && actual === 'integer')) return false;
-  }
-  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
-  if (typeOf(value) === 'object') {
-    const record = value as Record<string, unknown>;
-    const properties = (schema.properties ?? {}) as Record<string, Schema>;
-    for (const key of (schema.required ?? []) as string[]) if (!(key in record)) return false;
-    for (const [key, v] of Object.entries(record)) {
-      if (properties[key]) {
-        if (!satisfies(properties[key], v)) return false;
-      } else if (schema.additionalProperties === false) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
+const { satisfies, responseSchema } = specChecker(join(SRC, '..', 'docs', 'openapi.yaml'));
 
 /** The body schema a door's 409 documents, through a shared response when it names one. */
-function refusalSchema(door: Door): { raw: unknown; schema: Schema } {
-  const raw = SPEC.paths[door.spec]?.post?.responses?.['409'];
-  if (!raw) throw new Error(`${door.spec} documents no 409`);
-  const response = typeof raw.$ref === 'string' ? resolve(raw.$ref) : raw;
-  const content = response.content as Record<string, { schema?: Schema }> | undefined;
-  const schema = content?.['application/json']?.schema;
-  if (!schema) throw new Error(`${door.spec}'s 409 has no JSON body`);
-  return { raw, schema };
-}
+const refusalSchema = (door: Door) => responseSchema(door, '409');
 
 describe('the checker the spec cases use', () => {
   // Its own proof, so a checker that answers "valid" to everything cannot

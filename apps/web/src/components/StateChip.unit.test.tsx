@@ -74,7 +74,19 @@ describe('no raw state enum renders outside StateChip (the 0035 T1 acceptance gr
     /\{mapping\.status\}/,
     /\{detail\.data\.status\}/,
     /\{invoice\.status\}/,
+    // Finish printed `{m.lifecycle}`, the bare word "active" in both
+    // languages, beside a translated note about the very same state (workplan
+    // 0153 T1 (d)). Any `.lifecycle}` rendered as text, whoever holds it.
+    /\.lifecycle\}/,
   ];
+  // WHERE A RAW WORD IS THE POINT. The operator's support screens render
+  // "every lifecycle and status column" raw on purpose (`Support.tsx`, the
+  // comment above `TenantUsage`): an operator reads the API's and the log's
+  // own words there. Only the lifecycle pattern is waived, and only in that
+  // file; every other pattern still holds in it.
+  const RAW_ON_PURPOSE: Readonly<Record<string, ReadonlyArray<RegExp>>> = {
+    'Support.tsx': [/\.lifecycle\}/],
+  };
 
   const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {
@@ -92,7 +104,8 @@ describe('no raw state enum renders outside StateChip (the 0035 T1 acceptance gr
           continue;
         }
         for (const pattern of RAW_RENDERS) {
-          if (pattern.test(line)) offenders.push(`${name}: ${line.trim()}`);
+          const waived = RAW_ON_PURPOSE[name]?.some((p) => p.source === pattern.source) ?? false;
+          if (!waived && pattern.test(line)) offenders.push(`${name}: ${line.trim()}`);
         }
       }
     }

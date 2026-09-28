@@ -1971,6 +1971,11 @@ optional `OAUTH2_*` / `SMTP_*` / `NOTIFY_*` from `.env`, with `override: true`
 so a stale dashboard value cannot win over a rotated file. The addresses it
 uploads are **in-network** (`pgbouncer:6432` by default), because runners
 join the compose network — `localhost` there would point a task at itself.
+The eight per-tenant tasks (a sync pass and the rest a migration asks for)
+read and write tenant data through `APP_DATABASE_URL`, as `app_user`, and a run
+without it refuses to start, naming it (workplan 0138 T1); the six scheduled
+jobs connect with `DATABASE_URL`, and the per-tenant tasks read only their
+audit key with it.
 It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
 `.env` leaves it empty, so the tasks admit exactly the names the API does.
 It does not upload `DIRECT_DATABASE_URL` (workplan 0138 T3 step 1): that is the
@@ -3333,6 +3338,14 @@ Re-deploy the tasks when the pull touched `apps/worker` **or anything the
 worker bundles** — in practice `packages/connectors`, `packages/engines`,
 `packages/orchestration`, `packages/shared`, which is most changes that are not
 purely web. When in doubt, run it: it is idempotent and costs a minute.
+
+**`deploy-tasks.sh` installs this checkout's packages first**
+(`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
+own inside their builds, but the tasks are bundled on this machine from its own
+`node_modules`. Before this step, a pull that changed a dependency rebuilt the
+images and then stopped here: `Could not resolve "undici/…"`, with the api and
+web on the new code and every pass on the old bundle. So `pnpm` must be on this
+machine's PATH; the script refuses by name when it is not.
 
 `set-task-env.sh` is a **different** question and a rarer one. Task containers
 inherit nothing from compose, so the environment is uploaded separately — run

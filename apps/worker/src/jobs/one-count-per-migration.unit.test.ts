@@ -13,7 +13,10 @@
 
 import { describe, it, expect } from 'vitest';
 
-// The job module opens its pool at import; no query is made here.
+// The job module opens its pools at import (openTaskPools, which refuses
+// without either URL: app_user's and, for the audit key, the owner's); no
+// query is made here.
+process.env.APP_DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 process.env.DATABASE_URL ??= 'postgres://discovery.test.invalid/none';
 
 const { discoveryQueue } = await import('./run-discovery.ts');
