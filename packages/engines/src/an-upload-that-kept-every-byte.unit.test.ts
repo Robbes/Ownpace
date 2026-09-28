@@ -142,12 +142,21 @@ describe('through the real fetch', () => {
       req.on('data', (chunk: Buffer) => {
         if (req.method !== 'PUT') return;
         received += chunk.byteLength;
-        // Three quarters in: a full collection, then what is still referenced.
-        // Everything the server has read is garbage by now; a copy of it that
-        // the client still holds is not.
+        // Three quarters in, the server stops reading for a moment. Then two
+        // full collections, a turn apart, so that what was freed is gone from
+        // the count. Everything the server has read is garbage by now; a copy
+        // of it that the client still holds is not.
         if (heldMidway === undefined && received >= (size * 3) / 4) {
-          gc();
-          heldMidway = process.memoryUsage().arrayBuffers;
+          heldMidway = -1;
+          req.pause();
+          void (async () => {
+            await new Promise((settle) => setTimeout(settle, 50));
+            gc();
+            await new Promise((settle) => setImmediate(settle));
+            gc();
+            heldMidway = process.memoryUsage().arrayBuffers;
+            req.resume();
+          })();
         }
       });
       req.on('end', () => {
@@ -169,7 +178,7 @@ describe('through the real fetch', () => {
 
     expect(written.created, 'the file was not written').toBe(true);
     expect(received, 'the server did not receive the whole file').toBe(size);
-    expect(heldMidway, 'the upload was never read three quarters in').toBeDefined();
+    expect(heldMidway, 'the upload was never read three quarters in').toBeGreaterThanOrEqual(0);
     expect(
       heldMidway! - before,
       `${Math.round((heldMidway! - before) / 1048576)} MiB of a 64 MiB upload was held three quarters in`,
