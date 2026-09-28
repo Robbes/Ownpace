@@ -2,7 +2,67 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-09-27 (update this block at the end of every session)
+## Status — 2026-09-28 (update this block at the end of every session)
+
+**2026-09-28, build: T5 with T7 (a), on branch
+`claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged, and
+held.** This is 0131 §6's R4 step 3. The PR waits until T0 is recorded here, or until the owner
+says go. T0 presses today's code on the OTA stack, which the nightly gate rebuilds from `main`, so
+the first night after this merges, today's behaviour is gone from the only place it can be
+pressed. T0's steps are unchanged.
+
+- **The window opens in the press.** `apps/web/src/services/consent-window.ts` opens a blank
+  window under the consent's name before anything is awaited. It sends that window to the
+  provider once the server answers, and closes it when the server refuses. `ProviderConsent.tsx`'s
+  `start` and `CreateMapping.tsx`'s `startConsent` both use it; each keeps its own state. The
+  opener survives as before: the callback page keeps `Cross-Origin-Opener-Policy: unsafe-none`
+  (`callbackPageHeaders`), and the web app's nginx sets no opener policy.
+- **A window that did not open says so.** The door shows §3's sentence and a link. EN: *"Your
+  browser did not open Google’s page. Open it with this link:"*. NL: *"Uw browser heeft de pagina
+  van Google niet geopend. Open die met deze link:"*. The link is `<a href={url}
+  target="ownpace-<provider>-consent" rel="opener">`. One component, `ConsentWindowLink`, serves
+  both doors, under the in-app browser line. It goes when the consent lands, and when the door
+  asks again or is shown again.
+- **Why a Connect button is greyed out** is now text straight under it, with `role="status"`. One
+  component, `ConnectReason`, serves both doors, and the `title` is gone. Each door decides one
+  reason and derives `disabled` from it, so a grey button always says why.
+
+**Guards.** Both fail on `main` and pass on the branch.
+
+- `apps/web/src/components/a-consent-window-opened-by-the-press.unit.test.tsx`: 32 cases, 32
+  failing before. `window.open` is spied and `begin` is held pending. Both doors call it before
+  `begin` resolves, with no address, and send the window afterwards. A refusal closes the blank
+  window. With `window.open` answering `null`, the sentence and a link to the consent address are
+  shown, in EN and NL. The link goes when the door is shown again without a new press, as T4's
+  note does: Cancel and *Add a connection*, the *Reconnect* fold closed and opened, the wizard's
+  card switched away (to Dropbox, then IMAP) and back, and Next and Back. A scan finds
+  `window.open(` nowhere in `apps/web/src` outside `consent-window.ts`.
+- `apps/web/src/components/a-reason-a-finger-can-read.unit.test.tsx`: 8 cases, 8 failing before.
+  With nothing ticked, and again with no client pair, the disabled button has no `title`, and the
+  reason is visible text in a status straight under it, in both doors, in EN and NL.
+- Ten mutations, each caught: the panel opening after the `await`, the wizard leaving the blank
+  window open, the link without `rel="opener"`, a closed window sent anyway, the panel's reason
+  back in a `title`, the wizard with no reason line, a third `window.open(` in `Setup.tsx`, the
+  link kept after the consent landed, the panel's `reset` keeping the link, and the wizard's
+  `forgetConsent` keeping it (the card switch then offers Google's address under Dropbox's name).
+
+**Departures from §3.**
+
+- A blank window closed before the address arrived counts as not opened, and gets the same
+  sentence and link. Sending a closed window does nothing, which is the silent button again.
+- §3 names no words for the link. They are the host it goes to, such as `accounts.google.com`:
+  short enough for a phone, and it says whose page it is.
+- §3 names no role for the sentence. It is a status, not an alert: nothing was refused.
+- `GRANT_PROVIDER_NAMES` moved from `Setup.tsx` into the helper, so the sentence and the setup
+  checklist read one table.
+- Tests that read the reason from `title`, or the address from `window.open`'s first argument,
+  now read the line under the button and the window's location (`Connections.unit.test.tsx`,
+  `CreateMapping.unit.test.tsx`). `CreateMapping.reachability.unit.test.tsx` now tells Next's
+  reason from a Connect button's.
+
+**Open, and whose.** T0 is the owner's, before this merges. The owner reads the new Dutch sentence
+(0144 D1). Whether Safari keeps the opener through `rel="opener"` is T8 (c)'s and T10's to confirm.
+Live is not stood up, and nothing here ran there.
 
 **2026-09-27, build review: Stage 9's fixes, on the same branch
 (`claude/ownpace-public-readiness-y7orc6-the-runbook-stages-for-the-walks`), not merged.** Still
@@ -532,14 +592,14 @@ only a keyboard, and T9 (a) says so before anyone starts.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 is built. |
+| T0 One press of *Connect with Google* on an iPhone, today | ⏳ **Owner** | §3. Settles the review's unverified popup claim on the code as it is. **Before the first invitation**, and before T5 merges: T5 is built and held for it (2026-09-28). |
 | T1 The phone menu takes focus and gives it back | ✅ **done** in #1169, merged 2026-09-25 (`41c77a01`, `144c6f69`), all but the skip link; the skip link 📋 **Proposed**, after — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-menu-that-gives-focus-back`, not merged** (2026-09-24), all but the skip link | §3. Closed below 1024 px, the menu is `inert`. When it opens, focus goes into it and the page behind is `inert`. Escape closes it, and focus returns to the menu button. A skip link comes **after**. **Before the first invitation.** |
 | T2 State said in words, not only in colour | 📋 **Proposed** (D5) | §3. `aria-pressed` on the chooser cards, `aria-current` on the wizard step, step labels that can be read, the Finish states in text, and two labels translated. **After.** |
 | T3 A new step or page starts at the top and says where you are | (a) ✅ **done** in #1206, merged 2026-09-27; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) Each wizard step and each route change starts at the top, and the new step's heading takes focus. **Before.** (b) A title for each screen, and focus on the page heading. **After.** |
 | T4 Errors are announced | ✅ **done** in #1207, merged 2026-09-27, all but the Grant and View lines; those ✅ **done** in #1208, merged 2026-09-27, with T6 — *was:* 📋 **Proposed** | §3. `role="alert"` on the refusals and failures that have none, and `role="status"` on the waiting lines. **After**; the Grant and View lines go in with T6, which rewrites them. |
-| T5 The consent window opens on the press itself | 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
+| T5 The consent window opens on the press itself | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28), with T7 (a); held until T0 is recorded or the owner says go — *was:* 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | ✅ **done** in #1208, merged 2026-09-27, both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
-| T7 Help a finger can reach | 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
+| T7 Help a finger can reach | (a) 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28), with T5, held with it for T0; (b) 📋 **Proposed**, after — *was:* 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
 | T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
 | T10 The walk on two phones | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |

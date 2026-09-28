@@ -37,6 +37,9 @@ import { useT, useFormatters, type StringKey } from '../i18n/index.tsx';
 import { serverMessage } from '../services/api.ts';
 import { GUIDE_SLUGS } from './Docs.tsx';
 import { cardGuideHref } from '../components/front-door-cards.ts';
+// The name on the button a provider's consent draws, kept once beside the
+// consent window's own sentence (workplan 0145 T5).
+import { GRANT_PROVIDER_NAMES } from '../services/consent-window.ts';
 
 const StepRow: React.FC<{
   status: SetupStepStatusDto;
@@ -136,13 +139,6 @@ function guideHref(side: 'source' | 'target', provider: string): string | undefi
   const slug = href?.slice('/docs/'.length).split('#')[0];
   return slug !== undefined && GUIDE_SLUGS.has(slug) ? href : undefined;
 }
-
-/** The name on the button a provider's consent draws: *Connect with Google*. */
-const GRANT_PROVIDER_NAMES: Readonly<Record<GrantProvider, string>> = {
-  google: 'Google',
-  dropbox: 'Dropbox',
-  microsoft: 'Microsoft',
-};
 
 /**
  * Whose app the server left every step out for, or undefined (workplan 0148
