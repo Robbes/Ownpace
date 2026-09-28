@@ -242,11 +242,17 @@ jobs:
           # version's dated section, the heading the release check looks for, so
           # a change to it alone must run tests.
           #
+          # `docs/design/**` added 2026-09-28 (workplan 0153 §5): the drawings are
+          # read by `an-icon-drawn-twice.unit.test.tsx` and `ProviderTile.unit.test.tsx`,
+          # which hold the app's icons and tile colours equal to them, so a redrawn
+          # icon alone must run tests.
+          #
           # Comments belong HERE and not inside the block scalar below, where a
           # `#` line is a PATTERN rather than a comment.
           files: |
             docs/*.md
             docs/guides/**
+            docs/design/**
             docs/adr/**
             README.md
             AGENTS.md
