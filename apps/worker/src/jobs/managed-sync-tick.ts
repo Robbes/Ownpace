@@ -34,16 +34,17 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { schedules, configure } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import {
   log,
   mapWithConcurrency,
   PASS_HARD_LIMIT_MS,
   PASS_RUNNING_STATES,
-  setAuditExportSink,
+  setAppEventSink, setAuditExportSink,
   type DiscoveryDomain,
 } from '@openmig/shared';
-import { A_PATH_KEPT_AFTER_A_CUTOVER_WHERE, CUTOVER_STILL_COPIES_WHERE, auditExportOn, pgDriver } from '@openmig/ledger';
+import { A_PATH_KEPT_AFTER_A_CUTOVER_WHERE, CUTOVER_STILL_COPIES_WHERE, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { readOpenPause, recordTickBeat, BILLABLE_RUN_KINDS } from '@openmig/managed';
 import { isSyncDue, DEFAULT_SYNC_SCHEDULE, defaultScheduleFor } from '@openmig/orchestration/sync-due';
@@ -63,6 +64,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 /**
  * How many mappings the tick may enqueue at once.
@@ -226,7 +230,7 @@ export { STALE_RUN_AFTER_MS };
 export const managedSyncTick = schedules.task({
   id: 'managed-sync-tick',
   cron: '* * * * *',
-  run: async () => {
+  run: leavesAReference('managed-sync-tick', async () => {
     // In-network API URL (found live, 2026-08-01, the tick's first due firing):
     // the platform injects TRIGGER_API_URL as the HOST-perspective API origin
     // (http://localhost:3090 — correct for the deploy CLI, which is why
@@ -452,5 +456,5 @@ export const managedSyncTick = schedules.task({
     // not stop it.
     await recordTickBeat(drizzle(pool), new Date());
     return summary;
-  },
+  }),
 });

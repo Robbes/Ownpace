@@ -37,7 +37,7 @@ function code(text: string): string {
 /** The task body, from its `run`, not the file: an import line is a promise, not a use. */
 const TASK = (() => {
   const whole = code(readFileSync(join(HERE, 'run-delta-sync.ts'), 'utf8'));
-  const body = whole.indexOf('run: async (');
+  const body = whole.indexOf("run: leavesAReference('run-delta-sync', async (");
   expect(body, 'the task body is no longer recognisable').toBeGreaterThan(-1);
   return whole.slice(body);
 })();
