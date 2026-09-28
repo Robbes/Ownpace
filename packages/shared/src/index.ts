@@ -28,6 +28,9 @@ export * from './migration-view.ts';
 export * from './completion-report.ts';
 export * from './lifecycle.ts';
 export * from './path-phase.ts';
+// Workplan 0154 T1 (a): where a migration is, in a person's words, read from
+// the lifecycle and path phase beside it.
+export * from './stage.ts';
 export * from './share-gate.ts';
 export * from './confirmed-list.ts';
 export * from './verification-report.ts';
