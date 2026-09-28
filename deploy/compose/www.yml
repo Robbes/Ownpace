@@ -123,9 +123,11 @@ services:
       # 0.0.0.0. NOTHING RECREATES THE OTA SITE BUT A PERSON: no workflow runs
       # this file, so a change here, or to WWW_BIND, reaches it at the next
       # `docker compose -f deploy/compose/www.yml up -d` from an updated
-      # checkout. Live's copy, the project ownpace-live-www, is recreated by
-      # deploy-live.sh with each deploy of live and by nothing else (workplan
-      # 0139 T10; www-live.sh's header). And a bind on a mesh address needs that
+      # checkout. Live's copy, under live's project with -www after it, is
+      # recreated by deploy-live.sh with each deploy of live while WWW_LIVE is
+      # true. By hand it is only restarted as it is (the incident runbook) or
+      # taken down after switching it off, each with that -p (workplan 0139
+      # T10; www-live.sh's header). And a bind on a mesh address needs that
       # address to exist when Docker starts the container, after a reboot too
       # (docs/managed-bring-up.md, "Which address a port answers on").
       # scripts/a-port-published-on-purpose.unit.test.ts holds the shape.

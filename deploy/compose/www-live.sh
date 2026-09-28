@@ -15,12 +15,14 @@
 # silence. The OTA site (www.ota.ownpace.eu, `ownpace-www`, from the OTA
 # stack's checkout) is not this, and nothing here touches it.
 #
-# ONE PROJECT OF ITS OWN, AND NOBODY TYPES IT. Live's copy is the Compose
-# project named after live's with `-www` after it:
+# ONE PROJECT OF ITS OWN, ON EVERY COMPOSE COMMAND. Live's copy is the
+# Compose project named after live's with `-www` after it, which the scripts
+# build from live's project:
 #
 #   <project>-www          (live's project is ownpace-live, 0132 T1b)
 #
-# and every command for it carries that project and live's .env:
+# and every `docker compose` command for it carries that project and live's
+# .env:
 #
 #   docker compose -p <project>-www -f deploy/compose/www.yml --env-file deploy/compose/.env …
 #

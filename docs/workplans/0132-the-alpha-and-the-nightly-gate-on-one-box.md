@@ -1012,6 +1012,11 @@ service's `TimeoutStartSec` is 110 minutes. T3 (c): `scripts/exposure-probe.mjs`
 resolves to), never on the host it points at before it is routed, and the new dispatch input
 `site_name` (`report` by default, `required` once routed) says whether it must answer. So a
 dispatch during live's stand-up is not red for the site. 0139's Status block has the detail.
+After a review, on the same branch: T1e's routes gain `www.ownpace.eu` to live's `WWW_PORT`,
+which the site step needs and T1e did not list. And live's `WWW_LIVE` stays `false` until the
+legal texts are final: with it `true`, a deploy refuses before the checkout while the tag's texts
+have placeholders, or, once 0139 T2's #1293 is merged, a version line that says draft, which
+every legal text's does today. The app does not move either.
 
 **2026-09-28: the web after T6 (b), built on branch
 `claude/ownpace-public-readiness-y7orc6-a-hold-that-says-what-it-did`, not merged.** The T6 (b)
@@ -1095,7 +1100,7 @@ all taken.
 | T1b `ownpace-live`: its own checkout, `.env` and ports, and no demo | 📋 **Decided 2026-09-24** (D7, D8) | §3. `~/.persistent/ownpace-live/.env`, fresh secrets from its first bring-up, its own `*_PORT` values, never `--with-demo`. The owner sets the four database passwords in live's `.env` before the first bring-up (D8). `ensure-env-secrets.sh` still does not generate them, and `trigger-db`'s still waits for T2's code. |
 | T1c Its own Trigger.dev plane | 📋 **Decided 2026-09-24** (D7) | §3. Its own account, organisation and project, CLI profile, access token and `REGISTRY_PORT`. Never the OTA plane, which the nightly gate restarts. |
 | T1d Its own identity provider at `id.ownpace.eu` | 📋 **Decided 2026-09-24** (D7) | §3. Its own masterkey and mail relay (0133). The web image is built with live's issuer, which is a build-time value. |
-| T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports. This answers 0091 T4. |
+| T1e The production names routed to live | ⏳ **Owner** (D7) | §3. NetBird routes from `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu` to live's ports, and from `www.ownpace.eu` to live's `WWW_PORT` once live serves the site (0139 T10). This answers 0091 T4. |
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | 📋 **Decided 2026-09-24** (D2, D3) on the machine; the code 📋 **Proposed** | §3. Now chiefly the OTA stack, whose roles hold the shipped values: `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
@@ -1760,10 +1765,15 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
 ### T1e — the production names routed to live (owner)
 
 - **The routes.** In NetBird: `app.ownpace.eu` to live's `WEB_PORT`, `id.ownpace.eu` to live's
-  `ZITADEL_PORT`, and `status.ownpace.eu` to live's `STATUS_PORT`. External names stay on 443, as
+  `ZITADEL_PORT`, `status.ownpace.eu` to live's `STATUS_PORT`, and `www.ownpace.eu` to live's
+  `WWW_PORT`, the port of live's copy of the site (0139 T10, which `deploy-live.sh` serves as
+  `ownpace-live-www` once live's `.env` says `WWW_LIVE=true`). External names stay on 443, as
   0091 records, so the local port numbers appear nowhere a browser or Google sees. Those ports
-  answer on the front's address only through live's `WEB_BIND`, `ZITADEL_BIND` and `STATUS_BIND`
-  (T1b step 3); without them a route reaches nothing.
+  answer on the front's address only through live's `WEB_BIND`, `ZITADEL_BIND`, `STATUS_BIND`
+  and `WWW_BIND` (T1b step 3; `WWW_BIND` with the site's switch, 0139 T10); without them a route
+  reaches nothing. The site's route waits for the site, and the site for final legal texts:
+  `WWW_LIVE` stays `false` until then. Until the route, `www.ownpace.eu` points at another host
+  (`docs/managed-bring-up.md`, *`www.ownpace.eu`: live's copy*, step 4).
 - **0091 T4 is answered.** `app.` now means production, so the production names lead to the
   machine on purpose. What remains of 0091's concern is the route: a production name must reach
   live's ports, never the OTA stack's. The check below confirms it.

@@ -45,18 +45,19 @@
 #
 # in the checkout, now at the tag. Then it waits until the container is
 # healthy, and asks it on loopback at WWW_PORT: `/` answers 200 without
-# `noindex`, every request-access link on it leads to https://app.ownpace.eu,
-# and robots.txt allows. So www.ownpace.eu serves the texts of the release
-# that runs, the ones a tester accepts (0139 T3), with its version in the
-# footer. The site's project is live's with `-www` after it, the one name
-# the docs give for it, and nobody types it: a bare `docker compose -f
-# deploy/compose/www.yml` in live's checkout puts the site in live's own
-# project, where one --remove-orphans removes live or the site (www-live.sh's
-# header). A site that does not build, come up healthy or
-# answer as a public site is a deploy that DID NOT TAKE (exit 3, the hold
-# stays), like any other check: an app on a new release beside texts of the
-# old one is not a deploy that took. OWNPACE_STATUS_URL is not passed on: the
-# site derives status.ownpace.eu from the app.
+# `noindex`, has at least one request-access link and every one leads to
+# https://app.ownpace.eu, and robots.txt allows. So www.ownpace.eu serves the
+# texts of the release that runs, the ones a tester accepts (0139 T3), with
+# its version in the footer. The site's project is live's with `-www` after
+# it, the one name the docs give for it. This script builds it from live's
+# project, and every `docker compose` command a person types for the site
+# carries it: a bare `docker compose -f deploy/compose/www.yml` in live's
+# checkout puts the site in live's own project, where one --remove-orphans
+# removes live or the site (www-live.sh's header). A site that does not build,
+# come up healthy or answer as a public site is a deploy that DID NOT TAKE
+# (exit 3, the hold stays), like any other check: an app on a new release
+# beside texts of the old one is not a deploy that took. OWNPACE_STATUS_URL is
+# not passed on: the site derives status.ownpace.eu from the app.
 #
 # Like every step, the site step is the one in the script that started, which
 # is the checkout's copy from before it moved. A deploy started from a
@@ -100,13 +101,13 @@
 #   a deploy log it cannot append to (below): every deploy past the checkout is
 #       logged, and the next deploy reads the log to say one-way or reversible.
 #   a WWW_LIVE that is neither true nor false (it names the key); and with
-#       WWW_LIVE=true: no WWW_PORT or WWW_BIND, or a WWW_PORT that is not a
-#       port; a container of live's project with the compose service www (PR
-#       #1275's option 4); a tag whose www.yml gives the site's container a
-#       fixed name (before 0139 T10 (b)), or that has no www.yml or
-#       site/build.mjs; a tag whose site still has unfilled placeholders,
-#       named by their count; and a tag whose `--public` build refuses for
-#       any other reason, with its last words.
+#       WWW_LIVE=true: no WWW_PORT or WWW_BIND, or a WWW_PORT that is not one
+#       port from 1 to 65535; a container of live's project with the compose
+#       service www (PR #1275's option 4); a tag whose www.yml gives the
+#       site's container a fixed name (before 0139 T10 (b)), or that has no
+#       www.yml or site/build.mjs; a tag whose site still has
+#       unfilled placeholders, named by their count; and a tag whose
+#       `--public` build refuses for any other reason, with its last words.
 #       For those two it test-builds the tag's own site from git's objects
 #       (git archive of site/ and package.json) in a directory of its own,
 #       which it removes: `--public --check` for the count, then the full
@@ -164,7 +165,9 @@
 # 5 (it adds tags and moves nothing), and one-way or reversible, said by the
 # same function over the same deploys.log and HEAD, comparing through git's
 # objects. Then it says that it stopped, and exits 0. It checks nothing out,
-# runs no pnpm install, no bring-up and no check, and writes no line to
+# runs no pnpm install, no bring-up and none of step 7's checks, builds
+# nothing in the checkout (with WWW_LIVE=true the site's test build is among
+# the refusals, in a directory of its own), and writes no line to
 # deploys.log. Whether the log can be appended to it asks of what is there,
 # the file or the nearest directory that exists, and makes neither. Run it
 # with the hold on and the drain done, before step 4: when it says one-way, a
@@ -440,7 +443,7 @@ main() {
     else
       say "dry run: run this again without --dry-run to deploy it."
     fi
-    say "dry run: stopped before the checkout. Nothing was checked out, installed, built or deployed, no check was run, and deploys.log was not written. The checkout and the stack are as they were; the hold is as you left it."
+    say "dry run: stopped before the checkout. Nothing was checked out, installed or deployed, nothing was built in the checkout, none of the checks after the bring-up was run, and deploys.log was not written. The checkout and the stack are as they were; the hold is as you left it."
     if [ "$site" = on ]; then
       say "dry run: the site at ${tag} was test-built from git's objects in a directory of its own, now removed; site/dist and ${WWW_LIVE_PROJECT} are as they were."
     fi
@@ -811,7 +814,10 @@ site_ready() {
       refuse "the site at ${tag} has no unfilled placeholder, and its --public build refused it all the same (its last words above): www.ownpace.eu serves the tag's texts, the ones a tester accepts, and this deploy would build them the same way after the checkout." \
         "Fix what it names on main, cut a new tag and deploy that, or set ${WWW_LIVE_KEY}=false to deploy the app alone."
       ;;
-    *) refuse "the site at ${tag} did not build with --public --check (its last words above)." ;;
+    *)
+      refuse "the site at ${tag} did not build with --public --check (its last words above)." \
+        "Fix what it names on main (a legal page whose version line says draft needs its final text), cut a new tag and deploy that, or set ${WWW_LIVE_KEY}=false to deploy the app alone."
+      ;;
   esac
   if [ "$count" != 0 ]; then
     refuse "the site at ${tag} has ${count} unfilled placeholder(s) in its texts, and a --public build refuses them: www.ownpace.eu serves the tag's texts, the ones a tester accepts." \

@@ -65,24 +65,28 @@
  *   It serves www.ownpace.eu wrong, or from the wrong project (workplan 0139
  *   T10, with 0132 T6). With `WWW_LIVE=true` in live's `.env` the script
  *   builds the tag's site with `--public` and brings it up under the project
- *   `ownpace-live-www` (live's, with `-www`), never typed by hand. In live's
- *   checkout a bare
+ *   `ownpace-live-www` (live's, with `-www`), a name it builds from live's
+ *   project. In live's checkout a bare
  *   `docker compose -f deploy/compose/www.yml` puts the site in live's own
  *   project (#1275's header), where one `--remove-orphans` removes live or the
  *   site. So, before the checkout moves and in a dry run too: a missing
- *   `WWW_PORT` or `WWW_BIND`, a switch that is neither `true` nor `false`, a
+ *   `WWW_PORT` or `WWW_BIND`, a `WWW_PORT` that is not one port from 1 to
+ *   65535, a switch that is neither `true` nor `false`, a
  *   `www` service in live's project, a tag whose `www.yml` gives its
  *   container a fixed name or that has no
- *   site, a tag whose texts still carry placeholders, naming the count, and a
- *   tag whose full `--public` build refuses for any other reason (the tag's
- *   own site, test-built from git's objects: `--check` for the count, then
- *   the build the deploy runs after the checkout) are each refused. After
- *   the bring-up the site is built in the checkout, brought up with `-p
- *   ownpace-live-www` and live's `--env-file`, waited for until healthy, and
- *   asked on loopback: 200, no `noindex`, `robots.txt` allowing, and every
- *   request-access link on the production app. Any of that failing is a
- *   deploy that did not take, with the hold on, like any other check. And
- *   with the switch off, nothing about the site runs at all.
+ *   site, a tag whose texts still carry placeholders, naming the count, a
+ *   tag whose `--public --check` refuses by itself (a legal page marked
+ *   draft, from 0139 T2's check on), saying `WWW_LIVE=false` deploys the app
+ *   alone, and a tag whose full `--public` build refuses for any other reason
+ *   (the tag's own site, test-built from git's objects: `--check` for the
+ *   count, then the build the deploy runs after the checkout) are each
+ *   refused. After the bring-up the site is built in the checkout, brought
+ *   up with `-p ownpace-live-www` and live's `--env-file`, waited for until
+ *   healthy, and asked on loopback: 200, no `noindex`, `robots.txt`
+ *   allowing, and at least one request-access link, every one on the
+ *   production app. Any of that failing is a deploy that did not take, with
+ *   the hold on, like any other check. And with the switch off, nothing about
+ *   the site runs at all.
  *
  * HOW IT RUNS. Every case builds a checkout of its own: a real git repository
  * with a bare `origin` beside it, whose commits carry the script under test,
@@ -386,8 +390,11 @@ const PUBLIC_APP = 'https://app.ownpace.eu';
  * `site/drafts`. `--check` prints the count and stops, as the real one does,
  * before every other refusal: a release that commits `site/refuses` has a
  * `--public` build that throws its words with a count of 0, as the real one
- * does for a refusal beyond the count. `STUB_SITE_BUILD_EXIT` fails only the
- * build in the checkout (a disk that filled, say), not the test build. It
+ * does for a refusal beyond the count. A release that commits
+ * `site/check-refuses` has a `--public --check` that prints those words, then
+ * the count last, and exits 1, as the real one does from 0139 T2 on for a
+ * legal page whose version line says draft. `STUB_SITE_BUILD_EXIT` fails only
+ * the build in the checkout (a disk that filled, say), not the test build. It
  * records its arguments, the three settings it reads and the directory it
  * lives in.
  */
@@ -408,8 +415,10 @@ if (!app) throw new Error('OWNPACE_APP_URL is not set');
 if (pub && app !== '${PUBLIC_APP}') throw new Error('--public builds the site for ${PUBLIC_APP}');
 const drafts = Number(readFileSync(join(HERE, 'drafts'), 'utf8').trim());
 if (args.includes('--check')) {
+  const refused = pub && existsSync(join(HERE, 'check-refuses'));
+  if (refused) console.error(readFileSync(join(HERE, 'check-refuses'), 'utf8').trim());
   console.log(\`[site] 3 pages across 2 locales, \${drafts} unfilled placeholder(s)\`);
-  process.exit(0);
+  process.exit(refused ? 1 : 0);
 }
 if (pub && drafts > 0) throw new Error(\`\${drafts} placeholder token(s) are still unfilled\`);
 if (pub && existsSync(join(HERE, 'refuses'))) throw new Error(readFileSync(join(HERE, 'refuses'), 'utf8').trim());
@@ -453,6 +462,8 @@ interface Release {
   siteDrafts?: number;
   /** What the site's `--public` build at this commit refuses with, beyond the count (its `--check` passes). */
   siteRefuses?: string;
+  /** What the site's `--public --check` at this commit refuses with, printing its count and exiting 1. */
+  siteCheckRefuses?: string;
   /** Give www.yml's container a fixed name at this commit, as before #1275. */
   fixedSiteName?: boolean;
   /** Remove site/build.mjs at this commit. */
@@ -489,6 +500,8 @@ const SITE_PORT = '20125';
 const SITE_BIND = '192.0.2.10';
 /** Live's `.env` with the site switched on. */
 const SITE_ENV = `${LIVE_ENV}WWW_LIVE=true\nWWW_PORT=${SITE_PORT}\nWWW_BIND=${SITE_BIND}\n`;
+/** A WWW_PORT of five digits that is no port: one past 65535. Never to be printed either. */
+const PORT_PAST_THE_LAST = '65536';
 
 /** www.yml as #1275 makes it: the container named after its project. Idempotent once #1275 is on main. */
 function wwwYml(fixed = false): string {
@@ -605,6 +618,8 @@ function stage(opts: StageOptions = {}): Stage {
       writeFileSync(join(siteDir, 'drafts'), `${r.siteDrafts ?? 0}\n`);
       rmSync(join(siteDir, 'refuses'), { force: true });
       if (r.siteRefuses) writeFileSync(join(siteDir, 'refuses'), `${r.siteRefuses}\n`);
+      rmSync(join(siteDir, 'check-refuses'), { force: true });
+      if (r.siteCheckRefuses) writeFileSync(join(siteDir, 'check-refuses'), `${r.siteCheckRefuses}\n`);
       if (r.noSite) rmSync(join(siteDir, 'build.mjs'));
     }
     // A release always changes something, so that it is a commit of its own.
@@ -1436,7 +1451,7 @@ describe('a dry run refuses what the deploy refuses, says one-way or reversible,
     expect(sqlSent(s).slice(was.sql)).not.toMatch(/\b(UPDATE|INSERT|DELETE)\b/i);
     expect(out).not.toMatch(/checking out|the deploy took|the deploy did not take/);
   }
-  const STOPPED = /dry run: stopped before the checkout\. Nothing was checked out, installed, built or deployed/;
+  const STOPPED = /dry run: stopped before the checkout\. Nothing was checked out, installed or deployed, nothing was built in the checkout/;
 
   it.each([[['--dry-run', NEXT.tag]], [[NEXT.tag, '--dry-run']]])(
     'on a tag that agrees, %j: every refusal passed, the verdict, a line that nothing moved, exit 0; the checkout, the tree and the log as they were, and no bring-up',
@@ -1781,6 +1796,8 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
     ['no WWW_PORT', { dotEnv: SITE_ENV.replace(`WWW_PORT=${SITE_PORT}\n`, '') }, /WWW_PORT is not set/],
     ['no WWW_BIND', { dotEnv: SITE_ENV.replace(`WWW_BIND=${SITE_BIND}\n`, '') }, /WWW_BIND is not set/],
     ['a WWW_PORT that is not a port number', { dotEnv: SITE_ENV.replace(`WWW_PORT=${SITE_PORT}`, 'WWW_PORT=20x25') }, /WWW_PORT .*not one port number/],
+    // Five digits, as the pattern allows, and one past the last port there is.
+    ['a WWW_PORT above 65535', { dotEnv: SITE_ENV.replace(`WWW_PORT=${SITE_PORT}`, `WWW_PORT=${PORT_PAST_THE_LAST}`) }, /WWW_PORT .*not one port number \(1 to 65535\)/],
     ['a switch that is neither true nor false', { dotEnv: SITE_ENV.replace('WWW_LIVE=true', 'WWW_LIVE=yes') }, /WWW_LIVE .*neither true nor false/],
     [
       "a www service in live's project (option 4)",
@@ -1793,6 +1810,13 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       "a tag whose --public build refuses for another reason, though its --check counts 0: the full build's verdict, not the count's",
       { release: { siteRefuses: '--public makes this site indexable, and 4 legal page(s) say on their version line that they are a draft' } },
       /no unfilled placeholder, and its --public build refused it all the same[\s\S]*4 legal page\(s\) say on their version line that they are a draft|4 legal page\(s\) say on their version line that they are a draft[\s\S]*no unfilled placeholder, and its --public build refused it all the same/,
+    ],
+    [
+      // A legal page marked draft, as a --public --check from 0139 T2 on refuses it: the build's
+      // words, then the refusal, and a way on that lets the app deploy without the site.
+      'a tag whose --public --check refuses by itself, with its words and a way on: WWW_LIVE=false deploys the app alone',
+      { release: { siteCheckRefuses: '--public makes this site indexable, and 4 legal page(s) say on their version line that they are a draft' } },
+      /4 legal page\(s\) say on their version line that they are a draft[\s\S]*did not build with --public --check \(its last words above\)\.\n {2}Fix what it names on main[^\n]*or set WWW_LIVE=false to deploy the app alone\./,
     ],
     ['a tag with no site', { release: { noSite: true } }, /site\/build\.mjs/],
     ["a tag whose www.yml gives the site's container a fixed name (before #1275)", { release: { fixedSiteName: true } }, /container_name/],
@@ -1814,6 +1838,7 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       expect(r.out).not.toContain(SITE_BIND);
       expect(r.out).not.toContain(SITE_PORT);
       expect(r.out).not.toContain('20x25');
+      expect(r.out).not.toContain(PORT_PAST_THE_LAST);
     },
     CASE_MS,
   );
@@ -1845,9 +1870,10 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       const s = stage({ releases: [{ ...NEXT, realSite: true }], dotEnv: SITE_ENV });
       const r = run(s, ['--dry-run', NEXT.tag]);
       if (check.status !== 0) {
-        // --check under --public refuses by itself: so does the dry run.
+        // --check under --public refuses by itself: so does the dry run, with a way on.
         expect(r.status, r.out).toBe(1);
         expect(r.out).toContain('did not build with --public --check');
+        expect(r.out).toContain('or set WWW_LIVE=false to deploy the app alone.');
       } else if (count > 0) {
         expect(r.status, r.out).toBe(1);
         expect(r.out).toContain(`has ${count} unfilled placeholder(s)`);
@@ -1958,6 +1984,12 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       'a request-access link leads to another app',
       (s) => siteAnswer(s, '/', 200, '<a href="https://app.ota.ownpace.eu/request-access?tier=family">x</a>'),
       /request-access/,
+    ],
+    [
+      // None wrong is not all right: a home page a tester cannot ask from is not the site.
+      'its home page has no request-access link at all',
+      (s) => siteAnswer(s, '/', 200, '<html><head></head><body><h1>Ownpace</h1></body></html>'),
+      /0 request-access link\(s\) lead somewhere other than https:\/\/app\.ownpace\.eu\/request-access, and 0 there/,
     ],
   ];
 
