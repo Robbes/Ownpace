@@ -1,17 +1,61 @@
 <!-- Copyright 2026 The Ownpace authors (Apache-2.0) -->
 <!--
-  DRAFT FOR LEGAL REVIEW — v0.1, 2026-08-30. Not published, not linked from
-  the site, not yet offered to anyone. English only on purpose: the DPA is a
+  DRAFT FOR LEGAL REVIEW — v0.2, 2026-09-28 (v0.1, 2026-08-30). Not published,
+  not linked from the site, not yet offered to anyone. English only on purpose: the DPA is a
   business instrument (privacy §3 carries the household case in the policy
   itself), and business customers of an NL entity operating EU-wide sign the
   English text. This file is the draft behind the "available on request"
   sentence in privacy §3 and terms §4; 0086 T5 owns publishing it.
 
+  NOT PART OF THE ALPHA. The Alpha admits households only ("tester:
+  households only for now.", workplan 0139 open question 6, 2026-09-28), so
+  this agreement is part of no Alpha contract, and nothing here blocks the
+  first invitation.
+
+  What changed in v0.2 (2026-09-28), from decided facts only:
+
+  - Annex A's retention. Credentials are kept until the connection or the
+    migration that holds them is deleted; after the account closes nothing
+    uses them, and they are destroyed when its data is erased (the owner,
+    0139 open question 3 (a): "keep until deleted or closes"; the terms §11
+    and the Alpha conditions §10 say the same). It said "until the migration
+    ends". Preflight counts go with their migration, as privacy §4.3 and the
+    code say. It said "30 days if no customer relationship follows".
+  - The service's mail goes through a provider in Switzerland, which has an
+    EU adequacy decision (workplan 0133: Proton AG, which also hosts the
+    support mailbox). §8, §12 and Annex A said "EU only"; §12 is retitled.
+  - Annex B: deletion at the target names auto-applying relocations
+    (ADR-0031), as terms §2 does since v1.3.
+
+  Still to do before a business customer is admitted:
+
+  - Annex B against privacy §11 as its own pass words it, and against the
+    code: row security binds the application's requests, not yet the
+    background tasks (workplan 0138 moves them); the encryption key is held
+    apart from the database, but on the same machine; logs can hold folder
+    and file names, addresses and provider error text; no code was found
+    that reports the negotiated TLS version.
+  - Annex A's held data: each item's name has been stored since 2026-09-18
+    (mail subject, event or task title, contact name, file path), with the
+    provider's error text, the sharing inventory (other people's addresses),
+    and the audit log.
+  - "After the account closes nothing uses them" holds once closing stops
+    new sync passes; on origin/main at 2026-09-28 it does not, and a fix is
+    queued.
+  - The Status line becomes a Version line the site build can read (0139
+    T2), and «SUBPROCESSORS_URL» loses its backticks, before 0086 T5
+    publishes this.
+  - §8 and Annex C against privacy §7: a service in front of the machine that
+    ends TLS (0139 T0 fact 1) would be a sub-processor, and its region may
+    matter to §12.
+
   Questions for the reviewing lawyer:
 
-  1. §12 — we claim no third-country transfers by us, ever, so no SCCs and
+  1. §12 — we claimed no third-country transfers by us, ever, so no SCCs and
      no transfer annex. Is stating the negative enough, or does the DPA need
-     the conditional machinery anyway?
+     the conditional machinery anyway? v0.2: the mail provider is in
+     Switzerland, on an EU adequacy decision. Is naming that basis enough,
+     and must §12 name the provider itself?
   2. §8 — general written authorisation for sub-processors with a published
      list and prior notice. Right choice for a service this small, or should
      specific authorisation be offered as an option?
@@ -26,14 +70,16 @@
      sentence the right way to carry Art. 9 exposure in a processor DPA?
   6. §13 — liability follows the terms' cap. Confirm that referencing the
      commercial agreement's cap is sound beside Art. 82's own allocation.
+     (Terms v1.3 keep the cap for business customers only, and exclude GDPR
+     compensation from it.)
   7. Annex B mirrors privacy §11 and the codebase's actual measures. Anything
      a controller's DPO will expect that is missing?
 -->
 
 # Data-processing agreement
 
-**Status:** draft v0.1 (for legal review — not yet published or offered; see `site/legal/README.md`)
-**Last updated:** 2026-08-30
+**Status:** draft v0.2 (for legal review — not yet published or offered; see `site/legal/README.md`)
+**Last updated:** 2026-09-28
 
 This data-processing agreement ("DPA") forms part of the agreement between
 Archico B.V., «REGISTERED_ADDRESS» ("Ownpace", the **processor**) and the business customer
@@ -106,7 +152,8 @@ controller may object on reasonable data-protection grounds within 30 days, and 
 workable alternative exists, terminate the affected service as the terms provide. Every
 sub-processor is bound in writing to obligations no weaker than this DPA's, and Ownpace
 remains fully liable to the controller for their performance. All sub-processors process in
-the **European Union** (§12).
+the **European Union**, except the provider that sends the service's mail, which is in
+**Switzerland** (§12).
 
 ## 9. Assistance
 
@@ -137,11 +184,13 @@ auditor who is not a competitor) may audit on at least 30 days' notice, during b
 hours, at most once per year absent a concrete indication of non-compliance, each party
 bearing its own costs.
 
-## 12. No third-country transfers
+## 12. Transfers outside the European Union
 
-Ownpace processes and sub-processes the controller's personal data **in the European Union
-only** and transfers none of it to a third country. No transfer mechanism is therefore relied
-on. Writing to a migration **target** outside the EU happens only where the controller
+Ownpace processes and sub-processes the controller's personal data in the **European Union**,
+with one exception. The provider that sends the service's mail, and hosts its support mailbox,
+is in **Switzerland**, which has an EU adequacy decision. That decision is the basis for that
+transfer, and no other transfer mechanism is relied on. Ownpace transfers none of the
+controller's personal data to any other third country. Writing to a migration **target** outside the EU happens only where the controller
 designated that target; that is the controller's own instruction and the controller's own
 transfer, shown before anything is written.
 
@@ -161,8 +210,8 @@ does and §10 survives its end.
 | **Personal data — held** | Account credentials for source and target (encrypted, Annex B); the migration ledger: source-assigned identifiers, hashes of identifier and content, sizes, folder and collection names, timestamps, outcomes; preflight counts and per-folder aggregates |
 | **Special categories** | Not sought; may occur inside migrated content and pass through uninspected (§4) |
 | **Processing operations** | Read source, write target, keep the ledger, report progress |
-| **Duration & retention** | Credentials: until the migration ends or is deleted, then destroyed. Ledger: deleted with the migration. Preflight counts: 30 days if no customer relationship follows. Invoices and underlying usage figures: 7 years (Dutch tax law) |
-| **Location** | European Union only |
+| **Duration & retention** | Credentials: until the controller deletes the connection or the migration that holds them; after the account is closed nothing uses them, and they are destroyed when its data is erased, at the end of the period the controller chose. Ledger: deleted with the migration. Preflight counts: with the migration they were counted for. Invoices and underlying usage figures: 7 years (Dutch tax law) |
+| **Location** | European Union; the service's mail through a provider in Switzerland, on an EU adequacy decision (§12) |
 
 ## Annex B — technical and organisational measures
 
@@ -173,8 +222,10 @@ does and §10 survives its end.
 - Tenant isolation enforced **in the database itself** through row-level security, not only in
   application code; database roles hold least privilege, with mutation rights revoked where a
   record's integrity demands it (append-only evidence logs; issued invoices).
-- Source connectors hold **no write path to the source**; deletion at the target only through
-  an opt-in, per-item approval path.
+- Source connectors hold **no write path to the source**. Deletion at the target only through
+  opt-in paths: a per-item approval, and, only where the controller also opts in, the
+  unattended removal of the old copy of a file moved at the source, after strict checks.
+  Deletions are never applied unattended.
 - The migration ledger holds **metadata, not content**: no bodies, no attachments, no file
   contents.
 - Logs written to exclude credentials, folder names and message subjects; support access to

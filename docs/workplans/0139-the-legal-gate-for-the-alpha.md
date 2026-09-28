@@ -4,6 +4,343 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, the support-mail period filled.** Asked how long report mails in `support@ownpace.eu`
+are kept, the owner chose *"Until resolved + 6 months"* (with *"Both parts"* for the facts a report
+carries, 0130, and *"Send anyway"* when those facts cannot be read). Privacy 1.2's §9 row *Support mail
+and problem reports* now reads: until the question or problem is resolved, and then 6 months more;
+then deleted from the mailbox (NL: tot de vraag of het probleem is afgehandeld, en daarna nog
+6 maanden). `«SUPPORT_RETENTION»` moved to the README's filled list. The owner also added the
+DMARC report address (*"DMARC record was added"*).
+
+**2026-09-28, later: review fixes to the revision below, same branch, not committed.** A
+review checked the first draft against `main` at `683525c8`, for the law, for the code's truth,
+and for the two languages; this entry says what changed, and where it differs, it replaces the
+entry below. Both texts keep their draft marker. The Alpha conditions are not edited.
+
+- **Kept, with the draft marker, a comment beside the sentence in both languages, and a line in
+  `site/legal/README.md`'s *Before the draft markers come off*** (the owner's decisions, which
+  code on its way makes true): *nothing uses your access after closing* (privacy §9, terms §11;
+  the closed-organisation fix, uncommitted); the copy before an update *never longer than 7
+  days*, now naming the sign-in service's copy too (privacy §9; `dump-idp.sh` keeps every dump,
+  and the service's copy is taken and deleted by hand); *reports by mail* (privacy §4.5; 0130
+  T5, on its branch).
+- **Reworded to what holds today:**
+  - Terms §1: *"Before you connect your first account, we give you these texts, each with its
+    version number, and ask you to accept them. We keep a record …"*. It names no screen, so T3
+    or a route the owner runs by hand can make it true; one must exist before the first
+    invitation (terms briefing, precondition A, question 12).
+  - Terms §13's language paragraph is v1.2's again (the English governs, except where mandatory
+    consumer law provides otherwise), which is what `translationNote` above the Dutch privacy and
+    terms pages says; the first draft's *both texts count* contradicted that note on the rendered
+    page and is now terms question 15, with the note change it needs. Terms §3: 16 or older, and
+    a parent's or guardian's permission under 18, as privacy §12's 16.
+  - Privacy §4.5: *"The support screens cannot show your content"* replaces *"They cannot browse
+    your content"*, and a paragraph says the person who runs the machine can reach the database
+    and the key, to run and repair the service and to look into a problem, and that this is not
+    in the read log (the support_log view's comment: audit detail is read *"with a database
+    query"*). The download of the pseudonymised audit log, members' identifiers, and what of the
+    read log outlives an erasure are named. The request's log line holds the email address.
+  - Privacy §7: *"Nobody else administers it"* is gone, and a first row names the service in
+    front of the machine that ends TLS, with `«INGRESS_PROVIDER»` and `«INGRESS_REGION»` (T0
+    fact 1), also in §6's transfer bullet and `subprocessors.md`. The owner fills them, or
+    deletes the row if TLS ends on the machine. §4.4's *"not at another company"* now speaks of
+    where the account is kept.
+  - Privacy §9: the sign-in account and the Google test-user entry are removed by hand on
+    erasure day; a row for the sign-in service's own history, which removing the account does not
+    remove (Zitadel keeps every event: its maintainers' *"all events still exist in the
+    eventstore"*, zitadel/zitadel#2758, and the open request #7811; not yet checked on v4.19.2);
+    the task runner's daily drill copies, newest seven kept (`box-duties.sh`); the rollback
+    reason an operator types; what of the read log stays after erasure; the closing paragraph no
+    longer says *"in one go"* and says what stays.
+  - Privacy §11: the clause on *"two of the app's checks"* is gone (#1303 moved both under row
+    security); the support views pass row security by design, each with an operator check; the
+    TLS switch is *"Use SSL/TLS"*, which turns TLS off altogether; the key is also in the
+    background tasks' settings (`set-task-env.sh`), as in §4.1; the breach paragraph tells the
+    person, as the owner answered (*"We do tell the tester."*, answer 6 below).
+  - Privacy §4.4: the name on a request is optional; nobody is let in without asking unless
+    invited, and anyone can create a sign-in account that opens nothing; the sessions hold the
+    browser and IP address (to be checked, as the history); *"we do not ask for or keep your card
+    number"* (the billing route accepts brand, last four and expiry). §4.6: a withdrawal at the
+    provider leaves a useless token until the migration is deleted or the data erased; a mail per
+    kind of item shared, and again only on purpose. §5: rows for the audit log, a family member
+    and invitees. §7: *"Beyond what this policy names"*. §8: the negative carves out a target the
+    tester chose outside the EU.
+- **Briefings**: the privacy briefing names `683525c8`, has questions 19 (the sign-in history)
+  and 20 (rows that outlive erasure with no period), widens 2, 12, 13, 14, 15, 17 and 18, and its
+  owner list adds the ingress, the drill, the sign-in history, telemetry, Proton's agreement, the
+  card route, the database-access sentence and the app's own sentences. The terms briefing has
+  preconditions A to F brought up to date (D, E and F resolved), a list of v1.3's changes that
+  widen the owner's exposure, with the old wording beside each, and questions 15, 16, 20 and 26
+  (the export) changed or new. `subprocessors.md` has the ingress row; `dpa.md`'s stale
+  sentence is gone. `privacy.nl.md`'s and `terms.nl.md`'s header comments follow §13.
+- **Not taken**, and why: the quote *"Ill add people by hand"* is in this plan's D4 (§2), as
+  the entry below cites it, so it stays. No product sentence, deploy script or compose file is
+  changed here: the app's own sentences, `dump-idp.sh`'s pruning, the pre-update copy's
+  automation, the drill on live and the telemetry opt-outs are listed for the owner, each a
+  change of its own. `«SUPPORT_RETENTION»` is filled after the review, below: the owner
+  answered the same day. Alpha conditions §10's
+  credentials sentence stays the owner's (item 11 of *For the owner* below).
+- **Proved.** The same four files, `npx vitest run --project unit scripts/legal-docs.unit.test.ts
+  site/site.unit.test.ts scripts/a-policy-link-that-answers.unit.test.ts
+  scripts/one-way-to-report-a-vulnerability.unit.test.ts`: 4 files, 64 tests pass.
+  `OWNPACE_APP_URL=https://app.ota.ownpace.eu node site/build.mjs --check`: *"4 legal page(s)
+  marked draft"* and *"14 pages across 2 locales, 28 unfilled placeholder(s)"* (eleven per
+  language in the privacy policy, three in the terms); `--public --check` refuses. The rendered
+  pages carry none of the comments, and the Dutch terms page's note and §13 now agree. Both
+  languages have the same sections, table rows, list items and placeholders.
+
+**2026-09-28: the privacy policy (1.2) and the terms (1.3) revisited, at the owner's request,
+for the owner's review (T1's texts, T5, T6)**, on branch
+`claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited`, on `main` at
+`683525c8`, **not committed**. The owner: *"Can you revisite the privacy policy and terms? Make
+changes if needed, and i'll review them. Make those with 'max effort'."* The lawyer's pass stays
+deferred (*"legal: keep as is for now"*, 2026-09-27). Both texts keep their draft marker:
+*Version 1.2 (draft — not yet published)* / *Versie 1.2 (concept — nog niet gepubliceerd)*, and
+the same with 1.3 for the terms. The Alpha conditions (1.0, the owner's) are not edited.
+
+- **What the revision rests on**, as the plans record it: households only, *"tester: households
+  only for now."* (open question 6); the service carries on after the Alpha, *"End of aplha: we
+  continue, perhapse move off the spark to other hoster."* (0131 open question 1 (b)); the site,
+  and with it the service, on this machine, *"site will first be hosted on this machine during
+  alpha"* (T0 fact 6; D5, *"It's all controlled by me and invite only."*); *"stored access after finished
+  migration: keep until deleted or closes."* (open question 3 (a)); one copy before each update,
+  *"7 days is ok"*, otherwise no backups (0134 open question 1 (b); D3); declined requests
+  deleted 30 days after the decision, *"2a"* (open question 2 (a), built in #1255); *"mail at the
+  start: real mail relay day one."*, through Proton, *"I was hoping to reuse my proton SMTP"*
+  (0133 Status); reports by mail to `support@ownpace.eu` during the Alpha, *"b"* (0130 T5, on its
+  branch, not merged); *"public site: yes, search engine index."* (open question 1 (a)); the
+  vulnerability channel, *"yes all three"* (open question 5); 7 days' notice and a close within 7
+  days (the owner's edit of the conditions, #1293); Google in Testing with test users added by
+  hand, *"Ill add people by hand"* (D4); owner and admin only, *"6. The Roles (0137 T0): b"*.
+- **Privacy, by section** (both languages; each has 13 sections and 6 subsections, 32 table rows
+  and 12 list items):
+  - *Header*: covers this website too; a box says the Alpha conditions apply as well and prevail.
+  - *§1*: *"A person reads what arrives there."* (the Dutch *meelezen* read as monitoring).
+  - *§2*: messages and files are not stored; what is kept about each item is §4.2's record.
+  - *§3*: during the Alpha only households take part, so no data-processing agreement is
+    involved; the people a migration touches now include a family member and the people items
+    were shared with (§4.6).
+  - *§4.1*: the key is kept apart from the database, but on the same machine (T1 point 11). The
+    Dutch *"het doel te beschrijven"*, which also reads as "describe", is *"naar het doel te
+    schrijven"*.
+  - *§4.2*: the ledger keeps the name a person knows an item by (a message's subject, stored
+    since 2026-09-18; a title; a contact's name; a file's name) and the provider's error text,
+    which can name an address; and what each migration and the organisation keep beside it.
+  - *§4.3*: the counts go with their migration (the briefing's old "30 days" was wrong).
+  - *§4.4*, now *Your request for access, and your account*: the request (what is kept, the
+    decision, who made it, when); the sign-in account at the sign-in service we run on the same
+    machine (names, user name, password hash, sessions); the account (owner or admin during the
+    Alpha); the Google address for the test-user list; no invoices during the Alpha; invoice
+    details typed on the Billing page, and the VIES check.
+  - *§4.5*: support mail arrives at Proton; *Report a problem* and *Report this link* go by mail
+    during the Alpha, with what the mail holds and a warning about screenshots; server logs, for
+    the app and this website, and what they can still name; what an operator sees (one person
+    during the Alpha), including a look-up by address; the read log, which the app cannot change,
+    goes at erasure and is sent on request; nobody reads content, for every provider.
+  - *§4.6*, new, *People who are not our customers*: a family member who gave access through a
+    grant link; people items were shared with (the list, and one mail from support@); invitees;
+    link reporters; correspondents.
+  - *§5*: rows for the request, the Google address, other people's data (legitimate interests,
+    marked for the lawyer) and the copy before an update; no tracker on the app or the website;
+    browser storage, no cookie of our own, the sign-in page's cookies; no automated decision;
+    what a tester must give.
+  - *§6*: the test-user list; the transfer bullet names the people a tester asks us to tell and
+    the mail provider; Google is offered as a source only.
+  - *§7*: during the Alpha everything runs on a machine we run ourselves, in
+    `«HOSTING_REGION»`, and nobody else administers it (`«HOSTING_PROVIDER»` is gone); a row for
+    Proton AG, for the mail and the support mailbox, in Switzerland; a later host is named before
+    any data goes there (Alpha conditions §11); Mollie receives nothing during the Alpha; the
+    owner and admins see the organisation's data; disclosure only where the law obliges.
+  - *§8*: Switzerland and its adequacy decision, and the Google test-user step, replace *"no
+    transfer … by us"* as an absolute.
+  - *§9*: rewritten. The heading and the row *Credentials* / *Toegangsgegevens* keep their words,
+    because Alpha conditions §2 cite them. Credentials by connection, grant link, finished
+    migration, closing and erasure; organisation-level data (members, lists, the sharing list,
+    the audit log) until erasure; a pass's record until erasure during the Alpha; log lines 60
+    days; the app's errors 30 days; account and sign-in account with the 0, 7, 30 or 90-day
+    windows; the request (open; declined, 30 days; granted, with the account); the read log;
+    *The copy made right before an update*, at most 7 days; the background tasks' records (no
+    period set, not reached by erasure); invoices (none during the Alpha); and three
+    placeholders. The closing paragraph: no backups apart from the copy, a close within 7 days,
+    and what an erasure removes and leaves.
+  - *§10*: a check that a request is yours; §4.6's people; the right to object on its own; a
+    complaint where you live or work.
+  - *§11*: the key; TLS as the code does it (a person can switch it off for an account connected
+    by server name; ADR-0037 §5's floors are not built); row security as `SECURITY.md` states it;
+    a breach paragraph (Alpha conditions §4); the advisory form, then support@, five working
+    days, and ask before testing (T9's channel).
+  - *§12*, *§13*: plainer words; the version at the top shows which applies; during the Alpha,
+    Alpha conditions §11 set the notice for what follows.
+  - The briefing: rewritten for 1.2, with the old questions' status and new questions 11 to 18
+    for the lawyer. `subprocessors.md` 0.2: the Proton AG row, no hosting row during the Alpha
+    (`«HOSTING_REGION»`), the Switzerland exception in its opening, links to the rendered pages.
+- **Terms, by section** (both languages; 15 sections each, the same paragraphs and bullets):
+  - *§1*: the contract is these terms, the privacy policy and any additional conditions shown
+    with them; during the Alpha the Alpha conditions apply as well and prevail; the texts are
+    shown with their versions before the first connection, accepted there and recorded (T3);
+    someone who only follows a progress link, or grants access through a link, is not a party.
+  - *§2*: both switches named, *applying deletions* and *auto-applying relocations* (ADR-0031);
+    copying is meant to end, and a migration kept copying after the switch-over still counts as
+    running.
+  - *§3*: the customer answers for what they do and for sign-in details they shared or did not
+    protect; what goes wrong on our side, the sign-in service included, is ours; 18 or older, or
+    a parent's or guardian's permission.
+  - *§4*: the reading exceptions point at privacy §4.5 and §6.
+  - *§6*, *§7* (set aside during the Alpha): a price change is a §12 change; a paid tier only
+    after an order button; the express request is a confirmation in the app, confirmed by email;
+    a *Withdraw from contract* function; the setup-work sentence removed.
+  - *§8*: the Dutch restores *geregeld* (periodically).
+  - *§9*: notice of planned maintenance that interrupts migrations; statutory rights kept.
+  - *§10*: consumers, liable as the law provides, with no cap; business customers, the
+    twelve-month cap; no limit for intent or deliberate recklessness, death or injury, GDPR
+    compensation, or what the law does not let us limit.
+  - *§11*: first paragraph: close by writing to support@, choose the erasure window, nothing uses
+    the access from closing, and at erasure the credentials are destroyed and the access revoked
+    where the provider allows it. It said *"On closure we delete your credentials"*, which open
+    question 3 (a), Alpha conditions §10 and the code all contradicted. The second paragraph,
+    which Alpha conditions §2 cite, is kept whole, with reasons given before an ending for a
+    serious breach and a refund of any prepaid part.
+  - *§12*: changes only for stated reasons; the customer may end at no cost before a change; a
+    consumer may end within 30 days after a clearly worse one; where we ask for explicit
+    acceptance, carrying on is not acceptance.
+  - *§13*: consumers go to the court the law makes competent, and keep their own courts; only
+    business customers go to Overijssel. Complaints: we name a dispute body by email and say
+    whether we take part; ConsuWijzer and ECC-Net. Language: both texts count, the reading more
+    favourable to the customer applies, and the English governs for business customers.
+  - *§14*: a transfer to a successor keeps the customer's rights, is announced, and a consumer
+    may end the contract first. *§15*: Dutch *"onze overeenkomst"*.
+  - The briefing: preconditions A to F, what changed, and questions 12 to 25. `dpa.md` 0.2: not
+    part of the Alpha; Annex A's credentials and preflight retention follow the owner's rule and
+    the code; §8 and §12 (now *Transfers outside the European Union*) name the Swiss mail
+    provider's adequacy basis; Annex B names auto-applying relocations.
+- **Placeholders.** Filled, for the owner's review: `«EMAIL_PROVIDER»` and `«EMAIL_REGION»`,
+  with Proton AG, Switzerland (0133 kept them as tokens until the owner's final-text pass; the
+  owner may send them back). Dropped: `«HOSTING_PROVIDER»`. New: `«SUPPORT_RETENTION»` and
+  `«UNADMITTED_SIGNIN_RETENTION»`. Left: `«REGISTERED_ADDRESS»`, `«VAT_NUMBER»`,
+  `«HOSTING_REGION»`, `«LOG_RETENTION»`, `«SUBPROCESSORS_URL»` (now without backticks, so the
+  build counts it) and `«PRIVACY_HISTORY_URL»`. The Alpha conditions have none.
+- **`site/legal/README.md`.** The table lists exactly the eight tokens the texts use, with where,
+  what fills each and who; filled and dropped tokens moved to a list under it. A new table says
+  where each text stands, with its version line. What a final version line looks like no longer
+  assumes the lawyer's pass. *What must stay true* follows the texts: the ledger's names and
+  error text, both deletion switches, the EU with Proton's named exception and the Google
+  test-user step, Google offered as a source only, households during the Alpha. The language
+  paragraph and the cookie bullet say where things stand.
+- **Proved.** `npx vitest run --project unit scripts/legal-docs.unit.test.ts site/site.unit.test.ts
+  scripts/a-policy-link-that-answers.unit.test.ts scripts/one-way-to-report-a-vulnerability.unit.test.ts`:
+  4 files, 64 tests pass. Before the README's two new rows, 63 passed and 1 failed:
+  *"privacy.md uses «SUPPORT_RETENTION» but site/legal/README.md does not list it"*.
+  `node site/build.mjs --check`: *"4 legal page(s) marked draft"* and *"14 pages across 2
+  locales, 22 unfilled placeholder(s)"*, eight per language in the privacy policy and three in
+  the terms; `--public --check` refuses, as it should. Both runs repeated at `683525c8`, with the
+  same results. A script found the README's table equal to the set of tokens in the rendered text
+  of all eight files. The workplan and guard indexes regenerated, and their checks and
+  `adr-operative.mjs --check` pass.
+- **Promised in the drafts, not yet true on `main`**, so the draft markers stay until each is
+  built or the sentence changes:
+  1. *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10): the
+     sync tick's `ACTIVE_MAPPINGS_SQL` (`managed-sync-tick.ts`) never reads the organisation's
+     status, so a closed organisation still gets new passes until the purge. A fix is queued,
+     *"Stop sync passes for closed organisations"*.
+  2. *The copy made right before an update, never longer than 7 days* (privacy §9, Alpha
+     conditions §6): taken and deleted by hand (0134 T0 step 4; `stand-up-live.sh`: *"no script
+     takes it or deletes it yet"*), and `deploy/compose/dump-idp.sh`, run before each upgrade of
+     the sign-in service, keeps every dump (*"none is ever overwritten"*), with the provider's
+     accounts and password hashes. Live's daily `drill` duty (`box-duties.sh`) also dumps the task
+     runner's database and keeps the newest 7, which hold the records privacy §9's background-task
+     row names.
+  3. *Reports by mail* (privacy §4.5): 0130 T5 is on its branch, not merged. On `main` the form
+     needs a Zammad, and item 5 of the entry below in which the owner answered the nine questions
+     still names one.
+  4. *Acceptance shown and recorded before the first connection* (terms §1): T3, proposed.
+  5. *(Removed by the review fixes above: owner or admin only is on `main`, a1625f08, #1294,
+     0137 T7. Before the first invitation, `operator.sh check role-below-admin` runs on live.)*
+  6. *(Resolved by the review fixes above: terms §13 keeps v1.2's language rule, which the note
+     above the Dutch privacy and terms pages states.)*
+  7. Terms §6 and §7's order button, confirmation and withdrawal function: set aside during the
+     Alpha, needed before any tier is paid.
+- **The Alpha conditions, read against the revision** (not edited; they are the owner's 1.0):
+  - **One contradiction.** §10 says *"We keep that access until you delete the connection or the
+    migration."* Privacy §9's *Credentials* row says what the code does: a connection's access
+    goes when the connection is deleted, which the app allows only once no migration uses it
+    (`409 in_use` in `connections.ts`), and deleting a migration removes only access a family
+    member gave through a grant link (`revokeCredentialRow` on the row's own
+    `source_secret_ref`, `apps/api/src/routes/migrations/index.ts`). §2 makes the conditions
+    prevail on exactly that row, so the shorter wording is the one that binds, and it promises
+    more than the code does. For the owner: keep it, or in a 1.1, EN *"We keep that access until
+    you delete the connection; access a family member gave through a grant link, until you delete
+    the migration."* / NL *"Wij bewaren die toegang tot u de koppeling verwijdert; toegang die een
+    gezinslid via een toegangslink gaf, tot u de verhuizing verwijdert."*
+  - **No other rendered sentence contradicts the revision.** §2's two points of privacy §9 now
+    say the same in both texts, apart from the one above. Four tensions are questions, not
+    contradictions: §4's heading, *"No obligations, on either side"*, beside terms §10's consumer
+    liability (the owner kept it: *"keep."*); §5's pause *"without warning"* beside terms §9's
+    notice of planned maintenance, which the old §9 promised too (terms question 25); §11's 7 days
+    beside terms §12's 30 (for the lawyer); and which erasure window applies to a tester whose
+    account is closed for not accepting the new conditions (item 1 of *For the owner* under the
+    owner's review of T2, below).
+  - **The briefing comment is out of date** (it never renders): it names terms v1.2 and privacy
+    v1.1, says privacy §9 still reads *"until the migration ends"* and terms §11 *"On closure we
+    delete your credentials"*, reads terms §13 as making the English govern, and reads terms §10
+    as capping a consumer's claim at nothing. A comment-only change, with no new version; the
+    owner's to make.
+  - §9 names only the tester's own Google address; privacy §6 also names the Google account of a
+    family member sent a grant link. A sentence for a 1.1, if wanted.
+- **Loose ends** (the privacy §11 clause, `dpa.md`'s sentence on the EU and `privacy.nl.md`'s
+  header comment were fixed by the review fixes above):
+  - The header of `scripts/one-way-to-report-a-vulnerability.unit.test.ts` says privacy §11
+    names only the fallback. It now names the form first, then support@, so that guard can ask
+    for both, in order (T9).
+  - 0133's Status says `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` stay placeholders until the
+    owner's final-text pass; this revision filled them.
+- **For the owner.** Read `privacy.nl.md` and `terms.nl.md` first; `git diff` shows every change.
+  1. **Final or lawyer**: take privacy 1.2 and terms 1.3 as final yourself, as you did with the
+     Alpha conditions 1.0, or wait for the lawyer's pass (T1)?
+  2. **Facts** (T0): the machine's country (`«HOSTING_REGION»`), and whether any company houses
+     it or can reach it; where TLS ends for `app.`, `id.`, `status.` and `www.ownpace.eu` (T0
+     fact 1), and if at the mesh provider's ingress, its legal entity and region; the printed
+     form of `«REGISTERED_ADDRESS»`, and `«VAT_NUMBER»`; a telephone number, and whether
+     "Ownpace" is registered as a handelsnaam.
+  3. **Proton**: keep *Proton AG, Switzerland* in the texts, or back to tokens? Is Proton's
+     data-processing agreement accepted for the account behind `support@ownpace.eu`, and is that
+     account Archico B.V.'s? Does Proton keep the service's sent mail in that mailbox?
+  4. **Periods**: `«UNADMITTED_SIGNIN_RETENTION»` (30 days, as 0135 open
+     question 6 proposes, built as 0135 T8 before publication?); `«LOG_RETENTION»`, and what
+     enforces it now that the host keeps no month of container output; a period for the
+     background tasks' records, or *"no period set yet"*.
+  5. **Addresses**: `«SUBPROCESSORS_URL»` (publish `subprocessors.md`, in Dutch too, or make
+     privacy §7's table the complete list?) and `«PRIVACY_HISTORY_URL»`.
+  6. **Live's settings**: reports by mail with no `ZAMMAD_URL` (merge 0130 T5); where
+     `NOTIFY_TO`, `ALERT_TO` and `REPORT_MAIL_TO` point; social sign-in on live, or email and
+     password only (T0 fact 4)?
+  7. **The copies**: prune `dump-idp.sh`'s dumps at 7 days, or delete them once an upgrade
+     succeeds; automate deleting the copy before an update; and whether privacy §9 names the
+     daily drill's dumps of the task runner's database, or the drill stops on live for the Alpha.
+  8. **Wording choices**: operator searches by address stay after an erasure, or are purged in
+     code; the sharing list stays after its migration is deleted, or goes with it; the Billing
+     page's invoice-details form hidden during the Alpha (then privacy §4.4's sentence goes); when
+     a family member's Google address comes off the test-user list; the list of testers kept off
+     the machine (0134 T4), which privacy §4.4 and §9 then name; the breach sentence, *"where that
+     is required"* as in the Alpha conditions §4, or every tester whose data a breach touches, as
+     you answered (*"We do tell the tester."*); the new promise to send a tester what the read
+     log holds about them; §11's TLS wording now, or ADR-0037 §5's floors built first; whether any
+     file connector can write to a source (§4.1 names mail, contacts and calendars).
+  9. **Terms**: no cap towards consumers, as drafted, or a cap with a floor (then the amount);
+     18, or a parent's or guardian's permission, beside privacy §12's 16; both languages count
+     (then `translationNote` changes), or the Dutch governs; updates during the Alpha announced
+     in advance, or a sentence in the conditions or terms §9 that says they are not.
+  10. **Before the texts go final**: is the closed-organisation fix required first (it is, for
+     *"nothing uses your access after closing"* to be true), and is T3 built before the first
+     invitation, or is terms §1 rewritten to another route?
+  11. **The Alpha conditions**: §10's credentials sentence (the contradiction above), the stale
+     briefing comment, and the erasure window after a closing for not accepting.
+
+  For the lawyer, when the pass happens: privacy briefing questions 11 to 18 (Switzerland's
+  adequacy wording, Google's role for the test-user list, legal bases and special-category data,
+  targets outside the EEA, Limited Use, 7 days' notice, the language, the breach threshold) and
+  terms briefing questions 12 to 25 (among them which dispute body to name), with its old
+  question 5 on the EU ODR platform, whose repeal the briefing reports and does not assert.
+
 **2026-09-28: T10, the production site deployed with live (0131 §6, group R7; T0 fact 6)**,
 built on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged.
 Nothing has run on the machine. Live is not stood up (0132 T1b), and the scripts have run only
@@ -692,16 +1029,16 @@ longer starts by pausing the nightly gate, which never touches live.
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1) | §3. Nine placeholder names are still open, and six facts have no placeholder yet. Values never go in this plan, only dates. |
-| T1 A lawyer's pass before the first invitation | ⏳ **Owner**; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
+| T0 The owner's facts: the placeholders and the names | ⏳ **Owner** (D1); facts 2 (2026-09-27, 0133 open question 3), 5 and 6 supplied, and fact 3 answered for the Alpha by 0130 T5's *"b"*, reports by mail (on its branch, not merged); 2026-09-28, in the drafts for the owner's review, not committed: `«EMAIL_PROVIDER»` and `«EMAIL_REGION»` filled with the relay the owner chose (0133), `«HOSTING_PROVIDER»` dropped, `«SUPPORT_RETENTION»` and `«UNADMITTED_SIGNIN_RETENTION»` new | §3. Eight placeholders are open (`site/legal/README.md`), and facts 1 and 4 have none. Values never go in this plan, only dates. |
+| T1 A lawyer's pass before the first invitation | ⏳ **Owner**, deferred 2026-09-27 (*"legal: keep as is for now"*); the texts 🔨 **revised 2026-09-28 for the owner's review**, not committed: privacy 1.2 and terms 1.3, still drafts, and `subprocessors.md` and `dpa.md` 0.2. They now carry points 3, 6, 7, 9 and 11 of §3 T1's list, and 4 and 8 in part; 1, 2, 5 and 10 wait on the owner or the lawyer, and the briefings hold the lawyer's questions; 📋 **Decided 2026-09-24** (D1) | §3. The two existing briefings, plus the questions this plan adds. |
 | T2 The alpha conditions, in Dutch and English | 🔨 **Drafted 2026-09-28** at the owner's word, on branch `claude/ownpace-public-readiness-y7orc6-alpha-conditions-in-concept`, **not merged**: `site/legal/alpha.nl.md` and `alpha.md`, not rendered; **reviewed by the owner 2026-09-28**, version 1.0, the lawyer's pass deferred (T1) — *was:* version 0.1 concept, ⏳ **Owner** reads it, then the lawyer (T1); 📋 **Decided 2026-09-24** (D1, D2) | §3. Free, a few weeks, no obligations, no backups, no availability promise, how it ends. The owner wrote them in the plan; an agent drafted them at the owner's word. |
 | T3 Acceptance recorded, with version and time, at first sign-in | 📋 **Proposed** | §3. A screen, one managed table, and no connection or migration before acceptance. |
 | T4 A notice wherever a tester's data is collected | 📋 **Proposed** | §3. The request form, the identity provider's registration page (0135 T5), the Connect buttons, the report form. The grant page's addresses were fixed in #1137, merged 2026-09-24. |
-| T5 The sub-processors named | ⏳ **Owner** for the names; 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
-| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the rest 📋 **Proposed** | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
-| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
+| T5 The sub-processors named | ⏳ **Owner** for the names; the text 🔨 **drafted 2026-09-28**, not committed: privacy §7 and `subprocessors.md` 0.2 name Proton AG, in Switzerland, for the relay and the support mailbox, and no hosting provider during the Alpha (the machine's country is `«HOSTING_REGION»`); no Zammad during the Alpha (0130 T5). The ingress (T0 fact 1) has a row of its own in privacy §7 and `subprocessors.md`, with `«INGRESS_PROVIDER»` and `«INGRESS_REGION»` for the owner to fill, or the row goes if TLS ends on the machine (review fixes, 2026-09-28); whether any company houses or reaches the machine is still the owner's — *was:* 📋 **Proposed** for the text | §3. The ingress in front of the production names testers use (0132 T1e), the mail relay (0133 T5), the support channel (0130). |
+| T6 What is kept, and for how long, made true | 🔨 **Credentials on delete built 2026-09-27**, merged as #1229; access requests 📋 **Decided 2026-09-27** (open question 2 (a)) and 🔨 **built 2026-09-27**, merged as #1255 (declined ones deleted 30 days after the decision); the wording 🔨 **drafted 2026-09-28** in privacy §9 for every row §3 T6 names, not committed; the rest's code 📋 **Proposed**: a closed organisation's passes, the copy's 7 days and `dump-idp.sh`'s dumps, accounts nobody let in (0135 T8) | §3. Access requests, credentials, preflight counts, sign-in data, logs, the task runner's stores, run history. A code change or a wording change for each. |
+| T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`, and the identity provider's account by hand until 0135 T8; terms §11 and privacy §9 describe that close in the drafts of 2026-09-28, beside the Alpha conditions' 7 days; *was:* 📋 **Proposed** | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
-| T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11's form still goes with T1 — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
+| T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
 | T10 The texts published where a tester can read them, with no placeholder left | (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) 🔨 **built 2026-09-28** on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, **not merged**: `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`; (c) `--no-drafts` not needed, by that answer — *was:* (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1 | §3. Only if the lawyer confirms the household model the terms describe. |
 
@@ -996,9 +1333,13 @@ is not rendered by the build, and 0086 T5 owns it.
    answer decides whether the ingress is a sub-processor.
 2. **The support mailbox.** Which provider hosts `support@ownpace.eu`, and does a person read it
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
+   **Answered:** the owner reads it (0133 open question 3, 2026-09-27), and Proton hosts it (0133
+   Status, 2026-09-28). Privacy 1.2 names Proton AG in §7 (draft, 2026-09-28).
 3. **Zammad.** Is the report form (0130) configured on live, and where does that Zammad run?
    **Supplied 2026-09-28:** *"yes, we need that. I haven't seen it funcitonal yet."* The form is
    on in live for the whole Alpha; where its Zammad runs is still the owner's to say.
+   *(2026-09-28, later: for the Alpha a report goes by mail to `support@ownpace.eu`, not to a
+   Zammad, the owner's *"b"* in 0130 T5, on its branch and not merged. Privacy 1.2 §4.5 says so.)*
 4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys will live's `.env` set?
 5. **Organisations in the alpha.** Is any tester a business rather than a household (open
    question 6)? **Supplied 2026-09-28:** *"tester: households only for now."*
