@@ -171,7 +171,8 @@ de VIES-dienst van de Europese Commissie.
 ### 4.5 Support en operationele logs
 
 **Supportmail.** Alles wat u naar support@ownpace.eu stuurt. Het komt aan in een mailbox die
-onze e-mailaanbieder voor ons bewaart (§7).
+onze e-mailaanbieder voor ons bewaart (§7). Dezelfde mailbox bewaart een kopie van de mail die de
+dienst verstuurt, zoals inlogcodes, voortgangsoverzichten en de berichten die u ons laat sturen.
 
 <!-- NOT YET TRUE ON main: the report by mail is 0130 T5, committed on its branch and not merged;
      on main the form is offered only with ZAMMAD_URL and a token. True once T5 is merged and
@@ -295,7 +296,7 @@ inclusief de **Limited Use**-eisen. Concreet, in onze eigen woorden:
   voortgang te tonen.
 - We **dragen** Google-gebruikersgegevens **niet over** aan wie dan ook, behalve aan het
   verhuisdoel dat u zelf hebt gekozen; aan mensen aan wie u ons zelf vraagt te laten weten waar
-  een gedeeld item is gebleven (§4.6); aan «INGRESS_PROVIDER», die uw verbindingen naar ons
+  een gedeeld item is gebleven (§4.6); aan NetBird GmbH, die uw verbindingen naar ons
   doorgeeft, en aan de aanbieder die de mail van de dienst vervoert (§7), elk alleen daarvoor; en
   waar de wet dat verplicht.
 - We gebruiken Google-gebruikersgegevens **niet** voor advertenties, in welke vorm dan ook.
@@ -323,17 +324,20 @@ app-wachtwoord te verwijderen dat u hebt aangemaakt.
 ## 7. Wie er verder bij komt
 
 Tijdens de Alpha draaien de dienst, de databases, onze inlogdienst en deze website op een
-machine die we zelf beheren, in «HOSTING_REGION».
+machine die we zelf beheren, in Nederland.
 
-<!-- OPEN, 0139 T0 fact 1: where TLS ends for app., id., status. and www.ownpace.eu. The
-     repository says the mesh provider terminates it (managed.yml, "netbird terminating TLS on
-     443"; 0091; 0132 T1e), and a DNS lookup found the OTA names at its hosted ingress. The row
-     below stays, with its two placeholders, until the owner names the entity and region, or
-     says TLS ends on the machine and deletes the row, and the words naming it in §6 (README). -->
+<!-- The owner, 2026-09-28 (0139 T0 fact 1): "app/site hosting is in The Netherlands, through
+     NetBird (Germany) delivers the forward proxy". Read as the service in front of the machine
+     that ends TLS for app., id., status. and www.ownpace.eu (managed.yml, "netbird terminating
+     TLS on 443"). TO CONFIRM before publication (README): the entity name, NetBird GmbH, from
+     NetBird's terms or data-processing agreement (it was read from search results of NetBird's
+     terms, not from netbird.io itself); that agreement in place for the account; where the
+     proxy cluster the names point to runs; and whether its access log, which records the
+     visitor's IP address and the full page asked for, is on (privacy briefing). -->
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
-| «INGRESS_PROVIDER» | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen | «INGRESS_REGION» |
+| NetBird GmbH | Uw verbindingen met app.ownpace.eu, id.ownpace.eu, status.ownpace.eu en www.ownpace.eu doorgeven naar onze machine. Het beëindigt de versleuteling (TLS) van die verbindingen, dus wat erdoorheen gaat, zoals wat u typt als u inlogt en wat de app u toont, gaat er leesbaar doorheen | Duitsland (EU) |
 | Proton AG | De mail van de dienst versturen, zoals inlogcodes, ons antwoord op uw aanvraag voor toegang, voortgangsoverzichten, en de berichten die u ons laat sturen. Onze supportmailbox bewaren, support@ownpace.eu, waar uw mail aan ons en tijdens de Alpha ook probleemmeldingen binnenkomen (§4.5) | Zwitserland, buiten de EU (§8) |
 
 De actuele lijst staat op «SUBPROCESSORS_URL». Verhuist de dienst na de Alpha naar een
@@ -386,7 +390,15 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
      - De kopie vlak voor een update, "nooit langer dan 7 dagen": the copy of the service's
        databases is taken and deleted by hand (stand-up-live.sh: "no script takes it or deletes
        it yet"), and deploy/compose/dump-idp.sh keeps every dump of the sign-in service's
-       database ("none is ever overwritten"). -->
+       database ("none is ever overwritten"). The owner, 2026-09-28: "deletes only after procen
+       successfull upgrade" (README).
+     - Een inlogaccount dat we nooit hebben toegelaten, "30 dagen nadat het is aangemaakt":
+       nothing removes one yet. 0135 T8 (deploy/compose/idp-strays.sh) is proposed, not built;
+       until then the owner removes these by hand in the sign-in service's console.
+     - Serverlogs: the row holds with Docker's default log driver, which keeps a container's
+       output until the container is removed (0134 open question 6 (a)). If the machine logs to
+       journald instead, as docs/managed-bring-up.md's steps for live still ask, the row is a
+       period, not this criterion (README). -->
 
 | Wat | Bewaard |
 |---|---|
@@ -400,12 +412,12 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Uw account, uw organisatie en uw inlogaccount | Zolang uw account bestaat. Sluit u het, dan kiest u wanneer uw gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Op die dag halen we ook uw inlogaccount uit onze inlogdienst, en uw Google-adres van de lijst van testgebruikers bij Google (§6); dat zijn stappen die we met de hand doen. |
 | De geschiedenis die onze inlogdienst van uw inlogaccount bijhoudt: elke wijziging eraan, zoals uw naam en e-mailadres zoals ze waren, en uw inlogmomenten | Er is nog geen termijn vastgesteld. Het verwijderen van uw inlogaccount voegt een regel aan die geschiedenis toe; het verwijdert de eerdere niet. |
 | Uw aanvraag voor toegang (§4.4) | Zolang die openstaat. Afgewezen: verwijderd 30 dagen na ons besluit. Toegekend: bewaard bij uw account, en daarmee gewist. |
-| Een inlogaccount op onze inlogpagina dat we nooit hebben toegelaten | «UNADMITTED_SIGNIN_RETENTION» |
-| Supportmail en probleemmeldingen (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden; dan verwijderd uit de mailbox. |
+| Een inlogaccount dat iemand op onze inlogpagina aanmaakte maar dat we nooit hebben toegelaten, en dat dus niets opent (§4.4) | 30 dagen nadat het is aangemaakt, tenzij een aanvraag voor toegang met dat adres nog openstaat. |
+| Supportmail en probleemmeldingen, en de kopieën van de eigen mail van de dienst in dezelfde mailbox (§4.5) | Tot de vraag of het probleem is afgehandeld, en daarna nog 6 maanden; een kopie van de eigen mail van de dienst, 6 maanden nadat die is verstuurd. Dan verwijderd uit de mailbox. |
 | De vastlegging van wat wij bij uw account inzagen (§4.5) | Tot uw gegevens worden gewist. Wat zonder organisatie wordt vastgelegd, blijft daarna staan: een zoekopdracht op adres, en een download van het logboek van wie wat deed. |
 | De kopie vlak voor een update | Tot de volgende update gelukt is, en nooit langer dan 7 dagen. Hetzelfde geldt voor de kopie van de database van onze inlogdienst, gemaakt voordat die dienst wordt bijgewerkt. Zo'n kopie is er alleen om een mislukte update terug te draaien, en verlaat de hostingomgeving niet. Gegevens die uit de dienst zijn gewist, kunnen nog hoogstens 7 dagen in die kopie staan. |
 | Vastleggingen van de achtergrondtaken die uw verhuizingen uitvoeren (kenmerken, aantallen, en bij een fout een categorie en een referentie; geen namen, adressen of inhoud, op de reden na die een van ons typt wanneer een overstap wordt teruggedraaid) | Er is nog geen termijn vastgesteld. Ze worden niet verwijderd wanneer uw gegevens worden gewist. Elke dag wordt er een kopie van gemaakt, om te controleren dat zo'n kopie terug te zetten is, en de nieuwste zeven kopieën worden bewaard. |
-| Serverlogs (§4.5) | «LOG_RETENTION» |
+| Serverlogs (§4.5) | Tot het onderdeel van de dienst dat ze schreef wordt vervangen: voor de app en deze website bij elke update van de dienst; voor onze inlogdienst wanneer de versie of de instellingen ervan veranderen; voor een achtergrondtaak wanneer die klaar is. Er is geen vaste termijn. |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist. Tijdens de Alpha wordt niets in rekening gebracht: er zijn dan geen facturen, en de gebruikscijfers verdwijnen wanneer uw gegevens worden gewist. |
 
 **Tijdens de Alpha maken we geen back-ups**, op de kopieën vlak voor een update en de dagelijkse

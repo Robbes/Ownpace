@@ -21,6 +21,12 @@
     takes part as a consumer, and the Alpha is in Dutch (0139 D2); where
     testers live is not recorded, and questions 14 and 15 turn on it. The
     data-processing agreement is part of no Alpha contract.
+  - The owner answered the questions put to them the same day (0139 Status
+    quotes each answer in full). Final or the lawyer: "park them in PR that
+    i will review." So these terms stay a draft, in the pull request, for
+    the owner's own review; the lawyer's pass stays deferred, and the Version
+    line changes only when the owner approves the text. The terms' answers
+    are under questions 12, 13, 15 and 22 and old question 9.
 
   Before the draft marker comes off the Version line, these must be true, or
   the sentence that relies on them must change:
@@ -159,6 +165,8 @@
     intent, deliberate recklessness, death or injury, or GDPR compensation.
     Was: one cap for everyone, "the amount you paid us in the twelve months
     before the claim", with the consumer carve-out of v1.1 (question 13).
+    The owner's "yes" (2026-09-28) is read as keeping it as drafted
+    (question 13).
   - §11, second paragraph: we say why before ending for a serious breach, and
     refund a prepaid part if we end the terms. Was: neither.
   - §12: a consumer may also end the contract within 30 days after a change
@@ -180,7 +188,10 @@
       the first invitation, or pick another route and rewrite §1 to it
       (precondition A)? And will you take these terms as final for the Alpha
       without the lawyer's pass, as you did the Alpha conditions? Until one
-      of the two, the first invitation waits.
+      of the two, the first invitation waits. NOW (2026-09-28), the second
+      half: "park them in PR that i will review." The owner reviews these
+      terms in the pull request; the lawyer's pass stays deferred. How
+      acceptance is recorded stays open.
   13. §10: is the consumer clause right with no cap at all? The reviewer's
       alternative is a consumer cap with a floor (the greater of what was paid
       in twelve months and a fixed sum, which would be a new placeholder; not
@@ -189,7 +200,13 @@
       towards a consumer? The reviewer reads a zero cap as a total exclusion,
       on the grey list, and a rescue clause ("to the extent the law allows")
       as not saving it. And does the Alpha conditions' "No obligations, on
-      either side" (their §4) hold beside this §10?
+      either side" (their §4) hold beside this §10? NOW (2026-09-28): asked
+      whether §10 keeps no cap towards consumers, as drafted, and whether
+      the English governs or both languages count, the owner answered
+      "yes". We read that as keeping §10 as drafted: towards
+      consumers no cap, liable as the law provides. This is our reading of a
+      one-word answer to a two-part question, recorded so the owner can
+      correct it in the pull request. The lawyer's questions above stand.
   14. §13: the forum. The reviewer reads the old clause as void against
       consumers (black list, forum clauses). Confirm the wording for business
       customers (was question 9).
@@ -207,7 +224,16 @@
       translationNote in site/copy.mjs in the same change: the note is shared
       by the privacy and terms pages, so it becomes a note per page, or
       neutral words. The Alpha conditions have no language clause of their
-      own.
+      own. NOW (2026-09-28): asked whether the English governs or both
+      languages count, beside question 13's cap, the owner answered "yes".
+      We read that as keeping §13 as drafted: the English governs, except where mandatory consumer law
+      provides otherwise. It is our reading, which the owner may correct in
+      the pull request; whether the rule can stand for a Dutch-first Alpha is
+      still this question. One mismatch to fix whichever way it goes: the
+      note above the Dutch privacy and terms pages says only "Bij verschillen
+      is de Engelse versie de tekst die geldt." It does not carry §13's
+      exception; adding ", behalve waar dwingend consumentenrecht anders
+      bepaalt" to translationNote in site/copy.mjs would make the two agree.
   16. §12: are the reasons and the right to end enough? One of the listed
       "good reasons", "a change to the service or its prices", is the change
       itself rather than a reason for it. As we read the unfair-terms rules
@@ -242,7 +268,56 @@
   22. §1: must a telephone number be given before paid tiers? Must
       "Ownpace" be registered as a handelsnaam of Archico B.V. first (was
       question 9)? A telephone number would need a new placeholder and a
-      README row; neither is added.
+      README row; neither is added. NOW (2026-09-28), the owner's answers
+      and what they settle:
+      - The name. The owner: "Ownpace is registered, check Ownpace-repo for
+        the info: TRADEMARK.md". TRADEMARK.md records a trademark
+        application, not a registration and not a handelsnaam: "a
+        trademark of Archico B.V. (Benelux trademark application 1556706,
+        filed 2026-08-30, registration pending; an EU application
+        follows)", and "until the registration completes, "Ownpace"™ is
+        used as an unregistered mark". So the texts may say "Ownpace is a
+        trademark of Archico B.V." with ™, and not "registered trademark"
+        or ® until the Benelux office registers it. A handelsnaam is a
+        separate entry in the KvK register, which TRADEMARK.md does not
+        cover; the owner's own records have it filed at the KvK on
+        2026-08-30 and awaiting registration. Once a current KvK uittreksel
+        shows it, §1 in both texts, and privacy §1, can say "Archico B.V.,
+        trading as Ownpace" / "Archico B.V., handelend onder de naam
+        Ownpace". Nothing is added until then.
+      - The address. The owner: "My address, is it needed? I also live
+        there, and rather have correspondance by email." Our reading, not
+        verified here: probably yes. BW 3:15d (the e-Commerce Directive's
+        art. 5) asks a provider of an information society service for its
+        geographic address of establishment, and a free service offered as
+        part of an economic activity is one (CJEU C-291/13 Papasavvas,
+        C-484/14 Mc Fadden). §15's model withdrawal form asks for the
+        trader's geographic address. For paid consumer tiers, BW 6:230m
+        asks for the geographic address, a telephone number and an email
+        address before the contract (since the Omnibus Directive); the free
+        Alpha is probably outside it if testers' data serve only the
+        service. A postbus alone is probably not a geographic address; it
+        can be printed beside one as a correspondence address. A B.V.'s
+        vestigingsadres is public in the KvK register already, and a B.V. can
+        shield it only on a concrete threat. The owner's wish fits beside
+        the address, for example "We answer by email: support@ownpace.eu.
+        Post reaches us at Archico B.V., «REGISTERED_ADDRESS», but more
+        slowly; please use email where you can." / "Wij antwoorden per
+        e-mail: support@ownpace.eu. Post kan naar Archico B.V.,
+        «REGISTERED_ADDRESS», maar is trager; gebruik waar u kunt e-mail."
+        A letter that does arrive still counts, and making email the only
+        valid channel for a consumer's notices may be an unreasonably
+        onerous term (BW 6:233, 6:236-237). The alternative, if the owner
+        does not want the home address on the site, is a business address
+        registered at the KvK as the vestigingsadres, which changes the
+        register, not only the texts. Please confirm each point. The
+        address stays «REGISTERED_ADDRESS» until the owner chooses.
+      - The btw-id. The owner: "VAT number was already mentioned, check
+        Ownpace-repo for the info: site/legal/README.md". It is not there:
+        the README's row is the placeholder, and neither this repository
+        nor its history records Archico B.V.'s btw-id (the KvK number,
+        73922706, is printed beside the token and may be what was meant).
+        «VAT_NUMBER» stays until the owner or the accountant supplies it.
   23. §4: keep the privacy policy "part of these terms", or incorporate only
       the commitments it makes? The reviewer's alternative: "The privacy
       policy explains how; the commitments it makes to you are part of this
@@ -297,7 +372,9 @@
   9. Entity facts: Archico B.V. (KvK 73922706, seat Wijhe), court in
      Overijssel. Still tokens: «REGISTERED_ADDRESS» (the owner decides the
      printed form) and «VAT_NUMBER» (the btw-id, from the accountant). NOW:
-     the forum wording is question 14, the handelsnaam question 22.
+     the forum wording is question 14, the handelsnaam question 22, and the
+     owner's answers on the address, the btw-id and the name of 2026-09-28
+     are under question 22 too.
   10. The privacy policy's own revision into processor and controller roles.
       NOW: done, in privacy v1.1 (2026-08-30).
   11. v1.2 (2026-09-24): Tiny is free, with no billing at all (ADR-0014).

@@ -4,6 +4,133 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, last: the owner's answers to *For the owner*, applied where they are clear**, on
+branch `claude/ownpace-public-readiness-y7orc6-the-privacy-policy-and-terms-revisited` (draft PR
+#1317). Items 1 to 11 of *For the owner* (in the entry *the privacy policy (1.2) and the terms
+(1.3) revisited*, below) were put to the owner as eight points. The answers, verbatim, each after
+the point it answers:
+
+1. Final or the lawyer (item 1): *"park them in PR that i will review."*
+2. Facts (item 2: the machine's country; where TLS ends, and the ingress's legal entity and
+   region; the printed form of `«REGISTERED_ADDRESS»`; `«VAT_NUMBER»`; whether "Ownpace" is a
+   registered handelsnaam): *"app/site hosting is in The Netherlands, through NetBird (Germany)
+   delivers the forward proxy. My address, is it needed? I also live there, and rather have
+   correspondance by email. VAT number was already mentioned, check Ownpace-repo for the info:
+   site/legal/README.md Ownpace is registered, check Ownpace-repo for the info: TRADEMARK.md"*
+3. Proton (item 3: keep Proton AG, Switzerland; its data-processing agreement accepted for the
+   account behind `support@ownpace.eu`; that account Archico B.V.'s; the service's sent mail kept
+   there): *"yes"*
+4. Periods (item 4: sign-in accounts nobody let in, 30 days proposed; server logs): *"30 days is
+   ok, but those are free no further used accounts? Server logs: check ownpace repo on this."*
+5. Addresses (item 5: `«SUBPROCESSORS_URL»`, `«PRIVACY_HISTORY_URL»`): *"recommend me what to
+   do."*
+6. The copies (item 7: `dump-idp.sh`'s dumps pruned at 7 days or deleted once an upgrade
+   succeeds; deleting the copy before an update automated; the daily drill's dumps named in
+   privacy §9, or the drill stopped on live): *"deletes only after procen successfull upgrade, so
+   we already have one backup copy of what actually works. What about the drill?"*
+7. Terms (item 9: no cap towards consumers, as drafted; the English governs, or both languages
+   count): *"yes"*
+8. The Alpha conditions §10's credentials sentence, which the code contradicts (item 11): *"what
+   do you recommend?"*
+
+Items 6, 8 and 10 have no answer in this set and stay open as written below.
+
+- **Applied.** Both texts stay drafts in the pull request, for the owner's own review; the
+  lawyer's pass stays deferred, and no *Version* line changes until the owner approves the text.
+  - `«HOSTING_REGION»`: *the Netherlands* / *Nederland* (privacy §7, `subprocessors.md`). Whether
+    a company houses the machine or can reach it is not answered and stays open.
+  - `«INGRESS_PROVIDER»`, `«INGRESS_REGION»`: *NetBird GmbH*, *Germany (EU)* / *Duitsland (EU)*
+    (privacy §6's transfer bullet and §7's first row, both languages; `subprocessors.md`).
+    *"Forward proxy"* is read as the reverse proxy in front of the machine that ends TLS, as
+    `managed.yml` says. Germany is in the EU, so §8 is unchanged. The entity name was read from
+    search results quoting NetBird's terms (Amtsgericht Berlin (Charlottenburg), HRB 237529 B),
+    because `netbird.io` cannot be reached from here; `site/legal/README.md` marks it *to
+    confirm*, with NetBird's data-processing agreement, the proxy cluster's location and HTTP
+    mode. Privacy §4.5 is unchanged: our nginx logs record `$remote_addr`, which behind NetBird
+    would be its proxy, and the API does the same without `TRUST_PROXY`, but NetBird's mode and
+    live's `TRUST_PROXY` are not checked, so whose IP address our logs record stays a question
+    (privacy briefing; 0132 T3 (d)). New in the privacy briefing, from NetBird's documentation:
+    its proxy keeps an access log with the visitor's IP address, a location and the full path,
+    a grant link's secret included.
+  - Proton (*"yes"*): `site/legal/README.md` records it as confirmed: the agreement accepted for
+    `support@ownpace.eu`, the account Archico B.V.'s, the service's sent mail kept there.
+    Privacy §4.5 now says the mailbox keeps a copy of the mail the service sends, and §9's
+    support-mail row covers those copies: *6 months after it was sent* / *6 maanden nadat die is
+    verstuurd*, which reads *"Until resolved + 6 months"* for mail that answers no question. The
+    owner confirms that reading in the pull request. Where Proton's agreement says Proton
+    processes stays open (privacy question 11).
+  - `«UNADMITTED_SIGNIN_RETENTION»`: *30 days after it was created, unless a request for access
+    with that address is still open* / *30 dagen nadat het is aangemaakt, tenzij een aanvraag
+    voor toegang met dat adres nog openstaat*. The row now describes a sign-in account someone
+    created at our sign-in page and we never let in, which opens nothing (§4.4). The owner's
+    question is answered in the README: unused, yes; free-tier, no. Anyone can create one,
+    because self-registration is on, and it opens nothing until an operator grants a request
+    for that address, but the sign-in service holds a name, an address, a password hash,
+    sessions and its history for it. Not built: 0135 T8 removes them, and until then the owner
+    does, by hand (a comment beside privacy §9, both languages, and the README). One gap in T8's
+    rule, not edited in 0135: it should also spare an address with an open invitation, or a
+    person granted after registering who has not yet signed in to the app is removed at day 30.
+  - `«LOG_RETENTION»`: a criterion, not a number, because nothing enforces a number: *until the
+    part of the service that wrote them is replaced: for the app and this website, at each
+    update of the service; for our sign-in service, when its version or its settings change; for
+    a background task, when its run ends. There is no fixed period.* (Dutch the same.) No
+    compose file for live sets `logging`, so Docker's default keeps a container's output until
+    the container is removed; `deploy-live.sh` recreates the app's and the website's containers
+    at each deploy, the sign-in service's only on a change of image or configuration. The README
+    lists what would make *30 days* true: journald on the machine with a 30-day retention and a
+    short `MaxFileSec`, a check of `docker info --format '{{.LoggingDriver}}'` in
+    `stand-up-live.sh` or `box-duties.sh`, and 0134 open question 6 re-decided. It also records
+    the conflict: `docs/managed-bring-up.md` lists the journald log driver among the owner's
+    steps for live, while 0134 open question 6 was answered (a). If the machine does log to
+    journald, the row is wrong and must give the journal's period.
+  - Terms (*"yes"*), recorded as our reading, which the owner may correct in the pull request:
+    both kept as drafted, no cap towards consumers (§10) and the English governs except where
+    mandatory consumer law provides otherwise (§13). In the terms briefing (the §10 decision,
+    questions 13 and 15) and the README. The README said the note above the Dutch pages *"says
+    the same"* as §13; it does not carry §13's exception, and now says so, with the words that
+    would add it (terms question 15). `translationNote` is not changed.
+  - The name: `TRADEMARK.md` records a Benelux trademark *application* (1556706, registration
+    pending), not a registration and not a handelsnaam. The texts may say *"Ownpace is a
+    trademark of Archico B.V."*, with ™, never ® or *registered* until the Benelux office
+    registers it; *"trading as Ownpace"* only once a current KvK uittreksel shows the
+    handelsnaam. Terms question 22 and the README's `«LEGAL_ENTITY»` entry say so; nothing is
+    added to the texts.
+- **Not filled.** `«VAT_NUMBER»`: `site/legal/README.md` has held the placeholder in every
+  version, and no file in the repository records Archico B.V.'s btw-id; the KvK number printed
+  beside it may be what the owner meant. It stays a token until the owner or the accountant
+  supplies it, and a VAT number in a unit test's fixture is not it.
+- **Not decided, recorded with the owner's words and a recommendation** (the privacy briefing's
+  *For the owner before publication*, terms question 22, the README):
+  - `«REGISTERED_ADDRESS»`: probably needed in the terms (BW 3:15d for an information society
+    service, which a free Alpha offered by a B.V. probably is; the §15 model form), a reading for
+    the lawyer. Recommended: print the vestigingsadres in privacy §1, terms §1 and §15, with
+    email first beside it (the wording, both languages, in terms question 22), or register a
+    business address at the KvK. The README row no longer offers a postbus as the only form. No
+    address is written anywhere.
+  - `«SUBPROCESSORS_URL»`: make privacy §7's table the complete list for the Alpha, and publish
+    `subprocessors.md` with its Dutch text when the first business customer and the DPA arrive.
+    `«PRIVACY_HISTORY_URL»`: the file's history in the public repository, per language.
+  - The copies: the owner's answer is §9's *"until the next update succeeds"*; the 7-day cap
+    that §9, the Alpha conditions §6 and the erasure date rest on is not settled. Recommended:
+    delete the copy once the update it was made for is proven, never later than day 7, with one
+    script and one directory for the whole copy and a daily backstop.
+  - The drill: take it off live's duties for the Alpha and keep the OTA stack's nightly drill;
+    take `trigger-version.sh backup before-<version>` before a Trigger.dev upgrade on live under
+    the copy's rule; then privacy §9 drops the drill sentence and the *"daily copies"*.
+  - The Alpha conditions §10: the 1.1 wording already in the entry below (*"We keep that access
+    until you delete the connection; access a family member gave through a grant link, until
+    you delete the migration."*, with its Dutch), so the conditions follow the code. The
+    conditions are not edited.
+- **Files**: `site/legal/privacy.md`, `privacy.nl.md` (§4.5, §6, §7, §9, and the briefing),
+  `terms.md` (the briefing only), `subprocessors.md`, `dpa.md` (a briefing line),
+  `site/legal/README.md`, and T0 fact 1 below.
+- **Proved.** `npx vitest run --project unit scripts/legal-docs.unit.test.ts site/site.unit.test.ts
+  scripts/a-policy-link-that-answers.unit.test.ts scripts/one-way-to-report-a-vulnerability.unit.test.ts
+  scripts/workplan-index.unit.test.ts`: 5 files, 91 tests pass. `OWNPACE_APP_URL=https://app.ota.ownpace.eu
+  node site/build.mjs --check`: *"4 legal page(s) marked draft"* and *"14 pages across 2 locales,
+  14 unfilled placeholder(s)"* (four per language in the privacy policy, three in the terms; 28
+  before). Both languages have the same sections, table rows, list items and placeholders.
+
 **2026-09-28, the support-mail period filled.** Asked how long report mails in `support@ownpace.eu`
 are kept, the owner chose *"Until resolved + 6 months"* (with *"Both parts"* for the facts a report
 carries, 0130, and *"Send anyway"* when those facts cannot be read). Privacy 1.2's §9 row *Support mail
@@ -1330,7 +1457,11 @@ is not rendered by the build, and 0086 T5 owns it.
    `status.ownpace.eu`, once 0132 T1e routes them, and `www.ownpace.eu` if fact 6 puts it behind
    the same ingress. Is it on the reference machine, or at a service the mesh provider operates?
    If the latter, which legal entity, and in which region? 0132 T3 records the path, and this
-   answer decides whether the ingress is a sub-processor.
+   answer decides whether the ingress is a sub-processor. **Supplied 2026-09-28:** *"app/site
+   hosting is in The Netherlands, through NetBird (Germany) delivers the forward proxy"*: TLS
+   ends at NetBird's hosted proxy, in Germany, a sub-processor. Privacy 1.2 names NetBird GmbH;
+   the entity name, NetBird's data-processing agreement and the proxy cluster's location are to
+   confirm (`site/legal/README.md`).
 2. **The support mailbox.** Which provider hosts `support@ownpace.eu`, and does a person read it
    during the alpha (0133 open question 3)? Privacy §1 says *"A person reads that address."*
    **Answered:** the owner reads it (0133 open question 3, 2026-09-27), and Proton hosts it (0133

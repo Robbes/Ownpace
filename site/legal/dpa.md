@@ -45,9 +45,10 @@
   - The Status line becomes a Version line the site build can read (0139
     T2), and «SUBPROCESSORS_URL» loses its backticks, before 0086 T5
     publishes this.
-  - §8 and Annex C against privacy §7: a service in front of the machine that
-    ends TLS (0139 T0 fact 1) would be a sub-processor, and its region may
-    matter to §12.
+  - §8 and Annex C against privacy §7: the service in front of the machine
+    that ends TLS is NetBird GmbH, in Germany (the owner, 2026-09-28; the
+    entity name to confirm, README), a sub-processor in the EU, so §8's and
+    §12's sentences on the EU hold; subprocessors.md lists it.
 
   Questions for the reviewing lawyer:
 
