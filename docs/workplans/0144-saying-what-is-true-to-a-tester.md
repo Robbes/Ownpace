@@ -981,6 +981,11 @@ step 8f of the bring-up does what it says, and
 `main` until the branch merges. 0131 T5's row for 0130 then has a way to become true, once a
 Zammad is configured for `ownpace-live` (0139 T0 fact 3); until then the address above is the
 tester's way to a person.
+*(2026-09-28: no Zammad runs for `ownpace-live` during the alpha (0139 T0 fact 3), and none is
+needed for the form. With the API's mail set up and no Zammad, a report goes by mail to the
+support mailbox (0130 T5), so 0131's row for 0130 becomes true once live's `.env` has
+`REPORT_MAIL_TO` and a test report arrives. The address above is the tester's way to a person
+where the form is off, as the sidebar line says.)*
 
 **The GitHub chooser.**
 

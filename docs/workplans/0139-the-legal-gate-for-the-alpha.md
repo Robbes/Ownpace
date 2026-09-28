@@ -657,10 +657,12 @@ against the stubs in their guards.
    every migration; the English says *"Your migrations"* and *"with your migrations"*.
 3. *"ok."* From the current hosting environment to another hosting provider, as it stands.
 4. *"yes."* §6: *"That copy does not leave the hosting environment."*
-5. *"yes, we need that. I haven't seen it funcitonal yet."* The report form (0130, `ZAMMAD_URL`,
-   `ZAMMAD_TOKEN`, `ZAMMAD_GROUP` in live's `.env`, a Zammad the owner runs) is on in live for the
-   whole Alpha, so §12's *Report a problem* is true. T0 fact 3 below is answered by it, and the
-   form's working on live joins what waits for the first invitation (0131 T5's 0130 row).
+5. *"yes, we need that. I haven't seen it funcitonal yet."* The report form (0130) is on in live
+   for the whole Alpha, so §12's *Report a problem* is true. It sends by mail, not to a Zammad (the
+   owner's *"b"*, later the same day): `REPORT_MAIL_TO=support@ownpace.eu` in live's `.env`,
+   through the Proton relay (0133), and no `ZAMMAD_*` keys, since no Zammad runs during the alpha
+   (0130 T5). T0 fact 3 below is answered by it, and the form's working on live joins what waits
+   for the first invitation (0131 T5's 0130 row).
 6. *"We do tell the tester."* §4: *"Wij melden u een datalek"* / *"We tell you about a data
    breach"*, where that is required.
 7. *"explain context, i dont get it."*, then, told that the italics in §2 name privacy §9 by its
@@ -1512,9 +1514,13 @@ is not rendered by the build, and 0086 T5 owns it.
    Status, 2026-09-28). Privacy 1.2 names Proton AG in §7 (draft, 2026-09-28).
 3. **Zammad.** Is the report form (0130) configured on live, and where does that Zammad run?
    **Supplied 2026-09-28:** *"yes, we need that. I haven't seen it funcitonal yet."* The form is
-   on in live for the whole Alpha; where its Zammad runs is still the owner's to say.
-   *(2026-09-28, later: for the Alpha a report goes by mail to `support@ownpace.eu`, not to a
-   Zammad, the owner's *"b"* in 0130 T5, on its branch and not merged. Privacy 1.2 §4.5 says so.)*
+   on at `ownpace-live` for the whole Alpha. Later that day, where it sends: *"b"*, by mail, not
+   to a Zammad. Each report is a mail to `support@ownpace.eu` through the Proton relay (0133), with
+   the screenshot attached. No Zammad runs during the alpha; it stays the long-term plan. So no
+   helpdesk route is added behind fact 1's ingress, and no sub-processor is added: Proton already
+   is one (0133). The report does land in the support mailbox, which 0130 T4's paragraph must say
+   (0130 T5, merged 2026-09-28 as #1318).
+   Privacy 1.2 §4.5 says so (draft, 2026-09-28).
 4. **Social sign-in.** Which of the four `IDP_*_CLIENT_ID` keys will live's `.env` set?
 5. **Organisations in the alpha.** Is any tester a business rather than a household (open
    question 6)? **Supplied 2026-09-28:** *"tester: households only for now."*
@@ -1694,7 +1700,9 @@ mirror and `subprocessors.md` carry the same rows.
   forwards from, and its provider is the one the texts name for that period.
 - **The support channel.** Whoever hosts `support@ownpace.eu` handles every rights request and
   support mail. The same goes for the Zammad that holds problem reports (0130), unless it runs on
-  the machine the hosting row already covers.
+  the machine the hosting row already covers. During the alpha there is no Zammad: reports go by
+  mail through the Proton relay and sit in the support mailbox (T0 fact 3, 0130 T5), so this row
+  and the relay's cover them.
 
 No code changes, so there is no guard. T10 renders `subprocessors.md`, which gives
 `«SUBPROCESSORS_URL»` an address.
