@@ -2030,6 +2030,36 @@ Set it by hand with the provisioning token, and read it back:
 }
 close_public_org_registration
 
+# ---------------------------------------------- how many organisations here --
+#
+# ONE, AND COUNTED ON EVERY RUN (workplan 0135 T3). The two settings above keep
+# a stranger from founding a second organisation from now on; this says
+# whether anybody did before they were in place, or since, by some other door.
+# An organisation somebody founded could hold an account whose address the
+# provider calls verified, and a grant could have been bound to it (0135 §1).
+#
+# It WARNS AND DOES NOT REFUSE: whoever runs this instance may create a second
+# organisation on purpose, and a bring-up that stopped for it would stop the
+# stack as well. And it gives the NUMBER ONLY, never a name, because the nightly
+# gate's log is public. 0135 T3 says what to do when it is more than one.
+#
+# `details.totalResult` is a 64-bit count, which proto3 JSON writes as a string,
+# and leaves out when it is zero.
+count_organisations() { jq -r '.details.totalResult // "0"' <<<"$(api POST /admin/v1/orgs/_search '{}')"; }
+say_organisation_count() {   # <count>
+  if [ "$1" = "1" ]; then
+    say "organisations on this instance: 1, as it should be"
+    return 0
+  fi
+  say "WARNING: THIS INSTANCE HOLDS $1 ORGANISATIONS, AND IT SHOULD HOLD ONE."
+  say "  Somebody may have founded one of their own, and made an account there whose"
+  say "  address this provider calls verified. Stop granting access until it is checked:"
+  say "  workplan 0135, T3, says how to find who is in which organisation, and what"
+  say "  to do about a membership bound through one."
+}
+ORG_COUNT="$(count_organisations)"
+say_organisation_count "$ORG_COUNT"
+
 # ------------------------------------------------------------------- writing --
 
 say "writing the configuration into .env"
@@ -2095,6 +2125,7 @@ cat <<EOF
   audience   ${PROJECT_ID}
   client     ${CLIENT_ID}
   console    ${ISSUER}/ui/console
+  organisations ${ORG_COUNT} (one is right: workplan 0135 T3)
   first user $(read_env ZITADEL_ADMIN_USERNAME owner)@${ORG_DOMAIN}
              (the login name carries the ORGANISATION's domain, not the issuer's)
              password is ZITADEL_ADMIN_PASSWORD in .env, and must be changed
