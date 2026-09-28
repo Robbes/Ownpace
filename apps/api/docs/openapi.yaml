@@ -4452,6 +4452,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '413': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/BadRequest' }
         '429':
           description: Several reports from this person in the last hour, or, by mail, too many reports from everybody today. Carries `Retry-After`.
           headers:

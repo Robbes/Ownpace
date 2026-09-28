@@ -32,10 +32,11 @@
  * sign-in codes with (0133 T0). Reports that ran up the relay's sending quota
  * would stop those codes reaching testers, and the link door needs no account.
  * So report mails are capped for the whole service, {@link REPORT_MAIL_PER_DAY},
- * whichever door they came through. And a person is waiting on each one: the
- * web client gives up after thirty seconds, so a send that hangs on the relay
- * is given up on at {@link REPORT_MAIL_DEADLINE_MS}, twenty seconds, as a
- * Zammad call is, and the person is answered with a reference.
+ * whichever door they came through. And a person is waiting on each one: a
+ * link's page gives up after thirty seconds, and the form after two minutes
+ * that its upload shares (`REPORT_TIMEOUT_MS` in the web app), so a send that
+ * hangs on the relay is given up on at {@link REPORT_MAIL_DEADLINE_MS}, twenty
+ * seconds, as a Zammad call is, and the person is answered with a reference.
  */
 
 import { log, readNotifierConfig, type MailTransport, type SmtpSettings } from '@openmig/shared';
@@ -113,7 +114,7 @@ export function reportChannel(env: NodeJS.ProcessEnv = process.env): ReportChann
  * tries the relay's next address with a fresh `connectionMs`, and
  * `smtp.protonmail.ch` resolves to three. With ten seconds to connect, a relay
  * that let every connection hang was given up on only after thirty (0130 T5's
- * review), just when the web client stops waiting. So
+ * review), just when a link's page stops waiting. So
  * {@link REPORT_MAIL_DEADLINE_MS} bounds the send, and five seconds to connect
  * lets three addresses be tried, and the greeting waited for, inside it.
  */
@@ -121,9 +122,9 @@ export const REPORT_MAIL_TIMEOUTS: SmtpTimeouts = { connectionMs: 5_000, greetin
 
 /**
  * The whole send, however many addresses and waits it takes: twenty seconds,
- * as a Zammad call has. The web client stops waiting at thirty: past that, the
- * person sees a failure with no reference, sends again, and the support
- * mailbox may get both.
+ * as a Zammad call has. A link's page stops waiting at thirty, and the form at
+ * two minutes, its upload included: past that, the person sees a failure with
+ * no reference, sends again, and the support mailbox may get both.
  */
 export const REPORT_MAIL_DEADLINE_MS = 20_000;
 

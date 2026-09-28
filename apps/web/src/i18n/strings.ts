@@ -48,6 +48,10 @@ const en = {
   'report.screenshotHint': 'PNG or JPEG, up to 5 MB. It shows your screen: check it first.',
   'report.screenshotTooBig': 'That picture is larger than 5 MB.',
   'report.screenshotType': 'Choose a PNG or a JPEG.',
+  'report.tooLarge': 'The screenshot is too large to send: choose a smaller one and send the report again.',
+  'report.timedOut':
+    'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
+    'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
   'report.sentWith': 'Sent with your report:',
   'report.page': 'the page you were on: {page}',
   'report.reference': 'the reference on your screen: {reference}',
@@ -2575,6 +2579,10 @@ const nl: Record<keyof typeof en, string> = {
   'report.screenshotHint': 'PNG of JPEG, tot 5 MB. Hij toont uw scherm: bekijk hem eerst.',
   'report.screenshotTooBig': 'Die afbeelding is groter dan 5 MB.',
   'report.screenshotType': 'Kies een PNG of een JPEG.',
+  'report.tooLarge': 'De schermafbeelding is te groot om te versturen: kies een kleinere en verstuur de melding opnieuw.',
+  'report.timedOut':
+    'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
+    'Wat u schreef staat er nog. Verstuurt u de melding opnieuw, dan gaat een kleinere schermafbeelding sneller.',
   'report.sentWith': 'Wordt met uw melding meegestuurd:',
   'report.page': 'de pagina waarop u was: {page}',
   'report.reference': 'de referentie op uw scherm: {reference}',

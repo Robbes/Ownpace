@@ -7,6 +7,7 @@
  * alpha, 2026-09-28). Either way the reply comes by email.
  */
 
+import axios, { AxiosError } from 'axios';
 import apiClient from './api.ts';
 
 export interface ProblemReportBody {
@@ -31,6 +32,19 @@ export async function fetchReportingAvailable(): Promise<boolean> {
 }
 
 /**
+/**
+ * How long the form waits for a report to be sent and answered: two minutes,
+ * not `apiClient`'s 30 seconds. A report with a 5 MB screenshot is a request of
+ * about 7 MB, and the time covers its upload too, before the API spends up to
+ * 20 seconds handing it to the helpdesk or to the support mailbox's relay
+ * (`services/zammad.ts`, `services/report-channel.ts` in the API). Thirty
+ * seconds needed about 1.9 Mbit/s of upstream even without that share; two
+ * minutes needs about 0.6 with it. A slower line still runs out, and
+ * `timedOut` says what that means.
+ */
+export const REPORT_TIMEOUT_MS = 120_000;
+
+/**
  * What a sent report is known by: the helpdesk ticket's number, or, when it
  * went by mail, the report's own reference, which its mail carries too.
  */
@@ -38,11 +52,38 @@ export type SentReport = { readonly ticket: string } | { readonly reference: str
 
 /** Send a report; answers its ticket's number, or its reference when it went by mail. */
 export async function sendProblemReport(body: ProblemReportBody): Promise<SentReport> {
-  const response = await apiClient.post<{ ticket?: unknown; reference?: unknown }>('/problem-reports', body);
+  const response = await apiClient.post<{ ticket?: unknown; reference?: unknown }>('/problem-reports', body, {
+    timeout: REPORT_TIMEOUT_MS,
+  });
   const { ticket, reference } = response.data;
   if (typeof ticket === 'string') return { ticket };
   if (typeof reference === 'string') return { reference };
   throw new Error('The service answered a sent report with neither a ticket nor a reference.');
+}
+
+/**
+ * Whether a report was refused as too large to take: a 413, from whichever
+ * front answered. The web image's nginx answers one in HTML, a public ingress
+ * in whatever it likes, and the API (a screenshot over 5 MB) in English JSON.
+ * None of those is a sentence in the reader's language that says what to do,
+ * so the status is what is read. The description is capped at 5000 characters
+ * on both sides, so the screenshot is the only part of a report that can make
+ * it that large.
+ */
+export function refusedAsTooLarge(err: unknown): boolean {
+  return axios.isAxiosError(err) && err.response?.status === 413;
+}
+
+/**
+ * Whether a report went unanswered because the time ran out (or the browser
+ * gave up on the request), rather than being refused. Whether it arrived is
+ * then unknown: the front may already have handed it on and the ticket been
+ * made or the mail sent, so sending it again can make a second one. The form says that, in the
+ * reader's language, instead of axios's *timeout of 120000ms exceeded*. A
+ * dropped connection (*Network Error*) is not this.
+ */
+export function timedOut(err: unknown): boolean {
+  return axios.isAxiosError(err) && (err.code === AxiosError.ECONNABORTED || err.code === AxiosError.ETIMEDOUT);
 }
 
 /**

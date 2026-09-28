@@ -36,7 +36,8 @@
  * - **the same per-person limit**, and for a link's report the same per-link
  *   one, and a day's cap on every report mail together, since the relay's
  *   login sends the identity provider's sign-in codes too: the one count the
- *   service keeps, driven through all three doors, not a test's own;
+ *   service keeps, driven through all three doors, not a test's own. A body
+ *   the form's route refuses (too large, not JSON) uses none of the day's;
  * - **a link's report has no Reply-To at all**: its note would be quoted to
  *   an address somebody typed;
  * - **a recipient set with the mail off is said in the log**, once.
@@ -392,7 +393,37 @@ describe('the form, on a service with mail and no Zammad', () => {
     expect(sent).toHaveLength(5);
   });
 
-  it('answers a relay that never answers with a 502 and a reference at twenty seconds, before the web client stops waiting at thirty', async () => {
+  // The route reads its body only after the checks before it (the body limit,
+  // 2026-09-28), and takes one of the day's mails only for a report it will
+  // mail: a body it refuses sends nothing and leaves the day's mail for one
+  // that parses.
+  it("answers a body too large 413 and one not JSON 400 by mail too, and uses none of the day's mails on them", async () => {
+    const { sent, mailTransport } = relay();
+    const mailCap = createKnockLimiter({ windowMs: 24 * 60 * 60 * 1000, max: 1 });
+    const a = app({ env: MAIL, mailTransport, mailCap });
+    const nine = Buffer.concat([PNG, Buffer.alloc(9 * 1024 * 1024)]).toString('base64');
+    const tooLarge = await request(a)
+      .post('/api/problem-reports')
+      .set('x-test-user', 'large')
+      .send({ description: 'x', page: '/', screenshot: { data: nine } });
+    expect(tooLarge.status).toBe(413);
+    expect(tooLarge.body).toMatchObject({ error: 'report_too_large' });
+    const notJson = await request(a)
+      .post('/api/problem-reports')
+      .set('x-test-user', 'broken')
+      .set('content-type', 'application/json')
+      .send('{"description": "x", "page": ');
+    expect(notJson.status).toBe(400);
+    expect(notJson.body).toMatchObject({ error: 'invalid_report' });
+    expect(sent).toHaveLength(0);
+
+    const parses = await request(a).post('/api/problem-reports').set('x-test-user', 'whole').send({ description: 'x', page: '/' });
+    expect(parses.status).toBe(201);
+    expect(sent).toHaveLength(1);
+    expect(events).toEqual([]);
+  });
+
+  it("answers a relay that never answers with a 502 and a reference at twenty seconds, before a page stops waiting (a link's at thirty, the form at two minutes)", async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     const lines: string[] = [];
     vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => void lines.push(args.map(String).join(' ')));
@@ -516,7 +547,7 @@ describe('a relay that does not answer', () => {
     vi.useFakeTimers();
     const warned: string[] = [];
     vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => void warned.push(args.map(String).join(' ')));
-    // Six: 6 × 5 s is thirty seconds of connecting, just when the web client gives up.
+    // Six: 6 × 5 s is thirty seconds of connecting, just when a link's page gives up.
     const addresses = ['192.0.2.1', '192.0.2.2', '198.51.100.1', '198.51.100.2', '203.0.113.1', '203.0.113.2'];
     const tried = aRelayThatLetsEveryConnectionHang('six.relay.example.invalid', addresses);
     const started = Date.now();

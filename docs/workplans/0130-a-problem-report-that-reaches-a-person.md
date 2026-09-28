@@ -4,6 +4,83 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28: a screenshot the front door lets through.** On managed, a report with a
+screenshot above about 750 KB never reached the API. The web image's nginx proxies `/api/` and
+set no `client_max_body_size`, so its default of 1 MB answered with its own HTML 413 before the
+API's 8 MB limit applied. No ticket was made, nothing was recorded as `report.not-delivered`,
+and the form printed *"Request failed with status code 413"*. No test sent a body through the
+front: the API's tests call Express directly, and the UI smoke mocks the route. Reproduced on
+nginx 1.24 with the template as it was: a 2 MB report got `413 text/html`. Now
+`apps/web/nginx.conf.template` sets `client_max_body_size 8m` on `/api/`, named after
+`PROBLEM_REPORT_BODY_LIMIT`. On the same nginx, a 2 MB report and the largest the form can send
+(a 5 MB screenshot and 5000 characters, 7.0 MB) reach the upstream, and 9 MB is still refused.
+When any front answers 413, the form says the screenshot is too large to send and to choose a
+smaller one, in English and Dutch (`report.tooLarge`).
+
+With 8 MB let through, the route no longer parses before it knows who is sending. Its parser was
+mounted on the whole router, so it read and parsed up to 8 MB before sign-in, and a body that was
+not JSON became a 500 *"fault on our side"* recorded as `api.unhandled`. Now sign-in, where a
+report can go (`reportChannel`: a Zammad or, since T5 below, the support mailbox; neither answers
+503 as before), the reply address and the hour's five come first, and a body too large is answered
+413 (`report_too_large`) in JSON. Only T5's day's cap on report mails is taken after the body, as
+T5 built it: a report that is refused sends no mail, so it uses none of the fifty, and reading its
+body first is bounded by the hour's five. Every other refusal the parser makes of what was sent is answered
+with its own status as `invalid_report`: not JSON 400, a charset or a `Content-Encoding` it does
+not read 415 (the review found `charset=latin1` still answered 500 and recorded as
+`api.unhandled`), a body cut short 400. A 5xx the parser raises still goes to the API's handler.
+The 8m stays on all of `/api/` on purpose, as the template now says: nginx takes the whole body
+before the API asks who is sending, so a location of the report's own would let the same 8 MB in
+unsigned.
+
+The public ingress in front of the machine may have a body limit of its own, which this
+repository cannot set: `docs/managed-bring-up.md` says to check it allows 8 MB, and 8f's test
+report now sends a screenshot close to 5 MB (a request of about 7 MB) through the public name.
+The API hands Zammad the same screenshot in a ticket of about 7 MB, so whatever answers on
+`ZAMMAD_URL`'s name must take that too. A refusal there is answered with a reference and
+recorded as `report.not-delivered`, with `Zammad answered 413` in the API's log line, and 8f now
+says which of the two fronts each sign points to. 0131 T5's row for this plan carries the same
+check. The form waits two minutes for a report (`REPORT_TIMEOUT_MS`), not the API client's 30
+seconds, which needed about 1.9 Mbit/s of upstream for a report that large. When the time runs out,
+the form says in English or Dutch that it cannot tell whether the report arrived
+(`report.timedOut`), since the front may already have handed it on and sending it again can make
+a second ticket or mail. T5's 20 s deadline on a report mail sits inside those two minutes as the
+Zammad call's does; a link's page still waits the API client's 30 seconds. **Two gaps, not handled:** below about 0.6 Mbit/s of upstream a report near
+7 MB still runs out of time. And a front that drops the connection instead of answering 413
+leaves the form saying *Network Error*, with no hint that the screenshot was the cause. Showing
+the too-large hint then would be wrong whenever the network itself was down, so it is not.
+
+Guards: `a-screenshot-the-front-door-lets-through` (15), red on main. It reads every
+`express.json`, `.raw`, `.text` and `.urlencoded` in `apps/api/src` and refuses a body read any
+other way it could miss (a parser imported by name or from `body-parser`, another body-reading
+package, the request stream read by hand). For each route whose parser takes more than nginx's
+default, it knows the URI (today the report's alone) and checks the location nginx would choose
+for it, in every nginx config under `apps/` and `deploy/`: exact, else the longest prefix unless
+`^~` or a regex comes first, nested locations likewise. So 8m on `location = /api/problem-reports`
+alone passes too; the guard as first written refused it. It also holds the parser to the
+largest report there is, which nothing did: the review found `PROBLEM_REPORT_BODY_LIMIT` at
+'6mb' and the form's own `MAX_SCREENSHOT_BYTES` at 10 MB both passing every test. The largest
+report `parseProblemReport` takes (a 5 MB screenshot, 5000 characters of description and 2000 of
+page, each character one JSON writes as six bytes: 7.03 MB) must fit the route's limit, one byte
+or character more in any field must be refused, and the form's `MAX_SCREENSHOT_BYTES` and
+description `maxLength` must be the API's. The API's `a-report-that-reaches-a-person` goes from
+25 to 35, with a route test that posts the largest report the form sends and gets 201, and the
+web app's from 7 to 16. `scripts/lessons.mjs` now indexes `.template`
+files and Dockerfiles, so `docs/LESSONS.md` files this guard under the template it protects. 29
+mutations, all killed: 11 on the first version, then 5 on the route, 11 on the guard and the
+template, 2 on the index. One, the Dutch sentence left in English, died only once a test pinned
+the Dutch; another, a nested location's `proxy_pass` counted as its parent's, only once a case
+pinned it. The review round added 22 more: 20 killed, among them the limit at '6mb', the form's
+screenshot at 10 MB and its `maxLength` at 10000, the page cap at 4000, the 4xx branch gone, a
+5xx answered as the sender's, the report's own timeout gone or 30 seconds, and the Dutch left in
+English. The two that survived were conditions no test could tell apart (a 400 floor no
+body-parser error goes under, and a "not JSON" branch the 4xx one now covers), and both were
+removed.
+
+Stacked on T5's branch (merged in, 2026-09-28), so both hold: the checks before the body ask
+`reportChannel`, a report by mail gets the same 413 and 400 as one to a Zammad, and
+`a-report-that-reaches-support-by-mail` gains a case (34) that a body too large or not JSON sends
+nothing and uses none of the day's mails. Seen red with the day's cap moved before the body.
+
 **2026-09-28: a report reaches support by mail (T5), built on branch
 `claude/ownpace-public-readiness-y7orc6-a-report-that-reaches-support-by-mail`, not merged;
 brought up to `main` at `683525c8` (merged in) and corrected after two reviews the same day.**
@@ -37,7 +114,8 @@ What was built:
   sends the identity provider's sign-in codes (0133 T0), and the link door needs no account. At
   most 50 report mails a day go out for both doors together (`REPORT_MAIL_PER_DAY`), refused past
   that with 429 and a log line. A send is given up on at `REPORT_MAIL_DEADLINE_MS`, 20 s, as a
-  Zammad call is, because the web client stops waiting at 30 s; the route then answers 502 with a
+  Zammad call is, because the web client stopped waiting at 30 s (a link's page still does; the
+  form, since *a screenshot the front door lets through* above, waits two minutes); the route then answers 502 with a
   reference. nodemailer's own waits (`REPORT_MAIL_TIMEOUTS`: 5 s to connect, 5 s for the
   greeting, 20 s of silence; its defaults are 2 min, 30 s and 10 min) bound each wait, not the
   send: when a connection times out it tries the relay's next address with a fresh wait, and
