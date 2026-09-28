@@ -871,6 +871,13 @@ paths:
         A second invitation for an address that already has a live row is
         refused with `409` naming that row, rather than quietly creating a
         duplicate whose role nobody can predict.
+
+        During the alpha the role is `owner` or `admin` (workplan 0137 T7);
+        any other role, sent as a string in an otherwise valid body, answers
+        `400` with `error: owner_or_admin_only`. A body with no role, or with
+        something else wrong as well, answers the usual `Validation error`
+        with every issue in `details`. Only an owner may invite somebody as
+        owner (`403` for an admin).
       requestBody:
         required: true
         content:
@@ -915,6 +922,12 @@ paths:
       description: |
         Owner/admin only. Removing your own last owner role is refused — the
         last owner cannot demote themselves out of the tenant.
+
+        During the alpha the new role is `owner` or `admin` (workplan 0137
+        T7); any other role sent as a string answers `400` with
+        `error: owner_or_admin_only`, and a body with no role answers
+        `Validation error`. A row that already holds `member` or `viewer`
+        keeps it until it is changed.
       requestBody:
         required: true
         content:
@@ -922,7 +935,7 @@ paths:
             schema:
               type: object
               properties:
-                role: { $ref: '#/components/schemas/Role' }
+                role: { type: string, enum: [owner, admin] }
       responses:
         '200':
           description: The updated member.

@@ -175,17 +175,21 @@ describe('Members Route Isolation', () => {
 
   describe('POST /api/tenants/:tenantId/members', () => {
     it('should invite member as admin', async () => {
+      // As an admin, since owner and admin are the only roles granted until
+      // every write names its roles (0137 T7): a `member` invitation answers
+      // 400, which `a-role-that-promises-less-than-it-allows.unit.test.ts`
+      // holds.
       const response = await request
         .post(`/api/tenants/${API_TENANT_A}/members`)
         .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
         .send({
           email: 'newmember@example.com',
-          role: 'member',
+          role: 'admin',
         });
 
       expect(response.status).toBe(201);
       expect(response.body.email).toBe('newmember@example.com');
-      expect(response.body.role).toBe('member');
+      expect(response.body.role).toBe('admin');
       expect(response.body.status).toBe('invited');
     });
 
@@ -194,7 +198,7 @@ describe('Members Route Isolation', () => {
       const first = await request
         .post(`/api/tenants/${API_TENANT_A}/members`)
         .set('Authorization', `Bearer ${TOKEN_ADMIN_A}`)
-        .send({ email: 'duplicate@example.com', role: 'member' });
+        .send({ email: 'duplicate@example.com', role: 'admin' });
       expect(first.status).toBe(201);
 
       // ...the second is refused, naming the row that exists. Before this
@@ -329,9 +333,12 @@ describe('Members Route Isolation', () => {
       const response = await request
         .patch(`/api/tenants/${API_TENANT_A}/members/${ownerAId}`)
         .set('Authorization', `Bearer ${TOKEN_OWNER_A}`)
-        .send({ role: 'member' });
+        .send({ role: 'admin' });
 
+      // To admin, and the sentence asserted: a demotion to `member` would now
+      // answer 400 for its role (0137 T7) before this guard is reached.
       expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Cannot demote the last owner');
     });
 
     it('should prevent an admin from granting the owner role (no self-escalation)', async () => {
