@@ -22,6 +22,23 @@
 // or what comes next. The one sentence per plan is the plan's own
 // `> **In one line:**` line, written in the plan, so it cannot drift from it.
 //
+// NO TOTALS (the owner, 2026-09-28: "yes, drop the counts"). The table opened
+// with one line that summed over every plan: "147 plans. Task rows by the
+// marker their Status cell starts with: ✅ 639 · …". Any pull request that
+// touched a task row changed it, so every other open pull request that had
+// regenerated held a stale copy and needed a re-level and a new CI run; on the
+// night of 2026-09-27 that was 23 of the 39 commits that reached main. What is
+// written now is one row per plan and nothing that sums over them, so a change
+// to one plan changes that plan's row only. Rows of neighbouring plans still
+// sit on neighbouring lines, and git still refuses two changes there; that is
+// resolved by regenerating, as before. `a-count-every-merge-made-stale` merges
+// two regenerated copies for real and fails on any line that sums again.
+// NOT SOLVED: a plan's own Rows and Markers cells are still counts. Two pull
+// requests that change different task rows of ONE plan can write the same
+// cell ("✅ 8 · 📋 4" on both sides, where the tree with both holds ✅ 9 ·
+// 📋 3), so git merges them without a conflict and --check fails on main until
+// the next --write. 0147 open question 6 asks whether those counts go too.
+//
 // ONE BODY PER PLAN. The merge of 2026-09-25 that resolved #1172 kept both
 // sides of workplan 0131, so §2 to §6 and its open questions stood in it twice.
 // The copies already differed, and later edits went to the first one only.
@@ -241,16 +258,7 @@ export function collect(dir = DIR) {
 /** The generated region, BEGIN to END lines included. */
 export function assemble(dir = DIR) {
   const { plans, gaps } = collect(dir);
-  const totals = new Map(MARKERS.map((m) => [m, 0]));
-  let unmarked = 0;
-  for (const p of plans) {
-    for (const [m, c] of p.markers) totals.set(m, totals.get(m) + c);
-    if (p.rows !== undefined) unmarked += p.rows - [...p.markers.values()].reduce((a, b) => a + b, 0);
-  }
-  const planCount = plans.filter((p) => !NOT_A_PLAN.has(p.file)).length;
-  const counted = MARKERS.filter((m) => totals.get(m) > 0).map((m) => `${m} ${totals.get(m)}`);
-  if (unmarked) counted.push(`unmarked ${unmarked}`);
-
+  // No line here sums over plans (see NO TOTALS above): every row is one plan's.
   const rows = [
     ...plans.map((p) => ({ number: p.number, file: p.file, p })),
     ...gaps.map((g) => ({ number: g.number, gap: g })),
@@ -258,8 +266,6 @@ export function assemble(dir = DIR) {
 
   const out = [
     ...HEADER,
-    '',
-    `${planCount} plans. Task rows by the marker their Status cell starts with: ${counted.join(' · ')}.`,
     '',
     '| Plan | Title | In one line | Status as of | Rows | Markers | Note |',
     '|---|---|---|---|---|---|---|',

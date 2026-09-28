@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 186 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -975,6 +975,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/LESSONS.md`
 
+- [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
@@ -1109,6 +1110,10 @@ reading a file drops off its entry by itself.
 ### `docs/workplans/0117-the-conveyor-belt-not-the-home.md`
 
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
+
+### `docs/workplans/README.md`
+
+- [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 
 ### `drizzle.config.ts`
 
@@ -1760,6 +1765,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/lessons.mjs`
 
+- [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 - [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts) — FOUR PLACES DECIDED WHICH MONTH A MOMENT BELONGED TO, AND THREE OF THEM ASKED THE SERVER WHERE IT WAS STANDING (found 2026-09-09).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
@@ -1809,7 +1815,12 @@ reading a file drops off its entry by itself.
 
 ### `scripts/workplan-index.mjs`
 
+- [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 - [workplan-index](../scripts/workplan-index.unit.test.ts) — The workplan index cannot fall behind the plans again (workplan 0147 T1).
+
+### `scripts/workplan-index.unit.test.ts`
+
+- [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 
 ### `site/build.mjs`
 
@@ -2130,6 +2141,18 @@ Reads:
 
 - `CONTRIBUTING.md`
 - `scripts/an-advisory-nobody-listed.unit.test.ts`
+
+### [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts)
+
+A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
+
+Reads:
+
+- `docs/LESSONS.md`
+- `docs/workplans/README.md`
+- `scripts/lessons.mjs`
+- `scripts/workplan-index.mjs`
+- `scripts/workplan-index.unit.test.ts`
 
 ### [a-count-in-a-sentence-the-table-outgrew](../scripts/a-count-in-a-sentence-the-table-outgrew.unit.test.ts)
 
