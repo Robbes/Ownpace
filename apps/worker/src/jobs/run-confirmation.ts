@@ -37,15 +37,16 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask, logger } from '@trigger.dev/sdk';
+import { schemaTask } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
-import { PgRateBudget, createPgDb, auditExportOn, pgDriver } from '@openmig/ledger';
+import { PgRateBudget, createPgDb, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import {
   DEFAULT_THROTTLE_CONFIG,
   DISCOVERY_DOMAINS,
   asMappingId,
   asTenantId,
-  setAuditExportSink,
+  log, setAppEventSink, setAuditExportSink,
 } from '@openmig/shared';
 import { enabledDomains } from '@openmig/orchestration/enabled-domains';
 import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
@@ -77,11 +78,14 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 export const runConfirmationTask = schemaTask({
   id: 'run-confirmation',
   schema: ConfirmationJobSchema,
-  run: async (payload) => {
+  run: leavesAReference('run-confirmation', async (payload) => {
     const tenantId = asTenantId(payload.tenantId);
     const mappingId = asMappingId(payload.mappingId);
 
@@ -92,7 +96,7 @@ export const runConfirmationTask = schemaTask({
       // not a run row: a run that confirmed nothing because there was nothing
       // to confirm would read on the page as a pass that found an empty
       // account.
-      logger.info(`[run-confirmation] ${mappingId}: no enabled domains — nothing to confirm`);
+      log.info(`[run-confirmation] ${mappingId}: no enabled domains — nothing to confirm`);
       return { started: false as const, reason: 'no_enabled_domains' };
     }
 
@@ -115,7 +119,7 @@ export const runConfirmationTask = schemaTask({
       // No target connection to name. Nothing can be read off a target that is
       // not there, so this is a mapping that cannot be confirmed rather than
       // one to confirm unbudgeted.
-      logger.error(`[run-confirmation] ${mappingId}: no target connection — nothing to read`);
+      log.error(`[run-confirmation] ${mappingId}: no target connection — nothing to read`);
       return { started: false as const, reason: 'no_target_connection' };
     }
 
@@ -148,11 +152,11 @@ export const runConfirmationTask = schemaTask({
       budget: { tenantId, provider, rate },
       trigger: 'manual',
     });
-    logger.info(
+    log.info(
       `[run-confirmation] ${mappingId}: ${result.tally.verified} of ${result.tally.total} ` +
         `verified, ${result.recorded} recorded` +
         (result.paused ? ` — paused at the day's ceiling` : ''),
     );
     return { started: true as const, runId: result.runId, tally: result.tally };
-  },
+  }),
 });

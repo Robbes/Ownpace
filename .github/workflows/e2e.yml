@@ -426,7 +426,10 @@ jobs:
           # persist across the recreate, so this doesn't reset any state the T5 gate needs.
           docker compose $SELFHOST_COMPOSE_FILES up -d --build --force-recreate --wait || \
             { docker compose $SELFHOST_COMPOSE_FILES logs app; exit 1; }
-          docker compose $SELFHOST_COMPOSE_FILES ps
+          # No PORTS column, as in every job on this machine: a publish names
+          # an address, and this log is public. The ports are the ones picked
+          # above.
+          docker compose $SELFHOST_COMPOSE_FILES ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}'
 
       - name: Green-light the mapping (0013 T7 — mappings load paused until confirmed)
         run: |

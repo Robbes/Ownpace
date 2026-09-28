@@ -202,7 +202,9 @@ describe('the evidence reaches the artifact', () => {
 
   it('the smoke honours SMOKE_OUT', () => {
     expect(smoke).toContain('OUT="${SMOKE_OUT:-');
-    expect(smoke).toMatch(/exec > >\(tee "\$OUT"\)/);
+    // Through the address filter first (a-public-log-that-named-the-machine-it-ran-on),
+    // and still into $OUT.
+    expect(smoke).toMatch(/exec > >\((sed [^|]*\| )?tee "\$OUT"\)/);
   });
 
   it('and the file is gitignored, because it carries the task environment', () => {

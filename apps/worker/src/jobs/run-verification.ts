@@ -23,11 +23,12 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { schemaTask, logger } from '@trigger.dev/sdk';
+import { schemaTask } from '@trigger.dev/sdk';
+import { leavesAReference } from './what-a-run-leaves.ts';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
-import { asTenantId, asMappingId, setAuditExportSink } from '@openmig/shared';
-import { createLedgerVerificationReader, withTenant, auditExportOn, pgDriver } from '@openmig/ledger';
+import { asTenantId, asMappingId, log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { createLedgerVerificationReader, withTenant, appEventSinkOn, auditExportOn, pgDriver } from '@openmig/ledger';
 import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
@@ -50,6 +51,9 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 // Each audit event this task records, also as one JSON line on its output (0129 T4).
 setAuditExportSink(auditExportOn(pgDriver(pool), { 'service.name': 'ownpace-worker' }));
+// Its errors go to the operator's log page too (0129 T1), under the reference
+// its failure carries in the plane (0134, open question 3 (a)).
+setAppEventSink(appEventSinkOn(pgDriver(pool)));
 
 /** Mark the run terminal. One place, so done and failed cannot diverge on shape. */
 async function landRun(
@@ -74,9 +78,9 @@ async function landRun(
 export const runVerificationTask = schemaTask({
   id: 'run-verification',
   schema: VerificationJobSchema,
-  run: async (payload) => {
+  run: leavesAReference('run-verification', async (payload) => {
     const { tenantId, mappingId, runId } = payload;
-    logger.info(`[run-verification] ${mappingId}: scan starting (run ${runId})`);
+    log.info(`[run-verification] ${mappingId}: scan starting (run ${runId})`);
 
     try {
       // Which domains the owner actually selected. The verify flags below
@@ -121,7 +125,7 @@ export const runVerificationTask = schemaTask({
       // Keyed by mappingId: the contract's ByMapping shape with one key, the
       // same one the appliance uses, so the UI iterates identically.
       await landRun(tenantId, runId, { state: 'done', report: { [mappingId]: result } });
-      logger.info(
+      log.info(
         `[run-verification] ${mappingId}: ${result.overallStatus} ` +
           `(score ${result.score.toFixed(3)}, ${result.totalDiscrepancies} discrepancies)`,
       );
@@ -132,9 +136,9 @@ export const runVerificationTask = schemaTask({
       // that merely could not be read is NOT_VERIFIABLE inside a done report;
       // this branch is the scan itself crashing.
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`[run-verification] ${mappingId}: scan failed: ${message}`);
+      log.error(`[run-verification] ${mappingId}: scan failed: ${message}`);
       await landRun(tenantId, runId, { state: 'failed', error: message });
       throw err;
     }
-  },
+  }),
 });

@@ -89,6 +89,24 @@ env_value() {
   fi
 }
 
+# stack_kind_clean <value> — a value of live's marker (stack-kind.sh) as it is
+# compared: without surrounding whitespace or double quotes, in lower case.
+# Here rather than in stack-kind.sh because compose_project below compares it
+# too, and stack-kind.sh sources this file, never the other way round. Every
+# caller of stack-kind.sh still has it.
+stack_kind_clean() {
+  local value="${1:-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  # A double-quoted value is live too: env_value strips single quotes only,
+  # and a refusal must not hinge on which quotes somebody typed.
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "${value,,}"
+}
+
 # compose_project <compose-dir>
 #
 # THE COMPOSE PROJECT THIS CHECKOUT DRIVES, found the way Compose finds it
@@ -118,10 +136,24 @@ env_value() {
 # the file disagree, this names both and fails, and nothing gets built from
 # either. A name Compose would refuse is refused here too.
 #
+# LIVE'S .env ON THE OTA STACK'S PROJECT IS REFUSED (workplan 0132 T1b, T1g).
+# Live's .env carries live's marker (stack-kind.sh) and
+# COMPOSE_PROJECT_NAME=ownpace-live. Without the second line the fallback above
+# is managed.yml's `name:`, the OTA stack's, and every script in live's
+# checkout would drive the OTA stack's containers and volumes with live's
+# secrets, ports and production names. So when the project comes out as
+# managed.yml's own name and the .env carries exactly live's marker (the rule
+# stack_is_live has), this names the keys, never a value, and fails. The
+# marker's key and value are read out of stack-kind.sh as data, not sourced,
+# since stack-kind.sh sources this file. That stack-kind.sh is the one beside
+# this file's real path, not beside the .env: a directory that links this
+# reader in has the marker where the reader is. A checkout without it cannot
+# tell live's .env from the OTA stack's, and is refused rather than guessed at.
+#
 # Usage:  COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 compose_project() {
   local dir="${1:-}"
-  local declared from_file name
+  local declared from_file name marker marker_key marker_live
 
   declared="$(sed -n 's/^name:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "${dir}/managed.yml" 2>/dev/null)"
   from_file="$(env_value "${dir}/.env" COMPOSE_PROJECT_NAME)"
@@ -149,5 +181,23 @@ compose_project() {
       return 1
       ;;
   esac
+
+  if [ "$name" = "$declared" ]; then
+    # Inside a function BASH_SOURCE[0] is the file that defined it: this one.
+    marker="$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")")/stack-kind.sh"
+    marker_key="$(env_value "$marker" STACK_KIND_KEY)"
+    marker_live="$(env_value "$marker" STACK_KIND_LIVE)"
+    if [ -z "$marker_key" ] || [ -z "$marker_live" ]; then
+      echo "compose_project: cannot read live's marker from ${marker}, so cannot tell live's .env from the one of '${name}'." >&2
+      echo "  That file belongs beside managed.yml in every checkout: restore it (git checkout -- deploy/compose/stack-kind.sh)." >&2
+      return 1
+    fi
+    if [ "$(stack_kind_clean "$(env_value "${dir}/.env" "$marker_key")")" = "$marker_live" ]; then
+      echo "compose_project: ${dir}/.env carries ${marker_key}, live's marker, and its project comes out as '${name}', managed.yml's own name." >&2
+      echo "  That is the OTA stack's project: live's .env would be brought up on the OTA stack's containers and volumes. Its value is not printed." >&2
+      echo "  Set COMPOSE_PROJECT_NAME=ownpace-live in that .env (workplan 0132 T1b), and run this again." >&2
+      return 1
+    fi
+  fi
   printf '%s' "$name"
 }
