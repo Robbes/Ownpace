@@ -70,6 +70,11 @@ ENV VITE_IDP_CONSOLE_USER_URL=$VITE_IDP_CONSOLE_USER_URL
 # passes it from OWNPACE_STAGE. Empty, the default, is no note.
 ARG VITE_OWNPACE_STAGE=
 ENV VITE_OWNPACE_STAGE=$VITE_OWNPACE_STAGE
+# The address a tester writes to (workplan 0144 T6 (a)): a line on the pages
+# before sign-in, and "Help: …" in the sidebar when the report form is off.
+# managed.yml passes it from .env. Empty, the default, shows nothing new.
+ARG VITE_SUPPORT_EMAIL=
+ENV VITE_SUPPORT_EMAIL=$VITE_SUPPORT_EMAIL
 RUN pnpm --filter @openmig/web build
 
 FROM nginx:1.31-alpine AS runtime

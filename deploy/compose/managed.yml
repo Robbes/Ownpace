@@ -696,6 +696,14 @@ services:
       # setup-zitadel.sh ALSO sets it through the API and reads it back. Two
       # mechanisms because there are two populations, not belt and braces.
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
+      # NOBODY FOUNDS AN ORGANISATION OF THEIR OWN HERE (workplan 0135 T1).
+      # Upstream leaves this empty, so `/ui/login/register/org` lets anybody who
+      # can load the sign-in page found one, and its owner can make an account
+      # whose address the provider calls verified. Read once, at first init,
+      # like the line above: a fresh instance, live's first among them, never
+      # serves the form. setup-zitadel.sh sets it on an existing instance and
+      # reads it back on both.
+      ZITADEL_DEFAULTINSTANCE_RESTRICTIONS_DISALLOWPUBLICORGREGISTRATION: "true"
       # The first human, so a fresh stack has somebody who can sign in.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-owner}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?run ./deploy/compose/ensure-env-secrets.sh first}
@@ -1089,6 +1097,8 @@ services:
         # have no session to ask with. Vite exposes only VITE_ names, hence the
         # prefix. Empty is off; changing it means rebuilding this image.
         VITE_OWNPACE_STAGE: ${OWNPACE_STAGE:-}
+        # The address a tester writes to (workplan 0144 T6 (a)). Empty shows nothing new.
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:-}
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     ports:

@@ -4,7 +4,7 @@
 
 # What this repository has already learned
 
-Assembled from the 177 cross-cutting guards in [`scripts/`](../scripts/) —
+Assembled from the 179 cross-cutting guards in [`scripts/`](../scripts/) —
 the tests whose subject is a file somewhere else, and whose filenames are
 sentences. Each one records a defect that actually happened and the property
 that now cannot regress.
@@ -311,6 +311,10 @@ reading a file drops off its entry by itself.
 ### `apps/web/src/components/StatusLink.tsx`
 
 - [the-issuer-the-bundle-never-learned](../scripts/the-issuer-the-bundle-never-learned.unit.test.ts) — THE ISSUER THE BUNDLE NEVER LEARNED.
+
+### `apps/web/src/components/SupportLine.tsx`
+
+- [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 
 ### `apps/web/src/components/an-alpha-said-out-loud.unit.test.tsx`
 
@@ -668,6 +672,7 @@ reading a file drops off its entry by itself.
 - [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
+- [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -766,9 +771,11 @@ reading a file drops off its entry by itself.
 - [a-box-the-api-would-refuse](../scripts/a-box-the-api-would-refuse.unit.test.ts) — A BOX THE API WOULD REFUSE (workplan 0102 T1).
 - [a-check-that-was-never-valid](../scripts/a-check-that-was-never-valid.unit.test.ts) — A password check that was valid for zero seconds, and the general rule that would have stopped it.
 - [a-false-jq-could-not-report](../scripts/a-false-jq-could-not-report.unit.test.ts) — A `false` THE READER COULD NOT REPORT.
+- [a-project-for-one-organisation](../scripts/a-project-for-one-organisation.unit.test.ts) — A PROJECT FOR ONE ORGANISATION (workplan 0135 T2).
 - [a-provider-skipped-in-silence](../scripts/a-provider-skipped-in-silence.unit.test.ts) — A PROVIDER SKIPPED IN SILENCE IS A BUTTON SOMEBODY LOOKS FOR.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
@@ -792,6 +799,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
+- [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
 - [gate-net-zero](../scripts/gate-net-zero.unit.test.ts) — The managed gate takes back what it added.
@@ -2335,6 +2343,7 @@ A HELPDESK THE API WAS NEVER HANDED.
 Reads:
 
 - `apps/api/src/services/zammad.ts`
+- `apps/web/src/components/SupportLine.tsx`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `docs/managed-bring-up.md`
@@ -2654,6 +2663,14 @@ Reads:
 
 - `deploy/compose/managed.yml`
 - `deploy/compose/smoke-managed.sh`
+
+### [a-project-for-one-organisation](../scripts/a-project-for-one-organisation.unit.test.ts)
+
+A PROJECT FOR ONE ORGANISATION (workplan 0135 T2).
+
+Reads:
+
+- `deploy/compose/setup-zitadel.sh`
 
 ### [a-proof-that-was-written-down](../scripts/a-proof-that-was-written-down.unit.test.ts)
 
@@ -3222,6 +3239,16 @@ Reads:
 - `packages/connectors/src/graph-drive-source.ts`
 - `packages/core/src/dav-sync.ts`
 - `packages/shared/src/ports.ts`
+
+### [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts)
+
+AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
+
+Reads:
+
+- `deploy/compose/managed.yml`
+- `deploy/compose/setup-zitadel.sh`
+- `deploy/compose/smoke-managed.sh`
 
 ### [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts)
 

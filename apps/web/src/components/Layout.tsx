@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   ClipboardCheck,
   ListChecks,
-  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText } from 'lucide-react';
+  Flag, Plug, BookOpen, DoorOpen, LifeBuoy, Link2, ArrowLeft, MessageSquareWarning, ScrollText, Mail } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { mappingApi } from '../services/mapping-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
@@ -28,6 +28,7 @@ import BuildStamp from './BuildStamp.tsx';
 import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import AlphaNote from './AlphaNote.tsx';
+import { supportAddress } from './SupportLine.tsx';
 import {
   activeNavHref,
   mappingDisplayName,
@@ -178,13 +179,19 @@ const Layout: React.FC = () => {
   const token = useAuthStore((s) => s.token);
   // Whether the service takes problem reports (workplan 0130): the link is
   // offered only when a report could reach somebody.
-  const reportingAvailable =
-    useQuery({
-      queryKey: ['problem-reports', 'available'],
-      queryFn: fetchReportingAvailable,
-      enabled: !selfHostEdition && token != null,
-      staleTime: 5 * 60_000,
-    }).data === true;
+  const reporting = useQuery({
+    queryKey: ['problem-reports', 'available'],
+    queryFn: fetchReportingAvailable,
+    enabled: !selfHostEdition && token != null,
+    staleTime: 5 * 60_000,
+  });
+  const reportingAvailable = reporting.data === true;
+  // WHERE THE FORM IS OFF, AN ADDRESS (workplan 0144 T6 (a)). The deployment's
+  // own, from the build (`SupportLine.tsx`), and null without one or on an
+  // appliance. Only once the question above is answered, so the one never
+  // swaps for the other; then a signed-in tester always has one of the two.
+  const helpAddress = supportAddress();
+  const offerHelp = helpAddress !== null && !reportingAvailable && !reporting.isLoading;
 
   /**
    * SIGN OUT OF THE ISSUER TOO, not just of this tab (2026-09-01).
@@ -442,6 +449,15 @@ const Layout: React.FC = () => {
                 <MessageSquareWarning className="w-5 h-5 mr-3" />
                 {t('nav.reportProblem')}
               </Link>
+            )}
+            {offerHelp && (
+              <a
+                href={`mailto:${helpAddress}`}
+                className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Mail className="w-5 h-5 mr-3 shrink-0" />
+                <span className="min-w-0 break-all">{t('help.sidebar', { address: helpAddress })}</span>
+              </a>
             )}
             {!selfHost && (
               <button
