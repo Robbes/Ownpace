@@ -15,6 +15,11 @@
  * offers no owner option, your own row offers no remove button, and a
  * member/viewer sees a read-only list. Everything else is the server's call.
  *
+ * Owner and admin are the only roles on offer (workplan 0137 T7). Until every
+ * write route names its roles (0137 T2), `member` and `viewer` promise less
+ * than they allow, so the server refuses to grant them and this screen offers
+ * neither. A row that already holds one still shows it, and can be moved up.
+ *
  * Inviting creates the membership row and nothing more: invitation email is
  * still not a thing the product sends, so the form says out loud that no email
  * goes out, rather than letting the word "invite" promise one. (The channel
@@ -42,8 +47,14 @@ import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
 import { Hint } from '../components/Hint.tsx';
 import type { StringKey } from '../i18n/index.tsx';
+import { ownerOrAdminOnly } from '../services/api.ts';
 
-const ROLES: ReadonlyArray<Member['role']> = ['owner', 'admin', 'member', 'viewer'];
+/** The roles this screen grants (0137 T7): the API refuses the other two. */
+const ROLES: ReadonlyArray<Member['role']> = ['owner', 'admin'];
+
+/** A row's choices: the roles on offer, and its own role if that is not one of them, shown but not choosable. */
+const rowRoles = (held: Member['role']): ReadonlyArray<Member['role']> =>
+  ROLES.includes(held) ? ROLES : [...ROLES, held];
 
 /** For the self-demotion gate only: is the chosen role LOWER than the held
  *  one? (Access breadth, matching the server's own guard ordering.) */
@@ -76,7 +87,7 @@ const Tenants: React.FC = () => {
   const isOwner = user?.role === 'owner';
 
   const [inviteEmail, setInviteEmail] = React.useState('');
-  const [inviteRole, setInviteRole] = React.useState<Member['role']>('member');
+  const [inviteRole, setInviteRole] = React.useState<Member['role']>('admin');
   const [inviteBusy, setInviteBusy] = React.useState(false);
   const [inviteError, setInviteError] = React.useState<string | null>(null);
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
@@ -126,10 +137,12 @@ const Tenants: React.FC = () => {
     try {
       await memberApi.invite(tenantId, { email: inviteEmail.trim(), role: inviteRole });
       setInviteEmail('');
-      setInviteRole('member');
+      setInviteRole('admin');
       await refetchMembers();
     } catch (err) {
-      setInviteError(errorText(err, t('common.requestFailed')));
+      setInviteError(
+        ownerOrAdminOnly(err) ? t('tenants.ownerOrAdminOnly') : errorText(err, t('common.requestFailed')),
+      );
     } finally {
       setInviteBusy(false);
     }
@@ -155,7 +168,9 @@ const Tenants: React.FC = () => {
     } catch (err) {
       setRowErrors((errors) => ({
         ...errors,
-        [member.id]: errorText(err, t('common.requestFailed')),
+        [member.id]: ownerOrAdminOnly(err)
+          ? t('tenants.ownerOrAdminOnly')
+          : errorText(err, t('common.requestFailed')),
       }));
     } finally {
       setBusyRow(null);
@@ -458,13 +473,15 @@ const Tenants: React.FC = () => {
                               }
                               className="px-2 py-1 border border-gray-300 rounded text-gray-900 bg-white"
                             >
-                              {ROLES.map((role) => (
+                              {rowRoles(member.role).map((role) => (
                                 <option
                                   key={role}
                                   value={role}
                                   // Granting owner is owner-only (the server's
                                   // guard) — an admin's select says so up front.
-                                  disabled={role === 'owner' && !isOwner}
+                                  // A role below admin is shown as the row's
+                                  // own and cannot be chosen (0137 T7).
+                                  disabled={(role === 'owner' && !isOwner) || !ROLES.includes(role)}
                                 >
                                   {t(`role.${role}` as StringKey)}
                                 </option>
@@ -545,7 +562,8 @@ const Tenants: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-900 mb-1">
             {t('tenants.invite.heading')}
           </h2>
-          <p className="text-sm text-gray-500 mb-4">{t('tenants.invite.hint')}</p>
+          <p className="text-sm text-gray-500 mb-1">{t('tenants.invite.hint')}</p>
+          <p className="text-sm text-gray-500 mb-4">{t('tenants.invite.adminCan')}</p>
           <form onSubmit={invite} className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col text-sm text-gray-700">
               {t('tenants.invite.email')}

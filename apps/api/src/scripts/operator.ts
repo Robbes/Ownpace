@@ -865,9 +865,11 @@ async function main(): Promise<void> {
         const checks = one === null ? HOUSEKEEPING_CHECKS : [one];
 
         let total = 0;
+        const stopped: HousekeepingCheck[] = [];
         for (const check of checks) {
           const rows = await runHousekeeping(pool, check);
           total += rows.length;
+          if (rows.length > 0 && check.gates !== undefined) stopped.push(check);
           if (rows.length === 0) {
             // SAID, not omitted. A report that lists only problems cannot be
             // told apart from a report that did not run, and "nothing found"
@@ -890,6 +892,11 @@ async function main(): Promise<void> {
             : `\n${total} finding(s). Each line above carries what resolves it; the ones\n` +
                 `\`clean\` can do for you are marked with a clean command.`,
         );
+        // A check that gates a step exits non-zero while it finds anything
+        // (`role-below-admin`, workplan 0137 T7), so the step can stop on it.
+        // The report above is still the whole answer; this is its status.
+        for (const check of stopped) log.warn(`\n${check.kind} holds back ${check.gates}.`);
+        if (stopped.length > 0) process.exitCode = 1;
         break;
       }
 

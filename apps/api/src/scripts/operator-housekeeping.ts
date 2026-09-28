@@ -77,6 +77,7 @@ export interface HousekeepingRow {
 export type FindingKind =
   | 'empty-tenant'
   | 'ownerless-tenant'
+  | 'role-below-admin'
   | 'stale-invitation'
   | 'operator-that-matches-nobody'
   | 'credential-at-rest';
@@ -128,6 +129,12 @@ export interface HousekeepingCheck {
   readonly remedy: (row: HousekeepingRow) => string;
   /** How to resolve it automatically, or null when resolving needs a decision. */
   readonly clean: HousekeepingClean | null;
+  /**
+   * What a finding here must stop, for a check that is a precondition rather
+   * than a tidy-up. `check` exits non-zero while such a check finds anything,
+   * so the step it guards can stop on it.
+   */
+  readonly gates?: string;
 }
 
 /** Whole days, from a timestamp column, as an int the runner can compare. */
@@ -223,6 +230,51 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
     // decision with a person's name on it, and a script that made it would be
     // choosing an administrator for a customer.
     clean: null,
+  },
+
+  {
+    kind: 'role-below-admin',
+    title: 'people whose role is below admin',
+    why:
+      'Until every write route names its roles (workplan 0137 T2), `member` and\n' +
+      '`viewer` promise less than they allow: the Team page called them read-only,\n' +
+      'and either could delete a migration or replace its target\'s password. The\n' +
+      'product no longer grants them (0137 T7). This lists the rows that hold one\n' +
+      'anyway, from an invitation made before, or from a direct write. Run it on\n' +
+      '`ownpace-live`, from its own checkout, before the first invitation: a fresh\n' +
+      'stack has none. A declined or removed row grants nothing and is not listed.',
+    // Every status that grants something now or can: `active`, `invited` (an
+    // invited viewer is a viewer the moment they accept) and `suspended` (one
+    // UPDATE from active). Not `declined` or `removed`, which grant nothing and
+    // are kept on purpose (0099), the same exclusion every membership check
+    // above makes; listing them would hold the first invitation back forever
+    // on a refusal nobody should delete.
+    find: `
+      SELECT tm.id::text AS id,
+             tm.email    AS label,
+             format('%s (%s) in %s', tm.role, tm.status, t.name) AS note,
+             1 AS count,
+             0 AS other_count,
+             0 AS age_days
+        FROM tenant_member tm
+        JOIN tenant t ON t.id = tm.tenant_id
+       WHERE tm.role IN ('member', 'viewer')
+         AND tm.status NOT IN ('removed', 'declined')
+       ORDER BY t.name, tm.email`,
+    // note = "<role> (<status>) in <organisation>", composed in the query.
+    describe: (row) => `${row.label} is ${row.note}`,
+    // ONE STATEMENT, as every other remedy here prints. The other choice,
+    // removing the person, is the organisation's Remove on its Team page; two
+    // runnable statements one under the other would be pasted as a pair, and
+    // the pair promotes somebody and then deletes them.
+    remedy: (row) =>
+      'the organisation decides: move it up, or remove it with Remove on its Team\n' +
+      '        page. To move it up, over the owner connection:\n' +
+      `        UPDATE tenant_member SET role = 'admin', updated_at = now() WHERE id = '${row.id}';`,
+    // NOT CLEANABLE: whether this person becomes an admin or leaves is the
+    // organisation's call, the same reason `ownerless-tenant` is report-only.
+    clean: null,
+    gates: 'the first invitation on ownpace-live (workplan 0137 T7)',
   },
 
   {
