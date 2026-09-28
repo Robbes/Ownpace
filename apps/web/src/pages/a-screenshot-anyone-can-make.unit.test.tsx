@@ -21,7 +21,10 @@
  *   Text pasted into the description still goes into the description: a
  *   paste that carries text, into a place that takes text, is the text's, even
  *   when a picture comes with it (a copy from Word or Excel carries both).
- * - **A picture dropped on the field** is taken the same way.
+ * - **A picture dropped on the field** is taken the same way, and so is one
+ *   dropped beside it: the page cancels the drag and the drop, or the
+ *   browser opens the picture in place of the form and what was written.
+ *   The page stops listening once it has gone.
  * - **What is attached is said**, by its name and size, as a status a
  *   screen reader announces, with a button that removes it.
  * - **A *Paste screenshot* button** where the browser can read a picture from
@@ -32,7 +35,7 @@
  * The link-report form has no screenshot and is not changed.
  */
 
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -96,17 +99,22 @@ const hugePng = () => {
 /**
  * What a paste or a drop carries, shaped as the browser's `DataTransfer`:
  * the files in both `files` and `items`, as Chrome and Firefox give a
- * picture, and text under `text/plain`.
+ * picture, or in only one of them (`onlyIn`), and text under `text/plain`.
  */
-function carrying({ files = [], text }: { files?: File[]; text?: string }) {
+function carrying({ files = [], text, onlyIn }: { files?: File[]; text?: string; onlyIn?: 'files' | 'items' }) {
   const items = [
-    ...files.map((f) => ({ kind: 'file', type: f.type, getAsFile: () => f, getAsString: () => undefined })),
+    ...(onlyIn === 'files' ? [] : files).map((f) => ({
+      kind: 'file',
+      type: f.type,
+      getAsFile: () => f,
+      getAsString: () => undefined,
+    })),
     ...(text === undefined
       ? []
       : [{ kind: 'string', type: 'text/plain', getAsFile: () => null, getAsString: (cb: (s: string) => void) => cb(text) }]),
   ];
   return {
-    files,
+    files: onlyIn === 'items' ? [] : files,
     items,
     types: [...(files.length > 0 ? ['Files'] : []), ...(text === undefined ? [] : ['text/plain'])],
     getData: (format: string) => (text !== undefined && (format === 'text' || format === 'text/plain') ? text : ''),
@@ -174,6 +182,8 @@ describe('How do I make a screenshot?', () => {
     expect(L['report.screenshotHelp.windows']).toMatch(/^Windows: /);
     expect(L['report.screenshotHelp.windows']).toContain('Windows+Shift+S');
     expect(L['report.screenshotHelp.windows']).toContain('Print Screen');
+    // Print Screen asks for the part of the screen too on Windows 11, and copies all of it on 10.
+    expect(L['report.screenshotHelp.windows']).toContain('Windows 11');
     expect(L['report.screenshotHelp.windows']).toContain('Ctrl+V');
     expect(L['report.screenshotHelp.mac']).toMatch(/^Mac: /);
     expect(L['report.screenshotHelp.mac']).toContain('Shift+Command+4');
@@ -232,6 +242,17 @@ describe('a picture pasted on the page', () => {
     const body = await sendWith(locale);
     expect(body.screenshot).toEqual({ data: await base64Of(picture) });
   });
+
+  it.each(LOCALES.flatMap((locale) => (['files', 'items'] as const).map((onlyIn) => [onlyIn, locale] as const)))(
+    'attaches a pasted picture the browser gives in %s only (%s)',
+    async (onlyIn, locale) => {
+      await renderPage(locale);
+      const picture = png();
+      await userEvent.paste(carrying({ files: [picture], onlyIn }));
+
+      expect(await screen.findByRole('status')).toHaveTextContent(attachedLine(locale, picture));
+    },
+  );
 
   it.each(LOCALES)('attaches a picture pasted while the description has the focus (%s)', async (locale) => {
     await renderPage(locale);
@@ -292,26 +313,57 @@ describe('a picture pasted on the page', () => {
 // Drop, choose, remove
 // ---------------------------------------------------------------------------
 
-describe('a picture dropped on the field', () => {
+// A drop the page does not cancel is the browser's, and the browser opens the
+// picture in place of the form: `fireEvent` answers false only when the page
+// called preventDefault. The drops land on the field's hint, not the chooser,
+// since in a browser only a native file input takes a drop by itself.
+describe('a picture dropped on the field, or beside it', () => {
   it.each(LOCALES)('attaches a dropped PNG and sends it (%s)', async (locale) => {
-    const input = await renderPage(locale);
+    await renderPage(locale);
+    const hint = screen.getByText(STRINGS[locale]['report.screenshotHint']);
     const picture = png('screen.png');
-    fireEvent.dragOver(input, { dataTransfer: carrying({ files: [picture] }) });
-    fireEvent.drop(input, { dataTransfer: carrying({ files: [picture] }) });
+    expect(fireEvent.dragOver(hint, { dataTransfer: carrying({ files: [picture] }) })).toBe(false);
+    expect(fireEvent.drop(hint, { dataTransfer: carrying({ files: [picture] }) })).toBe(false);
 
     expect(await screen.findByRole('status')).toHaveTextContent(attachedLine(locale, picture));
     const body = await sendWith(locale);
     expect(body.screenshot).toEqual({ data: await base64Of(picture) });
   });
 
+  it.each(LOCALES)('takes a picture dropped outside the field (%s)', async (locale) => {
+    await renderPage(locale);
+    const picture = png('screen.png');
+    expect(fireEvent.dragOver(document.body, { dataTransfer: carrying({ files: [picture] }) })).toBe(false);
+    expect(fireEvent.drop(document.body, { dataTransfer: carrying({ files: [picture] }) })).toBe(false);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(attachedLine(locale, picture));
+  });
+
   it.each(LOCALES)('refuses a dropped file that is not a PNG or a JPEG (%s)', async (locale) => {
-    const input = await renderPage(locale);
-    fireEvent.drop(input, {
-      dataTransfer: carrying({ files: [new File(['%PDF'], 'scan.pdf', { type: 'application/pdf' })] }),
-    });
+    await renderPage(locale);
+    const hint = screen.getByText(STRINGS[locale]['report.screenshotHint']);
+    const pdf = new File(['%PDF'], 'scan.pdf', { type: 'application/pdf' });
+    expect(fireEvent.dragOver(hint, { dataTransfer: carrying({ files: [pdf] }) })).toBe(false);
+    // Refused, and still not left to the browser to open.
+    expect(fireEvent.drop(hint, { dataTransfer: carrying({ files: [pdf] }) })).toBe(false);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(STRINGS[locale]['report.screenshotType']);
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it.each(LOCALES)('stops taking pastes and drops once the page has gone (%s)', async (locale) => {
+    await renderPage(locale);
+    const carried = () => ({ dataTransfer: carrying({ files: [png()] }), clipboardData: carrying({ files: [png()] }) });
+    // While the page is shown, each is the page's ...
+    expect(fireEvent.dragOver(document.body, carried())).toBe(false);
+    expect(fireEvent.paste(document.body, carried())).toBe(false);
+    expect(fireEvent.drop(document.body, carried())).toBe(false);
+
+    // ... and once it has gone, the screen after it has them back.
+    cleanup();
+    expect(fireEvent.dragOver(document.body, carried())).toBe(true);
+    expect(fireEvent.drop(document.body, carried())).toBe(true);
+    expect(fireEvent.paste(document.body, carried())).toBe(true);
   });
 });
 
@@ -340,6 +392,20 @@ describe('what is attached, and taking it off', () => {
     expect(body).not.toHaveProperty('screenshot');
   });
 
+  it.each(LOCALES)('replaces a chosen file with a pasted one, and empties the chooser (%s)', async (locale) => {
+    const input = await renderPage(locale);
+    await userEvent.upload(input, png('my-screen.png'));
+    await screen.findByRole('status');
+
+    const pasted = png('image.png');
+    await userEvent.paste(carrying({ files: [pasted] }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(attachedLine(locale, pasted)));
+    // The chooser no longer shows my-screen.png beside it, and choosing that again is a change.
+    expect(input.files?.length ?? 0).toBe(0);
+    const body = await sendWith(locale);
+    expect(body.screenshot).toEqual({ data: await base64Of(pasted) });
+  });
+
   it.each(LOCALES)('removes a pasted screenshot the same way (%s)', async (locale) => {
     const L = STRINGS[locale];
     await renderPage(locale);
@@ -358,11 +424,21 @@ describe('what is attached, and taking it off', () => {
 // ---------------------------------------------------------------------------
 
 describe('the Paste screenshot button', () => {
+  /**
+   * `navigator.clipboard` with `read` as a browser has it: a method that
+   * refuses a call without the clipboard as its `this` (WebIDL's "Illegal
+   * invocation"), so a page that takes `read` off the clipboard is caught.
+   */
   const setClipboard = (read: (() => Promise<unknown>) | undefined) => {
-    Object.defineProperty(globalThis.navigator, 'clipboard', {
-      configurable: true,
-      value: read === undefined ? undefined : { read },
-    });
+    const clipboard: { read(): Promise<unknown> } | undefined =
+      read === undefined
+        ? undefined
+        : {
+            read(this: unknown) {
+              return this === clipboard ? read() : Promise.reject(new TypeError('Illegal invocation'));
+            },
+          };
+    Object.defineProperty(globalThis.navigator, 'clipboard', { configurable: true, value: clipboard });
   };
   /** A `ClipboardItem` as `navigator.clipboard.read()` answers with one. */
   const clipboardItem = (blob: Blob) => ({ types: [blob.type], getType: () => Promise.resolve(blob) });
@@ -389,6 +465,7 @@ describe('the Paste screenshot button', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       fill(STRINGS[locale]['report.screenshotAttached'], { name: 'screenshot.png', size: formatBytes(picture.size) }),
     );
+    expect(read).toHaveBeenCalledTimes(1);
     const body = await sendWith(locale);
     expect(body.screenshot).toEqual({ data: await base64Of(picture) });
   });

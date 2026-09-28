@@ -52,11 +52,13 @@ const en = {
   'report.screenshotType': 'Choose a PNG or a JPEG.',
   // How to make one, a closed fold under the field (the owner, 2026-09-28):
   // one line for each kind of device, from each vendor's own help page, and
-  // what to look at before sending it.
+  // what to look at before sending it. Print Screen copies the whole screen on
+  // Windows 10; on Windows 11 it opens the same snipping bar as Windows+Shift+S,
+  // unless its keyboard setting is turned off.
   'report.screenshotHelp': 'How do I make a screenshot?',
   'report.screenshotHelp.windows':
     'Windows: press Windows+Shift+S, choose the part of the screen, then paste it here with Ctrl+V. ' +
-    'Or press Print Screen, then paste.',
+    'Or press Print Screen (on Windows 11 you get the same choice), then paste.',
   'report.screenshotHelp.mac':
     'Mac: press Shift+Command+4, drag over the part you want, then choose the picture from your desktop. ' +
     'Or press Control+Shift+Command+4 to copy it instead, and paste it here with Command+V.',
@@ -2578,7 +2580,7 @@ const nl: Record<keyof typeof en, string> = {
   'report.screenshotHelp': 'Hoe maak ik een schermafbeelding?',
   'report.screenshotHelp.windows':
     'Windows: druk op Windows+Shift+S, kies het deel van het scherm en plak hem hier met Ctrl+V. ' +
-    'Of druk op Print Screen en plak hem daarna.',
+    'Of druk op Print Screen (in Windows 11 krijgt u dan dezelfde keuze) en plak hem daarna.',
   'report.screenshotHelp.mac':
     'Mac: druk op Shift+Command+4, sleep over het deel dat u wilt en kies de afbeelding daarna op uw bureaublad. ' +
     'Of druk op Control+Shift+Command+4 om hem te kopiëren, en plak hem hier met Command+V.',
