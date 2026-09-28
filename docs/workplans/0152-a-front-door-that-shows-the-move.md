@@ -4,37 +4,51 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28: opened from the owner's request, with four answers from the owner. Nothing is
-built.** The owner asked, on 2026-09-28, for the website and the app to become more intuitive.
-They asked for this to be done from a UX and UI point of view, with questions and
-recommendations, written up as workplans. This plan covers the site (`site/`) and the two app
-pages its buttons lead to. 0153 covers the app's migrations and the flow that creates them. 0154
-covers progress and proof. The three plans were written together, from one audit of the site and
-the app on `main` at `83eb73e` (§1).
+**2026-09-28, evening: the owner's second answers settle every open choice but one.** Nothing is
+built. The answers, quoted in §2:
 
-The owner answered four questions the same day (§2):
+- **All of it before the alpha (D5):** *"before we start Alpha i want this fixed/completed."* So
+  T5 and T8 no longer wait for `WWW_LIVE`, and T6's price work no longer waits for the first
+  invoice. Open question 1 is answered: *No*.
+- ***Migratie*, never *verhuizing*, in Dutch (D6).** The site's *"4 verhuizingen tegelijk"*
+  becomes *"4 migraties tegelijk"* (T0).
+- **The price list (D9):** Free (replaces Tiny) · Small €5 a month or €30 a year · Medium €12 or
+  €72 · Large €40 or €240 · Extra large €80 or €480.
+  - VAT is included, and there are no setup fees.
+  - The limits (migrations at the same time, data moved) are ADR-0014's, unchanged.
+- **The price page (D10):** a switch that opens on yearly and shows the price per month and the
+  discount against monthly. There is no strike-through, and the yearly total is always visible.
+- **Renewal (D11):** a year renews by itself, the customer can stop at any time, and unused months
+  are refunded.
+- **The principle (D12):** *"Costs include our work"*. The price pays for the servers, the
+  support and the time spent building the service, and self-hosting stays free. That replaces
+  *"not to make a margin"* on the page. ADR-0014 is amended by the owner (T6 (g)).
+- **The rest:**
+  - the destinations the app supports are named (T4, T5);
+  - a drawing now, and an app screen later (T3);
+  - R builds from this session's drawings in [`docs/design/0152-0154/`](../design/0152-0154/README.md)
+    (D8).
 
-- **The model, D1:** one move per person. This is mostly 0153's, but it is the picture this site
-  draws.
-- **The timing, D2:** before the first invitation.
-- **Payment, D3:** a year costs six months of the monthly price.
-- **Provider marks, D4:** names and our own icons, no third-party logos.
+0131 T5's row for this plan is now the whole plan.
 
-D2 puts this plan's minimum on 0131 T5's go/no-go list. It adds one row there (0131's Status
-block, 2026-09-28). What a tester meets is in the minimum. What a search engine meets waits for
-the public site, which stays off until the legal texts are final (0139 T10, `WWW_LIVE`).
+**2026-09-28: opened from the owner's request, with four answers from the owner.** The owner
+asked, on 2026-09-28, for the website and the app to become more intuitive, from a UX and UI
+point of view, with questions and recommendations, written up as workplans. This plan covers the
+site (`site/`) and the two app pages its buttons lead to. 0153 covers the app's migrations and
+the flow that creates them. 0154 covers progress and proof. The three plans were written
+together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 
 | Task | Status | Notes |
 |---|---|---|
-| T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before T1–T4 merge** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. |
+| T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
 | T1 The alpha, said on the site | 📋 **Proposed; before the first invitation** | §3. The app's alpha sentence on every site page while the alpha setting is on. The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. |
 | T2 A shorter menu, and a header that fits a phone | 📋 **Proposed; before the first invitation** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
-| T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. An inline SVG: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it. A three-step strip links to *How it works*. |
-| T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names the destinations the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
-| T5 A page per provider a person leaves | 📋 **Proposed; before `WWW_LIVE` goes on** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, a typical cost. Built from copies of the app's own verdicts, each guarded. |
-| T6 Pricing that reads in one pass | 🟡 **Proposed: (a) and (c) before the first invitation; (b), (d) and (e) before the first paid invoice** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) Both cadences, a year = six months (D3), with no strike-through and no percentage. (e) What cancelling means for each cadence. |
-| T7 A calculator that ends in a button | 🟡 **Proposed: (a), (c) and (d) before the first invitation; (b) with T6 (d)** | §3. (a) *Request access* carries the answers along. (b) *Until when?* suggests a cadence. (c) The layout faults and a live region. (d) Box as a source. |
-| T8 Claims you can check | 📋 **Proposed; before `WWW_LIVE` goes on** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it. |
+| T3 The hero shows the move | 📋 **Proposed; before the first invitation** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. An app screen joins it once 0153 T5 exists. |
+| T4 The destinations, named | 📋 **Proposed; before the first invitation** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
+| T5 A page per provider a person leaves | 📋 **Proposed; before the first invitation (D5)** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
+| T6 Pricing that reads in one pass | 📋 **Proposed; before the first invitation (D5); (g) waits for the owner's ADR-0014 amendment** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) Renewal and a withdrawal button (D11). (g) The principle, the price that pays for the work (D12). |
+| T7 A calculator that ends in a button | 📋 **Proposed; before the first invitation** | §3. (a) *Request access* carries the answers along. (b) *Until when?* says which payment suits it. (c) The layout faults and a live region. (d) Box as a source. |
+| T8 Claims you can check | 📋 **Proposed; before the first invitation (D5)** | §3. "Open source" links the repository. Each proof point links the guard that holds it. The footer names the company once 0139 publishes it; until then that line is the one part that waits. |
 | T9 One look from the site to the app | 📋 **Proposed; before the first invitation** | §3. `/request-access` and `/login` take the site's palette and logo, and link back to the site. The identity provider's own branding stays 0135 T6. |
 
 ## 1. What there is today
@@ -166,31 +180,72 @@ The owner answered four questions in the session that wrote this plan.
   and Dropbox)."* 0153 builds it. For this plan it means the site's picture is one person's move,
   from one or more old accounts to a new home, never a copy job.
 - **D2 — Before the first invitation.** The question was how this work sits against 0131 T5. The
-  answer: *"Before the first invitation"*. This plan reads it as follows. What a tester meets
-  before they are in (T1–T4, T6 (a) and (c), T7 (a), (c) and (d), T9) is in the minimum. What
-  only a search engine or a paying customer meets (T5, T6 (b), (d) and (e), T7 (b), T8) waits for
-  the public site or the first invoice. The alpha is free (0131 D1), and the site is not public
-  until `WWW_LIVE` goes on. Open question 1 asks the owner to confirm the split.
+  answer: *"Before the first invitation"*. This plan first read that as covering only what a
+  tester meets, and asked (open question 1). D5 answers it: all of it.
 - **D3 — A year costs six months.** The question: how many months of the monthly price should a
   year cost? The answer: *"A year = 6 months"*. So every paid band has two prices, the monthly
   and six times the monthly for a year. The page says the rule in plain words: *"Done within six
   months? Pay monthly. Longer, or not sure? A year costs the same as six months."* Nothing is
-  struck through and there is no percentage badge. The amounts are not decided here. They
-  follow 0109's bands, and ADR-0014's table gains an annual column when they land.
+  struck through. The amounts and the page came the same evening, in D9 and D10. D10 replaces
+  this line's *no percentage badge*.
 - **D4 — Names and our own icons.** The question: how should Google, Microsoft, Apple, Dropbox,
   Soverin and Nextcloud appear? The answer: *"Names + our own icons"*. So no third-party logo
   file appears on the site or in the app. A provider is named in text next to our own icon: the
   initial tiles 0107 T2 built, and data-type icons for mail, contacts, calendar, files and
   photos. This settles 0107 T2's open *"real logos need the owner's go-ahead"*: there are none.
+  The option the owner chose read *"our own neutral monogram tiles"*, so the tiles are neutral
+  (`docs/design/0152-0154/tiles.svg`). That answers open question 3.
+
+The owner answered the rest the same evening:
+
+- **D5 — All of it before the alpha.** *"before we start Alpha i want this fixed/completed."*
+- **D6 — *Migratie*, never *verhuizing*.** *"Yes, but dutch know 'één migratie en 4
+  migraties'. So we use 'migratie' in instead of 'verhuizing'."* The site's Dutch follows (T0).
+- **D7 — The destinations the app supports are named.** The owner chose *"Name what the app
+  supports"*. On the homepage (T4) and on each *Leaving…* page (T5), a destination is named with
+  the data types it takes, from the app's own list. The pages give no prices or ratings of
+  theirs.
+- **D8 — Drafted here, built by R.** *"you draft the workplans and UX/visual image elements we
+  might need or explain in the workplans how/with what the other session should make those."*
+  - The drawings are in `docs/design/0152-0154/`.
+  - §5 says how each is built.
+  - The tasks are group R8 in 0131 §6.
+  - The homepage picture is *"Drawing now, app screen later"*.
+- **D9 — The price list.** The owner asked for one free tier replacing Tiny and a very cheap one
+  under €10 a month: *"Make it 5 euro per month, leaving it 30 euro if one pays anually. change
+  the other tiers in accourdance. Do validate with me."* Validating the proposed table, the owner
+  set it: *"Free · Small €5/€30 · Medium €12/€72 · Large €40/€240 · Extra large €80/€480."*
+  - Setup fees: *"Drop setup fees"*.
+  - VAT is included.
+  - The limits stay ADR-0014's.
+- **D10 — The page opens on yearly.** *"Yearly preselected, with montly/yearly switch that
+  opens on yearly. It shows the monthly price (yearly divided by 12) and discount against the
+  monthly price."*
+- **D11 — A year renews, and stopping refunds.** The owner chose *"Auto-renew a year, refund"*.
+- **D12 — The price pays for the work.** On the page's *"not to make a margin"*: *"yes, but i do
+  need a pricing model that supports the efforts."* Asked how the page should say it, the owner
+  chose *"Costs include our work"*.
 
 ## 3. What each task does
 
-### T0 — the owner reads the new copy (owner; before T1–T4 merge)
+### T0 — the owner reads the new copy (owner; before each task merges)
 
 Every sentence this plan adds is a proposal. 0144 T0 made the site's copy the owner's to approve,
-and nothing here changes that. Each pull request of T1–T4 carries its sentences in both languages
-in its description. It merges after the owner's word on them. What this plan proposes is in the
-task below it, marked *proposed wording*.
+and nothing here changes that. Each pull request carries its sentences in both languages in its
+description, and merges after the owner's word on them. What this plan proposes is in the task
+below it, marked *proposed wording*.
+
+**One change is decided rather than proposed (D6): Dutch says *migratie*, never *verhuizing*.**
+
+- Every form of *verhuizen* in `site/copy.mjs` and `site/pages/nl/` (*verhuizing*, *verhuizingen*,
+  *verhuist*, *verhuisd*) becomes a form of *migratie* or *migreren*. For example,
+  `copy.mjs`:258's *"verhuizing tegelijk"* becomes *"migratie tegelijk"*, and `copy.mjs`:224's
+  *"Hoe een verhuizing verloopt"* becomes *"Hoe een migratie verloopt"*.
+- A sentence that reads worse for it is rewritten, not patched, and the owner reads it first.
+  For example, *"Het is een verhuizing, geen kopie"* becomes *"Het is een migratie, geen
+  kopie"*.
+- A case in `site/site.unit.test.ts` fails on `/verhui[sz]/i` anywhere in the Dutch pages, so
+  *verhuist* and *verhuisd* are caught as well as *verhuizing*.
 
 ### T1 — the alpha, said on the site (before the first invitation)
 
@@ -203,7 +258,7 @@ the site's muted style, not a yellow banner.
 (b) **"Most people" becomes a fact about the tier.**
 
 - In `copy.mjs`:99 and the tier badge (:112, :263), the proposed wording is *"One person moving
-  everything at once"*, and *"Eén persoon die alles tegelijk verhuist"* in Dutch.
+  everything at once"*, and *"Eén persoon die alles tegelijk migreert"* in Dutch (D6).
 - It changes back only when there is a count to base it on.
 - `site/site.unit.test.ts` pins the home page's sentence and is updated in the same pull request.
 
@@ -228,7 +283,9 @@ passes the CSP. The header stays under 64 pixels at 390 wide.
 
 ### T3 — the hero shows the move (before the first invitation)
 
-(a) **A picture beside the lede, as inline SVG.**
+(a) **A picture beside the lede, as inline SVG:** `docs/design/0152-0154/hero-move.svg`,
+*"Drawing now, app screen later"* (D8). A real screen of a person's migrations joins it once
+0153 T5 exists.
 
 - On the left, the old account: tiles for mail, contacts, calendar, files and photos.
 - In the middle, Ownpace, with two arrows: *copies*, then *keeps in step*.
@@ -263,10 +320,14 @@ is delivered. Proposed wording goes to T0. The page's "read-only" rewrite stays 
 - **What it says.** Proposed wording: *"Your new home is an account you open with a European
   provider, paid to them. Ownpace moves your data into it and keeps it in step."*
 - **What it names:**
-  - **Soverin**: mail, calendar and contacts.
-  - **Nextcloud**: files, calendar and contacts.
-  - **A JMAP server** such as Stalwart.
-  - **Any provider that speaks IMAP, CalDAV, CardDAV or WebDAV.**
+  - **Soverin**: mail, calendar, contacts and tasks.
+  - **Nextcloud**: files, calendar, contacts and tasks.
+  - **A JMAP server** such as Stalwart: mail, contacts and files.
+  - **Any provider that speaks IMAP, CalDAV, CardDAV or WebDAV**, each for what its protocol
+    carries.
+
+  These are `TARGET_TYPE_DOMAINS` in `packages/shared/src/target-domains.ts` on 2026-09-28. The
+  page takes them from the guarded copy (b), never from this list.
 - **Each destination** shows the data types it takes, as T3's icons with their names.
 
 (b) **The list is a copy with a guard.** `site/` cannot import `packages/shared`. So the
@@ -282,10 +343,11 @@ destinations and their data types are copied into a site module (`site/destinati
 destination takes. It does not say what the provider costs, where it is hosted or how good it is.
 `docs/target-providers.md` keeps that, with its dates.
 
-### T5 — a page per provider a person leaves (before `WWW_LIVE` goes on)
+### T5 — a page per provider a person leaves (before the first invitation, D5)
 
 (a) **Six pages in each language:** Google, Microsoft 365, Apple iCloud, Dropbox, Box, and
-another mail provider. Each has the same five parts, all generated:
+another mail provider. Each has the same five parts, all generated. The destinations each data
+type can go to are named in the first part (D7), from the same guarded list as T4.
 
 1. **What moves.** One row per data type, with *moves*, *moves with a limit* or *does not move*.
    The verdicts come from the same source as the app's cards and the scope manifest
@@ -311,14 +373,14 @@ page's hero gets a row of the six names under the buttons. Each is text with its
 (D4), not a logo.
 
 (c) **Search.** The pages carry canonical URLs, hreflang with absolute URLs, and a line each in
-`llms.txt` (ADR-0029's operative rule, not built yet). This waits for `WWW_LIVE`, because a
-`noindex` site gains nothing from it.
+`llms.txt` (ADR-0029's operative rule, not built yet). They are built before the alpha with the
+rest (D5), and take effect once `WWW_LIVE` makes the site indexable.
 
 (d) **Where this meets 0151.** 0151 T1, parked, would render `docs/guides` on the site. The pages
 here link the app's guide sections today, and link the site's own help section when 0151
 unparks. Neither copies the other's text.
 
-### T6 — pricing that reads in one pass (a, c before the invitation; b, d, e before the first paid invoice)
+### T6 — pricing that reads in one pass (before the first invitation, D5)
 
 (a) **One statement about VAT.** The sentences *"VAT is added where it applies."*
 (`pricing.md`:71) and *"Btw komt erbij waar die van toepassing is."* (`prijzen.md`:73) go.
@@ -344,34 +406,109 @@ each other. The guard's comment is updated to say answers rather than paragraphs
 (c) **A button to the calculator.** *Work out what yours costs* sits under the tier cards and
 links `estimate.html`. The home page's *What it costs* block gets the same button.
 
-(d) **Both payment rhythms (D3).**
+(d) **The new list (D9)**, drawn in `wf-pricing.svg`.
 
-- **Each paid tier card shows two prices:** *"€M a month"* and *"or €6M a year"*.
-- **Under the cards, one sentence** does the comparing, in plain words: *"Done within six months?
-  Pay monthly. Longer, or not sure? A year costs the same as six months."* In Dutch: *"Binnen zes
-  maanden klaar? Betaal per maand. Langer, of weet u het nog niet? Een jaar kost hetzelfde als
-  zes maanden."*
-- **What the page never shows:**
-  - a struck-through price;
-  - a percentage;
-  - a "was" price;
-  - a preselected rhythm.
-- **Tiny stays free**, with no invoice.
-- **Where the numbers come from.** They come from `prices.mjs`, which gains an `annual` field per
-  tier. `site/site.unit.test.ts` checks that it matches ADR-0014's table, which gains the column
-  when 0109 draws the bands, and that it is six times the monthly. A tier whose annual is not
-  six times the monthly fails the build.
-- **What it waits for.** The ADR-0014 amendment carrying the annual column is the owner's. This
-  task waits for it.
+- **`site/prices.mjs` becomes:**
 
-(e) **What stopping means for each rhythm.** The rule *"Cancel whenever. No minimum term, no
-notice period, no cancellation fee."* is true of monthly and not, as written, of a year paid in
-advance. The page says what happens to a year when the person stops. This task waits for 0111's
-decision on how a year renews. A Dutch consumer must be able to cancel with at most a month's
-notice once the first term is over (art. 6:236 sub j BW). It also waits for the terms' refund
-wording (0139). Until both are decided, the annual price is not shown.
+  | Tier | Id | Monthly | A year |
+  |---|---|---|---|
+  | Free | `free`, replaces `tiny` | free | free |
+  | Small | | €5 | €30 |
+  | Medium | | €12 | €72 |
+  | Large | | €40 | €240 |
+  | Extra large | | €80 | €480 |
 
-### T7 — a calculator that ends in a button (a, c, d before the invitation; b with T6 d)
+  Each tier keeps its limits (at the same time, data moved). The `setup` field goes, because no
+  tier has one. `annual` joins it.
+- **ADR-0014's operative table is amended by the owner.** The tier name, the two prices, no
+  setup column. `site/site.unit.test.ts` keeps reading the table and checks `prices.mjs`
+  against it, and now also that every annual price is six times its monthly. A tier that
+  breaks either fails the build.
+- **The derived first month goes.** Setup plus monthly was the card's headline. The cards now
+  lead with the price per month (e).
+- **Every place that names Tiny follows**, in the same pull request:
+  - the guarded home sentence *"Tiny is free: one migration at a time, up to 250 GB."* becomes
+    *"Free: one migration at a time, up to 250 GB."*;
+  - the calculator's derived tier;
+  - `packages/managed/src/tier-calculator.ts`, which its own test holds equal to
+    `site/calculator.mjs`.
+- **ADR-0014's wording rules stand:** *free*, never *€0*, and *at the same time*.
+- **Invoices follow in 0111:** no setup line, and a yearly line. The page never offers a price
+  0111 cannot bill.
+
+(e) **The monthly / yearly switch (D10).**
+
+- **The switch.** Above the cards sits a two-option switch, *Yearly · Monthly* / *Per jaar ·
+  Per maand*, opening on *Yearly*.
+  - It is built without a script: two radio inputs and `:checked` sibling selectors in the
+    inline style. The CSP needs nothing new, the site's no-`<form>` rule holds, and it works
+    with JavaScript off.
+  - It is a real radio group with a visible label, so a keyboard and a screen reader can use it.
+- **On yearly, each paid tier shows:**
+  - the price per month, the year divided by twelve: €2.50, €6, €20, €40;
+  - the year's total, in bold on the line under it and never in small print: *"€30 a year"*;
+  - the comparison: *"half the monthly price"* / *"de helft van de maandprijs"*.
+- **On monthly,** each paid tier shows its monthly price.
+- **Free** shows *Free* in both views.
+- **Cents.** €2.50 needs them. So `prices.mjs` moves to integer cents, and its formatter learns
+  cents. `prices.mjs`'s own header asks for exactly this (*"change this to integer cents and fix
+  the formatter — do not introduce a float"*).
+- **The guardrails, from the Dutch rules on price comparisons:**
+  - no price is struck through;
+  - no price is called a former or "was" price;
+  - the discount compares two prices on sale now, never a price cut;
+  - the yearly total is always visible;
+  - VAT is included;
+  - there is no countdown or "limited time".
+
+  The owner's lawyer confirms the wording (0139). Two cases in `site/site.unit.test.ts` hold the
+  guardrails: no `<s>`, `<del>` or `line-through` on the pricing page, and every per-month yearly
+  figure has its yearly total in the same card.
+- **Under the switch,** the plain sentence can stay for anyone who wants the reason: *"Done
+  within six months? Pay monthly. Longer, or not sure? A year costs the same as six months."*
+  Its Dutch is in D3. It stays if the owner keeps it in T0.
+- **`test/ui/site.ui.test.ts`:**
+  - the page opens on yearly;
+  - switching shows the monthly prices, with a click and with the keyboard;
+  - nothing scrolls sideways at 390 pixels.
+
+(f) **Renewal, refund and a withdrawal button (D11).**
+
+- **What the page says.** Proposed wording, for T0 and the lawyer: *"A year renews by itself. You
+  can stop at any time, and the whole months you have not used are refunded."* The old *"Cancel
+  whenever. No minimum term…"* keeps its truth for monthly and gains this for yearly.
+- **The law behind it.** After the first year, stopping takes at most a month's notice
+  (art. 6:236 sub j BW).
+- **A reminder 30 days before each renewal.** It says what renews, the amount and how to stop.
+  It is a new template in 0030's email channel, in both languages, and is built with 0111's
+  yearly invoicing.
+- **The withdrawal button.** A contract made online has needed a clearly labelled function to
+  withdraw during the withdrawal period since 19 June 2026: Directive (EU) 2023/2673, which adds
+  article 11a to the Consumer Rights Directive.
+  - It takes two steps, and the confirmation arrives on a durable medium (an email).
+  - It goes on the app's Billing page (`Billing.tsx`), with the label the Dutch law uses, which
+    the lawyer confirms.
+  - Terms §7 says it is there, beside the email route (0139).
+- **Refunds are credit notes.** 0111 builds them.
+
+(g) **The principle: the price pays for the work (D12).**
+
+- ***Why it is priced this way* is rewritten.** Proposed wording, for T0:
+  - English: *"Ownpace is priced to pay for what it takes to run and build it: the servers, the
+    support, and the time spent building and improving the software. There are no investors to
+    answer to. Running it yourself is free, and always will be."*
+  - Dutch: *"Ownpace is zo geprijsd dat het betaalt wat nodig is om het te laten draaien en te
+    bouwen: de servers, de ondersteuning en de tijd voor het bouwen en verbeteren van de
+    software. Er zijn geen investeerders om verantwoording aan af te leggen. Zelf draaien is
+    gratis, en blijft dat."*
+- ***"The larger tiers are priced above their own cost on purpose"*** goes with the old
+  principle.
+- **ADR-0014 is amended by the owner.** Its *cost-recovery* framing becomes this principle, and
+  its operative rules are regenerated into `OPERATIVE.md`. The architecture document's §16 line
+  *"Billing is cost-recovery, not for profit"* gets a dated note in the same pull request. This
+  task drafts both and waits for the owner's word.
+
+### T7 — a calculator that ends in a button (before the first invitation, D5)
 
 (a) ***Request access* at the end, with the answers carried along.**
 
@@ -384,10 +521,11 @@ wording (0139). Until both are decided, the annual price is not shown.
 - **The CSP.** The link is built by the pinned script, so the hash is re-pinned in the same pull
   request.
 
-(b) ***Until when?* suggests a rhythm, once T6 (d) is shown.**
+(b) ***Until when?* says which payment suits it** (D9, D10).
 
-- *1 month* or *3 months* leads to *"Pay monthly: €M a month."*
-- *6 months* or *When I am ready* leads to *"A year costs the same as six months: €6M."*
+- *1 month* or *3 months* leads to *"Paying monthly suits this: €M a month."*
+- *6 months* or *When I am ready* leads to *"A year suits this: €6M, which is half the monthly
+  price."*
 - This is a sentence under the result, not a choice, so the tier stays derived (ADR-0014). The
   three-month total line gives way to the answer the person chose.
 
@@ -403,7 +541,7 @@ wording (0139). Until both are decided, the annual price is not shown.
 (d) **Box as a source.** *Moving away from?* gains *Box*, with a profile row in
 `profiles.mjs` and its provenance (`profiles.unit.test.ts` requires one).
 
-### T8 — claims you can check (before `WWW_LIVE` goes on)
+### T8 — claims you can check (before the first invitation, D5)
 
 (a) **"Open source" links the repository.** The phrase in `copy.mjs`:45, :81 and :83 links
 `https://github.com/Robbes/Ownpace`. The footer's *"Run it yourself"* links the self-host
@@ -435,22 +573,50 @@ layout. The identity provider's pages stay 0135 T6.
 ## 4. Order
 
 1. **T0**, the owner's reading. It runs alongside everything else and blocks merges, not work.
-2. **Before the first invitation:**
-   - T6 (a), the VAT sentence. It is the smallest, and it matters under consumer law.
-   - T1.
-   - T2.
-   - T9.
-   - T3.
-   - T4.
-   - T7 (a), (c) and (d).
-   - T6 (c).
-3. **Before `WWW_LIVE` goes on:** T5, then T8.
-4. **Before the first paid invoice:** T6 (b), then T6 (d) and T7 (b) together, then T6 (e). These
-   wait for 0109's bands, the ADR-0014 column, 0111's renewal decision and the terms.
+2. **All of it before the first invitation (D5), in this order:**
+   1. T6 (a), the VAT sentence. It is the smallest, and it matters under consumer law.
+   2. T1.
+   3. T2.
+   4. T9.
+   5. T3.
+   6. T4.
+   7. T7 (a), (c) and (d).
+   8. T6 (c).
+   9. T5.
+   10. T8.
+   11. T6 (b).
+   12. T6 (d) and T7 (b) together, then T6 (e), then T6 (f) and (g).
+
+**What only someone else can unblock.** None of it moves a task later (D5). It is:
+
+- **The owner's ADR-0014 amendment:** the list, no setup, and the principle. This comes before
+  T6 (d) and (g).
+- **0111's yearly invoicing, refunds and the renewal reminder.** These come before T6 (d) to (f)
+  show a price a customer could pay. The alpha is free (0131 D1), so the pages can show the list
+  while nothing is billed. The Billing page and the terms say so.
+- **The lawyer's check of the discount, refund and withdrawal wording** (0139), before T6 (e)
+  and (f) merge.
+- **The company's details from 0139,** for T8 (c).
+
+**Who builds it (D8).** Session R, as group R8 in 0131 §6, from the drawings in
+`docs/design/0152-0154/` and §5.
 
 The site is one folder, and 0144 T3 (b) and T1 are changing it in 0131's group R5. Each task here
 is built on top of R5's merged state, or waits for it. The pull request says which (0131 §6,
 *Out of turn*).
+
+## 5. The drawings, and how R builds from them (D8)
+
+They are in [`docs/design/0152-0154/`](../design/0152-0154/README.md), drafted in this session.
+They are references for layout, order and wording, not specifications to the pixel.
+
+| Drawing | For | How to build it |
+|---|---|---|
+| `hero-move.svg` | T3 | It is inlined by `build.mjs`, never linked, so it needs no image request and nothing new in the CSP. A function returns it with its `<title>` and labels in the page's language. Its colours are the site's CSS custom properties (the palette `build.mjs` declares), so dark mode needs no second file. `role="img"` and an `aria-label` say what it shows in one sentence. On a phone it sits below the buttons. |
+| `icons.svg` | T3, T4, T5 | Six data-type icons (mail, calendar, contacts, files, photos, tasks), each a `<symbol>` in one inline sprite, used with `<use href="#…">`. The stroke is `currentColor`. They are the same drawings 0153 builds as React components, so the site and the app draw the same six. |
+| `tiles.svg` | T4, T5 | The neutral provider and destination tiles (D4): the initial on the site's teal, with the name written beside it. The same table of initials as 0153 §5. |
+| `wf-site-home.svg` | T1–T5, T6 (c) | The home page's order: the alpha line; the hero with its drawing, and the six *Leaving…* names under its buttons (T5 (b)); three facts; the three steps; *Where to*; the sections that stay; and one price line with its buttons. |
+| `wf-pricing.svg` | T6 | The labelled switch opening on yearly; the five cards on yearly (per month, the year's total in bold under it, *half the monthly price*); the calculator's button; one card on monthly; the renewal line; the questions and answers; and the principle. |
 
 ## Lessons that apply
 
@@ -474,16 +640,14 @@ is built on top of R5's merged state, or waits for it. The pull request says whi
 
 ## Open questions
 
-1. **The split of D2.** This plan reads *"before the first invitation"* as follows: what a
-   tester meets is before, and the pages only a search engine or a paying customer meets (T5,
-   T6 (b), (d) and (e), T7 (b), T8) wait for `WWW_LIVE` or the first invoice. Is that the
-   owner's intent, or should T5 come before the first invitation too?
-2. **T4's list of destinations.** It names Soverin, Nextcloud, a JMAP server such as Stalwart,
-   and any IMAP, CalDAV, CardDAV or WebDAV provider. Should mosa.cloud and openDesk be named
-   too? The app supports them as a JMAP target and through IMAP/DAV.
-3. **Colours of the initial tiles (D4).** 0107 T2 drew them in each provider's colour. Do they
-   keep those colours, or move to the site's palette? The recommendation is to keep them: a
-   coloured letter is not a logo, and the colour helps a person find their provider.
+1. ~~**The split of D2.**~~ **Answered 2026-09-28 (D5):** no split. All of it comes before the
+   alpha.
+2. ~~**T4's list of destinations.**~~ **Answered 2026-09-28 (D7):** *"Name what the app
+   supports"*. The site names what the app's own list names, through the guarded copy (T4 (b)).
+   mosa.cloud and openDesk appear by name when that list names them, and as *a JMAP server* or
+   *an IMAP/DAV provider* until then.
+3. ~~**Colours of the initial tiles (D4).**~~ **Answered by D4's own wording,** *"our own neutral
+   monogram tiles"*: neutral, in the site's palette (`tiles.svg`).
 4. **The Dutch site at the root.** The alpha is Dutch (0131 D1), and `/` serves English. Should
    the alpha build serve Dutch at `/`, with English under `/en/`? That moves every URL. The
    recommendation is not now: keep `/` and make the language switch more visible on phones (T2).

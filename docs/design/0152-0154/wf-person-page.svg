@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1240" viewBox="0 0 1280 1240" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<title id="t">Wireframe: a person’s page</title>
+<desc id="d">The stage in one line, one row per data type with totals and time ranges, the steps before switching with counts and states, and the person’s links.</desc>
+<defs>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="5" width="18" height="14" rx="2"/>
+<path d="M3 7l9 6 9-6"/>
+</symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="5" width="18" height="16" rx="2"/>
+<path d="M3 10h18M8 3v4M16 3v4"/>
+</symbol>
+<symbol id="i-contacts" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="8" r="4"/>
+<path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>
+</symbol>
+<symbol id="i-files" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+</symbol>
+<symbol id="i-photos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect x="3" y="4" width="18" height="16" rx="2"/>
+<circle cx="9" cy="10" r="2"/>
+<path d="M21 16l-5-5-9 9"/>
+</symbol>
+<symbol id="i-tasks" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17M10 6h11M10 12h11M10 18h11"/>
+</symbol>
+</defs>
+<rect width="1280" height="1240" fill="#FFFFFF"/>
+<rect x="0" y="0" width="232" height="1240" rx="0" fill="#FFFFFF"/>
+<path d="M232 0V1240" stroke="#E5E7EB"/>
+<rect x="20" y="20" width="28" height="28" rx="7" fill="#0E4F4A"/>
+<text x="58" y="40" font-size="17" font-weight="700" fill="#111827" text-anchor="start">Ownpace</text>
+<rect x="12" y="64" width="208" height="36" rx="8" fill="#EFF6FF"/>
+<text x="28" y="87" font-size="14" font-weight="600" fill="#2563EB" text-anchor="start">Migrations</text>
+<text x="28" y="131" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Needs you</text>
+<rect x="176" y="115" width="28" height="20" rx="10" fill="#FEF3C7"/>
+<text x="190" y="130" font-size="12" font-weight="700" fill="#B45309" text-anchor="middle">3</text>
+<text x="28" y="175" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Accounts</text>
+<text x="28" y="219" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Help</text>
+<text x="28" y="263" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Team</text>
+<text x="28" y="307" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Billing</text>
+<path d="M0 1120H232" stroke="#E5E7EB"/>
+<text x="24" y="1152" font-size="13" font-weight="500" fill="#374151" text-anchor="start">anna@example.org</text>
+<text x="24" y="1176" font-size="12" font-weight="500" fill="#6B7280" text-anchor="start">EN · NL</text>
+<text x="24" y="1200" font-size="12" font-weight="500" fill="#6B7280" text-anchor="start">Report a problem · Sign out</text>
+<text x="264" y="44" font-size="13" font-weight="600" fill="#2563EB" text-anchor="start">← Migrations</text>
+<text x="264" y="82" font-size="28" font-weight="800" fill="#111827" text-anchor="start">Anna Jansen</text>
+<text x="264" y="108" font-size="14" font-weight="500" fill="#374151" text-anchor="start">From Google and Dropbox to Soverin and Nextcloud</text>
+<rect x="264" y="128" width="980" height="92" rx="14" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<rect x="284" y="146" width="72.84" height="24" rx="12.0" fill="#EFF6FF"/>
+<text x="320.42" y="161.5" font-size="14" font-weight="600" fill="#2563EB" text-anchor="middle">Copying</text>
+<text x="394" y="166" font-size="15" font-weight="600" fill="#111827" text-anchor="start">Mail and contacts are kept in step. Calendar and files are still copying: about 1 to 2 days left.</text>
+<text x="394" y="192" font-size="13" font-weight="400" fill="#374151" text-anchor="start">Checked 2 minutes ago.</text>
+<rect x="1066" y="178" width="121.55999999999999" height="23" rx="11.5" fill="#FEF3C7"/>
+<text x="1126.78" y="192.5" font-size="13" font-weight="600" fill="#B45309" text-anchor="middle">Needs you: 3 →</text>
+<text x="264" y="240" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0154 T1: the stage is the least-advanced migration’s, from states the server reports; one sentence; what needs you</text>
+<rect x="264" y="258" width="980" height="300" rx="14" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1.5"/>
+<use href="#i-mail" x="288" y="284" width="20" height="20" color="#0E4F4A"/>
+<text x="318" y="300" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Mail</text>
+<text x="418" y="300" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Gmail → Soverin</text>
+<rect x="708" y="284" width="99.52" height="22" rx="11.0" fill="#D1FAE5"/>
+<text x="757.76" y="297.5" font-size="12" font-weight="600" fill="#047857" text-anchor="middle">Kept in step</text>
+<text x="848" y="300" font-size="13" font-weight="400" fill="#374151" text-anchor="start">18,234 of about 19,000 · 3.1 of about 3.4 GB</text>
+<rect x="848" y="308" width="300" height="8" rx="4.0" fill="#E5E7EB"/>
+<rect x="848" y="308" width="288.0" height="8" rx="4.0" fill="#0E4F4A"/>
+<use href="#i-calendar" x="288" y="336" width="20" height="20" color="#0E4F4A"/>
+<text x="318" y="352" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Calendar</text>
+<text x="418" y="352" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Google → Soverin</text>
+<rect x="708" y="336" width="64.72" height="22" rx="11.0" fill="#EFF6FF"/>
+<text x="740.36" y="349.5" font-size="12" font-weight="600" fill="#2563EB" text-anchor="middle">Copying</text>
+<text x="848" y="352" font-size="13" font-weight="400" fill="#374151" text-anchor="start">1,204 of about 2,000 · about 3 to 5 hours left</text>
+<rect x="848" y="360" width="300" height="8" rx="4.0" fill="#E5E7EB"/>
+<rect x="848" y="360" width="180.0" height="8" rx="4.0" fill="#0E4F4A"/>
+<use href="#i-contacts" x="288" y="388" width="20" height="20" color="#0E4F4A"/>
+<text x="318" y="404" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Contacts</text>
+<text x="418" y="404" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Google → Soverin</text>
+<rect x="708" y="388" width="99.52" height="22" rx="11.0" fill="#D1FAE5"/>
+<text x="757.76" y="401.5" font-size="12" font-weight="600" fill="#047857" text-anchor="middle">Kept in step</text>
+<text x="848" y="404" font-size="13" font-weight="400" fill="#374151" text-anchor="start">612 of about 612</text>
+<rect x="848" y="412" width="300" height="8" rx="4.0" fill="#E5E7EB"/>
+<rect x="848" y="412" width="300.0" height="8" rx="4.0" fill="#0E4F4A"/>
+<use href="#i-files" x="288" y="440" width="20" height="20" color="#0E4F4A"/>
+<text x="318" y="456" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Files</text>
+<text x="418" y="456" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Dropbox → Nextcloud</text>
+<rect x="708" y="440" width="64.72" height="22" rx="11.0" fill="#EFF6FF"/>
+<text x="740.36" y="453.5" font-size="12" font-weight="600" fill="#2563EB" text-anchor="middle">Copying</text>
+<text x="848" y="456" font-size="13" font-weight="400" fill="#374151" text-anchor="start">12.4 of about 38 GB · about 1 to 2 days left</text>
+<rect x="848" y="464" width="300" height="8" rx="4.0" fill="#E5E7EB"/>
+<rect x="848" y="464" width="99.0" height="8" rx="4.0" fill="#0E4F4A"/>
+<use href="#i-photos" x="288" y="492" width="20" height="20" color="#0E4F4A"/>
+<text x="318" y="508" font-size="14" font-weight="700" fill="#111827" text-anchor="start">Photos</text>
+<text x="418" y="508" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Google Takeout → Nextcloud</text>
+<rect x="708" y="492" width="92.55999999999999" height="22" rx="11.0" fill="#F3F4F6"/>
+<text x="754.28" y="505.5" font-size="12" font-weight="600" fill="#6B7280" text-anchor="middle">Not started</text>
+<text x="848" y="508" font-size="13" font-weight="400" fill="#374151" text-anchor="start">Waiting for your Takeout export · how to make one →</text>
+<text x="264" y="578" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0154 T2 and T3: of about how many (discovery’s count), in items and bytes; time as a range with its reason; nothing when unknown</text>
+<text x="264" y="624" font-size="20" font-weight="700" fill="#111827" text-anchor="start">Before you switch</text>
+<rect x="264" y="644" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="667" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="672" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">1</text>
+<text x="316" y="672" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Deletions</text>
+<text x="464" y="672" font-size="14" font-weight="500" fill="#374151" text-anchor="start">2 to decide</text>
+<rect x="1080" y="655" width="78.63999999999999" height="22" rx="11.0" fill="#FEF3C7"/>
+<text x="1119.32" y="668.5" font-size="12" font-weight="600" fill="#B45309" text-anchor="middle">Needs you</text>
+<rect x="264" y="698" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="721" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="726" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">2</text>
+<text x="316" y="726" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Moves</text>
+<text x="464" y="726" font-size="14" font-weight="500" fill="#374151" text-anchor="start">None</text>
+<rect x="1080" y="709" width="43.839999999999996" height="22" rx="11.0" fill="#D1FAE5"/>
+<text x="1101.92" y="722.5" font-size="12" font-weight="600" fill="#047857" text-anchor="middle">Done</text>
+<rect x="264" y="752" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="775" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="780" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">3</text>
+<text x="316" y="780" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Failures</text>
+<text x="464" y="780" font-size="14" font-weight="500" fill="#374151" text-anchor="start">1 could not be copied</text>
+<rect x="1080" y="763" width="78.63999999999999" height="22" rx="11.0" fill="#FEF3C7"/>
+<text x="1119.32" y="776.5" font-size="12" font-weight="600" fill="#B45309" text-anchor="middle">Needs you</text>
+<rect x="264" y="806" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="829" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="834" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">4</text>
+<text x="316" y="834" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Sharing</text>
+<text x="464" y="834" font-size="14" font-weight="500" fill="#374151" text-anchor="start">5 shares to go through</text>
+<rect x="1080" y="817" width="64.72" height="22" rx="11.0" fill="#F3F4F6"/>
+<text x="1112.36" y="830.5" font-size="12" font-weight="600" fill="#6B7280" text-anchor="middle">Not yet</text>
+<rect x="264" y="860" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="883" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="888" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">5</text>
+<text x="316" y="888" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Check</text>
+<text x="464" y="888" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Not run yet</text>
+<rect x="1080" y="871" width="64.72" height="22" rx="11.0" fill="#F3F4F6"/>
+<text x="1112.36" y="884.5" font-size="12" font-weight="600" fill="#6B7280" text-anchor="middle">Not yet</text>
+<rect x="264" y="914" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="937" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="942" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">6</text>
+<text x="316" y="942" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Confirmed</text>
+<text x="464" y="942" font-size="14" font-weight="500" fill="#374151" text-anchor="start">After the check</text>
+<rect x="1080" y="925" width="64.72" height="22" rx="11.0" fill="#F3F4F6"/>
+<text x="1112.36" y="938.5" font-size="12" font-weight="600" fill="#6B7280" text-anchor="middle">Not yet</text>
+<rect x="264" y="968" width="980" height="46" rx="10" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+<circle cx="290" cy="991" r="13" fill="#F9FAFB" stroke="#E5E7EB"/>
+<text x="290" y="996" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">7</text>
+<text x="316" y="996" font-size="15" font-weight="700" fill="#111827" text-anchor="start">Finish</text>
+<text x="464" y="996" font-size="14" font-weight="500" fill="#374151" text-anchor="start">Switch mail delivery, then end</text>
+<rect x="1080" y="979" width="64.72" height="22" rx="11.0" fill="#F3F4F6"/>
+<text x="1112.36" y="992.5" font-size="12" font-weight="600" fill="#6B7280" text-anchor="middle">Not yet</text>
+<text x="264" y="1034" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0154 T4: one ordered list; counts summed over the person’s migrations; state in words and colour (0145 T2)</text>
+<text x="264" y="1066" font-size="16" font-weight="700" fill="#111827" text-anchor="start">For Anna</text>
+<rect x="264" y="1080" width="220" height="38" rx="8" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.5"/>
+<text x="374.0" y="1103.55" font-size="13" font-weight="600" fill="#2563EB" text-anchor="middle">Create a grant link</text>
+<rect x="496" y="1080" width="220" height="38" rx="8" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.5"/>
+<text x="606.0" y="1103.55" font-size="13" font-weight="600" fill="#2563EB" text-anchor="middle">Create a progress link</text>
+<rect x="728" y="1080" width="250" height="38" rx="8" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.5"/>
+<text x="853.0" y="1103.55" font-size="13" font-weight="600" fill="#2563EB" text-anchor="middle">What arrived (the report)</text>
+<text x="994" y="1104" font-size="13" font-weight="600" fill="#2563EB" text-anchor="start">Details of each migration →</text>
+<text x="264" y="1142" font-size="12" font-weight="600" fill="#9A3412" text-anchor="start">0153 T5: links per person; each migration keeps its page for run history and settings; 0154 T5: the report as a page</text>
+</svg>

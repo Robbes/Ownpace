@@ -4,26 +4,37 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
-**2026-09-28: opened with 0152 and 0153 from the owner's request. Nothing is built.** The owner
+**2026-09-28, evening: all of it before the alpha.** The owner: *"before we start Alpha i want
+this fixed/completed."* So T3 (b), T5 and T8 join the minimum, and 0131 T5's row for this plan is
+the whole plan.
+
+- **T7 stays the owner's choice.** If the answer is yes, it is built before the alpha too.
+- **The words follow 0153 D6.** On screen a person's grouping has no noun: their card and their
+  page carry their name. *Move* in this plan is the internal name (ADR-0050).
+- **The drawing is `docs/design/0152-0154/wf-person-page.svg`.** Session R builds from it (0153
+  §5, 0131 §6 group R8).
+
+Nothing is built.
+
+**2026-09-28: opened with 0152 and 0153 from the owner's request.** The owner
 asked for the app to become more intuitive. The audit of `main` at `83eb73e` found the migration
 page shows counts without totals, no time left, and seven cutover steps that all look the same
 (§1). The owner's four answers of 2026-09-28 are in 0152 §2 and 0153 §2. The one that sets this
 plan's order is D2, *"Before the first invitation"*.
 
-What a tester watches during their first week is in the minimum: T1, T2, T3 (a), T4 and T6.
-What they meet at the end of a move comes after the first invitation and before the first tester
-switches over: T3 (b), T5 and T8. T7 is the owner's choice. 0131 T5 carries a row for this plan.
+It first put what a tester watches in the first week before the first invitation, and the end
+of a move after it. The evening's answer puts everything before.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 One line that says where a move is | 📋 **Proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the move's card, its page and each migration. |
+| T1 One line that says where a person's migrations are | 📋 **Proposed; before the first invitation** | §3. A stage in plain words, derived from the states the server already reports. One sentence, and what needs the person. On the person's card, their page and each migration. Drawing: `wf-person-page.svg`. |
 | T2 Totals: *of about how many* | 📋 **Proposed; before the first invitation** | §3. Synced counts set against what discovery found, as a share and in bytes. *About*, because the source keeps changing. |
-| T3 Time left, as a range with its reason | 🟡 **Proposed: (a) before the first invitation; (b) after** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
+| T3 Time left, as a range with its reason | 📋 **Proposed; before the first invitation** | §3. (a) Before Start, from the counts and the limits the product already knows (Gmail's 2.5 GB a day). (b) During the copy, from the rate of recent passes. Never a single number, and nothing when it cannot know. |
 | T4 The cutover steps with counts and state | 📋 **Proposed; before the first invitation** | §3. The seven cards become one ordered list. Each has its count and *done*, *needs you* or *not yet*, summed for the move across its migrations. |
-| T5 The report of what arrived, as a page | 📋 **Proposed; after the first invitation, before the first cutover** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
+| T5 The report of what arrived, as a page | 📋 **Proposed; before the first invitation** | §3. The completion report is rendered in the app, per migration and per move, and downloadable. The word *Markdown* leaves the button. |
 | T6 Internals out of the way | 📋 **Proposed; before the first invitation** | §3. The UUID, the kinds, the doubled address and the item hashes fold away. *Left as they are* says what it means. |
-| T7 An email when the first copy is in | ⏳ **Owner's choice** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
-| T8 The person's own progress page says the same | 📋 **Proposed; after the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
+| T7 An email when the first copy is in | ⏳ **Owner's choice; before the first invitation if yes** | §3. A milestone mail, *"Your mail is in your new system and is kept in step until you switch."* It is a new kind for 0030's email-only channel, so the owner decides. |
+| T8 The person's own progress page says the same | 📋 **Proposed; before the first invitation** | §3. `/view/:link` shows T1's line, T2's totals and T3's range, in the person's language (0145 T6). |
 
 ## 1. What there is today
 
@@ -101,7 +112,7 @@ owner's.
 
 ## 3. What each task does
 
-### T1 — one line that says where a move is (before the first invitation)
+### T1 — one line that says where a person's migrations are (before the first invitation)
 
 (a) **Stages in words.** Each maps to the states the server already reports. None is new:
 
@@ -133,7 +144,7 @@ rule as the digest's, SAD §11.2 #4).
 - the move's card and page (0153 T3, T5), where a move's stage is its least-advanced
   migration's, with the rows per data type showing each one;
 - each migration's page;
-- the Dashboard's *Recent Activity* while the Dashboard exists (0153 open question 4).
+- the one line at the top of Migrations that replaces the Dashboard, which goes (0153 D7).
 
 ### T2 — totals: *of about how many* (before the first invitation)
 
@@ -148,7 +159,7 @@ rule as the digest's, SAD §11.2 #4).
   *Left as they are* gets its meaning in words: *"changed by you in the new system, so we leave
   them"* (0118 folds the longer reason).
 
-### T3 — time left, as a range with its reason (a before the invitation; b after)
+### T3 — time left, as a range with its reason (before the first invitation)
 
 (a) **Before Start, on the review screen** (0153 T4's last screen), and on the migration until
 its first pass reports:
@@ -186,7 +197,7 @@ On a move's page (0153 T5) each row sums the move's migrations and opens a list 
 migration's page it is that migration's. The counts come from the same routes the queue pages
 read. A count that could not be read shows *"could not be read"*.
 
-### T5 — the report of what arrived, as a page (after the invitation, before the first cutover)
+### T5 — the report of what arrived, as a page (before the first invitation)
 
 - **A page, `/mappings/:id/report`.** It renders the completion report per migration: what was
   found, what arrived, what could not come and why, and what the check compared. It is written in
@@ -226,7 +237,7 @@ as every template: key parity, and the prose boundary.
   a move of five migrations sends five unless T7 groups them per move. The proposal is one email
   per move, sent when its last first-copy finishes, naming each data type.
 
-### T8 — the person's own progress page says the same (after the first invitation)
+### T8 — the person's own progress page says the same (before the first invitation)
 
 `/view/:link` (`pages/View.tsx`) already shows *"{bytes} moved so far"*. It gains:
 
@@ -252,7 +263,13 @@ not show today about the other migrations of the tenant: the link grants one mig
 T1 and T4 are built after 0153 T3 and T5, or against today's migration page if those are not yet
 merged. Their components take a migration or a move, so they move with 0153 without a rewrite.
 
-**After the first invitation:** T3 (b), T5 and T8. T7 comes when the owner answers.
+7. T3 (b).
+8. T5.
+9. T8.
+10. T7, if the owner says yes.
+
+All of it comes before the first invitation. Session R builds it with 0153, as group R8
+(0131 §6).
 
 ## Lessons that apply
 
