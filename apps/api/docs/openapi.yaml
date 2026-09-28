@@ -4397,6 +4397,83 @@ paths:
                   available: { type: boolean }
                 required: [available]
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/problem-reports/preview:
+    get:
+      tags: [Reports]
+      summary: Where a report would go, and the facts it would carry
+      description: |
+        For the form's "What we send with this", before anything is sent. The
+        lines are exactly the ones a report from this page would carry in its
+        ticket's article or its mail: the page (a grant or view link written as
+        `:link`, and no query), the reference and category when given, the
+        organisation's id, the build, and the facts the server reads itself,
+        never from the browser: the reporter's role (from the membership),
+        the organisation's status and closing dates, the migration the page
+        names when it is one of this organisation's (its state, the grant
+        given or withdrawn, the newest grant link's state, each data type's
+        state, error category, side and reference, and the two accounts'
+        providers and last test), whether the reference is a current failure,
+        the service hold, whether the scheduler is running, and the browser
+        (the request's `User-Agent`, on one line, capped). Read inside the
+        reporter's organisation under row security, so another
+        organisation's migration id reads as not one of this organisation's.
+        No names, addresses, provider error text or tokens. When the facts
+        cannot be read, the lines say so with a reference, as the report
+        would. Sending a report reads the facts again. Sixty an hour per person.
+      parameters:
+        - name: page
+          in: query
+          required: true
+          schema: { type: string, description: A path on this site. }
+        - name: reference
+          in: query
+          required: false
+          schema: { type: string, pattern: '^[0-9a-f]{8}$' }
+        - name: category
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Where the report goes, and its lines of facts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  to:
+                    oneOf:
+                      - type: object
+                        description: By mail, to these addresses (`REPORT_MAIL_TO`, else `NOTIFY_TO`).
+                        properties:
+                          kind: { type: string, enum: [mail] }
+                          addresses: { type: array, items: { type: string } }
+                        required: [kind, addresses]
+                      - type: object
+                        description: To the owner's Zammad.
+                        properties:
+                          kind: { type: string, enum: [helpdesk] }
+                        required: [kind]
+                  lines:
+                    type: array
+                    items: { type: string }
+                required: [to, lines]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Many previews from this person in the last hour. Carries `Retry-After`.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Seconds to wait.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: This deployment has neither a Zammad nor mail set up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/problem-reports:
     post:
       tags: [Reports]
@@ -4413,7 +4490,10 @@ paths:
         of the API's global parser. Five reports an hour per person, and by
         mail fifty a day for every report together, the link reports' included.
         The mail also names the person's sign-in address in its body, and sets
-        Reply-To only when that is one valid address.
+        Reply-To only when that is one valid address. The server adds the
+        lines of facts `GET /api/problem-reports/preview` describes, read
+        again on sending and never taken from the body; when they cannot be
+        read, the report still goes, with `Facts: could not be read [ref …]`.
       requestBody:
         required: true
         content:

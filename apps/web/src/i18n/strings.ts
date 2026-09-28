@@ -84,7 +84,18 @@ const en = {
   'report.timedOut':
     'No answer came within {minutes} minutes, so this page cannot tell whether your report arrived. ' +
     'What you wrote is still here. If you send it again, a smaller screenshot goes faster.',
-  'report.sentWith': 'Sent with your report:',
+  // Where a report goes and what goes with it (workplan 0130 T6). The lines in
+  // the fold are the server's own, shown as they are sent, in English; these
+  // are the words around them.
+  'report.goesTo': 'Goes to the Ownpace support team.',
+  'report.goesTo.mail': 'Goes to the Ownpace support team, by email to {address}.',
+  'report.goesTo.helpdesk': "Goes to the Ownpace support team's helpdesk.",
+  'report.facts': 'What we send with this',
+  'report.facts.more':
+    'What you write, and your screenshot if you add one. With them go these lines from our records, exactly as our support team reads them, in English:',
+  'report.facts.reading': 'Reading the rest from our records…',
+  'report.facts.unshown':
+    'The rest could not be shown just now. When you send the report, we read it from our records again, and it goes with the report.',
   'report.page': 'the page you were on: {page}',
   'report.reference': 'the reference on your screen: {reference}',
   'report.category': 'the kind of error: {category}',
@@ -1171,7 +1182,8 @@ const en = {
   'linkReport.description': 'What makes you doubt this link?',
   'linkReport.replyTo': 'Your email address (optional)',
   'linkReport.replyTo.hint': 'Only if you want an answer; we use it for nothing else.',
-  'linkReport.sentWith': 'Sent with it: which link this is, so we can find who sent it.',
+  'linkReport.sentWith':
+    'Sent with it, from our records: which link this is; the organisation and the migration it belongs to, with the state of the migration; the address of whoever made the link; the account the migration copies from and the account it copies to; and whether you have given access.',
   'linkReport.send': 'Send the report',
   'linkReport.sending': 'Sending…',
   'linkReport.sent': 'Sent. Your report is number {ticket}, and we will reply to {email}.',
@@ -2604,7 +2616,15 @@ const nl: Record<keyof typeof en, string> = {
   'report.timedOut':
     'Binnen {minutes} minuten kwam er geen antwoord, dus deze pagina weet niet of uw melding is aangekomen. ' +
     'Wat u schreef staat er nog. Verstuurt u de melding opnieuw, dan gaat een kleinere schermafbeelding sneller.',
-  'report.sentWith': 'Wordt met uw melding meegestuurd:',
+  'report.goesTo': 'Gaat naar het supportteam van Ownpace.',
+  'report.goesTo.mail': 'Gaat naar het supportteam van Ownpace, per e-mail naar {address}.',
+  'report.goesTo.helpdesk': 'Gaat naar de helpdesk van het supportteam van Ownpace.',
+  'report.facts': 'Wat we meesturen',
+  'report.facts.more':
+    'Wat u schrijft, en uw schermafbeelding als u die toevoegt. Daarbij gaan deze regels uit onze gegevens mee, precies zoals ons supportteam ze leest, in het Engels:',
+  'report.facts.reading': 'De rest lezen we uit onze gegevens…',
+  'report.facts.unshown':
+    'De rest kon nu niet worden getoond. Als u de melding verstuurt, lezen we die opnieuw uit onze gegevens, en die gaat met de melding mee.',
   'report.page': 'de pagina waarop u was: {page}',
   'report.reference': 'de referentie op uw scherm: {reference}',
   'report.category': 'het soort fout: {category}',
@@ -3606,7 +3626,8 @@ const nl: Record<keyof typeof en, string> = {
   'linkReport.description': 'Waarom twijfelt u aan deze link?',
   'linkReport.replyTo': 'Uw e-mailadres (niet verplicht)',
   'linkReport.replyTo.hint': 'Alleen als u antwoord wilt; we gebruiken het nergens anders voor.',
-  'linkReport.sentWith': 'Meegestuurd: welke link dit is, zodat we de afzender kunnen vinden.',
+  'linkReport.sentWith':
+    'Meegestuurd, uit onze gegevens: welke link dit is; de organisatie en de migratie waar hij bij hoort, met de stand van de migratie; het adres van wie de link heeft gemaakt; het account waaruit de migratie kopieert en het account waarnaar; en of u toegang hebt gegeven.',
   'linkReport.send': 'Melding versturen',
   'linkReport.sending': 'Versturen…',
   'linkReport.sent': 'Verstuurd. Uw melding heeft nummer {ticket}, en we antwoorden naar {email}.',

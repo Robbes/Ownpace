@@ -115,6 +115,21 @@ Alles wat u ons stuurt op support@ownpace.eu, en serverlogs die vastleggen dát 
 waren — tijdstippen, IP-adressen, foutcodes. Logs zijn zo geschreven dat **inloggegevens,
 mapnamen en onderwerpregels er niet in voorkomen**.
 
+**Meldingen.** *Een probleem melden* in de app, en *Deze link melden* op de pagina die een link
+opent, sturen een melding naar ons supportteam. Tijdens de Alpha gaat een melding per e-mail naar
+support@ownpace.eu, een mailbox bij Proton, via de mailprovider uit §7. Een melding uit de app
+bevat wat u schrijft, een schermafbeelding als u die toevoegt, en feiten uit onze gegevens, die
+het formulier opsomt voordat u verstuurt: de pagina waarop u was, de referentie en het soort van
+een fout daarop, het id en de status van uw organisatie, uw rol, de versie van de dienst, de stand
+van de migratie op die pagina en van elk gegevenstype daarin, of er via een link toegang is
+gegeven, bij welke aanbieders de twee accounts ervan zijn en of hun laatste test slaagde, of de
+dienst is gepauzeerd of de planner stilstaat, en de naam die uw browser zichzelf geeft. Een
+melding via een link bevat wat u schrijft, het adres waarop u antwoord wilt als u dat geeft, en
+waar de link voor is: de organisatie en de migratie, wie de link heeft gemaakt, de twee accounts,
+en of er toegang is gegeven. **Een melding bevat de inhoud van uw mail, bestanden of agenda's, een
+onderwerpregel, een mapnaam of een foutmelding van een aanbieder alleen als u die zelf in uw tekst
+of op de schermafbeelding zet.**
+
 Om de dienst te kunnen leveren en ondersteunen kan een klein aantal met naam bekende
 beheerders aan onze kant **dienstmetadata** over uw account inzien: de naam en status van uw
 omgeving, de toestand en foutcategorie van elke migratie, factuuroverzichten, en hoeveel
@@ -205,6 +220,7 @@ hebt opgedragen. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Preflight-tellingen | Bij de verhuizing waarvoor ze zijn geteld — tot u die verwijdert, of uw account sluit |
 | Account- en inloggegevens | Zolang uw account bestaat, daarna 30 dagen |
 | Facturen en de gebruikscijfers eronder | **7 jaar**, omdat de Nederlandse belastingwet dat vereist |
+| Supportmail en meldingen (§4.5) | Tot uw vraag of probleem is opgelost, en daarna nog 6 maanden |
 | Operationele logs | «LOG_RETENTION» |
 
 Ownpace bevat een **vergeet-mij**-pad dat de gegevens van een organisatie verwijdert, en een

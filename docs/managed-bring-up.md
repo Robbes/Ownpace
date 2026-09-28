@@ -1767,8 +1767,16 @@ rules as every other mail the API sends: from `NOTIFY_FROM`, to
 `REPORT_MAIL_TO`, titled *Ownpace: <the first line they wrote>*. The body is
 what they wrote and then the facts, one per line: `Page`, `Reference` and
 `Category` when there is one (the error on their screen, which the log page
-finds), `Organisation`, `Build`, `Reply to` (the customer's sign-in address) and
-`Report reference`, the report's own. Its **Reply-To** is that sign-in address
+finds), `Organisation`, `Build`, then what the API reads from its own records
+in the customer's organisation (workplan 0130 T6): `Role`, `Organisation
+status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
+line for each data type and the two accounts' providers, `Reference match`,
+`Service hold`, `Scheduler` and `Browser`; then `Reply to` (the customer's
+sign-in address) and `Report reference`, the report's own. The form showed the
+customer every one of those lines before they sent it, under *What we send with
+this*. When the database could not be read, the report still arrives, with
+`Facts: could not be read [ref …]` in place of the records' lines; the log page
+finds that reference as `report.facts-unread`. Its **Reply-To** is that sign-in address
 too, so pressing Reply should answer them. With `NOTIFY_FROM` and
 `REPORT_MAIL_TO` both `support@ownpace.eu`, as on live, the mail goes from the
 mailbox to itself, and a mail client may answer such a mail to its own address;

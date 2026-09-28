@@ -25,6 +25,17 @@
  * picture is attached, and it can be removed. A paste that carries text, into
  * a place that takes text, stays the text's
  * (`a-screenshot-anyone-can-make.unit.test.tsx`).
+ *
+ * What goes with it (workplan 0130 T6, Part A): above Send, where the report
+ * goes (the support team, by email to the address the service sends to, or
+ * its helpdesk) and where the reply goes, and a fold, *What we send with
+ * this*, with every line of facts the report will carry, as the API answers
+ * them from the same function that writes them into the mail. They are the
+ * server's own words, in English, shown as they are sent (ADR-0024's prose
+ * boundary). When they cannot be had, the fold lists what the form itself
+ * knows and says the rest is read when the report is sent. Nothing shown is
+ * sent back: the server reads the facts again
+ * (`a-report-that-says-what-it-sends.unit.test.tsx`).
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -37,6 +48,7 @@ import { useAuthStore } from '../stores/auth-store.ts';
 import { serverMessage } from '../services/api.ts';
 import {
   fetchReportingAvailable,
+  fetchReportPreview,
   refusedAsTooLarge,
   REPORT_TIMEOUT_MS,
   reportablePage,
@@ -121,6 +133,21 @@ const ReportProblem: React.FC = () => {
   const chooser = useRef<HTMLInputElement>(null);
 
   const available = useQuery({ queryKey: ['problem-reports', 'available'], queryFn: fetchReportingAvailable });
+  // What a report from this page would carry. Read once per page: the server
+  // reads it again when the report is sent, whatever this showed.
+  const preview = useQuery({
+    queryKey: ['problem-reports', 'preview', page, reference ?? '', category ?? ''],
+    queryFn: () =>
+      fetchReportPreview({ page, ...(reference ? { reference } : {}), ...(category ? { category } : {}) }),
+    enabled: available.data === true,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const goesTo = preview.data
+    ? preview.data.to.kind === 'mail'
+      ? t('report.goesTo.mail', { address: preview.data.to.addresses.join(', ') })
+      : t('report.goesTo.helpdesk')
+    : t('report.goesTo');
 
   const send = useMutation({
     mutationFn: async () =>
@@ -350,14 +377,29 @@ const ReportProblem: React.FC = () => {
           )}
         </div>
 
-        <div className="rounded-md bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700">
-          <p className="font-medium mb-1">{t('report.sentWith')}</p>
-          <ul className="list-disc ml-5 space-y-1">
-            <li>{t('report.page', { page })}</li>
-            {reference && <li>{t('report.reference', { reference })}</li>}
-            {category && <li>{t('report.category', { category })}</li>}
-          </ul>
-          {email && <p className="mt-2">{t('report.replyTo', { email })}</p>}
+        <div className="rounded-md bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700 space-y-2">
+          <p>{goesTo}</p>
+          {email && <p>{t('report.replyTo', { email })}</p>}
+          <details>
+            <summary className="cursor-pointer select-none font-medium text-gray-900">{t('report.facts')}</summary>
+            <p className="mt-2">{t('report.facts.more')}</p>
+            {preview.data ? (
+              <ul className="mt-2 space-y-1 font-mono text-xs text-gray-800 break-words">
+                {preview.data.lines.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                <ul className="mt-2 list-disc ml-5 space-y-1">
+                  <li>{t('report.page', { page })}</li>
+                  {reference && <li>{t('report.reference', { reference })}</li>}
+                  {category && <li>{t('report.category', { category })}</li>}
+                </ul>
+                <p className="mt-2">{preview.isError ? t('report.facts.unshown') : t('report.facts.reading')}</p>
+              </>
+            )}
+          </details>
         </div>
 
         {send.isError && (

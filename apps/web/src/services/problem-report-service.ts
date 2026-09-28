@@ -31,7 +31,66 @@ export async function fetchReportingAvailable(): Promise<boolean> {
   }
 }
 
+/** Where a report would go: the addresses its mail is sent to, or the owner's helpdesk. */
+export type ReportRecipient =
+  | { readonly kind: 'mail'; readonly addresses: readonly string[] }
+  | { readonly kind: 'helpdesk' };
+
 /**
+ * What a report from this page would carry, before it is sent (workplan 0130
+ * T6): where it goes, and its lines of facts, exactly as the API will write
+ * them into the ticket or the mail. Shown verbatim, in English, as the support
+ * team reads them. Sending reads them again on the server; nothing here is
+ * sent back.
+ */
+export interface ReportPreview {
+  readonly to: ReportRecipient;
+  readonly lines: readonly string[];
+}
+
+/** Whether a value is the recipient the API describes, and nothing else. */
+function isRecipient(value: unknown): value is ReportRecipient {
+  if (typeof value !== 'object' || value === null) return false;
+  const to = value as { kind?: unknown; addresses?: unknown };
+  if (to.kind === 'helpdesk') return true;
+  return (
+    to.kind === 'mail' &&
+    Array.isArray(to.addresses) &&
+    to.addresses.length > 0 &&
+    to.addresses.every((a) => typeof a === 'string' && a !== '')
+  );
+}
+
+/**
+ * The preview for a report from `place`. An answer in any other shape is
+ * refused rather than half shown: the form then lists what it knows itself
+ * and says the rest is read when the report is sent.
+ */
+export async function fetchReportPreview(place: {
+  readonly page: string;
+  readonly reference?: string;
+  readonly category?: string;
+}): Promise<ReportPreview> {
+  const response = await apiClient.get<unknown>('/problem-reports/preview', {
+    params: {
+      page: place.page,
+      ...(place.reference ? { reference: place.reference } : {}),
+      ...(place.category ? { category: place.category } : {}),
+    },
+  });
+  const data = response.data as { to?: unknown; lines?: unknown } | null;
+  if (
+    data === null ||
+    typeof data !== 'object' ||
+    !isRecipient(data.to) ||
+    !Array.isArray(data.lines) ||
+    !data.lines.every((line) => typeof line === 'string')
+  ) {
+    throw new Error('The service answered the preview of a report in a shape this page does not read.');
+  }
+  return { to: data.to, lines: data.lines as string[] };
+}
+
 /**
  * How long the form waits for a report to be sent and answered: two minutes,
  * not `apiClient`'s 30 seconds. A report with a 5 MB screenshot is a request of
