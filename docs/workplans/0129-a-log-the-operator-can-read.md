@@ -2,7 +2,23 @@
 
 > **In one line:** A searchable operator Log page on both editions over `audit_log` and an `app_event` table of errors and warnings, 30-day retention for `app_event` and container output, and pseudonymised OpenTelemetry audit lines with a resumable `audit-export` download.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: T3's managed half withdrawn (the owner, 2026-09-28, ops-log-driver (a), *"Docker's
+default, as the text says"*)**, on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged. Privacy §9 now keeps server logs
+*"until the part of the service that wrote them is replaced"*, with no fixed period, which is what
+Docker's default log driver does (`json-file` keeps a container's output with the container and
+removes it with the container). So a managed machine no longer keeps container output for 30
+days: `docs/managed-bring-up.md` no longer points the daemon at the journal or sets
+`MaxRetentionSec=1month`, it gives the owner's check (`docker info --format
+'{{.LoggingDriver}}'`) and how to undo a journald setting, and `stand-up-live.sh` refuses a
+machine whose driver is not `json-file` or `local`. The breach procedure and the audit section of
+the bring-up read container output from Docker, not the journal: with Docker's default the journal
+holds none of it. The appliance keeps its month, as T3 built it (`compose.yml`'s caps, and
+`docs/selfhost-quickstart.md`'s journal). `a-month-of-container-output` holds the appliance's
+half; `a-journal-that-outlived-the-container` holds the managed half, the other way round. T1's
+table (`app_event`) is untouched and still pruned at 30 days. 0132's Status block, 2026-09-28 and
+2026-09-29, has the record.
 
 **2026-09-23: opened from the owner's answers.** The owner asked for *"an logging page, for the
 operator, logging can be viewd and searched, keep is basic. I want retention of 1 month. And i
@@ -149,7 +165,7 @@ holds every support view to its grant comes with the fix for the six.
 |---|---|---|
 | T1 The application's errors and warnings are recorded where the page can search them | ✅ **Built 2026-09-23** (D1, D3) | §3. A table of metadata only, written beside the log line, never instead of it. |
 | T2 The operator's log page | ✅ **Built 2026-09-23, both editions** (D1, D3, D5) | §3. The audit log and T1's table, one timeline, searchable: under Support on managed, **Log** on the appliance. |
-| T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2) | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected. |
+| T3 One month for application and container logs | ✅ **Built 2026-09-23** (D2); the managed half **withdrawn 2026-09-28** (ops-log-driver (a)): on a managed machine container output stays with its container, Docker's default, on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird` (2026-09-29), not merged; the appliance keeps its month | §3. T1's table is pruned at 30 days; container output is kept 30 days where it is collected on the appliance, and until its container is removed on a managed machine (privacy §9). |
 | T4 The audit export: one JSON line per event, and a download that resumes | ✅ **Built 2026-09-24, both editions** (D4, D5; the owner the same day: "an operator-only route using your own session") | §3. OpenTelemetry field names, to stdout, pseudonyms by default. The download with a cursor: `GET /audit-export` on the appliance; on managed an operator-only route on the operator's own session, with **Audit export** on the Support log page. |
 
 ## 1. What there is today
@@ -217,7 +233,9 @@ as it can today.
 30 days where it is collected. Docker keeps it by size, not by age, and the compose files set
 no logging options today, so: the appliance's compose file gets size caps for about a month of
 ordinary output, and its guide says how to keep exactly 30 days with the host's journal; the
-managed host's collector keeps 30 days, set in its runbook. `run` and `run_event` stay at 60
+managed host's collector keeps 30 days, set in its runbook. *(Withdrawn for the managed host on
+2026-09-28, ops-log-driver (a): it keeps a container's output with the container, Docker's
+default, as privacy §9 says; the Status block, 2026-09-29.)* `run` and `run_event` stay at 60
 days (D2), and the audit log is not pruned (D2).
 
 **T4, the export.** Every audit event is also written to the process's output as one JSON line,
