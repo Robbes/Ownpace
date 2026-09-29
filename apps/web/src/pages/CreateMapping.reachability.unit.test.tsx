@@ -679,6 +679,51 @@ describe('the connection you already have is the default (owner, 2026-09-17)', (
     await waitFor(() => expect(sourcePicker().value).toBe(''));
   });
 
+  /**
+   * THE TWO ACCOUNT KINDS, which the picker read as `o365` (found in 0131 T1's
+   * and 0148 T9's builds, fixed 2026-09-29).
+   *
+   * The wizard kept its own copy of the server's `sourceKindFor`, and every
+   * type that copy did not list fell to `o365`. It did not list `microsoft`
+   * (workplan 0114) or `apple` (0115). So a Microsoft 365 or Apple account
+   * saved on the Accounts page was never offered here and got stored twice,
+   * and a saved *Via IMAP* or *Graph* row was offered instead, became the one
+   * candidate's default, and was posted as the source of a `microsoft` or
+   * `apple` mapping, which the create route's reuse check refuses.
+   *
+   * One stored row of each kind, so every card has a wrong row to be offered.
+   * The two registration cards are here for the other half: both store as
+   * `o365`, and the inverse the picker now reads through answers `graph` for
+   * it, so *Via IMAP* is the card a careless fix would stop offering its row.
+   */
+  describe('offers each card only the rows its kind stores as', () => {
+    const stored = (kind: string, n: string, displayName: string) => ({
+      ...boxOne,
+      id: `c0000000-0000-4000-8000-0000000000${n}`,
+      kind,
+      displayName,
+    });
+    const o365Row = stored('o365', 'c1', 'Acme Entra app');
+    const microsoftRow = stored('microsoft', 'c2', 'Anna’s Microsoft 365');
+    const appleRow = stored('apple', 'c3', 'Anna’s iCloud');
+
+    it.each([
+      { card: 'Microsoft 365 account', offered: microsoftRow },
+      { card: 'Apple account', offered: appleRow },
+      { card: 'Via IMAP', offered: o365Row },
+      { card: 'Via the Graph API', offered: o365Row },
+    ])('$card: offers $offered.kind and starts on it', async ({ card, offered }) => {
+      listMock.mockResolvedValue([o365Row, microsoftRow, appleRow]);
+      renderWizard();
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${card}`) }));
+      await waitFor(() => expect(queryFieldFor(/^Reuse a saved source connection/)).not.toBeNull());
+
+      const rows = [...sourcePicker().options].map((o) => o.value).filter((v) => v !== '');
+      expect(rows, `the rows ${card} offers`).toEqual([offered.id]);
+      await waitFor(() => expect(sourcePicker().value).toBe(offered.id));
+    });
+  });
+
   it('does the same for the target side', async () => {
     listMock.mockResolvedValue([davTarget]);
     renderWizard();
