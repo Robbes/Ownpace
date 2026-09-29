@@ -60,7 +60,8 @@ import {
   type SyncCursor,
   type TrashListing,
 } from '@openmig/shared';
-import { driveFailure, isDriveDecision } from './drive-refusal.ts';
+import { driveFailure, driveRefusalBody, isDriveDecision } from './drive-refusal.ts';
+import { asksToSlowDown, rateLimitWaitMs } from './rate-limit-once.ts';
 import {
   DRIVE_FOLDER_MIME,
   GOOGLE_NATIVE_PREFIX,
@@ -335,12 +336,32 @@ export class GoogleDriveSource implements FileSource {
     return kind === undefined ? this.policy : this.policies[kind];
   }
 
+  /**
+   * Every request this source makes, with a rate limit waited out once
+   * (workplan 0143 T10; the rule is `rate-limit-once.ts`'s).
+   *
+   * A 403 is read here to learn whether it is Google's rate limit, and kept,
+   * so that the caller can still quote Google's words when it is not.
+   */
+  private async send(url: string): Promise<DriveResponse> {
+    const first = await this.transport(url);
+    const answer = first.status === 403 ? await keptBody(first) : first;
+    const body = answer === first ? '' : await answer.text();
+    if (!asksToSlowDown(answer.status, body)) return answer;
+    const waitMs = rateLimitWaitMs(answer.headers?.get('retry-after'));
+    if (waitMs === undefined) return answer;
+    // Read what is left of the refusal, so its connection is free for the retry.
+    if (answer === first) await first.text().catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return this.transport(url);
+  }
+
   private async getJson(url: string): Promise<unknown> {
-    const response = await this.transport(url);
+    const response = await this.send(url);
     if (!response.ok) {
       // Verbatim, including the server's own body: a migration that stops must
       // say what the other end said (rule 9).
-      throw new Error(`Drive API ${response.status} for ${url}: ${await safeText(response)}`);
+      throw new Error(`Drive API ${response.status} for ${url}: ${driveRefusalBody(await refusalText(response))}`);
     }
     return response.json();
   }
@@ -1006,13 +1027,13 @@ export class GoogleDriveSource implements FileSource {
 
   /** The one download, issued fresh each time — buffered read and `open()` alike. */
   private async download(url: string, item: FileItem): Promise<DriveResponse> {
-    const response = await this.transport(url);
+    const response = await this.send(url);
     if (!response.ok) {
       // Google's envelope goes; Google's words stay. See `drive-refusal.ts`
       // for the shape and for why the sentence says what reached the
       // destination — the failure queue's own category reads a 403 like this
       // as the TARGET refusing, and sends the reader to the wrong account.
-      const body = await safeText(response);
+      const body = await refusalText(response);
       const failure = new Error(
         driveFailure(`Drive refused the download of "${item.path}"`, {
           status: response.status,
@@ -1236,10 +1257,35 @@ export class GoogleDriveSource implements FileSource {
   }
 }
 
-async function safeText(response: { text(): Promise<string> }): Promise<string> {
-  try {
-    return (await response.text()).slice(0, 300);
-  } catch {
-    return '(no body)';
-  }
+/**
+ * A refusal with its body read once and kept, so it can be read again.
+ *
+ * The whole body, not the first 300 characters: Google's reason can sit
+ * after a long `message`, and a reason cut off is a rate limit missed.
+ */
+async function keptBody(response: DriveResponse): Promise<DriveResponse> {
+  const text = await response.text().catch(() => '');
+  return {
+    ok: response.ok,
+    status: response.status,
+    ...(response.headers ? { headers: response.headers } : {}),
+    text: async () => text,
+    json: async () => JSON.parse(text) as unknown,
+    arrayBuffer: async () => new TextEncoder().encode(text).buffer as ArrayBuffer,
+  };
+}
+
+/**
+ * A refusal's body, for a line a person reads (workplan 0143 T10).
+ *
+ * Google's error document is kept WHOLE: its reason can sit after a long
+ * `message`, and the first 300 characters of a per-minute limit ("Quota
+ * exceeded for quota metric 'Queries' and limit 'Queries per minute per
+ * user'…") end before `rateLimitExceeded`, so the line read as a daily quota.
+ * The caller renders it without the envelope (`driveRefusalBody`). Any other
+ * body is cut at 300 characters, as before.
+ */
+async function refusalText(response: { text(): Promise<string> }): Promise<string> {
+  const text = await response.text().catch(() => '(no body)');
+  return driveRefusalBody(text) === text ? text.slice(0, 300) : text;
 }
