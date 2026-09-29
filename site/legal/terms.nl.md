@@ -19,7 +19,7 @@
 
 **Gelden voor:** de **beheerde Ownpace-dienst** op `ownpace.eu`.
 **Versie:** 1.3 (concept — nog niet gepubliceerd)
-**Laatst bijgewerkt:** 2026-09-28
+**Laatst bijgewerkt:** 2026-09-29
 
 > **Deze voorwaarden gelden niet voor de software.** Ownpace is open source onder de Apache
 > License 2.0, en het zelf draaien valt onder die licentie en niet onder deze voorwaarden. Deze
@@ -55,7 +55,7 @@ u die mag binden.
 
 Ownpace kopieert uw e-mail, contacten, agenda's en bestanden van een bronaccount dat u beheert
 naar een doelaccount dat u beheert, houdt de kopie bij tot u besluit over te stappen, en geeft
-u een overzicht van wat er is verhuisd.
+u een overzicht van wat er is gemigreerd.
 
 **Wat het niet doet, hier gezegd in plaats van later ontdekt:**
 
@@ -67,11 +67,11 @@ u een overzicht van wat er is verhuisd.
 - **Het synchroniseert niet terug.** Gegevens gaan van bron naar doel. Uw bron blijft uw
   vangnet zolang u die aanhoudt.
 - **Het kan geen perfecte kopie van alles beloven.** Formaten verschillen per aanbieder en
-  sommige dingen overleven de oversteek niet. Wat we niet kunnen verhuizen, **melden we u stuk
+  sommige dingen overleven de oversteek niet. Wat we niet kunnen migreren, **melden we u stuk
   voor stuk, met de reden** — het verdwijnt nooit stilletjes.
 - **Het is geen back-updienst.** Kopiëren is bedoeld om op te houden: bent u overgestapt, dan
-  rondt u de verhuizing af, en stopt die met kopiëren. Laat u een verhuizing na de overstap
-  doorlopen, dan telt die nog als een lopende verhuizing.
+  rondt u de migratie af, en stopt die met kopiëren. Laat u een migratie na de overstap
+  doorlopen, dan telt die nog als een lopende migratie.
 
 ## 3. Uw account
 
@@ -82,7 +82,7 @@ heeft gekregen. Wat er aan onze kant misgaat, ook in de inlogdienst die wij draa
 verantwoordelijkheid.
 
 U moet gerechtigd zijn tot de accounts die u koppelt. **Koppel geen account dat niet van u is of
-dat u niet gemachtigd bent te verhuizen.** Voor accounts van een organisatie betekent dat
+dat u niet gemachtigd bent te migreren.** Voor accounts van een organisatie betekent dat
 toestemming van die organisatie. Voor het privéaccount van iemand anders — van een gezinslid,
 bijvoorbeeld — betekent het diens toestemming.
 
@@ -90,7 +90,7 @@ U moet 18 jaar of ouder zijn om een account te openen.
 
 ## 4. Uw gegevens, en wat wij ermee mogen
 
-Uw gegevens blijven van u. We verwerken ze uitsluitend om de verhuizingen uit te voeren die u
+Uw gegevens blijven van u. We verwerken ze uitsluitend om de migraties uit te voeren die u
 instelt. De [privacyverklaring](./privacy.html) legt uit hoe; de toezeggingen die ze u doet,
 maken deel uit van deze overeenkomst. Zakelijke klanten vallen daarnaast onder onze
 verwerkersovereenkomst — tot die hier gepubliceerd is, is die **op aanvraag beschikbaar** via
@@ -105,7 +105,7 @@ gebruiken uw gegevens niet om AI-modellen te trainen.
 ## 5. Toelaatbaar gebruik
 
 Gebruik de dienst niet om rechten van anderen te schenden, om de wet te overtreden, om gegevens
-te verhuizen waar u geen recht op hebt, of om de dienst of de aanbieders waarmee die koppelt aan
+te migreren waar u geen recht op hebt, of om de dienst of de aanbieders waarmee die koppelt aan
 te vallen. Verkoop de dienst niet door als de uwe zonder schriftelijke afspraak — daar bestaat
 een MSP-pakket voor en we praten er liever over.
 
@@ -118,13 +118,13 @@ reageren**.
 Prijzen staan volledig gepubliceerd op [de prijzenpagina](./prijzen.html). U hoeft geen offerte
 te vragen, en er is geen prijs die u pas hoort na een gesprek.
 
-- Uw pakket wordt **afgeleid van wat u gebruikt** — hoeveel verhuizingen tegelijk lopen en
-  hoeveel gegevens u hebt verhuisd — niet gekozen uit een menu.
-- **Verhuizingen afronden verlaagt uw rekening automatisch**, zonder dat u erom vraagt. De
-  hoeveelheid verhuisde gegevens legt daarbij een ondergrens.
-- **Tiny is gratis**: één verhuizing tegelijk, tot 250 GB, zonder inrichtingskosten, zonder
+- Uw pakket wordt **afgeleid van wat u gebruikt** — hoeveel migraties tegelijk lopen en
+  hoeveel gegevens u hebt gemigreerd — niet gekozen uit een menu.
+- **Migraties afronden verlaagt uw rekening automatisch**, zonder dat u erom vraagt. De
+  hoeveelheid gemigreerde gegevens legt daarbij een ondergrens.
+- **Tiny is gratis**: één migratie tegelijk, tot 250 GB, zonder inrichtingskosten, zonder
   maandbedrag en zonder factuur. U legt er geen betaalwijze voor vast. Groeit u eroverheen —
-  een tweede verhuizing tegelijk, of meer gegevens — dan gaat u naar een betaald pakket, en we
+  een tweede migratie tegelijk, of meer gegevens — dan gaat u naar een betaald pakket, en we
   vragen het u eerst; voor een maand waarin u niet hebt ingestemd Tiny te verlaten, wordt
   niets gerekend.
 - De inrichtingskosten worden **één keer** gerekend, voor het hoogste pakket dat u bereikt.
@@ -145,7 +145,7 @@ betalingsverplichting.
 Bent u **consument**, dan kunt u deze overeenkomst binnen **14 dagen** na het sluiten ervan
 herroepen, zonder opgave van redenen.
 
-De dienst begint binnen die 14 dagen — daar is hij voor. Voordat uw eerste verhuizing begint,
+De dienst begint binnen die 14 dagen — daar is hij voor. Voordat uw eerste migratie begint,
 vraagt de app u te bevestigen dat u wilt dat wij beginnen vóór het einde van de 14 dagen, en dat
 u bij herroeping daarna betaalt voor het deel van de dienst dat al is geleverd, **naar
 evenredigheid van de afgesproken prijs**, en niet meer. Die keuze bevestigen we u per e-mail.
@@ -182,29 +182,29 @@ vooruitbetaalde termijn zonder dat u daar opnieuw voor kiest.
 
 Twee toezeggingen die ons beperken in plaats van u:
 
-- **We laten u niet betalen voor onoplettendheid.** Loopt er een verhuizing zonder dat er nog
+- **We laten u niet betalen voor onoplettendheid.** Loopt er een migratie zonder dat er nog
   iets te doen valt, dan vragen we u geregeld of u hem wilt houden of afronden; dat beantwoordt u
   met één klik.
 - **We factureren niet langer dan twaalf maanden zonder uw uitdrukkelijke bevestiging.** Loopt
-  een verhuizing een jaar, dan moet u het opnieuw zeggen — een vooruitbetaalde termijn geldt
+  een migratie een jaar, dan moet u het opnieuw zeggen — een vooruitbetaalde termijn geldt
   als die bevestiging voor de periode die hij dekt.
 
 Mislukt een betaling, dan laten we het u weten en proberen we het opnieuw voordat er iets wordt
-opgeschort. We verwijderen uw verhuisgegevens niet vanwege een mislukte betaling zonder u eerst
+opgeschort. We verwijderen uw migratiegegevens niet vanwege een mislukte betaling zonder u eerst
 te waarschuwen.
 
 ## 9. Beschikbaarheid
 
-We streven ernaar de dienst draaiend te houden, en melden gepland onderhoud dat uw verhuizingen
+We streven ernaar de dienst draaiend te houden, en melden gepland onderhoud dat uw migraties
 onderbreekt vooraf. **We bieden bij deze prijzen geen contractuele beschikbaarheidsgarantie**, en
 dat ronduit zeggen is beter dan een percentage dat niemand van plan is na te komen. Dit beperkt
 uw wettelijke rechten niet als de dienst niet aan de overeenkomst beantwoordt.
 
-Een verhuizing is gebouwd om onderbreking te overleven: hij hervat in plaats van opnieuw te
+Een migratie is gebouwd om onderbreking te overleven: ze hervat in plaats van opnieuw te
 beginnen, en een tweede ronde komt samen in plaats van te dupliceren. Uitval kost u tijd, geen
 juistheid.
 
-**Hoe snel een verhuizing loopt, is niet volledig aan ons om te beloven.** De aanbieders aan
+**Hoe snel een migratie loopt, is niet volledig aan ons om te beloven.** De aanbieders aan
 weerszijden bepalen het tempo — hun limieten en afremming zijn een plafond waar we onder werken,
 niet omheen — dus we beloven convergentie, geen opleverdatum. De duur is een keuze die u maakt
 wanneer u overstapt, geen voorspelling die wij verkopen.
@@ -254,7 +254,7 @@ ervoor te zorgen dat u dit hoofdstuk nooit nodig hebt.
 gegevens worden gewist: meteen, of na 7, 30 of 90 dagen. Wij bevestigen de sluiting, en de datum
 waarop uw gegevens worden gewist. Vanaf het moment dat uw account gesloten is, gebruikt niets de
 toegang die u ons gaf nog. Worden uw gegevens gewist, dan vernietigen we uw toegangsgegevens,
-trekken we de toegang in waar de aanbieder dat toelaat, en verwijderen we uw verhuisregister,
+trekken we de toegang in waar de aanbieder dat toelaat, en verwijderen we uw migratieregister,
 zoals §9 van de privacyverklaring beschrijft. Facturen bewaren we zolang de belastingwet dat
 vereist.
 
@@ -262,7 +262,7 @@ vereist.
 ernstige schending van §5, nadat we u hebben gezegd waarom, zoals §5 beschrijft. Beëindigen wij
 ze tijdens een periode die u al hebt betaald, dan betalen we het deel terug dat u niet meer
 krijgt. Stoppen we met de dienst, dan krijgt u **minstens 90 dagen vooraf bericht en, als u erom
-vraagt, een export van wat er over uw verhuizingen is vastgelegd**: wat er is gekopieerd, wat
+vraagt, een export van wat er over uw migraties is vastgelegd**: wat er is gekopieerd, wat
 niet, en waarom. De software is Apache-2.0, dus u kunt hem zelf blijven draaien.
 
 ## 12. Wijzigingen in deze voorwaarden

@@ -135,6 +135,21 @@ describe('redact-evidence.sh', () => {
     expect(out).toContain('ECONNREFUSED 172.18.0.7:5432');
   });
 
+  it("removes a visitor's address from an access line's last field, and keeps the line", () => {
+    // Both nginx logs end each line with the X-Forwarded-For NetBird passes
+    // on (ops-trust-proxy (b)): a visitor's public address, in no key and no
+    // range the address pass knew (review of 2026-09-29).
+    const out = redact(
+      [
+        '100.64.0.1 - - [29/Sep/2026:08:01:02 +0000] "GET /grant/:link HTTP/1.1" 200 512 "-" "Mozilla/5.0" "203.0.113.77"',
+        '100.64.0.1 - - [29/Sep/2026:08:01:03 +0000] "GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0" "2001:db8::77, 198.51.100.7"',
+      ].join('\n'),
+    );
+    for (const visitor of ['203.0.113.77', '2001:db8::77', '198.51.100.7']) expect(out, visitor).not.toContain(visitor);
+    expect(out).toContain('"GET /grant/:link HTTP/1.1" 200 512 "-" "Mozilla/5.0" "<client-ip>"');
+    expect(out).toContain('"GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0" "<client-ip>"');
+  });
+
   it('does not mangle a short non-secret that happens to share a name', () => {
     // Values under eight characters are skipped: replacing a three-character
     // one would rewrite unrelated text all over the log.

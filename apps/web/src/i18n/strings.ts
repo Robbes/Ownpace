@@ -131,8 +131,6 @@ const en = {
   'confirm.progress.lastSynced': 'last synced',
   'verify.checkedAt': 'Checked',
   'queue.loadFailed': 'Could not load this queue.',
-  'queue.loadFailedNotEmpty':
-    'This is not the same as an empty queue; unread items may be waiting.',
   'queue.noMappings': 'No migrations configured.',
   'discovery.scanning': 'Scanning your source (read-only)…',
   // Named rather than counted, and present tense: the reader is watching this
@@ -1197,6 +1195,14 @@ const en = {
   'link.unreachable': 'This page could not reach the server. Check your connection and try again.',
   'link.unreadable':
     'Something went wrong on this page. Try again later; if it keeps happening, please tell the person who sent you the link.',
+  // An answer the page's schema refused, on a signed-in page (reported
+  // 2026-09-29): `serverMessage` says this where it used to show zod's JSON,
+  // most likely after the API and the web app were updated apart. {reference}
+  // is the one the server keeps the report under, with where the answer did
+  // not fit (`unreadable-answer.ts`). The owner's wording, both languages
+  // (2026-09-29), and the owner's "Log it" for the reference.
+  'answer.unreadable':
+    'The server answered in a form this page does not know. Reload the page; if it stays like this, report it to support, and mention: reference {reference}.',
   // The progress page (workplan 0122). The SAME reader as the grant page above
   // — no account, no jargon, second person — asking a different question:
   // has my mail arrived yet. So the states are sentences rather than the
@@ -1405,8 +1411,6 @@ const en = {
   'mappings.filtered.lead': 'Showing only:',
   'mappings.filtered.clear': 'Show all migrations',
   'mappings.loadFailed': 'Could not load the migrations list.',
-  'mappings.loadFailedNotEmpty':
-    'Not the same as having no migrations; some may exist that could not be read.',
   'mappings.syncFailed': 'The sync request did not complete.',
   // The people being moved (ADR-0050, 0153 T3). A person on screen is their
   // name; the grouping has no noun (D6). "Needs you" is the approved family
@@ -1436,6 +1440,84 @@ const en = {
   'people.new.email': 'Email address, for a grant link (optional)',
   'people.new.submit': 'Add person',
   'people.new.failed': 'The person was not added.',
+  // Start a migration (0153 T4): who it is for, which accounts are left,
+  // what moves, connecting, where it goes, and one screen that checks and starts.
+  'start.step': 'Step {n} of {total}',
+  'start.who.heading': 'Who is it for?',
+  'start.who.someoneNew': 'Someone new',
+  'start.who.whose': 'Who signs in to the accounts?',
+  'start.who.myself': 'I do',
+  'start.who.someoneElse': 'They do, with a link',
+  'start.who.someoneElse.line':
+    'They connect a Google account themselves, so you never hold that password. Other providers you sign in to together.',
+  'start.who.needName': 'Type a name first.',
+  'start.who.peopleFailed': 'The people you migrate for could not be read. A new name still works.',
+  'start.from.heading': 'Which account are you leaving?',
+  'start.from.hint': 'Tick each one you are leaving.',
+  'start.from.otherMail': 'Another mail provider',
+  'start.from.otherMail.inSentence': 'another mail provider',
+  'start.from.needOne': 'Tick at least one account.',
+  'start.from.archive': 'An export archive (Takeout, Apple)',
+  'start.from.other': 'Other ways to connect (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
+  'start.from.other.line': 'A server is added by its protocol, one migration at a time.',
+  'start.byHand': 'Add one migration by hand',
+  'start.what.heading': 'What moves?',
+  'start.what.hint': 'Each sign-in asks only for what you tick here.',
+  'start.what.from': 'From {provider}',
+  'start.what.notFrom': 'Not from {provider}: {types}.',
+  'start.what.notFrom.apple.why': 'Apple offers no way into iCloud Drive for anyone outside Apple.',
+  'start.what.notFrom.imap.why':
+    "A mail provider's calendar and contacts come over CalDAV and CardDAV, where it offers them. Add those by hand.",
+  'start.what.needOne': 'Tick at least one thing to move.',
+  'start.what.photos': 'Photos',
+  'start.what.photos.line': 'Through an export archive, which you add once it is in your new files.',
+  'start.what.photos.ask': 'Ask for it at {export}',
+  'start.connect.heading': 'Connect your accounts',
+  'start.connect.googleApart': 'Google asks for mail and files apart on this service, so this takes {n} sign-ins.',
+  'start.connect.asks': 'One sign-in: {types}',
+  'start.connect.check': 'Check the sign-in',
+  'start.connect.as': 'Connected as {account}',
+  'start.connect.which': 'Which {provider} account',
+  'start.connect.another': 'Another account',
+  'start.connect.errored': 'Its last check did not pass.',
+  'start.connect.tryAgain': 'Try again',
+  'start.connect.needAll': 'Connect each account first.',
+  'start.connect.together': 'No link reaches {provider}: sign in together with {person}.',
+  'start.connect.byLink': '{person} connects it themselves, with a link you make on the last screen.',
+  'start.connect.byLinkFor': 'By link: {account}',
+  'start.connect.theirAddress': 'Their address at {provider}',
+  'start.connect.saveAddress': 'Save the address',
+  'start.connect.addressNeeded': 'Type their address first.',
+  'start.accountsFailed': 'Your saved accounts could not be read. A new account still works.',
+  'start.to.row': 'Where {type} goes',
+  'start.to.yours': 'Your accounts',
+  'start.to.new': 'A new account',
+  'start.to.add': 'Add {provider}',
+  'start.to.doesNotTake': '{provider} does not take {type}.',
+  'start.to.needAll': 'Add each new account first.',
+  'start.to.settingUp': 'Setting up…',
+  'start.to.failed': 'Not set up: {migration}.',
+  'start.migrationName': '{person} — {provider} to {destination}',
+  'start.check.intro': 'Set up and paused: nothing is copied before Start.',
+  'start.check.route': '{types}: {from} → {to}',
+  'start.check.start': 'Start',
+  'start.check.waits': 'You can start once every count is in and each tick it asks for is ticked.',
+  'start.check.waitsFor':
+    'Waiting for {person} to connect. Make a link below and send it yourself: it is shown once. The count appears here once they have connected.',
+  'start.check.later':
+    "You can close this page. {person}'s page keeps these migrations: once they have connected, start each one from its Details.",
+  'start.company.question': 'Is this a company account with an administrator?',
+  'start.company.no': 'No',
+  'start.company.yes': 'Yes',
+  'start.moreOptions': 'More options',
+  'start.appPassword': 'Use an app password instead',
+  'start.serverSettings': 'Server settings',
+  'start.serverSettings.filled': 'Server settings (filled in for {provider})',
+  'start.to.nextcloudAddress': "Your Nextcloud's address",
+  'start.to.nextcloudAddress.placeholder': 'cloud.example.eu',
+  'start.to.nextcloudAddress.hint': 'The address you open Nextcloud at in your browser.',
+  'start.to.heading': 'Where does it go?',
+  'start.check.heading': 'Check, then start',
   // A person's page (0153 T5): their migrations, and the steps before they
   // switch as one list (0154 T4). The steps keep the hub's names (hub.*).
   'person.back': '← Migrations',
@@ -1476,8 +1558,6 @@ const en = {
   'billing.adminOnly':
     'Billing is available to owners and admins only; ask one for usage or invoice details.',
   'billing.invoicesLoadFailed': 'Could not load the invoices.',
-  'billing.loadFailedNotEmpty':
-    'Not the same as having none; data may exist that could not be read.',
   'billing.party.title': 'Invoice details',
   'billing.party.intro': 'Who invoices are addressed to.',
   'billing.party.missing':
@@ -1882,13 +1962,16 @@ const en = {
   // remembered, so nothing restarts it.
   'pause.hold.why':
     'Nothing is wrong with your migration and nothing is lost. Migrations already running finish normally, and scheduled copying starts again by itself once the update is done, from exactly where it stopped. Any copying you tried to start during the pause did not start: start it again after the update.',
-  // The alpha note (workplan 0131 T1): three sentences, one paragraph, the
+  // The alpha note (workplan 0131 T1): four sentences, one paragraph, the
   // same words as the access-granted mail (`grantedAlpha` in @openmig/shared's
   // notifications.ts; `an-alpha-said-out-loud.unit.test.tsx` holds the two
-  // together). Split only so each fits the copy budget; they render as one
-  // paragraph, and must match 0139's alpha conditions once those exist.
+  // together). Split into three keys; they render as one paragraph. The copy
+  // before an update is the Alpha conditions §6 and privacy §9 (0139 T4,
+  // ops-app-sentences (a); it said "nothing is backed up" until then).
+  // `what-the-app-says.unit.test.tsx`.
   'alpha.note.lead': 'Alpha: a small invited group is trying this service out.',
-  'alpha.note.terms': 'Nothing is charged, nothing is backed up, and the alpha can end.',
+  'alpha.note.terms':
+    'Nothing is charged, and the alpha can end. There are no backups, apart from one copy before each update, kept up to 7 days.',
   'alpha.note.keep': 'Keep your old account until you have checked what arrived.',
   // Nothing charged (workplan 0131 T3): the first sentence of the Billing
   // line that takes the subtitle's place, and the last sentence of the
@@ -2708,7 +2791,10 @@ const en = {
   'access.sentDetail': 'You will hear back by email.',
   'access.failed': 'We could not send that:',
   'access.failedFallback': 'the request did not complete.',
-  'access.privacy': 'We keep what you type only to answer you; asking creates no account.',
+  // Privacy §4.4's two purposes, decided and answered (0139 T4,
+  // ops-app-sentences (a); it said "only to answer you" until then).
+  'access.privacy':
+    'We keep what you type to decide on your request and to answer you; asking creates no account.',
   'access.backToSignIn': 'Already have an account? Sign in',
 } as const;
 
@@ -3002,8 +3088,6 @@ const nl: Record<keyof typeof en, string> = {
   'confirm.progress.lastSynced': 'laatst gesynchroniseerd',
   'verify.checkedAt': 'Geverifieerd',
   'queue.loadFailed': 'Deze wachtrij kon niet worden geladen.',
-  'queue.loadFailedNotEmpty':
-    'Dit is niet hetzelfde als een lege wachtrij; er kunnen ongelezen items wachten.',
   'queue.noMappings': 'Geen migraties geconfigureerd.',
   'discovery.scanning': 'Uw bron wordt gescand (alleen-lezen)…',
   'discovery.stillCounting': 'Nog aan het tellen: {domains}. Deze pagina werkt zichzelf bij.',
@@ -3790,6 +3874,8 @@ const nl: Record<keyof typeof en, string> = {
   'link.unreachable': 'Deze pagina kon de server niet bereiken. Controleer uw verbinding en probeer het opnieuw.',
   'link.unreadable':
     'Er ging iets mis op deze pagina. Probeer het later opnieuw; blijft het misgaan, laat het dan de persoon weten die u de link stuurde.',
+  'answer.unreadable':
+    'De server antwoordde in een vorm die deze pagina niet kent. Laad de pagina opnieuw; blijft het zo, meld het en geef daarbij het volgende door: referentie {reference}.',
   'view.title': 'Uw migratie',
   'view.loading': 'Een moment…',
   'view.who': '{organisation} migreert uw account naar een nieuwe provider.',
@@ -3970,8 +4056,6 @@ const nl: Record<keyof typeof en, string> = {
   'mappings.filtered.lead': 'Alleen zichtbaar:',
   'mappings.filtered.clear': 'Toon alle migraties',
   'mappings.loadFailed': 'De migratielijst kon niet worden geladen.',
-  'mappings.loadFailedNotEmpty':
-    'Niet hetzelfde als geen migraties; er kunnen er bestaan die niet gelezen konden worden.',
   'mappings.syncFailed': 'Het synchronisatieverzoek is niet voltooid.',
   'people.count.one': '1 persoon',
   'people.count.many': '{n} personen',
@@ -3998,6 +4082,83 @@ const nl: Record<keyof typeof en, string> = {
   'people.new.email': 'E-mailadres, voor een toegangslink (optioneel)',
   'people.new.submit': 'Persoon toevoegen',
   'people.new.failed': 'De persoon is niet toegevoegd.',
+  // Migratie starten (0153 T4).
+  'start.step': 'Stap {n} van {total}',
+  'start.who.heading': 'Voor wie?',
+  'start.who.someoneNew': 'Iemand anders',
+  'start.who.whose': 'Wie meldt zich aan bij de accounts?',
+  'start.who.myself': 'Ik',
+  'start.who.someoneElse': 'Zij zelf, met een link',
+  'start.who.someoneElse.line':
+    'Een Google-account verbinden zij zelf, zodat u dat wachtwoord nooit in handen krijgt. Bij andere aanbieders meldt u zich samen aan.',
+  'start.who.needName': 'Typ eerst een naam.',
+  'start.who.peopleFailed': 'De mensen voor wie u migreert, konden niet worden gelezen. Een nieuwe naam werkt wel.',
+  'start.from.heading': 'Welk account verlaat u?',
+  'start.from.hint': 'Vink elk account aan dat u verlaat.',
+  'start.from.otherMail': 'Een andere mailaanbieder',
+  'start.from.otherMail.inSentence': 'een andere mailaanbieder',
+  'start.from.needOne': 'Vink minstens één account aan.',
+  'start.from.archive': 'Een exportarchief (Takeout, Apple)',
+  'start.from.other': 'Andere manieren om te verbinden (IMAP, CalDAV, CardDAV, WebDAV, JMAP)',
+  'start.from.other.line': 'Een server voegt u toe via zijn protocol, één migratie tegelijk.',
+  'start.byHand': 'Eén migratie handmatig toevoegen',
+  'start.what.heading': 'Wat wilt u migreren?',
+  'start.what.hint': 'Elke aanmelding vraagt alleen om wat u hier aanvinkt.',
+  'start.what.from': 'Van {provider}',
+  'start.what.notFrom': 'Niet van {provider}: {types}.',
+  'start.what.notFrom.apple.why': 'Apple biedt niemand buiten Apple een weg naar iCloud Drive.',
+  'start.what.notFrom.imap.why':
+    'De agenda en contacten van een mailaanbieder komen via CalDAV en CardDAV, als die ze aanbiedt. Die voegt u handmatig toe.',
+  'start.what.needOne': 'Vink minstens één ding aan om te migreren.',
+  'start.what.photos': "Foto's",
+  'start.what.photos.line': 'Via een exportarchief, dat u toevoegt zodra het in uw nieuwe bestanden staat.',
+  'start.what.photos.ask': 'Vraag het aan bij {export}',
+  'start.connect.heading': 'Uw accounts verbinden',
+  'start.connect.googleApart': 'Google vraagt op deze dienst apart om e-mail en bestanden, dus dit zijn {n} aanmeldingen.',
+  'start.connect.asks': 'Eén aanmelding: {types}',
+  'start.connect.check': 'Aanmelding controleren',
+  'start.connect.as': 'Verbonden als {account}',
+  'start.connect.which': 'Welk account van {provider}',
+  'start.connect.another': 'Een ander account',
+  'start.connect.errored': 'De laatste controle is niet gelukt.',
+  'start.connect.tryAgain': 'Opnieuw proberen',
+  'start.connect.needAll': 'Verbind eerst elk account.',
+  'start.connect.together': 'Geen link bereikt {provider}: meld u samen met {person} aan.',
+  'start.connect.byLink': '{person} verbindt het zelf, met een link die u op het laatste scherm maakt.',
+  'start.connect.byLinkFor': 'Met een link: {account}',
+  'start.connect.theirAddress': 'Hun adres bij {provider}',
+  'start.connect.saveAddress': 'Adres bewaren',
+  'start.connect.addressNeeded': 'Typ eerst hun adres.',
+  'start.accountsFailed': 'Uw bewaarde accounts konden niet worden gelezen. Een nieuw account werkt wel.',
+  'start.to.row': 'Waar {type} naartoe gaat',
+  'start.to.yours': 'Uw accounts',
+  'start.to.new': 'Een nieuw account',
+  'start.to.add': '{provider} toevoegen',
+  'start.to.doesNotTake': '{provider} neemt geen {type} aan.',
+  'start.to.needAll': 'Voeg eerst elk nieuw account toe.',
+  'start.to.settingUp': 'Bezig met klaarzetten…',
+  'start.to.failed': 'Niet klaargezet: {migration}.',
+  'start.migrationName': '{person} — {provider} naar {destination}',
+  'start.check.intro': 'Klaargezet en gepauzeerd: er wordt niets gekopieerd vóór Starten.',
+  'start.check.route': '{types}: {from} → {to}',
+  'start.check.start': 'Starten',
+  'start.check.waits': 'U kunt starten zodra elke telling binnen is en elk gevraagd vinkje staat.',
+  'start.check.waitsFor':
+    'Wacht tot {person} verbindt. Maak hieronder een link en stuur die zelf: hij wordt één keer getoond. De telling verschijnt hier zodra de verbinding er is.',
+  'start.check.later':
+    'U kunt deze pagina sluiten. De pagina van {person} bewaart deze migraties: start elke migratie via Details zodra de verbinding er is.',
+  'start.company.question': 'Is dit een bedrijfsaccount met een beheerder?',
+  'start.company.no': 'Nee',
+  'start.company.yes': 'Ja',
+  'start.moreOptions': 'Meer opties',
+  'start.appPassword': 'Liever een app-wachtwoord gebruiken',
+  'start.serverSettings': 'Serverinstellingen',
+  'start.serverSettings.filled': 'Serverinstellingen (ingevuld voor {provider})',
+  'start.to.nextcloudAddress': 'Het adres van uw Nextcloud',
+  'start.to.nextcloudAddress.placeholder': 'cloud.example.eu',
+  'start.to.nextcloudAddress.hint': 'Het adres waarop u Nextcloud in uw browser opent.',
+  'start.to.heading': 'Waar gaat het naartoe?',
+  'start.check.heading': 'Controleren, dan starten',
   'person.back': '← Migraties',
   'person.notFound': 'Deze persoon bestaat hier niet.',
   'person.loadFailed': 'Kon deze persoon niet laden.',
@@ -4035,8 +4196,6 @@ const nl: Record<keyof typeof en, string> = {
   'billing.adminOnly':
     'Facturatie is alleen voor eigenaren en beheerders; vraag een van hen naar gebruiks- of factuurgegevens.',
   'billing.invoicesLoadFailed': 'De facturen konden niet worden geladen.',
-  'billing.loadFailedNotEmpty':
-    'Niet hetzelfde als geen gegevens; er kunnen gegevens bestaan die niet gelezen konden worden.',
   'billing.party.title': 'Factuurgegevens',
   'billing.party.intro': 'Aan wie facturen worden gericht.',
   'billing.party.missing':
@@ -4126,11 +4285,11 @@ const nl: Record<keyof typeof en, string> = {
   'pause.hold.since': 'Gepauzeerd sinds',
   'pause.hold.why':
     'Er is niets mis met uw migratie en er gaat niets verloren. Migraties die al liepen worden normaal afgerond, en het geplande kopiëren start vanzelf weer zodra de update klaar is, precies waar het stopte. Kopiëren dat u tijdens de pauze probeerde te starten, is niet gestart: start het na de update opnieuw.',
-  // 0131 T1's words. `alpha.note.terms` is sixteen words here, and stays so: a
-  // safety sentence is not shortened (0118).
+  // 0131 T1's words, with de kopie vlak voor een update sinds 0139 T4 (zie het
+  // Engelse blok). Een veiligheidszin wordt niet ingekort (0118).
   'alpha.note.lead': 'Alfa: een kleine, uitgenodigde groep probeert deze dienst uit.',
   'alpha.note.terms':
-    'Er wordt niets in rekening gebracht, er worden geen back-ups gemaakt en de alfa kan stoppen.',
+    'Er wordt niets in rekening gebracht en de alfa kan stoppen. Er worden geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt bewaard.',
   'alpha.note.keep': 'Houd uw oude account tot u hebt gecontroleerd wat er is aangekomen.',
   'alpha.nothingCharged': 'Tijdens de alfa wordt niets in rekening gebracht.',
   // 0144 §3 T6's woorden; zie het Engelse blok.
@@ -4504,7 +4663,7 @@ const nl: Record<keyof typeof en, string> = {
   'nav.connections': 'Accounts',
   'nav.setup': 'Instelchecklist',
   'nav.docs': 'Handleidingen',
-  'nav.help': 'Help',
+  'nav.help': 'Hulp',
   'nav.needsYou.count.one': '1 wacht op u',
   'nav.needsYou.count.many': '{n} wachten op u',
   'wizard.reuseSource': 'Bewaarde bronverbinding hergebruiken',
@@ -4833,7 +4992,7 @@ const nl: Record<keyof typeof en, string> = {
   'access.failed': 'Wij konden dat niet versturen:',
   'access.failedFallback': 'de aanvraag is niet voltooid.',
   'access.privacy':
-    'Wij bewaren wat u invult alleen om te antwoorden; een aanvraag maakt geen account aan.',
+    'Wij bewaren wat u invult om over uw aanvraag te beslissen en u te antwoorden; een aanvraag maakt geen account aan.',
   'access.backToSignIn': 'Heeft u al een account? Aanmelden',
 };
 

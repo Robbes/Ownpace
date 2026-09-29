@@ -152,6 +152,43 @@ running service, force it: `docker compose -f managed.yml up -d --force-recreate
 — the live symptom that teaches this the hard way is changing the `TRIGGER_*_ORIGIN`s and
 getting a white screen from a dashboard still advertising the old origins.
 
+### Whose address a log line names, and how long it stays
+
+Behind NetBird, every request reaches the machine from NetBird's own address on
+the mesh: its reverse proxy ends TLS and connects through the tunnel. The
+visitor's address travels in `X-Forwarded-For`, which NetBird sets to the
+address the visitor connected from (privacy §4.5: *"your IP address, which
+NetBird passes on to us"*). So:
+
+| Log | Where the visitor's address is |
+|---|---|
+| `api` (`docker compose … logs api`) | First, when `TRUST_PROXY` counts the proxies in front of it: 2 on live, NetBird's and the web container's nginx (3 if NetBird's cluster adds one). Empty, the first field is the web container for everybody; more than the proxies there, whatever the caller wrote. |
+| `web`, the app's nginx | Last, in quotes (`ownpace_combined` in `apps/web/nginx.conf.template`). The first field is NetBird's. |
+| `www`, the website's nginx | Last, in quotes (`ownpace_site` in `deploy/compose/www-nginx.conf`). The first field is NetBird's. |
+
+Workplan 0132 T3 (d)'s check reads one line of each on live
+([managed-bring-up.md](managed-bring-up.md#after-the-script-the-owners-steps),
+step 6). These lines are personal data: never paste one anywhere public. The
+managed gate filters the container logs it prints into its public job log through
+`own-addresses.sh`, which replaces an nginx line's last field with `<client-ip>`
+as it replaces mesh addresses with `<mesh-ip>`.
+
+**How long they stay.** Every container writes with Docker's default log driver,
+`json-file`, which keeps its output, with no limit of age or size, until the
+container is removed: at each deploy for the app and the site, when its image or
+settings change for the sign-in service, and when its run ends for a task. That is
+privacy §9's *"until the part of the service that wrote them is replaced"*. `local`
+keeps it the same way and also rotates it by size, so lines can go sooner, never
+later. `docker info --format '{{.LoggingDriver}}'` prints `json-file` (or `local`)
+on a machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
+journal would keep every line past its container (managed-bring-up.md, *Before you
+start*, says how to undo that).
+
+**Keeping a container's output** past a deploy, for an incident: copy it first,
+`docker compose -f deploy/compose/managed.yml logs --no-color --timestamps > containers-$(date +%F).txt`
+([breach-procedure.md](breach-procedure.md), step 2). A recreated container starts
+with an empty log.
+
 ### The trigger dashboard's TLS front (`trigger-tls`)
 
 The dashboard runs production-mode Secure cookies, so login is unusable over plain http
@@ -849,8 +886,11 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
   a version they accepted there.
 - **Erasure**: the rows go with the organisation (`PURGED_TABLES`), because
   privacy §9 keeps the account, which §4.4 says includes this record, until the
-  data is erased. Whether to keep the record after erasure instead is 0139 open
-  question 4, not answered yet.
+  data is erased. That is the owner's answer to 0139 open question 4, on
+  2026-09-29: the record is erased with the organisation. The copy before an
+  update can still hold it for at most 7 days, as privacy §9 says of all erased
+  data, and the erasure receipt keeps only how many rows went
+  (`purged_counts.legal_acceptance`).
 
 ## Sign-in accounts nobody let in
 
@@ -858,7 +898,10 @@ Anybody can create an account at the sign-in page: organisation registration is
 off (workplan 0135 T1), self-registration is not. Such an account opens nothing
 until you grant a request for its address, but the identity provider keeps a
 name, an address, a password hash and sessions for it, and privacy §9 keeps it
-30 days. From the stack's checkout:
+30 days. The account of a member removed from an organisation goes too, 7 days
+after the removal (privacy §9; 0135 open question 13, the owner, 2026-09-29:
+*"Samen number of days"*, and, asked the same as which rule, *"7 days"*). From
+the stack's checkout:
 
 ```bash
 ./deploy/compose/idp-strays.sh            # lists them; removes nothing
@@ -871,14 +914,24 @@ date. An address compares without case. The provider's own members (the first
 human, the organisation's managers) are never listed. Nor are three more
 (2026-09-29):
 
-- **An account that was let in and removed since.** Removing a member, on the
-  Team page or with `operator.sh leave`, deletes the member row and records
-  `member.removed` in `audit_log` with the subject in `detail.userId` (the Team
-  page's record carries no address). The script keeps every subject so
-  recorded: privacy §9's 30 days are for an account *that we never let in*. What becomes of such an account in the end is the
-  owner's open question (workplan 0135, open question 13); until it is
-  answered it stays. An erasure deletes the organisation's audit rows, so after
-  a purge it is weighed like any other (*Tenant offboarding*, below).
+- **An account that was let in and removed less than 7 days ago.** Removing a
+  member, on the Team page or with `operator.sh leave`, deletes the member row
+  and records `member.removed` in `audit_log` with the subject in
+  `detail.userId` (the Team page's record carries no address); the row's own
+  time, `at`, says when. Privacy §9's 30 days are for an account *that we never
+  let in*; such an account was let in. The script keeps it while the newest
+  removal recorded for it is younger than 7 days, the erasure window's number,
+  which the owner chose for it on 2026-09-29 (workplan 0135, open question 13).
+  From 7 days on it lists it, however young the account itself is, and whether
+  or not the provider gives it a creation date: the 7 days count from the
+  removal, and the 30 from creation do not apply. Every other condition still
+  does, so a former member who is a member again anywhere, an operator, or holds
+  an open request or invitation, keeps the account. Its line says how long ago
+  the removal was. An erasure deletes the organisation's audit rows, so after a
+  purge it is weighed like any other: listed 30 days after it was created, and
+  never with no creation date. An organisation closed with a window of 0 can be
+  erased less than 7 days after a removal; *Tenant offboarding*, below, removes
+  such an account at the purge.
 - **An account of another organisation at the provider.** Only accounts whose
   `details.resourceOwner` is the organisation the provisioning token belongs to
   (`GET /management/v1/orgs/me`) are weighed.
@@ -888,8 +941,9 @@ human, the organisation's managers) are never listed. Nor are three more
   `details.totalResult`.
 
 It refuses, removing nothing, when a read fails or comes back in a shape it does
-not know: the account listing (a page with accounts and no count, an empty page
-before the count is reached, or a count below the accounts already given), and a
+not know: the record of removals (a line that is not a subject and a time), the
+account listing (a page with accounts and no count, an empty page before the
+count is reached, or a count below the accounts already given), and a
 membership or grant answer that counts roles and lists them under another name
 or not at all. It also refuses when the database names people none of whom has
 an account at this provider, and, with `--remove`, when the database has no
@@ -1138,19 +1192,40 @@ authorization, a Dropbox app link or a Box admin authorization lives in *their*
 platform under *their* account, and no API call of ours withdraws it.
 
 **Their sign-in accounts.** Closing and purging leave each member's account at
-the identity provider. After the purge, from the stack's checkout,
-`./deploy/compose/idp-strays.sh` lists every former member who belongs to no
-other organisation and whose account is older than 30 days, beside any other
-account nobody let in (*Sign-in accounts nobody let in*, above). The purge
-deletes the organisation's `audit_log` rows too, so a member removed from it
-before the close is listed with the rest. Check the list, then run it again
-with `--remove`. A younger account is not listed: note its subject
-(`tenant_member.user_id`) before the purge, and afterwards remove it with
+the identity provider, and the account of a member removed from the
+organisation less than 7 days before the purge is still there too: the daily
+duty had not reached it. After the purge, from the
+stack's checkout, `./deploy/compose/idp-strays.sh` lists every former member
+who belongs to no other organisation and whose account is older than 30 days,
+beside any other account nobody let in (*Sign-in accounts nobody let in*,
+above). The purge deletes the organisation's `audit_log` rows too, and with
+them the record of each removal, so a member removed from it before the close
+is weighed the same way: listed when their account is older than 30 days,
+whatever the age of the removal. Check the list, then run it again with
+`--remove`. A younger account is not listed, nor one with no creation date,
+and privacy §9 promises a removed member's account goes 7 days after the
+removal: so **before the purge** (with a window of `0`, right after the close:
+the hourly purge, at :23, erases it at its next run), note the organisation's
+subjects, its members' and those of the members removed from it, as the
+database's owner (`audit_log` and `tenant_member` force row security):
+
+```bash
+docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -X -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT user_id FROM tenant_member
+ WHERE tenant_id = '<tenant-id>' AND user_id NOT LIKE 'pending:%'
+UNION
+SELECT detail->>'userId' FROM audit_log
+ WHERE tenant_id = '<tenant-id>' AND action = 'member.removed' AND detail->>'userId' <> '';
+SQL
+```
+
+After the purge and the listing's `--remove`, remove each noted subject the
+listing did not name with
 `./deploy/compose/idp-strays.sh --subject <sub> --remove`. That refuses, saying
-why, while the subject is still a member anywhere, was removed from an
-organisation that still exists, is an operator, holds an open request or
-invitation, belongs to another organisation at the provider, or holds a
-membership or grant there.
+why, while the subject is still a member anywhere, was removed from another
+organisation less than 7 days ago (the daily duty removes it 7 days after that
+removal), is an operator, holds an open request or invitation, belongs to
+another organisation at the provider, or holds a membership or grant there.
 
 > **The three decision queues now have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves

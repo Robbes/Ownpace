@@ -26,9 +26,23 @@
  *   prints the value, and leaves the `.env` as it was;
  *   the same `.env` without `--with-demo` goes on to the phase it was asked
  *   for, and so does `--with-demo` on the OTA stack's `.env`, which does not
- *   carry the key at all (the nightly gate's case).
+ *   carry the key at all (the nightly gate's case);
+ *   without `--with-demo`, the demo phase runs neither `setup-managed-demo.sh`
+ *   (which starts the demo's Stalwart and provisions its Nextcloud accounts)
+ *   nor `seed-managed.sh`, on live's `.env` or the OTA stack's, and no other
+ *   part of the script names either, or `setup-stalwart.sh`.
  *
- * The guard failed first: on `main` every refused case reached preflight.
+ * That last case matters on every deploy, not only at a first bring-up:
+ * `deploy-live.sh` runs `bootstrap-managed.sh --from data`, which passes
+ * through the demo phase, and only the phase's own first `if` stops it there.
+ * The demo's Stalwart is kept on the OTA stack and never on live (workplan
+ * 0139, 2026-09-29); these cases are what hold the scripted half of that.
+ * `setup-managed-demo.sh` run by hand is not refused on live's `.env` yet.
+ *
+ * The guard failed first: on `main` every refused case reached preflight. The
+ * demo phase's cases were added on 2026-09-29, after a review found that
+ * taking the phase's `return 0` out left every guard green; with it taken out,
+ * both of their skip cases fail.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -57,14 +71,23 @@ printf '${name} %s\\n' "$*" >>"$STUB_LOG"
 exit 0
 `;
 
+/** What the demo phase runs, in this order: the demo's Stalwart and Nextcloud accounts, then its two organisations. */
+const DEMO_SCRIPTS = ['setup-managed-demo.sh', 'seed-managed.sh'] as const;
+
 function checkout(dotEnv: string): { root: string; compose: string; log: string; env: NodeJS.ProcessEnv } {
   const root = mkdtempSync(join(tmpdir(), 'demo-on-live-'));
   tempDirs.push(root);
   const compose = join(root, 'deploy', 'compose');
   mkdirSync(compose, { recursive: true });
-  // What the script sources at its top, and the file its reader reads.
-  for (const f of ['bootstrap-managed.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'trigger-cli-lib.sh']) {
+  // What the script sources at its top, and the file its reader reads, and
+  // what the demo phase writes the .env with.
+  for (const f of ['bootstrap-managed.sh', 'env-read.sh', 'stack-kind.sh', 'own-addresses.sh', 'trigger-cli-lib.sh', 'env-upsert.sh']) {
     copyFileSync(join(COMPOSE_DIR, f), join(compose, f));
+    chmodSync(join(compose, f), 0o755);
+  }
+  // The two the demo phase runs, each a stub that logs its call.
+  for (const f of DEMO_SCRIPTS) {
+    writeFileSync(join(compose, f), TOOL_STUB(f));
     chmodSync(join(compose, f), 0o755);
   }
   copyFileSync(join(COMPOSE_DIR, 'managed.yml'), join(compose, 'managed.yml'));
@@ -104,6 +127,28 @@ const dockerCalls = (c: ReturnType<typeof checkout>): string[] =>
   readFileSync(c.log, 'utf8')
     .split('\n')
     .filter((l) => l.startsWith('docker '));
+
+const demoCalls = (c: ReturnType<typeof checkout>): string[] =>
+  readFileSync(c.log, 'utf8')
+    .split('\n')
+    .map((l) => l.split(' ')[0] ?? '')
+    .filter((name) => (DEMO_SCRIPTS as readonly string[]).includes(name));
+
+/**
+ * Every function of a shell script that names `name` outside a comment line,
+ * each once, in order; a name at the top level is `(top level)`.
+ */
+function callersOf(script: string, name: string): string[] {
+  const callers: string[] = [];
+  let fn = '(top level)';
+  for (const line of script.split('\n')) {
+    const head = /^([A-Za-z_][A-Za-z0-9_]*)\(\) \{(.*)$/.exec(line);
+    if (head) fn = head[1] ?? fn;
+    if (!/^\s*#/.test(line) && line.includes(name) && !callers.includes(fn)) callers.push(fn);
+    if (line === '}' || /\}\s*$/.test(head?.[2] ?? '')) fn = '(top level)';
+  }
+  return callers;
+}
 
 const LIVE = 'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\nWEB_URL=https://app.example.test\n';
 const OTA = 'WEB_URL=https://app.example.test\n';
@@ -173,5 +218,49 @@ describe('the list of refusals says so', () => {
     expect(entry, 'stack-kind.sh lists bootstrap-managed.sh among its callers').not.toBe('');
     expect(entry).not.toMatch(/not built/);
     expect(readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8')).toMatch(/stack_may_be_live "\$ENV_FILE"/);
+  });
+});
+
+describe('without --with-demo the demo phase starts nothing, on live or anywhere else', () => {
+  it.each<[string, string]>([
+    ["live's .env", LIVE],
+    ["the OTA stack's .env", OTA],
+  ])('%s: the phase says it skipped, and neither demo script runs', (_label, dotEnv) => {
+    const c = checkout(dotEnv);
+    const r = bootstrap(c, ['--only', 'demo']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/=== \[demo\] skipped/);
+    expect(demoCalls(c), `the demo phase ran without --with-demo:\n${r.out}`).toEqual([]);
+    expect(dockerCalls(c)).toEqual([]);
+    expect(readFileSync(join(c.compose, '.env'), 'utf8')).toBe(dotEnv);
+  });
+
+  it("with --with-demo on the OTA stack's .env the same phase runs both, so the stubs are the ones it calls", () => {
+    const c = checkout(OTA);
+    const r = bootstrap(c, ['--only', 'demo', '--with-demo']);
+    expect(r.status, r.out).toBe(0);
+    expect(demoCalls(c)).toEqual([...DEMO_SCRIPTS]);
+  });
+
+  it('no other part of bootstrap-managed.sh names a demo script, or setup-stalwart.sh', () => {
+    const script = readFileSync(join(COMPOSE_DIR, 'bootstrap-managed.sh'), 'utf8');
+    for (const name of DEMO_SCRIPTS) expect(callersOf(script, name), name).toEqual(['phase_demo']);
+    expect(callersOf(script, 'setup-stalwart.sh')).toEqual([]);
+  });
+
+  it('callersOf names the function a call stands in, passes over comments, and ends a one-line function', () => {
+    const script = [
+      'say() { echo "$1"; }',
+      '"${D}/x.sh" --top',
+      'a() {',
+      '  # x.sh, in a comment',
+      '}',
+      'b() {',
+      '  "${D}/x.sh"',
+      '  "${D}/x.sh" again',
+      '}',
+      '',
+    ].join('\n');
+    expect(callersOf(script, 'x.sh')).toEqual(['(top level)', 'b']);
   });
 });

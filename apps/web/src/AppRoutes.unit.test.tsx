@@ -71,6 +71,7 @@ vi.mock('./pages/Mappings', () => ({ default: () => <div>screen:mappings</div> }
 vi.mock('./pages/Person', () => ({ default: () => <div>screen:person</div> }));
 vi.mock('./pages/MappingDetail', () => ({ default: () => <div>screen:mapping-detail</div> }));
 vi.mock('./pages/CreateMapping', () => ({ default: () => <div>screen:create-mapping</div> }));
+vi.mock('./pages/StartMigration', () => ({ default: () => <div>screen:start-migration</div> }));
 vi.mock('./pages/ConfirmMapping', () => ({ default: () => <div>screen:confirm-mapping</div> }));
 vi.mock('./pages/Tenants', () => ({ default: () => <div>screen:tenants</div> }));
 vi.mock('./pages/Billing', () => ({ default: () => <div>screen:billing</div> }));
@@ -135,6 +136,8 @@ describe('appliance builds redirect managed-only URLs to /confirm', () => {
     // A person's page (0153 T5) is managed-only, as Migrations is.
     '/people/p-anna': 'screen:person',
     '/mappings/new': 'screen:create-mapping',
+    // Start a migration (0153 T4) creates through the managed API, as the wizard does.
+    '/start': 'screen:start-migration',
     // The green light drives the managed discover/start API; the appliance's
     // own /confirm is that edition's equivalent — exactly where this lands.
     '/mappings/acme/confirm': 'screen:confirm-mapping',

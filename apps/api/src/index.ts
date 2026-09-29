@@ -54,6 +54,7 @@ import supportRoutes from './routes/support.ts';
 import platformPauseRoutes from './routes/platform-pause.ts';
 import { problemReportRoutes } from './routes/problem-reports.ts';
 import { linkReportRoutes } from './routes/link-reports.ts';
+import { unreadableAnswerRoutes } from './routes/unreadable-answers.ts';
 import { assertProductionAuthConfig, getDbPool, selectAuthMode } from './middleware/auth.ts';
 import { assertBackupRetentionConfig, assertProductionUrlConfig } from './config-guards.ts';
 import { maxMigrationsPerOrganisationFromEnv } from './routes/migrations/migration-cap.ts';
@@ -62,7 +63,7 @@ import { serverFault } from './server-fault.ts';
 import { buildIdentity } from '@openmig/core';
 import { renderMetrics, METRICS_CONTENT_TYPE } from '@openmig/shared';
 import { runManagedMigrations } from '@openmig/managed';
-import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
+import { log, privacyPolicyUrl, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 import { setAuditKeyDriver } from './audit-key.ts';
 import { acceptanceAtStart } from './conditions-not-accepted.ts';
 
@@ -276,6 +277,9 @@ app.use('/api/decisions', decisionRoutes);
 // Everything waiting on a person, across every queue — the read the
 // "Attention" screen was missing, which showed drift alone.
 app.use('/api/attention', attentionRoutes);
+// An answer a page could not read, told by the page once, and kept on the log
+// page under the reference the page showed (workplan 0145, the owner's "Log it").
+app.use('/api/unreadable-answers', unreadableAnswerRoutes());
 app.use('/api/shared-addresses', sharedAddressRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/billing', billingRoutes);
@@ -347,6 +351,11 @@ if (process.env.NODE_ENV !== 'test') {
   log.info(
     `[api] refusing hosts inside this service's network; admitted by name: ${reachable.admitted.join(', ') || 'none'}`,
   );
+  // Where the mail to people items were shared with links the privacy policy
+  // (0139 T4): LEGAL_SITE_URL, which managed.yml fills from the web build's
+  // VITE_LEGAL_SITE_URL. A value the link cannot use stops the start here,
+  // naming both, rather than failing each press afterwards.
+  log.info(`[api] the share mail links the privacy policy at ${privacyPolicyUrl('en', process.env)}`);
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');

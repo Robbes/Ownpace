@@ -31,7 +31,7 @@
 -- it is written in. The one deleter is the erasure purge, through the owner
 -- connection (`PURGED_TABLES` in `offboarding.ts`), because privacy §9 keeps
 -- the account, and §4.4 puts this record in the account, until the data is
--- erased (0139 open question 4, the proposal until the owner answers). A
+-- erased (0139 open question 4, the owner's answer of 2026-09-29). A
 -- member who leaves keeps their rows until then (no key to `tenant_member`,
 -- on purpose): the organisation's record of who agreed to what, as privacy
 -- §9 says.

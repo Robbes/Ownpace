@@ -19,21 +19,14 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import {
-  choiceDefaults,
   credentialFieldsFor,
-  followedField,
   isFailureCategory,
   providerDefaultsFor,
-  providerDefaultsProvenance,
   wizardTypeForConnectionKind,
-  type CredentialField,
   type FailureCategory,
 } from '@openmig/shared';
 import { connectionKindName } from '../components/ProviderTile.tsx';
 import { FrontDoorChooser } from '../components/FrontDoorChooser.tsx';
-import { ChoiceField } from '../components/ChoiceField.tsx';
-import { isSelfHost } from '../services/edition.ts';
-import { ExperimentalTag, wholeDomainOptionIsExperimental } from '../components/ExperimentalTag.tsx';
 import { frontDoorCards } from '../components/front-door-cards.ts';
 import {
   type ConnectionDeleted,
@@ -53,86 +46,11 @@ import {
 import { FAILURE_KEY } from '../i18n/failure-key.ts';
 import { SendItToUs } from '../components/SendItToUs.tsx';
 import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
-import {
-  inUseMigrations,
-  invalidCredentialFields,
-  missingCredentialFields,
-  serverMessage,
-  tooManyTests,
-} from '../services/api.ts';
-import { conditionsRefusal } from '../services/acceptance.ts';
-import { QUALIFICATION_KEYS, credentialFieldRequired } from '@openmig/shared';
+import { serverMessage } from '../services/api.ts';
+import { QUALIFICATION_KEYS } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
-import { optionName } from '../i18n/option-name.ts';
 import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
-
-/**
- * A refusal in the reader's own language wherever we authored it (0071).
- *
- * A provider's words render verbatim — that is the whole value of a probe
- * result, and translating it would put a layer between the operator and the
- * console they must paste it into. But `missing_fields` is OUR refusal about
- * OUR form, and it arrived as English prose naming storage keys: the owner met
- * `Still needed: clientId.` in a Dutch UI, beside a form whose matching input
- * is labelled *App-sleutel*. The keys are the handle; the labels already exist
- * (the descriptor reuses the wizard's own i18n keys), so this renders the same
- * sentence the wizard's blocked-Next line renders.
- */
-const useRefusalText = (fields: ReadonlyArray<{ key: string; labelKey: string }>) => {
-  const t = useT();
-  return (err: unknown): string => {
-    const label = (key: string) => {
-      const field = fields.find((f) => f.key === key);
-      // An unknown key is shown as itself rather than swallowed: a descriptor
-      // and a route that disagree is a bug worth seeing.
-      return field ? t(field.labelKey as StringKey) : key;
-    };
-
-    const missing = missingCredentialFields(err);
-    if (missing) return `${t('wizard.missing.lead')} ${missing.map(label).join(', ')}`;
-
-    // Filled in, but the wrong shape — a different sentence from "still
-    // needed", and no longer a raw zod path in English (0072).
-    const invalid = invalidCredentialFields(err);
-    if (invalid) {
-      return `${t('connections.invalidValues.lead')} ${invalid.map(label).join(', ')}`;
-    }
-    const inUse = inUseMigrations(err);
-    if (inUse) {
-      // The names are the server's, the frame is ours (0068 T4's three
-      // questions, in the reader's language and two lines rather than five).
-      // A nameless migration still gets a Dutch sentence — dropping back to
-      // the server's English for it was the 0072 regression.
-      const named =
-        inUse.names.length > 0
-          ? inUse.names.map((n) => `“${n}”`).join(', ')
-          : t('connections.inUse.unnamed');
-      return `${t('connections.inUse.lead')} ${named}. ${t('connections.inUse.reason')}`;
-    }
-    // The limit on tests (0136 T3): ours, so in the reader's language.
-    if (tooManyTests(err)) return t('probe.tooManyTests');
-    // The texts not accepted yet (0139 T3): ours too. The screen comes up at
-    // the same time (`AcceptanceGate`); this is what the form says after.
-    const conditions = conditionsRefusal(err, t);
-    if (conditions) return conditions;
-    return serverMessage(err);
-  };
-};
-
-/**
- * The example value for a field, from the descriptor (workplan 0077).
- *
- * The wizard has always shown these; this form never did, so somebody adding
- * a Dropbox connection here was asked for an "App key" with no indication of
- * what one looks like — while the same field two screens away showed a shape.
- * Since 0075 the examples live on the descriptor, so both doors can read them
- * instead of one door owning them.
- */
-const usePlaceholderFor = () => {
-  const t = useT();
-  return (field: CredentialField): string | undefined =>
-    field.placeholder ?? (field.placeholderKey ? t(field.placeholderKey as StringKey) : undefined);
-};
+import { AccountForm, usePlaceholderFor, useRefusalText } from '../components/AccountForm.tsx';
 
 /**
  * The categories where the CONNECTION is the thing to act on (workplan 0094
@@ -598,236 +516,23 @@ const Row: React.FC<{
  * connection added here is one a sync pass can use.
  */
 const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
-  const { t, locale } = useLocale();
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const [role, setRole] = React.useState<'source' | 'target'>('source');
   // The first card of the side, the same one the role switch below lands on —
   // so opening the form and switching the role read as the same door.
   const [type, setType] = React.useState(frontDoorCards('source')[0]?.id ?? '');
+  // What is typed stays here, so a Cancel keeps it for the next opening; the
+  // form below begins its probe answer and its consent afresh each time it
+  // is drawn (`AccountForm`, 0145 T4).
   const [displayName, setDisplayName] = React.useState('');
   const [values, setValues] = React.useState<Record<string, string>>({});
-  /** Prefix for the chosen option's line, which its select points at. */
-  const chosenIdBase = React.useId();
-  const [busy, setBusy] = React.useState(false);
-  const [result, setResult] = React.useState<TestConnectionResult | null>(null);
-  /**
-   * ONE ROW PER FORM (2026-09-06). A consent that lands saves and tests in
-   * one go, and the form stays open so the person can read the verdict —
-   * with the Add button live beneath it. The owner's first green Test showed
-   * exactly that screen; a second press would have stored a second
-   * connection with the same grant. Once a row exists the button says so and
-   * does nothing; the way onward is Close.
-   */
-  const [added, setAdded] = React.useState(false);
-
-  const declared = credentialFieldsFor(role, type);
-  /**
-   * What the form holds: what was typed, over this edition's default for every
-   * choice that has one (0148 T9 — the archive's `where`). It is also what is
-   * posted, so an untouched choice is sent as the answer the screen shows.
-   */
-  const answers: Record<string, string> = { ...choiceDefaults(declared, isSelfHost()), ...values };
-  // A field's label, hint and example can follow another answer: the archive's
-  // path names a folder of the destination's files, or a path on a disk.
-  const fields = declared.map((field) => followedField(field, answers));
-  /** Whose published settings sit in the boxes, when a named provider's do. */
-  const provenance = providerDefaultsProvenance(role, type);
-  const refusalText = useRefusalText(fields);
-  const placeholderFor = usePlaceholderFor();
-  // WHOSE CONSENT mints this kind's token, whether the deployment carries the
-  // application, which faces to ask for, and the round trip itself — all of it
-  // now lives in one place both doors import, because Replace credentials
-  // needed exactly this and had none of it (`components/ProviderConsent.tsx`).
-  const consent = useProviderConsent({
-    role,
-    type,
-    fields,
-    values,
-    onToken: (refreshToken) => setValues((v) => ({ ...v, refreshToken })),
-    refusalText,
-  });
-  const deploymentClient = consent.deploymentClient;
-  const clientIdTyped = (values.clientId ?? '').trim() !== '';
-  const clientSecretTyped = (values.clientSecret ?? '').trim() !== '';
-  // THE PAIR FOLDS AWAY where the deployment carries the application (owner
-  // remark 2026-09-02): a person grants Ownpace's own, and "use your own" is
-  // the exception. The pair is the descriptor's to name — an id `pairedWith`
-  // its secret. Box's id is required, unpaired, and stays in plain view.
-  const folded =
-    deploymentClient && fields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret');
-  const pairedSecret = folded ? fields.find((f) => f.key === 'clientSecret') : undefined;
-  // AND THE TOKEN FOLDS WITH THEM (owner remark, after the first round trip):
-  // on the consent path the token arrives from the provider and is never
-  // typed, so a box with an asterisk above the fold asked for what the button
-  // below supplies. Inside the fold it is the manual alternative it always was.
-  const pairedToken = folded ? fields.find((f) => f.key === 'refreshToken') : undefined;
-  const ps = consent.words;
-
-  const submit = async (name: string = displayName) => {
-    setBusy(true);
-    setResult(null);
-    try {
-      const answer = await connectionsApi.add({ role, type, displayName: name, values: answers });
-      setResult(answer);
-      // Added either way — a credential that does not work YET is still worth
-      // keeping while somebody chases an administrator.
-      setAdded(true);
-      onAdded();
-    } catch (err) {
-      setResult({ ok: false, reason: refusalText(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /**
-   * ONE GO (owner remark 2026-09-02): a consent that lands saves and tests
-   * the connection at once — the grant is the person's word, and pressing
-   * Add after it was a second word for the same thing. The name defaults to
-   * the address when none was typed, the way the wizard names what it saves.
-   * A counter, not the 'received' flag, so a second consent submits again.
-   */
-  const submitRef = React.useRef<(name?: string) => Promise<void>>(async () => {});
-  submitRef.current = submit;
-  React.useEffect(() => {
-    if (consent.landed === 0) return;
-    const name = displayName.trim() || (values.username ?? '').trim() || type;
-    if (!displayName.trim()) setDisplayName(name);
-    void submitRef.current(name);
-    // The values of THIS render carry the token the handler just set; the
-    // name is read the same way. Re-running on their later changes would
-    // submit again for a keystroke, which is why only the landing counts.
-  }, [consent.landed]);
-
-  /**
-   * THE ASTERISK TELLS THE TRUTH ON AN APPLIANCE TOO (2026-09-07). A client
-   * pair is `required: false` because the DEPLOYMENT may carry one; where it
-   * does not, the same two fields are the only way forward. Asking the
-   * descriptor alone marked them optional at the one moment they were
-   * mandatory. The shared rule knows the difference — and the wizard, which
-   * learned this first for Google, now asks the same one.
-   */
-  const requiredHere = (field: CredentialField): boolean =>
-    credentialFieldRequired(field, {
-      deploymentClient: Boolean(deploymentClient),
-      halfPairTyped: clientIdTyped !== clientSecretTyped,
-      sideStepped: (values.serviceAccountKey ?? '').trim() !== '',
-    });
-
-  /** The chosen option's own line key, where it has one (0148 T3, D7). */
-  const chosenHintKey = (field: CredentialField): string | undefined =>
-    field.options?.find((o) => o.value === (values[field.key] ?? ''))?.hintKey;
-
-  /** One labelled box, or a choice with an answer already marked (0148 T9). */
-  const labelledBox = (field: CredentialField) =>
-    field.defaultValue ? (
-      // A choice with an answer already marked (0148 T9): radio buttons, the
-      // way the wizard draws it, from the one component both doors use.
-      <ChoiceField
-        className="text-sm sm:col-span-2"
-        field={field}
-        name={`add-${field.key}`}
-        value={values[field.key]}
-        onChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
-      />
-    ) : (
-    <label className={`block text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
-      <span className="block text-gray-700 mb-1">
-        {t(field.labelKey as StringKey)}
-        {role === 'source' && wholeDomainOptionIsExperimental(field.key) && <ExperimentalTag />}
-        {requiredHere(field) && <span className="text-red-600"> *</span>}
-      </span>
-      {field.multiline ? (
-        <textarea
-          className="input w-full font-mono text-xs"
-          rows={4}
-          placeholder={placeholderFor(field)}
-          value={values[field.key] ?? ''}
-          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-        />
-      ) : field.options ? (
-        // A CLOSED LIST IS A CHOICE, not a box to spell an id into (0116 T1's
-        // `options`, first rendered here after E2E (managed) #154 found the
-        // kind could be offered and not added). Which export an archive is
-        // selects the reader, and a misspelt `google-takeout` is not refused
-        // — the wrong reader finds none of its landmarks and reports nothing.
-        <select
-          className="input w-full"
-          aria-describedby={chosenHintKey(field) ? `${chosenIdBase}-${field.key}` : undefined}
-          value={values[field.key] ?? ''}
-          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-        >
-          <option value="">—</option>
-          {field.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {optionName(t, option)}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          // Secrets are masked here for the same reason they are never
-          // returned by the API: nothing should read one over a shoulder;
-          // a numeric field is numeric here too (0072).
-          type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
-          inputMode={field.numeric ? 'numeric' : undefined}
-          autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
-          placeholder={placeholderFor(field)}
-          className="input w-full"
-          value={values[field.key] ?? ''}
-          onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-        />
-      )}
-    </label>
-    );
-
-  /**
-   * One labelled box; where it goes is the map below's decision. Google's
-   * whole-domain option, not yet run against a real Workspace (0131 T2),
-   * carries the tag in its label and its why in a fold under the box, as the
-   * wizard shows it. The fold sits outside the `<label>`, so its words are not
-   * read as part of the box's name and pressing it does not focus the box.
-   */
-  const fieldBox = (field: CredentialField) =>
-    role === 'source' && wholeDomainOptionIsExperimental(field.key) ? (
-      <div className={`text-sm ${field.multiline ? 'sm:col-span-2' : ''}`}>
-        {labelledBox(field)}
-        <Hint className="mt-1" why={t('frontDoor.experimental.wholeDomain.why')} />
-      </div>
-    ) : (
-      labelledBox(field)
-    );
-
-  /**
-   * The chosen option's own line, under its field (0148 T3, D7): an export no
-   * reader opens yet says so before anybody asks Apple for a week's wait. A
-   * sibling of the label rather than inside it, so it is not read out as part
-   * of the field's name.
-   */
-  const chosenLine = (field: CredentialField) => {
-    const key = chosenHintKey(field);
-    // It appears on a choice, so it is a status a screen reader announces,
-    // and the select's description while it stands.
-    return key ? (
-      <div id={`${chosenIdBase}-${field.key}`} role="status" className="sm:col-span-2">
-        <Hint text={t(key as StringKey)} tone="caution" />
-      </div>
-    ) : null;
-  };
 
   if (!open) {
     return (
       <button
         type="button"
-        onClick={() => {
-          // The form keeps what was typed when it is cancelled, but not the
-          // last consent's answer (0145 T4). A panel drawn again with a
-          // refusal already in it is a new alert, and a screen reader would
-          // say a failure nobody just caused. Cancel and Close both lead
-          // here, so this one reset covers both.
-          consent.reset();
-          setOpen(true);
-        }}
+        onClick={() => setOpen(true)}
         className="mt-4 text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
       >
         {t('connections.add')}
@@ -861,8 +566,6 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
                 setRole(r);
                 setType(first);
                 setValues({ ...providerDefaultsFor(r, first) });
-                setResult(null);
-                consent.reset();
               }}
               className={`px-4 py-1.5 text-sm font-medium ${
                 role === r ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -888,119 +591,24 @@ const AddConnection: React.FC<{ onAdded: () => void }> = ({ onAdded }) => {
             // them exactly as it used to start from nothing; a protocol card
             // still starts from nothing, because "IMAP" names no provider.
             setValues({ ...providerDefaultsFor(role, card.id) });
-            setResult(null);
-            consent.reset();
           }}
           gridClass={role === 'source' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}
         />
-        {provenance && (
-          <p className="mt-2 text-xs text-gray-600">
-            {t('wizard.providerDefaults.note', provenance)}
-          </p>
-        )}
       </div>
 
-      {/* Read the asterisks: one line, because "(optional)" is gone from the
-          labels and the marker is now the only thing that says which fields
-          this deployment demands. Only where there IS one — before a kind is
-          picked there are no fields, and a legend about a marker nobody can
-          see explains nothing. */}
-      {fields.some(requiredHere) && (
-        <p className="mt-4 text-xs text-gray-500">{t('form.requiredLegend')}</p>
-      )}
-
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm sm:col-span-2">
-          <span className="block text-gray-700 mb-1">{t('connections.name')}</span>
-          <input
-            className="input w-full"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </label>
-
-        {fields.map((field) => {
-          if (folded && (field.key === 'clientSecret' || field.key === 'refreshToken')) return null;
-          if (folded && field.key === 'clientId') {
-            return (
-              <details key={field.key} className="sm:col-span-2 rounded-md border border-gray-200 p-3">
-                <summary className="cursor-pointer text-sm text-gray-700">
-                  {ps('ownClient')}
-                </summary>
-                <p className="mt-2 text-sm text-gray-500">{ps('deploymentClient')}</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {fieldBox(field)}
-                  {pairedSecret && fieldBox(pairedSecret)}
-                  {pairedToken && fieldBox(pairedToken)}
-                </div>
-              </details>
-            );
-          }
-          return (
-            <React.Fragment key={field.key}>
-              {fieldBox(field)}
-              {chosenLine(field)}
-            </React.Fragment>
-          );
-        })}
-      </div>
-
-      <ProviderConsentPanel consent={consent} />
-
-      {/* The prerequisites for whatever is selected — often the reason a value
-          is missing is that nobody has been to the provider's console yet. */}
-      <p className="mt-3">
-        <Link to={`/setup/${role}/${type}`} className="text-sm text-blue-700 hover:underline">
-          {t('connections.setupSteps')}
-        </Link>
-      </p>
-
-      {result && (
-        <p
-          className={`mt-3 text-sm border rounded p-2 ${result.ok ? 'text-green-800 bg-green-50 border-green-200' : 'text-amber-900 bg-amber-50 border-amber-200'}`}
-        >
-          {probeText(
-            t,
-            result.outcome,
-            result.ok ? (result.detail ?? t('connections.ok')) : (result.reason ?? t('connections.failed')),
-            locale,
-            result.said,
-          )}
-          {result.qualification && (
-            <span className="block mt-1">{qualificationText(t, result.qualification)}</span>
-          )}
-          {result.qualification && measuredText(t, result.qualification, locale) && (
-            <span className="block mt-1">{measuredText(t, result.qualification, locale)}</span>
-          )}
-          {result.qualificationPending && (
-            /* The door answered before the measuring finished (2026-09-02). */
-            <span className="block mt-1">{t('probe.measuring')}</span>
-          )}
-          {qualificationEvidence(t, result.qualification).map((line) => (
-            <span key={line} className="block mt-1 text-xs break-words">
-              {line}
-            </span>
-          ))}
-        </p>
-      )}
-
-      <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          disabled={busy || added || !displayName.trim()}
-          onClick={() => void submit()}
-          className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
-        >
-          {busy ? t('connections.testing') : added ? t('connections.added') : t('connections.addAndTest')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-sm px-3 py-1.5 border border-gray-300 rounded"
-        >
-          {added ? t('common.close') : t('common.cancel')}
-        </button>
-      </div>
+      {/* A fresh form for each card: its answer and its consent belong to
+          the card they were given for. */}
+      <AccountForm
+        key={`${role}:${type}`}
+        role={role}
+        type={type}
+        values={values}
+        onValues={setValues}
+        displayName={displayName}
+        onDisplayName={setDisplayName}
+        onAdded={() => onAdded()}
+        onCancel={() => setOpen(false)}
+      />
     </div>
   );
 };

@@ -2,7 +2,206 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29, morning: a sign-in's example goes when its box is clicked (T6, T7; the owner's
+answer).** Asked whether *Username* should read *Email address* where an address is what goes
+in it, the owner answered: *"stick with "Username" / "Gebruikersnaam" and fill in a grey example
+hint of the formatting/syntax that goes away when clicked, like 'someone@example.com'"*.
+
+- The label stays. The example is *someone@example.com* (Apple's *someone@icloud.com*), from the
+  one descriptor every door draws (`credential-fields.ts`).
+- Every box of the `.input` class, which is every sign-in box on Accounts, the wizard and
+  *Start a migration*, takes its example away while it has focus, and shows it again if it is
+  left empty. The search boxes elsewhere keep theirs, since there it is the instruction.
+- Proved in Chromium (`managed-ui.ui.test.ts`, *a sign-in's example*): the example's colour
+  before a click, transparent once clicked, and back after. Without the rule it failed on
+  `expected 'rgb(100, 116, 139)' to be 'rgba(0, 0, 0, 0)'`. Eight web test files found the box by
+  its old example, in 55 places, and now find it by the new one.
+
+**2026-09-29: the wizard offers a saved Microsoft 365 or Apple account again.** On branch
+`claude/funny-wright-upyuqr`; not merged. This closes the fault 0131 T1 and 0148 T9 found and
+left. The wizard (*Add one migration by hand*) kept its own copy of the server's
+`sourceKindFor`, `sourceKindOf`, and every type it did not list fell to `o365`. It did not list
+`microsoft` (0114) or `apple` (0115). A saved account of either kind was never offered on the
+source step, so the person stored it twice. A saved *Via IMAP* or *Graph* row was offered in its
+place, could become the one-candidate default, and was posted as the source of a `microsoft` or
+`apple` migration, which the create route's reuse check refuses.
+
+- **The picker reads each saved row's kind back through `wizardTypeForConnectionKind`**, the
+  inverse the server's round-trip test pins, as T4's *Start a migration* flow already does. A
+  kind added later reads back as its own card. A card with no saved row of its kind offers
+  nothing, never a wrong row. The one exception is `oauth2`: `oauth2` and `graph` both store as
+  `o365`, and the inverse answers `graph`, so `oauth2` reads its rows as `graph`
+  (`storedSourceType` in `CreateMapping.tsx`).
+- **Proved by** `CreateMapping.reachability.unit.test.tsx`, *offers each card only the rows its
+  kind stores as*. It stores one `o365`, one `microsoft` and one `apple` row, then picks each of
+  the four cards. Each card must offer only its own row and start on it. Before the fix, the
+  Microsoft 365 account and Apple account cases fail, each offered the `o365` row. With the
+  `oauth2` case removed, *Via IMAP* fails. `vitest --project unit-browser apps/web/src/pages`
+  passes 53 files (1568 tests), `tsc -p apps/web/tsconfig.json` is clean, and the `scripts`
+  guards pass 212 files.
+
+**2026-09-29, morning: T4's *Someone else*, by a grant link where one reaches (0108).**
+
+- **Who signs in to the accounts?** *I do*, or *They do, with a link* (*Ik* / *Zij zelf, met een
+  link*). The words differ from the person list's *Someone new* / *Iemand anders* (the owner's
+  correction of *Iemand nieuws*), so the Dutch never offers *Iemand anders* twice with two
+  meanings.
+- **For somebody else:**
+  - *Connect your accounts* asks only for their address where a link reaches
+    (`grantableByLink`): Google's cards, through the deployment's own client, with Gmail and
+    Drive only where the restricted scopes are declared. The account is saved with no
+    credential, the migration reuses it, and the grant lands on the migration;
+  - where no link reaches, the screen says so and they sign in together;
+  - no saved account is chosen by default, since one may be the starter's own;
+  - *Check, then start* offers each such migration's grant link in place of its count, and the
+    count appears once the link is used. *Start* waits, and the person's page keeps the
+    migrations meanwhile.
+- **Not yet:** grant and progress links *per person* (T5 (b), ADR-0035's amendment); until they
+  are built, each migration's page keeps its own.
+- **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25),
+  and by a walk in Chromium over a fixture API that answers a Google account with no token as
+  the create door does (`error`). The walk goes in English and Dutch from *They do, with a link*,
+  through Anna's address and two grant links, one per migration, used, to *Start* and her page.
+  It found the closing line promising that each migration starts by itself once connected, which
+  nothing does, in Dutch that read Anna as a woman (*haar account*). The line now says to start
+  each one from its *Details*.
+- **The owner's answer on the links (2026-09-29):** *"yes, a per-person link instead of the
+  per-migration links"*. The walk shows why: Anna's one Google account took two links, one per
+  migration. Designed next, with ADR-0035's amendment.
+- Not yet against a real Google grant: the path runs through 0108's own routes, unchanged.
+
+**2026-09-29, morning: T7 (f), the wizard's step labels are not struck through** (0131 §6, R8).
+
+- The line between two steps in the wizard's header is now the step's last flex item. It was
+  drawn absolutely from 4rem to the step's right edge, so it ran through every label longer
+  than a word. It now fills only what the circle and the label leave.
+- On a phone four whole labels do not fit, and with the line out of the way they pushed the page
+  117 pixels sideways at 360 pixels. Below Tailwind's `sm` the labels are read, not shown, and
+  the heading under the row (*Stap 1 van 4: Bron*) names the step.
+- Proved in a real browser (`test/ui/managed-ui.ui.test.ts`, *the wizard's progress row*), in
+  English at 1280 pixels and in Dutch at 1280, 768, 640 and 360. No line box crosses a label
+  box, and the page does not scroll sideways. With the old positioning and the same markers,
+  the three cases it had then (English at 1280, Dutch at 1280 and 360) failed on *the line
+  crosses "Source"* and *"Bron"*.
+
+**2026-09-29, morning: T4 with T7, *Start a migration* (the owner's *"Yes"*, 0131 §6), in #1378.**
+
+- **`/start`** (`apps/web/src/pages/StartMigration.tsx`), managed only, drawn in
+  `wf-start-a-migration.svg`. *Start a migration* on Migrations, and *Add a migration* on a
+  person's card and page, open it. The four-step wizard stays beside them as *Add one migration
+  by hand*. Six screens, each starting with focus on its heading:
+  1. *Who is it for?* Somebody on Migrations, or a new name, and `?person=` chooses. Nobody is
+     made before screen 6, so leaving half-way leaves no empty card.
+  2. *Which account are you leaving?* Six tiles, none ticked, more than one allowed, each
+     tagged where it has not met a real account. An export archive and a server by its
+     protocol go to the wizard, with the person.
+  3. *What moves?* Per provider, what it can give on this deployment, all ticked, each tagged
+     by the card that carries it. Google Docs and Dropbox Paper get the wizard's own format
+     choosers, with its defaults. Photos are a line: a Takeout export, added by hand once it
+     is in the new files.
+  4. *Connect your accounts.* One sign-in per card, for exactly what was ticked (T1 (c)), and
+     how many Google takes is said before the first. A saved account is offered first, and the
+     one saved account is the default. A new one is kept only once its check passes; *Try
+     again* takes back the account a failed check left.
+  5. *Where does it go?* Per data type: a saved account that takes it, or a new Soverin or
+     Nextcloud, as drawn.
+  6. *Check, then start.* Leaving screen 5 makes the person and one paused migration per pair
+     of accounts. Each is named *"{person} — {provider} to {destination}"*, runs daily at
+     02:00, and is added to the person. Then each migration's count with its tick, the
+     manifest's rows true of these sources, and one *Start*. It waits for every count and
+     tick, and lands on the person's page.
+- **T7**, as `AccountForm`'s flow variant:
+  - (a) *Connect with …* and *Check the sign-in* are primary and at least 44 pixels tall, and a
+    greyed Next says why under it;
+  - (b) Soverin shows two fields, its servers folded under *Server settings*, which a server
+    failure opens;
+  - (c) a Nextcloud is its address, with the DAV root derived (`nextcloudDavUrl`) and editable
+    in the fold;
+  - (d) the company fields wait behind *Is this a company account with an administrator?*;
+  - one way in first (the owner, 2026-09-29): the address and *Connect with Google*, and under
+    it, each folded, an app password instead (Gmail's) and one's own client. *Check the
+    sign-in* shows once one of those is in use;
+  - (e) a limit is blamed on its side: *Not from Dropbox*, and *Soverin does not take files*;
+  - (f) the flow draws no progress line to strike through; the wizard's stays until it
+    retires.
+- **Underneath:**
+  - `start-plan.ts` holds the rules;
+  - `ConfirmMigration`'s count is split into `useMigrationCount` and `MigrationCountSection`,
+    so one screen holds several counts under one *Start*, and the confirm page is unchanged.
+- **Not yet, and said:**
+  - *Myself / Someone else* and grant links: 0108's links are per migration and Google only,
+    so they come in the next slice, not as a promise screen 1 cannot keep;
+  - screen 6's time estimate waits for 0154 T3 (a);
+  - the wizard retires once `CreateMapping.reachability.unit.test.tsx` passes through the flow
+    (D5).
+- **Proved by:**
+  - `StartMigration.unit.test.tsx` (28 cases) and `start-plan.unit.test.ts` (21). They cover
+    each screen's focus and reasons, the tags, the saved-account default, a failed check's
+    *Try again*, Soverin's fold, Nextcloud's address, and the set-up's payloads. A refused
+    set-up asks again only for what was not made, and one *Start* for two migrations lands on
+    the person's page. A failed read of the saved accounts is said, and a `?person=` naming
+    nobody chooses nobody;
+  - `managed-ui.ui.test.ts` in a real browser: from Anna's card through the six screens and
+    one *Start* to her page, with no call the API does not serve. With the card's link pointed
+    back at the wizard, it fails;
+  - `ConfirmMigration`'s own 68 cases pass unchanged;
+  - a walk in Chromium over a fixture API, in English, Dutch and at phone width, found two
+    faults, both fixed: mail was listed after files, and *Another mail provider* was
+    capitalised mid-sentence.
+
+**2026-09-29, morning: one link per person, decided and planned (T5 (b); ADR-0035 amended).**
+The owner, asked after the walk of *Someone else* sent Anna two links for one Google account:
+*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
+need the per-migration-link?"*
+
+- **ADR-0035's amendment** records the decision, the design, and the answer to the question as a
+  proposal: replace, keeping per-migration links already sent until they expire, and a migration
+  with no person gets one first. It also proposes *start when granted*.
+- **T5 (b)** plans the build in four slices: the managed-only `person_link` row and its doors;
+  the grant page per person, asked and bound per Google account; the progress page per person,
+  with taking a grant back per account; and the owner's side.
+- **Found while mapping it:** the ledger's `mapping_link` cannot point at `person`, which is
+  managed-only (ADR-0036), so the person's link is a managed row of its own.
+
+**2026-09-29, morning: the owner's answers to the writing session's eleven questions, and two
+words changed with them** (0131 §6, R8).
+
+- **T6's words:**
+  - the share announcement, to people who only had files shared with them, says *gemigreerd*,
+    not *verplaatst* (*"Gemigreerd"*): *Met u gedeelde bestanden zijn gemigreerd*, and in the
+    body *Ze zijn naar een ander platform gemigreerd*. The human copy in
+    `docs/cutover-communication-templates.md` follows, and the glossary's *migration* row says
+    it;
+  - the Dutch menu entry is *Hulp*, not *Help* (*"Hulp or Ondersteuning (Support)"*). *Hulp* is
+    the word the sidebar already uses (*Hulp: {address}*); *Ondersteuning* would read as a
+    support desk, which is the operator's *Support* page;
+  - the Team page keeps *Team & organisatie* under the menu's *Team* (*"Keep"*);
+  - the new words of #1347, #1349 and #1353 stand (*"Ok"*).
+- **Who builds the rest (*"Yes, but check first if it did not already land during tonight"*):**
+  the writing session takes T4 with T7 and the rest of T5, R8 steps 6 and 7. Checked on `main`
+  at `5f74ebc`: T4 and T7 are still proposed, and no branch or open pull request of R's or M's
+  touches them. 0131 §6 records the split.
+
+**2026-09-29, morning: T5 (b)'s first slice, a person's link as a row (ADR-0035's amendment of
+2026-09-29).** No page issues or opens one yet: the doors come with the grant page that opens
+them, by `link-routes.ts`'s own rule that a link no page honours opens nothing.
+
+- **`person_link`**, managed migration 0034 (0033 is taken by #1358's system role): shaped as
+  the ledger's `mapping_link`, with `(person_id, tenant_id)` referencing the person, NULL-safe
+  tenant policies, and its own `link_sees_itself` on `app.current_link`. Deleting the person
+  deletes their links. Erasure purges it before `person`.
+- **`person-link-store.ts`** (managed): issue, verify, spend, revoke, list, count. The secret is
+  made, hashed and compared by the ledger's own `mintLinkSecret`, `hashLinkSecret` and
+  `linkSecretMatches`, now exported so the two kinds cannot drift. A person's token is
+  `p.<id>.<secret>`, and each store refuses the other's by shape before reading anything.
+- **The live-link limit counts both kinds** under the one lock (`liveGrantLinks`), a person's
+  link once whatever it covers.
+- **Proved by** `person-link-under-rls.unit.test.ts` (12, PGlite as `app_user`, both chains) and
+  the limit's route test (34 → 35). Mutations: revoking without the person in the `WHERE`, and
+  the migration without the person's key, each fail their cases; the limit counting migrations
+  only fails the new one.
 
 **2026-09-29, night: T5's first slice, a page per person (0131 §6, R8 step 7, built beside R at
 the owner's word *"continue on the rest"*)**, in #1353, stacked on #1349.
@@ -372,7 +571,7 @@ person, and a flow that fills it.
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
-| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. Per-person grant and progress links wait on T4 and 0108; the progress lines on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
+| T5 A page per person | 🟡 **First slice built (#1353): the person, their migrations, and their steps before they switch. One link per person is decided (ADR-0035's amendment of 2026-09-29) and planned as T5 (b), four slices; the progress lines wait on 0154 T2. Before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation. The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | 📋 **Proposed; before the first invitation, inside T4** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
 | T8 The appliance shows its person's page | 📋 **Proposed; before the first invitation (D5)** | §3. The same page, fed by the appliance's one implicit grouping. No list or create screen (0034 stands). |
@@ -816,6 +1015,54 @@ Each migration keeps its page (`/mappings/:id`) for its run history, its data ty
 and its settings. The person's page links each one as *Details*. The seven queue pages keep
 working per migration. The person's page shows their counts summed across the person's
 migrations, and links each migration's page.
+
+#### T5 (b) — one link per person (ADR-0035's amendment of 2026-09-29)
+
+The owner: *"yes, a per-person link instead of the per-migration links"*. The design, and what it
+changes in 0108 and 0122, is the amendment's. Built in four slices, each its own pull request:
+
+1. **The row.** `person_link` in `packages/managed/migrations` (the next free number), shaped as
+   `mapping_link` is in `packages/ledger/migrations/0031_a_link_that_grants.sql`: a hashed secret,
+   `purpose` (`grant` | `view`), `created_by`, `expires_at`, `used_at`, `revoked_at`, `person_id`
+   referencing `person(id, tenant_id)`, and the same row security, including `link_sees_itself`
+   on `app.current_link`. A store beside `people.ts` (issue, verify, spend, revoke, list, count),
+   the live-link limit counting both tables under the one advisory lock (`live-link-limit.ts`),
+   and erasure. No door issues one yet: `link-routes.ts`'s own rule is that a link no page
+   honours opens nothing, so the doors come with the page.
+2. **The grant page per person, and its doors.** `POST`/`GET`/`DELETE
+   /api/people/:personId/links`, owner or admin, the texts accepted, refused where no migration of
+   theirs can take a grant (each migration asked through `grantLinkAsk`, unchanged), and within
+   the limit; a progress link is refused until slice 3 builds its page. The link middleware tells
+   the two kinds apart and sets the tenant and `app.current_link` as `withMappingLink` does.
+   `GET /api/grant/:link` answers, for a person's link, each Google account with its migrations
+   (from, to, what) and whether it is granted; `POST …/google/authorize` takes the account, and
+   asks for every scope its listed migrations need through one client (two clients on one
+   account are refused by name). The callback's ending writes the token to each listed migration
+   of that account in one transaction, audits each, and spends the link once every account is
+   granted. It then mints the person's progress link. `Grant.tsx` draws one *Sign in as …* per
+   account.
+3. **The progress page per person.** `GET /api/view/:link` for a person's link answers their
+   migrations; *Take my grant back* is per account (`withdraw-grant.ts`: one revoke at Google,
+   every migration holding that token cleared in one statement). `View.tsx` draws them.
+4. **The owner's side.** The person's page (*For Anna*: *Create a grant link*, *Create a progress
+   link*, their states), *Start a migration*'s last screen offering the one link in place of each
+   migration's (#1386), and the migration's page listing any per-migration link still live,
+   revocable, with new ones made on the person's page. A migration with no person offers
+   *Who is this for?* there. The per-migration issue route refuses with a sentence naming the
+   person's page.
+
+**Tests that pin the per-migration shape today** and take the person's beside it: the grant route
+(`grant.unit.test.ts`), issuing (`link-routes.unit.test.ts`, `one-issue-at-a-time.integration.test.ts`),
+the store (`mapping-link-store.unit.test.ts`), the middleware (`mapping-link-auth.unit.test.ts`),
+the callback (`google-callback-route.unit.test.ts`, `signed-in-account.unit.test.ts`), withdrawing
+(`a-grant-taken-back.unit.test.ts`), the progress page (`view-routes.unit.test.ts`), reports
+(`a-link-that-can-be-reported.unit.test.ts`), the limit (`as-many-links-as-the-tier-runs.unit.test.ts`),
+closing (`an-organisation-closed-at-every-door.unit.test.ts`), the log's redaction
+(`a-log-that-kept-the-link.unit.test.ts`) and the OpenAPI spec. Offboarding purges `person_link`
+before `person` (`offboarding.ts`'s `PURGED_TABLES`).
+
+**Waits for the owner:** *start when granted* (the amendment's last section). Slices 1 to 3 do not
+depend on it.
 
 ### T6 — words a family reads (before the first invitation, inside T3–T5)
 

@@ -2,7 +2,38 @@
 
 > **In one line:** Moves managed billing from the retired metered `pricing.ts` to ADR-0014's tiers: a 409 on the invoice route, per-path `path_lifecycle`, `occupancy_peak`, the `bytes_moved` meter, `tier-calculator.ts`, a tier invoice line, top-ups and a possible free band.
 
-## Status — 2026-09-24 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: the Billing screen's Storage and Data transfer count a first copy**, on branch
+`claude/mailbox-sync-errors-c2xsw2-the-first-copy-is-counted`, not merged.
+
+- **Found.** The two tiles read `deriveStorageAndEgressForPeriod`, which counted the `item` rows
+  whose `last_synced_at` fell in the month. Only the re-copy path writes that column
+  (`PgLedger.recordUpdate`). A first copy (`recordIfAbsent`) stamps `first_seen_at` and leaves it
+  NULL. So the tiles counted re-copies and never a first copy, which is almost every byte a
+  migration moves. An organisation that had copied hundreds of GB saw about 0 GB there, beside
+  this plan's `bytes_moved`, which was right. It came to light when the same filter over the
+  owner's Dropbox migration found 3 files of about 15,000. The metering integration test set
+  `lastSyncedAt` by hand, so it never met a row as the ledger writes one.
+- **Fixed in the meter, not by removing the tiles.** The owner decided on 2026-09-09 (0121 T4)
+  that the measurement is instrumentation and the customer gets to see it, so the tiles stay
+  ahead of T5. The meter now counts an item in the month it was last written to the target:
+  `coalesce(last_synced_at, first_seen_at)`, its latest re-copy or else its first copy. A
+  re-copied item counts once, at its latest size, since a row keeps only the latest of each.
+  Migration 0023's partial index on `last_synced_at` no longer serves this read, so it goes
+  through the organisation's rows, once per opening of the Billing screen. T5 still deletes the
+  retired model this meter belongs to, and 0109 T0's three findings about it (a byte priced
+  twice, `skipped` counted, the per-driver breakdown) are unchanged.
+- **Proved** by `packages/managed/src/a-first-copy-on-the-billing-screen.unit.test.ts` (5 cases,
+  through the real ledger on PGlite):
+  - first copies count in the month they were made;
+  - a re-copied file counts only in the month of its re-copy;
+  - a failed item and an adopted one count nothing;
+  - a month before any copy holds none;
+  - another organisation's copies are not counted.
+
+  6 of 6 mutations caught, among them the old filter, the `coalesce` the wrong way round, and
+  an adopted or failed item counted.
 
 **2026-09-24, night: a rollback's slots are in the month's peak.** The fifth writer found
 earlier today (the cutover CLI and the `run-rollback` job, through the ledger's

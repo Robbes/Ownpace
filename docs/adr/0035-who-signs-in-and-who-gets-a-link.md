@@ -34,6 +34,7 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **Owners sign in; migrated people get links, not accounts** — and the owner decides who gets a link to manage and **grant** their own migration (restated 2026-08-19).
+- **The link is per person** (owner, 2026-09-29; ADR-0050's person): one grant link and one progress link for all of a person's migrations, a grant asked and bound per Google account, and covering only the migrations the page showed. Built by workplan 0153 T5 (b); until then links are per migration, and a per-migration link already sent is honoured until it expires.
 - Only the migrated person holds their own source credential, never the organisation; admins see their whole family/organisation's progress.
 - `tenant_member` rows sign in; mappings get links. Organisation-held credentials (Box CCG, app-only Graph, DWD) **cannot be narrowed** — stated, not hidden.
 - Formally accepted 2026-09-20 (owner: "yes on all 3"); the 1/7/30-day link expiry presets stand.
@@ -321,3 +322,68 @@ us becoming the sender.
 
 **Charge per migrator.** Rejected in decision 6 above: it would price customers away from the
 private option and depart from ADR-0014 without saying so.
+
+## Amendment 2026-09-29 — the link is per person (workplan 0153 T5 (b))
+
+**Decided by the owner, asked whether *Start a migration* should give one link per person:**
+*"yes, a per-person link instead of the per-migration links. Perhapse replace it, or do we still
+need the per-migration-link?"* The first sentence is the decision. The question after it is
+answered below as a recommendation, marked **(proposed)** where it waits for the owner's word.
+
+### Why
+
+Decision 1 said people being migrated *are* mappings. ADR-0050 has since given them a row of
+their own, the **person**, whose migrations a move is. The link followed the old shape, and a
+walk of *Start a migration* for somebody else (0153 T4, #1386) shows the cost: Anna has one
+Google account; going to Soverin and to a Nextcloud makes two migrations, so she was sent two
+links to grant the same account twice. A person grants their own accounts, so the link belongs to
+the person. This decision's own alternatives already called the compromise *"a per-person
+copy-link"*.
+
+### What changes
+
+- **Decision 1 and 2: people being migrated are persons (ADR-0050), and each gets one grant link
+  and one progress link, not one per migration.** Everything else in decision 2 holds: the owner
+  distributes it and we never do; the grant link is short-lived and spent once its work is done;
+  the progress link is longer-lived and revocable.
+- **The grant page asks per account, not per migration.** It names each Google account the
+  person's migrations read, with the migrations each one feeds (from, to, what), and one *Sign in
+  as …* per account. 0108 T8's binding holds per account: `login_hint`, the ID token's verified
+  address, and a refusal naming both addresses when another account signs in.
+- **A grant covers what the page showed.** The token lands, as decision 4 says, on each migration
+  that reads that account and was listed when the person pressed the button, in one transaction,
+  with a `mapping.granted` row per migration. A migration added to the person later is not
+  granted by an earlier consent. It asks again, through a link that is still live or a new one,
+  because its destination is new to them.
+- **The grant link is spent when every account on it is granted.** Until then it stays live
+  within its expiry, so a person with a personal and a work account can do one now and one later.
+- **The progress page is the person's.** It shows every migration of theirs. *Take my grant back*
+  is per account: the token is revoked at Google once, and cleared from every migration that holds
+  it (0108 T8 (c)'s rules otherwise unchanged).
+- **The live-link limit counts a person's grant link once** (0108 T8 (d)).
+- **Where it lives.** `person` is a managed-only table (ADR-0036, `packages/managed`), and the
+  shared ledger cannot point at it. So the person's link is a managed-only row of its own
+  (`person_link`, in `packages/managed/migrations`), shaped like `mapping_link`: a hashed secret,
+  a purpose, an expiry, used and revoked, and the same row security, including a link seeing only
+  itself. The appliance has one implicit person and no grant links; nothing there changes.
+
+### What the question after the decision is answered with (proposed)
+
+- **Replace, as the one link that is issued.** Neither the migration's page nor *Start a
+  migration* issues a per-migration link once the person's link is built.
+- **Keep: a per-migration link already sent works until it expires** (at most 30 days for a
+  grant, 180 for a progress page). Breaking a link someone already received would teach them that
+  links from their organisation fail, which is the habit decision 2 exists to avoid. The server
+  keeps verifying `mapping_link` for that window; the migration's page lists those links and can
+  revoke them, and says new links are made on the person's page.
+- **Keep: a migration with no person gets one first.** On managed a migration can belong to nobody
+  (the Migrations page's *Not with a person yet*). Its page offers *Who is this for?* where the link panel
+  was, so there is still one kind of link to explain.
+
+### One more choice for the owner (proposed)
+
+**Start when granted.** Today nothing starts when a grant lands (`grant-ending.ts`), and *Start*
+is refused with `awaiting_grant` until then, so the person starting the migrations must come
+back. Proposed: *Start* on a migration that waits for a grant is accepted and recorded, and the
+migration starts itself when its grant lands, with the audit row saying so. It stays the owner's
+Start (decision 2's *"their own start and pause"* is the progress page's, and unchanged).

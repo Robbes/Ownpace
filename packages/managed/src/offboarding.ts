@@ -122,6 +122,10 @@ export const PURGED_TABLES = [
   // before `mailbox_mapping`, which a membership references. Both keys would
   // cascade; named so the receipt counts them.
   'person_migration',
+  // A person's links (0153 T5 (b), managed migration 0034) go before the
+  // person they open: the person's key would cascade, and naming them counts
+  // them on the receipt.
+  'person_link',
   'person',
   // Before `mailbox_mapping`: a link references the mapping it opens.
   'mapping_link',
@@ -161,12 +165,12 @@ export const PURGED_TABLES = [
   // Which versions of the texts each member accepted, and when (workplan 0139
   // T3, managed 0032). Privacy §4.4 puts it in "your account with us", and §9
   // keeps the account until the data is erased and then erases it, so it goes
-  // with the organisation (0139 open question 4, the proposal until the owner
-  // answers). Before `tenant_member`, whose members it names. The request path
-  // may not delete these rows, so this list is the one deleter; the key would
-  // cascade, and it is named so the receipt counts it. Removing a member does
-  // not delete theirs: the organisation keeps who agreed to what until this
-  // purge, and privacy §9 says so (review of 2026-09-29).
+  // with the organisation (0139 open question 4, the owner's answer of
+  // 2026-09-29: "Ok"). Before `tenant_member`, whose members it names. The
+  // request path may not delete these rows, so this list is the one deleter;
+  // the key would cascade, and it is named so the receipt counts it. Removing
+  // a member does not delete theirs: the organisation keeps who agreed to what
+  // until this purge, and privacy §9 says so (review of 2026-09-29).
   'legal_acceptance',
   'tenant_member',
   'tenant_pricing',

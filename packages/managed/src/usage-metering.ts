@@ -124,11 +124,32 @@ export function monthPeriod(month: string): { periodStart: string; periodEnd: st
 }
 
 /**
+ * When an item was last written to the target: its latest re-copy, or else its
+ * first copy (2026-09-29).
+ *
+ * `last_synced_at` is written by the re-copy path alone (`PgLedger.recordUpdate`).
+ * A first copy (`recordIfAbsent`) stamps `first_seen_at` and leaves
+ * `last_synced_at` NULL. This meter filtered on `last_synced_at` alone, so it
+ * counted re-copies and never a first copy, which is almost every byte a
+ * migration moves. An organisation that had copied hundreds of GB saw about
+ * 0 GB in the Billing screen's Storage and Data transfer tiles, beside a tier
+ * block whose data axis (`bytes_moved`) was right.
+ *
+ * A re-copied item counts in the month of its re-copy, at its latest size,
+ * since a row keeps only the latest of each. The partial index migration 0023
+ * made for the old filter no longer serves this one, so a period's read goes
+ * through the organisation's rows. That is one read per opening of the Billing
+ * screen, on a model 0109 T5 retires.
+ */
+const lastWrittenAt = sql`coalesce(${schema.item.lastSyncedAt}, ${schema.item.firstSeenAt})`;
+
+/**
  * Derive storage and egress usage from item ledger for a billing period.
- * 
+ *
  * Uses derive-at-read approach: no writes, computed on-demand from immutable ledger.
- * Filters items by lastSyncedAt to get period-specific usage.
- * 
+ * Filters items by when they were last written to the target (`lastWrittenAt`)
+ * to get period-specific usage.
+ *
  * @param db - PostgreSQL database client (already tenant-scoped via withTenant)
  * @param tenantId - Tenant ID (for validation, RLS already enforced)
  * @param periodStart - Period start date (YYYY-MM-DD format)
@@ -146,12 +167,12 @@ export async function deriveStorageAndEgressForPeriod(
   const conditions: SQL[] = [
     eq(schema.item.tenantId, tenantId),
     inArray(schema.item.status, ['copied', 'updated', 'skipped']),
-    // Filter by lastSyncedAt - items with NULL are automatically excluded.
-    // Half-open: `lte(periodEnd)` compared a timestamp against a DATE, which
-    // is that date at midnight, so every item synced on the last day of the
-    // period went uncounted. See `billingWindow`.
-    gte(schema.item.lastSyncedAt, storage.from),
-    lt(schema.item.lastSyncedAt, storage.until),
+    // By when the item was last written to the target, a first copy included
+    // (`lastWrittenAt`). Half-open: `lte(periodEnd)` compared a timestamp
+    // against a DATE, which is that date at midnight, so every item synced on
+    // the last day of the period went uncounted. See `billingWindow`.
+    gte(lastWrittenAt, storage.from),
+    lt(lastWrittenAt, storage.until),
   ];
 
   const result = await db.select({

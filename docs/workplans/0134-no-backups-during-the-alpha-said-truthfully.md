@@ -47,7 +47,10 @@ question 4 is the same question and is marked answered.
   - 0131 T1's alpha note and the grant mail's sentence say *"nothing is backed up"* / *"er
     worden geen back-ups gemaakt"*. Once live keeps a copy, the close response says that backups
     holding the data expire within N more days, so the note and the mail change with N (0131 §3
-    T1, and 0131 T5's row for this plan).
+    T1, and 0131 T5's row for this plan). *(2026-09-29: reworded in 0139 T4, with N at 7: *"There
+    are no backups, apart from one copy before each update, kept up to 7 days"* / *"Er worden
+    geen back-ups gemaakt, op één kopie vlak voor elke update na, die hoogstens 7 dagen wordt
+    bewaard"*; 0139's Status block says where that stands.)*
   - 0132 T6 step 4 says to keep the copy until the next deploy, with no limit in days, and 0132
     T7's daily duties do not delete one. T0 step 4 does it by hand until one of them does.
   - The first bring-up of live, on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`

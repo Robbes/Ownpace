@@ -347,6 +347,14 @@ over BY HAND (`done_manual` rows). The product sends it from the sharing
 queue (one press, note required), once per data type, at or after that data
 type's own cutover; each person receives only their own items.
 
+On the managed service the mail closes with one more paragraph: a sentence
+saying who sent it and what is kept about the reader, and the address of the
+privacy policy in the mail's language, the one chosen at the press for every
+person it reaches (workplan 0139 T4, privacy §4.6). The people it reaches
+never signed up with us, and this is where they are told. An appliance's mail
+has no such paragraph, neither the sentence nor the address: its owner sends
+it from their own box, and the managed service's policy is not theirs.
+
 ### English
 
 **Subject:** Files shared with you have moved
@@ -364,12 +372,17 @@ What is shared with you:
 You receive this message once, because the location changed. If a reference
 in it does not work, reply to the sender you know.
 
+[Only on the managed service; an appliance's mail ends above this line.]
+Ownpace, the migration service that sent this message, keeps your address and
+the names of these items; its privacy policy says why, and for how long:
+[the privacy policy's address, in the mail's language]
+
 ### Dutch
 
-**Onderwerp:** Met u gedeelde bestanden zijn verplaatst
+**Onderwerp:** Met u gedeelde bestanden zijn gemigreerd
 
 De onderstaande bestanden of mappen waren met u gedeeld. Ze zijn naar een
-ander platform verplaatst, en uw toegang is meegegaan.
+ander platform gemigreerd, en uw toegang is meegegaan.
 
 [Uw notitie — VERPLICHT bij verzending: zeg in een of twee zinnen waar alles
 nu staat.]
@@ -379,6 +392,12 @@ Wat er met u gedeeld is:
 
 U ontvangt dit bericht eenmalig, omdat de locatie is veranderd. Werkt een
 verwijzing niet, antwoord dan aan de afzender die u kent.
+
+[Alleen bij de beheerde dienst; de mail van een eigen appliance eindigt
+hierboven.]
+Ownpace, de migratiedienst die dit bericht verstuurde, bewaart uw adres en de
+namen van deze items; waarom en hoelang staat in de privacyverklaring:
+[het adres van de privacyverklaring, in de taal van de mail]
 
 ---
 
@@ -412,4 +431,4 @@ verwijzing niet, antwoord dan aan de afzender die u kent.
 
 ---
 
-*Last updated: 2026-07-10*
+*Last updated: 2026-09-29*

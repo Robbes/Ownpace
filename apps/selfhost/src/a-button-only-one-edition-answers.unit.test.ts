@@ -34,6 +34,22 @@ const CONFIRMATION_ROUTES = [
   { method: 'GET', url: '/confirmed-list/export' },
 ] as const;
 
+/**
+ * An answer a page could not read (workplan 0145, the owner's "Log it"). The
+ * page tells the server answering it, on either edition, and a route missing
+ * here would lose every report the appliance's pages send, silently: the page
+ * sends and forgets, on purpose.
+ */
+describe('the appliance keeps an answer its pages could not read', () => {
+  it('handles POST /unreadable-answers', () => {
+    expect(
+      SOURCE,
+      'apps/selfhost does not handle POST /unreadable-answers. The managed API does ' +
+        '(`/api/unreadable-answers`), and the UI is one React app: its reports would go nowhere here.',
+    ).toContain("req.method === 'POST' && req.url === '/unreadable-answers'");
+  });
+});
+
 describe('the appliance answers the confirmation surface too', () => {
   it.each(CONFIRMATION_ROUTES)('handles $method $url', ({ method, url }) => {
     expect(

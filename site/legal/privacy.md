@@ -143,8 +143,8 @@
     that person is deleted or the data erased (PURGED_TABLES in
     offboarding.ts). Deleting a migration leaves the person. The owner
     approved the English sentence on 2026-09-28. The Dutch says *migratie*,
-    the owner's word (0152 D6); the rest of the Dutch texts still say
-    *verhuizing*.
+    the owner's word (0152 D6), and since 2026-09-29 the Dutch texts say it
+    throughout (the privacy policy, the terms and the Alpha conditions).
   - §4.4: the account also records which versions of the three texts a
     person accepted, and when (terms-acceptance-route (b): the in-app screen,
     0139 T3, built 2026-09-28; see beside §4.4).
@@ -595,9 +595,9 @@ you, such as a sign-in code or a link to reset your password, goes through our m
      organisation, which version of each a person accepted, the language and the time
      (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
      is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
-     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
-     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
-     open question 4, the proposal, until the owner answers). "In which language" below was added
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it
+     (0139 open question 4, answered 2026-09-29, the owner: "Ok"); a member who leaves keeps their
+     rows until the organisation's data is erased (§9's row). "In which language" below was added
      on 2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with
      the rest of this draft. -->
 
@@ -646,14 +646,18 @@ the link, the two accounts, and whether access was given; and an address only if
 **A report contains the content of your mail, files or calendars, a subject, a folder name or a
 provider's error text only if you put it in what you write or in the screenshot.**
 
-<!-- NOT YET TRUE ON main (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
+<!-- NOT YET TRUE ON live (the owner, 2026-09-28, ops-trust-proxy (b): keep visitors' addresses
      in all our logs). NetBird ends TLS in front of the machine, so the app and the website see
-     NetBird as the caller. The visitor's address reaches our logs only once: live sets
-     TRUST_PROXY (the number of proxies in front of the API: NetBird and the web container's
-     nginx), so the API reads the address NetBird passes on; the app's nginx
-     (apps/web/nginx.conf.template, format ownpace_combined, $remote_addr) takes the real client
-     address from NetBird's header; and the website's nginx (deploy/compose/www-nginx.conf, no
-     log_format of its own) does the same. Check a log line of each on live (0132 T3 (d)). -->
+     NetBird as the caller, and NetBird passes the visitor's address on in X-Forwarded-For.
+     Built on branch claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird
+     (0132 T3 (d), 2026-09-28 and 2026-09-29): the app's nginx (apps/web/nginx.conf.template,
+     format ownpace_combined) and the website's (deploy/compose/www-nginx.conf, format
+     ownpace_site, where the image's default applied before) record that header as a field of
+     their own, last, after NetBird's address; recorded, not believed. Live sets TRUST_PROXY=2
+     (the proxies in front of the API: NetBird and the web container's nginx; 3 if NetBird's
+     cluster adds one), which stand-up-live.sh requires, so the API reads the address NetBird
+     passes on. True on live once live stands with it, and checked with a log line of each there
+     (0132 T3 (d)). -->
 
 **Server logs** record that requests happened, for the app and for this website: the time, your
 IP address, which NetBird passes on to us (§7), the page asked for (without the secret part of a
@@ -960,18 +964,28 @@ target. We show you the target before anything is written.
        a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
        entries go, the row says instead: "Removed with your sign-in account." / "Verwijderd met
        uw inlogaccount."
-     - A sign-in account nobody let in, "30 days after it was created": nothing removes one yet.
-       The owner chose a daily script, built before the first tester
-       (ops-unadmitted-signin-cleanup (a)): 0135 T8, deploy/compose/idp-strays.sh, with the
-       machine's daily duties. The row waits for it.
+     - A sign-in account nobody let in, "30 days after it was created", and a removed member's,
+       "7 days after they were removed" (ops-unadmitted-signin-cleanup (a), "A daily script,
+       built before the first tester"; 0135 open question 13, answered 2026-09-29: "Samen number
+       of days", and then "7 days", the erasure window's): built, not yet run:
+       deploy/compose/idp-strays.sh (0135 T8 (a), #1344, review fixes #1367, the 7 days added
+       2026-09-29), the duty `strays` in box-duties.sh (0135 T8 (b), #1345), --remove --at-most
+       20 once a day. It counts the 7 days from the newest audit_log member.removed row for the
+       subject, and keeps the account while the person is a member anywhere, an operator, or has
+       an open request or invitation. True on live once live's daily duties run; a day with more
+       than 20 waits for a person. An organisation erased less than 7 days after a removal takes
+       that row with it: the runbook's Tenant offboarding has the operator note the subject before
+       the purge and remove the account with --subject after it, sooner than 7 days, never later.
      - Support mail, and the copies of the service's own mail (privacy-sent-mail-copies (b):
        "until resolved, then 6 months", as it stands): nothing prunes the mailbox or its Sent
        folder at Proton; it is done by hand. A mail that answers no question has no clear end
        date under this rule (a question for the lawyer, briefing question 20).
      - Server logs: the row holds with Docker's default log driver (ops-log-driver (a), the
        owner: "needs checking"). Check the machine (docker info --format
-       '{{.LoggingDriver}}'), undo a journald setting if it is there, and take the journald step
-       out of docs/managed-bring-up.md. -->
+       '{{.LoggingDriver}}'), and undo a journald setting if it is there: still the owner's.
+       The journald step is out of docs/managed-bring-up.md, and stand-up-live.sh refuses a
+       machine whose driver is not json-file or local, on branch
+       claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird. -->
 
 | What | Kept for |
 |---|---|
@@ -988,6 +1002,7 @@ target. We show you the target before anything is written.
 | The history our sign-in service keeps of your sign-in account: every change to it, such as your name and email address as they were, and your sign-ins | As long as we run this sign-in service, because it cannot remove them. Removing your sign-in account adds an entry to that history; it does not remove the earlier ones. |
 | Your request for access (§4.4) | While it is open. Declined: deleted 30 days after our decision. Granted: kept with your account, and erased with it. |
 | A sign-in account that someone created at our sign-in page but that we never let in, and that therefore opens nothing (§4.4) | 30 days after it was created, unless a request for access with that address is still open. |
+| The sign-in account of someone who was removed from an organisation and is no longer a member of any (§4.4) | 7 days after they were removed, unless a request for access or an invitation with that address is still open. |
 | Support mail and problem reports, and the copies of the service's own mail in the same mailbox (§4.5) | Until the question or problem is resolved, and then 6 months more. The same holds for the copies of the service's own mail. Then deleted from the mailbox. |
 | The record of what we viewed on your account (§4.5) | Until your data is erased. What is recorded without an organisation stays after that: a search by address, and a download of the log of who did what. These are deleted 12 months after they were recorded. |
 | The copy made right before an update | Until the update it was made for is shown to work, and never longer than 7 days. It holds the service's database and our sign-in service's database; before the system that runs the background tasks is upgraded, also its database. Such a copy is made only to undo a failed update, and it does not leave the hosting environment. Data erased from the service can remain in it for at most 7 days. |

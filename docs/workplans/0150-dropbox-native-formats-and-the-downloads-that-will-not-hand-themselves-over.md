@@ -2,7 +2,166 @@
 
 > **In one line:** Dropbox entries marked `is_downloadable: false` (Paper docs as `.paper` files, and any other kind T2 finds) refuse `files/download` with 409 `unsupported_file`; export each kind in the user's chosen format via `files/export`, or state a refusal and park it on first sight, as Drive does.
 
-## Status — 2026-09-28 (update this block at the end of every session)
+## Status — 2026-09-29 (update this block at the end of every session)
+
+**2026-09-29: a move that keeps its key is reported once, not twice (found while testing #1384).**
+In the file domain `runDomainSync` runs both move detectors. The item loop saw an item listed in
+another folder under the same key, and `classifyKnownItem` returned `'moved'`, so the loop recorded
+and reported the move. Then the end-of-pass reconciliation (`detectPathKeyedMoves`) found the row
+absent from its old folder. It read the move the loop had just recorded and reported it again, so
+the result showed `moved: 2` with two identical entries. That doubled count reached the pass's
+stats, the worker's "N item(s) are now in a different source" line and the pass's own `[sync]` warning. The
+moves queue was never wrong: the ledger holds one row, and the second `recordMove` wrote the same
+values. The issue first blamed the reconciliation's content-matching branch, but a probe
+showed the second report came from its remembered-move branch. A key-preserving move creates
+nothing, so the matching branch has nothing to match it with.
+
+- **What changed.** The loop keeps the keys it classified `'moved'` this pass (`movedByTheLoop`),
+  and the reconciliation leaves those rows alone. A move that changes the key (ADR-0030) never
+  reaches the loop as the old row, so it is reported by the reconciliation once, as before. The
+  comment saying a same-key arrival is impossible now gives the real reasons. Nothing touches the
+  target: this only removes a second report.
+- **Proved** by three cases in `packages/core/src/move-detection.unit.test.ts`, through the real
+  `runDomainSync` with the memory stores:
+  - a move that keeps its key is reported once on each pass it stays open, and once acknowledged,
+    no longer reported;
+  - a move that changes its key is reported once;
+  - both kinds on one pass are reported once each.
+
+  Two of the cases fail on `main` (`expected 2 to be 1`, `expected 3 to be 2`). #1384's guard in
+  `copied-items-asked-a-window-at-a-time.unit.test.ts` now expects `moved: 1` and fails on
+  `main` too.
+
+**2026-09-29, morning: the OTA stack's Nextcloud moves from SQLite to Postgres (the owner's
+decision).** The E2E (managed) gate went red on `main` twice, #222 and #223, and not because of any
+merged change. The demo Nextcloud (service `nextcloud`) answered HTTP 500 when asked for a new
+calendar object and for a DELETE. Its own log named the cause: *"SQLSTATE[HY000]: General error: 5
+database is locked"*.
+
+- **Why.** That Nextcloud keeps its database in SQLite (`SQLITE_DATABASE` in `managed.yml`), and
+  the owner's own migrations write into the same Nextcloud: the Dropbox one alone since this
+  plan's #1340, at 12 to 34 GB an hour. SQLite takes one writer at a time. Nextcloud 34 already
+  runs it in WAL mode, so reads never wait. But a request that read first and then wants to write
+  after another has written is refused at once, and Nextcloud writes a great deal for every file it
+  stores:
+  - the file's row;
+  - every parent folder up to the root;
+  - with no Redis configured, the file lock itself (`DBLockingProvider`).
+
+  So the gate's writes and the migrations' writes collided. The migrations' own uploads meet the
+  same refusal now and then; it is recorded as the target refusing the file and retried on the
+  next pass.
+- **Weighed.** Four ways were put to the owner:
+  1. pausing the migrations for every gate run, which costs up to a pass of copying each time and
+     leaves the migrations colliding with one another;
+  2. Nextcloud's file locks in Redis, which means fewer collisions, not none;
+  3. a Nextcloud of the gate's own;
+  4. Postgres, which removes the cause.
+
+  The owner chose Postgres: *"ok, we'll move to postgres."*
+- **Done by hand on the OTA stack, the same morning**, while the migrations were paused and no
+  gate run was active. `config.php` was copied first; that copy was the whole way back until the
+  migrations resumed. Then a `nextcloud` role and database were made in the stack's Postgres, and
+  Nextcloud's own converter was run, `occ db:convert-type` (Nextcloud 34,
+  `core/Command/Db/ConvertType.php`). The converter holds the maintenance page while it copies,
+  switches `config.php` only after its last step, and never changes the SQLite file. On this
+  install it failed twice, and each failure left Nextcloud on SQLite:
+  - **With `--all-apps`, before copying anything.** It builds tables for disabled apps as well,
+    and the disabled LDAP app cannot load here (*"Could not resolve
+    OCA\User_LDAP\ILDAPWrapper"*). It ran without it: tables for the enabled apps only.
+  - **In its last step, after copying every table.** `PgSqlTools::resynchronizeDatabaseSequences`
+    finds each id counter's table through the column whose default names that counter. It fails
+    on the first counter no default names, which here was `oc_preview_locations_id_seq`: *"SELECT
+    setval('oc_preview_locations_id_seq', (SELECT MAX() FROM ))"*. Nextcloud's newer-style
+    (identity) columns have no such default either.
+
+  So the last step was done by hand. Every counter was set from the column that owns it
+  (`pg_depend`), counting only the ids within the counter's own range, one counter at a time.
+  `oc_jobs` holds ids Nextcloud generates itself, beyond its counter's range, and that range check
+  was the second attempt's fix. Then `config.php`'s database settings were set with
+  `occ config:system:set`, `dbtype` last. **113 counters were set, none failed**, and Nextcloud
+  answered on Postgres (`occ status`, `occ user:list`). The statement was proven beforehand on a
+  local Postgres with the same five kinds of counter:
+  - an ordinary one;
+  - an identity column's;
+  - the preview case;
+  - generated ids beside old ones;
+  - an empty table's.
+- **Still open, and this session's** (the owner, 2026-09-29: *"You take that aswell"*), after
+  #1358, which is rewriting `db-roles.sh`: a fresh demo install still starts on SQLite. New
+  installs should start on Postgres, and an install still on SQLite should be converted by a
+  script that carries the two workarounds above, not by hand. Neither `copy-before-update.sh` nor
+  any other copy includes this Nextcloud's database, as none included its SQLite file.
+
+**2026-09-29, morning: where the Dropbox passes spend their time, and items already copied asked
+about a window at a time (T1)**, merged as #1384 (`8674bbc`). From the owner's readings on the OTA
+stack, counts and times only.
+
+- **Where the passes spend their time.** The four passes from 03:00 to 06:00: making folders
+  ready 0.0 minutes, listing Dropbox 0.3 minutes, the first new file 2.1, 2.6, 3.1 and 3.8
+  minutes in, items handled 6,706, 9,907, 13,042 and 15,725. By 07:00, 18,693 files and 173.7 GB
+  were copied, of the 55,245 files and 439.1 GB the start screen counted. The hours since #1340
+  reached the stack, at about 02:27 UTC, copied 12 to 34 GB each, where the hours before it
+  copied under 5 GB.
+- **Found.** The first new file came later on every pass, about 11 ms later for each file copied
+  before it. Dropbox has no change feed (0055 T3), so every pass lists every file the account
+  holds, and `runDomainSync` asked the ledger about each one with a `find` of its own: one
+  transaction each on a managed stack (`tenantScopedDb`). By the end of the first copy that would
+  be about 11 minutes of every pass, and the same on every pass after it.
+- **What changed.** `Ledger.findMany`, optional on the port, returns the rows that exist for a
+  list of keys, in one statement. The pass reads a collection's items a window of 500 at a time
+  (`ledgerReadAhead`) and uses the answer for one thing only. An item already copied, unchanged,
+  where it was, with no absence, reported deletion or move waiting to be written down, is counted
+  as skipped on the window's word (`quietSkip`). Every other item, a new one included, is asked
+  about with its own `find`, as before, so every write is still decided on a row read just before
+  it. A window that cannot be read leaves its items to their own `find`.
+- **Proved** by two tests:
+  - `packages/core/src/copied-items-asked-a-window-at-a-time.unit.test.ts` (19 cases), through
+    the real `runDomainSync` with the memory stores:
+    - 1,200 copied items are read in 3 windows, with no `find`;
+    - a new item, a changed one, a moved one and one counted absent are each still asked about
+      afresh and acted on;
+    - a stale window row is overruled by the fresh one;
+    - a window that fails, and a ledger without `findMany`, each fall back to one `find` per item.
+  - `packages/ledger/src/a-window-of-keys-in-one-read.unit.test.ts` (3 cases): `PgLedger.findMany`
+    on PGlite, row for row the same as `find`.
+
+  14 of 15 mutations caught. The survivor removes the early return for an empty list, which only
+  saves a statement, since an empty `IN` list matches nothing.
+- **What to expect once deployed:** the first new file about half a minute into a pass (the
+  listing), however many files are copied already. Each pass gets back the minutes it spent
+  asking about copied files: about 4 now, about 11 by the end of the first copy.
+
+**2026-09-29, morning: #1340 proven on the owner's migration, and the next wall on another: a
+folder made ready on every pass (T1)**, merged as #1379 (`40d6887`). From the owner's readings on
+the OTA stack, counts and times only.
+
+- **#1340 proven live.** Every Dropbox pass still runs its 50 minutes, since the first copy is not
+  done, and each gets far further. Items handled per pass, before the fix reached the stack (20:30
+  to 02:03): 1,574, 1,940, 2,209, 2,555, 2,842, 4,228. After (03:00 to 06:00): 6,705, 9,906,
+  13,040, 15,720. No errors.
+- **Found on the owner's Microsoft migration.** A pass that found nothing new spent 14.0 of its
+  15.7 minutes in `collectionSetupMs` and handled 0 items. `runDomainSync` made every collection
+  ready on the target before listing it, on every pass, and on a WebDAV target that lists the
+  collection's parent directory there. So a pass with nothing to copy still asked the target about
+  every folder the migration has.
+- **What changed.** A collection with a cursor was made ready by the pass that stored that cursor,
+  so it is made ready again only when an item in it is written: once, on the first write, however
+  many are written at the same time. A collection without a cursor, new or never read through, is
+  made ready before its listing, as before, so an empty source folder is still made on the target
+  the first time a pass sees it. A refusal to make a known collection ready fails that
+  collection's items, each recorded, where it used to fail the pass before its listing.
+  `collectionSetupMs` and `collectionsOpened` say what they count now.
+- **Proved** by `packages/core/src/a-folder-made-ready-once.unit.test.ts` (6 cases, 4 failing on
+  `main`, through the real `runDomainSync` with the memory stores). 5 of 5 mutations caught.
+- **What to expect once deployed:** a pass that finds nothing new spends seconds in
+  `collectionSetupMs` instead of 14 minutes. The Dropbox migration gains the same once its first
+  copy is done, and its folders already copied stop costing a listing each on every pass now.
+
+**2026-09-29, morning: D10's two lines kept.** Asked to confirm the start screen's two lines,
+*"You can start once the count is in, or after 15 minutes at most."* and *"The count did not
+finish within 15 minutes. You can start anyway: …"*, the owner answered *"Yes"*. Both stay as
+built in #1351, in English and in Dutch.
 
 **2026-09-29, night: T1's measurements took the gate's fourth-level check red, and the check
 now reads a count as a count.** On branch `claude/ownpace-public-readiness-y7orc6-a-count-is-not-a-fourth-level`.
@@ -801,7 +960,8 @@ minutes, and that count took about seven. — *"Hold, up to 15 min"* (2026-09-28
 three options, over *"Hold, up to 5 min"* and *"Keep as is"*. So Start stays greyed out while a
 count the screen waits for is still coming, with a line saying so. After five minutes the screen
 keeps asking, more slowly. If the count has not landed within fifteen minutes, Start opens with a
-line saying it did not finish. Built in `ConfirmMigration.tsx` (Status, 2026-09-29).
+line saying it did not finish. Built in `ConfirmMigration.tsx` (Status, 2026-09-29). The owner
+kept both lines as written on 2026-09-29: *"Yes"*.
 
 ## The shape of the fix (Drive, mirrored)
 

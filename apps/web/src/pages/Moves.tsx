@@ -57,6 +57,7 @@ import {
   DecisionRefusedError,
 } from '../services/operating-service.ts';
 import { useT, useFormatters } from '../i18n/index.tsx';
+import { serverMessage } from '../services/api.ts';
 
 /**
  * A move that changed the item's NAME without changing its folder.
@@ -219,7 +220,7 @@ const Moves: React.FC<{
               err instanceof DecisionRefusedError
                 ? (err.refusal.reason ?? err.refusal.hint ?? err.refusal.error)
                 : err instanceof Error
-                  ? err.message
+                  ? serverMessage(err)
                   : t('common.requestFailed'),
           });
         });

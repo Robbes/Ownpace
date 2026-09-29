@@ -1,5 +1,9 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
+import { z } from 'zod';
+import { issuePathForLog } from '@openmig/shared';
+import { tActive } from '../i18n/active-locale.ts';
+import { referenceFor, type UnreadableAnswer } from './unreadable-answer.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { noticeConditionsNotAccepted } from './conditions-refused.ts';
 import { rememberFault } from './recent-errors.ts';
@@ -180,7 +184,39 @@ export function serverMessage(err: unknown): string {
     }
     return err.message;
   }
+  const unreadable = unreadableAnswer(err);
+  if (unreadable) {
+    // Ours to word, in the reader's language: there is no server sentence to
+    // show, and the error's own message is zod's JSON dump of its issues.
+    // The failure is still shown as one (hard rule 9) — which words, not
+    // whether — with the reference the server keeps the detail under
+    // (`unreadable-answer.ts`), the way a fault of ours carries one.
+    return tActive('answer.unreadable', { reference: referenceFor(unreadable) });
+  }
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Where an answer did not fit the page's schema, or null when the error is
+ * not that (reported 2026-09-29).
+ *
+ * A service that checks an answer with `Schema.parse(response.data)` throws a
+ * zod error when the API answers a shape the schema refuses: an API and a web
+ * app from two different releases, after a partial deploy, or a data type the
+ * page has no words for yet. Its `message` is the pretty-printed JSON of the
+ * issue list, and the Migrations page showed exactly that under *Could not
+ * load the migrations list.*
+ *
+ * The first issue's code and path are the finding (`2.domains.2`: the third
+ * migration's third data type), written as the log keeps them
+ * (`issuePathForLog`), and sent to the server under the reference the
+ * sentence shows. Recognised as any zod error, classic or core, from any copy
+ * of zod, which is what `$ZodError`'s own `instanceof` answers.
+ */
+export function unreadableAnswer(err: unknown): UnreadableAnswer | null {
+  if (!(err instanceof z.core.$ZodError)) return null;
+  const first = err.issues[0];
+  return { code: first?.code ?? 'unknown', path: issuePathForLog(first?.path ?? []) };
 }
 
 /**
