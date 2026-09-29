@@ -4,6 +4,10 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: 20 a day is the owner's number (T8 (b)).** Asked whether the strays duty's
+cap stands, the owner answered *"Yes"*. `--at-most 20` in `box-duties.sh` was this session's
+number; it is now the owner's.
+
 **2026-09-29, later: T8's fix reviewed, four minor findings, three fixed and one said (0131 §6,
 group M3)**, not merged, on the same branch, a second commit.
 
@@ -89,8 +93,8 @@ M3, before its step 7)**, merged as #1345 (`a4885a5`) on 2026-09-29.
 - **Built.** `box-duties.sh` has a sixth duty, `strays`: `idp-strays.sh --remove --at-most 20`,
   after the token's clock, so it asks with a live token. `--at-most N` is new in the script: more
   than N at once removes none and fails, so a day with more strays than a day brings (a wave of
-  registrations, or a fault that makes everybody look like one) waits for a person to look. 20 is
-  a number of this session's; the owner may set another. The service's `TimeoutStartSec` grows
+  registrations, or a fault that makes everybody look like one) waits for a person to look. 20 was
+  a number of this session's; the owner kept it on 2026-09-29 (*"Yes"*). The service's `TimeoutStartSec` grows
   from 110 to 130 minutes, for six duties of at most 20 minutes each, and the timer's window
   check still holds (the next nightly firing is ten hours after the timer).
 - **Proved** by the script's guard (35 cases now: `--at-most` refuses above its number, removes
