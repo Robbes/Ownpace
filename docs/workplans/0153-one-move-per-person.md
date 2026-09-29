@@ -27,6 +27,27 @@ place, could become the one-candidate default, and was posted as the source of a
   passes 53 files (1568 tests), `tsc -p apps/web/tsconfig.json` is clean, and the `scripts`
   guards pass 212 files.
 
+**2026-09-29, morning: T4's *Someone else*, by a grant link where one reaches (0108).**
+
+- **Who signs in to the accounts?** *I do*, or *They do, with a link* (*Ik* / *Zij zelf, met een
+  link*). The words differ from the person list's *Someone new* / *Iemand anders* (the owner's
+  correction of *Iemand nieuws*), so the Dutch never offers *Iemand anders* twice with two
+  meanings.
+- **For somebody else:**
+  - *Connect your accounts* asks only for their address where a link reaches
+    (`grantableByLink`): Google's cards, through the deployment's own client, with Gmail and
+    Drive only where the restricted scopes are declared. The account is saved with no
+    credential, the migration reuses it, and the grant lands on the migration;
+  - where no link reaches, the screen says so and they sign in together;
+  - no saved account is chosen by default, since one may be the starter's own;
+  - *Check, then start* offers each such migration's grant link in place of its count, and the
+    count appears once the link is used. *Start* waits, and the person's page keeps the
+    migrations meanwhile.
+- **Not yet:** grant and progress links *per person* on the person's page (T5) wait for 0108's
+  links per person; each migration's page keeps its own.
+- **Proved by** `StartMigration.unit.test.tsx` (33 cases) and `start-plan.unit.test.ts` (25).
+  Not yet against a real Google grant: the path runs through 0108's own routes, unchanged.
+
 **2026-09-29, morning: T4 with T7, *Start a migration* (the owner's *"Yes"*, 0131 §6), in #1378.**
 
 - **`/start`** (`apps/web/src/pages/StartMigration.tsx`), managed only, drawn in
