@@ -1,6 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/auth-store.ts';
+import { noticeConditionsNotAccepted } from './conditions-refused.ts';
 import { rememberFault } from './recent-errors.ts';
 
 /**
@@ -129,6 +130,10 @@ apiClient.interceptors.response.use(
     ) {
       onUnauthorized();
     }
+    // A door that refused because the texts are not accepted yet (0139 T3):
+    // the acceptance screen comes up at once, rather than at the next page
+    // load (`conditions-refused.ts`). The error still reaches the caller.
+    noticeConditionsNotAccepted(error);
     return Promise.reject(error);
   }
 );

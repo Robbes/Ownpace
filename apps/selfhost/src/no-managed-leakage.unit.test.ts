@@ -311,6 +311,11 @@ describe('self-host has no managed-only leakage (hard rule 5)', () => {
     for (const managedOnly of ['person', 'person_migration']) {
       expect(MANAGED_ONLY_TABLES, `the derivation lost '${managedOnly}'`).toContain(managedOnly);
     }
+
+    // What a tester accepted (workplan 0139 T3, managed migration 0032). The
+    // appliance has no terms and asks nobody; the record, its versions and the
+    // check all live in `@openmig/managed` and the managed API.
+    expect(MANAGED_ONLY_TABLES, "the derivation lost 'legal_acceptance'").toContain('legal_acceptance');
   });
 
   it('declares no managed-only table anywhere in its reachable graph', () => {

@@ -14,6 +14,7 @@
  */
 
 import apiClient, { signInClient } from './api.ts';
+import type { Acceptance } from './acceptance.ts';
 
 export interface Membership {
   readonly tenantId: string;
@@ -50,6 +51,12 @@ export interface Me {
    * `email_verified`.
    */
   readonly invitations?: ReadonlyArray<Invitation>;
+  /**
+   * Whether the texts wait to be accepted (workplan 0139 T3). Present only
+   * while the deployment asks and an organisation is current; `AcceptanceGate`
+   * reads it and shows the screen while it is due.
+   */
+  readonly acceptance?: Acceptance;
 }
 
 /** An offer of membership. NOT a membership — that is what answering it makes. */

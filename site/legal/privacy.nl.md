@@ -162,16 +162,23 @@ maar dat opent niets zolang we die persoon niet hebben toegelaten. Mail van de i
 zoals een inlogcode of een link om uw wachtwoord opnieuw in te stellen, gaat via onze
 e-mailaanbieder (§7).
 
-<!-- NOT YET BUILT: the record of which versions a person accepted, and when, is the in-app
-     acceptance screen, 0139 T3 (the owner, 2026-09-28, terms-acceptance-route (b): "accepting
-     fits in there and should record what time/version the accepted of what document"). The
-     first invitation waits for it. -->
+<!-- BUILT 2026-09-28 (0139 T3; the owner, terms-acceptance-route (b): "accepting fits in there
+     and should record what time/version the accepted of what document"): after sign-in the app
+     shows the Alpha conditions, this policy and the terms with their versions, and records, per
+     organisation, which version of each a person accepted, the language and the time
+     (legal_acceptance, managed migration 0032). Asked while live's OWNPACE_STAGE=alpha and no text
+     is still a draft (LEGAL_DRAFTS: a draft's number is the one its final text carries, so nobody
+     accepts a draft); nothing is connected before it. Kept with the account and erased with it; a
+     member who leaves keeps their rows until the organisation's data is erased (§9's row; 0139
+     open question 4, the proposal, until the owner answers). "In welke taal" below was added on
+     2026-09-29 (review of 0139 T3), because the record keeps it; for the owner's review with the
+     rest of this draft. -->
 
 **Uw account bij ons.** Uw e-mailadres, het kenmerk dat onze inlogdienst u geeft, de organisatie
 waartoe u behoort (in de app heet de omgeving van uw huishouden een organisatie), uw rol daarin
 (tijdens de Alpha eigenaar of beheerder), wanneer u werd uitgenodigd en wanneer u lid werd, en
 welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring u hebt
-aanvaard, en wanneer.
+aanvaard, in welke taal, en wanneer.
 
 **Tijdens de Alpha, uw Google-adres.** Wilt u een Google-account koppelen, dan geeft u ons het
 adres daarvan, en zetten wij het op de lijst van testgebruikers die Google voor onze app
@@ -531,8 +538,14 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
        §4.6; the owner's privacy-sharing-list (b)): deleting a migration does not yet delete its
        share_grant rows. A small code change; until it lands, the list stays until erasure.
      - Een zoekopdracht op adres en een download van het logboek, "12 maanden na het
-       vastleggen verwijderd" (privacy-search-records (a)): nothing deletes them yet. A small job
-       with the machine's daily duties; the app still cannot change the log.
+       vastleggen verwijderd" (privacy-search-records (a)): built, not yet run:
+       deploy/compose/support-read-prune.sh (0139 T6), the duty `searches` in box-duties.sh,
+       over the owner's connection, since app_user cannot change the log, and after 0138 T3
+       step 2 the tasks' system role can delete from it, for the purge of an erased
+       organisation, but its grant lets it pick rows by organisation, never by age. True on
+       live once live's daily duties run. It deletes every read recorded with no organisation
+       12 months after it: besides these two, the organisation list, the invoices kept after an
+       erasure and a log page not filtered to one organisation.
      - De geschiedenis van de inlogdienst, "zolang we deze inlogdienst draaien"
        (privacy-signin-history (a), the owner: "still needs to be checked"): NOT CHECKED. Remove
        a test account on the test stack (Zitadel v4.19.2) and look at what stays. If the earlier
@@ -557,6 +570,7 @@ koos. We laten u het doel zien voordat er iets wordt weggeschreven.
 | Het verhuisregister (§4.2), en wat elke verhuizing daarnaast bewaart, zoals de lijst van wat er gedeeld was (§4.6) | Tot u de verhuizing verwijdert; dan mee verwijderd. Anders tot uw gegevens worden gewist. |
 | Preflight-tellingen | Bij de verhuizing waarvoor ze zijn geteld: tot u die verwijdert, of tot uw gegevens worden gewist. |
 | Wat bij uw organisatie hoort en niet bij één verhuizing: de leden en uitnodigingen, de distributielijsten die een verhuizing vond, en het auditlog van wie wat deed en wanneer | Tot uw gegevens worden gewist, ook nadat u de verhuizing verwijdert die ze vond. |
+| Welke versies van de Voorwaarden voor de Alpha, de servicevoorwaarden en deze verklaring elk lid heeft aanvaard, in welke taal, en wanneer (§4.4) | Tot uw gegevens worden gewist, ook nadat dat lid uw organisatie heeft verlaten, zodat vastgelegd blijft wie waarmee heeft ingestemd. |
 | De mensen voor wie u migreert: ieders naam, en een e-mailadres als u dat gaf (§4.6) | Tot u die persoon verwijdert, of tot uw gegevens worden gewist. Het verwijderen van een migratie verwijdert de persoon niet. |
 | Het overzicht van elke ronde: wanneer die liep, en wat die telde | Tijdens de Alpha: tot uw gegevens worden gewist. |
 | De logregels van een ronde | 60 dagen. |

@@ -1301,7 +1301,7 @@ owner_steps() {
        sudo loginctl enable-linger "\$USER"
        systemctl --user enable --now ownpace-box-duties.timer
        systemctl --user start ownpace-box-duties.service
-       journalctl --user -u ownpace-box-duties -n 200 --no-pager   (all four duties pass)
+       journalctl --user -u ownpace-box-duties -n 200 --no-pager   (every duty passes)
      Start it in daytime: while the appliance nightly runs, its dev Nextcloud
      fails the exposure duty.
   4. Rehearse the next deploy. Open a hold on the support screen with a Dutch

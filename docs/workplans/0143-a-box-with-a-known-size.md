@@ -5,9 +5,8 @@
 ## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-29, night: T10 built, what the providers let every tester do together (0131 §6, group
-M4, after T3b)** on branch `claude/mailbox-sync-errors-c2xsw2-what-every-tester-shares`, not
-merged. T10's first two bullets; the budget for the whole deployment and streaming mail bodies
-stay parked on their own triggers.
+M4, after T3b)**, merged as #1363 (`7bcee5a`). T10's first two bullets; the budget for the whole
+deployment and streaming mail bodies stay parked on their own triggers.
 
 - **What was open.**
   - Graph mail took no slot from the organisation's `PgRateBudget`. It only asked the limiter how
@@ -51,9 +50,14 @@ stay parked on their own triggers.
 
   The cases run on a fake clock, so a wait that should not happen fails at once instead of
   hanging the file. 20 of 20 mutations caught.
-- **Found, not fixed:** `isTransientError` lowercases a message and then looks for `ECONN`,
-  `ETIMEDOUT` and `EPIPE` in capitals, so the limiter never retries a request that failed with
-  those codes. Retrying them changes every Graph face, so it is its own change.
+- **Found, and fixed in a change of its own:** `isTransientError` lowercased a message and then
+  looked for `ECONN`, `ETIMEDOUT` and `EPIPE` in capitals, so the limiter never retried a request
+  that failed with those codes, and undici's `fetch failed` carries its code on its `cause`,
+  where no word search looked. Fixed on branch
+  `claude/mailbox-sync-errors-c2xsw2-a-network-error-the-limiter-retries`, not merged: the codes
+  are read on the error and on its cause, and the words in lower case
+  (`packages/shared/src/a-network-error-the-limiter-retries.unit.test.ts`, 11 cases, 8 failing
+  on `main`).
 - **Not measured.** None of Google's rate-limit answers has been observed here; they are read
   from Google's published error tables. T9's and the alpha's `rate_limited` counts are the
   evidence the parked bullets wait for.
@@ -702,7 +706,7 @@ unproved until then:
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
 | T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
 | T9 One measured rehearsal of the alpha's shape | ✅ **The script done** in #1235, merged 2026-09-27 — *was:* 📋 Proposed. ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
-| T10 What the providers let every tester do together | 🔨 **Built 2026-09-29** on its branch, not merged: Graph mail spends against the shared budget, a retried request gives its slot back, and the Drive and Google DAV faces wait out a 429 or Google's 403 once; the budget for the whole deployment and streaming mail bodies stay parked — *was:* 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
+| T10 What the providers let every tester do together | 🔨 **Built 2026-09-29**, merged as #1363 (`7bcee5a`): Graph mail spends against the shared budget, a retried request gives its slot back, and the Drive and Google DAV faces wait out a 429 or Google's 403 once; the budget for the whole deployment and streaming mail bodies stay parked — *was:* 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
 
 ## 1. What there is today
 
