@@ -4063,7 +4063,7 @@ const nl: Record<keyof typeof en, string> = {
   // Migratie starten (0153 T4).
   'start.step': 'Stap {n} van {total}',
   'start.who.heading': 'Voor wie?',
-  'start.who.someoneNew': 'Iemand nieuws',
+  'start.who.someoneNew': 'Iemand anders',
   'start.who.needName': 'Typ eerst een naam.',
   'start.who.peopleFailed': 'De mensen voor wie u migreert, konden niet worden gelezen. Een nieuwe naam werkt wel.',
   'start.from.heading': 'Welk account verlaat u?',
