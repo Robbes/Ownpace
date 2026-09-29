@@ -145,6 +145,9 @@ interface FormData {
   sourceTenantId: string;
   sourceClientId: string;
   sourceClientSecret: string;
+  /** Gmail's app password (workplan 0089 T7): a personal account's IMAP
+   *  credential, in place of the OAuth trio. A secret, so never in the draft. */
+  sourceAppPassword: string;
   /** Google Drive (workplan 0042): the delegated, read-only refresh token —
    *  the Google guide (`/docs/google`, docs/guides/<locale>/google.md) is
    *  where all three of its values come from, and the wizard says so beside
@@ -225,6 +228,7 @@ const initialFormData: FormData = {
   sourceTenantId: '',
   sourceClientId: '',
   sourceClientSecret: '',
+  sourceAppPassword: '',
   sourceRefreshToken: '',
   sourceServiceAccountKey: '',
   sourceRootFolderId: '',
@@ -360,6 +364,7 @@ function clearedSourceFields(prev: FormData, next: string): Partial<FormData> {
     sourceTenantId: '',
     sourceClientId: '',
     sourceClientSecret: '',
+    sourceAppPassword: '',
     sourceRefreshToken: '',
     sourceServiceAccountKey: '',
     sourceRootFolderId: '',
@@ -426,6 +431,51 @@ const ConnectionPicker: React.FC<{
       <p className="mt-1 text-sm text-gray-500">{t('wizard.reuse.hint')}</p>
     </div>
   );
+};
+
+/**
+ * Which form field each descriptor key writes to. The descriptor is not
+ * prefixed by side and this form is — this is the one place the two
+ * vocabularies meet for the SOURCE, exactly as `credentialValuesFor` is for
+ * the probe payload.
+ *
+ * A DESCRIPTOR FIELD MISSING HERE IS NEVER DRAWN, and nothing said so: Gmail's
+ * app password was declared and not drawn from 0089 T7 until 0153 T1 (b),
+ * while its guide told a person to type it. `end-user-docs.unit.test.tsx`
+ * reads these maps, so a guide may name only a field they draw.
+ */
+export const TARGET_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+  host: 'targetHost',
+  port: 'targetPort',
+  username: 'targetUsername',
+  password: 'targetPassword',
+  url: 'targetUrl',
+  mailHost: 'targetMailHost',
+  mailPort: 'targetMailPort',
+};
+
+export const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
+  username: 'sourceUsername',
+  password: 'sourcePassword',
+  host: 'sourceHost',
+  port: 'sourcePort',
+  tenantId: 'sourceTenantId',
+  clientId: 'sourceClientId',
+  clientSecret: 'sourceClientSecret',
+  refreshToken: 'sourceRefreshToken',
+  serviceAccountKey: 'sourceServiceAccountKey',
+  rootFolderId: 'sourceRootFolderId',
+  rootPath: 'sourceRootPath',
+  userId: 'sourceBoxUserId',
+  // Gmail's app password (workplan 0089 T7): the descriptor carried it from
+  // the start, and this map did not, so the wizard never drew it and a
+  // personal account without a consent screen had no road (0153 T1 (b)).
+  appPassword: 'sourceAppPassword',
+  // The export archive's fields (0116 T5/T6): which export, and where —
+  // and, since 0148 T9, which store that path is in.
+  provider: 'sourceArchiveProvider',
+  path: 'sourceArchivePath',
+  where: 'sourceArchiveWhere',
 };
 
 /**
@@ -799,6 +849,11 @@ const CreateMapping: React.FC = () => {
               ...(formData.sourceServiceAccountKey.trim()
                 ? { serviceAccountKey: formData.sourceServiceAccountKey }
                 : {}),
+              // Gmail's third shape (0089 T7): a personal account's app
+              // password, which the create door stores in place of the trio.
+              ...(isGmailSource && formData.sourceAppPassword.trim()
+                ? { appPassword: formData.sourceAppPassword.trim() }
+                : {}),
               // The account kind's file face is the Drive connector, so its
               // export policy travels too — sent only where it MEANS something
               // (the ticks include files), because a Drive policy stored on a
@@ -975,6 +1030,7 @@ const CreateMapping: React.FC = () => {
             clientSecret: formData.sourceClientSecret,
             refreshToken: formData.sourceRefreshToken,
             serviceAccountKey: formData.sourceServiceAccountKey,
+            appPassword: formData.sourceAppPassword.trim(),
             rootFolderId: formData.sourceRootFolderId,
             rootPath: formData.sourceRootPath,
             userId: formData.sourceBoxUserId,
@@ -1748,41 +1804,6 @@ const CreateMapping: React.FC = () => {
    * Each side is now self-contained — pick a provider, enter its credentials,
    * test, saved — and what remains is one step to finalise between the two.
    */
-  /**
-   * Which form field each descriptor key writes to. The descriptor is not
-   * prefixed by side and this form is — this is the one place the two
-   * vocabularies meet for the SOURCE, exactly as `credentialValuesFor` is for
-   * the probe payload.
-   */
-  const TARGET_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
-    host: 'targetHost',
-    port: 'targetPort',
-    username: 'targetUsername',
-    password: 'targetPassword',
-    url: 'targetUrl',
-    mailHost: 'targetMailHost',
-    mailPort: 'targetMailPort',
-  };
-
-  const SOURCE_FORM_FIELD: Readonly<Record<string, keyof FormData>> = {
-    username: 'sourceUsername',
-    password: 'sourcePassword',
-    host: 'sourceHost',
-    port: 'sourcePort',
-    tenantId: 'sourceTenantId',
-    clientId: 'sourceClientId',
-    clientSecret: 'sourceClientSecret',
-    refreshToken: 'sourceRefreshToken',
-    serviceAccountKey: 'sourceServiceAccountKey',
-    rootFolderId: 'sourceRootFolderId',
-    rootPath: 'sourceRootPath',
-    userId: 'sourceBoxUserId',
-    // The export archive's fields (0116 T5/T6): which export, and where —
-    // and, since 0148 T9, which store that path is in.
-    provider: 'sourceArchiveProvider',
-    path: 'sourceArchivePath',
-    where: 'sourceArchiveWhere',
-  };
 
   /**
    * Does this field gate Next RIGHT NOW? (workplan 0075 T2.)
@@ -1802,7 +1823,11 @@ const CreateMapping: React.FC = () => {
     credentialFieldRequired(field, {
       deploymentClient: !clientPairRequired || clientHalfTyped,
       halfPairTyped: clientHalfTyped,
-      sideStepped: formData.sourceServiceAccountKey.trim() !== '',
+      // Gmail's app password steps round the trio as a pasted key does: the
+      // create door accepts either in place of all three (0089 T7).
+      sideStepped:
+        formData.sourceServiceAccountKey.trim() !== '' ||
+        (formData.sourceType === 'gmail' && formData.sourceAppPassword.trim() !== ''),
     });
 
   /**
