@@ -5,8 +5,7 @@
 ## Status — 2026-09-28 (update this block at the end of every session)
 
 **2026-09-28, night, later: T8 (b) built, the accounts removed every day on live (0131 §6, group
-M3, before its step 7)** on branch `claude/mailbox-sync-errors-c2xsw2-accounts-removed-daily`,
-stacked on (a)'s branch below, not merged.
+M3, before its step 7)**, merged as #1345 (`a4885a5`) on 2026-09-29.
 
 - **Built.** `box-duties.sh` has a sixth duty, `strays`: `idp-strays.sh --remove --at-most 20`,
   after the token's clock, so it asks with a live token. `--at-most N` is new in the script: more
@@ -26,8 +25,7 @@ stacked on (a)'s branch below, not merged.
   first run.
 
 **2026-09-28, night: T8 (a) built, the script for accounts nobody let in (0131 §6, group M3,
-before its step 7)** on branch `claude/mailbox-sync-errors-c2xsw2-an-account-nobody-let-in`, not
-merged.
+before its step 7)**, merged as #1344 (`0bcbc25`) on 2026-09-29.
 
 - **Built.** `deploy/compose/idp-strays.sh` lists the accounts at the stack's identity provider
   that match all five conditions of T8's rule (§3), and removes them with `--remove`.
@@ -327,7 +325,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T5 Privacy and terms links on the registration and sign-in pages | 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); 📋 **Proposed** for the brand | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
 | T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go) — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
-| T8 Accounts nobody let in, and erasure that reaches the identity provider | 🔨 **(a) built 2026-09-28** on its branch, not merged: `idp-strays.sh`, and the runbook's two steps; (b) 🔨 **built 2026-09-28** on its own branch, stacked on (a)'s: the daily run on live, the owner's choice (0139), once live's timer is installed; the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
+| T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
 
