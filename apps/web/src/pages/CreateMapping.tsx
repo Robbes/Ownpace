@@ -17,7 +17,7 @@ import {
   qualificationText,
 } from '../i18n/probe-text.ts';
 import type { StringKey } from '../i18n/index.tsx';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, useSearchParams, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -53,8 +53,10 @@ import {
   credentialFieldRequired,
   carriesGoogleNativeFiles,
   sourceFaceIsExperimental,
+  providerDisplayName,
   type DropboxPaperPolicy,
 } from '@openmig/shared';
+import { connectionKindName } from '../components/ProviderTile.tsx';
 import {
   connectionsApi,
   mappingApi,
@@ -83,6 +85,7 @@ import {
 } from '../services/consent-window.ts';
 import { ChoiceField, choiceValue } from '../components/ChoiceField.tsx';
 import { isSelfHost } from '../services/edition.ts';
+import { addMigrationToPerson } from '../services/operating-service.ts';
 import {
   ExperimentalTag,
   ExperimentalWhy,
@@ -415,7 +418,7 @@ const ConnectionPicker: React.FC<{
       >
         {options.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.displayName} ({c.kind})
+            {connectionKindName(c.kind) ? `${c.displayName} (${connectionKindName(c.kind)})` : c.displayName}
           </option>
         ))}
         <option value="">{t('wizard.reuseNone')}</option>
@@ -508,6 +511,11 @@ const CreateMapping: React.FC = () => {
   const consentLinesId = React.useId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Opened from a person's card on Migrations (0153 T3): the new migration is
+  // theirs. Until *Start a migration* asks who it is for (T4), the card says
+  // so in the address.
+  const [searchParams] = useSearchParams();
+  const forPerson = searchParams.get('person');
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>(restoreDraft);
   const [showSourcePassword, setShowSourcePassword] = useState(false);
@@ -519,11 +527,27 @@ const CreateMapping: React.FC = () => {
     // to be swapped in as component state, which no route reached — a refresh
     // stranded the paused mapping. Navigating gives the green light an
     // address that survives the wizard.
-    onSuccess: (mapping: { id: string }) => {
+    onSuccess: async (mapping: { id: string }) => {
       // The draft has become a migration; keeping it would re-seed the next
       // wizard with the last one's name and schedule.
       clearDraft();
-      void navigate(`/mappings/${mapping.id}/confirm`);
+      let notAddedToPerson: string | undefined;
+      if (forPerson) {
+        try {
+          await addMigrationToPerson(forPerson, mapping.id);
+        } catch (error) {
+          // The migration exists either way, with nobody. The green light
+          // still comes next, and its page says the add failed, in the
+          // server's words (hard rule 9); Migrations lists the migration
+          // under *Not with a person yet*, one press from its person.
+          notAddedToPerson = serverMessage(error);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['people'] });
+      }
+      void navigate(
+        `/mappings/${mapping.id}/confirm`,
+        notAddedToPerson === undefined ? undefined : { state: { notAddedToPerson } },
+      );
     },
   });
 
@@ -2714,7 +2738,7 @@ const CreateMapping: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 className="input w-full"
-                placeholder="My Migration"
+                placeholder={t('wizard.migrationName.placeholder')}
               />
             </div>
 
@@ -2829,7 +2853,7 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.source')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.sourceType}{' '}
+                      {providerDisplayName(formData.sourceType)}{' '}
                       {isDriveSource
                         ? formData.sourceRootFolderId
                           ? `(${formData.sourceRootFolderId})`
@@ -2850,7 +2874,7 @@ const CreateMapping: React.FC = () => {
                   <div>
                     <dt className="text-sm text-gray-500">{t('wizard.review.target')}</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {formData.targetType}{' '}
+                      {providerDisplayName(formData.targetType)}{' '}
                       {formData.targetUrl.trim()
                         ? `(${formData.targetUrl.trim()})`
                         : `(${formData.targetHost}:${formData.targetPort})`}
@@ -2894,7 +2918,7 @@ const CreateMapping: React.FC = () => {
       </div>
 
       {/* Progress Steps */}
-      <nav aria-label="Progress">
+      <nav aria-label={t('wizard.progress')}>
         <ol className="flex items-center">
           {steps.map((step, index) => (
             <li key={step.id} className={`relative ${index !== steps.length - 1 ? 'flex-1' : ''}`}>

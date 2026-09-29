@@ -192,7 +192,7 @@ describe('Setup — names the provider, and goes back where you came from (0074)
     get.mockResolvedValue(checklist());
     renderPage({ pathname: '/setup/source/box', state: { from: '/connections' } });
 
-    const back = await screen.findByText(/Back to connections/);
+    const back = await screen.findByText(/Back to accounts/);
     expect(back.getAttribute('href')).toBe('/connections');
   });
 

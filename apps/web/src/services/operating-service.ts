@@ -36,7 +36,12 @@ import type {
   TenantAttention,
   LogFilters,
   OperatorLogPage,
+  CreatePersonRequest,
+  PeopleResponse,
+  Person,
 } from '@openmig/shared';
+import { MAPPING_LIFECYCLES } from '@openmig/shared';
+import { z } from 'zod';
 import { isSelfHost, mappingPath, operatingBaseUrl, queuePath, verifyPath } from './edition.ts';
 import { onUnauthorized } from './api.ts';
 import { rememberFault } from './recent-errors.ts';
@@ -104,6 +109,65 @@ export async function fetchAttention(): Promise<{
       '/attention?all=true',
     )
   ).data;
+}
+
+// ─── The people being moved (ADR-0050, amended 2026-09-28; 0153 T2, T3) ─────
+//
+// Both editions answer `GET /people` in `@openmig/shared`'s shapes: managed
+// from its tables at `/api/people`, the appliance with one implicit person at
+// `/people`. `operatingBaseUrl()` already carries that difference, so these go
+// through this client and nothing here asks which edition it is.
+//
+// Parsed, because a shape that drifted would otherwise render as people with
+// no migrations: a card that says less than the server did, with no error
+// anywhere (0033 T1's lesson, the list schema's reason for being).
+
+const LifecycleSchema = z.enum(['paused', 'active', 'cutover', 'done', 'continuous']);
+// Every lifecycle shared knows is one this schema reads: a sixth added there
+// and not here fails to compile, rather than failing to parse a live answer.
+void (MAPPING_LIFECYCLES satisfies readonly z.infer<typeof LifecycleSchema>[]);
+
+const PersonMigrationSchema = z.object({
+  id: z.string(),
+  status: LifecycleSchema,
+});
+
+const PersonSchema = z.object({
+  id: z.string(),
+  implicit: z.boolean(),
+  displayName: z.string().nullable(),
+  email: z.string().nullable(),
+  createdAt: z.string().nullable(),
+  migrations: z.array(PersonMigrationSchema),
+  counts: z.object({
+    paused: z.number(),
+    active: z.number(),
+    cutover: z.number(),
+    done: z.number(),
+    continuous: z.number(),
+  }),
+});
+
+const PeopleResponseSchema = z.object({
+  people: z.array(PersonSchema),
+  unassigned: z.array(PersonMigrationSchema),
+});
+
+/** Everyone being moved, with their migrations, and the migrations that are nobody's yet. */
+export async function fetchPeople(): Promise<PeopleResponse> {
+  return PeopleResponseSchema.parse((await client.get('/people')).data) as PeopleResponse;
+}
+
+/** A new person: a name, and an address or none. Managed only; the appliance refuses it with its reason. */
+export async function createPerson(input: CreatePersonRequest): Promise<Person> {
+  return PersonSchema.parse((await client.post('/people', input)).data) as Person;
+}
+
+/** Add a migration to a person. Adding it again changes nothing; somebody else's answers 409. */
+export async function addMigrationToPerson(personId: string, mappingId: string): Promise<Person> {
+  return PersonSchema.parse(
+    (await client.post(`/people/${encodeURIComponent(personId)}/migrations`, { mappingId })).data,
+  ) as Person;
 }
 
 /**
