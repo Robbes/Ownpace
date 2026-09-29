@@ -122,6 +122,10 @@ export const PURGED_TABLES = [
   // before `mailbox_mapping`, which a membership references. Both keys would
   // cascade; named so the receipt counts them.
   'person_migration',
+  // A person's links (0153 T5 (b), managed migration 0034) go before the
+  // person they open: the person's key would cascade, and naming them counts
+  // them on the receipt.
+  'person_link',
   'person',
   // Before `mailbox_mapping`: a link references the mapping it opens.
   'mapping_link',
