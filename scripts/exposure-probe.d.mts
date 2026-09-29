@@ -17,6 +17,17 @@ export declare const SITE_NAME: string;
 export declare const SITE_MODES: readonly string[];
 export declare const TLS_PORT: number;
 
+/** A name the owner switched NetBird's sign-in off for, the page a visitor asks it first, and what answers it. */
+export interface SignInPage {
+  readonly name: string;
+  readonly path: string;
+  readonly what: string;
+}
+/** app., id., status. and www.ownpace.eu (workplan 0139, item 8). */
+export declare const SIGN_IN_PAGES: readonly SignInPage[];
+/** Where NetBird's proxy serves the assets of its own pages. */
+export declare const NETBIRD_ASSETS: string;
+
 export type OtaMode = 'report' | 'internet' | 'mesh-only';
 
 /** What www.ownpace.eu must do: `report` records it, `required` fails on it. */
@@ -41,14 +52,33 @@ export interface TlsAnswer {
   readonly why?: string;
 }
 
+/**
+ * What one page answered, no redirect followed: its status, a redirect's
+ * Location, and whether it loads NetBird's own assets; or, when nothing
+ * answered, why (an error's code).
+ */
+export interface PageAnswer {
+  readonly status?: number;
+  readonly location?: string;
+  readonly netbird?: boolean;
+  readonly why?: string;
+}
+
 /** The network and the log, so a test can hand the probe its own. */
 export interface ProbeIo {
   resolve(name: string): Promise<{ readonly addresses: readonly string[]; readonly error?: string }>;
   connect(address: string, port: number): Promise<ConnectAnswer>;
   tls(name: string): Promise<TlsAnswer>;
   issuer(url: string): Promise<{ readonly issuer?: string; readonly why?: string }>;
+  page(url: string): Promise<PageAnswer>;
   print(line: string): void;
 }
+
+/** One name's page as a verdict, with the words the log prints. */
+export declare function signInVerdict(
+  page: SignInPage,
+  answer: PageAnswer,
+): { readonly kind: 'itself' | 'signin' | 'silent' | 'other'; readonly words: string };
 
 /** The configuration from the workflow's environment, or why it cannot run. */
 export declare function probeConfig(

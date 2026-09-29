@@ -760,7 +760,9 @@ explain_failure() { # explain_failure <service> [service...]
     # THROUGH THE ADDRESS FILTER BEFORE ANY OF IT IS PRINTED. The gate's log is
     # public, and these logs name this machine: the TLS front logs its site
     # address, TRIGGER_TLS_HOST, at every start and every renewal (E2E
-    # (managed) #77, #199), and an access log names the mesh peers it served.
+    # (managed) #77, #199), an access log names the mesh peers it served, and
+    # the web's ends each line with the visitor's own address, which NetBird
+    # passes on (ops-trust-proxy (b)): own_address_redact takes all three out.
     # A here-string, not a pipe, for the reason given below.
     if [ -n "$full" ]; then full="$(own_address_redact "$ENV_FILE" <<<"$full")"; fi
     local -a lines=()

@@ -122,6 +122,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/package.json`
 
 - [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 
 ### `apps/api/src/access-log.ts`
 
@@ -302,6 +303,14 @@ reading a file drops off its entry by itself.
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
+
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
+
+### `apps/api/src/routes/tenants/members.ts`
+
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
+
 ### `apps/api/src/routes/view.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
@@ -384,6 +393,7 @@ reading a file drops off its entry by itself.
 
 - [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts) — A LOG THAT KEPT THE LINK, on the web image's nginx.
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 
 ### `apps/web/src/AppRoutes.tsx`
 
@@ -652,7 +662,9 @@ reading a file drops off its entry by itself.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
@@ -707,8 +719,10 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/deploy-live.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -732,6 +746,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/dev.yml`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 
 ### `deploy/compose/dump-idp.sh`
@@ -790,6 +805,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/env-upsert.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
@@ -848,6 +864,7 @@ reading a file drops off its entry by itself.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
@@ -877,6 +894,7 @@ reading a file drops off its entry by itself.
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -893,6 +911,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts) — A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
@@ -994,6 +1013,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/seed-managed.sh`
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-refusal-that-named-no-remedy](../scripts/a-refusal-that-named-no-remedy.unit.test.ts) — A REFUSAL THAT NAMED NO REMEDY.
 - [rotate-db-passwords](../scripts/rotate-db-passwords.unit.test.ts) — PASSWORDS THE REPOSITORY PRINTS, CHANGED WITHOUT PRINTING THE NEW ONES (workplan 0132 T0 step 2, T2).
@@ -1016,6 +1036,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/setup-managed-demo.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
@@ -1101,8 +1122,11 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/stand-up-live.sh`
 
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/support-read-prune.sh`
@@ -1148,14 +1172,23 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
+### `deploy/compose/www-nginx.conf`
+
+- [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
+- [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+- [pages-that-do-not-exist](../scripts/pages-that-do-not-exist.unit.test.ts) — PAGES THAT DO NOT EXIST, AND THE PAGE THAT SAYS WHETHER ANYTHING IS DOWN.
+
 ### `deploy/compose/www.yml`
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
 - [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts) — AN IDENTITY PROVIDER NOBODY WAS WATCHING.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
@@ -1191,6 +1224,7 @@ reading a file drops off its entry by itself.
 
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 
 ### `deploy/selfhost/compose.yml`
@@ -1198,6 +1232,7 @@ reading a file drops off its entry by itself.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 
@@ -1219,8 +1254,10 @@ reading a file drops off its entry by itself.
 
 ### `deploy/selfhost/setup-stalwart.sh`
 
+- [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 
 ### `docs/LESSONS.md`
@@ -1261,6 +1298,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/breach-procedure.md`
 
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 
 ### `docs/cutover-communication-templates.md`
@@ -1300,7 +1338,7 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts) — A HELPDESK THE API WAS NEVER HANDED.
-- [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -1309,6 +1347,8 @@ reading a file drops off its entry by itself.
 - [a-screenshot-the-front-door-lets-through](../scripts/a-screenshot-the-front-door-lets-through.unit.test.ts) — A SCREENSHOT THE FRONT DOOR LETS THROUGH (workplan 0130).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
@@ -1322,6 +1362,7 @@ reading a file drops off its entry by itself.
 ### `docs/operator-runbook.md`
 
 - [a-connection-the-docs-did-not-know-about](../scripts/a-connection-the-docs-did-not-know-about.unit.test.ts) — A SENTENCE IN A DOCUMENT HAS NOTHING CHECKING IT, and this one was wrong for a month.
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-placeholder-with-no-way-to-fill-it](../scripts/a-placeholder-with-no-way-to-fill-it.unit.test.ts) — A PLACEHOLDER WITH NO WAY TO FILL IT.
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
@@ -1345,11 +1386,13 @@ reading a file drops off its entry by itself.
 
 ### `docs/selfhost-quickstart.md`
 
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 
 ### `docs/stalwart-integration-fix.md`
 
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 
 ### `docs/status-page.md`
 
@@ -1361,6 +1404,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/windows-appliance-runbook.md`
 
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `docs/workplans/0001-start-prompt.md`
@@ -1947,6 +1991,10 @@ reading a file drops off its entry by itself.
 
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
 
+### `scripts/a-demo-on-a-real-address.unit.test.ts`
+
+- [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+
 ### `scripts/a-domain-the-dispatchers-forgot.unit.test.ts`
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
@@ -2053,6 +2101,7 @@ reading a file drops off its entry by itself.
 ### `scripts/exposure-probe.mjs`
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
+- [a-sign-in-in-front-of-the-front-door](../scripts/a-sign-in-in-front-of-the-front-door.unit.test.ts) — A SIGN-IN IN FRONT OF THE FRONT DOOR (workplan 0139, item 8 of *Promised in the drafts, not yet true on `main`*; privacy §7's NetBird row).
 - [exposure-probe](../scripts/exposure-probe.unit.test.ts) — WHAT THE OUTSIDE PROBE PRINTS, AND WHEN IT PASSES (workplan 0132 T3 (c)).
 
 ### `scripts/exposure-probe.unit.test.ts`
@@ -2159,7 +2208,11 @@ reading a file drops off its entry by itself.
 
 ### `site/legal/README.md`
 
+- [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
+- [a-sign-in-in-front-of-the-front-door](../scripts/a-sign-in-in-front-of-the-front-door.unit.test.ts) — A SIGN-IN IN FRONT OF THE FRONT DOOR (workplan 0139, item 8 of *Promised in the drafts, not yet true on `main`*; privacy §7's NetBird row).
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 
 ### `site/legal/alpha.md`
@@ -2176,6 +2229,7 @@ reading a file drops off its entry by itself.
 
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-version-the-tester-accepted](../scripts/a-version-the-tester-accepted.unit.test.ts) — A VERSION THE TESTER ACCEPTED (workplan 0139 T3).
+- [an-account-nobody-let-in](../scripts/an-account-nobody-let-in.unit.test.ts) — AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 - [legal-docs](../scripts/legal-docs.unit.test.ts) — The published legal surface gets a guard, for three reasons that nothing else in this suite covers.
 - [one-way-to-report-a-vulnerability](../scripts/one-way-to-report-a-vulnerability.unit.test.ts) — ONE WAY TO REPORT A VULNERABILITY (workplan 0139 T9).
 
@@ -2559,11 +2613,16 @@ A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off liv
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/own-addresses.sh`
+- `deploy/compose/seed-managed.sh`
+- `deploy/compose/setup-managed-demo.sh`
 - `deploy/compose/stack-kind.sh`
 - `deploy/compose/trigger-cli-lib.sh`
+- `deploy/selfhost/setup-stalwart.sh`
 
 ### [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts)
 
@@ -2900,6 +2959,7 @@ Reads:
 
 - `apps/web/Dockerfile`
 - `deploy/compose/managed.yml`
+- `deploy/compose/www-nginx.conf`
 - `deploy/compose/www.yml`
 
 ### [a-helpdesk-the-api-was-never-handed](../scripts/a-helpdesk-the-api-was-never-handed.unit.test.ts)
@@ -2923,6 +2983,22 @@ Reads:
 
 - `apps/selfhost/src/a-button-only-one-edition-answers.unit.test.ts`
 - `deploy/compose/managed.yml`
+
+### [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts)
+
+A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
+
+Reads:
+
+- `deploy/compose/managed.yml`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/www.yml`
+- `docs/breach-procedure.md`
+- `docs/managed-bring-up.md`
+- `docs/operator-runbook.md`
+- `docs/selfhost-quickstart.md`
+- `docs/windows-appliance-runbook.md`
+- `site/legal/README.md`
 
 ### [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts)
 
@@ -3066,7 +3142,6 @@ Reads:
 - `deploy/selfhost/compose.drill.yml`
 - `deploy/selfhost/compose.pglite.yml`
 - `deploy/selfhost/compose.yml`
-- `docs/managed-bring-up.md`
 - `docs/selfhost-quickstart.md`
 
 ### [a-month-that-moved-with-the-servers-timezone](../scripts/a-month-that-moved-with-the-servers-timezone.unit.test.ts)
@@ -3599,6 +3674,7 @@ Reads:
 - `apps/web/Dockerfile`
 - `apps/web/nginx.conf.template`
 - `apps/web/src/pages/ReportProblem.tsx`
+- `deploy/compose/www-nginx.conf`
 - `docs/managed-bring-up.md`
 
 ### [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts)
@@ -3648,6 +3724,34 @@ Reads:
 - `apps/api/src/routes/ready.ts`
 - `apps/web/src/services/api.ts`
 - `scripts/status-page.unit.test.ts`
+
+### [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts)
+
+A SERVICE THAT PHONES HOME.
+
+Reads:
+
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/dev.yml`
+- `deploy/compose/managed.yml`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/www.yml`
+- `deploy/selfhost/compose.pglite.yml`
+- `deploy/selfhost/compose.yml`
+- `deploy/selfhost/setup-stalwart.sh`
+- `docs/managed-bring-up.md`
+- `docs/stalwart-integration-fix.md`
+- `scripts/a-demo-on-a-real-address.unit.test.ts`
+
+### [a-sign-in-in-front-of-the-front-door](../scripts/a-sign-in-in-front-of-the-front-door.unit.test.ts)
+
+A SIGN-IN IN FRONT OF THE FRONT DOOR (workplan 0139, item 8 of *Promised in the drafts, not yet true on `main`*; privacy §7's NetBird row).
+
+Reads:
+
+- `scripts/exposure-probe.mjs`
+- `site/legal/README.md`
 
 ### [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts)
 
@@ -3842,6 +3946,21 @@ Reads:
 
 - `apps/web/src/AppRoutes.tsx`
 
+### [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts)
+
+A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
+
+Reads:
+
+- `apps/api/package.json`
+- `apps/web/nginx.conf.template`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/managed.env.example`
+- `deploy/compose/stand-up-live.sh`
+- `deploy/compose/www-nginx.conf`
+- `docs/managed-bring-up.md`
+- `site/legal/README.md`
+
 ### [a-way-back-before-every-upgrade](../scripts/a-way-back-before-every-upgrade.unit.test.ts)
 
 A WAY BACK BEFORE EVERY UPGRADE: the dump an identity provider upgrade needs was four commands pasted from a chat (workplan 0135 T7, *Before an upgrade*).
@@ -3909,10 +4028,14 @@ AN ACCOUNT NOBODY LET IN (workplan 0135 T8).
 
 Reads:
 
+- `apps/api/src/routes/tenants/a-member-removed-is-recorded.unit.test.ts`
+- `apps/api/src/routes/tenants/members.ts`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/idp-strays.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/stack-kind.sh`
+- `site/legal/README.md`
+- `site/legal/privacy.md`
 
 ### [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts)
 
@@ -4362,6 +4485,7 @@ Reads:
 
 - `apps/web/src/AppRoutes.tsx`
 - `apps/web/src/i18n/strings.ts`
+- `deploy/compose/www-nginx.conf`
 - `site/build.mjs`
 - `site/prices.mjs`
 

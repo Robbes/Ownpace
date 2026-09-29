@@ -257,6 +257,8 @@ export class MemoryTarget implements TargetWriter, TargetReindexer {
 /** In-memory idempotency ledger. */
 export class MemoryLedger implements Ledger {
   private readonly rows = new Map<string, LedgerRecord>();
+  /** Test helper: how often each read was asked, and for how many keys in all. */
+  readonly reads = { find: 0, findMany: 0, keysAskedInBatches: 0 };
 
   private key(r: Pick<LedgerRecord, 'tenantId' | 'mappingId' | 'itemType' | 'naturalKeyHash'>): string {
     return `${r.tenantId}\u0000${r.mappingId}\u0000${r.itemType}\u0000${r.naturalKeyHash}`;
@@ -268,13 +270,40 @@ export class MemoryLedger implements Ledger {
     itemType: LedgerRecord['itemType'],
     naturalKeyHash: string,
   ): Promise<LedgerRecord | undefined> {
+    this.reads.find += 1;
+    return Promise.resolve(this.row(tenantId, mappingId, itemType, naturalKeyHash));
+  }
+
+  /** Mirrors `PgLedger.findMany`: the rows that exist, by key; no row, no entry. */
+  findMany(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    itemType: LedgerRecord['itemType'],
+    naturalKeyHashes: ReadonlyArray<string>,
+  ): Promise<ReadonlyMap<string, LedgerRecord>> {
+    this.reads.findMany += 1;
+    this.reads.keysAskedInBatches += naturalKeyHashes.length;
+    const found = new Map<string, LedgerRecord>();
+    for (const naturalKeyHash of naturalKeyHashes) {
+      const row = this.row(tenantId, mappingId, itemType, naturalKeyHash);
+      if (row) found.set(naturalKeyHash, row);
+    }
+    return Promise.resolve(found);
+  }
+
+  private row(
+    tenantId: LedgerRecord['tenantId'],
+    mappingId: LedgerRecord['mappingId'],
+    itemType: LedgerRecord['itemType'],
+    naturalKeyHash: string,
+  ): LedgerRecord | undefined {
     const row = this.rows.get(this.key({ tenantId, mappingId, itemType, naturalKeyHash }));
-    if (!row) return Promise.resolve(undefined);
+    if (!row) return undefined;
     // `absent_passes` is NOT NULL DEFAULT 0 in Postgres, so a row always has a
     // number here — never undefined. A fake that answered undefined would let a
     // caller write `row.absentPasses === undefined` and mean "never checked",
     // which is a distinction the real column cannot make.
-    return Promise.resolve({ absentPasses: 0, ...row });
+    return { absentPasses: 0, ...row };
   }
 
   /**

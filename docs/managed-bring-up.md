@@ -124,23 +124,34 @@ are **not** product-named and keep their names; nothing above touches them.
   registry and the built API/web images add up; running out midway leaves a
   stack that is partly built and wholly confusing.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
-- **Container output kept for a month, and no longer** (workplan 0129 T3). No
-  compose file here sets `logging`, so every container, the compose services and
-  the task runs Trigger.dev starts alike, writes with Docker's default, which
-  keeps everything for ever. Give it to the host's journal, and let the journal
-  keep 30 days:
+- **Container output: Docker's default log driver, kept until the container
+  is removed** (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default,
+  as the text says"*). No compose file here sets `logging`, so every
+  container, the compose services and the task runs Trigger.dev starts alike,
+  writes with the daemon's driver. Leave it at Docker's default, `json-file`,
+  which keeps a container's output with the container, with no limit of age
+  or size, and removes it with the container. `local` will do too: it keeps
+  the output with the container in the same way, but rotates it by size
+  (about 100 MB per container by default, by Docker's documentation: five
+  files of 20 MB, compressed), so the oldest lines can go sooner, never
+  later. That is what the privacy policy says of server logs (§9): kept until
+  the part of the service that wrote them is replaced, with no fixed period.
+  The host's journal would keep them after the container is gone, for as long
+  as the journal keeps anything, so do not hand them to it. Check the machine
+  (`stand-up-live.sh` asks too, and refuses any other answer):
 
   ```bash
-  # /etc/docker/daemon.json
-  { "log-driver": "journald" }
-
-  # /etc/systemd/journald.conf, under [Journal]
-  MaxRetentionSec=1month
+  docker info --format '{{.LoggingDriver}}'    # json-file, or local
   ```
 
-  Then `sudo systemctl restart systemd-journald docker`. Only containers created
-  after that use the journal, so do it before the bring-up. `docker compose logs`
-  keeps working, and `journalctl CONTAINER_NAME=<name>` reads the same lines.
+  If it prints `journald`, `/etc/docker/daemon.json` sets it: take the
+  `"log-driver"` line out (the file may hold nothing else, `{}`), then
+  `sudo systemctl restart docker` and ask again. A container keeps the driver
+  it was created with, so one created before the change writes to the journal
+  until it is recreated; do this before a stack's bring-up and there is none.
+  What went to the journal stays there until the journal's own retention
+  removes it. `docker compose logs` reads the output either way. The appliance
+  keeps its month (`docs/selfhost-quickstart.md`); this is the managed machine.
 
 **Architecture.** `DEPLOY_IMAGE_PLATFORM` decides what the task images are
 built for, **server-side** — there is no CLI flag. Get it wrong and every task
@@ -317,7 +328,10 @@ outside is the dispatch-only workflow *Exposure probe*
 (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
 the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
 takes the machine's own public address from the optional secret
-`EXPOSURE_PROBE_HOST`.
+`EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
+`www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
+sign-in answers one of them instead of the service (workplan 0139, item 8;
+*After the script: the owner's steps*, step 5).
 
 **The OTA site is recreated by hand, and only by hand.** No workflow runs
 `www.yml`, and the bring-up does not start the site (*The public site*, below).
@@ -1339,13 +1353,17 @@ acted, `ownpace.audit.id` its row in `audit_log`, and `Resource` says which
 process (`ownpace-api`, or `ownpace-worker` for the task runs). Addresses and
 file and folder names are pseudonyms (`pseudo:` and sixteen hex characters,
 the same person always the same one), a URL keeps only its scheme and host,
-and a detail field nobody has classified is left out. The journal set up under
-the prerequisites keeps the API's output and every task run's, so a collector
-that reads the journal forwards them; the audit lines are the ones carrying
-`ownpace.audit.id`:
+and a detail field nobody has classified is left out. Docker keeps each
+container's output with the container, not in the host's journal (`json-file`,
+*Before you start*), so a collector reads it from Docker: `docker compose logs`,
+or the file `json-file` writes for each container. A task run's container is
+removed when its run ends, and its output goes with it, so a collector that is
+to forward the worker's lines reads them as they are written; what it missed is
+still in `audit_log` (below). The audit lines are the ones carrying
+`ownpace.audit.id`; the API's, from the stack's checkout:
 
 ```bash
-journalctl -o cat --since today | grep '"ownpace.audit.id"'
+docker compose -f deploy/compose/managed.yml logs --no-log-prefix --since 24h api | grep '"ownpace.audit.id"'
 ```
 
 Ownpace sends these lines nowhere itself. The pseudonyms are made with a key in
@@ -2315,6 +2333,148 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+## Nothing phones home
+
+The privacy policy names every party that receives anything (§7, §8), and for
+the question *ops-telemetry* the owner chose, on 2026-09-28, *"Switch it off
+everywhere"* (workplan 0139). Six images in `managed.yml` reported to, or
+asked, their makers by default until then. Five are switched off here; the
+demo's Nextcloud is not yet (*What is left on, and where*, below). Each switch
+is written in the compose file itself, never read from `.env`, so it is the
+same on the OTA stack and on live, and no machine's `.env` can empty it. Live
+runs `managed.yml` and `www.yml` and no other compose file: `stand-up-live.sh`
+refuses a `COMPOSE_FILE` in the shell.
+
+| Service | What it sent by default | The switch | Read at |
+|---|---|---|---|
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable` |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `RELEASE.2025-05-24T17-08-30Z` |
+| `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.1 |
+| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` |
+
+The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
+own update only on `install` and `add`, goose v3.27.1 has no network use of its
+own, and the dashboard agent's migration is plain drizzle-orm.
+
+`trigger-tls` has no telemetry; its one default that leaves the machine is
+automatic HTTPS, which asks a public certificate authority, and
+`trigger-tls.Caddyfile` says `tls internal`. The rest need no switch:
+PostgreSQL, PgBouncer, Redis, the registry (its trace exporter's default is
+its own container), the Docker socket proxy, the supervisor (its traces go to
+the webapp's own `/otel`), busybox, nginx, the status page (its requests are
+the probes `gatus.yaml` lists), and our own API, web app and appliance.
+
+**What is left on, and where.** The demo's Nextcloud, in `managed.yml`, and
+the development one in `dev.yml`: their three settings are **not** switched off
+in this change. A hook that set them false before Apache started, at every
+start, was tried on 2026-09-29, and with it the demo's first CalDAV write
+answered 500 in E2E (managed) #215, the branch's run; #216 on main, which
+recreated the same container without the hook, passed. What broke the write,
+one of the three settings or the hook's run itself, is not known: the values
+the hook wrote in #215 are most likely still in `config.php` on the demo's
+volume, which the gate keeps between runs, and nothing here takes them out or
+has looked. This Nextcloud holds fixtures, never a tester's data, and it is
+not on live: the bring-up starts it only with `--with-demo`, which both live
+scripts refuse. A follow-up switches the three off with a check that the
+demo's DAV writes still work. Not by a `*.config.php` mounted into `config/`:
+that makes the directory non-empty before the first install, and the image's
+entrypoint then skips copying its own config files, `smtp.config.php` among
+them, which is what points the demo's Nextcloud at the catcher (0103). And as
+booleans: `--value=false` alone stores the string `"false"`, which PHP reads as
+true.
+
+The demo's Stalwart (v0.16.10), which
+`setup-stalwart.sh` starts with `docker run`, outside every compose file, on
+the OTA stack every night, in the self-host end-to-end run, and on a
+developer's machine beside `deploy/compose/dev.yml`. In normal mode
+it downloads its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
+first start and every 30 days, its spam-filter rules from
+`github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
+database from `cdn.jsdelivr.net` daily (`crates/common/src/manager/defaults.rs`,
+and `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at
+v0.16.10). They are downloads rather than reports about anybody. They are
+objects in its database, not in `config.json`, so switching them off is new
+objects in the provisioning plan, a change that has to be run and watched on
+the machine (`docs/stalwart-integration-fix.md`). **Left on, as the owner
+preferred on 2026-09-29** (workplan 0139). Asked whether to switch them off or
+keep them, the owner wrote *"Do we need it. And where? Perhaps not in live but
+yes in OTA?"* The Stalwart itself is needed: it is the demo's mail source and
+target, which the nightly gate migrates between. Its three downloads are not:
+nothing here uses its WebUI, spam-filter rules or ASN database (accounts are
+provisioned with `stalwart-cli`, and no SMTP port is published). Where: the
+places above, which hold fixtures only, and not live. The scripted bring-up
+starts it only in its demo phase and only with `--with-demo`, which
+`deploy-live.sh` and `stand-up-live.sh` refuse, and `bootstrap-managed.sh`
+refuses on live's `.env` (`scripts/a-demo-on-a-real-address.unit.test.ts`).
+Run by hand, `setup-managed-demo.sh` is not refused on live's `.env` yet; that
+refusal is a follow-up in workplan 0139. So the downloads stay on, as they are.
+
+The deploy CLI, which runs on the host, was read only this far: at 4.5.16 its
+`src/telemetry/tracing.ts` is gone, and no exporter of its own was found. The
+integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
+starts on a CI runner, are not switched.
+
+`scripts/a-service-that-phones-home.unit.test.ts` puts every service of every
+compose file under `deploy/` in one of three lists (switched, no switch, or left
+on, each with its reason) and fails on a service in none. A switched or
+left-on row names the image its default was read at, and fails when the file
+pins another. It holds the webapp to a list of the keys it may be given, each
+with the reason it reaches no third party, reads every file ClickHouse merges,
+holds the left-on Nextcloud to the demo's bring-up, which neither live script
+starts, and pins the Stalwart named above. So **a new pin of
+Trigger.dev, Zitadel, ClickHouse, MinIO, Mailpit or Nextcloud starts with
+re-reading what the new version sends by default** (Zitadel's ping arrived with
+v4; for Trigger.dev, the entrypoint's children as well as the webapp), then
+moving the row. `trigger-version.sh pin` moves the Trigger.dev tag and does not
+do this for you.
+
+**When it takes effect.** The OTA stack's identity provider has sent the ping
+since it first started, as far as the machine let it out: every v4 release
+carries it. A switch is read when its container starts, so a stack has it once
+Compose has recreated those containers: the OTA stack at its next nightly
+bring-up, and live at its stand-up and every deploy from a tag that contains
+this change, since both run `bootstrap-managed.sh`, which brings each of them
+up by name. The pull sequence in *Updating a running deployment* does **not**
+do all of it: it brings up `api` and `web`, whose dependencies take in
+`trigger-api` and `clickhouse` but not the identity provider, the object store
+or the catcher, which keep their old environment until the next bring-up. By
+hand, on a stack that is already up, from its checkout:
+
+```bash
+docker compose -f deploy/compose/managed.yml up -d trigger-api clickhouse zitadel minio
+# Only where it already runs: the catcher.
+docker compose -f deploy/compose/managed.yml up -d mailpit
+```
+
+To see it on a running stack, from its checkout:
+
+```bash
+# The environment each container was started with, one variable a line.
+env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  "$(docker compose -f deploy/compose/managed.yml ps -q "$1")"; }
+
+env_of trigger-api | grep -E '^(TRIGGER_TELEMETRY_DISABLED|POSTHOG_PROJECT_KEY|CHECKPOINT_DISABLE)='
+#   TRIGGER_TELEMETRY_DISABLED=1
+#   POSTHOG_PROJECT_KEY=
+#   CHECKPOINT_DISABLE=1
+env_of zitadel | grep -E '^ZITADEL_(SERVICEPING|TELEMETRY)_ENABLED='
+#   both =false
+env_of minio | grep -E '^MINIO_(UPDATE|CALLHOME_ENABLE)='
+#   both =off
+env_of mailpit | grep -E '^MP_DISABLE_VERSION_CHECK='     # where the catcher runs
+#   MP_DISABLE_VERSION_CHECK=true
+
+# ClickHouse writes the configuration it merged, config.d included:
+docker compose -f deploy/compose/managed.yml exec clickhouse \
+  sed -n '/<send_crash_reports>/,/<\/send_crash_reports>/p' /var/lib/clickhouse/preprocessed_configs/config.xml
+#   <enabled>false</enabled> and <send_logical_errors>false</send_logical_errors>
+```
+
+The webapp also logs `Telemetry disabled` when it builds its telemetry client.
+
 ## Mail: caught, not delivered
 
 Every mail this stack sends goes to **Mailpit**, a catcher on the compose
@@ -2833,9 +2993,13 @@ has run that commit green.
 
 No script can do these. The script checks each one before it changes anything.
 
-1. **The machine** (*Before you start*): at least 15 GB free, the journald log
-   driver, and the setting that lets a container publish on the front's address
-   before the mesh has brought it up. Create
+1. **The machine** (*Before you start*): at least 15 GB free, Docker's default
+   log driver (`docker info --format '{{.LoggingDriver}}'` prints `json-file`
+   or `local`; any other answer comes from `/etc/docker/daemon.json`, and
+   *Before you start* says how to undo it, before the bring-up creates live's
+   containers; the script asks the same and refuses any other answer), and
+   the setting that lets a container publish on the front's address before
+   the mesh has brought it up. Create
    `/etc/sysctl.d/90-bind-before-the-mesh.conf` holding
    `net.ipv4.ip_nonlocal_bind = 1`, then run `sudo sysctl --system` (*Which
    address a port answers on*). Live's web, sign-in and status ports are
@@ -2937,7 +3101,7 @@ No script can do these. The script checks each one before it changes anything.
      WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
-     NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 \
+     NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
      SMTP_HOST=<the relay's submission host> SMTP_PORT=587 SMTP_SECURE= \
      SMTP_USER=<the sending address> NOTIFY_FROM=<the sending address> \
      NOTIFY_TO=<an address you read> \
@@ -2961,6 +3125,22 @@ No script can do these. The script checks each one before it changes anything.
    anything but a whole number above 0. `deploy-live.sh` takes that copy before
    each update, and it is deleted once the update is proven, or after six days
    less an hour by the daily duties (§8g; workplan 0139).
+
+   **`TRUST_PROXY=2`** is the number of proxies in front of live's API, and it
+   decides whose address the API's log and its request limit take for the
+   caller (privacy §4.5; the owner, 2026-09-28, *"Keep visitors' addresses in
+   all our logs"*). Two stand there: NetBird's reverse proxy, which ends TLS,
+   connects to the machine from its own address on the mesh, and sets
+   `X-Forwarded-For` to the address the visitor connected from, dropping
+   whatever the visitor sent; and the web container's nginx, which appends
+   NetBird's address. With 2 the API names the visitor; with 1 it names
+   NetBird for everybody, empty the web container. A count above the proxies
+   that are there is as bad as `true`: Express then takes the leftmost entry,
+   which the caller wrote. The script refuses anything but 2 or 3, 3 being for
+   a NetBird cluster that adds a hop of its own. Both nginx logs record the
+   header NetBird sets as their last field, whatever this says. Whether
+   NetBird's own cluster adds a hop is not in its source; workplan 0132 T3
+   (d)'s check, once live stands, settles it (*After the script*, step 6).
 
    **Mail goes through a real relay from the first day** (workplan 0133): live
    runs no catcher, and the sign-up's verification code is the first mail it
@@ -3083,8 +3263,62 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    Lift the hold. Every deploy from here on is `deploy-live.sh`.
 5. **The outside probe.** Set the repository variable
    `EXPOSURE_PROBE_LIVE_PORTS` to live's published ports, and dispatch the
-   *Exposure probe* workflow.
-6. **The record.** The date, the tag and each check's outcome, never a value, in
+   *Exposure probe* workflow. Among its checks it asks `app.`, `id.`,
+   `status.` and `www.ownpace.eu` for a page as a visitor would (`www.` once
+   it is routed to live's front), and fails while NetBird's sign-in answers
+   any of them instead: a redirect to NetBird's identity provider, or NetBird's
+   own page. **NetBird's sign-in is off on all four before the first
+   invitation** (the owner, 2026-09-28, *"Off everywhere at launch"*; workplan
+   0139, item 8): in NetBird's dashboard, no SSO, password, PIN or header
+   authentication, and no NetBird-Only Access, on any of the four services.
+   Only a request from outside the NetBird network shows it. From a peer of
+   the account, your laptop on the mesh or the machine, NetBird may let a
+   request through its SSO without a sign-in page, so a browser there proves
+   nothing, and the probe runs on a GitHub-hosted runner.
+6. **Live's logs name the visitor** (workplan 0132 T3 (d); privacy §4.5).
+   From outside the NetBird network, send one request to the app and one to
+   the site, each with a forged header, `192.0.2.1` being a documentation
+   address and nobody's:
+
+   ```bash
+   curl -s -o /dev/null -H 'X-Forwarded-For: 192.0.2.1' https://app.ownpace.eu/api/version
+   curl -s -o /dev/null -H 'X-Forwarded-For: 192.0.2.1' https://www.ownpace.eu/      # once live serves the site
+   ```
+
+   Then, on the machine, from `~/ownpace-live`, one line of each log:
+
+   ```bash
+   docker compose -f deploy/compose/managed.yml logs --no-log-prefix --tail 50 api | grep 'GET /api/version'
+   docker compose -f deploy/compose/managed.yml logs --no-log-prefix --tail 50 web | grep 'GET /api/version'
+   docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env logs --no-log-prefix --tail 50 www
+   ```
+
+   Read the API's line and the two nginx lines apart, because they answer
+   different questions. Each nginx line starts with NetBird's address on the
+   mesh and ends, in quotes, with what NetBird passed on:
+
+   - **Only the address you sent from**: NetBird replaces a visitor's header,
+     as its source says.
+   - **`192.0.2.1, ` and then the address you sent from**: NetBird appends to
+     it instead. That is not wrong in itself: the rightmost entry is the one
+     NetBird saw, and the API, which counts from the right, still names you.
+     Write it in 0132's Status block, because this field then also holds what
+     a visitor claimed.
+
+   The API's line starts with the address the API takes for the caller:
+
+   - **The address you sent from**: `TRUST_PROXY` is right.
+   - **Another address of NetBird's**: its cluster puts a proxy of its own in
+     front. `TRUST_PROXY=3` in live's `.env`, then
+     `docker compose -f deploy/compose/managed.yml up -d --force-recreate api`,
+     and ask again.
+   - **`192.0.2.1`**: the API believes what a visitor wrote: the count is
+     more than the proxies in front, or NetBird passed the forged header on
+     as though it were the address it saw. Stop, and write it in 0132's Status
+     block before the first invitation.
+
+   These lines hold your address and NetBird's: paste them nowhere public.
+7. **The record.** The date, the tag and each check's outcome, never a value, in
    workplan 0132's Status block (T0 step 6).
 
 ## Live's daily duties
@@ -3110,7 +3344,7 @@ seven duties, each one whatever the one before it did:
 | `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`. |
 | `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
 | `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
-| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. Its lines name an account's id, never its address. |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, as privacy §9 says (0135 T8; the runbook's *Sign-in accounts nobody let in*). An account that was let in and removed since stays, and so does one of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
 | `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (0139 T6; the runbook's *Searches and downloads on the support screens*). As the database's owner: `app_user` cannot delete from that log, and the tasks' system role (0138 T3 step 2) can, for the purge of an erased organisation, but its grant (`SELECT` on `tenant_id`, and `DELETE`) lets it pick rows by organisation, never by age. It stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
 
 It exits 0 when all seven pass, 1 naming every duty that failed, and 2 when it

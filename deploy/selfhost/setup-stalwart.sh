@@ -52,6 +52,36 @@ set -euo pipefail
 #                                see docs/stalwart-integration-fix.md's DooD section. Only
 #                                affects stalwart-cli; the readiness check below always goes
 #                                through `docker exec`, so it needs no such override.
+#
+# WHAT THIS STALWART FETCHES FROM OUTSIDE, LEFT ON, AS THE OWNER PREFERRED ON 2026-09-29
+# (workplan 0139). The owner's ops-telemetry answer was "Switch it off everywhere"; asked
+# about these three, the owner wrote "Do we need it. And where? Perhaps not in live but yes
+# in OTA?", which is where this Stalwart already runs (below). In normal mode (phase 2),
+# v0.16.10 inserts three defaults into its database
+# (crates/common/src/manager/defaults.rs, SpamSettings in
+# crates/registry/src/schema/structs_impl.rs):
+#   - its WebUI, downloaded from github.com/stalwartlabs/webui/releases/latest on first
+#     start and again every 30 days;
+#   - its spam-filter rules, from github.com/stalwartlabs/spam-filter/releases/latest;
+#   - an ASN and country database, from cdn.jsdelivr.net, refreshed daily.
+# They are downloads, not reports about anybody, but each asks a third party's host (GitHub,
+# and jsDelivr's CDN). They are objects in the datastore, never config.json
+# (docs/stalwart-integration-fix.md), and switching them off means new objects in the
+# provisioning plan, which nothing here could run and prove. Nothing in this repository
+# uses the three: accounts are provisioned with stalwart-cli below, and no SMTP port is
+# published, so it takes no mail from outside. The Stalwart itself is needed: it is the
+# demo's mail source and target, which the nightly gate migrates between.
+#
+# WHERE IT RUNS. The OTA stack every night (the demo), the self-host end-to-end run, and a
+# developer's machine (deploy/compose/dev.yml). It holds fixtures only. The scripts that
+# bring up and deploy live do not start it: bootstrap-managed.sh runs
+# setup-managed-demo.sh, which runs this, only in its demo phase and only with --with-demo;
+# deploy-live.sh and stand-up-live.sh refuse --with-demo, and bootstrap-managed.sh refuses
+# it on live's .env. Run by hand, neither setup-managed-demo.sh nor this script is refused
+# on live's .env yet; that refusal is a follow-up in workplan 0139. So the downloads stay
+# on where it runs, as they are.
+# `scripts/a-service-that-phones-home.unit.test.ts` pins the version they were read at, and
+# docs/managed-bring-up.md, "Nothing phones home", names them.
 
 IMAGE="stalwartlabs/stalwart:v0.16.10"
 CONTAINER="${STALWART_CONTAINER:-ownpace-dev-stalwart}"

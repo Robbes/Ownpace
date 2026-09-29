@@ -76,6 +76,11 @@ export interface ProviderConsent {
   readonly faces: ReadonlyArray<DiscoveryDomain>;
   readonly domains: DiscoveryDomain[];
   /**
+   * Whether the door decided the faces before this consent (`fixedDomains`),
+   * so the panel draws no ticks of its own.
+   */
+  readonly facesFixed: boolean;
+  /**
    * What this consent asks the provider for: an account's ticked faces, or
    * the one type a single-purpose card is. What the lines beside the button
    * describe (`ConsentLines`, workplan 0144 T3 (a)).
@@ -125,8 +130,15 @@ export function useProviderConsent(opts: {
   readonly onToken: (refreshToken: string) => void;
   /** Turn an error into the sentence this form shows. */
   readonly refusalText: (err: unknown) => string;
+  /**
+   * The faces an account's consent asks for, where the door already asked:
+   * *Start a migration* decides them on *What moves?*, so each consent asks
+   * for exactly what was ticked (0153 T4, T1 (c)). Left out, the panel offers
+   * its own ticks, starting from none.
+   */
+  readonly fixedDomains?: ReadonlyArray<DiscoveryDomain>;
 }): ProviderConsent {
-  const { role, type, fields, values, onToken, refusalText } = opts;
+  const { role, type, fields, values, onToken, refusalText, fixedDomains } = opts;
   const { t, locale } = useLocale();
 
   const provider = role === 'source' ? fields.find((f) => f.key === 'refreshToken')?.consent : undefined;
@@ -157,7 +169,7 @@ export function useProviderConsent(opts: {
     ? (providerAccounts?.[type]?.domains ?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind] ?? [])
     : [];
 
-  const [domains, setDomains] = React.useState<DiscoveryDomain[]>([]);
+  const [domains, setDomains] = React.useState<DiscoveryDomain[]>(() => [...(fixedDomains ?? [])]);
   const asked = consentAsks(type, domains, faces);
   const [note, setNote] = React.useState<string | null>(null);
   const [redirect, setRedirect] = React.useState<string | null>(null);
@@ -271,7 +283,7 @@ export function useProviderConsent(opts: {
   };
 
   const reset = () => {
-    setDomains([]);
+    setDomains([...(fixedDomains ?? [])]);
     setNote(null);
     setRedirect(null);
     setUnopened(null);
@@ -286,6 +298,7 @@ export function useProviderConsent(opts: {
     isAccountKind,
     faces,
     domains,
+    facesFixed: fixedDomains !== undefined,
     setDomains,
     asked,
     note,
@@ -556,7 +569,12 @@ export const ConnectReason: React.FC<{ readonly reason: string | undefined }> = 
 export const ProviderConsentPanel: React.FC<{
   readonly consent: ProviderConsent;
   readonly className?: string;
-}> = ({ consent, className = 'mt-4' }) => {
+  /**
+   * The button as *Start a migration* draws it (0153 T7 (a)): primary, and at
+   * least 44 pixels tall, since there it is the one way forward.
+   */
+  readonly primary?: boolean;
+}> = ({ consent, className = 'mt-4', primary = false }) => {
   const t = useT();
   const linesId = React.useId();
   if (!consent.isGrantKind) return null;
@@ -573,7 +591,7 @@ export const ProviderConsentPanel: React.FC<{
         : undefined;
   return (
     <div className={className}>
-      {consent.isAccountKind && (
+      {consent.isAccountKind && !consent.facesFixed && (
         <fieldset className="mb-3">
           <legend className="block text-sm text-gray-700 mb-1">{t('connections.googleFaces')}</legend>
           <div className="flex flex-wrap gap-4">
@@ -599,7 +617,11 @@ export const ProviderConsentPanel: React.FC<{
         onClick={consent.start}
         disabled={reason !== undefined}
         aria-describedby={consentLineIds(consent.provider, linesId)}
-        className="text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+        className={
+          primary
+            ? 'min-h-[44px] px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
+            : 'text-sm px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50'
+        }
       >
         {words('connect')}
       </button>

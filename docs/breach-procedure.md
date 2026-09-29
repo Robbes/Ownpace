@@ -35,9 +35,17 @@ Persoonsgegevens (step 4) is due within 72 hours of it where feasible.
 ## 2. Keep the evidence
 
 Copy these off the machine, somewhere only you can read, before they age out. Keep the copies as
-private as the database: they hold what it holds.
+private as the database: they hold what it holds. Run them from live's checkout, `~/ownpace-live`.
+
+**Containers' output first, before any deploy, restart or recreate.** Docker keeps each
+container's output with the container and nowhere else (`json-file`, privacy §9), so a deploy,
+which recreates the app's and the site's containers, removes their output with them, and a task
+run's output went when its run ended. There is no copy in the host's journal to go back to.
 
 ```bash
+# Every service's output, while its container still stands (the stack's, then the website's):
+docker compose -f deploy/compose/managed.yml logs --no-color --timestamps > containers-$(date +%F).txt
+docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env logs --no-color --timestamps > site-$(date +%F).txt
 # The application's own errors and warnings, pruned after a month (0129 T3):
 docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate \
   -c "\copy (SELECT * FROM app_event) TO STDOUT WITH CSV HEADER" > app_event-$(date +%F).csv
@@ -46,8 +54,6 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
   -c "\copy (SELECT * FROM support_read) TO STDOUT WITH CSV HEADER" > support_read-$(date +%F).csv
 docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate \
   -c "\copy (SELECT * FROM platform_pause) TO STDOUT WITH CSV HEADER" > platform_pause-$(date +%F).csv
-# The containers' output, which the journal keeps for a month (the guide's prerequisites):
-journalctl -o cat --since "<the first day that matters>" > journal-$(date +%F).txt
 ```
 
 - **The audit log.** Under Support, **The log** ends with **Audit export**. Press **Download**

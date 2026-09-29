@@ -452,7 +452,11 @@ page shows the actor and the action (0129 T2), so *"who deleted my migration"* c
 without a database query.
 
 Proposed with it, for the owner to confirm (open question 4): the same for membership:
-`member.invited`, `member.role_changed`, `member.removed`.
+`member.invited`, `member.role_changed`, `member.removed`. The Team page's removal writes
+`member.removed` since 2026-09-29, for 0135 T8 rather than for this task: the removal deletes the
+member row, and the record is what keeps the daily run from removing a used sign-in account as one
+nobody let in. Its detail is `memberId`, `userId`, `role`, `status` and `via`, with no address.
+`member.invited` and `member.role_changed` are still proposed.
 
 Guard: one integration case per act, in the suites that already drive those routes
 (`migrations.integration.test.ts`, `connection-delete-revokes.integration.test.ts` and the
