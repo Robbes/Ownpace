@@ -1078,6 +1078,8 @@ reading a file drops off its entry by itself.
 
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
+- [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2, its first and smallest part: Trigger.dev's own database).
+- [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/trigger-cli-lib.sh`
@@ -3131,6 +3133,7 @@ Reads:
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
+- `deploy/compose/stand-up-live.sh`
 
 ### [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts)
 
@@ -3756,6 +3759,7 @@ Reads:
 - `apps/web/nginx.conf.template`
 - `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/managed.env.example`
+- `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www-nginx.conf`
 - `docs/managed-bring-up.md`
 - `site/legal/README.md`
