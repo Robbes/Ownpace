@@ -4,6 +4,60 @@
 
 ## Status — 2026-09-28 (update this block at the end of every session)
 
+**2026-09-28, night: the menu counts beside *Needs you* what waits (T3 (c); 0131 §6, R8 step 4,
+built beside R at the owner's word *"continue on the rest"*)**, in #1346, stacked on #1343.
+
+- **One count, counted one way** (`apps/web/src/services/needs-you.ts`). It is what the cards on
+  Migrations count, added up, and the organisation's own decisions about a new mailbox, which
+  no card claims:
+  - a card counts a migration's failures, deletions and moves waiting, and each data type whose
+    grace period ended while nobody chose;
+  - *Ready to switch* and the sharing checklist are not counted.
+- **The same read, under the same key**, as Migrations and the *Needs you* page, so the three
+  agree.
+- **The link keeps its name; the count is its description** (*3 waiting on you*). When the read
+  fails, or a queue could not be read, the menu shows `?` and says it could not count, never
+  nothing (hard rule 9). Nothing is shown while it loads, or at nought.
+- **Only a member's menu asks.** The appliance and an operator in no organisation ask nothing.
+- **Proved by:**
+  - `Layout.unit.test.tsx` (6 new cases);
+  - `managed-ui.ui.test.ts` in a real browser: *3 waiting on you*, as the link's description.
+
+  **Mutations:** with an unread count shown as nothing, two cases fail; with *Ready to switch*
+  counted, one fails.
+- **T3 is built** (#1341, #1343 and #1346), apart from what waits on 0154 T2: the progress line on
+  each data type, *Ready to switch*, and a check not yet run in a person's count.
+
+**2026-09-28, night: Migrations is the landing page, the Dashboard is gone, and the menu is the
+drawing's (T3's second half, with T6 (b)'s words; 0131 §6, R8 step 4, built beside R at the
+owner's word *"continue on the rest"*)**, in #1343, stacked on #1341.
+
+- **Sign-in lands on Migrations** (`Login`, `AuthCallback`, `Invitations`, and `/` itself). An old
+  `/dashboard` link redirects there, so a bookmark still lands. The Dashboard page, its test and
+  its 36 strings are gone: the top line of Migrations says what its tiles said, and its quick
+  actions were the page's own buttons. The last run of each migration is on the migration's own
+  page, and a failure that needs a person is in their card's count.
+- **A member's menu** is Migrations · Needs you · Accounts · Help · Team · Billing (D7).
+  - *Help* is the setup checklist and the setup guides, as two tabs of one entry (`HelpTabs`).
+    It opens on the checklist, and stays lit on the guides.
+  - The appliance keeps its menu, with T6 (b)'s *Needs you* for its decisions. An operator in no
+    organisation keeps the guides, the access queue and support.
+- **The words** follow the menu, in both languages, glossary first:
+  - *Accounts* on the Connections page and wherever a sentence named it;
+  - *Team* for *Tenants*;
+  - *Needs you* for the page. Its list of the organisation's own decisions keeps *Needs a
+    decision* as its heading, and its box of each migration's line is *Per migration*, so no
+    heading repeats the page's.
+- **Proved by:**
+  - `Layout.unit.test.tsx`: the member's menu in order, nothing of the old menu left, and *Help*
+    lit and naming the page on either tab;
+  - `HelpTabs.unit.test.tsx` (4 cases), and `AppRoutes.unit.test.tsx`: `/`, `/dashboard` and the
+    appliance-only addresses land on Migrations;
+  - `managed-ui.ui.test.ts` in a real browser: sign-in lands on Migrations with the drawing's
+    menu, and an old `/dashboard` link lands there too.
+- **Next:** the count beside *Needs you* in the menu (T3 (c)), which reads what waits on every
+  page.
+
 **2026-09-28, night: the Migrations page lists people (T3's first half, with T6's words; 0131
 §6, R8 step 4, built beside R at the owner's word *"continue on the rest"*)**, in #1341.
 
@@ -211,7 +265,7 @@ person, and a flow that fills it.
 | T0 The owner's words and the ADR | ✅ **Words decided 2026-09-28 (D6, D7); ADR-0050 accepted 2026-09-28 (#1327)** | §3. Dutch says *migratie*, never *verhuizing*. A person's card carries their name. *Accounts*, not *Connections*. The code says `person` (ADR-0050's amendment); `move` was its first name. |
 | T1 Four faults the audit found | 🟡 **(a) in #1315 and (d) in #1316, each proved by its guard; (b) and (c) proposed; all before the first invitation** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
-| T3 The Migrations page lists people | 🟡 **First half built: the page lists people, with T6's words (#1341). The landing page, the Dashboard's going and the menu are next; before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
+| T3 The Migrations page lists people | 🟡 **Built in two halves: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343). The menu counts beside *Needs you* what waits (#1346). The progress line and *Ready to switch* wait on 0154 T2. Before the first invitation** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
 | T4 *Start a migration*: who, from where, what, to where | 📋 **Proposed; before the first invitation** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | 📋 **Proposed; before the first invitation** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. |
 | T6 Words a family reads | 🟡 **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, before the first invitation** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |

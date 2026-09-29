@@ -16,7 +16,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router';
 import { useAuthStore } from './stores/auth-store.ts';
 import Layout from './components/Layout.tsx';
-import Dashboard from './pages/Dashboard.tsx';
 import Mappings from './pages/Mappings.tsx';
 import MappingDetail from './pages/MappingDetail.tsx';
 import CreateMapping from './pages/CreateMapping.tsx';
@@ -100,7 +99,7 @@ const ManagedOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
 /** An appliance-only screen; managed lands on its own home instead. */
 const SelfhostOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-  isSelfHost() ? <>{children}</> : <Navigate to="/dashboard" replace />;
+  isSelfHost() ? <>{children}</> : <Navigate to="/mappings" replace />;
 
 /**
  * WHERE `/` GOES, and the third door onto the same trap.
@@ -119,16 +118,20 @@ const SelfhostOnly: React.FC<{ children: React.ReactNode }> = ({ children }) =>
  *
  * The same axis the nav uses, and deliberately the same expression: an
  * operator with no organisation goes to the queue they came for; everybody
- * else goes where they always went. Nought is the only value that means
- * "nowhere yet" — several organisations with none chosen is not this
- * function's problem to solve, and sending those people to the dashboard is
- * what has always happened.
+ * else goes to Migrations. Nought is the only value that means "nowhere
+ * yet" — several organisations with none chosen is not this function's
+ * problem to solve, and they land on Migrations with everybody else.
+ *
+ * MIGRATIONS IS THE LANDING PAGE (0153 T3 (b), the owner's D7, 2026-09-28).
+ * It was the Dashboard, whose tiles counted what the Migrations page now
+ * says in its top line; `Login`, `AuthCallback` and `Invitations` land there
+ * too.
  */
 const Landing: React.FC = () => {
   const { operator, tenantCount } = useAuthStore();
   if (isSelfHost()) return <Navigate to="/confirm" replace />;
   if (tenantCount === 0 && operator) return <Navigate to="/access-requests" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/mappings" replace />;
 };
 
 const AppRoutes: React.FC = () => {
@@ -230,11 +233,15 @@ const AppRoutes: React.FC = () => {
             </SelfhostOnly>
           }
         />
+        {/* The Dashboard went (0153 T3 (b), the owner's D7: *"yes and
+            yes"*): Migrations is the landing page, and its top line says
+            what the tiles said. The address stays, so a bookmark or an old
+            mail's link still lands somewhere. */}
         <Route
           path="dashboard"
           element={
             <ManagedOnly>
-              <Dashboard />
+              <Navigate to="/mappings" replace />
             </ManagedOnly>
           }
         />

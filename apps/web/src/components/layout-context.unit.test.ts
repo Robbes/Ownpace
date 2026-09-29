@@ -18,7 +18,7 @@ import {
 } from './layout-context.ts';
 
 const SELFHOST_HREFS = ['/confirm', '/deletions', '/moves', '/failures', '/verify', '/finish', '/decisions'];
-const MANAGED_HREFS = ['/dashboard', '/mappings', '/decisions', '/tenants', '/billing'];
+const MANAGED_HREFS = ['/mappings', '/decisions', '/connections', '/setup', '/tenants', '/billing'];
 
 describe('mappingRouteContext', () => {
   it('parses screen and id from a per-mapping route', () => {
@@ -61,7 +61,7 @@ describe('activeNavHref', () => {
 
   it('keeps the plain prefix rule off mapping routes', () => {
     expect(activeNavHref('/deletions', SELFHOST_HREFS)).toBe('/deletions');
-    expect(activeNavHref('/dashboard', MANAGED_HREFS)).toBe('/dashboard');
+    expect(activeNavHref('/connections', MANAGED_HREFS)).toBe('/connections');
   });
 });
 
