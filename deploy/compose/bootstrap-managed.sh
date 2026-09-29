@@ -1104,6 +1104,16 @@ phase_data() {
     -f - <"${SCRIPT_DIR}/pgbouncer/setup-auth.sql" >/dev/null
   note "pgbouncer_auth role + user_lookup() present (idempotent)"
 
+  # QUERY STATISTICS (workplan 0143 T8). managed.yml preloads the library;
+  # this creates the extension that reads it, in the application's database.
+  # As the database owner, because pg_stat_statements is not an extension a
+  # plain role may create. Idempotent, like everything in this phase.
+  "${COMPOSE[@]}" exec -T postgres psql \
+    -v ON_ERROR_STOP=1 \
+    -U "${POSTGRES_USER:-openmigrate}" -d "${POSTGRES_DB:-openmigrate}" \
+    -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements' >/dev/null
+  note "pg_stat_statements present (idempotent)"
+
   # pgbouncer.ini's auth_dbname is a literal — compose mounts that file
   # verbatim, so it cannot read POSTGRES_DB. A mismatch does not fail at
   # start-up; it fails later, as an authentication error naming a database

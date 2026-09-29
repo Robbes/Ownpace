@@ -4,6 +4,40 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, night: T8 built, `pg_stat_statements` on (0143 §4: before T9, if it is ready)**;
+merged 2026-10-03, after session R's #1358, which changed `bootstrap-managed.sh` too (the moment
+the owner left to this session).
+
+- **What was open.** Nothing recorded what the database spends its time on. The statistics must
+  be loaded when postgres starts, so they belong in the service's command, not in a step a person
+  remembers before T9's sitting.
+- **Built:**
+  - `managed.yml`'s `postgres` service starts with `shared_preload_libraries=pg_stat_statements`
+    and `pg_stat_statements.track_utility=off`, so a password change (`rotate-db-passwords.sh`)
+    never reaches the view.
+  - `bootstrap-managed.sh` creates the extension as the database owner, in the application's
+    database, idempotently and stopping on an error. It does so in the **data phase**, right after
+    PgBouncer's lookup role, not in the app phase §3 named. The data phase is where the database's
+    own setup runs. It brings postgres up first (`up_wait postgres`, which recreates the container
+    when its command has changed), and the gate and live's deploy both run it (`--from data`).
+  - The operator runbook's *What the database spends its time on*: the ten statements with the
+    most total time, and the reset before a measured sitting.
+  - The appliance and PGlite are untouched.
+- **Proved:**
+  - `scripts/a-database-that-counts-its-queries.unit.test.ts` (6 cases, all failing on `main`):
+    the preload, utility statements left out, the data phase, only after postgres is up, as the
+    owner and stopping on an error, and the runbook's query.
+  - On a throwaway PostgreSQL 16 cluster with the same two settings (this machine has no Docker):
+    - the extension is created twice without an error;
+    - after a `CREATE ROLE … PASSWORD` and an `ALTER ROLE … PASSWORD`, no statement in the view
+      holds a password or a role statement;
+    - literal values read `$1`;
+    - the runbook's query answers, and so does the reset;
+    - without the preload, the view refuses in the sentence the runbook quotes.
+- **Not proved here:** that the `postgres:18-alpine` image ships the library, and the container's
+  recreation on the OTA stack. The gate's first run after the merge answers both, because the data
+  phase stops on an error, and a missing library would fail the bring-up.
+
 **2026-09-29, morning: the owner's answers.**
 
 - **Open question 9, the plane's limit:** *"Yes"*. Each stack's limit is the tick's cap plus two:
@@ -713,7 +747,7 @@ unproved until then:
 | T5 Every data type of a migration gets a turn in a pass | ✅ **done** in #1262, merged 2026-09-27: (c), small first, then a fair share of what is left — *was:* 📋 **Decided 2026-09-27: (c)** (open question 3) | §3. After the first invitation. It has to be built **before a tester with a large Microsoft 365 mailbox and more than mail ticked** is granted. Small data types go first, and each type gets a fair share of what is left. |
 | T6 Runs of organisations that are never invoiced | 🅿️ **Parked (trigger: the alpha runs past the 60-day run window, or its organisations carry on after it)** | §3. Nothing an alpha of a few weeks writes is old enough to prune, even with the rule changed. |
 | T7 What the task plane keeps, and for how long | 📋 **Proposed** | §3. After the first invitation, sooner if T9's runway is short. Registry clean-up on both planes, task-event and run-record retention, host image and build-cache pruning, and the ClickHouse volume the OTA stack left behind. |
-| T8 `pg_stat_statements` on | 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
+| T8 `pg_stat_statements` on | ✅ **Built 2026-09-29, merged 2026-10-03**, after #1358 (both change `bootstrap-managed.sh`): the preload with utility statements left out, the extension in the bring-up's data phase, and the runbook's query; proved by `a-database-that-counts-its-queries` (6 cases, all failing on `main`) and on a throwaway PostgreSQL 16 cluster — *was:* 📋 **Proposed** | §3. Before T9 if it is ready. Not a condition of the first invitation. Utility statements are not tracked, so a password change is never recorded. |
 | T9 One measured rehearsal of the alpha's shape | ✅ **The script done** in #1235, merged 2026-09-27 — *was:* 📋 Proposed. ⏳ **Owner** (the sitting) | §3. **Alpha minimum.** Twenty organisations × M migrations against the demo servers, on the OTA stack with live standing beside it, plus one large drive and one large mailbox of the owner's own. Memory, containers, pool waits, statements and disk are recorded for the whole machine. The numbers set T0's final values and the invite ceiling. |
 | T10 What the providers let every tester do together | 🔨 **Built 2026-09-29**, merged as #1363 (`7bcee5a`): Graph mail spends against the shared budget, a retried request gives its slot back, and the Drive and Google DAV faces wait out a 429 or Google's 403 once; the budget for the whole deployment and streaming mail bodies stay parked — *was:* 📋 **Proposed** | §3. After the first invitation. Graph mail joins the shared budget, and the Google Drive and Google DAV faces wait out a 429. 0141 hands this item to this plan. |
 
