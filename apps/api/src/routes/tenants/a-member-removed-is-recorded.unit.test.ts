@@ -26,6 +26,10 @@
  *   the strays duty sends finds the subject on the owner's connection, as the
  *   script reads it; as `app_user`, row security shows one organisation's
  *   rows at a time, which is why the script reads as the owner;
+ * - that statement gives each removal's time, the record's own `at`, in whole
+ *   seconds since 1970: the script keeps the account until 7 days after the
+ *   newest removal (0135 open question 13, answered 2026-09-29), and
+ *   `operator.sh leave` names the subject under the key the statement reads;
  * - a removal the route refuses records nothing;
  * - the removal and its record are one transaction: a record that cannot be
  *   written leaves the member in place.
@@ -167,6 +171,19 @@ describe('a member removed on the Team page is recorded', () => {
     const asTheOwner = (await rows(statement)).map((r) => Object.values(r)[0]);
     expect(asTheOwner).toContain(FORMER);
 
+    // Its second column is when, by the record's own `at`, in whole seconds
+    // since 1970: the script keeps the account until 7 days after the newest
+    // removal (0135 open question 13). Moved back 8 days, it reads 8 days ago,
+    // so it is the row's time and not the statement's.
+    const when = async () =>
+      (await rows(statement)).map((r) => Object.values(r)).filter(([subject]) => subject === FORMER).map(([, at]) => Number(at));
+    const [now] = await when();
+    expect(Number.isInteger(now), `the time is not whole seconds: ${String(now)}`).toBe(true);
+    expect(Math.abs(now! - Date.now() / 1000)).toBeLessThan(120);
+    await rows(`UPDATE audit_log SET at = at - interval '8 days' WHERE tenant_id = $1 AND action = 'member.removed'`, [TENANT]);
+    const [then] = await when();
+    expect(Math.abs(then! - (Date.now() / 1000 - 8 * 86_400))).toBeLessThan(120);
+
     // As `app_user`, row security shows one organisation's rows at a time,
     // and none of another's: a question across every organisation has to be
     // asked as the database's owner, which is how the script asks it.
@@ -180,6 +197,21 @@ describe('a member removed on the Team page is recorded', () => {
       await conn.query('ROLLBACK');
       await conn.release();
     }
+  });
+
+  it('and operator.sh leave names the subject under the key the statement reads it by', () => {
+    // `operator.sh leave` records its own removal (`removeMembership`,
+    // `scripts/operator.ts`), for a subject whose memberships it read by
+    // `user_id`. Without the subject where the statement looks, its removal
+    // would name nobody, and the account would be weighed as one nobody let in.
+    const key = /detail->>'(\w+)'/.exec(theStraysDutysStatement())?.[1];
+    expect(key, 'the statement reads no key of detail').toBe('userId');
+    const source = readFileSync(join(REPO, 'apps', 'api', 'src', 'scripts', 'operator.ts'), 'utf8');
+    const from = source.indexOf('async function removeMembership(');
+    expect(from, 'removeMembership is gone from operator.ts').toBeGreaterThan(-1);
+    const body = source.slice(from, source.indexOf('\n}\n', from));
+    expect(body).toContain('MEMBERSHIP_REMOVED_ACTION,');
+    expect(body).toMatch(new RegExp(`\\b${key!}: subject,`));
   });
 
   it('names the row it deleted, when the invitee signs in between the read and the delete', async () => {
