@@ -473,6 +473,74 @@ describe('Migrations Routes - Tenant Isolation', () => {
       expect(run.rows[0].mapping_id).toBeNull();
     });
 
+    it("takes its sharing list with it, and leaves the other migration's list as it was", async () => {
+      // THE LIST NO CASCADE REACHES (workplan 0139 T6; privacy §9,
+      // privacy-sharing-list (b)). `share_grant.mapping_id` has no foreign key
+      // (migration 0016), so the cascade the case above relies on never
+      // reached the sharing list, and the route left it behind until the
+      // organisation was erased. The route deletes it itself now, in the
+      // delete's own transaction, as `app_user` under row security; here on
+      // Postgres itself, beside the PGlite guard
+      // (`a-deleted-migration-takes-its-sharing-list.unit.test.ts`).
+      const goingId = '5a1b0000-e29b-41d4-a716-446655443621';
+      const stayingId = '5a1b0000-e29b-41d4-a716-446655443622';
+      const goingMailbox = '5a1b0000-e29b-41d4-a716-446655443623';
+      const stayingMailbox = '5a1b0000-e29b-41d4-a716-446655443624';
+      const lists = () =>
+        superuserPool.query<{ mapping_id: string; grant_hash: string; state: string }>(
+          'SELECT mapping_id, grant_hash, state FROM share_grant WHERE mapping_id IN ($1, $2) ORDER BY grant_hash',
+          [goingId, stayingId],
+        );
+
+      // Cleaned up BEFORE, for the reason the case above gives, and after.
+      const clean = async () => {
+        await superuserPool.query('DELETE FROM share_grant WHERE mapping_id IN ($1, $2)', [goingId, stayingId]);
+        await superuserPool.query('DELETE FROM mailbox_mapping WHERE id IN ($1, $2)', [goingId, stayingId]);
+        await superuserPool.query('DELETE FROM mailbox WHERE id IN ($1, $2)', [goingMailbox, stayingMailbox]);
+      };
+      await clean();
+      try {
+        for (const [box, id] of [[goingMailbox, goingId], [stayingMailbox, stayingId]]) {
+          await superuserPool.query(
+            `INSERT INTO mailbox (id, tenant_id, connection_id, display_name, kind)
+             VALUES ($1, $2, $3, 'Shared', 'user')`,
+            [box, MIG_TENANT_A, '5a1b0000-e29b-41d4-a716-446655443301'],
+          );
+          await superuserPool.query(
+            `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, mode)
+             VALUES ($1, $2, $3, $3, 'active', 'mirror')`,
+            [id, MIG_TENANT_A, box],
+          );
+        }
+        for (const [id, hash, state] of [
+          [goingId, 'going-open', 'open'],
+          [goingId, 'going-skipped', 'skipped'],
+          [stayingId, 'staying-open', 'open'],
+        ]) {
+          await superuserPool.query(
+            `INSERT INTO share_grant (tenant_id, mapping_id, grant_hash, subject, on_label, grantee, role, raw,
+                                      verdict, verdict_target, state, decided_by, decided_at)
+             VALUES ($1, $2, $3, 'owner@example.invalid', 'Photos', 'friend@example.invalid', 'writer', '{}',
+                     'clean', 'jmap', $4, $5, $6)`,
+            [MIG_TENANT_A, id, hash, state, state === 'open' ? null : 'pat', state === 'open' ? null : new Date()],
+          );
+        }
+        expect((await lists()).rows).toHaveLength(3);
+
+        const response = await request
+          .delete(`/api/migrations/${goingId}`)
+          .set('Authorization', `Bearer ${TOKEN_TENANT_A}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect((await lists()).rows, "the deleted migration's sharing list survived it").toEqual([
+          { mapping_id: stayingId, grant_hash: 'staying-open', state: 'open' },
+        ]);
+      } finally {
+        await clean();
+      }
+    });
+
     it('should prevent tenant B from deleting tenant A mapping (CROSS-TENANT TEST)', async () => {
       const response = await request
         .delete(`/api/migrations/${MIG_MAPPING_A}`)

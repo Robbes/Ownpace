@@ -1217,7 +1217,12 @@ describe('since: what was erased, closed, reopened or deleted after the copy, wr
       ('${M.kept}', '${T.trimmed}', '${BOX.kept}', 'active', NULL),
       ('${M.erased}', '${T.erased}', '${BOX.erased}', 'active', NULL);
     INSERT INTO person (id, tenant_id, display_name) VALUES
-      ('${P.gone}', '${T.trimmed}', 'Anna'), ('${P.kept}', '${T.trimmed}', 'Bob');`;
+      ('${P.gone}', '${T.trimmed}', 'Anna'), ('${P.kept}', '${T.trimmed}', 'Bob');
+    INSERT INTO share_grant (tenant_id, mapping_id, grant_hash, subject, on_label, grantee, role, raw, verdict, verdict_target) VALUES
+      ('${T.trimmed}', '${M.gone}', 'gone-1', 'someone@example.org', 'Photos', 'erin@example.test', 'writer', '{}', 'clean', 'jmap'),
+      ('${T.trimmed}', '${M.gone}', 'gone-2', 'someone@example.org', 'Recipes', 'frank@example.test', 'reader', '{}', 'manual', 'jmap'),
+      ('${T.trimmed}', '${M.withdrawn}', 'withdrawn-1', 'someone@example.org', 'Taxes', 'erin@example.test', 'reader', '{}', 'clean', 'jmap'),
+      ('${T.trimmed}', '${M.kept}', 'kept-1', 'someone@example.org', 'Holidays', 'frank@example.test', 'writer', '{}', 'clean', 'jmap');`;
 
   // What happened after it.
   const AFTER_THE_COPY = `
@@ -1238,6 +1243,7 @@ describe('since: what was erased, closed, reopened or deleted after the copy, wr
     DELETE FROM tenant_member WHERE tenant_id = '${T.erased}';
     DELETE FROM tenant WHERE id = '${T.erased}';
     DELETE FROM mailbox_mapping WHERE id = '${M.gone}';
+    DELETE FROM share_grant WHERE mapping_id = '${M.gone}';
     DELETE FROM connection WHERE id = '${C.gone}';
     UPDATE mailbox_mapping SET source_secret_ref = NULL, grant_withdrawn_at = now() - interval '30 minutes'
      WHERE id = '${M.withdrawn}';
@@ -1287,7 +1293,7 @@ describe('since: what was erased, closed, reopened or deleted after the copy, wr
       }
       expect(await rows(afterDb, 'SELECT (SELECT count(*) FROM tenant) AS t, (SELECT count(*) FROM connection) AS c')).toEqual(before);
       // Ids and dates, never a credential, a name or an address.
-      for (const secret of ['v1:a-credential-kept', 'v1:a-token-granted-through-a-link', 'anna@example.test', 'Trimmed since', 'Anna']) {
+      for (const secret of ['v1:a-credential-kept', 'v1:a-token-granted-through-a-link', 'anna@example.test', 'Trimmed since', 'Anna', 'erin@example.test', 'Holidays']) {
         expect(sql).not.toContain(secret);
       }
     },
@@ -1333,6 +1339,15 @@ describe('since: what was erased, closed, reopened or deleted after the copy, wr
       ]);
       const grant = `SELECT source_secret_ref, grant_withdrawn_at FROM mailbox_mapping WHERE id = '${M.withdrawn}'`;
       expect(await now(grant)).toEqual(await after(grant));
+      // The migration deleted again takes its sharing list with it, as its
+      // delete did (privacy §9, privacy-sharing-list (b)); the migrations kept
+      // keep theirs.
+      const lists = `SELECT mapping_id, grant_hash FROM share_grant WHERE tenant_id = '${T.trimmed}' ORDER BY grant_hash`;
+      expect(await now(lists), 'the sharing lists after the rollback are not those of the migrations still here').toEqual([
+        { mapping_id: M.kept, grant_hash: 'kept-1' },
+        { mapping_id: M.withdrawn, grant_hash: 'withdrawn-1' },
+      ]);
+      expect(await now(lists)).toEqual(await after(lists));
       expect(await now(`SELECT id FROM person WHERE tenant_id = '${T.trimmed}'`)).toEqual([{ id: P.kept }]);
       expect(await now(`SELECT user_id FROM tenant_member WHERE tenant_id = '${T.trimmed}'`)).toEqual([{ user_id: '100001' }]);
       // Untouched: what did not change, and what the restore took back (new since).

@@ -80,7 +80,9 @@ async function findMine(kind: string, ids: readonly string[]): Promise<Housekeep
 
 async function wipe(): Promise<void> {
   await pool.query(`DELETE FROM platform_operator WHERE user_id = ANY($1::text[])`, [MY_SUBJECTS]);
-  // `tenant` cascades to members, connections and everything else this file makes.
+  // `tenant` cascades to members, connections and everything else this file
+  // makes, but for a sharing list: `share_grant` has no foreign key.
+  await pool.query(`DELETE FROM share_grant WHERE tenant_id = ANY($1::uuid[])`, [MY_TENANTS]);
   await pool.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [MY_TENANTS]);
 }
 
@@ -154,6 +156,42 @@ describe('an organisation with nobody in it', () => {
       client.release();
     }
     expect(await findMine('empty-tenant', [EMPTY_TENANT])).toHaveLength(0);
+  });
+
+  it('takes with it a sharing list its deleted migrations left behind', async () => {
+    // THE LIST NO CASCADE REACHES (workplan 0139 T6; privacy §4.6 and §9,
+    // privacy-sharing-list (b)). `share_grant` has no foreign key, to the
+    // migration or to the organisation. A migration deleted before its delete
+    // took its list along left the list behind, and an organisation holding
+    // only such a list holds no migration, so this clean removes it; the
+    // erasure, which deletes the list by organisation, never runs for it. So
+    // the clean deletes the list in the same statement, or it stays forever.
+    await pool.query(`INSERT INTO tenant (id, name) VALUES ($1, $2)`, [EMPTY_TENANT, `${MARK} leftovers`]);
+    await pool.query(
+      `INSERT INTO share_grant (tenant_id, mapping_id, grant_hash, subject, on_label, grantee, role, raw,
+                                verdict, verdict_target)
+       VALUES ($1, '7a150000-e29b-41d4-a716-446655440031', 'left-1', 'drive_item', 'Photos',
+               'friend@example.invalid', 'writer', '{}', 'clean', 'jmap')`,
+      [EMPTY_TENANT],
+    );
+
+    const found = await findMine('empty-tenant', [EMPTY_TENANT]);
+    expect(found).toHaveLength(1);
+    const check = checkByKind('empty-tenant')!;
+    expect(check.clean!.can(found[0]!), 'a list with no migration is no work to keep').toBeNull();
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.current_tenant', $1, true)`, [EMPTY_TENANT]);
+      const { rowCount } = await client.query(check.clean!.sql, [EMPTY_TENANT]);
+      expect(rowCount, 'the clean must still report the one organisation it removed').toBe(1);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const { rows } = await pool.query(`SELECT grant_hash FROM share_grant WHERE tenant_id = $1`, [EMPTY_TENANT]);
+    expect(rows, 'the organisation went and its leftover sharing list stayed, for good').toEqual([]);
   });
 
   it('is found but refused when it holds work', async () => {
