@@ -1032,6 +1032,108 @@ describe('an explained disappearance takes no further part either', () => {
   });
 });
 
+describe('one move, one report, in a domain the end-of-pass reconciliation also reads', () => {
+  // Found 2026-09-29. The file domain runs BOTH move detectors: the item loop's
+  // direct comparison (`classifyKnownItem`), which catches a move that keeps
+  // its key, and the end-of-pass reconciliation (`detectPathKeyedMoves`),
+  // which catches one that changes it. A key-preserving move in that domain
+  // was seen by both on the same pass: the loop recorded and reported it, and
+  // the reconciliation then found the row absent from its old folder, read the
+  // move the loop had just written down, and reported it again. `moved: 2`,
+  // two identical entries, and a worker log line saying two items moved.
+  it('reports a move that KEEPS its key once, on every pass it is open', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('Work', [{ key: 'shared-key', body: 'BYTES', version: 'e1' }]);
+    w.folders.set('Photos', []);
+    const first = await w.run(ledger);
+    expect(first.created).toBe(1);
+
+    w.folders.set('Work', []);
+    w.folders.set('Photos', [{ key: 'shared-key', body: 'BYTES', version: 'e1' }]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(1);
+    expect(second.moves).toEqual([
+      { domain: 'file', naturalKeyHash: 'shared-key', from: 'Work', to: 'Photos' },
+    ]);
+    expect(second.drift, 'an explained move is not drift').toBe(0);
+
+    // Still open on the next pass, and still ONE report.
+    const third = await w.run(ledger);
+    expect(third.moved).toBe(1);
+    expect(third.moves).toEqual([
+      { domain: 'file', naturalKeyHash: 'shared-key', from: 'Work', to: 'Photos' },
+    ]);
+
+    // The row is right, and nothing on the target was written or removed.
+    const row = await ledger.find(TENANT, MAPPING, 'file', 'shared-key');
+    expect(row?.collection).toBe('Work');
+    expect(row?.movedToCollection).toBe('Photos');
+    expect(row?.movedToNaturalKeyHash).toBeUndefined();
+    expect([...w.target.keys()]).toEqual(['t/Work:shared-key']);
+
+    // And a decision quiets it on both paths.
+    expect(await ledger.resolveMove(TENANT, MAPPING, 'shared-key', 'keep')).toBe(true);
+    const fourth = await w.run(ledger);
+    expect(fourth.moved).toBe(0);
+    expect(fourth.moves).toEqual([]);
+  });
+
+  it('still reports a move that CHANGES its key once (ADR-0030 relocation)', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('Work', [{ key: 'Work/a.pdf', body: 'BYTES', version: 'e1' }]);
+    w.folders.set('Photos', []);
+    await w.run(ledger);
+
+    w.folders.set('Work', []);
+    w.folders.set('Photos', [{ key: 'Photos/a.pdf', body: 'BYTES', version: 'e1' }]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(1);
+    expect(second.moves).toEqual([
+      {
+        domain: 'file',
+        naturalKeyHash: 'Work/a.pdf',
+        from: 'Work',
+        to: 'Photos',
+        toNaturalKeyHash: 'Photos/a.pdf',
+      },
+    ]);
+
+    const third = await w.run(ledger);
+    expect(third.moved).toBe(1);
+    expect(third.moves.map((m) => m.naturalKeyHash)).toEqual(['Work/a.pdf']);
+  });
+
+  it('reports each once when both kinds happen on the same pass', async () => {
+    const ledger = new MemoryLedger();
+    const w = world('file');
+    w.folders.set('Work', [
+      { key: 'shared-key', body: 'KEPT', version: 'e1' },
+      { key: 'Work/a.pdf', body: 'RENAMED', version: 'e1' },
+    ]);
+    w.folders.set('Photos', []);
+    await w.run(ledger);
+
+    w.folders.set('Work', []);
+    w.folders.set('Photos', [
+      { key: 'shared-key', body: 'KEPT', version: 'e1' },
+      { key: 'Photos/a.pdf', body: 'RENAMED', version: 'e1' },
+    ]);
+
+    const second = await w.run(ledger);
+    expect(second.moved).toBe(2);
+    expect(
+      second.moves.map((m) => [m.naturalKeyHash, m.toNaturalKeyHash]).sort(),
+    ).toEqual([
+      ['Work/a.pdf', 'Photos/a.pdf'],
+      ['shared-key', undefined],
+    ]);
+  });
+});
+
 describe('the old path after an applied relocation', () => {
   it('migrates a NEW file that later occupies it', async () => {
     // The quiet, permanent loss the audit found. The file domain keys on the

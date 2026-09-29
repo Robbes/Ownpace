@@ -4,6 +4,34 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29: a move that keeps its key is reported once, not twice (found while testing #1384).**
+In the file domain `runDomainSync` runs both move detectors. The item loop saw an item listed in
+another folder under the same key, and `classifyKnownItem` returned `'moved'`, so the loop recorded
+and reported the move. Then the end-of-pass reconciliation (`detectPathKeyedMoves`) found the row
+absent from its old folder. It read the move the loop had just recorded and reported it again, so
+the result showed `moved: 2` with two identical entries. That doubled count reached the pass's
+stats, the worker's "N item(s) are now in a different source" line and the pass's own `[sync]` warning. The
+moves queue was never wrong: the ledger holds one row, and the second `recordMove` wrote the same
+values. The issue first blamed the reconciliation's content-matching branch, but a probe
+showed the second report came from its remembered-move branch. A key-preserving move creates
+nothing, so the matching branch has nothing to match it with.
+
+- **What changed.** The loop keeps the keys it classified `'moved'` this pass (`movedByTheLoop`),
+  and the reconciliation leaves those rows alone. A move that changes the key (ADR-0030) never
+  reaches the loop as the old row, so it is reported by the reconciliation once, as before. The
+  comment saying a same-key arrival is impossible now gives the real reasons. Nothing touches the
+  target: this only removes a second report.
+- **Proved** by three cases in `packages/core/src/move-detection.unit.test.ts`, through the real
+  `runDomainSync` with the memory stores:
+  - a move that keeps its key is reported once on each pass it stays open, and once acknowledged,
+    no longer reported;
+  - a move that changes its key is reported once;
+  - both kinds on one pass are reported once each.
+
+  Two of the cases fail on `main` (`expected 2 to be 1`, `expected 3 to be 2`). #1384's guard in
+  `copied-items-asked-a-window-at-a-time.unit.test.ts` now expects `moved: 1` and fails on
+  `main` too.
+
 **2026-09-29, morning: the OTA stack's Nextcloud moves from SQLite to Postgres (the owner's
 decision).** The E2E (managed) gate went red on `main` twice, #222 and #223, and not because of any
 merged change. The demo Nextcloud (service `nextcloud`) answered HTTP 500 when asked for a new
