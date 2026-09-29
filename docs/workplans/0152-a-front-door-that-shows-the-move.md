@@ -24,7 +24,10 @@ session at the owner's word *"continue on the rest"*).**
   - *"nadat ze zijn verhuisd"* becomes *"nadat ze zijn overgestapt"*.
 
   The owner read them and approved them as written on 2026-09-29 (*"Yes"*), *migreer uw eigen
-  gegevens* in the footer and the home title included.
+  gegevens* in the footer and the home title included. Later that morning, asked again by session
+  M, the owner chose the other wording for those two: *"'neem uw gegevens'. Rest is ok"*. The
+  footer now says *neem uw gegevens mee, in uw eigen tempo* and the home page's title *Ownpace —
+  neem uw gegevens mee, in uw eigen tempo*.
 - **A guard** in `site/site.unit.test.ts` fails on `/verhui[sz]/i` in any Dutch page the build
   writes. The legal texts are excused by name: the privacy policy, the terms, and the Alpha
   conditions, which #1360 made a page of their own. They are 0139's, and still say *verhuizing*
