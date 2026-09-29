@@ -4,10 +4,49 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: where the Dropbox passes spend their time, and items already copied asked
+about a window at a time (T1)**, on branch
+`claude/mailbox-sync-errors-c2xsw2-copied-items-asked-a-window-at-a-time`, not merged. From the
+owner's readings on the OTA stack, counts and times only.
+
+- **Where the passes spend their time.** The four passes from 03:00 to 06:00: making folders
+  ready 0.0 minutes, listing Dropbox 0.3 minutes, the first new file 2.1, 2.6, 3.1 and 3.8
+  minutes in, items handled 6,706, 9,907, 13,042 and 15,725. By 07:00, 18,693 files and 173.7 GB
+  were copied, of the 55,245 files and 439.1 GB the start screen counted. The hours since #1340
+  reached the stack, at about 02:27 UTC, copied 12 to 34 GB each, where the hours before it
+  copied under 5 GB.
+- **Found.** The first new file came later on every pass, about 11 ms later for each file copied
+  before it. Dropbox has no change feed (0055 T3), so every pass lists every file the account
+  holds, and `runDomainSync` asked the ledger about each one with a `find` of its own: one
+  transaction each on a managed stack (`tenantScopedDb`). By the end of the first copy that would
+  be about 11 minutes of every pass, and the same on every pass after it.
+- **What changed.** `Ledger.findMany`, optional on the port, returns the rows that exist for a
+  list of keys, in one statement. The pass reads a collection's items a window of 500 at a time
+  (`ledgerReadAhead`) and uses the answer for one thing only. An item already copied, unchanged,
+  where it was, with no absence, reported deletion or move waiting to be written down, is counted
+  as skipped on the window's word (`quietSkip`). Every other item, a new one included, is asked
+  about with its own `find`, as before, so every write is still decided on a row read just before
+  it. A window that cannot be read leaves its items to their own `find`.
+- **Proved** by two tests:
+  - `packages/core/src/copied-items-asked-a-window-at-a-time.unit.test.ts` (19 cases), through
+    the real `runDomainSync` with the memory stores:
+    - 1,200 copied items are read in 3 windows, with no `find`;
+    - a new item, a changed one, a moved one and one counted absent are each still asked about
+      afresh and acted on;
+    - a stale window row is overruled by the fresh one;
+    - a window that fails, and a ledger without `findMany`, each fall back to one `find` per item.
+  - `packages/ledger/src/a-window-of-keys-in-one-read.unit.test.ts` (3 cases): `PgLedger.findMany`
+    on PGlite, row for row the same as `find`.
+
+  14 of 15 mutations caught. The survivor removes the early return for an empty list, which only
+  saves a statement, since an empty `IN` list matches nothing.
+- **What to expect once deployed:** the first new file about half a minute into a pass (the
+  listing), however many files are copied already. Each pass gets back the minutes it spent
+  asking about copied files: about 4 now, about 11 by the end of the first copy.
+
 **2026-09-29, morning: #1340 proven on the owner's migration, and the next wall on another: a
-folder made ready on every pass (T1)**, on branch
-`claude/mailbox-sync-errors-c2xsw2-a-folder-made-ready-once`, not merged. From the owner's
-readings on the OTA stack, counts and times only.
+folder made ready on every pass (T1)**, merged as #1379 (`40d6887`). From the owner's readings on
+the OTA stack, counts and times only.
 
 - **#1340 proven live.** Every Dropbox pass still runs its 50 minutes, since the first copy is not
   done, and each gets far further. Items handled per pass, before the fix reached the stack (20:30
