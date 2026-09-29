@@ -22,16 +22,17 @@
  * every new table), and the table's row security is FORCEd with a policy for
  * SELECT (an operator's own rows) and one for INSERT, and none for DELETE, so
  * even a grant would find no row to delete. The purge of closed organisations
- * deletes an erased organisation's rows: today as the owner, since every
- * Trigger.dev run still receives the owner's URL; after 0138 T3 step 2 as the
- * tasks' system role, `ownpace_system`, which that step's managed migration
- * grants `SELECT (tenant_id), DELETE` here and nothing more. It bypasses row
- * security, so it can delete by organisation, and it can read no other
- * column, so it can never pick a row by its age. A guard that said "no
- * migration grants DELETE on it" would have failed on that grant (a trial
- * merge, 2026-09-29) while meaning `app_user`; it says so now, and a second
- * holds every other grantee to the organisation column. So the 12-month prune
- * stays with the owner: `deploy/compose/support-read-prune.sh` deletes the
+ * deletes an erased organisation's rows: as the owner while `set-task-env.sh`
+ * uploads the owner's URL to Trigger.dev as `DATABASE_URL`; after 0138 T3 step
+ * 2 as the tasks' system role, `ownpace_system`, which that step's managed
+ * migration grants `SELECT (tenant_id), DELETE` here and nothing more. It
+ * bypasses row security, so it can delete by organisation, and it can read no
+ * other column, so it can never pick a row by its age; it could still delete
+ * every row with no organisation at once, and the purge is the only task that
+ * deletes here. A guard that said "no migration grants DELETE on it" would
+ * have failed on that grant (a trial merge, 2026-09-29) while meaning
+ * `app_user`; it says so now, and a second holds every other grantee to the
+ * organisation column. So the 12-month prune stays with the owner: `deploy/compose/support-read-prune.sh` deletes the
  * rows over the owner's connection, `psql` as `POSTGRES_USER` in the stack's
  * own database container, run daily by `box-duties.sh` with `--delete`.
  *
@@ -56,13 +57,20 @@
  *   - no migration lets `app_user` or `PUBLIC` delete from the log or change
  *     it, or gives it a DELETE policy; any other role a migration grants on it
  *     may read only `tenant_id`, and delete: it can purge by organisation and
- *     cannot pick a row by its age;
+ *     cannot pick a row by its age. A grant or a policy on the log that this
+ *     reading cannot parse fails (a `GRANTED BY` once made `app_user` read as
+ *     another role, and a quoted policy name with spaces was not read at all);
  *   - every place that says why this runs at the machine (the script, the
  *     duty, the runbook, the bring-up's duty row, 0139, `site/legal/README.md`
  *     and privacy §9's comment in both languages) names `app_user` as the role
- *     that cannot, and 0138 T3 step 2's system role as one that may, for the
- *     purge only; none says "the app cannot delete from this log", or calls
- *     the owner's "the one connection that may".
+ *     that cannot, 0138 T3 step 2's system role as one that can, for the
+ *     purge, and that its grant never picks a row by its age; none says "the
+ *     app cannot delete from this log", calls the owner's "the one connection
+ *     that may", or says the system role deletes only for the purge, which
+ *     its grant does not enforce;
+ *   - once `set-task-env.sh` no longer uploads `DATABASE_URL`, none of them
+ *     says a Trigger.dev run receives or holds the owner's URL: whichever of
+ *     0138 T3 step 2 and this lands second is red until the sentence goes.
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -281,27 +289,42 @@ describe('who may delete from the log: never app_user, and nobody by its age but
     return out;
   };
 
+  /** A role's name as a migration writes it: quotes dropped, `GROUP` (an old spelling) dropped, lower case. */
+  const roleName = (r: string): string =>
+    r
+      .replace(/^GROUP /i, '')
+      .replace(/"/g, '')
+      .toLowerCase();
+
   /**
    * Every GRANT of a privilege on `support_read`, by name or through `ALL
    * TABLES IN SCHEMA public`, one row per grantee: `GRANT <privileges> ON
-   * [TABLE] <tables> TO <grantees>`. A role granted to a role (`GRANT x TO y`)
-   * has no ON and is not one.
+   * [TABLE] <tables> TO <grantees> [WITH GRANT OPTION] [GRANTED BY <role>]`.
+   * A role granted to a role (`GRANT x TO y`) has no ON and is not one. A
+   * grantee this reading cannot take for one name is kept as it is, and the
+   * case below fails on it: a `GRANTED BY` it did not strip once read as the
+   * role `app_user granted by current_user`, which is not `app_user`.
    */
   const grants = statements.flatMap(({ f, s }) => {
-    const m = /^GRANT (.+?) ON (?:TABLE )?(.+?) TO (.+?)(?: WITH GRANT OPTION)?$/i.exec(s);
+    const m = /^GRANT (.+?) ON (?:TABLE )?(.+?) TO (.+?)(?: WITH GRANT OPTION)?(?: GRANTED BY (?:"[^"]+"|\S+))?$/i.exec(s);
     if (!m) return [];
     const [, privileges = '', tables = '', grantees = ''] = m;
+    const schemas = /^ALL TABLES IN SCHEMA (.+)$/i.exec(tables)?.[1];
     const onIt =
-      /^ALL TABLES IN SCHEMA public$/i.test(tables) ||
-      topLevel(tables).some((t) => /^(public\.)?support_read$/i.test(t.replace(/"/g, '')));
+      schemas !== undefined
+        ? topLevel(schemas).some((x) => roleName(x) === 'public')
+        : topLevel(tables).some((x) => /^(public\.)?support_read$/i.test(x.replace(/"/g, '')));
     if (!onIt) return [];
     return topLevel(grantees).map((grantee) => ({
       f,
       s,
-      grantee: grantee.replace(/"/g, '').toLowerCase(),
+      grantee: roleName(grantee),
       privileges: topLevel(privileges).map((p) => p.replace(/\s+/g, ' ').toUpperCase()),
     }));
   });
+
+  /** `CREATE POLICY <name> ON <table> …`, the name bare or quoted (a quoted one may hold spaces). */
+  const POLICY = /^CREATE POLICY (?:"(?:[^"]|"")+"|\S+) ON (?:ONLY )?(?:public\.)?"?support_read"?(?=\s|$)(.*)$/i;
 
   it('0009 revokes UPDATE and DELETE from app_user, and grants it SELECT and INSERT only', () => {
     const m = managed.find((x) => x.f.startsWith('0009_'));
@@ -316,18 +339,25 @@ describe('who may delete from the log: never app_user, and nobody by its age but
       grants.some((g) => g.grantee === 'app_user' && g.f.startsWith('0009_')),
       'no grant on support_read found at all: the reading no longer matches the migrations',
     ).toBe(true);
+    // A grantee that is not one name was not read: fail, rather than let it by as "another role".
+    for (const g of grants) expect(/^[a-z_][a-z0-9_$]*$/.test(g.grantee), `a grantee not read: "${g.grantee}" — ${g.f}: ${g.s}`).toBe(true);
     for (const g of grants.filter((x) => x.grantee === 'app_user' || x.grantee === 'public')) {
       for (const p of g.privileges) {
         expect(/^(DELETE|UPDATE|TRUNCATE|ALL)\b/.test(p), `${g.f}: ${g.s}`).toBe(false);
       }
     }
     for (const { f, s } of statements) {
-      const policy = /^CREATE POLICY \S+ ON (?:ONLY )?(?:public\.)?"?support_read"?\b(.*)$/i.exec(s);
+      if (!/^CREATE POLICY\b/i.test(s)) continue;
+      const policy = POLICY.exec(s);
+      // One on this log that the reading cannot parse fails, rather than passing unread.
+      expect(policy === null && /\bON (?:ONLY )?(?:public\.)?"?support_read"?(?=\s|$)/i.test(s), `a policy not read — ${f}: ${s}`).toBe(false);
       if (!policy) continue;
       // A policy with no FOR is FOR ALL.
       const cmd = /\bFOR (ALL|SELECT|INSERT|UPDATE|DELETE)\b/i.exec(policy[1] ?? '')?.[1]?.toUpperCase() ?? 'ALL';
       expect(['ALL', 'DELETE'].includes(cmd), `${f}: ${s}`).toBe(false);
     }
+    // Both of 0009's policies are read, so a pattern that reads none fails here.
+    expect(statements.filter(({ f, s }) => f.startsWith('0009_') && POLICY.test(s))).toHaveLength(2);
   });
 
   it('any other role a migration grants on it may read only its organisation column, and delete: it can purge an organisation, never pick a row by its age', () => {
@@ -344,6 +374,8 @@ describe('who may delete from the log: never app_user, and nobody by its age but
 });
 
 describe('every place that says why this runs at the machine says who else may delete', () => {
+  /** Its words on one line: a shell comment's `#` at a line's start goes, so a phrase split over two lines is still read. */
+  const prose = (text: string): string => text.replace(/\n[ \t]*#+[ \t]?/g, '\n').replace(/\s+/g, ' ');
   /** The passage, from its first words to what ends it; a passage that is not found fails. */
   const passage = (rel: string, from: string, to: RegExp): string => {
     const text = read(rel);
@@ -351,10 +383,10 @@ describe('every place that says why this runs at the machine says who else may d
     if (at < 0) throw new Error(`${rel}: "${from}" is not there any more; this guard reads the passage that starts with it`);
     const rest = text.slice(at + from.length);
     const end = rest.search(to);
-    return `${from}${end < 0 ? rest : rest.slice(0, end)}`.replace(/\s+/g, ' ');
+    return prose(`${from}${end < 0 ? rest : rest.slice(0, end)}`);
   };
   const PLACES: Array<[string, string]> = [
-    [SCRIPT_REL, read(SCRIPT_REL).replace(/\s+/g, ' ')],
+    [SCRIPT_REL, prose(read(SCRIPT_REL))],
     ['deploy/compose/box-duties.sh', passage('deploy/compose/box-duties.sh', '#   searches ', /\n#\s*\n/)],
     ['docs/operator-runbook.md', passage('docs/operator-runbook.md', '## Searches and downloads on the support screens', /\n## /)],
     ['docs/managed-bring-up.md', passage('docs/managed-bring-up.md', '| `searches` |', /\n/)],
@@ -367,18 +399,39 @@ describe('every place that says why this runs at the machine says who else may d
     ['site/legal/privacy.nl.md', passage('site/legal/privacy.nl.md', '- Een zoekopdracht op adres en een download van het logboek', /\n\s*- /)],
   ];
 
-  it("names app_user as the role that cannot, and 0138 T3 step 2's system role as one that may, for the purge only", () => {
+  it("names app_user as the role that cannot, and 0138 T3 step 2's system role as one that can, for the purge, and never by a row's age", () => {
     for (const [rel, text] of PLACES) {
       expect(text, rel).toMatch(/`app_user`|\bapp_user\b/);
       expect(text, rel).toMatch(/0138 T3 step 2/);
       expect(text, rel).toMatch(/purge/i);
+      expect(text, rel).toMatch(/\bnever by (its |their |a row's )?age\b/i);
     }
   });
 
-  it("never says the app cannot delete from the log, or calls the owner's the one connection that may", () => {
+  it("never says the app cannot delete from the log, calls the owner's the one connection that may, or says what the system role's deletes are for as if its grant said it", () => {
     for (const [rel, text] of PLACES) {
       expect(text, rel).not.toMatch(/\bthe app (still )?cannot (delete from|change) (this|that|the) log\b/i);
       expect(text, rel).not.toMatch(/\bthe one connection that may\b/i);
+      // Its grant is `SELECT (tenant_id), DELETE`: it cannot pick a row by
+      // its age, and it can delete every row with no organisation at once.
+      // What its deletes are for is the purge's code, not the grant.
+      expect(text, rel).not.toMatch(/\bonly for (that|the) purge\b/i);
+    }
+  });
+
+  it("says a Trigger.dev run receives the owner's URL only while set-task-env.sh uploads it", () => {
+    // 0138 T3 step 2 uploads SYSTEM_DATABASE_URL in its place and deletes the
+    // owner's names. Whichever of that step and this lands second is red here
+    // until the sentence goes.
+    const upload = code(read('deploy/compose/set-task-env.sh'));
+    expect(upload, 'set-task-env.sh uploads neither the owner\'s URL nor the system role\'s: this reading no longer matches it').toMatch(
+      /^\s*(SYSTEM_)?DATABASE_URL:/m,
+    );
+    if (/^\s*DATABASE_URL:/m.test(upload)) return;
+    for (const [rel, text] of PLACES) {
+      expect(text, `${rel}: set-task-env.sh no longer uploads DATABASE_URL, so no Trigger.dev run receives the owner's URL; take the sentence out`).not.toMatch(
+        /\bTrigger\.dev runs? (still )?(receives?|holds?)\b/i,
+      );
     }
   });
 });

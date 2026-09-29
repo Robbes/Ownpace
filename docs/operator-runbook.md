@@ -829,17 +829,17 @@ and `INSERT` on it and revokes `UPDATE` and `DELETE`, and its row security is
 forced with no policy for `DELETE`. As `app_user`, a `DELETE` answers
 `permission denied for table support_read`. The purge of closed organisations
 deletes an erased organisation's rows; today it runs as the owner, since every
-Trigger.dev run still receives the owner's URL as `DATABASE_URL`. After 0138 T3
-step 2 it runs as the tasks' system role, `ownpace_system`, which may delete
-from this log only for that purge: its grant is `SELECT` on `tenant_id` and
-`DELETE`, so it can pick rows by organisation and never by their age. The
-12-month prune picks rows by age, so it stays here, at the machine, on the
-owner's connection. Forced row security applies to the table's owner too, so an
-owner that is neither a superuser nor `BYPASSRLS` would delete nothing and say
-"deleted 0" every day: before it counts or deletes, the script asks, in the same
-call, and stops with *"does not pass row security"* if not. Today's
-`POSTGRES_USER` is a superuser. It prints a count, never an operator, a query or
-an organisation.
+Trigger.dev run still receives the owner's URL as `DATABASE_URL`. 0138 T3 step 2
+moves it to the tasks' system role, `ownpace_system`, whose grant on this log is
+`SELECT` on `tenant_id` and `DELETE`: it can pick rows by organisation and never
+by their age (it could still delete every row with no organisation at once), and
+the purge is the only task that deletes here. The 12-month prune picks rows by
+age, so it stays here, at the machine, on the owner's connection. Forced row
+security applies to the table's owner too, so an owner that is neither a
+superuser nor `BYPASSRLS` would delete nothing and say "deleted 0" every day:
+before it counts or deletes, the script asks, in the same call, and stops with
+*"does not pass row security"* if not. Today's `POSTGRES_USER` is a superuser.
+It prints a count, never an operator, a query or an organisation.
 
 On live it runs once a day, as `--delete`, among the daily duties
 (`docs/managed-bring-up.md`, *Live's daily duties*), as the duty `searches`.

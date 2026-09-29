@@ -671,9 +671,12 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/box-duties.sh`
 
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
+- [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 
 ### `deploy/compose/check-env-agreement.sh`
 
@@ -985,6 +988,7 @@ reading a file drops off its entry by itself.
 - [a-knob-the-tasks-can-never-see](../scripts/a-knob-the-tasks-can-never-see.unit.test.ts) — A VARIABLE A TASK READS AND NOBODY UPLOADS.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
+- [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [a-value-two-parsers-read-differently](../scripts/a-value-two-parsers-read-differently.unit.test.ts) — One file, two parsers, and nothing checked that they agreed.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
@@ -2519,6 +2523,7 @@ A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
@@ -2715,6 +2720,7 @@ Reads:
 
 - `apps/worker/package.json`
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
@@ -3548,6 +3554,7 @@ Reads:
 - `deploy/compose/box-duties.sh`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.yml`
+- `deploy/compose/set-task-env.sh`
 - `deploy/compose/support-read-prune.sh`
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
@@ -4204,6 +4211,7 @@ ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1
 Reads:
 
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/box-duties.sh`
 - `deploy/compose/copy-before-update.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/env-read.sh`
