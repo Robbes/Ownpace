@@ -59,7 +59,7 @@ TRIGGER_SECRET_KEY=tr_prod_...
   questions across organisations need, and is not a superuser, may create no
   role or database, belongs to no role and has no role belonging to it, and
   holds the grants its statements need and no others, a grant to PUBLIC
-  counted among them (managed migration 0032; workplan 0138,
+  counted among them (managed migration 0033; workplan 0138,
   `docs/rls-guide.md`).
 
 ## Deploy

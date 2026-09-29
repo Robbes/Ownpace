@@ -26,7 +26,7 @@
  * key's pool of one. Those connect as `ownpace_system` now, a role that is not
  * a superuser, may not create roles or databases, belongs to no role, and
  * holds `BYPASSRLS` and the grants its statements need
- * (`packages/managed/migrations/0032_a_system_role_that_is_not_the_owner.sql`),
+ * (`packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql`),
  * under `SYSTEM_DATABASE_URL`. So no value the upload carries may be composed
  * from the owner's user or password, under any name, and neither of the names
  * the owner went up under may go up again.
@@ -99,7 +99,7 @@ const OWNER_NAMES: Record<string, string> = {
   DIRECT_DATABASE_URL: 'T3 step 1: no task reads it, and no task runs migrations',
 };
 
-/** The role the jobs across organisations connect as (managed migration 0032), and its password in `.env`. */
+/** The role the jobs across organisations connect as (managed migration 0033), and its password in `.env`. */
 const SYSTEM_ROLE = 'ownpace_system';
 const SYSTEM_PASSWORD = 'SYSTEM_DB_PASSWORD';
 

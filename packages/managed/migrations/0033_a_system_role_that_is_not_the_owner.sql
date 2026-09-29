@@ -90,7 +90,8 @@
 --   offboarding.ts`), so the role reads nobody's mail ledger, audit trail,
 --   decisions, members, budgets, VAT log, or the people being moved and
 --   which migration is whose (`person`, `person_migration`, managed
---   migration 0031).
+--   migration 0031), or who accepted which texts (`legal_acceptance`,
+--   managed migration 0032).
 --   The rest, each for its one job: the hold and the beat (the tick); the
 --   invoices' period and status (retention) and their detaching, with the
 --   buyer's name (the purge); declined access requests by their decision
@@ -181,7 +182,8 @@ GRANT SELECT (tenant_id), DELETE ON TABLE
   public.byte_budget,
   public.support_read,
   public.person_migration,
-  public.person
+  public.person,
+  public.legal_acceptance
   TO ownpace_system;
 -- The buyer's name, which the purge stamps on the invoices it keeps.
 GRANT SELECT (tenant_id, name), DELETE ON TABLE public.billing_party TO ownpace_system;

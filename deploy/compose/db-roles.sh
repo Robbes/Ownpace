@@ -40,7 +40,7 @@
 #       pooler: 0, 1 (one refuses) or 2 (one could not be asked).
 #
 # THE SYSTEM ROLE (workplan 0138 T3 step 2). `ownpace_system`, by the name
-# managed migration 0032 creates it under, which is not .env's to choose: the
+# managed migration 0033 creates it under, which is not .env's to choose: the
 # migration grants to it by name. The Trigger.dev jobs that span organisations
 # (the sync tick, retention, the purge), the split jobs' list and every task's
 # audit key connect as it through SYSTEM_DATABASE_URL, which set-task-env.sh
@@ -119,7 +119,7 @@ ALTER ROLE :"owner_role" PASSWORD :'owner_pw';
 COMMIT;
 SQL
 
-# The system role's name: managed migration 0032's, never .env's.
+# The system role's name: managed migration 0033's, never .env's.
 DB_ROLES_SYSTEM='ownpace_system'
 
 # The question db_roles_system_fit asks: one line, `|`-separated, in this
@@ -293,7 +293,7 @@ db_roles_system_fit() { # 0 fit, 1 unfit or missing, 2 could not ask
     return 2
   fi
   if [ -z "$out" ]; then
-    DB_ROLES_WHY="${DB_ROLES_SYSTEM} is not a role in this database: managed migration 0032 creates it, and the api applies the migrations when it starts (the app phase)"
+    DB_ROLES_WHY="${DB_ROLES_SYSTEM} is not a role in this database: managed migration 0033 creates it, and the api applies the migrations when it starts (the app phase)"
     return 1
   fi
   IFS='|' read -r super createrole createdb replication bypass login members held <<<"$out"

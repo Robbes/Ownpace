@@ -7,7 +7,7 @@
  * the purge of closed organisations), the split jobs' list of organisations
  * and every task's audit key connect as `ownpace_system`, the system role,
  * through `SYSTEM_DATABASE_URL`, which `deploy/compose/set-task-env.sh`
- * uploads to every run. Managed migration 0032 creates the role with
+ * uploads to every run. Managed migration 0033 creates the role with
  * `NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS` and no
  * password, and grants it the statements those jobs send and nothing more.
  *
@@ -64,7 +64,7 @@ const read = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'utf8')
 
 /** The role, as the migration names it. */
 const SYSTEM_ROLE = 'ownpace_system';
-const MIGRATION = 'packages/managed/migrations/0032_a_system_role_that_is_not_the_owner.sql';
+const MIGRATION = 'packages/managed/migrations/0033_a_system_role_that_is_not_the_owner.sql';
 
 const tempDirs: string[] = [];
 afterAll(() => {

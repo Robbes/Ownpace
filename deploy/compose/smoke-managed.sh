@@ -5686,7 +5686,7 @@ system_role="$(q "SELECT r.rolsuper || '|' || r.rolcreaterole || '|' || r.rolcre
 if [ "$system_role" = "false|false|false|false|true|true|0|0|0" ]; then
   echo "ownpace_system: no superuser, may create no role or database, does not replicate, BYPASSRLS, logs in, a member of no role and no role a member of it, no setting left on it"
 else
-  fail_at "ownpace_system is not the role managed migration 0032 made it: '${system_role:-<no such role>}' (superuser|createrole|createdb|replication|bypassrls|login|roles it belongs to|roles that belong to it|settings on it; expected false|false|false|false|true|true|0|0|0)"
+  fail_at "ownpace_system is not the role managed migration 0033 made it: '${system_role:-<no such role>}' (superuser|createrole|createdb|replication|bypassrls|login|roles it belongs to|roles that belong to it|settings on it; expected false|false|false|false|true|true|0|0|0)"
 fi
 tick_beat="$(q "SELECT CASE WHEN now() - beat_at < interval '5 minutes' THEN 'fresh' ELSE 'stale since ' || beat_at::text END FROM sync_tick_beat WHERE task = 'managed-sync-tick'" 2>&1 | tail -n1)"
 if [ "$tick_beat" = "fresh" ]; then

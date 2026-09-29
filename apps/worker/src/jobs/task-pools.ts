@@ -65,7 +65,7 @@
  *     time a line is written. On the tenant pool the read is refused, and the
  *     event is kept while its line is lost, every line. It is the API's
  *     `auditKeyPool` (`apps/api/src/index.ts`), in a task, on a role that is
- *     not a superuser: managed migration 0032 grants it `deployment_key`, and
+ *     not a superuser: managed migration 0033 grants it `deployment_key`, and
  *     it reads no organisation's rows here. Until 0138 T3 step 2 this was the
  *     owner, `DATABASE_URL`, a superuser, in every run.
  *

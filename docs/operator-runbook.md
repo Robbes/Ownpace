@@ -59,7 +59,7 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 
 ### The database roles (why there are three DB URLs)
 
-Migration `0001_baseline` creates a **non-owner `app_user`** role, and managed migration `0032`
+Migration `0001_baseline` creates a **non-owner `app_user`** role, and managed migration `0033`
 the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced through the first:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
@@ -86,7 +86,7 @@ the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced
   role row security binds reads no row), and the grants their statements need and no others (the
   migration lists them). **Never grant anything in this database to PUBLIC**: with `BYPASSRLS`, a
   grant to PUBLIC is a grant to this role, past row security, and the integration guard counts
-  it. Managed migration 0032 creates it with no password; `ensure-env-secrets.sh` generates
+  it. Managed migration 0033 creates it with no password; `ensure-env-secrets.sh` generates
   `SYSTEM_DB_PASSWORD` into `.env`, and the bring-up (`bootstrap-managed.sh`, its `tasks` phase)
   asks Postgres that the role is still what the migration made it, **refuses to go on** if it is
   a superuser, may create roles or databases, replicates, belongs to a role, has a role belonging
@@ -910,9 +910,8 @@ role every request runs as, cannot delete from this log: 0009 grants it `SELECT`
 and `INSERT` on it and revokes `UPDATE` and `DELETE`, and its row security is
 forced with no policy for `DELETE`. As `app_user`, a `DELETE` answers
 `permission denied for table support_read`. The purge of closed organisations
-deletes an erased organisation's rows; today it runs as the owner, since every
-Trigger.dev run still receives the owner's URL as `DATABASE_URL`. 0138 T3 step 2
-moves it to the tasks' system role, `ownpace_system`, whose grant on this log is
+deletes an erased organisation's rows; since 0138 T3 step 2 it runs as the
+tasks' system role, `ownpace_system`, whose grant on this log is
 `SELECT` on `tenant_id` and `DELETE`: it can pick rows by organisation and never
 by their age (it could still delete every row with no organisation at once), and
 the purge is the only task that deletes here. The 12-month prune picks rows by
@@ -1785,7 +1784,7 @@ steps for a tester's report. The items below are causes it points to.
   changed: the same phase sets `.env`'s value on the role and uploads the URL made from it.
   Retention and the purge of closed organisations connect with `SYSTEM_DATABASE_URL` alone, and a
   failure there naming *"permission denied for table …"* is a statement the system role was not
-  granted (managed migration 0032 lists what it was). A split job that fails with *"The list of
+  granted (managed migration 0033 lists what it was). A split job that fails with *"The list of
   organisations was asked on a connection that row security binds"* was handed a
   `SYSTEM_DATABASE_URL` whose role lacks `BYPASSRLS`, which the bring-up refuses before it uploads
   one.

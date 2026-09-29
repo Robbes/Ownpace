@@ -108,7 +108,7 @@
  *      read `SYSTEM_DATABASE_URL` and no other database URL: the system role,
  *      `ownpace_system`, which is not a superuser, may not create roles or
  *      databases, and holds `BYPASSRLS` and the grants its statements need
- *      (managed migration 0032). AT_THE_MACHINE: the operator's CLI and
+ *      (managed migration 0033). AT_THE_MACHINE: the operator's CLI and
  *      `direct-url.ts`, which never run in a task and may read the owner's
  *      URL for the person who runs them, and never read the system role's.
  *      No other file reads `SYSTEM_DATABASE_URL`. Until step 2 the four read

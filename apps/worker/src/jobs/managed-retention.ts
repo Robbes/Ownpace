@@ -16,7 +16,7 @@
  * trust boundary the sync tick documents: this is system-level housekeeping
  * over a table whose rows are already scoped by the runs they belong to. The
  * role bypasses row security, is not a superuser, and may delete what this
- * prunes and read what picks it (managed migration 0032); until step 2 this
+ * prunes and read what picks it (managed migration 0033); until step 2 this
  * was the owner's connection, a superuser.
  *
  * THE RUN PRUNE IS THE EXCEPTION, and it is partitioned deliberately (0121 T5).
@@ -53,7 +53,7 @@ import { pruneDeclinedAccessRequests } from '@openmig/managed';
 import { log, setAppEventSink, setAuditExportSink } from '@openmig/shared';
 
 // The system role, `ownpace_system`, which spans organisations and is not a
-// superuser (workplan 0138 T3 step 2; managed migration 0032 grants it what
+// superuser (workplan 0138 T3 step 2; managed migration 0033 grants it what
 // this job sends and nothing else). Never DATABASE_URL, the database owner,
 // which no run holds any more: there is no fallback to it.
 const SYSTEM_DATABASE_URL = process.env.SYSTEM_DATABASE_URL?.trim();

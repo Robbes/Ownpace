@@ -1783,7 +1783,7 @@ phase_app() {
 # purge), the split jobs' list of organisations and every task's audit key
 # connect as `ownpace_system` through SYSTEM_DATABASE_URL, which set-task-env.sh
 # uploads to the environment every run of every task receives. Managed
-# migration 0032 creates the role with no superuser bit, no right to create a
+# migration 0033 creates the role with no superuser bit, no right to create a
 # role or a database, BYPASSRLS, and no password; the api applies it when it
 # starts (the app phase), so it exists by now.
 #
@@ -1831,7 +1831,7 @@ system_role_ready() {
   db_roles_system_fit || rc=$?
   case "$rc" in
     0) ;;
-    1) die "REFUSED, before its password is set or its URL uploaded: ${DB_ROLES_WHY}. Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as managed migration 0032 made it (docs/managed-bring-up.md, 'The system role'), then run this again." ;;
+    1) die "REFUSED, before its password is set or its URL uploaded: ${DB_ROLES_WHY}. Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as managed migration 0033 made it (docs/managed-bring-up.md, 'The system role'), then run this again." ;;
     *) die "could not ask Postgres what ${DB_ROLES_SYSTEM} may do, so its URL is not uploaded: ${DB_ROLES_WHY}" ;;
   esac
   note "${DB_ROLES_SYSTEM}: no superuser, may create no role or database, a member of no role and no role a member of it, BYPASSRLS (workplan 0138 T3 step 2)"

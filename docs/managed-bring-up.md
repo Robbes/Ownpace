@@ -1993,7 +1993,7 @@ Open the sign-in page: the line is above the status link.
 **The system role first** (workplan 0138 T3 step 2). The Trigger.dev jobs that
 span organisations (the sync tick, retention, the purge of closed
 organisations), the split jobs' list of organisations and every task's audit
-key connect as `ownpace_system`, which managed migration 0032 creates (the api
+key connect as `ownpace_system`, which managed migration 0033 creates (the api
 applies it when it starts, in the `app` phase) with no password, no superuser
 bit, no right to create a role or a database, and `BYPASSRLS`. Before anything
 is uploaded, the phase asks Postgres what the role is now, and **refuses to go
@@ -3534,7 +3534,7 @@ database as the section below says, with that name.
 
 ### The system role
 
-`ownpace_system` (managed migration 0032, workplan 0138 T3 step 2) is what the
+`ownpace_system` (managed migration 0033, workplan 0138 T3 step 2) is what the
 jobs across organisations connect as: the one role besides the owner that row
 security does not bind, and **not a superuser**. The bring-up's `tasks` phase
 asks for it every run (phase 9, above). Two things can stop it:

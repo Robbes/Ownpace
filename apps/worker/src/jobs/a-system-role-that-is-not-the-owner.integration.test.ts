@@ -16,7 +16,7 @@
  * and `set-task-env.sh` put it in every run.
  *
  * They connect as `ownpace_system` now, through `SYSTEM_DATABASE_URL`. Managed
- * migration 0032 creates the role `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB
+ * migration 0033 creates the role `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB
  * NOREPLICATION BYPASSRLS` with no password (the bring-up sets it from `.env`)
  * and grants it the statements those jobs send and nothing else. `BYPASSRLS`
  * is what lets the jobs read across organisations at all: without it, with no
@@ -120,7 +120,7 @@ if (!PG_CONNECTION_STRING) {
   throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
 }
 
-/** The role, as managed migration 0032 names it. */
+/** The role, as managed migration 0033 names it. */
 const SYSTEM_ROLE = 'ownpace_system';
 
 /** Its password here: made at random, set by the owner, as the bring-up sets .env's. */
@@ -248,6 +248,8 @@ const EXPECTED: Record<string, readonly string[]> = {
   // their organisation: a name and an address the role never reads.
   person_migration: PURGED_ONLY(),
   person: PURGED_ONLY(),
+  // Who accepted which texts (workplan 0139 T3, managed 0032): in PURGED_TABLES since #1360.
+  legal_acceptance: PURGED_ONLY(),
 };
 
 /** What the role holds beyond tables: its schema's USAGE, and nothing else anywhere. */
@@ -319,7 +321,7 @@ describe('the role: no superuser, no role or database of its own, a member of no
     const [role] = await ownerRows<Record<string, boolean>>(sql`
       SELECT rolcanlogin, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls
         FROM pg_roles WHERE rolname = ${SYSTEM_ROLE}`);
-    expect(role, `${SYSTEM_ROLE} does not exist: managed migration 0032 creates it`).toEqual({
+    expect(role, `${SYSTEM_ROLE} does not exist: managed migration 0033 creates it`).toEqual({
       rolcanlogin: true,
       rolsuper: false,
       rolcreaterole: false,

@@ -221,7 +221,7 @@ ensure ZITADEL_ADMIN_PASSWORD 16
 # role the Trigger.dev jobs that span organisations connect as, which is not a
 # superuser. Generated here on the OTA stack and on live alike, and SAFE to
 # generate on a stack whose volume exists, unlike TRIGGER_DB_PASSWORD below:
-# managed migration 0032 creates the role with no password, and the bring-up
+# managed migration 0033 creates the role with no password, and the bring-up
 # (bootstrap-managed.sh, its `tasks` phase) sets this value on it with ALTER
 # ROLE on every run, so the volume never keeps an older one. The nightly gate
 # persists .env back after this script, so it is generated once per stack.

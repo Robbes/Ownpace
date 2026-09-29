@@ -50,7 +50,7 @@ set -euo pipefail
 #                          pooler, at the IN-NETWORK address: no superuser, no
 #                          role or database of its own, no membership either
 #                          way, BYPASSRLS, the grants its statements need
-#                          (managed migration 0032). The
+#                          (managed migration 0033). The
 #                          three scheduled jobs that span organisations whole
 #                          connect with it, the three split jobs read their
 #                          list of organisations with it, and the tasks read

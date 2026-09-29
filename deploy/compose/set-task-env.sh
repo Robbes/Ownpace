@@ -34,7 +34,7 @@
 #                        organisations need, and is not a superuser, may
 #                        create no role or database, and holds the grants its
 #                        statements need and no others (managed migration
-#                        0032; workplan 0138 T3 step 2).
+#                        0033; workplan 0138 T3 step 2).
 #   APP_DATABASE_URL   — the RLS-enforcing app_user role, same address. The
 #                        eight per-tenant tasks read and write tenant data
 #                        through it (workplan 0138 T1), so do the three split
@@ -230,7 +230,7 @@ fi
 # server-connection ceiling is concurrent-passes times up to twenty.
 # DB_HOST=postgres DB_PORT=5432 in .env is the rollback, same as the API's.
 TASK_APP_DATABASE_URL="postgresql://${APP_DB_USER:-app_user}:${APP_DB_PASSWORD:-app_password}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
-# The system role by the name managed migration 0032 creates it under, with no
+# The system role by the name managed migration 0033 creates it under, with no
 # default for its password: an empty one is refused above, and a default here
 # would be a password in a public repository.
 TASK_SYSTEM_DATABASE_URL="postgresql://ownpace_system:${SYSTEM_DB_PASSWORD}@${DB_HOST:-pgbouncer}:${DB_PORT:-6432}/${POSTGRES_DB:-openmigrate}"
@@ -259,7 +259,7 @@ if [ "$FORGET_OWNER_NAMES" -eq 0 ]; then
     1)
       echo "[set-task-env] REFUSED, nothing uploaded: ${DB_ROLES_WHY}." >&2
       echo "[set-task-env] Every run of every task would receive this role's URL (workplan 0138 T3 step 2). Put it back as" >&2
-      echo "[set-task-env] managed migration 0032 made it (docs/managed-bring-up.md, 'The system role'), then run this again." >&2
+      echo "[set-task-env] managed migration 0033 made it (docs/managed-bring-up.md, 'The system role'), then run this again." >&2
       exit 1
       ;;
     *)

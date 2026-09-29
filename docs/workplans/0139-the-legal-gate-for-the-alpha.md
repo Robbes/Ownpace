@@ -291,9 +291,9 @@ owner's connection, … Not built."* Nothing has run on a machine.
     role from doing it.
   - *The owner's URL sentence had nothing making it go.* The script's header and the runbook say
     every Trigger.dev run is given the owner's URL as `DATABASE_URL`, true on `main` today and false
-    once #1358's `set-task-env.sh` uploads `SYSTEM_DATABASE_URL` instead. A new case, *says a
-    Trigger.dev run receives the owner's URL only while set-task-env.sh uploads it*, reads that
-    script: whichever of #1358 and this branch lands second is red until the sentence goes. This
+    once #1358's `set-task-env.sh` uploads `SYSTEM_DATABASE_URL` instead. A new case in
+    `a-search-kept-past-its-year` (the owner's URL, only while `set-task-env.sh` uploads it) reads
+    that script: whichever of #1358 and this branch lands second is red until the sentence goes. This
     entry says it in the past tense, with the date. The script's inline comment and the privacy
     comments are re-wrapped.
 - **Proved.** Guard first: 1 of 17 red on this branch (the new *never says …* phrase) and 2 of 17 on
