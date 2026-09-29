@@ -700,9 +700,10 @@ export function tenantThrottleLimiter(
    * the first one came to be missing.
    */
   tenantId: string,
-  storedThrottle: Partial<import('@openmig/shared').ThrottleConfig> | null | undefined,
+  stored: Partial<import('@openmig/shared').ThrottleConfig> | null | undefined,
   throttleConfigMapping: ThrottleConfigMapping = {},
 ): ReturnType<typeof createThrottleLimiterFromMapping> {
+  const storedThrottle = operatorsThrottle(stored);
   const sharedBudget = new PgRateBudget(db, {
     tenantId,
     requestsPerSecond:
@@ -711,6 +712,32 @@ export function tenantThrottleLimiter(
   return storedThrottle
     ? createThrottleLimiterFromMapping({ mapping: storedThrottle }, {}, sharedBudget)
     : createThrottleLimiterFromMapping(throttleConfigMapping, {}, sharedBudget);
+}
+
+/**
+ * A stored throttle, held to the operator's defaults (workplan 0143 T2c).
+ *
+ * The managed doors no longer take a `throttleConfig` from the organisation,
+ * but a row written before they refused it may still carry one. Its
+ * `requestsPerSecond` and `maxConcurrent` can lower the defaults, never raise
+ * them: those spend a budget every organisation shares. Everything else in it
+ * reads as stored; the download ceiling is `imapDownloadPlan`'s to hold.
+ */
+export function operatorsThrottle(
+  stored: Partial<import('@openmig/shared').ThrottleConfig> | null | undefined,
+): Partial<import('@openmig/shared').ThrottleConfig> | null | undefined {
+  if (!stored) return stored;
+  return {
+    ...stored,
+    requestsPerSecond: Math.min(
+      stored.requestsPerSecond ?? DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
+      DEFAULT_THROTTLE_CONFIG.requestsPerSecond,
+    ),
+    maxConcurrent: Math.min(
+      stored.maxConcurrent ?? DEFAULT_THROTTLE_CONFIG.maxConcurrent,
+      DEFAULT_THROTTLE_CONFIG.maxConcurrent,
+    ),
+  };
 }
 
 /**
