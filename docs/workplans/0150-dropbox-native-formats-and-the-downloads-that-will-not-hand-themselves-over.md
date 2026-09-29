@@ -4,10 +4,48 @@
 
 ## Status — 2026-09-29 (update this block at the end of every session)
 
+**2026-09-29, morning: the OTA stack's Nextcloud moves from SQLite to Postgres (the owner's
+decision).** The E2E (managed) gate went red on `main` twice, #222 and #223, and not because of any
+merged change. The demo Nextcloud (service `nextcloud`) answered HTTP 500 when asked for a new
+calendar object and for a DELETE. Its own log named the cause: *"SQLSTATE[HY000]: General error: 5
+database is locked"*.
+
+- **Why.** That Nextcloud keeps its database in SQLite (`SQLITE_DATABASE` in `managed.yml`), and
+  the owner's own migrations write into the same Nextcloud: the Dropbox one alone since this
+  plan's #1340, at 12 to 34 GB an hour. SQLite takes one writer at a time. Nextcloud 34 already
+  runs it in WAL mode, so reads never wait. But a request that read first and then wants to write
+  after another has written is refused at once, and Nextcloud writes a great deal for every file it
+  stores:
+  - the file's row;
+  - every parent folder up to the root;
+  - with no Redis configured, the file lock itself (`DBLockingProvider`).
+
+  So the gate's writes and the migrations' writes collided. The migrations' own uploads meet the
+  same refusal now and then; it is recorded as the target refusing the file and retried on the
+  next pass.
+- **Weighed.** Four ways were put to the owner:
+  1. pausing the migrations for every gate run, which costs up to a pass of copying each time and
+     leaves the migrations colliding with one another;
+  2. Nextcloud's file locks in Redis, which means fewer collisions, not none;
+  3. a Nextcloud of the gate's own;
+  4. Postgres, which removes the cause.
+
+  The owner chose Postgres: *"ok, we'll move to postgres."*
+- **Done by hand on the OTA stack**, while the migrations were paused and no gate run was active:
+  - a `nextcloud` role and database in the stack's Postgres;
+  - then Nextcloud's own converter, `occ db:convert-type -n --all-apps pgsql nextcloud postgres
+    nextcloud`, checked against its source (Nextcloud 34, `core/Command/Db/ConvertType.php`).
+    It holds the maintenance page while it copies, writes the new settings into `config.php`
+    only once the copy succeeded, and never changes the SQLite file;
+  - `config.php` copied beforehand, which is the whole way back until the migrations resume.
+- **Still open.** A fresh demo install still starts on SQLite. New installs should start on
+  Postgres without touching one that exists. The owner decides who takes it: it is the demo
+  stack's change, and `db-roles.sh` is being rewritten in #1358. Neither `copy-before-update.sh`
+  nor any other copy includes this Nextcloud's database, as none included its SQLite file.
+
 **2026-09-29, morning: where the Dropbox passes spend their time, and items already copied asked
-about a window at a time (T1)**, on branch
-`claude/mailbox-sync-errors-c2xsw2-copied-items-asked-a-window-at-a-time`, not merged. From the
-owner's readings on the OTA stack, counts and times only.
+about a window at a time (T1)**, merged as #1384 (`8674bbc`). From the owner's readings on the OTA
+stack, counts and times only.
 
 - **Where the passes spend their time.** The four passes from 03:00 to 06:00: making folders
   ready 0.0 minutes, listing Dropbox 0.3 minutes, the first new file 2.1, 2.6, 3.1 and 3.8
