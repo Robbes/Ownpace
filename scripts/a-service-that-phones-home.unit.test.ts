@@ -112,7 +112,8 @@
  *
  * And the demo's Stalwart (v0.16.10), which
  * `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
- * the OTA stack every night and in the self-host end-to-end run. In normal mode
+ * the OTA stack every night, in the self-host end-to-end run and on a
+ * developer's machine. In normal mode
  * it fetches its WebUI from `github.com/stalwartlabs/webui/releases/latest` on
  * first start and every 30 days, its spam-filter rules from
  * `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
@@ -122,8 +123,10 @@
  * database, not in its one-line file on disk, so switching it off is new
  * objects in the provisioning plan, and Stalwart settings written without
  * being run are how this repository's Stalwart went wrong before
- * (`docs/stalwart-integration-fix.md`). So they are named, pinned below, and
- * put to the owner rather than switched here.
+ * (`docs/stalwart-integration-fix.md`). So they are named and pinned below,
+ * and left on where it runs, as the owner preferred on 2026-09-29 (workplan
+ * 0139), never on live: `a-demo-on-a-real-address.unit.test.ts` holds the
+ * scripted bring-up to starting it only with `--with-demo`.
  *
  * WHAT THIS CANNOT SEE. A running container, or a machine's `.env`: live's own
  * `TRIGGER_IMAGE_TAG` would run another webapp than the default read here, which

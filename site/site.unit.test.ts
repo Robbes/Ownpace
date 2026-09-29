@@ -260,38 +260,30 @@ describe('both locales are complete', () => {
    * *verhuisd*, *verhuizen*.
    *
    * Asked of the built pages, so a page title from `build.mjs` counts as much as
-   * a sentence in `copy.mjs` or `pages/nl/`.
-   *
-   * THE LEGAL TEXTS ARE EXCUSED, by name and for one reason: they are the
-   * owner's and the lawyer's (0139), and chose *verhuizing* as the Alpha
-   * conditions' own word before D6. When they follow D6, their excuse fails
-   * below, so it cannot outlive its reason. The Alpha conditions joined them
-   * as a page of their own (0139 T3, #1360).
+   * a sentence in `copy.mjs` or `pages/nl/`. The legal texts are asked too: they
+   * were excused by name until they followed D6 (the owner, 2026-09-29), and
+   * nothing is excused now.
    */
-  const LEGAL_STILL_SAYING_VERHUIZING = ['nl/privacy.html', 'nl/voorwaarden.html', 'nl/alpha.html'];
-
   it('says no form of verhuizen on any Dutch page the site writes (0152 D6)', async () => {
     const { rendered } = (await import('./build.mjs')) as unknown as {
       rendered: Array<{ file: string; html: string }>;
     };
-    const dutch = rendered.filter((p) => p.file.startsWith('nl/') && !LEGAL_STILL_SAYING_VERHUIZING.includes(p.file));
-    // Vacuity: the home page, how it works, pricing, the estimate and the 404.
+    const dutch = rendered.filter((p) => p.file.startsWith('nl/'));
+    // Vacuity: the home page, how it works, pricing, the estimate, and the
+    // three legal texts that said it longest.
     expect(dutch.map((p) => p.file)).toEqual(
-      expect.arrayContaining(['nl/index.html', 'nl/hoe-het-werkt.html', 'nl/prijzen.html', 'nl/schatting.html']),
+      expect.arrayContaining([
+        'nl/index.html',
+        'nl/hoe-het-werkt.html',
+        'nl/prijzen.html',
+        'nl/schatting.html',
+        'nl/privacy.html',
+        'nl/voorwaarden.html',
+        'nl/alpha.html',
+      ]),
     );
     for (const page of dutch) {
       expect(page.html.match(/\S*verhui[sz]\S*/gi) ?? [], `${page.file} says a form of verhuizen`).toEqual([]);
-    }
-  });
-
-  it('excuses only legal texts that still say verhuizing', async () => {
-    const { rendered } = (await import('./build.mjs')) as unknown as {
-      rendered: Array<{ file: string; html: string }>;
-    };
-    for (const file of LEGAL_STILL_SAYING_VERHUIZING) {
-      const page = rendered.find((p) => p.file === file);
-      expect(page, `${file} is excused and not built`).toBeDefined();
-      expect(page!.html, `${file} no longer says verhuizing: take it off the list`).toMatch(/verhui[sz]/i);
     }
   });
 });

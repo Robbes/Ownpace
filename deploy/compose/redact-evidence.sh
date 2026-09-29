@@ -21,7 +21,9 @@
 #      (own-addresses.sh). They are not secrets, and they are not ours to
 #      publish: the gate runs on the owner's machine, and a curl that cannot reach Mailpit
 #      names the address it tried. A job-level mask hides them in the log and never in an
-#      artifact, which any signed-in account can download.
+#      artifact, which any signed-in account can download. The same program replaces an
+#      nginx access line's last field, the visitor's own address NetBird passes on, with
+#      <client-ip> (ops-trust-proxy (b)): a person's address, and nobody's to publish.
 #   3. **By shape**, for connection strings and token-looking strings. This
 #      catches the passwords we could NOT name — a value set directly in the
 #      Trigger.dev dashboard, or one that arrived through a container's own
@@ -64,10 +66,11 @@ if [ -f "$ENV_FILE" ]; then
   done < "$ENV_FILE"
 fi
 
-# --- pass 2: this machine's own addresses, and any on the mesh ---------------
+# --- pass 2: this machine's own addresses, any on the mesh, and visitors -----
 # Each value becomes the key that holds it (`<MAILPIT_BIND>`), so the line still
 # says which publish a failure was about; the range catches the peers no key
-# names. Run even without a .env: the range needs none.
+# names, and an access line's last field the visitor. Run even without a .env:
+# the range and the field need none.
 # A program sed refuses would end the script here, before pass 3, over an
 # upload that runs anyway: it is tried first, and the range alone stands in.
 own_program="$(own_address_sed "$ENV_FILE")"

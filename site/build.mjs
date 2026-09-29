@@ -910,7 +910,7 @@ const META = {
     alpha: ['Alpha conditions — Ownpace', 'The conditions for taking part in the Alpha of the managed Ownpace service.'],
   },
   nl: {
-    home: ['Ownpace — migreer uw gegevens in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
+    home: ['Ownpace — neem uw gegevens mee, in uw eigen tempo', 'Migreer uw e-mail, contacten, agenda en bestanden van Google of Microsoft naar een Europese aanbieder, doorlopend, en stap over wanneer u er klaar voor bent.'],
     how: ['Hoe het werkt — Ownpace', 'Hoe een migratie verloopt, van de eerste koppeling tot de overstap.'],
     pricing: ['Prijzen — Ownpace', 'Vijf pakketten, volledig gepubliceerd. Geprijsd op hoeveel migraties tegelijk lopen en hoeveel gegevens u hebt gemigreerd.'],
     calculator: ['Schat uw migratie — Ownpace', 'Vijf vragen, een indicatieve bandbreedte, en het pakket waar dat op uitkomt — afgeleid, nooit gekozen. Geen account, geen e-mail, niets wordt bewaard.'],

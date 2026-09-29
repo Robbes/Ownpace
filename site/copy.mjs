@@ -203,7 +203,7 @@ export const COPY = {
     },
     files: { home: 'index.html', how: 'hoe-het-werkt.html', pricing: 'prijzen.html', calculator: 'schatting.html', privacy: 'privacy.html', terms: 'voorwaarden.html', alpha: 'alpha.html' },
     skip: 'Naar de inhoud',
-    footerTag: 'migreer uw eigen gegevens, in uw eigen tempo.',
+    footerTag: 'neem uw gegevens mee, in uw eigen tempo.',
     footerOss:
       'Open source onder de Apache License 2.0. Draai het zelf, of laat ons het draaien.',
     footerStatus: 'Status',

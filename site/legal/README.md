@@ -219,7 +219,8 @@ comments still name them, to say what filled them.
   stays. The owner checks the machine with `docker info --format '{{.LoggingDriver}}'` and undoes
   the journald setting if it is there, and the journald step comes out of
   `docs/managed-bring-up.md`. **If the machine logs to journald** until then, the row is wrong
-  for that time.
+  for that time. (Since 2026-09-29, on the branch named under *To build or to do*, the step is
+  out and `stand-up-live.sh` refuses a machine whose driver is not `json-file` or `local`.)
 
 - `«SUPPORT_RETENTION»`: filled 2026-09-28 in privacy 1.2 (§9, the row *Support mail and problem
   reports*): until the question or problem is resolved, and then 6 months more. The owner chose
@@ -320,10 +321,10 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   that number differ: **a new number here is a text every tester accepts again, so change both in
   one commit.** **Nobody is asked while any text is a draft** (`LEGAL_DRAFTS`, review of
   2026-09-29): on live, asking starts with the release that carries the final texts (*To build or
-  to do*, below). The record is kept with the account and erased with it, and a member who leaves
-  keeps theirs until then (privacy §9's row; 0139 open question 4, the proposal until the owner
-  answers). Not built: Alpha conditions §11's *"your migrations carry on under the new conditions
-  only once you have accepted them"*, for after the Alpha.
+  to do*, below). The record is kept with the account and erased with it (0139 open question 4,
+  answered 2026-09-29: erased with the organisation), and a member who leaves keeps theirs until
+  then (privacy §9's row). Not built: Alpha conditions §11's *"your migrations carry on under the
+  new conditions only once you have accepted them"*, for after the Alpha.
 
 **To build or to do**, before the first invitation unless it says otherwise:
 
@@ -337,8 +338,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   (*"in which language"* / *"in welke taal"*), as does the screen. For the owner's review with
   the rest of the draft; if the owner prefers the sentence without it, the column goes instead
   (`legal_acceptance.language`, managed 0032).
-- *A member who leaves* (privacy §9's new row; 0139 open question 4): the acceptance record of a
-  member who is removed stays with the organisation until its data is erased. For the owner's
+- *A member who leaves* (privacy §9's new row; built with 0139 T3's review, and not covered by
+  open question 4's answer, which is about the record after an erasure): the acceptance record of
+  a member who is removed stays with the organisation until its data is erased. For the owner's
   review with the rest of the draft.
 
 - *Nothing uses your access after closing* (privacy §9, terms §11, Alpha conditions §10, the
@@ -402,10 +404,19 @@ a comment beside the sentence, in both languages, where the text rests on it. **
 - *Server logs until the part that wrote them is replaced* (privacy §9; ops-log-driver (a), the
   owner: *"needs checking"*): the owner runs `docker info --format '{{.LoggingDriver}}'` on the
   machine and undoes a journald setting if there is one; the journald step comes out of
-  `docs/managed-bring-up.md`.
+  `docs/managed-bring-up.md`. **Built** on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird` (0132's and 0139's
+  Status, 2026-09-28 and 2026-09-29), not merged: the journald step is out of the managed guides,
+  the breach procedure and the audit section read container output from Docker, not the journal,
+  and `stand-up-live.sh` refuses a machine whose driver is not `json-file` or `local`. **Still the
+  owner's:** the check on the machine now, and undoing a journald setting there.
 - *Visitors' IP addresses in our own logs* (privacy §4.5; ops-trust-proxy (b)): `TRUST_PROXY` in
   live's `.env`, and both nginx configurations (`apps/web/nginx.conf.template`,
-  `deploy/compose/www-nginx.conf`) recording the address NetBird passes on.
+  `deploy/compose/www-nginx.conf`) recording the address NetBird passes on. **Built** on the same
+  branch: both nginx logs record the header NetBird sets as a field of their own, last, without
+  believing it; live's `TRUST_PROXY` is 2 (3 if NetBird's cluster adds a hop), and
+  `stand-up-live.sh` refuses anything else; the managed gate's public log replaces that field
+  with `<client-ip>`. **Still to do:** 0132 T3 (d)'s check, one log line of each on live, once live
+  stands.
 - *Email and password only at the sign-in page* (privacy §4.4, §7, §8; ops-social-signin (a)):
   live's `.env` sets no `IDP_*` key.
 - *Telemetry off* (privacy §8's negative; ops-telemetry (a)): `TRIGGER_TELEMETRY_DISABLED` for
@@ -442,7 +453,11 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   `status.` and `www.ownpace.eu`, and no other NetBird sign-in (password or PIN) takes its place,
   so NetBird's log keeps no user ID for testers, as §7's row says. To check: from outside the
   NetBird network, a request to each of the four hosts is answered by the app, the sign-in
-  service, the status page or the website itself, not by NetBird's sign-in page.
+  service, the status page or the website itself, not by NetBird's sign-in page. **The check is
+  built** on the same branch: the exposure probe (0132 T3 (c)), dispatched on a GitHub-hosted
+  runner, asks each of the four and fails a redirect to NetBird's identity provider, NetBird's own
+  page, anything else that is not the service, and no answer. **Still the owner's:** the sign-in
+  switched off in NetBird on all four, then a dispatch of the probe that passes.
 - *VIES on live* (fact-vat (a)): `VIES_REQUESTER_MEMBER_STATE` and `VIES_REQUESTER_VAT_NUMBER` in
   live's `.env`.
 

@@ -633,6 +633,89 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     await l.page.close();
   });
 
+  it('starts a migration for Anna from her card, through six screens and one Start, to her page (0153 T4)', async () => {
+    // What the flow asks for, answered as the API would: Anna's saved mail
+    // account and a saved Soverin, what this deployment serves, and the
+    // create, the count and the start of one migration. Restored after, so no
+    // other case sees them.
+    const NEW = 'a0000000-0000-4000-8000-0000000000d9';
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const detail = {
+      id: NEW,
+      tenantId: TENANT,
+      name: 'Anna — example.nl to Soverin',
+      sourceType: 'imap',
+      targetType: 'soverin',
+      status: 'paused',
+      mode: 'mirror',
+      syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
+      sourceConfig: {},
+      targetConfig: {},
+      domainStatus: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const added: Record<string, unknown> = {
+      'GET /api/connections': {
+        connections: [
+          { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Anna mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl' } },
+          { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'anna@soverin.net' } },
+        ],
+      },
+      'GET /api/provider-accounts': {
+        google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' },
+        microsoft: { domains: ['email', 'calendar', 'contact', 'file', 'task'] },
+      },
+      'GET /api/provider-clients': { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' },
+      'POST /api/migrations': detail,
+      [`POST /api/people/${PERSON}/migrations`]: (FIXTURES['GET /api/people'] as { people: unknown[] }).people[0],
+      [`POST /api/migrations/${NEW}/discover`]: {},
+      [`GET /api/migrations/${NEW}`]: detail,
+      [`GET /api/migrations/${NEW}/discovery`]: {
+        mappingId: NEW,
+        discovered: true,
+        domains: [{ domain: 'email', collections: 12, items: 18734, bytes: 3_400_000_000, discoveredAt: at }],
+      },
+      'GET /api/scope-manifest': {
+        version: 'ui-smoke',
+        migrates: [{ item: 'Email', detail: 'Folders, flags and timestamps.' }],
+        partial: [],
+        doesNotMigrate: [],
+      },
+      [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
+    };
+    Object.assign(FIXTURES, added);
+    const missesBefore = apiMisses.length;
+    try {
+      const l = await open('/mappings');
+      const next = () => l.page.getByRole('button', { name: 'Next' }).click();
+      await l.page.getByRole('link', { name: 'Add a migration' }).click();
+      await l.page.waitForURL(`**/start?person=${PERSON}`, { timeout: 10_000 });
+      expect(await l.page.getByRole('radio', { name: 'Anna' }).isChecked()).toBe(true);
+      await next();
+      await l.page.getByRole('checkbox', { name: 'Another mail provider' }).check();
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'What moves?' }).waitFor({ timeout: 10_000 });
+      await next();
+      // The one saved account is the default: nothing to type.
+      await l.page.getByText('Connected as anna@example.nl').waitFor({ timeout: 10_000 });
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'Where does it go?' }).waitFor({ timeout: 10_000 });
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'Check, then start' }).waitFor({ timeout: 15_000 });
+      const start = l.page.getByRole('button', { name: 'Start', exact: true });
+      await expect.poll(() => start.isEnabled(), { timeout: 15_000 }).toBe(true);
+      await start.click();
+      await l.page.waitForURL(`**/people/${PERSON}`, { timeout: 15_000 });
+      expect(apiHits).toContain(`/api/migrations/${NEW}/start`);
+      expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
+      expectClean(l, 'Start a migration');
+      await l.page.close();
+    } finally {
+      for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
+
   it('sends an old /dashboard link to Migrations, so a bookmark still lands', async () => {
     const l = await open('/dashboard');
     await l.page.waitForURL((u) => u.pathname === '/mappings', { timeout: 10_000 });
@@ -640,6 +723,72 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
     expectClean(l, 'an old /dashboard link');
     await l.page.close();
   });
+});
+
+describe("the wizard's progress row (0153 T7 (f))", () => {
+  // The line between two steps was drawn absolutely from 4rem to the step's
+  // right edge, so it ran through every label longer than a word. Only a
+  // layout engine can see that: jsdom has no boxes. Measured at a laptop's
+  // width in both languages, where the labels show, and down to a phone's,
+  // where four of them do not fit and the row must still not push the page.
+  const cases = [
+    { locale: 'en', width: 1280 },
+    { locale: 'nl', width: 1280 },
+    { locale: 'nl', width: 768 },
+    { locale: 'nl', width: 640 },
+    { locale: 'nl', width: 360 },
+  ] as const;
+  // What the wizard's first step reads on opening, answered as an account
+  // with nothing saved yet. Removed after, so no other case sees them.
+  const wizardReads: Record<string, unknown> = {
+    'GET /api/connections': { connections: [] },
+    'GET /api/provider-accounts': { google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' } },
+    'GET /api/provider-clients': { google: 'deployment' },
+  };
+  for (const { locale, width } of cases) {
+    it(`draws the line between the labels, never through them (${locale}, ${width}px)`, async () => {
+      Object.assign(FIXTURES, wizardReads);
+      try {
+        const l = await open('/mappings/new', { locale });
+        await l.page.setViewportSize({ width, height: 800 });
+        await l.page.waitForSelector('[data-step-label]');
+
+        const boxes = async (selector: string) =>
+          l.page.$$eval(selector, (els) =>
+            els.map((el) => {
+              const r = el.getBoundingClientRect();
+              return { text: (el.textContent ?? '').trim(), left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+            }),
+          );
+        const labels = await boxes('[data-step-label]');
+        const lines = await boxes('[data-step-line]');
+        expect(labels).toHaveLength(4);
+        expect(lines, 'one line between each two steps').toHaveLength(3);
+        // Every step is still named to a screen reader where its label is not
+        // shown (wizard.step.*).
+        expect(labels.map((b) => b.text)).toEqual(
+          locale === 'nl' ? ['Bron', 'Doel', 'Migratie', 'Controleren'] : ['Source', 'Target', 'Migration', 'Review'],
+        );
+
+        for (const line of lines) {
+          expect(line.right - line.left, 'the line is drawn at all').toBeGreaterThan(0);
+          for (const label of labels) {
+            const crosses =
+              line.left < label.right && line.right > label.left && line.top < label.bottom && line.bottom > label.top;
+            expect(crosses, `the line crosses "${label.text}"`).toBe(false);
+          }
+        }
+        const overflow = await l.page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, 'the row pushes the page sideways').toBeLessThanOrEqual(0);
+        expectClean(l, `the wizard (${locale}, ${width}px)`);
+        await l.page.close();
+      } finally {
+        for (const key of Object.keys(wizardReads)) delete FIXTURES[key];
+      }
+    });
+  }
 });
 
 describe('the build stamp', () => {

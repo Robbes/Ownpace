@@ -158,6 +158,9 @@ const LIVE_ENV: Record<string, string> = {
   CORS_ORIGIN: 'https://app.ownpace.eu',
   WEB_URL: 'https://app.ownpace.eu',
   NODE_ENV: 'production',
+  // The proxies in front of live's api: NetBird's and the web container's
+  // nginx (the owner, 2026-09-28, ops-trust-proxy (b); workplan 0132 T3 (d)).
+  TRUST_PROXY: '2',
   ZITADEL_EXTERNALDOMAIN: 'id.ownpace.eu',
   ZITADEL_EXTERNALPORT: '443',
   ZITADEL_EXTERNALSECURE: 'true',
@@ -218,6 +221,12 @@ case "$1" in
   volume)
     [ "$2" = ls ] || exit 95
     cat "$STUB_STATE/volumes"
+    exit 0
+    ;;
+  info)
+    [ "$2" = --format ] && [ "$3" = '{{.LoggingDriver}}' ] || exit 90
+    [ -z "\${STUB_INFO_FAILS:-}" ] || { echo 'Error response from daemon: info failed' >&2; exit 1; }
+    echo "\${STUB_LOG_DRIVER:-json-file}"
     exit 0
     ;;
   network)
@@ -673,7 +682,7 @@ function expectNothingChanged(s: Stage, before: string, out: string, docker: 'no
   expect(deployLines(s)).toEqual([]);
   if (existsSync(s.envFile)) expect(envNow(s)).toBe(before);
   if (docker === 'none') expect(called(s, 'docker'), 'docker was called before the refusal').toEqual([]);
-  else expect(called(s, 'docker').filter((l) => !/^docker volume ls\b/.test(l))).toEqual([]);
+  else expect(called(s, 'docker').filter((l) => !/^docker (?:volume ls|info)\b/.test(l))).toEqual([]);
   expect(out).toContain('[stand-up-live] refused: ');
 }
 
@@ -931,6 +940,52 @@ describe('refused before anything changes: a live that stands, or is half-built'
   );
 });
 
+describe("the machine keeps a container's output with the container: Docker's default log driver (privacy §9; ops-log-driver (a))", () => {
+  it.each([['journald'], ['syslog'], ['fluentd']])(
+    'refused before anything changes: a daemon that writes to %s, which keeps it past the container',
+    (driver) => {
+      const s = stage();
+      const r = run(s, [], { STUB_LOG_DRIVER: driver });
+      expectRefused(s, r, "Docker's log driver", 'reads');
+      expect(r.out).toContain(driver);
+      expect(r.out).toContain('/etc/docker/daemon.json');
+      expect(r.out).toContain('sudo systemctl restart docker');
+      expect(called(s, 'docker')).toContain("docker info --format {{.LoggingDriver}}");
+    },
+    CASE_MS,
+  );
+
+  it(
+    'refused when the daemon does not say, which is never taken for the default',
+    () => {
+      const s = stage();
+      const r = run(s, [], { STUB_INFO_FAILS: '1' });
+      expectRefused(s, r, /docker info/, 'reads');
+    },
+    CASE_MS,
+  );
+
+  it.each([['json-file'], ['local']])(
+    'taken: %s',
+    (driver) => {
+      const s = stage();
+      expectPassed(run(s, [], { STUB_LOG_DRIVER: driver, STUB_TRIGGER_STOP: 'account' }), "Docker's log driver");
+    },
+    CASE_MS,
+  );
+});
+
+describe("live's TRUST_PROXY: the proxies in front of its api, 2, or 3 where NetBird's own cluster adds one (0132 T3 (d))", () => {
+  it(
+    "taken: 3, the value the bring-up's check names when NetBird's cluster adds a hop",
+    () => {
+      const s = stage({ env: { TRUST_PROXY: '3' } });
+      expectPassed(run(s, [], { STUB_TRIGGER_STOP: 'account' }), 'TRUST_PROXY');
+    },
+    CASE_MS,
+  );
+});
+
 describe("refused before anything changes: live's .env, key by key, never a value", () => {
   type Case = [string, Record<string, string | undefined>, string, string?];
   const CASES: Case[] = [
@@ -956,6 +1011,13 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ['ZITADEL_EXTERNALSECURE not true', { ZITADEL_EXTERNALSECURE: 'false' }, 'ZITADEL_EXTERNALSECURE'],
     ['ZITADEL_TLS_MODE not external', { ZITADEL_TLS_MODE: 'disabled' }, 'ZITADEL_TLS_MODE'],
     ['NODE_ENV not production', { NODE_ENV: 'development' }, 'NODE_ENV'],
+    ['TRUST_PROXY empty: the api would name the web container for every visitor', { TRUST_PROXY: '' }, 'TRUST_PROXY'],
+    ["TRUST_PROXY 1: the web container's nginx alone, so NetBird for every visitor", { TRUST_PROXY: '1' }, 'TRUST_PROXY'],
+    ["TRUST_PROXY true: every caller's own header believed", { TRUST_PROXY: 'true' }, 'TRUST_PROXY'],
+    // More than stand in front believes the leftmost entry, which the caller
+    // writes: `true` by another name (review, 2026-09-29).
+    ['TRUST_PROXY 4: one more than can stand in front, so the leftmost entry, the caller\'s own', { TRUST_PROXY: '4' }, 'TRUST_PROXY'],
+    ['TRUST_PROXY 22', { TRUST_PROXY: '22' }, 'TRUST_PROXY'],
     ['OWNPACE_REACHABLE_HOSTS set', { OWNPACE_REACHABLE_HOSTS: 'nextcloud' }, 'OWNPACE_REACHABLE_HOSTS', 'nextcloud'],
     ["the gate's placeholder Google client", { GOOGLE_OAUTH_CLIENT_ID: 'gate-google-q1' }, 'GOOGLE_OAUTH_CLIENT_ID', 'gate-google-q1'],
     ["the gate's placeholder Dropbox key", { DROPBOX_OAUTH_CLIENT_ID: 'gatedropboxappkey' }, 'DROPBOX_OAUTH_CLIENT_ID', 'gatedropboxappkey'],
@@ -1562,6 +1624,10 @@ describe('the first bring-up: the stops, the resume, the checks and the first lo
         'systemctl --user enable --now ownpace-box-duties.timer',
         `./deploy/compose/deploy-live.sh --dry-run ${TAG}`,
         'EXPOSURE_PROBE_LIVE_PORTS',
+        // Before the first invitation, the owner's (workplan 0139, item 8;
+        // 0132 T3 (d)): NetBird's sign-in off, and the visitor in the logs.
+        "NetBird's sign-in",
+        'name the visitor',
         'Status block',
       ]) {
         expect(third.out).toContain(step);

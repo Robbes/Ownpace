@@ -19,10 +19,13 @@
 #                         does NOT reach a file: an uploaded artifact, or a
 #                         log somebody pastes from their own shell.
 #   own_address_sed       a `sed -E` program that replaces each value with the
-#                         key that holds it (`<MAILPIT_BIND>`) and any address
-#                         in the mesh's range (100.64.0.0/10) with <mesh-ip>.
-#                         The range covers what a mask cannot know: another
-#                         peer's address in a container's access log.
+#                         key that holds it (`<MAILPIT_BIND>`), any address
+#                         in the mesh's range (100.64.0.0/10) with <mesh-ip>,
+#                         and an nginx access line's last field, the visitor's
+#                         own address, with <client-ip>. The range covers what
+#                         a mask cannot know: another peer's address in a
+#                         container's access log. The last field covers the
+#                         visitor, whom no key and no range names.
 #   --redact <env-file>   that program, as a filter from stdin to stdout.
 #   shown_origin          an origin when its host is loopback, and otherwise
 #                         the name of the key that holds it.
@@ -48,6 +51,23 @@ fi
 
 # The mesh's range, 100.64.0.0/10: what NetBird and Tailscale hand a peer.
 OWN_ADDRESSES_MESH_RE='\b100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
+
+# A VISITOR'S ADDRESS, in an access line of either nginx: the app's
+# (ownpace_combined, apps/web/nginx.conf.template) and the website's
+# (ownpace_site, www-nginx.conf) end each line with the X-Forwarded-For NetBird
+# passes on, the visitor's own public address (ops-trust-proxy (b), privacy
+# §4.5). It is in no key and not in the mesh's range, and explain_failure
+# prints the web container's log into the gate's public job log: most likely
+# the owner's own address, browsing the test stack (review, 2026-09-29). So the
+# field after the status, the size, the Referer and the User-Agent becomes
+# <client-ip>, whatever it holds, IPv4, IPv6 or a chain of them, and only the
+# `-` of a request without the header stays. nginx writes a `"` inside a field
+# as \x22, so a quoted field holds none. Only that last field: anything that
+# looks like an address elsewhere on the line, such as a browser's version
+# number, is left as it is.
+# scripts/a-visitor-every-log-called-netbird.unit.test.ts makes a line from
+# each file's own log_format and holds it to this.
+OWN_ADDRESSES_VISITOR_SED='s/( [0-9]{3} [0-9]+ "[^"]*" "[^"]*" )"(-[^"]+|[^"-][^"]*)"$/\1"<client-ip>"/'
 
 # The host of an origin: no scheme, no credentials, no path, no port, and an
 # IPv6 literal without its brackets.
@@ -147,7 +167,8 @@ own_address_masks() {
 }
 
 # own_address_sed <env-file> — a `sed -E` program: each value becomes the key
-# that holds it, then any address left in the mesh's range becomes <mesh-ip>.
+# that holds it, then any address left in the mesh's range becomes <mesh-ip>,
+# then an access line's visitor becomes <client-ip>.
 # Longest first, so a name is never cut by a shorter one inside it. A value is
 # matched whole where its ends are word characters: 192.0.2.10 is replaced and
 # 192.0.2.100 is not. GNU sed, for `\b`, as redact-evidence.sh already needs.
@@ -162,6 +183,7 @@ own_address_sed() {
     printf 's/%s%s%s/<%s>/g\n' "$pre" "$escaped" "$post" "$label"
   done <<<"$(own_addresses "${1:-}" | awk -F'\t' '{ print length($1) "\t" $0 }' | sort -rn | cut -f2-)"
   printf 's/%s/<mesh-ip>/g\n' "$OWN_ADDRESSES_MESH_RE"
+  printf '%s\n' "$OWN_ADDRESSES_VISITOR_SED"
 }
 
 # own_address_redact <env-file> — stdin to stdout, through that program. A
