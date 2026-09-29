@@ -61,10 +61,13 @@
 //    builders' refusal never reached a pass already running, and the close
 //    cancels only the runs whose row names the orchestrator's run, which this
 //    one's does not. So the pass asks the caller's `organisationIsOpen` before
-//    each item it hands the target, which is before each data type too: the
-//    item in flight when the close lands finishes and is recorded (rule 3),
-//    and no other item is read. The rest keep their NULL answer, UNASKED, as
-//    after a budget pause.
+//    each item it reads the target for: the item in flight when the close
+//    lands finishes and is recorded (rule 3), and no other item is read. The
+//    rest keep their NULL answer, UNASKED, as after a budget pause. Only
+//    before an item `needsTargetRead` says is read: the others are decided
+//    from the ledger alone, and a question before each of them would guard no
+//    read and cost a transaction apiece, on the appliance its one connection
+//    (the review of 2026-09-29).
 //
 //    The run row closes `cancelled`, the ledger's word for it, with
 //    `stoppedBecause: 'organisation_closed'` and the data type it stopped
@@ -80,6 +83,7 @@ import type {
 import { confirmEach, tally, type ConfirmationTally } from './confirmation-pass.ts';
 import {
   log,
+  needsTargetRead,
   type BudgetPause,
   type ByteBudgetState,
   type DiscoveryDomain,
@@ -209,8 +213,8 @@ export async function runConfirmationPass(args: {
   meter?: DownloadMeter;
   /**
    * Is the organisation still open? (rule 5, workplan 0139 T7) Asked before
-   * each item the pass hands the target. Absent means nobody asks: the
-   * appliance's one organisation is always open.
+   * each item the pass reads the target for, and before no other. Absent
+   * means nobody asks: the appliance's one organisation is always open.
    */
   organisationIsOpen?: OrganisationIsOpen;
 }): Promise<ConfirmationRunResult> {
@@ -280,20 +284,22 @@ export async function runConfirmationPass(args: {
   const isOpen = args.organisationIsOpen;
 
   /**
-   * One data type's rows, each handed on only while the organisation is open.
+   * One data type's rows, each one the target is read for handed on only while
+   * the organisation is open.
    *
    * Asked HERE, as the next row is pulled, because that is the moment before
    * the target is asked about it: `confirmEach` reads the target for a row
    * before it yields, so a question asked in the loop body below would come
    * after the read it means to prevent. The ledger's row is read first; the
-   * ledger is not the account.
+   * ledger is not the account. A row whose status `needsTargetRead` waives is
+   * decided from the ledger alone (`confirmFinding`), so it passes unasked.
    */
   async function* whileOpen(
     domain: DiscoveryDomain,
     rows: AsyncIterable<ConfirmableRowRef>,
   ): AsyncIterable<ConfirmableRowRef> {
     for await (const row of rows) {
-      if (isOpen && !(await isOpen())) {
+      if (isOpen && needsTargetRead(row.status) && !(await isOpen())) {
         stoppedBefore = domain;
         log.info(
           `[confirm] pass stopped before its next ${domain} item: this organisation was closed. ` +

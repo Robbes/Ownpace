@@ -22,6 +22,7 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
+import type { Pool } from 'pg';
 import { z } from 'zod';
 import { schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
@@ -52,6 +53,7 @@ const { tenant: pool } = openTaskPools();
 
 /** Mark the run terminal. One place, so done and failed cannot diverge on shape. */
 async function landRun(
+  pool: Pool,
   tenantId: string,
   runId: string,
   outcome:
@@ -70,74 +72,90 @@ async function landRun(
   });
 }
 
+/**
+ * The owner's Finish check over one migration: scan it, and land the outcome
+ * on the `verification_run` row the API opened.
+ *
+ * Its own function, on the pool it is handed, rather than inline in the task,
+ * so the guard of the close (`a-run-that-read-on-after-the-close.unit.test.ts`)
+ * runs THIS door over a ledger and closes the organisation while it reads,
+ * rather than reading this file for the line that hands the check over (the
+ * review of 2026-09-29, workplan 0139 T7). The task hands it the tenant pool.
+ */
+export async function verifyForTheOwner(
+  pool: Pool,
+  payload: z.infer<typeof VerificationJobSchema>,
+): Promise<{ runId: string; overallStatus: VerificationResult['overallStatus'] }> {
+  const { tenantId, mappingId, runId } = payload;
+  log.info(`[run-verification] ${mappingId}: scan starting (run ${runId})`);
+
+  try {
+    // Which domains the owner actually selected. The verify flags below
+    // come from here so a domain the mapping does not migrate reports
+    // SKIPPED ("your call, nobody checked") instead of NOT_VERIFIABLE
+    // (which blocks cutover) — and so this job never touches connector
+    // config for a domain the mapping does not have.
+    //
+    // A mail-deps build used to sit here too, consumed by NOTHING (built,
+    // closed, never passed on) — dead wiring that threw on any mapping
+    // whose source is not IMAP, found live on the DAV-only demo tenant
+    // (0018 T5, 2026-08-01).
+    const enabled = await enabledDomains(pool, tenantId, mappingId);
+    // And those its owner stopped (0128 T4, D6): skipped, *stopped by you*.
+    const stopped = await stoppedDomains(pool, tenantId, mappingId);
+
+    // One reindexer per domain (a domain with no reindexer reports
+    // NOT_VERIFIABLE rather than being measured against another domain's
+    // listing), and a ledger reader on this job's pool, each read in the
+    // tenant's scope (0138 T1 parts 2 and 3).
+    const targets = await buildTargetReindexers(pool, tenantId, mappingId);
+    const verificationReader = ledgerReaderFor(pool, tenantId);
+    let result: VerificationResult;
+    try {
+      result = await runVerification(
+        createRealVerificationDeps({
+          tenantId: asTenantId(tenantId),
+          mappingId: asMappingId(mappingId),
+          // The gate's own configuration, as the cutover asks it: the
+          // selected data types, less those their owner stopped.
+          config: verificationConfigFor(enabled, stopped),
+          verificationReader,
+          targetReindexers: targets.reindexers,
+          // Asked before each listing of a target and each sample it
+          // downloads (0139 T7): the readers were built before this run
+          // began, so a close while it runs is not seen by the builders.
+          // Once closed, the scan throws the close's own refusal, and the row
+          // below lands `failed` with it.
+          organisationIsOpen: organisationStillOpen(pool, tenantId),
+        }),
+      );
+    } finally {
+      await targets.close();
+      await verificationReader.close(); // leaves the job's pool open
+    }
+
+    // Keyed by mappingId: the contract's ByMapping shape with one key, the
+    // same one the appliance uses, so the UI iterates identically.
+    await landRun(pool, tenantId, runId, { state: 'done', report: { [mappingId]: result } });
+    log.info(
+      `[run-verification] ${mappingId}: ${result.overallStatus} ` +
+        `(score ${result.score.toFixed(3)}, ${result.totalDiscrepancies} discrepancies)`,
+    );
+    return { runId, overallStatus: result.overallStatus };
+  } catch (err) {
+    // The RUN failed — carried onto the row with its reason, never left
+    // 'running' forever and never silently dropped (hard rule 9). A domain
+    // that merely could not be read is NOT_VERIFIABLE inside a done report;
+    // this branch is the scan itself crashing.
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`[run-verification] ${mappingId}: scan failed: ${message}`);
+    await landRun(pool, tenantId, runId, { state: 'failed', error: message });
+    throw err;
+  }
+}
+
 export const runVerificationTask = schemaTask({
   id: 'run-verification',
   schema: VerificationJobSchema,
-  run: leavesAReference('run-verification', async (payload) => {
-    const { tenantId, mappingId, runId } = payload;
-    log.info(`[run-verification] ${mappingId}: scan starting (run ${runId})`);
-
-    try {
-      // Which domains the owner actually selected. The verify flags below
-      // come from here so a domain the mapping does not migrate reports
-      // SKIPPED ("your call, nobody checked") instead of NOT_VERIFIABLE
-      // (which blocks cutover) — and so this job never touches connector
-      // config for a domain the mapping does not have.
-      //
-      // A mail-deps build used to sit here too, consumed by NOTHING (built,
-      // closed, never passed on) — dead wiring that threw on any mapping
-      // whose source is not IMAP, found live on the DAV-only demo tenant
-      // (0018 T5, 2026-08-01).
-      const enabled = await enabledDomains(pool, tenantId, mappingId);
-      // And those its owner stopped (0128 T4, D6): skipped, *stopped by you*.
-      const stopped = await stoppedDomains(pool, tenantId, mappingId);
-
-      // One reindexer per domain (a domain with no reindexer reports
-      // NOT_VERIFIABLE rather than being measured against another domain's
-      // listing), and a ledger reader on this job's pool, each read in the
-      // tenant's scope (0138 T1 parts 2 and 3).
-      const targets = await buildTargetReindexers(pool, tenantId, mappingId);
-      const verificationReader = ledgerReaderFor(pool, tenantId);
-      let result: VerificationResult;
-      try {
-        result = await runVerification(
-          createRealVerificationDeps({
-            tenantId: asTenantId(tenantId),
-            mappingId: asMappingId(mappingId),
-            // The gate's own configuration, as the cutover asks it: the
-            // selected data types, less those their owner stopped.
-            config: verificationConfigFor(enabled, stopped),
-            verificationReader,
-            targetReindexers: targets.reindexers,
-            // Asked before each read of a target (0139 T7): the readers were
-            // built before this run began, so a close while it runs is not
-            // seen by the builders. Once closed, the scan throws the close's
-            // own refusal, and the row below lands `failed` with it.
-            organisationIsOpen: organisationStillOpen(pool, tenantId),
-          }),
-        );
-      } finally {
-        await targets.close();
-        await verificationReader.close(); // leaves the job's pool open
-      }
-
-      // Keyed by mappingId: the contract's ByMapping shape with one key, the
-      // same one the appliance uses, so the UI iterates identically.
-      await landRun(tenantId, runId, { state: 'done', report: { [mappingId]: result } });
-      log.info(
-        `[run-verification] ${mappingId}: ${result.overallStatus} ` +
-          `(score ${result.score.toFixed(3)}, ${result.totalDiscrepancies} discrepancies)`,
-      );
-      return { runId, overallStatus: result.overallStatus };
-    } catch (err) {
-      // The RUN failed — carried onto the row with its reason, never left
-      // 'running' forever and never silently dropped (hard rule 9). A domain
-      // that merely could not be read is NOT_VERIFIABLE inside a done report;
-      // this branch is the scan itself crashing.
-      const message = err instanceof Error ? err.message : String(err);
-      log.error(`[run-verification] ${mappingId}: scan failed: ${message}`);
-      await landRun(tenantId, runId, { state: 'failed', error: message });
-      throw err;
-    }
-  }),
+  run: leavesAReference('run-verification', async (payload) => verifyForTheOwner(pool, payload)),
 });

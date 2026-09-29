@@ -14,10 +14,14 @@
  * one. Each read on to its end with the stored access.
  *
  * So each asks, between its steps, whether its organisation is still open:
- * the verification before each read of a target (`runVerification`), the
- * confirmation before each data type and each item (`runConfirmationPass`),
- * the discovery before each collection (`discoverSource`). The read in flight
- * when the close lands finishes; nothing after it begins.
+ * the verification before each listing of a target (`runVerification`) and
+ * before each sample it downloads (`createRealVerificationDeps`), the
+ * confirmation before each item it reads the target for
+ * (`runConfirmationPass`), the discovery before each collection it lists
+ * (`discoverSource`). The step in flight when the close lands finishes, and
+ * no other begins. A step is a listing with all its pages, one download, or
+ * one item; a file source's walk of its folder tree (`listFolders`) comes
+ * before the discovery's first question, and runs to its end.
  *
  * The question is the CALLER's, because the answer lives in the ledger and
  * this package does not reach for one (`organisationStillOpen` in

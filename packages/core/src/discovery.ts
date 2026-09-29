@@ -62,6 +62,13 @@ export interface DiscoverOptions<F, I> {
    * answer is no, the count throws the close's own refusal: the listing in
    * flight finishes, no other collection is listed, and no partial count is
    * returned to stand for the whole. Absent means nobody asks.
+   *
+   * NOT asked during `listFolders`, which comes first. For a mailbox that is
+   * one listing of its folders; a file source walks its whole folder tree
+   * there, a request per folder (Google Drive, Box, Dropbox), and a close
+   * during that walk lets it run to its end before the first question stops
+   * the count (the review of 2026-09-29). Asking inside the walk is each
+   * connector's own change, and is not made.
    */
   readonly organisationIsOpen?: OrganisationIsOpen;
 }

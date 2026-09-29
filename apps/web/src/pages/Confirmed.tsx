@@ -337,6 +337,17 @@ function PassLine({
       </p>
     );
   }
+  if (p.state === 'stopped') {
+    // Stopped by the close of this organisation (workplan 0139 T7): not a
+    // failure, and not a finished check either. What it confirmed before the
+    // close stands, and the rest read unchecked, so it is dated by the moment
+    // it stopped and says why, in the page's own words.
+    return (
+      <p className="text-xs text-gray-500">
+        {t('confirmed.passStopped.closed')} {dateTime(p.finishedAt)}
+      </p>
+    );
+  }
   if (p.state === 'failed') {
     // A failed pass is not a result. Saying "checked at …" over a pass that
     // died would date a document by the moment it stopped being trustworthy.

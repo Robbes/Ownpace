@@ -13,31 +13,37 @@
  *
  *  - a verification (the owner's Finish check, and a cutover's gate) built one
  *    reader per data type before the close and then listed every target to
- *    the end, five listings per data type;
+ *    the end, five listings per data type, and downloaded its samples;
  *  - a confirmation built its readers before the close and then read every
  *    item's bytes off the target to the end;
  *  - a discovery listed every collection of the data type it was on.
  *
  * Each now asks whether its organisation is still open between its steps, on
- * the ledger, as the pass does: a verification before each read of a target,
- * a confirmation before each data type and before each item it asks the
- * target about, a discovery before each collection it lists. This file runs
- * the jobs' own code over a real ledger (PGlite) with the targets and sources
- * stood in, closes the organisation WHILE a target or source is being read,
- * and holds each run to one rule: **no read begins after the close.** The
- * read in flight when the close lands is allowed to finish; nothing after it
- * starts.
+ * the ledger, as the pass does: a verification before each listing of a
+ * target and before each sample it downloads, a confirmation before each item
+ * it reads the target for, a discovery before each collection it lists. This
+ * file runs the jobs' own code over a real ledger (PGlite) with the targets
+ * and sources stood in, closes the organisation WHILE a target or source is
+ * being read, and holds each run to one rule: **no read begins after the
+ * close.** The read in flight when the close lands is allowed to finish;
+ * nothing after it starts.
  *
  * It failed before the change: after the close, the verification went on to
  * list the mail target four more times and the file target five, the
  * confirmation read every remaining item and closed its run as succeeded, and
  * the discovery listed the two collections it had not reached.
  *
+ * The review of 2026-09-29 found three holes in it, now cases here: the
+ * verification's samples were downloaded one by one with no question between
+ * them, the close was tried during only two of a data type's reads, so three
+ * of the five checks could go and the file stayed green, and the owner's
+ * Finish check was held only by a pattern over its source. It also found the
+ * confirmation asking before rows it never reads, and a pass the close stopped
+ * reading *failed* on the confirmed list.
+ *
  * The addresses are invented.
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import type { Pool } from 'pg';
 import { createPgliteDb, runMigrations, type LedgerDriver } from '@openmig/ledger';
@@ -122,17 +128,44 @@ function entriesOf(domain: 'email' | 'file'): TargetEntry[] {
   }));
 }
 
-/** The verification's reader of one target: each listing is one read of the account. */
+/**
+ * The verification's reader of one target: each listing is one read of the
+ * account, and so is each sample it downloads (`contentHashFor`, a download
+ * of its own per item on every real target).
+ */
 function verificationTarget(domain: 'email' | 'file'): TargetReindexer {
   let listings = 0;
+  let samples = 0;
   return {
     async *listEntries(): AsyncIterable<TargetEntry> {
       listings += 1;
       await reading(`${domain} listing ${listings}`);
       for (const entry of entriesOf(domain)) yield entry;
     },
+    async contentHashFor(entry: TargetEntry): Promise<string> {
+      samples += 1;
+      await reading(`${domain} sample ${samples}`);
+      return contentOf(entry.naturalKey);
+    },
   } as TargetReindexer;
 }
+
+/**
+ * Every read the verification makes of the mail target, in order, while the
+ * organisation stays open: the count, the missing and the extra items, the
+ * samples' listing, the three samples, the bytes. The first case below holds
+ * the run to this order, so each close case after it means what it says.
+ */
+const EMAIL_READS = [
+  'email listing 1',
+  'email listing 2',
+  'email listing 3',
+  'email listing 4',
+  'email sample 1',
+  'email sample 2',
+  'email sample 3',
+  'email listing 5',
+] as const;
 
 /** The confirmation's target: listed once when its reader is built, then read per item. */
 function confirmationTarget(domain: 'email' | 'file'): TargetReindexer {
@@ -169,7 +202,15 @@ vi.mock('@openmig/ledger', async (original) => ({
   createLedgerVerificationReader: () => ({
     countItems: (_t: string, _m: string, domain: string) => Promise.resolve(KEYS[domain as 'email' | 'file']?.length ?? 0),
     totalSizeBytes: () => Promise.resolve(0),
-    getSamples: () => Promise.resolve([]),
+    // The ledger's side of the samples: the same keys, with the same content.
+    getSamples: (_t: string, _m: string, domain: string, count: number) =>
+      Promise.resolve(
+        (KEYS[domain as 'email' | 'file'] ?? []).slice(0, count).map((key, i) => ({
+          id: `${domain}-${i}`,
+          naturalKeyHash: HASH_OF[domain as 'email' | 'file'](key),
+          contentHash: contentOf(key),
+        })),
+      ),
     getAllNaturalKeyHashes: (_t: string, _m: string, domain: string) =>
       Promise.resolve((KEYS[domain as 'email' | 'file'] ?? []).map((k) => HASH_OF[domain as 'email' | 'file'](k))),
     close: () => Promise.resolve(),
@@ -205,8 +246,11 @@ process.env.APP_DATABASE_URL ??= 'postgres://unused:unused@close.test.invalid/no
 process.env.DATABASE_URL ??= 'postgres://unused:unused@close.test.invalid/none';
 
 const { runCutoverGate } = await import('./cutover-gate.ts');
+const { verifyForTheOwner } = await import('./run-verification.ts');
 const { buildTask } = await import('./run-discovery.ts');
 const { runConfirmationOver } = await import('@openmig/orchestration/run-confirmation-pass');
+const { latestConfirmationPass } = await import('@openmig/orchestration/confirmed-list-read');
+const { runConfirmationPass } = await import('@openmig/core');
 
 const pool = () => driver as unknown as Pool;
 
@@ -285,39 +329,66 @@ describe('a verification running when the organisation is closed', () => {
     const result = await runCutoverGate(pool(), TENANT, MAPPING);
     expect(result.mail.status).not.toBe('SKIPPED');
     expect(result.files.status).not.toBe('SKIPPED');
-    expect(reads.some((r) => r.what.startsWith('email listing'))).toBe(true);
+    // The mail target's reads, in the order the cases below close during them,
+    // and then the file target's.
+    expect(reads.map((r) => r.what).slice(0, EMAIL_READS.length)).toEqual([...EMAIL_READS]);
     expect(reads.some((r) => r.what.startsWith('file listing'))).toBe(true);
+    expect(reads.some((r) => r.what.startsWith('file sample'))).toBe(true);
   });
 
-  it('begins no read after the close, lands no verdict, and says the close stopped it', async () => {
-    // The close lands while the mail target is listed for the first time.
-    closeOn = 'email listing 1';
-    const error = await thrownBy(runCutoverGate(pool(), TENANT, MAPPING));
-    expect(readsAfterTheClose()).toEqual([]);
-    expect(reads.map((r) => r.what)).toEqual(['email listing 1']);
-    expect(theCloseRefused(error)).toBe(true);
-  });
+  // The close during EACH of the mail target's reads in turn: each listing and
+  // each sample. Every check the verification makes is then the one that has
+  // to stop the next read, so none of them can go without a case going red.
+  it.each(EMAIL_READS.map((read, i) => [read, i] as const))(
+    'a close during %s: no read begins after it, no verdict, and the close named',
+    async (read, i) => {
+      closeOn = read;
+      const error = await thrownBy(runCutoverGate(pool(), TENANT, MAPPING));
+      expect(readsAfterTheClose()).toEqual([]);
+      expect(reads.map((r) => r.what)).toEqual(EMAIL_READS.slice(0, i + 1));
+      expect(theCloseRefused(error)).toBe(true);
+    },
+  );
 
-  it('stops between data types too: the file target is never listed', async () => {
-    // Five listings of the mail target make its data type; the close lands in
-    // the last of them, so the next read would be the FILE target's.
-    closeOn = 'email listing 5';
+  it('stops between data types too: the file target is never read', async () => {
+    // The close lands in the mail target's last read, so the next read would
+    // be the FILE target's.
+    closeOn = EMAIL_READS[EMAIL_READS.length - 1];
     const error = await thrownBy(runCutoverGate(pool(), TENANT, MAPPING));
     expect(readsAfterTheClose()).toEqual([]);
     expect(reads.some((r) => r.what.startsWith('file'))).toBe(false);
     expect(theCloseRefused(error)).toBe(true);
   });
 
-  it('the verification the owner starts asks the same question as the gate', () => {
-    // `run-verification` builds the same deps as `runCutoverGate`, written out
-    // beside it; it must hand them the same check.
-    const here = import.meta.dirname;
-    for (const file of ['run-verification.ts', 'cutover-gate.ts']) {
-      const code = readFileSync(join(here, file), 'utf8');
-      expect(code, `${file} does not hand the verification the close's check`).toMatch(
-        /createRealVerificationDeps\(\{[\s\S]*?organisationIsOpen: organisationStillOpen\(pool, tenantId\),[\s\S]*?\}\)/,
-      );
-    }
+  describe("the owner's Finish check (run-verification)", () => {
+    const RUN = `${P}06`;
+    const runRow = async () =>
+      (await query<{ state: string; error: string | null }>(`SELECT state, error FROM verification_run WHERE id = $1`, [RUN]))[0]!;
+
+    beforeEach(async () => {
+      await query(`DELETE FROM verification_run WHERE id = $1`, [RUN]);
+      await query(`INSERT INTO verification_run (id, tenant_id, mapping_id, state) VALUES ($1, $2, $3, 'running')`, [
+        RUN,
+        TENANT,
+        MAPPING,
+      ]);
+    });
+
+    it('lands its run done while the organisation is open', async () => {
+      await verifyForTheOwner(pool(), { tenantId: TENANT, mappingId: MAPPING, runId: RUN });
+      expect((await runRow()).state).toBe('done');
+    });
+
+    it('stops at the close as the gate does, and lands its run failed with the close as the reason', async () => {
+      closeOn = 'email listing 2';
+      const error = await thrownBy(verifyForTheOwner(pool(), { tenantId: TENANT, mappingId: MAPPING, runId: RUN }));
+      expect(readsAfterTheClose()).toEqual([]);
+      expect(reads.map((r) => r.what)).toEqual(['email listing 1', 'email listing 2']);
+      expect(theCloseRefused(error)).toBe(true);
+      const row = await runRow();
+      expect(row.state).toBe('failed');
+      expect(row.error).toContain('This organisation was closed');
+    });
   });
 });
 
@@ -348,10 +419,14 @@ describe('a confirmation running when the organisation is closed', () => {
       )[0]!.n,
     );
 
+  const lastPass = async () =>
+    (await latestConfirmationPass({ source: driver, tenantId: TENANT, mappingId: MAPPING })).lastPass;
+
   it('reads every item while the organisation is open', async () => {
     const result = await confirm();
     expect(reads).toHaveLength(6);
     expect((await runRow(result.runId)).status).toBe('succeeded');
+    expect((await lastPass()).state).toBe('done');
   });
 
   it('begins no read after a close in the middle of a data type, and records why it stopped', async () => {
@@ -365,6 +440,8 @@ describe('a confirmation running when the organisation is closed', () => {
     expect(row.stats).toMatchObject({ stoppedBecause: 'organisation_closed', stoppedBefore: 'email' });
     // What was confirmed before the close stays confirmed (the pass's rule 3).
     expect(await confirmedItems()).toBe(2);
+    // And the confirmed list says the close stopped it, not that it failed.
+    expect(await lastPass()).toMatchObject({ state: 'stopped', because: 'organisation-closed' });
   });
 
   it('stops between data types too: no file item is read', async () => {
@@ -376,6 +453,54 @@ describe('a confirmation running when the organisation is closed', () => {
     expect(row.status).toBe('cancelled');
     expect(row.stats).toMatchObject({ stoppedBecause: 'organisation_closed', stoppedBefore: 'file' });
     expect(await confirmedItems()).toBe(3);
+    expect(await lastPass()).toMatchObject({ state: 'stopped', because: 'organisation-closed' });
+  });
+
+  it('asks only before a row it reads the target for, so a waived row costs no question', async () => {
+    // `needsTargetRead` waives seven of the ledger's ten statuses: those rows
+    // are decided from the ledger alone, so asking about the close before them
+    // guards no read and costs a transaction each (on the appliance, its one
+    // connection).
+    const statuses = ['skipped', 'copied', 'left_behind', 'pending', 'copied'] as const;
+    let asked = 0;
+    let open = true;
+    const targetReads: string[] = [];
+    const result = await runConfirmationPass({
+      tenantId: TENANT,
+      mappingId: MAPPING,
+      domains: ['email'],
+      ledger: {
+        async *itemsToConfirm() {
+          for (const [i, status] of statuses.entries()) {
+            yield { itemId: `row-${i}`, naturalKeyHash: `h-${i}`, status, contentHash: 'h' };
+          }
+        },
+        record: () => Promise.resolve(),
+      },
+      runs: {
+        startRun: () => Promise.resolve('run-waived'),
+        finishRun: () => Promise.resolve(),
+        noteProgress: () => Promise.resolve(),
+      },
+      readerFor: () => ({
+        isPresent: () => Promise.resolve(true),
+        hashOnTarget: (item) => {
+          targetReads.push(item.naturalKeyHash);
+          // The close lands during the first read of the target.
+          open = false;
+          return Promise.resolve('h');
+        },
+      }),
+      organisationIsOpen: () => {
+        asked += 1;
+        return Promise.resolve(open);
+      },
+    });
+    // Asked before row 1 (open, read) and before row 4 (closed, not read);
+    // never before rows 0, 2 and 3, whose statuses need no read.
+    expect(asked).toBe(2);
+    expect(targetReads).toEqual(['h-1']);
+    expect(result.stoppedBecause).toBe('organisation_closed');
   });
 });
 

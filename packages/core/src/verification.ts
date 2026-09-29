@@ -154,13 +154,16 @@ export interface VerificationDeps {
    * precondition B.)
    *
    * Asked before EACH read of a target: the count, the missing and the extra
-   * items, the samples and the bytes each list a data type's target whole, so
-   * a data type is five reads of the account, and a verification over five
-   * data types is twenty-five. Its readers were built before the run began,
-   * so a close while it runs is not seen by the builders that refuse one.
-   * Once the answer is no, the run throws the close's own refusal
-   * (`refuseOnceClosed`) and records no verdict: the read in flight finishes,
-   * and no read of any target begins after it.
+   * items, the samples and the bytes each list a data type's target whole,
+   * and the sample step then downloads each sample on its own (up to
+   * `maxSampleSize`; the real deps, `createRealVerificationDeps`, ask before
+   * each of those).
+   * So a data type is five listings and its samples. Its readers were built
+   * before the run began, so a close while it runs is not seen by the
+   * builders that refuse one. Once the answer is no, the run throws the
+   * close's own refusal (`refuseOnceClosed`) and records no verdict: the
+   * listing in flight, every page of it, or the download in flight finishes,
+   * and no other listing or download of any target begins after it.
    *
    * Optional: the appliance's one organisation is always open, and leaves it
    * out.
@@ -170,7 +173,9 @@ export interface VerificationDeps {
 
 /**
  * The same deps, asking whether the organisation is still open before each
- * read of a target (see `VerificationDeps.organisationIsOpen`).
+ * listing of a target (see `VerificationDeps.organisationIsOpen`). The samples
+ * are downloaded inside `getTargetSamples`, one by one, where this cannot see
+ * them: that loop asks before each download itself.
  *
  * The ledger's reads (the source counts, samples and bytes) are not the
  * account's and are not asked about. Wrapped once, here, rather than asked at

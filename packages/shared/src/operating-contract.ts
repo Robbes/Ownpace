@@ -1065,6 +1065,15 @@ export interface RunsResponse {
  * are "press a button, watch a job", and a second vocabulary for the same
  * lifecycle is two switch statements that drift.
  *
+ * And one more, `stopped`, which only a confirmation reaches (workplan 0139
+ * T7): the organisation was closed while the pass ran, so it read nothing more
+ * and its run closed `cancelled` (`runConfirmationPass`'s rule 5). Not
+ * `failed`, because nothing failed, and not `done`, because it did not finish:
+ * the rows it did not reach read `unchecked`. A verification the close stops
+ * throws the close's own refusal and is `failed` with that sentence as its
+ * error, because it has no verdict to show; a confirmation keeps every answer
+ * it had, so saying *failed* over them would be a claim about them.
+ *
  * **`never-run` is not cosmetic here.** Before any pass, every row's answer is
  * NULL and reads `unchecked` — and after a pass that could not reach the target
  * at all, every row reads `unchecked` too. The rows alone cannot tell those
@@ -1081,6 +1090,13 @@ export type ConfirmationPassState =
       readonly startedAt: string;
       readonly finishedAt: string;
       readonly error?: string;
+    }
+  | {
+      readonly state: 'stopped';
+      readonly startedAt: string;
+      readonly finishedAt: string;
+      /** Why it stopped. The one reason today: the organisation was closed. */
+      readonly because: 'organisation-closed';
     };
 
 /**

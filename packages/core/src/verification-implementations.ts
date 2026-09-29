@@ -23,7 +23,7 @@ import {
   taskNaturalKeyHash,
 } from '@openmig/shared';
 import type { VerificationDeps } from './verification.ts';
-import type { OrganisationIsOpen } from './while-the-organisation-is-open.ts';
+import { refuseOnceClosed, type OrganisationIsOpen } from './while-the-organisation-is-open.ts';
 import type { DiscoveryDomain } from '@openmig/shared';
 
 /**
@@ -54,10 +54,11 @@ export interface RealVerificationDeps {
   targetReindexers?: Partial<Record<'mail' | 'calendar' | 'contacts' | 'files' | 'tasks', TargetReindexer>>;
   verificationReader: LedgerVerificationReader;
   /**
-   * Is the organisation still open? Asked before each read of a target
-   * (`VerificationDeps.organisationIsOpen`, workplan 0139 T7). The managed
-   * gate and the owner's Finish check pass `organisationStillOpen`; the
-   * appliance leaves it out.
+   * Is the organisation still open? Asked before each listing of a target
+   * (`VerificationDeps.organisationIsOpen`, workplan 0139 T7), and here before
+   * each sample downloaded from it (`getTargetSamplesFromReindexer`). The
+   * managed gate and the owner's Finish check pass `organisationStillOpen`;
+   * the appliance leaves it out.
    */
   organisationIsOpen?: OrganisationIsOpen;
 }
@@ -97,7 +98,16 @@ export function createRealVerificationDeps(
     getSourceSamples: (dataType, count) =>
       getSourceSamplesFromLedger(verificationReader, tenantId, mappingId, dataType, count),
     getTargetSamples: (dataType, count, naturalKeyHashes) =>
-      getTargetSamplesFromReindexer(reindexerFor(dataType), verificationReader, tenantId, mappingId, dataType, count, naturalKeyHashes),
+      getTargetSamplesFromReindexer(
+        reindexerFor(dataType),
+        verificationReader,
+        tenantId,
+        mappingId,
+        dataType,
+        count,
+        naturalKeyHashes,
+        deps.organisationIsOpen,
+      ),
     findMissingOnTarget: (dataType) =>
       findMissingOnTarget(verificationReader, tenantId, mappingId, dataType, reindexerFor(dataType)),
     findExtraOnTarget: (dataType) =>
@@ -187,7 +197,9 @@ async function getTargetSamplesFromReindexer(
   mappingId: MappingId,
   dataType: 'mail' | 'calendar' | 'contacts' | 'files' | 'tasks',
   count: number,
-  naturalKeyHashes?: ReadonlyArray<string>
+  naturalKeyHashes?: ReadonlyArray<string>,
+  /** Asked before each sample is downloaded (workplan 0139 T7). */
+  organisationIsOpen?: OrganisationIsOpen,
 ): Promise<Array<{ id: string; naturalKeyHash: string; content: Uint8Array | string }>> {
   if (!targetReindexer) {
     // Returning the ledger's own samples as "target samples" compared the source
@@ -249,9 +261,19 @@ async function getTargetSamplesFromReindexer(
   // why contacts migrated over JMAP get counts and presence but no checksum
   // leg. `verification.ts` raises CHECKSUM_UNAVAILABLE_* for exactly this, so
   // the operator is told rather than left to infer it from a green gate.
+  //
+  // EACH DOWNLOAD IS A READ OF THE ACCOUNT, and asked about on its own
+  // (workplan 0139 T7). Each target fetches a sample with requests of its own
+  // (JMAP `Email/get` and the blob, IMAP a FETCH of the message, DAV a GET),
+  // and the gate allows up to `maxSampleSize` of them, so the one question
+  // `runVerification` asks before this listing let a thousand reads begin
+  // after a close (the review of 2026-09-29). Asked before each one instead:
+  // the download in flight when the close lands finishes, and the next is the
+  // close's refusal.
   if (targetReindexer.contentHashFor) {
     for (const sample of sampled) {
       if (isNonEmpty(sample.content)) continue; // the listing already had one
+      await refuseOnceClosed(organisationIsOpen);
       const hash = await targetReindexer.contentHashFor(sample.entry);
       if (hash) sample.content = hash;
     }
